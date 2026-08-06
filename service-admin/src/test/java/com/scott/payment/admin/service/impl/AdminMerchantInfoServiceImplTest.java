@@ -39,6 +39,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -179,7 +180,8 @@ class AdminMerchantInfoServiceImplTest {
                 cacheInvalidationCoordinator,
                 mock(AdminMerchantPrimaryAccountProvisioningService.class),
                 mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
-                mock(AdminMerchantSecurityNotificationService.class)
+                mock(AdminMerchantSecurityNotificationService.class),
+                mock(AdminMerchantStatusLifecycleService.class)
         );
     }
 
@@ -296,6 +298,20 @@ class AdminMerchantInfoServiceImplTest {
         order.verify(merchantRuntimeProfileCacheService).putRuntimeProfile(argThat(profile ->
                 profile != null && Integer.valueOf(2).equals(profile.getMerchantStatus())));
         log.info("管理端商户状态缓存一致性完成，结果: 旧启用状态受门禁保护");
+    }
+
+    @Test
+    void shouldRejectRepeatedOrClosedMerchantStatusTransitions() {
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+
+        assertThatThrownBy(() -> service.updateStatus(1L, 1))
+                .hasMessageContaining("状态");
+
+        BaseMerchantInfoDO closed = existingMerchant();
+        closed.setMerchantStatus(3);
+        when(merchantInfoMapper.selectOne(any())).thenReturn(closed);
+        assertThatThrownBy(() -> service.updateStatus(1L, 2))
+                .hasMessageContaining("状态");
     }
 
     /** 删除商户应同时登记资料、密钥和路由三类永久缓存失效。 */

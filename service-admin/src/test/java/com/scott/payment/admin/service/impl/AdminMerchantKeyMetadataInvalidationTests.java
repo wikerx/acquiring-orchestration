@@ -96,7 +96,8 @@ class AdminMerchantKeyMetadataInvalidationTests {
                 cacheInvalidationCoordinator,
                 mock(AdminMerchantPrimaryAccountProvisioningService.class),
                 mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
-                mock(AdminMerchantSecurityNotificationService.class)
+                mock(AdminMerchantSecurityNotificationService.class),
+                mock(AdminMerchantStatusLifecycleService.class)
         );
         when(merchantInfoMapper.selectOne(any())).thenReturn(merchant());
     }

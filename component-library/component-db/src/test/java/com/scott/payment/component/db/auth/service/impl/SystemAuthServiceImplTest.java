@@ -398,6 +398,54 @@ class SystemAuthServiceImplTest {
         verify(sysLoginSessionMapper).insert(any(SysLoginSessionDO.class));
     }
 
+    /** 冻结商户必须在账号、验证码和密码校验前被拒绝登录。 */
+    @Test
+    void frozenMerchantShouldBeRejectedBeforeLoginCredentialValidation() {
+        MerchantRuntimeProfile merchant = activeMerchantInfo();
+        merchant.setMerchantStatus(2);
+        when(sysAppMapper.selectOne(any())).thenReturn(merchantApp());
+        when(merchantRuntimeProfileCacheService.findRuntimeProfile("200045")).thenReturn(merchant);
+
+        assertThatThrownBy(() -> systemAuthService.login(
+                AuthConstants.APP_MERCHANT,
+                merchantLoginRequest("Merchant@123456"),
+                "127.0.0.1",
+                "merchant-browser"))
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.MERCHANT_FROZEN.getCode());
+
+        verifyNoInteractions(sysAccountMapper, sysVerifyCodeMapper);
+    }
+
+    /** 冻结后即使旧会话尚未被清理，商户接口鉴权也必须立即拒绝访问。 */
+    @Test
+    void frozenMerchantShouldBeRejectedWhenCheckingExistingSession() {
+        SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
+        session.setAppId(2L);
+        session.setAccountId(60L);
+        session.setUserId(70L);
+        SysAccountDO account = merchantAccountWithPassword("Merchant@123456");
+        MerchantRuntimeProfile merchant = activeMerchantInfo();
+        merchant.setMerchantStatus(2);
+        when(sysAppMapper.selectOne(any())).thenReturn(merchantApp());
+        when(sysLoginSessionMapper.selectOne(any())).thenReturn(session);
+        when(sysAccountMapper.selectById(eq(60L))).thenReturn(account);
+        when(merchantRuntimeProfileCacheService.findRuntimeProfile("200045")).thenReturn(merchant);
+
+        assertThatThrownBy(() -> systemAuthService.check(
+                AuthConstants.APP_MERCHANT,
+                "Bearer " + RAW_TOKEN,
+                "GET",
+                "/merchant/info",
+                "merchant:info:view"))
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.MERCHANT_FROZEN.getCode());
+
+        verifyNoInteractions(sysUserMapper);
+    }
+
     /** 密码错误抛出业务异常前必须发布独立审计事件，认证事务不得直接写登录日志表。 */
     @Test
     void failedLoginShouldPublishAuditEventInsteadOfWritingLoginLogInAuthenticationTransaction() {

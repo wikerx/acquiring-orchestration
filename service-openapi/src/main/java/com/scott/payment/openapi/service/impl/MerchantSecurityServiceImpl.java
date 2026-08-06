@@ -452,6 +452,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         entity.setBillingDescriptor(profile.getBillingDescriptor());
         entity.setMerchantShortName(profile.getMerchantShortName());
         entity.setMerchantStatus(profile.getMerchantStatus());
+        entity.setDefaultLocale(profile.getDefaultLocale());
         entity.setMerchantCategoryCode(profile.getMerchantCategoryCode());
         entity.setCountryCode(profile.getCountryCode());
         entity.setRegionCode(profile.getRegionCode());
@@ -513,6 +514,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         entity.setBillingDescriptor(seedDTO.getMerchantName());
         entity.setMerchantShortName(defaultIfBlank(seedDTO.getMerchantShortName(), seedDTO.getMerchantName()));
         entity.setMerchantStatus(MerchantStatusEnum.ACTIVE.getCode());
+        entity.setDefaultLocale(com.scott.payment.component.db.auth.support.MerchantLocaleSupport.CHINESE);
         entity.setMerchantCategoryCode(defaultIfBlank(seedDTO.getMerchantCategoryCode(), "5311"));
         entity.setCountryCode(defaultIfBlank(seedDTO.getCountryCode(), "USA"));
         entity.setRegionCode(defaultIfBlank(seedDTO.getRegionCode(), "CA"));
@@ -756,6 +758,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         dto.setBillingDescriptor(entity.getBillingDescriptor());
         dto.setMerchantShortName(entity.getMerchantShortName());
         dto.setMerchantStatus(entity.getMerchantStatus());
+        dto.setDefaultLocale(entity.getDefaultLocale());
         dto.setMerchantCategoryCode(entity.getMerchantCategoryCode());
         dto.setCountryCode(entity.getCountryCode());
         dto.setRegionCode(entity.getRegionCode());

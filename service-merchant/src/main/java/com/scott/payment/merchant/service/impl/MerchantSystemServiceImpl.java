@@ -2029,7 +2029,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                     merchantName(account.getMerchantId()),
                     templateCode,
                     MERCHANT_MFA_SCENE,
-                    "zh-CN",
+                    merchantLocale(account.getMerchantId()),
                     List.of(account.getEmail()),
                     mfaEmailVariables(account, reason, exemptUntil),
                     MERCHANT_MFA_SCENE,
@@ -2084,7 +2084,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                     merchantName(account.getMerchantId()),
                     TEMPLATE_ACCOUNT_CREATED_NOTICE,
                     ACCOUNT_CREATED_SCENE,
-                    "zh-CN",
+                    merchantLocale(account.getMerchantId()),
                     List.of(account.getEmail()),
                     accountCreatedEmailVariables(account, initialPassword),
                     ACCOUNT_CREATED_SCENE,
@@ -2154,7 +2154,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                     merchantName(account.getMerchantId()),
                     TEMPLATE_PASSWORD_CHANGED_NOTICE,
                     PASSWORD_CHANGED_SCENE,
-                    "zh-CN",
+                    merchantLocale(account.getMerchantId()),
                     List.of(account.getEmail()),
                     passwordChangedEmailVariables(account, temporaryPassword, operationTime, baseUrl),
                     PASSWORD_CHANGED_SCENE,
@@ -2290,6 +2290,18 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
             return merchantId;
         }
         return merchant.getMerchantName();
+    }
+
+    private String merchantLocale(String merchantId) {
+        if (!StringUtils.hasText(merchantId)) {
+            return com.scott.payment.component.db.auth.support.MerchantLocaleSupport.CHINESE;
+        }
+        BaseMerchantInfoDO merchant = baseMerchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
+                .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
+                .eq(BaseMerchantInfoDO::getDeleted, 0)
+                .last("LIMIT 1"));
+        return com.scott.payment.component.db.auth.support.MerchantLocaleSupport.normalize(
+                merchant == null ? null : merchant.getDefaultLocale());
     }
 
     /**

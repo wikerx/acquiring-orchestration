@@ -804,7 +804,7 @@ VALUES
     (301, 1, 231, 'merchant:info:list', '商户信息查询', 'MENU', 'GET', '/merchant/info', 1, 0),
     (302, 1, 231, 'merchant:info:detail', '商户详情', 'BUTTON', '*', '/admin/merchants/**', 1, 0),
     (303, 1, 231, 'merchant:info:edit', '商户编辑', 'BUTTON', '*', '/admin/merchants/**', 1, 0),
-    (304, 1, 231, 'merchant:info:disable', '商户停用', 'BUTTON', '*', '/admin/merchants/**/disable', 1, 0),
+    (304, 1, 231, 'merchant:info:changeStatus', '商户冻结/解冻', 'BUTTON', 'PUT', '/admin/merchants/**/status', 1, 0),
     (311, 1, 231, 'merchant:account:list', '商户账号查询', 'BUTTON', '*', '/admin/merchant-accounts/**', 1, 0),
     (312, 1, 231, 'merchant:account:add', '商户账号新增', 'BUTTON', '*', '/admin/merchant-accounts/**', 1, 0),
     (313, 1, 231, 'merchant:account:edit', '商户账号编辑', 'BUTTON', '*', '/admin/merchant-accounts/**', 1, 0),

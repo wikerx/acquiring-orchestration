@@ -157,6 +157,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     @Override
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery)) {
+            return emptyPage(safeQuery);
+        }
         return executeRead(false, () -> pageOrdersNormalized(safeQuery));
     }
 
@@ -186,6 +189,12 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     @Override
     public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery)) {
+            TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
+            response.setPage(emptyPage(safeQuery));
+            response.setSummary(new TransactionOperationSummaryResponse());
+            return response;
+        }
         return executeRead(false, () -> {
             TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
             response.setPage(pageOperations(safeQuery));
@@ -1119,9 +1128,22 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         if (safeBegin.isAfter(safeEnd)) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "beginTime must not be after endTime");
         }
-        query.setBeginTime(convertBetweenZones(safeBegin, queryZone, ZoneId.of(DEFAULT_QUERY_TIME_ZONE)));
-        query.setEndTime(convertBetweenZones(safeEnd, queryZone, ZoneId.of(DEFAULT_QUERY_TIME_ZONE)));
+        ZoneId storageZone = ZoneId.of(DEFAULT_QUERY_TIME_ZONE);
+        LocalDateTime storageBegin = convertBetweenZones(safeBegin, queryZone, storageZone);
+        LocalDateTime storageEnd = convertBetweenZones(safeEnd, queryZone, storageZone);
+        LocalDateTime currentStorageTime = LocalDateTime.now(storageZone);
+        query.setBeginTime(storageBegin.isBefore(registeredNodeBegin) ? registeredNodeBegin : storageBegin);
+        query.setEndTime(storageEnd.isAfter(currentStorageTime) ? currentStorageTime : storageEnd);
         query.setQueryTimeZone(queryZone.getId());
+    }
+
+    private boolean isEmptyTimeRange(TransactionPageQuery query) {
+        return query.getBeginTime() != null && query.getEndTime() != null
+                && query.getBeginTime().isAfter(query.getEndTime());
+    }
+
+    private <T> PageResult<T> emptyPage(PageRequest query) {
+        return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
     }
 
     /**

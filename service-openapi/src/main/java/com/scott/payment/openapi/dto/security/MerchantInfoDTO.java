@@ -41,6 +41,9 @@ public class MerchantInfoDTO {
      */
     private Integer merchantStatus;
 
+    /** Default merchant locale. */
+    private String defaultLocale;
+
     /**
      * 商户类别码 MCC。
      */

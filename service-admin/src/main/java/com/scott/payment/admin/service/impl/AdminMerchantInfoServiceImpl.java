@@ -33,6 +33,7 @@ import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
+import com.scott.payment.component.db.auth.support.MerchantLocaleSupport;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
@@ -273,6 +274,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
 
     /** 商户密钥生命周期邮件通知。 */
     private final AdminMerchantSecurityNotificationService securityNotificationService;
+    private final AdminMerchantStatusLifecycleService statusLifecycleService;
 
     /**
      * 创建管理后台商户信息服务实现。
@@ -307,7 +309,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
                                         AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService,
                                         OpenApiMerchantKeyMaterialService openApiKeyMaterialService,
-                                        AdminMerchantSecurityNotificationService securityNotificationService) {
+                                        AdminMerchantSecurityNotificationService securityNotificationService,
+                                        AdminMerchantStatusLifecycleService statusLifecycleService) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
@@ -323,6 +326,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.primaryAccountProvisioningService = primaryAccountProvisioningService;
         this.openApiKeyMaterialService = openApiKeyMaterialService;
         this.securityNotificationService = securityNotificationService;
+        this.statusLifecycleService = statusLifecycleService;
     }
 
     /**
@@ -447,6 +451,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         if (!row.getMerchantId().equals(newMerchantId)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户号创建后不允许修改");
         }
+        if (!java.util.Objects.equals(row.getMerchantStatus(), request.getMerchantStatus())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请使用冻结或解冻操作修改商户状态");
+        }
         merge(row, request);
         row.setGmtModified(LocalDateTime.now());
         prepareRuntimeProfileInvalidation(row.getMerchantId());
@@ -468,12 +475,23 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     public AdminMerchantInfoDTO updateStatus(Long id, Integer merchantStatus) {
         BaseMerchantInfoDO row = requireMerchantById(id);
         validateStatus(merchantStatus);
+        validateStatusTransition(row.getMerchantStatus(), merchantStatus);
+        LocalDateTime operationTime = LocalDateTime.now();
         row.setMerchantStatus(merchantStatus);
-        row.setGmtModified(LocalDateTime.now());
+        row.setGmtModified(operationTime);
         prepareRuntimeProfileInvalidation(row.getMerchantId());
         merchantInfoMapper.updateById(row);
         merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
+        statusLifecycleService.onStatusChanged(row, merchantStatus, operationTime);
         return toDTO(row);
+    }
+
+    private void validateStatusTransition(Integer currentStatus, Integer targetStatus) {
+        boolean allowed = (Integer.valueOf(1).equals(currentStatus) && Integer.valueOf(2).equals(targetStatus))
+                || (Integer.valueOf(2).equals(currentStatus) && Integer.valueOf(1).equals(targetStatus));
+        if (!allowed) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户状态仅允许正常与冻结之间切换");
+        }
     }
 
     /**
@@ -864,6 +882,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         row.setSettlementCurrency(trimUpper(request.getSettlementCurrency()));
         row.setTimezone(request.getTimezone().trim());
         row.setMerchantStatus(request.getMerchantStatus());
+        row.setDefaultLocale(MerchantLocaleSupport.normalize(request.getDefaultLocale()));
         row.setRiskLevel(request.getRiskLevel() == null ? DEFAULT_RISK_LEVEL : request.getRiskLevel());
         validateStatus(row.getMerchantStatus());
         validateRiskLevel(row.getRiskLevel());
@@ -1023,6 +1042,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setMerchantName(row.getMerchantName());
         dto.setMerchantShortName(row.getMerchantShortName());
         dto.setMerchantStatus(row.getMerchantStatus());
+        dto.setDefaultLocale(MerchantLocaleSupport.normalize(row.getDefaultLocale()));
         dto.setMerchantCategoryCode(row.getMerchantCategoryCode());
         dto.setCountryCode(row.getCountryCode());
         dto.setRegionCode(row.getRegionCode());
@@ -1061,6 +1081,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         row.setBillingDescriptor(profile.getBillingDescriptor());
         row.setMerchantShortName(profile.getMerchantShortName());
         row.setMerchantStatus(profile.getMerchantStatus());
+        row.setDefaultLocale(MerchantLocaleSupport.normalize(profile.getDefaultLocale()));
         row.setMerchantCategoryCode(profile.getMerchantCategoryCode());
         row.setCountryCode(profile.getCountryCode());
         row.setRegionCode(profile.getRegionCode());
@@ -1093,6 +1114,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         profile.setBillingDescriptor(row.getBillingDescriptor());
         profile.setMerchantShortName(row.getMerchantShortName());
         profile.setMerchantStatus(row.getMerchantStatus());
+        profile.setDefaultLocale(MerchantLocaleSupport.normalize(row.getDefaultLocale()));
         profile.setMerchantCategoryCode(row.getMerchantCategoryCode());
         profile.setCountryCode(row.getCountryCode());
         profile.setRegionCode(row.getRegionCode());

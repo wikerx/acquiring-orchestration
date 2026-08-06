@@ -124,6 +124,7 @@ public enum ApiResultEnum implements IResult {
      * 商户号不存在、状态不可用或与请求不匹配。
      */
     MERCHANT_INVALID("F401009", "Merchant is invalid or unavailable"),
+    MERCHANT_FROZEN("F401010", "当前商户已经被冻结，请联系您的专属管家"),
 
     /**
      * 请求参数值不合法。

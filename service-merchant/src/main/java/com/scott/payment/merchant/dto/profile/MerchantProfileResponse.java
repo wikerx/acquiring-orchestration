@@ -31,6 +31,9 @@ public class MerchantProfileResponse {
     /** 商户状态：1 正常，2 冻结，3 关闭；只读。 */
     private Integer merchantStatus;
 
+    /** Merchant portal and email default locale. */
+    private String defaultLocale;
+
     /** 商户类别码 MCC，只读。 */
     private String merchantCategoryCode;
 

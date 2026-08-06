@@ -286,6 +286,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     @Override
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+            return emptyPage(safeQuery);
+        }
         return executeRead(false, () -> pageOrdersNormalized(safeQuery));
     }
 
@@ -314,6 +317,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     @Override
     public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+            return emptyPage(safeQuery);
+        }
         return executeRead(false, () -> pageOperationsNormalized(safeQuery));
     }
 
@@ -326,6 +332,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     @Override
     public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+            TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
+            response.setPage(emptyPage(safeQuery));
+            response.setSummary(new TransactionOperationSummaryResponse());
+            return response;
+        }
         return executeRead(false, () -> {
             TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
             response.setPage(pageOperationsNormalized(safeQuery));
@@ -412,6 +424,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     @Override
     public PageResult<Map<String, Object>> pageChannelLogs(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+            return emptyPage(safeQuery);
+        }
         return executeRead(false, () -> pageChannelLogsNormalized(safeQuery));
     }
 
@@ -424,6 +439,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     @Override
     public PageResult<Map<String, Object>> pageChannelCallbacks(ChannelCallbackQuery query) {
         ChannelCallbackQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+            return emptyPage(safeQuery);
+        }
         return executeRead(false,
                 () -> pageMaps(TRANSACTION_CHANNEL_CALLBACK_TABLE, channelCallbackWhereSql(safeQuery),
                         channelCallbackParams(safeQuery), safeQuery));
@@ -438,6 +456,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     @Override
     public PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query) {
         MerchantNotificationQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+            return emptyPage(safeQuery);
+        }
         return executeRead(false,
                 () -> pageMaps(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, merchantNotificationWhereSql(safeQuery),
                         merchantNotificationParams(safeQuery), safeQuery));
@@ -1299,9 +1320,20 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "beginTime must not be after endTime");
         }
         ZoneId storageZone = ZoneId.of(DEFAULT_QUERY_TIME_ZONE);
-        return new QueryTimeRange(convertBetweenZones(safeBegin, queryZone, storageZone),
-                convertBetweenZones(safeEnd, queryZone, storageZone),
+        LocalDateTime storageBegin = convertBetweenZones(safeBegin, queryZone, storageZone);
+        LocalDateTime storageEnd = convertBetweenZones(safeEnd, queryZone, storageZone);
+        LocalDateTime currentStorageTime = LocalDateTime.now(storageZone);
+        return new QueryTimeRange(storageBegin.isBefore(registeredNodeBegin) ? registeredNodeBegin : storageBegin,
+                storageEnd.isAfter(currentStorageTime) ? currentStorageTime : storageEnd,
                 queryZone.getId());
+    }
+
+    private boolean isEmptyTimeRange(LocalDateTime beginTime, LocalDateTime endTime) {
+        return beginTime != null && endTime != null && beginTime.isAfter(endTime);
+    }
+
+    private <T> PageResult<T> emptyPage(PageRequest query) {
+        return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
     }
 
     /**

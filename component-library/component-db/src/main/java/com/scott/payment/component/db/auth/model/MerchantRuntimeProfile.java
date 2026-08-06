@@ -44,6 +44,9 @@ public class MerchantRuntimeProfile {
      */
     private Integer merchantStatus;
 
+    /** Default locale for merchant-facing notifications. */
+    private String defaultLocale;
+
     /**
      * 商户类别码。
      */

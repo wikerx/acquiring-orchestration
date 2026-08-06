@@ -188,7 +188,7 @@ acquiring:
   email:
     delivery:
       # 仅在表结构、运行时密钥、Topic 和消费组均已就绪后启用。
-      enabled: ${EMAIL_DELIVERY_ENABLED:false}
+      enabled: ${EMAIL_DELIVERY_ENABLED:true}
       default-max-retry-count: 3
       retry-delay-seconds: 30
       max-retry-delay-seconds: 3600

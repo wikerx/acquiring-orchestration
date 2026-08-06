@@ -208,6 +208,7 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         response.setBillingDescriptor(profile.getBillingDescriptor());
         response.setMerchantShortName(profile.getMerchantShortName());
         response.setMerchantStatus(profile.getMerchantStatus());
+        response.setDefaultLocale(profile.getDefaultLocale());
         response.setMerchantCategoryCode(profile.getMerchantCategoryCode());
         response.setCountryCode(profile.getCountryCode());
         response.setRegionCode(profile.getRegionCode());
@@ -233,6 +234,7 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         response.setBillingDescriptor(row.getBillingDescriptor());
         response.setMerchantShortName(row.getMerchantShortName());
         response.setMerchantStatus(row.getMerchantStatus());
+        response.setDefaultLocale(row.getDefaultLocale());
         response.setMerchantCategoryCode(row.getMerchantCategoryCode());
         response.setCountryCode(row.getCountryCode());
         response.setRegionCode(row.getRegionCode());
@@ -264,6 +266,7 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         profile.setBillingDescriptor(row.getBillingDescriptor());
         profile.setMerchantShortName(row.getMerchantShortName());
         profile.setMerchantStatus(row.getMerchantStatus());
+        profile.setDefaultLocale(row.getDefaultLocale());
         profile.setMerchantCategoryCode(row.getMerchantCategoryCode());
         profile.setCountryCode(row.getCountryCode());
         profile.setRegionCode(row.getRegionCode());

@@ -877,6 +877,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         SysAppDO app = getEnabledApp(appCode);
         SysLoginSessionDO session = getActiveSession(app.getId(), authorization);
         SysAccountDO account = getEnabledAccount(session.getAccountId());
+        validateMerchantAvailability(app.getAppCode(), account.getMerchantId());
         SysUserDO user = getEnabledUser(session.getUserId());
         List<String> roleCodes = queryRoleCodes(app, account);
         List<String> permissionCodes = queryPermissionCodes(app, account);
@@ -1287,6 +1288,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param merchantId 商户号
      */
     private void validateMerchantLogin(String appCode, String merchantId) {
+        validateMerchantAvailability(appCode, merchantId);
+    }
+
+    private void validateMerchantAvailability(String appCode, String merchantId) {
         if (!AuthConstants.APP_MERCHANT.equals(appCode)) {
             return;
         }
@@ -1296,6 +1301,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         MerchantRuntimeProfile merchantInfo = merchantRuntimeProfileCacheService.findRuntimeProfile(merchantId);
         if (merchantInfo == null) {
             throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
+        }
+        if (Objects.equals(merchantInfo.getMerchantStatus(), 2)) {
+            throw new ServiceException(ApiResultEnum.MERCHANT_FROZEN);
         }
         if (!Objects.equals(merchantInfo.getMerchantStatus(), AuthConstants.ENABLED)) {
             throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);

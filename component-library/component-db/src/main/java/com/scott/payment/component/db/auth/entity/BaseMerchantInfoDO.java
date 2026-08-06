@@ -51,6 +51,9 @@ public class BaseMerchantInfoDO {
      */
     private Integer merchantStatus;
 
+    /** Default locale for merchant-facing emails and portal preferences. */
+    private String defaultLocale;
+
     /**
      * 商户类别码 MCC。
      */

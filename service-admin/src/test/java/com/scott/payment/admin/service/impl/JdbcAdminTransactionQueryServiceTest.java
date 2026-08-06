@@ -29,6 +29,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,6 +43,49 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class JdbcAdminTransactionQueryServiceTest {
+
+    @Test
+    void pageOrdersShouldClampRequestedRangeToRegisteredNodesAndCurrentTime() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.setPhysicalNodes(List.of("202603", "202604"));
+        JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
+                jdbcTemplate,
+                mock(AdminRiskTimelineQueryService.class),
+                new TransactionLogicalReadExecutor(),
+                properties);
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(0L);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setBeginTime(LocalDateTime.of(2026, 4, 1, 0, 0));
+        query.setEndTime(LocalDateTime.of(2099, 12, 31, 23, 59, 59));
+
+        LocalDateTime beforeQuery = LocalDateTime.now();
+        service.pageOrders(query);
+        LocalDateTime afterQuery = LocalDateTime.now();
+
+        assertThat(query.getBeginTime()).isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 0));
+        assertThat(query.getEndTime()).isBetween(beforeQuery, afterQuery);
+    }
+
+    @Test
+    void pageOrdersShouldReturnEmptyWithoutSqlWhenRangeEndsBeforeFirstRegisteredNode() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.setPhysicalNodes(List.of("202603", "202604"));
+        JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
+                jdbcTemplate,
+                mock(AdminRiskTimelineQueryService.class),
+                new TransactionLogicalReadExecutor(),
+                properties);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setBeginTime(LocalDateTime.of(2026, 4, 1, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 6, 30, 23, 59, 59));
+
+        assertThat(service.pageOrders(query).getRecords()).isEmpty();
+
+        verify(jdbcTemplate, never()).queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class));
+    }
 
     /** ShardingSphere 模式必须通过 transaction 逻辑数据源执行固定逻辑表 SQL。 */
     @Test
