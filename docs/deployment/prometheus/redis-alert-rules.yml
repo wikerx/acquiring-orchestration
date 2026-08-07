@@ -1,0 +1,252 @@
+groups:
+  # 应用侧指标来自 Spring Boot Actuator、Micrometer 和 component-redis 业务指标门面。
+  - name: acquiring-redis-application
+    rules:
+      - alert: AcquiringRedisApplicationScrapeDown
+        expr: up{job=~"acquiring-.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          owner: payment-platform
+        annotations:
+          summary: "收单服务 Prometheus 采集失败"
+          description: "job={{ $labels.job }} instance={{ $labels.instance }} 连续 2 分钟无法采集。"
+
+      - alert: AcquiringRedisBusinessFallback
+        expr: sum by (application, environment, feature) (increase(acquiring_redis_fallback_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          owner: payment-platform
+        annotations:
+          summary: "Redis 业务路径发生降级"
+          description: "{{ $labels.application }} 的 {{ $labels.feature }} 在 5 分钟内发生 Redis 降级。"
+
+      - alert: AcquiringRedisLuaFailure
+        expr: sum by (application, environment, script, failure) (increase(acquiring_redis_lua_failure_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: critical
+          owner: payment-platform
+        annotations:
+          summary: "Redis Lua 执行失败"
+          description: "{{ $labels.application }} 脚本 {{ $labels.script }} 发生 {{ $labels.failure }}。"
+
+      - alert: AcquiringRedisBusinessErrorRateHigh
+        expr: |
+          sum by (application, environment, feature) (
+            rate(acquiring_redis_operation_duration_seconds_count{outcome=~"error|fallback|unavailable"}[5m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          owner: payment-platform
+        annotations:
+          summary: "Redis 业务异常速率持续升高"
+          description: "{{ $labels.application }} 的 {{ $labels.feature }} 异常速率超过每秒 0.1 次。"
+
+      - alert: AcquiringRedisBusinessP99LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le, application, environment, feature, operation) (
+              rate(acquiring_redis_operation_duration_seconds_bucket[5m])
+            )
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          owner: payment-platform
+        annotations:
+          summary: "Redis 业务操作 P99 延迟过高"
+          description: "{{ $labels.application }} 的 {{ $labels.feature }}/{{ $labels.operation }} P99 超过 100ms。"
+
+      - alert: AcquiringRedisLockContentionHigh
+        expr: |
+          sum by (application, environment) (
+            rate(acquiring_redis_operation_duration_seconds_count{
+              feature="lock",
+              operation="acquire",
+              outcome="contended"
+            }[5m])
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+          owner: payment-platform
+        annotations:
+          summary: "Redis 锁竞争持续偏高"
+          description: "{{ $labels.application }} Redis 锁竞争连续 10 分钟超过每秒 1 次。"
+
+      - alert: AcquiringLettuceCommandP99LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le, application, environment) (
+              rate(lettuce_command_completion_seconds_bucket[5m])
+            )
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          owner: payment-platform
+        annotations:
+          summary: "Lettuce 命令 P99 延迟过高"
+          description: "{{ $labels.application }} Redis 命令 P99 连续 10 分钟超过 50ms。"
+
+      - alert: AcquiringRedisCacheHitRateLow
+        expr: |
+          (
+            sum by (application, environment, cache) (
+              rate(cache_gets_total{result="hit"}[15m])
+            )
+            /
+            clamp_min(
+              sum by (application, environment, cache) (
+                rate(cache_gets_total{result=~"hit|miss"}[15m])
+              ),
+              0.001
+            )
+          ) < 0.70
+          and
+          sum by (application, environment, cache) (
+            rate(cache_gets_total{result=~"hit|miss"}[15m])
+          ) > 1
+        for: 15m
+        labels:
+          severity: warning
+          owner: payment-platform
+        annotations:
+          summary: "Redis 缓存命中率持续偏低"
+          description: "{{ $labels.application }} 的 {{ $labels.cache }} 命中率低于 70%，且读取速率超过每秒 1 次。"
+
+      - alert: AcquiringRiskShadowMismatch
+        expr: |
+          sum by (application, environment, feature) (
+            increase(acquiring_redis_operation_duration_seconds_count{
+              operation="compare",
+              outcome="mismatched"
+            }[15m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          owner: risk
+        annotations:
+          summary: "风控 shadow 比较出现差异"
+          description: "{{ $labels.feature }} 在观察窗口内出现差异，禁止扩大 Redis 模式灰度。"
+
+      - alert: AcquiringRiskShadowUnavailable
+        expr: |
+          sum by (application, environment, feature) (
+            increase(acquiring_redis_operation_duration_seconds_count{
+              operation="compare",
+              outcome="unavailable"
+            }[15m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          owner: risk
+        annotations:
+          summary: "风控 shadow 路径不可用"
+          description: "{{ $labels.feature }} 无法完成双轨比较，禁止切换 Redis 模式。"
+
+      - alert: AcquiringCacheInvalidationOutboxBacklog
+        expr: acquiring_redis_cache_invalidation_outbox_due_batch_size > 0
+        for: 10m
+        labels:
+          severity: critical
+          owner: payment-platform
+        annotations:
+          summary: "缓存失效 Outbox 持续存在到期事件"
+          description: "{{ $labels.outbox }} 连续 10 分钟仍有到期事件，安全缓存门禁可能持续阻断。"
+
+      - alert: AcquiringCacheInvalidationOutboxSaturated
+        expr: |
+          sum by (application, environment, outbox) (
+            increase(acquiring_redis_cache_invalidation_outbox_saturated_batch_total[10m])
+          ) >= 3
+        for: 1m
+        labels:
+          severity: critical
+          owner: payment-platform
+        annotations:
+          summary: "缓存失效 Outbox 连续打满批次"
+          description: "{{ $labels.outbox }} 10 分钟内至少 3 次达到批次上限，需检查 Redis、数据库和重试任务。"
+
+  # Redis 服务端指标由 redis_exporter 提供，不由应用 Actuator 推测或替代。
+  - name: acquiring-redis-server
+    rules:
+      - alert: AcquiringRedisExporterScrapeDown
+        expr: up{job=~"redis-exporter.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          owner: infrastructure
+        annotations:
+          summary: "redis_exporter Prometheus 采集失败"
+          description: "job={{ $labels.job }} instance={{ $labels.instance }} 连续 1 分钟无法采集。"
+
+      - alert: AcquiringRedisInstanceDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          owner: infrastructure
+        annotations:
+          summary: "Redis 实例不可达"
+          description: "redis_exporter 无法访问 instance={{ $labels.instance }}。"
+
+      - alert: AcquiringRedisMemoryUsageHigh
+        expr: |
+          redis_memory_max_bytes > 0
+          and
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          owner: infrastructure
+        annotations:
+          summary: "Redis 内存使用率超过 85%"
+          description: "instance={{ $labels.instance }} 内存使用率持续过高。"
+
+      - alert: AcquiringRedisEvictionsDetected
+        expr: increase(redis_evicted_keys_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          owner: infrastructure
+        annotations:
+          summary: "Redis 发生 Key 淘汰"
+          description: "instance={{ $labels.instance }} 在 5 分钟内发生淘汰，需评估缓存和强依赖 Key 风险。"
+
+      - alert: AcquiringRedisMemoryFragmentationAbnormal
+        expr: redis_mem_fragmentation_ratio > 1.8 or redis_mem_fragmentation_ratio < 1
+        for: 15m
+        labels:
+          severity: warning
+          owner: infrastructure
+        annotations:
+          summary: "Redis 内存碎片率异常"
+          description: "instance={{ $labels.instance }} fragmentation={{ $value }}。"
+
+      - alert: AcquiringRedisSlowlogGrowing
+        expr: increase(redis_slowlog_length[10m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          owner: infrastructure
+        annotations:
+          summary: "Redis 慢日志持续增长"
+          description: "instance={{ $labels.instance }} 慢命令数量增加。"
+
+      - alert: AcquiringRedisBlockedClients
+        expr: redis_blocked_clients > 0
+        for: 2m
+        labels:
+          severity: critical
+          owner: infrastructure
+        annotations:
+          summary: "Redis 存在阻塞客户端"
+          description: "instance={{ $labels.instance }} blocked_clients={{ $value }}。"
