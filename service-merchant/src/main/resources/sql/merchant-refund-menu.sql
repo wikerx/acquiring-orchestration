@@ -1,6 +1,7 @@
 SET NAMES utf8mb4;
 
 -- 商户系统仅增加退款管理菜单和权限。
+START TRANSACTION;
 
 INSERT INTO sys_menu (
     app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
@@ -122,3 +123,5 @@ JOIN sys_app app ON app.app_code = 'MERCHANT' AND app.deleted = 0
 JOIN sys_permission permission ON permission.app_id = app.id AND permission.deleted = 0
 WHERE merchant.deleted = 0
   AND permission.permission_code LIKE 'merchant:transaction:refund:%';
+
+COMMIT;

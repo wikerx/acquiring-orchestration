@@ -30,7 +30,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @version : v1.0.0
  * @classname : MerchantAccessConfigController
  * @date : 2026-08-06 00:00
- * @description : 商户来源网址和 IP 白名单门户接口，从认证上下文限定商户范围，不接受客户端商户号。
+ * @description : 商户店铺网址和 IP 白名单门户接口，从认证上下文限定商户范围，不接受客户端商户号。
  * @status : create
  */
 @RestController
@@ -68,7 +68,7 @@ public class MerchantAccessConfigController {
     @PostMapping("/source-urls")
     @RequiresPermission("merchant:access-config:source-url:submit")
     @OperationLog(moduleName = "交易配置管理", businessType = OperationTypeConstants.CREATE,
-            operation = "提交商户来源网址", operatorType = OperatorTypeConstants.MERCHANT_USER)
+            operation = "提交店铺网址", operatorType = OperatorTypeConstants.MERCHANT_USER)
     public CommonResult<List<SourceUrlItem>> submitSourceUrls(@RequestBody SourceUrlSubmitRequest request) {
         return success(applicationService.submitSourceUrls(currentMerchantId(), request));
     }

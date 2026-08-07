@@ -3,6 +3,7 @@ package com.scott.payment.channel.payment.dto.response;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -79,6 +80,16 @@ public class ChannelPaymentResponse implements Serializable {
      * 收单机构参考号，用于对账、争议和后台排查。
      */
     private String acquirerReferenceNo;
+
+    /**
+     * 渠道响应明确返回的交易币种；为空表示渠道本次响应没有提供，不能用请求币种代替。
+     */
+    private String channelCurrency;
+
+    /**
+     * 渠道响应明确返回的主币种单位金额；为空表示渠道本次响应没有提供。
+     */
+    private BigDecimal channelAmount;
 
     /**
      * 3DS 或渠道跳转地址。

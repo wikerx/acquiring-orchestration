@@ -89,6 +89,10 @@ public class MpgsResponseMapper {
         if (response.getTransaction() != null && response.getTransaction().getId() != null) {
             target.setChannelTransactionId(response.getTransaction().getId());
         }
+        if (response.getTransaction() != null) {
+            target.setChannelCurrency(response.getTransaction().getCurrency());
+            target.setChannelAmount(response.getTransaction().getAmount());
+        }
         target.setAuthCode(summary.getAuthorizationCode());
         target.setPaymentMethodSummary(paymentMethodSummary(summary));
         target.setRawResponse(summary.toRawResponseMap());

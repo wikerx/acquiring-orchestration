@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service.impl;
 
+import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
@@ -63,6 +64,56 @@ class DefaultChannelMatchAbnormalServiceTests {
         assertThat(row.getSourceTransactionDateTime()).isNull();
         assertThat(row.getPlatformAmount()).isEqualByComparingTo("12.34");
         assertThat(row.getRawReferenceJson()).contains("QUERY_EXCEPTION").doesNotContain("targetStatus");
+    }
+
+    @Test
+    void shouldPersistChannelMoneyWithoutCrossCurrencyDifference() {
+        Fixture fixture = new Fixture();
+        TransactionOperationDO operation = operation();
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelCurrency(" eur ");
+        response.setChannelAmount(new BigDecimal("12.50"));
+
+        fixture.service.recordReviewRequired(
+                operation,
+                ChannelMatchAbnormalTypeEnum.CURRENCY_MISMATCH.getCode(),
+                "CURRENCY_MISMATCH",
+                "CURRENCY_MISMATCH",
+                "REQ-1",
+                response,
+                TRANSACTION_TIME.plusHours(1));
+
+        ArgumentCaptor<TransactionAbnormalEventDO> captor = ArgumentCaptor.forClass(TransactionAbnormalEventDO.class);
+        verify(fixture.mapper).upsertOccurrence(captor.capture());
+        TransactionAbnormalEventDO row = captor.getValue();
+        assertThat(row.getPlatformCurrency()).isEqualTo("USD");
+        assertThat(row.getPlatformAmount()).isEqualByComparingTo("12.34");
+        assertThat(row.getChannelCurrency()).isEqualTo("EUR");
+        assertThat(row.getChannelAmount()).isEqualByComparingTo("12.50");
+        assertThat(row.getAmountDifference()).isNull();
+    }
+
+    @Test
+    void shouldPersistChannelMinusPlatformDifferenceForSameCurrency() {
+        Fixture fixture = new Fixture();
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelCurrency("USD");
+        response.setChannelAmount(new BigDecimal("12.50"));
+
+        fixture.service.recordReviewRequired(
+                operation(),
+                ChannelMatchAbnormalTypeEnum.AMOUNT_MISMATCH.getCode(),
+                "AMOUNT_MISMATCH",
+                "AMOUNT_MISMATCH",
+                "REQ-1",
+                response,
+                TRANSACTION_TIME.plusHours(1));
+
+        ArgumentCaptor<TransactionAbnormalEventDO> captor = ArgumentCaptor.forClass(TransactionAbnormalEventDO.class);
+        verify(fixture.mapper).upsertOccurrence(captor.capture());
+        TransactionAbnormalEventDO row = captor.getValue();
+        assertThat(row.getChannelAmount()).isEqualByComparingTo("12.50");
+        assertThat(row.getAmountDifference()).isEqualByComparingTo("0.16");
     }
 
     /** 人工处置不能使用系统自动恢复类型，也不能携带任意交易终态。 */

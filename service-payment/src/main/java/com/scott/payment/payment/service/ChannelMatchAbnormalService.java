@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service;
 
+import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalDetailResponse;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalQuery;
@@ -56,6 +57,19 @@ public interface ChannelMatchAbnormalService {
                               String description,
                               String matchResult,
                               String sourceRecordId,
+                              LocalDateTime seenTime);
+
+    /**
+     * 使用渠道查询返回的结构化金额快照创建或刷新复核案件。
+     *
+     * @param channelResponse 渠道明确返回的币种和主币种单位金额，可为空
+     */
+    void recordReviewRequired(TransactionOperationDO operationDO,
+                              String abnormalType,
+                              String description,
+                              String matchResult,
+                              String sourceRecordId,
+                              ChannelPaymentResponse channelResponse,
                               LocalDateTime seenTime);
 
     /**

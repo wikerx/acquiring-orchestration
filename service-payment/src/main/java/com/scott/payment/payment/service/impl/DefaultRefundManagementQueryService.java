@@ -192,12 +192,34 @@ public class DefaultRefundManagementQueryService implements RefundManagementQuer
         if (operationIds.isEmpty()) {
             return;
         }
-        Map<String, LocalDateTime> rootTimes = new LinkedHashMap<>();
+        Map<String, TransactionOrderDO> orders = new LinkedHashMap<>();
         for (TransactionOrderDO order : orderMapper.selectByOperationIds(
                 operationIds, registeredNodeBegin, LocalDateTime.now().plusDays(1))) {
-            rootTimes.put(order.getOperationId(), order.getTransactionDateTime());
+            orders.put(order.getOperationId(), order);
         }
-        records.forEach(record -> record.setRootTransactionDateTime(rootTimes.get(record.getOperationId())));
+        records.forEach(record -> {
+            TransactionOrderDO order = orders.get(record.getOperationId());
+            record.setRootTransactionDateTime(order == null ? null : order.getTransactionDateTime());
+            enrichHistoricalRefundScope(record, order);
+        });
+    }
+
+    private void enrichHistoricalRefundScope(RefundRecord record, TransactionOrderDO order) {
+        if (StringUtils.hasText(record.getRefundScope())) {
+            return;
+        }
+        if ("VOID".equals(record.getTransactionType())) {
+            record.setRefundScope("VOID");
+            return;
+        }
+        if (!"REFUND".equals(record.getTransactionType())
+                || record.getTransactionAmount() == null
+                || order == null
+                || order.getTransactionAmount() == null) {
+            return;
+        }
+        record.setRefundScope(record.getTransactionAmount().compareTo(order.getTransactionAmount()) == 0
+                ? "FULL" : "PARTIAL");
     }
 
     private RefundSummary toSummary(RefundStatusSummaryRow row) {

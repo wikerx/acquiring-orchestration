@@ -1,8 +1,11 @@
 package com.scott.payment.payment.mapper.provider;
 
 import org.junit.jupiter.api.Test;
+import org.apache.ibatis.scripting.xmltags.XMLLanguageDriver;
+import org.apache.ibatis.session.Configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * @author : scott
@@ -31,12 +34,26 @@ class ChannelMatchAbnormalSqlProviderTests {
                 .doesNotContain("${");
     }
 
+    /** 所有 Provider SQL 都必须能被 MyBatis 动态 SQL 语言驱动解析。 */
+    @Test
+    void shouldGenerateParseableMybatisDynamicSql() {
+        assertParseable(ChannelMatchAbnormalSqlProvider.countSql());
+        assertParseable(ChannelMatchAbnormalSqlProvider.pageSql());
+        assertParseable(ChannelMatchAbnormalSqlProvider.summarySql());
+    }
+
     private void assertRouted(String sql) {
         assertThat(sql)
                 .contains("FROM transaction_abnormal_event")
                 .contains("transaction_date_time >= #{beginTime}")
-                .contains("transaction_date_time < #{endTimeExclusive}")
+                .contains("transaction_date_time &lt; #{endTimeExclusive}")
                 .contains("deleted = 0")
                 .doesNotContain("target_status");
+    }
+
+    private void assertParseable(String sql) {
+        assertThatCode(() -> new XMLLanguageDriver()
+                .createSqlSource(new Configuration(), sql, Object.class))
+                .doesNotThrowAnyException();
     }
 }

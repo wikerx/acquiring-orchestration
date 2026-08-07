@@ -25,7 +25,7 @@ public final class RefundManagementSqlProvider {
             WHERE o.deleted = 0
               AND o.transaction_type IN ('REFUND', 'VOID')
               AND o.transaction_date_time >= #{beginTime}
-              AND o.transaction_date_time < #{endTimeExclusive}
+              AND o.transaction_date_time &lt; #{endTimeExclusive}
               <if test="query.merchantId != null and query.merchantId != ''">AND o.merchant_id = #{query.merchantId}</if>
               <if test="query.refundTransactionId != null and query.refundTransactionId != ''">AND o.transaction_id = #{query.refundTransactionId}</if>
               <if test="query.sourceTransactionId != null and query.sourceTransactionId != ''">AND o.source_transaction_id = #{query.sourceTransactionId}</if>
@@ -43,10 +43,10 @@ public final class RefundManagementSqlProvider {
               <if test="query.labelCurrency != null and query.labelCurrency != ''">AND o.label_currency = #{query.labelCurrency}</if>
               <if test="query.transactionCurrency != null and query.transactionCurrency != ''">AND o.transaction_currency = #{query.transactionCurrency}</if>
               <if test="query.minimumTransactionAmount != null">AND o.transaction_amount >= #{query.minimumTransactionAmount}</if>
-              <if test="query.maximumTransactionAmount != null">AND o.transaction_amount <= #{query.maximumTransactionAmount}</if>
+              <if test="query.maximumTransactionAmount != null">AND o.transaction_amount &lt;= #{query.maximumTransactionAmount}</if>
               <if test="query.applicantId != null and query.applicantId != ''">AND o.applicant_id = #{query.applicantId}</if>
               <if test="query.completeBeginTime != null">AND o.complete_time >= #{query.completeBeginTime}</if>
-              <if test="query.completeEndTime != null">AND o.complete_time < #{query.completeEndTime}</if>
+              <if test="query.completeEndTime != null">AND o.complete_time &lt; #{query.completeEndTime}</if>
               <if test="query.approvalStatus != null and query.approvalStatus != ''">
                 AND (CASE
                     WHEN o.transaction_type = 'VOID' THEN 'NOT_APPLICABLE'
@@ -109,6 +109,8 @@ public final class RefundManagementSqlProvider {
     public static String currencySummarySql() {
         return script("""
                 SELECT o.transaction_currency AS currency,
+                       COALESCE(SUM(o.transaction_amount), 0) AS total_amount,
+                       COALESCE(SUM(CASE WHEN a.approval_status = 'PENDING' THEN o.transaction_amount ELSE 0 END), 0) AS pending_approval_amount,
                        COALESCE(SUM(CASE WHEN o.transaction_status = 'SUCCESS' THEN o.transaction_amount ELSE 0 END), 0) AS successful_amount,
                        COALESCE(SUM(CASE WHEN o.transaction_status IN ('PENDING', 'PROCESSING') THEN o.transaction_amount ELSE 0 END), 0) AS pending_amount
                 """ + FROM_SQL + WHERE_SQL + """

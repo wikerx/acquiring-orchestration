@@ -1,6 +1,9 @@
 SET NAMES utf8mb4;
 
--- 退款管理和勾兑异常交易菜单草案。仅供评审，发布时由变更平台执行。
+-- 退款管理和勾兑异常交易菜单、权限及 SUPER_ADMIN 授权迁移。
+-- 仅包含幂等 DML，可由变更平台在目标环境审核后执行。
+
+START TRANSACTION;
 
 INSERT INTO sys_menu (
     app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
@@ -29,6 +32,34 @@ WHERE app.app_code = 'ADMIN'
         AND exists_menu.menu_code = item.menu_code
         AND exists_menu.deleted = 0
   );
+
+UPDATE sys_menu menu
+JOIN sys_app app ON app.id = menu.app_id AND app.app_code = 'ADMIN' AND app.deleted = 0
+JOIN sys_menu parent ON parent.app_id = menu.app_id
+                    AND parent.menu_code = 'admin_transaction_catalog_v1'
+                    AND parent.deleted = 0
+JOIN (
+    SELECT 'admin_transaction_refund_v1' menu_code, '退款管理' menu_name,
+           '/transaction/refund' route_path, 'transaction/refund' component_path,
+           'transaction:refund:list' permission_code, 'RefreshLeft' icon, 61 sort_no
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', '勾兑异常交易',
+           '/transaction/channel-match-abnormal', 'transaction/channel-match-abnormal',
+           'transaction:match-abnormal:list', 'Warning', 62
+) item ON item.menu_code = menu.menu_code
+SET menu.parent_id = parent.id,
+    menu.menu_name = item.menu_name,
+    menu.menu_type = 'MENU',
+    menu.route_path = item.route_path,
+    menu.component_path = item.component_path,
+    menu.permission_code = item.permission_code,
+    menu.icon = item.icon,
+    menu.visible = 1,
+    menu.keep_alive = 1,
+    menu.external_link = 0,
+    menu.sort_no = item.sort_no,
+    menu.status = 1,
+    menu.updated_at = CURRENT_TIMESTAMP(3)
+WHERE menu.deleted = 0;
 
 INSERT INTO sys_menu (
     app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
@@ -71,6 +102,39 @@ WHERE app.app_code = 'ADMIN'
         AND exists_menu.deleted = 0
   );
 
+UPDATE sys_menu menu
+JOIN sys_app app ON app.id = menu.app_id AND app.app_code = 'ADMIN' AND app.deleted = 0
+JOIN (
+    SELECT 'admin_transaction_refund_v1' parent_code, 'admin_transaction_refund_detail_v1' menu_code,
+           '退款详情' menu_name, 'transaction:refund:detail' permission_code, 1 sort_no
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_export_v1', '退款导出', 'transaction:refund:export', 2
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_approve_v1', '退款审批通过', 'transaction:refund:approve', 3
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_reject_v1', '退款审批拒绝', 'transaction:refund:reject', 4
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_detail_v1', '异常详情', 'transaction:match-abnormal:detail', 1
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_export_v1', '异常导出', 'transaction:match-abnormal:export', 2
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_assign_v1', '领取或转派', 'transaction:match-abnormal:assign', 3
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_requery_v1', '重新勾兑', 'transaction:match-abnormal:requery', 4
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_batch_requery_v1', '批量重新勾兑', 'transaction:match-abnormal:batch-requery', 5
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_resolve_v1', '处置异常', 'transaction:match-abnormal:resolve', 6
+) item ON item.menu_code = menu.menu_code
+JOIN sys_menu parent ON parent.app_id = menu.app_id
+                    AND parent.menu_code = item.parent_code
+                    AND parent.deleted = 0
+SET menu.parent_id = parent.id,
+    menu.menu_name = item.menu_name,
+    menu.menu_type = 'BUTTON',
+    menu.route_path = NULL,
+    menu.component_path = NULL,
+    menu.permission_code = item.permission_code,
+    menu.icon = NULL,
+    menu.visible = 0,
+    menu.keep_alive = 0,
+    menu.external_link = 0,
+    menu.sort_no = item.sort_no,
+    menu.status = 1,
+    menu.updated_at = CURRENT_TIMESTAMP(3)
+WHERE menu.deleted = 0;
+
 INSERT INTO sys_permission (
     app_id, menu_id, permission_code, permission_name, permission_type,
     resource_method, resource_path, description, status, deleted
@@ -106,6 +170,37 @@ WHERE app.app_code = 'ADMIN'
         AND exists_permission.deleted = 0
   );
 
+UPDATE sys_permission permission
+JOIN sys_app app ON app.id = permission.app_id AND app.app_code = 'ADMIN' AND app.deleted = 0
+JOIN (
+    SELECT 'admin_transaction_refund_v1' menu_code, 'transaction:refund:list' permission_code,
+           '退款查询' permission_name, 'MENU' permission_type, 'POST' resource_method,
+           '/admin/transactions/refunds/search' resource_path, '查询退款和撤销记录' description
+    UNION ALL SELECT 'admin_transaction_refund_detail_v1', 'transaction:refund:detail', '退款详情', 'BUTTON', 'GET', '/admin/transactions/refunds/*', '查询退款详情'
+    UNION ALL SELECT 'admin_transaction_refund_export_v1', 'transaction:refund:export', '退款导出', 'BUTTON', 'POST', '/admin/transactions/refunds/export', '导出退款记录'
+    UNION ALL SELECT 'admin_transaction_refund_approve_v1', 'transaction:refund:approve', '退款审批通过', 'BUTTON', 'POST', '/admin/transactions/refund-approvals/*/approve', '审批通过退款'
+    UNION ALL SELECT 'admin_transaction_refund_reject_v1', 'transaction:refund:reject', '退款审批拒绝', 'BUTTON', 'POST', '/admin/transactions/refund-approvals/*/reject', '拒绝退款审批'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'transaction:match-abnormal:list', '勾兑异常查询', 'MENU', 'POST', '/admin/transactions/channel-match-abnormalities/search', '查询勾兑异常案件'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_detail_v1', 'transaction:match-abnormal:detail', '勾兑异常详情', 'BUTTON', 'GET', '/admin/transactions/channel-match-abnormalities/*', '查询勾兑异常详情'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_export_v1', 'transaction:match-abnormal:export', '勾兑异常导出', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/export', '导出勾兑异常案件'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_assign_v1', 'transaction:match-abnormal:assign', '领取或转派异常', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/*/claim', '领取或转派勾兑异常'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_requery_v1', 'transaction:match-abnormal:requery', '重新勾兑', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/*/requery', '单笔重新勾兑'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_batch_requery_v1', 'transaction:match-abnormal:batch-requery', '批量重新勾兑', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/batch-requery', '批量重新勾兑'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_resolve_v1', 'transaction:match-abnormal:resolve', '处置勾兑异常', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/*/resolve', '确认无需修改或忽略案件'
+) item ON item.permission_code = permission.permission_code
+JOIN sys_menu menu ON menu.app_id = permission.app_id
+                  AND menu.menu_code = item.menu_code
+                  AND menu.deleted = 0
+SET permission.menu_id = menu.id,
+    permission.permission_name = item.permission_name,
+    permission.permission_type = item.permission_type,
+    permission.resource_method = item.resource_method,
+    permission.resource_path = item.resource_path,
+    permission.description = item.description,
+    permission.status = 1,
+    permission.updated_at = CURRENT_TIMESTAMP(3)
+WHERE permission.deleted = 0;
+
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT role.app_id, role.id, menu.id, 0
 FROM sys_role role
@@ -132,3 +227,5 @@ WHERE role.role_code = 'SUPER_ADMIN'
   AND role.deleted = 0
   AND (permission.permission_code LIKE 'transaction:refund:%'
        OR permission.permission_code LIKE 'transaction:match-abnormal:%');
+
+COMMIT;

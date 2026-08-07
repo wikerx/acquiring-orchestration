@@ -89,6 +89,8 @@ public final class MerchantRefundDTOs {
     public static class RefundCurrencySummary implements Serializable {
         private static final long serialVersionUID = 1L;
         private String currency;
+        private BigDecimal totalAmount = BigDecimal.ZERO;
+        private BigDecimal pendingApprovalAmount = BigDecimal.ZERO;
         private BigDecimal successfulAmount = BigDecimal.ZERO;
         private BigDecimal pendingAmount = BigDecimal.ZERO;
     }

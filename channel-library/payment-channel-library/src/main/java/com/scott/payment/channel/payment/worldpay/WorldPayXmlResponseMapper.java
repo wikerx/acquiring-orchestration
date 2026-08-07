@@ -7,6 +7,7 @@ import com.scott.payment.channel.payment.exception.ChannelResponseException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.util.Locale;
 
 /**
@@ -117,8 +118,27 @@ public class WorldPayXmlResponseMapper {
         response.setAcquirerReferenceNo(firstText(
                 payment == null ? null : payment.getAcquirerReference(),
                 journal == null ? null : journal.getAcquirerReference()));
+        mapChannelAmount(response, amount);
         putResponseExtension(response, payload, payment, journal, amount, responseCode, responseMessage, orderCode, rawStatus, error);
         return response;
+    }
+
+    private void mapChannelAmount(ChannelPaymentResponse response, WorldPayXmlResponsePayload.Amount amount) {
+        if (amount == null || !StringUtils.hasText(amount.getValue())
+                || !StringUtils.hasText(amount.getCurrencyCode())
+                || !StringUtils.hasText(amount.getExponent())) {
+            return;
+        }
+        try {
+            int exponent = Integer.parseInt(amount.getExponent());
+            if (exponent < 0 || exponent > 9) {
+                return;
+            }
+            response.setChannelCurrency(amount.getCurrencyCode().trim().toUpperCase(Locale.ROOT));
+            response.setChannelAmount(new BigDecimal(amount.getValue()).movePointLeft(exponent));
+        } catch (NumberFormatException ignored) {
+            // 无效渠道金额不参与资金差异判断，原始摘要仍保留供排查。
+        }
     }
 
     /**

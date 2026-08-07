@@ -108,11 +108,13 @@ public final class RefundManagementDTOs {
         private Integer approvalVersion;
     }
 
-    /** 分币种成功退款和待处理占用金额。 */
+    /** 分币种退款金额统计；所有金额均为对应交易币种主单位。 */
     @Data
     public static class RefundCurrencySummary implements Serializable {
         private static final long serialVersionUID = 1L;
         private String currency;
+        private BigDecimal totalAmount = BigDecimal.ZERO;
+        private BigDecimal pendingApprovalAmount = BigDecimal.ZERO;
         private BigDecimal successfulAmount = BigDecimal.ZERO;
         private BigDecimal pendingAmount = BigDecimal.ZERO;
     }
