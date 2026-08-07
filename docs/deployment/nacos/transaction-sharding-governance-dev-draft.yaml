@@ -1,0 +1,238 @@
+# 交易季度物理表治理非秘密配置草案。
+# 仅供 Job/Admin 治理链路评审；未经确认不得发布，也不得据此自动 ALTER 既有表。
+transaction-sharding:
+  governance:
+    strategy: quarter
+    sharding-column: transaction_date_time
+    database-timezone: Asia/Shanghai
+    expiry-warning-quarters: 4
+    planning-horizon-quarters: 8
+
+    table-maintenance:
+      enabled: true
+      pre-create-current-quarter: true
+      pre-create-next-quarter: true
+      compare-schema-if-exists: true
+      ddl-data-source: master
+      set-auto-increment-start-value: true
+      auto-increment-sequence-width: 12
+      allow-create-from-template-table: true
+      allow-alter-existing-table: false
+
+    id-generator:
+      mode: mysql-auto-increment-prefix
+      prefix-format: yyyyQQ
+      sequence-width: 12
+      start-sequence: 1
+      max-sequence: 999999999999
+
+    # 规则范围是滚动治理窗口，不等于 ShardingSphere actualDataNodes。
+    # actualDataNodes 只能由预建任务对 23 张表全部校验通过后生成。
+    tables:
+      transaction_order:
+        enabled: true
+        logical-table: transaction_order
+        template-table: transaction_order
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_operation:
+        enabled: true
+        logical-table: transaction_operation
+        template-table: transaction_operation
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_merchant_snapshot:
+        enabled: true
+        logical-table: transaction_merchant_snapshot
+        template-table: transaction_merchant_snapshot
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_payment_method_info:
+        enabled: true
+        logical-table: transaction_payment_method_info
+        template-table: transaction_payment_method_info
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_payer_info:
+        enabled: true
+        logical-table: transaction_payer_info
+        template-table: transaction_payer_info
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_billing_info:
+        enabled: true
+        logical-table: transaction_billing_info
+        template-table: transaction_billing_info
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_additional_info:
+        enabled: true
+        logical-table: transaction_additional_info
+        template-table: transaction_additional_info
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_authentication_info:
+        enabled: true
+        logical-table: transaction_authentication_info
+        template-table: transaction_authentication_info
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_product_item:
+        enabled: true
+        logical-table: transaction_product_item
+        template-table: transaction_product_item
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_channel_request:
+        enabled: true
+        logical-table: transaction_channel_request
+        template-table: transaction_channel_request
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_channel_interaction_log:
+        enabled: true
+        logical-table: transaction_channel_interaction_log
+        template-table: transaction_channel_interaction_log
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_channel_callback:
+        enabled: true
+        logical-table: transaction_channel_callback
+        template-table: transaction_channel_callback
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_channel_callback_log:
+        enabled: true
+        logical-table: transaction_channel_callback_log
+        template-table: transaction_channel_callback_log
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_flow_event:
+        enabled: true
+        logical-table: transaction_flow_event
+        template-table: transaction_flow_event
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_status_history:
+        enabled: true
+        logical-table: transaction_status_history
+        template-table: transaction_status_history
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_amount_change_log:
+        enabled: true
+        logical-table: transaction_amount_change_log
+        template-table: transaction_amount_change_log
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_finance_state:
+        enabled: true
+        logical-table: transaction_finance_state
+        template-table: transaction_finance_state
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_currency_conversion:
+        enabled: true
+        logical-table: transaction_currency_conversion
+        template-table: transaction_currency_conversion
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_merchant_notification:
+        enabled: true
+        logical-table: transaction_merchant_notification
+        template-table: transaction_merchant_notification
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_merchant_notification_log:
+        enabled: true
+        logical-table: transaction_merchant_notification_log
+        template-table: transaction_merchant_notification_log
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_merchant_api_interaction_log:
+        enabled: true
+        logical-table: transaction_merchant_api_interaction_log
+        template-table: transaction_merchant_api_interaction_log
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_event_outbox:
+        enabled: true
+        logical-table: transaction_event_outbox
+        template-table: transaction_event_outbox
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_abnormal_event:
+        enabled: true
+        logical-table: transaction_abnormal_event
+        template-table: transaction_abnormal_event
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master

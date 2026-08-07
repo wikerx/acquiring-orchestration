@@ -2338,7 +2338,8 @@ VALUES
 (1042, 1, 1040, 'admin_transaction_operation_v1', '交易管理', 'MENU', '/transaction/operation', 'transaction/operation', 'transaction:operation:list', 'CreditCard', 1, 57, 1, 0),
 (1043, 1, 1040, 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1, 0),
 (1044, 1, 1040, 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1, 0),
-(1045, 1, 1040, 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1, 0);
+(1045, 1, 1040, 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1, 0),
+(1046, 1, 1040, 'admin_transaction_analytics_v1', '交易分析', 'MENU', '/transaction/analytics', 'transaction/analytics', 'transaction:analytics:view', 'DataAnalysis', 1, 55, 1, 0);
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 SELECT parent.app_id, parent.id, item.menu_code, item.menu_name, 'MENU', item.route_path,
@@ -2381,7 +2382,8 @@ VALUES
 (1073, 1, 1041, 'transaction:order:export', '交易主单导出', 'BUTTON', 'POST', '/admin/transactions/orders/export', 1, 0),
 (1074, 1, 1042, 'transaction:operation:export', '交易动作导出', 'BUTTON', 'POST', '/admin/transactions/operations/export', 1, 0),
 (1075, 1, 1045, 'transaction:merchant-notification:export', '商户回调记录导出', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/export', 1, 0),
-(1077, 1, 1045, 'transaction:merchant-notification:retry', '商户终态回调重发', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/retry', 1, 0);
+(1077, 1, 1045, 'transaction:merchant-notification:retry', '商户终态回调重发', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/retry', 1, 0),
+(1078, 1, 1046, 'transaction:analytics:view', '交易分析查询', 'MENU', 'POST', '/admin/transactions/analytics/**', 1, 0);
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
@@ -2746,6 +2748,7 @@ FROM (
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_merchant_channel_mid_binding_v1', '商户MID绑定', 'MENU', '/channel/merchant-mid-binding', 'channel/merchant-mid-binding', 'channel:mid-binding:list', 'Connection', 1, 45, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_order_v1', '交易主单管理', 'MENU', '/transaction/order', 'transaction/order', 'transaction:order:list', 'DocumentChecked', 1, 56, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_operation_v1', '交易管理', 'MENU', '/transaction/operation', 'transaction/operation', 'transaction:operation:list', 'CreditCard', 1, 57, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_analytics_v1', '交易分析', 'MENU', '/transaction/analytics', 'transaction/analytics', 'transaction:analytics:view', 'DataAnalysis', 1, 55, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1
@@ -2803,6 +2806,7 @@ JOIN (
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_merchant_channel_mid_binding_v1', '商户MID绑定', 'MENU', '/channel/merchant-mid-binding', 'channel/merchant-mid-binding', 'channel:mid-binding:list', 'Connection', 1, 45, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_order_v1', '交易主单管理', 'MENU', '/transaction/order', 'transaction/order', 'transaction:order:list', 'DocumentChecked', 1, 56, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_operation_v1', '交易管理', 'MENU', '/transaction/operation', 'transaction/operation', 'transaction:operation:list', 'CreditCard', 1, 57, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_analytics_v1', '交易分析', 'MENU', '/transaction/analytics', 'transaction/analytics', 'transaction:analytics:view', 'DataAnalysis', 1, 55, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1
@@ -2945,6 +2949,7 @@ JOIN (
     UNION ALL SELECT 'channel:mid', 'admin_channel_mid_v1'
     UNION ALL SELECT 'transaction:order', 'admin_transaction_order_v1'
     UNION ALL SELECT 'transaction:operation', 'admin_transaction_operation_v1'
+    UNION ALL SELECT 'transaction:analytics', 'admin_transaction_analytics_v1'
     UNION ALL SELECT 'transaction:channel-log', 'admin_transaction_channel_log_v1'
     UNION ALL SELECT 'transaction:channel-callback', 'admin_transaction_channel_callback_v1'
     UNION ALL SELECT 'transaction:merchant-notification', 'admin_transaction_merchant_notification_v1'
