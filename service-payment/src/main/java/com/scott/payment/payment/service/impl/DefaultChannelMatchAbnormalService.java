@@ -1,6 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
@@ -37,12 +38,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -211,6 +214,19 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
                                      String matchResult,
                                      String sourceRecordId,
                                      LocalDateTime seenTime) {
+        recordReviewRequired(operationDO, abnormalType, description, matchResult, sourceRecordId, null, seenTime);
+    }
+
+    /** 达到阈值或发现确定性金额异常后，保存渠道查询结构化金额快照。 */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void recordReviewRequired(TransactionOperationDO operationDO,
+                                     String abnormalType,
+                                     String description,
+                                     String matchResult,
+                                     String sourceRecordId,
+                                     ChannelPaymentResponse channelResponse,
+                                     LocalDateTime seenTime) {
         if (!properties.isEnabled()) {
             return;
         }
@@ -250,11 +266,23 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         row.setChannelCode(operationDO.getChannelCode());
         row.setChannelOrderNo(operationDO.getChannelOrderNo());
         row.setChannelTransactionId(operationDO.getChannelTransactionId());
-        row.setChannelStatus(operationDO.getChannelStatus());
+        row.setChannelStatus(channelResponse != null && StringUtils.hasText(channelResponse.getRawChannelStatus())
+                ? channelResponse.getRawChannelStatus() : operationDO.getChannelStatus());
         row.setChannelMatchResult(matchResult);
         row.setDetectSource(ChannelMatchDetectSourceEnum.AUTO_QUERY.getCode());
-        row.setPlatformCurrency(operationDO.getTransactionCurrency());
+        String platformCurrency = normalizeCurrency(operationDO.getTransactionCurrency());
+        String channelCurrency = normalizeCurrency(
+                channelResponse == null ? null : channelResponse.getChannelCurrency());
+        BigDecimal platformAmount = operationDO.getTransactionAmount();
+        BigDecimal channelAmount = channelResponse == null ? null : channelResponse.getChannelAmount();
+        row.setPlatformCurrency(platformCurrency);
         row.setPlatformAmount(operationDO.getTransactionAmount());
+        row.setChannelCurrency(channelCurrency);
+        row.setChannelAmount(channelAmount);
+        if (platformCurrency != null && platformCurrency.equals(channelCurrency)
+                && platformAmount != null && channelAmount != null) {
+            row.setAmountDifference(channelAmount.subtract(platformAmount));
+        }
         row.setCurrencyExponent(operationDO.getCurrencyExponent());
         row.setOccurrenceCount(1);
         row.setMerchantNotifyRequired(0);
@@ -263,6 +291,10 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         row.setCreateTime(now);
         row.setUpdateTime(now);
         abnormalEventMapper.upsertOccurrence(row);
+    }
+
+    private String normalizeCurrency(String currency) {
+        return StringUtils.hasText(currency) ? currency.trim().toUpperCase(Locale.ROOT) : null;
     }
 
     /** 正常状态机完成后只关闭活动案件。 */

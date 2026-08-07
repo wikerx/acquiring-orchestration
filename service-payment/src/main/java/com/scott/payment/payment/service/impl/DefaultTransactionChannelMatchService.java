@@ -255,6 +255,12 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                 resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
                 return;
             }
+            String mismatchType = moneyMismatchType(operationDO, response);
+            if (mismatchType != null) {
+                markMoneyMismatch(operationDO, originalRequestDO, now, invokeResultDTO, mismatchType);
+                resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
+                return;
+            }
             if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resolution.getTargetStatus())
                     || PaymentTransactionStatusEnum.FAILED.getCode().equals(resolution.getTargetStatus())) {
                 if (complete(operationDO, originalRequestDO, invokeResultDTO, resolution, now)) {
@@ -270,6 +276,58 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             // 查询异常无法证明渠道失败，资金动作必须保持非终态，等待下一次查询或回调确认。
             markPending(operationDO, originalRequestDO, now, null, "QUERY_EXCEPTION", exception.getMessage());
             resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
+        }
+    }
+
+    /**
+     * 比较渠道查询响应明确返回的币种；缺少结构化金额信息时不推断异常。
+     */
+    private String moneyMismatchType(TransactionOperationDO operationDO, ChannelPaymentResponse response) {
+        if (operationDO == null || response == null
+                || !StringUtils.hasText(operationDO.getTransactionCurrency())
+                || !StringUtils.hasText(response.getChannelCurrency())) {
+            return null;
+        }
+        if (!operationDO.getTransactionCurrency().trim().equalsIgnoreCase(response.getChannelCurrency().trim())) {
+            return ChannelMatchAbnormalTypeEnum.CURRENCY_MISMATCH.getCode();
+        }
+        if (operationDO.getTransactionAmount() != null && response.getChannelAmount() != null
+                && operationDO.getTransactionAmount().compareTo(response.getChannelAmount()) != 0) {
+            return ChannelMatchAbnormalTypeEnum.AMOUNT_MISMATCH.getCode();
+        }
+        return null;
+    }
+
+    /**
+     * 金额或币种不一致属于确定性异常，首次发现即转人工复核并阻止终态推进。
+     */
+    private void markMoneyMismatch(TransactionOperationDO operationDO,
+                                   TransactionChannelRequestDO originalRequestDO,
+                                   LocalDateTime now,
+                                   PaymentChannelInvokeResultDTO invokeResultDTO,
+                                   String abnormalType) {
+        boolean updated = matchResultTransactionService.markPendingByQuery(
+                operationDO,
+                originalRequestDO,
+                invokeResultDTO,
+                "REVIEW_REQUIRED",
+                abnormalType,
+                now,
+                nextMatchTime(operationDO, now),
+                null);
+        if (!updated) {
+            return;
+        }
+        ChannelMatchAbnormalService abnormalService = abnormalService();
+        if (abnormalService != null) {
+            abnormalService.recordReviewRequired(
+                    operationDO,
+                    abnormalType,
+                    abnormalType,
+                    abnormalType,
+                    originalRequestDO == null ? null : originalRequestDO.getRequestId(),
+                    invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse(),
+                    now);
         }
     }
 

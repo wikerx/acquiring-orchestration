@@ -4,6 +4,8 @@ import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse.PaymentMethodSummary;
 import com.scott.payment.channel.payment.enums.PaymentChannelCode;
+import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -79,6 +81,7 @@ public class WorldPayJsonResponseMapper {
         if (StringUtils.hasText(firstText(response.getPaymentId(), response.getTransactionId()))) {
             target.setChannelTransactionId(firstText(response.getPaymentId(), response.getTransactionId()));
         }
+        mapChannelAmount(target, response.getValue());
         target.setPaymentMethodSummary(paymentMethodSummary(response.getPaymentInstrument()));
         putIfText(target, "outcome", response.getOutcome());
         putIfText(target, "paymentId", response.getPaymentId());
@@ -105,6 +108,26 @@ public class WorldPayJsonResponseMapper {
         putLinks(target, response.getLinks());
         putLinks(target, response.getActions());
         return target;
+    }
+
+    private void mapChannelAmount(ChannelPaymentResponse target,
+                                  WorldPayJsonResponsePayload.ValuePayload value) {
+        if (value == null || value.getAmount() == null || !StringUtils.hasText(value.getCurrency())) {
+            return;
+        }
+        String currency = value.getCurrency().trim().toUpperCase(Locale.ROOT);
+        Integer exponent = value.getExponent();
+        if (exponent == null) {
+            exponent = IsoCurrencyResolver.resolve(currency)
+                    .map(IsoCurrencyInfo::defaultFractionDigits)
+                    .filter(digits -> digits >= 0)
+                    .orElse(null);
+        }
+        if (exponent == null || exponent < 0 || exponent > 9) {
+            return;
+        }
+        target.setChannelCurrency(currency);
+        target.setChannelAmount(value.getAmount().movePointLeft(exponent));
     }
 
     /**

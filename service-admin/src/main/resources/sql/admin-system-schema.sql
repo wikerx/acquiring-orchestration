@@ -731,9 +731,9 @@ VALUES
     (504, 2, 500, 'merchant_system_role_v1', '角色管理', 'MENU', '/system/role', 'system/role', 'merchant:system:role:list', 'Lock', 1, 94, 1, 0),
     (505, 2, 500, 'merchant_system_role_auth_v1', '角色授权', 'MENU', '/system/role-auth', 'system/role-auth', 'merchant:system:role:grantMenu', 'Unlock', 1, 95, 1, 0),
     (506, 2, 0, 'merchant_openapi_keys_v1', '商户密钥管理', 'MENU', '/merchant-info/openapi-keys', 'merchant-info/openapi-keys', 'merchant:openapi:key:view', 'Key', 1, 80, 1, 0),
-    (507, 2, 0, 'merchant_access_config_catalog_v1', '交易配置管理', 'CATALOG', '/access-config', NULL, NULL, 'Lock', 1, 81, 1, 0),
-    (508, 2, 507, 'merchant_source_url_v1', '商户来源网址', 'MENU', '/access-config/source-url', 'access-config/source-url', 'merchant:access-config:source-url:list', 'Link', 1, 82, 1, 0),
-    (509, 2, 507, 'merchant_ip_whitelist_v1', '商户IP白名单', 'MENU', '/access-config/ip-whitelist', 'access-config/ip-whitelist', 'merchant:access-config:ip-whitelist:list', 'Connection', 1, 83, 1, 0);
+    (507, 2, 0, 'merchant_access_config_catalog_v1', '支付接入管理', 'CATALOG', '/access-config', NULL, NULL, 'Lock', 1, 81, 1, 0),
+    (508, 2, 507, 'merchant_source_url_v1', '店铺网址', 'MENU', '/access-config/source-url', 'access-config/source-url', 'merchant:access-config:source-url:list', 'Link', 1, 82, 1, 0),
+    (509, 2, 507, 'merchant_ip_whitelist_v1', 'IP 白名单', 'MENU', '/access-config/ip-whitelist', 'access-config/ip-whitelist', 'merchant:access-config:ip-whitelist:list', 'Connection', 1, 83, 1, 0);
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
@@ -767,12 +767,12 @@ VALUES
     (523, 2, 506, 'merchant:openapi:key:download-private', '商户OpenAPI敏感材料导出', 'BUTTON', '*', '/merchant/openapi/keys/*', 1, 0),
     (524, 2, 506, 'merchant:openapi:key:rotate-jwt', '商户OpenAPI JWT密钥轮换', 'BUTTON', 'POST', '/merchant/openapi/keys/rotate', 1, 0),
     (525, 2, 506, 'merchant:openapi:key:rotate-response', '商户OpenAPI响应密钥轮换', 'BUTTON', 'POST', '/merchant/openapi/keys/rotate', 1, 0),
-    (526, 2, 508, 'merchant:access-config:source-url:list', '商户来源网址查询', 'MENU', 'GET', '/merchant/access-config/source-urls', 1, 0),
-    (527, 2, 508, 'merchant:access-config:source-url:detail', '商户来源网址详情', 'BUTTON', 'GET', '/merchant/access-config/source-urls', 1, 0),
-    (528, 2, 508, 'merchant:access-config:source-url:submit', '商户来源网址提交', 'BUTTON', 'POST', '/merchant/access-config/source-urls', 1, 0),
-    (529, 2, 509, 'merchant:access-config:ip-whitelist:list', '商户IP白名单查询', 'MENU', 'GET', '/merchant/access-config/ip-whitelists', 1, 0),
-    (530, 2, 509, 'merchant:access-config:ip-whitelist:detail', '商户IP白名单详情', 'BUTTON', 'GET', '/merchant/access-config/ip-whitelists', 1, 0),
-    (531, 2, 509, 'merchant:access-config:ip-whitelist:submit', '商户IP白名单提交', 'BUTTON', 'POST', '/merchant/access-config/ip-whitelists', 1, 0),
+    (526, 2, 508, 'merchant:access-config:source-url:list', '店铺网址查询', 'MENU', 'GET', '/merchant/access-config/source-urls', 1, 0),
+    (527, 2, 508, 'merchant:access-config:source-url:detail', '店铺网址详情', 'BUTTON', 'GET', '/merchant/access-config/source-urls', 1, 0),
+    (528, 2, 508, 'merchant:access-config:source-url:submit', '店铺网址提交', 'BUTTON', 'POST', '/merchant/access-config/source-urls', 1, 0),
+    (529, 2, 509, 'merchant:access-config:ip-whitelist:list', 'IP 白名单查询', 'MENU', 'GET', '/merchant/access-config/ip-whitelists', 1, 0),
+    (530, 2, 509, 'merchant:access-config:ip-whitelist:detail', 'IP 白名单详情', 'BUTTON', 'GET', '/merchant/access-config/ip-whitelists', 1, 0),
+    (531, 2, 509, 'merchant:access-config:ip-whitelist:submit', 'IP 白名单提交', 'BUTTON', 'POST', '/merchant/access-config/ip-whitelists', 1, 0),
     (211, 1, 211, 'system:user:list', '用户管理查询', 'MENU', 'POST', '/admin/system/users/search', 1, 0),
     (212, 1, 211, 'system:user:add', '用户新增', 'BUTTON', 'POST', '/admin/system/users/create', 1, 0),
     (213, 1, 211, 'system:user:edit', '用户编辑', 'BUTTON', '*', '/admin/system/users/**', 1, 0),
@@ -2340,6 +2340,28 @@ VALUES
 (1044, 1, 1040, 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1, 0),
 (1045, 1, 1040, 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1, 0);
 
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT parent.app_id, parent.id, item.menu_code, item.menu_name, 'MENU', item.route_path,
+       item.component_path, item.permission_code, item.icon, 1, item.sort_no, 1, 0
+FROM sys_menu parent
+JOIN (
+    SELECT 'admin_transaction_refund_v1' menu_code, '退款管理' menu_name,
+           '/transaction/refund' route_path, 'transaction/refund' component_path,
+           'transaction:refund:list' permission_code, 'RefreshLeft' icon, 61 sort_no
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', '勾兑异常交易',
+           '/transaction/channel-match-abnormal', 'transaction/channel-match-abnormal',
+           'transaction:match-abnormal:list', 'Warning', 62
+) item
+WHERE parent.app_id = 1
+  AND parent.menu_code = 'admin_transaction_catalog_v1'
+  AND parent.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = parent.app_id
+        AND exists_menu.menu_code = item.menu_code
+        AND exists_menu.deleted = 0
+  );
+
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
 (1060, 1, 1040, 'transaction', '交易管理目录', 'MENU', 'GET', '/transaction/**', 1, 0),
@@ -2377,6 +2399,16 @@ JOIN (
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_detail_v1', '商户回调记录详情', 'transaction:merchant-notification:detail', 1
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_export_v1', '商户回调记录导出', 'transaction:merchant-notification:export', 2
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_retry_v1', '商户终态回调重发', 'transaction:merchant-notification:retry', 3
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_detail_v1', '退款详情', 'transaction:refund:detail', 1
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_export_v1', '退款导出', 'transaction:refund:export', 2
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_approve_v1', '退款审批通过', 'transaction:refund:approve', 3
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_reject_v1', '退款审批拒绝', 'transaction:refund:reject', 4
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_detail_v1', '异常详情', 'transaction:match-abnormal:detail', 1
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_export_v1', '异常导出', 'transaction:match-abnormal:export', 2
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_assign_v1', '领取或转派', 'transaction:match-abnormal:assign', 3
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_requery_v1', '重新勾兑', 'transaction:match-abnormal:requery', 4
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_batch_requery_v1', '批量重新勾兑', 'transaction:match-abnormal:batch-requery', 5
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_resolve_v1', '处置异常', 'transaction:match-abnormal:resolve', 6
 ) button ON button.parent_code = parent.menu_code
 WHERE parent.app_id = 1
   AND parent.deleted = 0
@@ -2386,6 +2418,38 @@ WHERE parent.app_id = 1
         AND exists_menu.menu_code = button.menu_code
         AND exists_menu.deleted = 0
   );
+
+INSERT INTO sys_permission (
+    app_id, menu_id, permission_code, permission_name, permission_type,
+    resource_method, resource_path, description, status, deleted
+)
+SELECT 1, menu.id, item.permission_code, item.permission_name, item.permission_type,
+       item.resource_method, item.resource_path, item.description, 1, 0
+FROM (
+    SELECT 'admin_transaction_refund_v1' menu_code, 'transaction:refund:list' permission_code,
+           '退款查询' permission_name, 'MENU' permission_type, 'POST' resource_method,
+           '/admin/transactions/refunds/search' resource_path, '查询退款和撤销记录' description
+    UNION ALL SELECT 'admin_transaction_refund_detail_v1', 'transaction:refund:detail', '退款详情', 'BUTTON', 'GET', '/admin/transactions/refunds/*', '查询退款详情'
+    UNION ALL SELECT 'admin_transaction_refund_export_v1', 'transaction:refund:export', '退款导出', 'BUTTON', 'POST', '/admin/transactions/refunds/export', '导出退款记录'
+    UNION ALL SELECT 'admin_transaction_refund_approve_v1', 'transaction:refund:approve', '退款审批通过', 'BUTTON', 'POST', '/admin/transactions/refund-approvals/*/approve', '审批通过退款'
+    UNION ALL SELECT 'admin_transaction_refund_reject_v1', 'transaction:refund:reject', '退款审批拒绝', 'BUTTON', 'POST', '/admin/transactions/refund-approvals/*/reject', '拒绝退款审批'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'transaction:match-abnormal:list', '勾兑异常查询', 'MENU', 'POST', '/admin/transactions/channel-match-abnormalities/search', '查询勾兑异常案件'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_detail_v1', 'transaction:match-abnormal:detail', '勾兑异常详情', 'BUTTON', 'GET', '/admin/transactions/channel-match-abnormalities/*', '查询勾兑异常详情'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_export_v1', 'transaction:match-abnormal:export', '勾兑异常导出', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/export', '导出勾兑异常案件'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_assign_v1', 'transaction:match-abnormal:assign', '领取或转派异常', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/*/claim', '领取或转派勾兑异常'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_requery_v1', 'transaction:match-abnormal:requery', '重新勾兑', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/*/requery', '单笔重新勾兑'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_batch_requery_v1', 'transaction:match-abnormal:batch-requery', '批量重新勾兑', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/batch-requery', '批量重新勾兑'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_resolve_v1', 'transaction:match-abnormal:resolve', '处置勾兑异常', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/*/resolve', '确认无需修改或忽略案件'
+) item
+JOIN sys_menu menu ON menu.app_id = 1
+                  AND menu.menu_code = item.menu_code
+                  AND menu.deleted = 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_permission exists_permission
+    WHERE exists_permission.app_id = 1
+      AND exists_permission.permission_code = item.permission_code
+      AND exists_permission.deleted = 0
+);
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT 1, 1, id, 0
@@ -2438,6 +2502,128 @@ WHERE permission.app_id = 1
   AND permission.permission_code = 'transaction:operation:capture'
   AND permission.deleted = 0
   AND permission.status = 1;
+
+-- ===================== 商户系统退款管理菜单与权限 =====================
+INSERT INTO sys_menu (
+    app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
+    permission_code, icon, visible, keep_alive, external_link, sort_no, status, deleted
+)
+SELECT app.id, parent.id, 'merchant_transaction_refund_v1', '退款管理', 'MENU',
+       '/transaction/refund', 'transaction/refund', 'merchant:transaction:refund:list',
+       'RefreshLeft', 1, 1, 0, 32, 1, 0
+FROM sys_app app
+JOIN sys_menu parent ON parent.app_id = app.id
+                    AND parent.menu_code = 'merchant_transaction_catalog_v1'
+                    AND parent.deleted = 0
+WHERE app.app_code = 'MERCHANT'
+  AND app.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = app.id
+        AND exists_menu.menu_code = 'merchant_transaction_refund_v1'
+        AND exists_menu.deleted = 0
+  );
+
+INSERT INTO sys_menu (
+    app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
+    permission_code, icon, visible, keep_alive, external_link, sort_no, status, deleted
+)
+SELECT app.id, parent.id, item.menu_code, item.menu_name, 'BUTTON', NULL, NULL,
+       item.permission_code, NULL, 0, 0, 0, item.sort_no, 1, 0
+FROM sys_app app
+JOIN sys_menu parent ON parent.app_id = app.id
+                    AND parent.menu_code = 'merchant_transaction_refund_v1'
+                    AND parent.deleted = 0
+JOIN (
+    SELECT 'merchant_transaction_refund_detail_v1' menu_code, '退款详情' menu_name,
+           'merchant:transaction:refund:detail' permission_code, 1 sort_no
+    UNION ALL SELECT 'merchant_transaction_refund_export_v1', '退款导出',
+           'merchant:transaction:refund:export', 2
+) item
+WHERE app.app_code = 'MERCHANT'
+  AND app.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = app.id
+        AND exists_menu.menu_code = item.menu_code
+        AND exists_menu.deleted = 0
+  );
+
+INSERT INTO sys_permission (
+    app_id, menu_id, permission_code, permission_name, permission_type,
+    resource_method, resource_path, description, status, deleted
+)
+SELECT app.id, menu.id, item.permission_code, item.permission_name, item.permission_type,
+       item.resource_method, item.resource_path, item.description, 1, 0
+FROM sys_app app
+JOIN (
+    SELECT 'merchant_transaction_refund_v1' menu_code, 'merchant:transaction:refund:list' permission_code,
+           '退款查询' permission_name, 'MENU' permission_type, 'POST' resource_method,
+           '/merchant/transactions/refunds/search' resource_path, '查询当前商户退款记录' description
+    UNION ALL SELECT 'merchant_transaction_refund_detail_v1', 'merchant:transaction:refund:detail',
+           '退款详情', 'BUTTON', 'GET', '/merchant/transactions/refunds/*', '查询当前商户退款详情'
+    UNION ALL SELECT 'merchant_transaction_refund_export_v1', 'merchant:transaction:refund:export',
+           '退款导出', 'BUTTON', 'POST', '/merchant/transactions/refunds/export', '导出当前商户退款记录'
+) item
+JOIN sys_menu menu ON menu.app_id = app.id
+                  AND menu.menu_code = item.menu_code
+                  AND menu.deleted = 0
+WHERE app.app_code = 'MERCHANT'
+  AND app.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_permission exists_permission
+      WHERE exists_permission.app_id = app.id
+        AND exists_permission.permission_code = item.permission_code
+        AND exists_permission.deleted = 0
+  );
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT role.app_id, role.id, menu.id, 0
+FROM sys_role role
+JOIN sys_app app ON app.id = role.app_id AND app.app_code = 'MERCHANT' AND app.deleted = 0
+JOIN sys_menu menu ON menu.app_id = role.app_id AND menu.deleted = 0
+WHERE role.deleted = 0
+  AND (role.role_code = 'MERCHANT_ADMIN' OR role.role_code LIKE 'MERCHANT_ADMIN\_%')
+  AND menu.menu_code IN (
+      'merchant_transaction_refund_v1',
+      'merchant_transaction_refund_detail_v1',
+      'merchant_transaction_refund_export_v1'
+  );
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT role.app_id, role.id, permission.id, 0
+FROM sys_role role
+JOIN sys_app app ON app.id = role.app_id AND app.app_code = 'MERCHANT' AND app.deleted = 0
+JOIN sys_permission permission ON permission.app_id = role.app_id AND permission.deleted = 0
+WHERE role.deleted = 0
+  AND (role.role_code = 'MERCHANT_ADMIN' OR role.role_code LIKE 'MERCHANT_ADMIN\_%')
+  AND permission.permission_code LIKE 'merchant:transaction:refund:%';
+
+INSERT IGNORE INTO sys_merchant_menu_grant (
+    merchant_id, app_id, menu_id, grant_source, status, created_at, updated_at, deleted
+)
+SELECT merchant.merchant_id, menu.app_id, menu.id, 'SYSTEM', 1,
+       CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0
+FROM base_merchant_info merchant
+JOIN sys_app app ON app.app_code = 'MERCHANT' AND app.deleted = 0
+JOIN sys_menu menu ON menu.app_id = app.id AND menu.deleted = 0
+WHERE merchant.deleted = 0
+  AND menu.menu_code IN (
+      'merchant_transaction_refund_v1',
+      'merchant_transaction_refund_detail_v1',
+      'merchant_transaction_refund_export_v1'
+  );
+
+INSERT IGNORE INTO sys_merchant_permission_grant (
+    merchant_id, app_id, permission_id, grant_source, status, created_at, updated_at, deleted
+)
+SELECT merchant.merchant_id, permission.app_id, permission.id, 'SYSTEM', 1,
+       CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0
+FROM base_merchant_info merchant
+JOIN sys_app app ON app.app_code = 'MERCHANT' AND app.deleted = 0
+JOIN sys_permission permission ON permission.app_id = app.id AND permission.deleted = 0
+WHERE merchant.deleted = 0
+  AND permission.permission_code LIKE 'merchant:transaction:refund:%';
 
 -- =============================================================================
 -- 管理端菜单最终校准
@@ -2563,6 +2749,8 @@ FROM (
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_refund_v1', '退款管理', 'MENU', '/transaction/refund', 'transaction/refund', 'transaction:refund:list', 'RefreshLeft', 1, 61, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_match_abnormal_v1', '勾兑异常交易', 'MENU', '/transaction/channel-match-abnormal', 'transaction/channel-match-abnormal', 'transaction:match-abnormal:list', 'Warning', 1, 62, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1
@@ -2618,6 +2806,8 @@ JOIN (
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_refund_v1', '退款管理', 'MENU', '/transaction/refund', 'transaction/refund', 'transaction:refund:list', 'RefreshLeft', 1, 61, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_match_abnormal_v1', '勾兑异常交易', 'MENU', '/transaction/channel-match-abnormal', 'transaction/channel-match-abnormal', 'transaction:match-abnormal:list', 'Warning', 1, 62, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1
@@ -3309,24 +3499,24 @@ SELECT item.template_code, item.template_name, 'MERCHANT', 'MERCHANT_ACCESS_CONF
        '{"systemName":"Vexra Merchant","merchantName":"Example Merchant","merchantId":"M10000001","configValue":"https://shop.example.com","transactionStatusText":"Allowed","reviewTime":"2026-08-06 10:00:00","rejectReason":"The submitted value could not be verified."}',
        '[]', 1, 1, 1, '系统内置模板：商户访问配置审批结果通知', 'system', 'system', 0
 FROM (
-    SELECT 'MERCHANT_SOURCE_URL_APPROVED' template_code, '商户来源网址审核通过通知' template_name, 'zh-CN' locale,
-           '【${systemName}】商户来源网址审核通过' subject_template,
-           '<h2>商户来源网址审核通过</h2><p>您好，${merchantName}：</p><p>来源网址 <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p>' content_template
-    UNION ALL SELECT 'MERCHANT_SOURCE_URL_REJECTED', '商户来源网址审核拒绝通知', 'zh-CN',
-           '【${systemName}】商户来源网址审核未通过',
-           '<h2>商户来源网址审核未通过</h2><p>您好，${merchantName}：</p><p>来源网址 <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p>'
+    SELECT 'MERCHANT_SOURCE_URL_APPROVED' template_code, '店铺网址审核通过通知' template_name, 'zh-CN' locale,
+           '【${systemName}】店铺网址审核通过' subject_template,
+           '<h2>店铺网址审核通过</h2><p>您好，${merchantName}：</p><p>店铺网址 <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p>' content_template
+    UNION ALL SELECT 'MERCHANT_SOURCE_URL_REJECTED', '店铺网址审核拒绝通知', 'zh-CN',
+           '【${systemName}】店铺网址审核未通过',
+           '<h2>店铺网址审核未通过</h2><p>您好，${merchantName}：</p><p>店铺网址 <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p>'
     UNION ALL SELECT 'MERCHANT_IP_WHITELIST_APPROVED', '商户 IP 白名单审核通过通知', 'zh-CN',
            '【${systemName}】商户 IP 白名单审核通过',
            '<h2>商户 IP 白名单审核通过</h2><p>您好，${merchantName}：</p><p>IP <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p>'
     UNION ALL SELECT 'MERCHANT_IP_WHITELIST_REJECTED', '商户 IP 白名单审核拒绝通知', 'zh-CN',
            '【${systemName}】商户 IP 白名单审核未通过',
            '<h2>商户 IP 白名单审核未通过</h2><p>您好，${merchantName}：</p><p>IP <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p>'
-    UNION ALL SELECT 'MERCHANT_SOURCE_URL_APPROVED', 'Merchant Source URL Approved', 'en-US',
-           '[${systemName}] Source URL approved',
-           '<h2>Source URL approved</h2><p>Hello ${merchantName},</p><p>Your source URL <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p>'
-    UNION ALL SELECT 'MERCHANT_SOURCE_URL_REJECTED', 'Merchant Source URL Rejected', 'en-US',
-           '[${systemName}] Source URL rejected',
-           '<h2>Source URL rejected</h2><p>Hello ${merchantName},</p><p>Your source URL <strong>${configValue}</strong> was rejected and remains prohibited.</p><p>Reason: <strong>${rejectReason}</strong></p><p>Reviewed at: ${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_SOURCE_URL_APPROVED', 'Store Website Approved', 'en-US',
+           '[${systemName}] Store website approved',
+           '<h2>Store website approved</h2><p>Hello ${merchantName},</p><p>Your store website <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_SOURCE_URL_REJECTED', 'Store Website Rejected', 'en-US',
+           '[${systemName}] Store website rejected',
+           '<h2>Store website rejected</h2><p>Hello ${merchantName},</p><p>Your store website <strong>${configValue}</strong> was rejected and remains prohibited.</p><p>Reason: <strong>${rejectReason}</strong></p><p>Reviewed at: ${reviewTime}</p>'
     UNION ALL SELECT 'MERCHANT_IP_WHITELIST_APPROVED', 'Merchant IP Whitelist Approved', 'en-US',
            '[${systemName}] IP whitelist entry approved',
            '<h2>IP whitelist entry approved</h2><p>Hello ${merchantName},</p><p>Your IP <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p>'

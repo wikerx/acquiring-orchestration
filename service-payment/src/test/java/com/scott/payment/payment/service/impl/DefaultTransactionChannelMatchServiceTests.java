@@ -8,6 +8,8 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
+import com.scott.payment.payment.config.ChannelMatchAbnormalProperties;
+import com.scott.payment.payment.domain.reconciliation.ChannelMatchAbnormalTypeEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
@@ -15,6 +17,7 @@ import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
+import com.scott.payment.payment.service.ChannelMatchAbnormalService;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.TransactionChannelMatchResultTransactionService;
@@ -25,6 +28,7 @@ import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +39,11 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * @author : scott
@@ -162,6 +171,58 @@ class DefaultTransactionChannelMatchServiceTests {
     }
 
     @Test
+    void shouldCreateReviewCaseInsteadOfCompletingWhenChannelCurrencyDiffers() {
+        TransactionOperationDO operation = pendingOperation();
+        InMemoryRecordService recordService = new InMemoryRecordService(operation);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS)
+                .withChannelMoney("EUR", new BigDecimal("12.34"));
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+        ChannelMatchAbnormalService abnormalService = mock(ChannelMatchAbnormalService.class);
+
+        TransactionChannelMatchResultDTO resultDTO = matchService(
+                recordService, invokeService, resultTransactionService, abnormalService).matchDue(matchCommand());
+
+        assertThat(resultDTO.getPendingCount()).isEqualTo(1);
+        assertThat(recordService.completeAttemptCount).isZero();
+        assertThat(recordService.lastMatchResult).isEqualTo(ChannelMatchAbnormalTypeEnum.CURRENCY_MISMATCH.getCode());
+        verify(abnormalService).recordReviewRequired(
+                eq(operation),
+                eq(ChannelMatchAbnormalTypeEnum.CURRENCY_MISMATCH.getCode()),
+                any(),
+                eq(ChannelMatchAbnormalTypeEnum.CURRENCY_MISMATCH.getCode()),
+                eq("CR-ORIGINAL-001"),
+                any(ChannelPaymentResponse.class),
+                any());
+    }
+
+    @Test
+    void shouldCreateReviewCaseInsteadOfCompletingWhenChannelAmountDiffers() {
+        TransactionOperationDO operation = pendingOperation();
+        InMemoryRecordService recordService = new InMemoryRecordService(operation);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS)
+                .withChannelMoney("USD", new BigDecimal("12.35"));
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+        ChannelMatchAbnormalService abnormalService = mock(ChannelMatchAbnormalService.class);
+
+        TransactionChannelMatchResultDTO resultDTO = matchService(
+                recordService, invokeService, resultTransactionService, abnormalService).matchDue(matchCommand());
+
+        assertThat(resultDTO.getPendingCount()).isEqualTo(1);
+        assertThat(recordService.completeAttemptCount).isZero();
+        assertThat(recordService.lastMatchResult).isEqualTo(ChannelMatchAbnormalTypeEnum.AMOUNT_MISMATCH.getCode());
+        verify(abnormalService).recordReviewRequired(
+                eq(operation),
+                eq(ChannelMatchAbnormalTypeEnum.AMOUNT_MISMATCH.getCode()),
+                any(),
+                eq(ChannelMatchAbnormalTypeEnum.AMOUNT_MISMATCH.getCode()),
+                eq("CR-ORIGINAL-001"),
+                any(ChannelPaymentResponse.class),
+                any());
+    }
+
+    @Test
     void shouldReduceQueryFrequencyForLongRunningUnknownTransactions() {
         LocalDateTime now = LocalDateTime.of(2026, 7, 29, 12, 0);
         TransactionOperationDO operationDO = pendingOperation();
@@ -246,6 +307,26 @@ class DefaultTransactionChannelMatchServiceTests {
                 resultTransactionService,
                 restoreRouteService(),
                 new DefaultChannelTransactionStatusResolver());
+    }
+
+    @SuppressWarnings("unchecked")
+    private DefaultTransactionChannelMatchService matchService(
+            InMemoryRecordService recordService,
+            QueryCaptureInvokeService invokeService,
+            TransactionChannelMatchResultTransactionService resultTransactionService,
+            ChannelMatchAbnormalService abnormalService) {
+        ChannelMatchAbnormalProperties properties = new ChannelMatchAbnormalProperties();
+        properties.setEnabled(true);
+        ObjectProvider<ChannelMatchAbnormalService> provider = mock(ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(abnormalService);
+        return new DefaultTransactionChannelMatchService(
+                recordService,
+                invokeService,
+                resultTransactionService,
+                restoreRouteService(),
+                new DefaultChannelTransactionStatusResolver(),
+                properties,
+                provider);
     }
 
     private TransactionChannelMatchCommandDTO matchCommand() {
@@ -358,9 +439,17 @@ class DefaultTransactionChannelMatchServiceTests {
          * </p>
          */
         private ChannelPaymentRequest lastRequest;
+        private String channelCurrency;
+        private BigDecimal channelAmount;
 
         private QueryCaptureInvokeService(ChannelTradeStatus queryStatus) {
             this.queryStatus = queryStatus;
+        }
+
+        private QueryCaptureInvokeService withChannelMoney(String currency, BigDecimal amount) {
+            this.channelCurrency = currency;
+            this.channelAmount = amount;
+            return this;
         }
 
         /**
@@ -404,6 +493,8 @@ class DefaultTransactionChannelMatchServiceTests {
             response.setRawChannelStatus(queryStatus.getCode());
             response.setChannelResponseCode(queryStatus == ChannelTradeStatus.SUCCESS ? "00" : "05");
             response.setChannelResponseMessage(queryStatus == ChannelTradeStatus.SUCCESS ? "Approved by query" : "Query not successful");
+            response.setChannelCurrency(channelCurrency);
+            response.setChannelAmount(channelAmount);
             PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
             resultDTO.setRequestId(preparedChannelRequest.getRequestId());
             resultDTO.setRequestStatus("SUCCESS");

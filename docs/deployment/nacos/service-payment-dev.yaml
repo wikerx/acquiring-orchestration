@@ -2,8 +2,8 @@
 payment:
   refund:
     management:
-      # 退款管理字段与查询开关；数据库迁移完成前保持关闭。
-      enabled: ${PAYMENT_REFUND_MANAGEMENT_ENABLED:false}
+      # dev 已完成退款管理数据库迁移，默认开启查询和来源字段能力；其他环境仍需单独发布。
+      enabled: ${PAYMENT_REFUND_MANAGEMENT_ENABLED:true}
       approval-enabled: ${PAYMENT_REFUND_APPROVAL_ENABLED:false}
       approval-policy: ${PAYMENT_REFUND_APPROVAL_POLICY:NONE}
       approval-expire-minutes: ${PAYMENT_REFUND_APPROVAL_EXPIRE_MINUTES:1440}
@@ -14,8 +14,8 @@ payment:
       execution-recovery-stale-seconds: ${PAYMENT_REFUND_EXECUTION_RECOVERY_STALE_SECONDS:300}
   channel-match:
     abnormal:
-      # 自动升级和建案开关；异常表迁移、Admin 权限和监控就绪前保持关闭。
-      enabled: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_ENABLED:false}
+      # dev 完成异常表迁移和 Admin 权限后开启；test/uat/prod 不继承该默认值。
+      enabled: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_ENABLED:true}
       review-required-threshold: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_THRESHOLD:12}
       default-level: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_DEFAULT_LEVEL:HIGH}
   redis:

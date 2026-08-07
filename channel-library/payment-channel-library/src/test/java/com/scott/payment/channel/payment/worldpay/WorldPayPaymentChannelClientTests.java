@@ -62,6 +62,8 @@ class WorldPayPaymentChannelClientTests {
         assertThat(response.getAuthCode()).isEqualTo("AUTH-XML-001");
         assertThat(response.getChannelOrderNo()).isEqualTo("ORDER-WPGXML-001");
         assertThat(response.getChannelTransactionId()).isEqualTo("WP-XML-PAYMENT-001");
+        assertThat(response.getChannelCurrency()).isEqualTo("USD");
+        assertThat(response.getChannelAmount()).isEqualByComparingTo("12.34");
         assertThat(response.getHttpStatus()).isEqualTo(200);
         assertThat(response.getRequestUrlMasked())
                 .isEqualTo("https://secure-test.worldpay.com/jsp/merchant/xml/paymentService.jsp");
@@ -164,6 +166,8 @@ class WorldPayPaymentChannelClientTests {
         assertThat(response.getChannelResponseCode()).isEqualTo("sentForSettlement");
         assertThat(response.getChannelOrderNo()).isEqualTo("ORDER-WPG-001");
         assertThat(response.getChannelTransactionId()).isEqualTo("WP-PAYMENT-001");
+        assertThat(response.getChannelCurrency()).isEqualTo("USD");
+        assertThat(response.getChannelAmount()).isEqualByComparingTo("12.34");
         assertThat(response.getHttpStatus()).isEqualTo(200);
         assertThat(response.getRequestUrlMasked()).isEqualTo("https://try.access.worldpay.com/api/payments");
         assertThat(response.getRequestHeaderJsonMasked()).contains("Basic ***");
@@ -673,6 +677,7 @@ class WorldPayPaymentChannelClientTests {
             }
             return "{\"outcome\":\"sentForSettlement\",\"paymentId\":\"WP-PAYMENT-001\","
                     + "\"orderCode\":\"ORDER-WPG-001\",\"requestId\":\"CR-WPG-001\","
+                    + "\"value\":{\"amount\":1234,\"currency\":\"USD\"},"
                     + "\"authorizationCode\":\"123456\",\"stan\":\"654321\",\"rrn\":\"RRN-WPG-001\","
                     + "\"acquirerReference\":\"ARN-WPG-001\","
                     + "\"paymentInstrument\":{\"type\":\"CARD\",\"brand\":\"MASTERCARD\","

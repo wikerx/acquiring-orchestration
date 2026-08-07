@@ -135,6 +135,8 @@ class MpgsResponseMapperTests {
         assertThat(response.getAcquirerReferenceNo()).isNull();
         assertThat(response.getChannelOrderNo()).isEqualTo("20260720162721508735");
         assertThat(response.getChannelTransactionId()).isEqualTo("20260720162721508735");
+        assertThat(response.getChannelCurrency()).isEqualTo("USD");
+        assertThat(response.getChannelAmount()).isEqualByComparingTo("10.01");
         assertThat(response.getPaymentMethodSummary()).isNotNull();
         assertThat(response.getPaymentMethodSummary().getPaymentBrand()).isEqualTo("MASTERCARD");
         assertThat(response.getPaymentMethodSummary().getScheme()).isEqualTo("MASTERCARD");

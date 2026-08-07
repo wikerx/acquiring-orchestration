@@ -3,6 +3,7 @@ package com.scott.payment.channel.payment.worldpay;
 import com.alibaba.fastjson2.annotation.JSONField;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 /**
@@ -144,6 +145,11 @@ public class WorldPayJsonResponsePayload {
     private String acquirerReference;
 
     /**
+     * 渠道响应的金额节点；amount 为最小辅币单位，必须结合 currency 和可选 exponent 解释。
+     */
+    private ValuePayload value;
+
+    /**
      * 渠道返回的支付工具摘要。
      * <p>
      * 单位：无；格式：对象；允许为空；只允许包含卡品牌、BIN、尾四位、脱敏卡号和发卡信息。
@@ -225,6 +231,14 @@ public class WorldPayJsonResponsePayload {
      */
     @JSONField(name = "_actions")
     private Map<String, LinkPayload> actions;
+
+    /** Worldpay JSON 响应金额节点。 */
+    @Data
+    public static class ValuePayload {
+        private BigDecimal amount;
+        private String currency;
+        private Integer exponent;
+    }
 
     /**
      * @author : scott

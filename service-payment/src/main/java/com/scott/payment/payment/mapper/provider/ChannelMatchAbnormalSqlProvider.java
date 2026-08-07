@@ -28,7 +28,7 @@ public final class ChannelMatchAbnormalSqlProvider {
             FROM transaction_abnormal_event
             WHERE deleted = 0
               AND transaction_date_time >= #{beginTime}
-              AND transaction_date_time < #{endTimeExclusive}
+              AND transaction_date_time &lt; #{endTimeExclusive}
               <if test="query.eventId != null and query.eventId != ''">AND abnormal_event_id = #{query.eventId}</if>
               <if test="query.transactionId != null and query.transactionId != ''">AND transaction_id = #{query.transactionId}</if>
               <if test="query.merchantId != null and query.merchantId != ''">AND merchant_id = #{query.merchantId}</if>
