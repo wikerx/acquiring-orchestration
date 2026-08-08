@@ -342,6 +342,21 @@ ON DUPLICATE KEY UPDATE
     remark = VALUES(remark),
     update_by = VALUES(update_by);
 
+INSERT INTO exchange_rate_source (
+    source_code, source_name, source_type, request_url, default_source, priority, timeout_seconds, source_status, remark, create_by, update_by, deleted
+) VALUES (
+    'NBP', '波兰国家银行', 'API', 'https://api.nbp.pl/api/exchangerates/tables/C?format=json', 0, 20, 10, 1,
+    '自动拉取 NBP Table C 外币兑 PLN 买卖报价', 'system', 'system', 0
+)
+ON DUPLICATE KEY UPDATE
+    source_name = VALUES(source_name),
+    source_type = VALUES(source_type),
+    request_url = VALUES(request_url),
+    priority = VALUES(priority),
+    timeout_seconds = VALUES(timeout_seconds),
+    remark = VALUES(remark),
+    update_by = VALUES(update_by);
+
 -- 外部汇率源币种名称映射已下沉到汇率源 Provider，不再保留独立业务表。
 DROP TABLE IF EXISTS exchange_source_currency_mapping;
 
@@ -382,6 +397,18 @@ SET job_name = '中国银行汇率拉取任务',
     update_by = 'system'
 WHERE job_code = 'BOC_EXCHANGE_RATE_FETCH'
   AND deleted = 0;
+
+INSERT IGNORE INTO sys_job_task (
+    job_code, job_name, job_group, handler_code, cron_expression, scheduler_mode, trigger_mode, execute_mode,
+    route_strategy, misfire_strategy, timeout_seconds, retry_count, retry_interval_seconds, allow_concurrent,
+    params, status, description, version, deleted, create_by, update_by
+) VALUES (
+    'NBP_EXCHANGE_RATE_FETCH', '波兰国家银行汇率拉取任务', 'exchange', 'nbpExchangeRateFetchJob', '0 30 16 ? * MON-FRI',
+    'DISTRIBUTED', 'CRON', 'SYNC', 'LOCAL', 'FIRE_ONCE', 60, 3, 60, 0,
+    '{"sourceCode":"NBP","dryRun":false}', 'ENABLED',
+    '每个工作日16:30拉取 NBP Table C 外币兑 PLN 买卖报价；业务汇率由管理端汇率规则决定。',
+    0, 0, 'system', 'system'
+);
 
 -- 菜单和权限初始化使用确定性菜单编码，不写死菜单 ID。
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, sort_no, status, deleted)
