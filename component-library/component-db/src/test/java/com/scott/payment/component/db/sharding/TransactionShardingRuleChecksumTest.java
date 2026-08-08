@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -19,6 +20,30 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * @status : create
  */
 class TransactionShardingRuleChecksumTest {
+
+    /** 已发布的 23 表基线在第 24 表滚动上线期间必须仍可激活。 */
+    @Test
+    void shouldActivatePreviousTwentyThreeTableBaselineDuringRollingUpgrade() {
+        TransactionShardingProperties properties = validProperties();
+        List<String> previousBaseline = new ArrayList<>(TransactionShardingProperties.defaultLogicTables());
+        previousBaseline.remove("transaction_card_vault");
+        properties.setLogicTables(previousBaseline);
+        properties.setRuleChecksum(TransactionShardingRuleChecksum.calculate(properties));
+
+        assertDoesNotThrow(properties::validateForActivation);
+    }
+
+    /** 兼容窗口只接受完整历史集合，不能把任意 23 张表误判为旧基线。 */
+    @Test
+    void shouldRejectUnknownTableInsideTwentyThreeTableTopology() {
+        TransactionShardingProperties properties = validProperties();
+        List<String> invalidTopology = new ArrayList<>(TransactionShardingProperties.previousLogicTables());
+        invalidTopology.set(0, "transaction_unknown");
+        properties.setLogicTables(invalidTopology);
+        properties.setRuleChecksum(TransactionShardingRuleChecksum.calculate(properties));
+
+        assertThrows(IllegalStateException.class, properties::validateForActivation);
+    }
 
     @Test
     void shouldRemainStableWhenConfiguredCollectionsHaveDifferentOrder() {

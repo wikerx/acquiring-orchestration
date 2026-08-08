@@ -83,6 +83,15 @@ public final class PaymentCheckoutClientDTOs {
         /** 商户通知 URL 摘要；内部请求不传递原始通知地址。 */
         private String merchantNotifyUrlHash;
 
+        /** 商户通知 URL 的 AES-GCM 密文，仅供 payment 创建受保护通知快照。 */
+        private String merchantNotifyUrlCiphertext;
+
+        /** 付款人预填信息 AES-GCM 密文。 */
+        private String payerInfoCiphertext;
+
+        /** 账单预填信息 AES-GCM 密文。 */
+        private String billingInfoCiphertext;
+
         /** ISO 3166-1 alpha-3 付款人国家/地区代码。 */
         private String payerCountry;
 
@@ -221,6 +230,47 @@ public final class PaymentCheckoutClientDTOs {
 
         /** 有效期、重试次数和轮询配置。 */
         private Checkout checkout;
+
+        /** 商户上送的付款人预填信息。 */
+        private PayerInfo payerInfo;
+
+        /** 商户上送的账单预填信息。 */
+        private BillingInfo billingInfo;
+
+        /** 最近一次支付尝试结果；再次打开链接时直接回显。 */
+        private PaymentResultResponse paymentResult;
+
+        /** 卡数据加密公钥元数据和一次性 nonce，仅可支付状态返回。 */
+        private CardEncryption cardEncryption;
+    }
+
+    @Data
+    public static class PayerInfo implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String payerId;
+        private String email;
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+    }
+
+    @Data
+    public static class BillingInfo implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String firstName;
+        private String lastName;
+        private String email;
+        private String phone;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
     }
 
     /**
@@ -268,8 +318,8 @@ public final class PaymentCheckoutClientDTOs {
         /** 设备信息脱敏 JSON；原始设备采集报文不得持久化。 */
         private String deviceInfoJson;
 
-        /** 敏感卡数据，仅允许短暂传入支付处理，禁止日志或普通业务持久化。 */
-        private CardInfo cardInfo;
+        /** 浏览器生成的卡数据密文信封，OpenAPI 不得解密。 */
+        private CardDataEnvelope cardDataEnvelope;
 
         /** 账单持卡人资料，用于渠道和 3DS 校验，日志必须脱敏。 */
         private BillingCardHolderInfo billingCardHolderInfo;
@@ -313,6 +363,23 @@ public final class PaymentCheckoutClientDTOs {
          * 浏览器 UA 摘要，避免日志和数据库保存完整设备指纹。
          */
         private String userAgentHash;
+    }
+
+    @Data
+    public static class CardBinRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String tokenHash;
+        private String checkoutSessionId;
+        private String cardBin;
+        private String traceId;
+    }
+
+    @Data
+    public static class CardBinResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String cardBrand;
+        private Boolean recognized;
+        private Boolean supported;
     }
 
     /**
@@ -530,39 +597,26 @@ public final class PaymentCheckoutClientDTOs {
         private Integer pollingIntervalSeconds;
     }
 
-    /**
-     * 付款人卡信息，只在 OpenAPI 到 service-payment 的内存调用链中过境。
-     */
+    @Data
+    public static class CardEncryption implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String algorithm;
+        private String keyId;
+        private String publicKey;
+        private String nonce;
+    }
+
+    /** OpenAPI 原样转发的卡数据密文信封。 */
     @Getter
     @Setter
-    public static class CardInfo implements Serializable {
-
+    public static class CardDataEnvelope implements Serializable {
         private static final long serialVersionUID = 1L;
-
-        /**
-         * 明文卡号，禁止日志输出和持久化保存。
-         */
-        private String cardNo;
-
-        /**
-         * 卡有效期月份。
-         */
-        private String expirationMonth;
-
-        /**
-         * 卡有效期年份。
-         */
-        private String expirationYear;
-
-        /**
-         * CVV/CVC，仅用于本次渠道请求，禁止保存。
-         */
-        private String securityCode;
-
-        /**
-         * 持卡人姓名，用于 3DS 和渠道授权请求。
-         */
-        private String cardholderName;
+        private String algorithm;
+        private String keyId;
+        private String encryptedKey;
+        private String iv;
+        private String ciphertext;
+        private String nonce;
     }
 
     /**

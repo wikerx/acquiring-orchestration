@@ -7,6 +7,7 @@ import com.scott.payment.openapi.dto.body.HostedCheckoutBrowserRequestDTOs;
 import jakarta.servlet.http.HttpServletRequest;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
+import com.scott.payment.openapi.vo.checkout.HostedCheckoutCardBinVO;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
@@ -82,6 +83,13 @@ public class HostedCheckoutBrowserController {
     public CommonResult<HostedCheckoutPaymentResultVO> queryPaymentStatus(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.PaymentStatusRequest requestDTO) {
         return success(hostedCheckoutApplicationService.queryPaymentStatus(requestDTO));
+    }
+
+    /** 卡号输入完成后按 BIN 识别品牌并校验商户 MID 支持状态。 */
+    @PostMapping("/card-bin/resolve")
+    public CommonResult<HostedCheckoutCardBinVO> resolveCardBin(
+            @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.CardBinRequest requestDTO) {
+        return success(hostedCheckoutApplicationService.resolveCardBin(requestDTO));
     }
 
     /**

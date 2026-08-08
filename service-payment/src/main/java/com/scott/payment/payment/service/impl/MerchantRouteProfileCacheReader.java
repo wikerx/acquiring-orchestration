@@ -211,6 +211,7 @@ public class MerchantRouteProfileCacheReader {
         option.setChannelMid(mid.getChannelMid());
         option.setBusinessType(mid.getBusinessType());
         option.setPaymentMethodScope(mid.getPaymentMethodScope());
+        option.setCardBrandScope(mid.getCardBrandScope());
         option.setTransactionTypeScope(mid.getTransactionTypeScope());
         option.setCurrencyScope(mid.getCurrencyScope());
         option.setAllowedCountryScope(mid.getAllowedCountryScope());

@@ -68,6 +68,9 @@ public class MerchantRouteProfile implements Serializable {
         /** MID 支付方式范围。 */
         private String paymentMethodScope;
 
+        /** MID 银行卡品牌范围。 */
+        private String cardBrandScope;
+
         /** MID 交易类型范围。 */
         private String transactionTypeScope;
 

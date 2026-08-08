@@ -61,7 +61,7 @@ class TransactionPersistenceMapperContractTests {
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(toShardingProperties(sharding)));
         assertThat(maintenance).containsEntry("allow-create-from-template-table", true)
                 .containsEntry("allow-alter-existing-table", false);
-        assertThat(tables).hasSize(23);
+        assertThat(tables).hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT);
         assertThat(tables.values()).allSatisfy(value -> {
             assertThat(value).isInstanceOf(Map.class);
             @SuppressWarnings("unchecked")
@@ -293,7 +293,8 @@ class TransactionPersistenceMapperContractTests {
             "transaction_merchant_notification_log",
             "transaction_merchant_api_interaction_log",
             "transaction_event_outbox",
-            "transaction_abnormal_event");
+            "transaction_abnormal_event",
+            "transaction_card_vault");
 
     @Test
     void transactionMappersShouldNotExposeDynamicPhysicalTableSql() {

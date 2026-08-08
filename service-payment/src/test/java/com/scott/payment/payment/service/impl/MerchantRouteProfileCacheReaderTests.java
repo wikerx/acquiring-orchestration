@@ -81,6 +81,7 @@ class MerchantRouteProfileCacheReaderTests {
         assertThat(profile.getRouteOptions()).singleElement().satisfies(option -> {
             assertThat(option.getMidConfigId()).isEqualTo(10L);
             assertThat(option.getChannelCode()).isEqualTo("MPGS");
+            assertThat(option.getCardBrandScope()).isEqualTo("VISA,MASTERCARD");
             assertThat(option.getSupportedCurrencies()).containsExactly("USD");
         });
         assertThat(List.of(MerchantRouteProfile.RouteOption.class.getDeclaredFields()))
@@ -113,6 +114,7 @@ class MerchantRouteProfileCacheReaderTests {
         row.setChannelMid("MERCHANT-001");
         row.setBusinessType("ACQUIRING");
         row.setPaymentMethodScope("ALL");
+        row.setCardBrandScope("VISA,MASTERCARD");
         row.setTransactionTypeScope("ALL");
         row.setCurrencyScope("USD");
         row.setAllowedCountryScope("ALL");

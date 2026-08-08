@@ -43,7 +43,7 @@ class ShardingTablePreCreateServiceImplTests {
 
         ShardingTablePreCreateResult result = fixture.service.preCreate(request, null);
 
-        assertThat(result.getTableResults()).hasSize(23);
+        assertThat(result.getTableResults()).hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT);
         assertThat(result.getTableResults()).allMatch(item -> "DRY_RUN".equals(item.getStatus()));
         assertThat(result.getVerifiedPhysicalNodes()).containsExactly("202603");
         assertThat(result.getPublicationReady()).isFalse();
@@ -63,7 +63,7 @@ class ShardingTablePreCreateServiceImplTests {
 
         ShardingTablePreCreateResult result = fixture.service.preCreate(nextQuarterRequest(false), null);
 
-        assertThat(result.getTableResults()).hasSize(23);
+        assertThat(result.getTableResults()).hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT);
         assertThat(result.getTableResults()).allMatch(item -> "SKIPPED".equals(item.getStatus()));
         assertThat(result.getTableResults()).allMatch(item -> "MATCHED".equals(item.getAutoIncrementCheckStatus()));
         assertThat(result.getVerifiedPhysicalNodes()).containsExactly("202603", "202604");
@@ -88,13 +88,13 @@ class ShardingTablePreCreateServiceImplTests {
     }
 
     @Test
-    void governanceConfigShouldRejectAnythingOtherThanFormalTwentyThreeTables() {
+    void governanceConfigShouldRejectMissingFormalTable() {
         Fixture fixture = fixture();
         fixture.governanceProperties.getTables().remove("transaction_abnormal_event");
 
         assertThatThrownBy(() -> fixture.service.preCreate(nextQuarterRequest(true), null))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("exactly 23 formal tables");
+                .hasMessageContaining("exactly 24 formal tables");
 
         verify(fixture.ddlService, never()).createPhysicalTableIfAbsent(any(), any(), any());
     }

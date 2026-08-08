@@ -29,6 +29,9 @@ public final class DataMqConsumerGroups {
     /** Admin 与 Merchant 登录审计消费组。 */
     public static final String LOGIN_AUDIT = "acquiring-data-login-audit-consumer";
 
+    /** 收银台卡资料密文消费组。 */
+    public static final String CHECKOUT_CARD_VAULT = "acquiring-data-checkout-card-vault-consumer";
+
     private DataMqConsumerGroups() {
     }
 }

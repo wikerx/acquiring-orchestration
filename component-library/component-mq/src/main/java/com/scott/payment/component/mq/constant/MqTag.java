@@ -44,6 +44,9 @@ public final class MqTag {
     /** 退款审批通过后的渠道执行请求标签。 */
     public static final String REFUND_EXECUTION_REQUESTED = "REFUND_EXECUTION_REQUESTED";
 
+    /** 收银台卡资料密文入库标签。 */
+    public static final String CHECKOUT_CARD_VAULT_STORE = "CHECKOUT_CARD_VAULT_STORE";
+
     private MqTag() {
     }
 }

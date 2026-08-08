@@ -82,6 +82,12 @@ public class PaymentCheckoutSessionDO implements Serializable {
     private String merchantCancelUrl;
     /** 商户通知地址摘要，不保存完整通知地址。 */
     private String merchantNotifyUrlHash;
+    /** 商户通知地址 AES-GCM 密文，仅供创建商户通知任务。 */
+    private String merchantNotifyUrlCiphertext;
+    /** 付款人预填信息 AES-GCM 密文。 */
+    private String payerInfoCiphertext;
+    /** 账单预填信息 AES-GCM 密文。 */
+    private String billingInfoCiphertext;
     /** 付款页语言或地区标识。 */
     private String locale;
     /** 付款人国家或地区代码。 */

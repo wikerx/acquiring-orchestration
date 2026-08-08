@@ -25,7 +25,7 @@ public final class SensitiveDataMaskUtils {
      * 密钥类字段统一替换为固定星号，禁止日志中出现任何明文片段。
      */
     private static final Pattern SECRET_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:password|mid\\.password|oldPassword|newPassword|apiPassword|mid\\.apiPassword|Authorization|accessToken|refreshToken|token|opaqueToken|tokenHash|threeDsReturnToken|threeDsReturnTokenHash|apiToken|authenticationToken|apiKey|secret|apiSecret|secretKey|privateKey|publicKey|merchantKey|merchantSecret)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:password|mid\\.password|oldPassword|newPassword|apiPassword|mid\\.apiPassword|Authorization|accessToken|refreshToken|token|opaqueToken|tokenHash|threeDsReturnToken|threeDsReturnTokenHash|apiToken|authenticationToken|apiKey|secret|apiSecret|secretKey|privateKey|publicKey|merchantKey|merchantSecret|encryptedKey|ciphertext|nonce|iv)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 

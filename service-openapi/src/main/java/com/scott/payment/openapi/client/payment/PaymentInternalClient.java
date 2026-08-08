@@ -151,4 +151,8 @@ public interface PaymentInternalClient {
      */
     PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
             PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO);
+
+    /** 解析收银台卡 BIN 品牌及 MID 支持状态。 */
+    PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
+            PaymentCheckoutClientDTOs.CardBinRequest requestDTO);
 }

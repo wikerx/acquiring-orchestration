@@ -193,12 +193,13 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
     /**
-     * 校验治理配置只包含并完整覆盖 23 张正式交易逻辑表。
+     * 校验治理配置只包含并完整覆盖当前正式交易逻辑表。
      */
     private void validateGovernanceConfiguration(ShardingTablePreCreateRequest request) {
         Set<String> expectedTables = new LinkedHashSet<>(transactionShardingProperties.getLogicTables());
-        if (expectedTables.size() != 23) {
-            throw new IllegalStateException("transaction sharding logic table baseline must contain exactly 23 tables");
+        if (expectedTables.size() != TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT) {
+            throw new IllegalStateException("transaction sharding logic table baseline must contain exactly "
+                    + TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT + " tables");
         }
         if (!TransactionShardingProperties.REQUIRED_ZONE_ID.equals(shardingProperties.getDatabaseTimezone())) {
             throw new IllegalStateException("transaction governance database timezone must be Asia/Shanghai");
@@ -207,7 +208,8 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
             throw new IllegalStateException("transaction governance strategy must be quarter");
         }
         if (shardingProperties.getTables().size() != expectedTables.size()) {
-            throw new IllegalStateException("transaction governance rules must contain exactly 23 formal tables");
+            throw new IllegalStateException("transaction governance rules must contain exactly "
+                    + TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT + " formal tables");
         }
         Set<String> configuredTables = new LinkedHashSet<>();
         for (TransactionShardingGovernanceProperties.TableRule rule : shardingProperties.getTables().values()) {
@@ -225,7 +227,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
             }
         }
         if (!configuredTables.equals(expectedTables)) {
-            throw new IllegalStateException("transaction governance rules differ from the 23 formal logic tables");
+            throw new IllegalStateException("transaction governance rules differ from the formal logic tables");
         }
         Set<String> requestedTables = new LinkedHashSet<>(request.getLogicalTables() == null
                 ? List.of() : request.getLogicalTables());
@@ -423,7 +425,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
     /**
-     * 仅当一个季度的 23 张正式表全部存在且结构、时区字段、字符集和号段通过时，才加入候选节点。
+     * 仅当一个季度的全部正式表均通过结构、时区字段、字符集和号段校验时，才加入候选节点。
      */
     private void completeRuleCandidate(
             ShardingTablePreCreateResult result,
@@ -433,7 +435,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         Set<String> selectedTables = new LinkedHashSet<>();
         rules.forEach(entry -> selectedTables.add(entry.getValue().getLogicalTable()));
         if (!selectedTables.equals(expectedTables)) {
-            result.getPublicationBlockers().add("candidate publication requires all 23 formal logic tables");
+            result.getPublicationBlockers().add("candidate publication requires all formal logic tables");
         }
         Set<String> verifiedNodes = new LinkedHashSet<>(transactionShardingProperties.getPhysicalNodes());
         for (ShardingQuarter quarter : targetQuarters) {

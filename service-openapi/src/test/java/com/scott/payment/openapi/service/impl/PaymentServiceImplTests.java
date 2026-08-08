@@ -769,6 +769,17 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
+        /** 返回固定支持结果，供共享客户端契约编译；普通支付测试不会调用该分支。 */
+        @Override
+        public PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
+                PaymentCheckoutClientDTOs.CardBinRequest requestDTO) {
+            PaymentCheckoutClientDTOs.CardBinResponse responseDTO = new PaymentCheckoutClientDTOs.CardBinResponse();
+            responseDTO.setCardBrand("MASTERCARD");
+            responseDTO.setRecognized(true);
+            responseDTO.setSupported(true);
+            return responseDTO;
+        }
+
         private PaymentCreateClientResponseDTO captureRequest(PaymentCreateClientRequestDTO requestDTO,
                                                               OpenApiPaymentOperationEnum operation) {
             this.requestDTO = requestDTO;

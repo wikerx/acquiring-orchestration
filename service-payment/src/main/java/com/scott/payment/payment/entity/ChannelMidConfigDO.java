@@ -102,6 +102,9 @@ public class ChannelMidConfigDO {
      */
     private String paymentMethodScope;
 
+    /** 银行卡品牌范围：ALL、NONE 或逗号分隔的品牌编码。 */
+    private String cardBrandScope;
+
     /**
      * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
      * <p>

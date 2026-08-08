@@ -63,3 +63,9 @@ spring:
 logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml
+
+payment:
+  checkout:
+    card-encryption:
+      allow-ephemeral-key: true
+      replay-store-required: false

@@ -11,6 +11,8 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateRe
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutThreeDsReturnCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
@@ -23,7 +25,10 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -84,6 +89,19 @@ public class PaymentInternalController {
     public CommonResult<PaymentCheckoutSessionQueryResultDTO> queryCheckoutSession(
             @Valid @RequestBody PaymentCheckoutSessionQueryCommandDTO commandDTO) {
         return success(paymentCheckoutApplicationService.querySession(commandDTO));
+    }
+
+    /** 内部调度补偿：关闭超过付款期限的收银台订单。 */
+    @PostMapping("/checkout/session/expire-due")
+    public CommonResult<Integer> expireDueCheckoutSessions(@RequestParam(defaultValue = "200") int limit) {
+        return success(paymentCheckoutApplicationService.expireDue(LocalDateTime.now(), limit));
+    }
+
+    /** 解析卡 BIN 品牌并校验当前收银台会话是否支持。 */
+    @PostMapping("/checkout/card-bin/resolve")
+    public CommonResult<PaymentCheckoutCardBinResultDTO> resolveCheckoutCardBin(
+            @Valid @RequestBody PaymentCheckoutCardBinCommandDTO commandDTO) {
+        return success(paymentCheckoutApplicationService.resolveCardBin(commandDTO));
     }
 
     /**

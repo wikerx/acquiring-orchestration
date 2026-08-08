@@ -1,8 +1,8 @@
 # ShardingSphere-JDBC 交易逻辑路由与物理表治理的 dev 非秘密发布草案。
 # 未经确认不得发布 Nacos；actualDataNodes 只包含已建表且通过治理校验的季度。
 transaction-sharding:
-  rule-version: "2026.08.02-001"
-  rule-checksum: "sha256:99bc03ee0b2db6dd27a69eda71b469ca822f2f27d91e2d8d12100c220da74791"
+  rule-version: "2026.08.08-001"
+  rule-checksum: "sha256:b1db8acacbe4ff66fcf95c7dd8232e0a2260dba2cf76b8af2806ff1ece7b67d4"
   database-zone-id: Asia/Shanghai
   sharding-column: transaction_date_time
   primary-data-source: master
@@ -36,6 +36,7 @@ transaction-sharding:
     - transaction_merchant_api_interaction_log
     - transaction_event_outbox
     - transaction_abnormal_event
+    - transaction_card_vault
   direct-access-services:
     - service-payment
     - service-admin
@@ -669,3 +670,16 @@ transaction-sharding:
         actual-data-source: master
         # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存已能定位交易时间的交易异常事件，如状态推进失败、金额校验失败、回调无法处理等。
+      transaction-card-vault:
+        enabled: true
+        logical-table: transaction_card_vault
+        template-table: transaction_card_vault
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 保存收银台无 CVV 卡资料的字段密文、PAN HMAC 和被 KEK 包裹的 DEK。

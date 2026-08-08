@@ -2,6 +2,7 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.db.route.model.MerchantRouteProfile;
 import com.scott.payment.component.db.route.model.MerchantRouteProfile.RouteOption;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.mapper.PaymentChannelInfoMapper;
 import com.scott.payment.payment.mapper.PaymentChannelMidConfigMapper;
@@ -15,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -62,6 +64,26 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         verifyNoInteractions(midMapper, channelMapper);
     }
 
+    /** 路由层必须再次校验卡品牌，不能选择仅支持 Visa/Mastercard 的 MID 处理 AMEX。 */
+    @Test
+    void shouldRejectRouteWhenMidDoesNotSupportCardBrand() {
+        PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
+        PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);
+        MerchantRouteProfileCacheService profileCache = mock(MerchantRouteProfileCacheService.class);
+        PaymentChannelMidMetadataCache metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        when(profileCache.findRouteProfile("200045"))
+                .thenReturn(profile(LocalDateTime.of(2026, 8, 1, 15, 40)));
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                midMapper, channelMapper, profileCache, metadataCache);
+        PaymentCreateCommandDTO command = command();
+        command.getTransactionInfo().setCardBrand("AMEX");
+
+        assertThatThrownBy(() -> service.route(command))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("商户未配置可用渠道MID");
+        verifyNoInteractions(metadataCache, midMapper, channelMapper);
+    }
+
     /** 构造交易命令。 */
     private PaymentCreateCommandDTO command() {
         PaymentCreateCommandDTO command = new PaymentCreateCommandDTO();
@@ -72,6 +94,9 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         command.setPaymentMethod("BANK_CARD");
         command.setCurrency("USD");
         command.setAmount(new BigDecimal("10.00"));
+        PaymentCreateCommandDTO.TransactionInfoDTO transactionInfo = new PaymentCreateCommandDTO.TransactionInfoDTO();
+        transactionInfo.setCardBrand("VISA");
+        command.setTransactionInfo(transactionInfo);
         return command;
     }
 
@@ -87,6 +112,7 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         option.setChannelMid("MERCHANT-001");
         option.setBusinessType("ACQUIRING");
         option.setPaymentMethodScope("ALL");
+        option.setCardBrandScope("VISA,MASTERCARD");
         option.setTransactionTypeScope("ALL");
         option.setCurrencyScope("USD");
         option.setAllowedCountryScope("ALL");

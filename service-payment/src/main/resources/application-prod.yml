@@ -71,3 +71,12 @@ internal-service:
     # 生产环境内部服务 HMAC-SHA256 共享密钥，必须与 service-openapi 的 openapi.*-client.internal-secret 保持一致。
     # 推荐通过 K8s Secret、CI/CD Secret 或主机环境变量注入：INTERNAL_SERVICE_AUTH_SECRET=<32位以上随机高强度密钥>。
     secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+
+payment:
+  checkout:
+    card-encryption:
+      key-id: ${CHECKOUT_CARD_ENCRYPTION_KEY_ID}
+      public-key-x509-base64: ${CHECKOUT_CARD_ENCRYPTION_PUBLIC_KEY_X509_BASE64}
+      private-key-pkcs8-base64: ${CHECKOUT_CARD_ENCRYPTION_PRIVATE_KEY_PKCS8_BASE64}
+      allow-ephemeral-key: false
+      replay-store-required: true

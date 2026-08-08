@@ -1,7 +1,11 @@
 package com.scott.payment.payment.api.internal.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -48,8 +52,13 @@ public class PaymentCheckoutPaymentSubmitCommandDTO implements Serializable {
     /** 已摘要化的设备环境 JSON，不能作为唯一身份凭据。 */
     private String deviceInfoJson;
 
-    /** 敏感卡数据，仅允许在当前支付调用链内存中过境。 */
+    /** 浏览器生成的卡数据密文信封，OpenAPI 只能原样转发。 */
     @Valid
+    @NotNull(message = "cardDataEnvelope is required")
+    private CardDataEnvelopeDTO cardDataEnvelope;
+
+    /** 解密后的卡数据仅供 service-payment 当前调用栈使用，禁止从 JSON 接口绑定。 */
+    @JsonIgnore
     private CardInfoDTO cardInfo;
 
     /** 渠道及 3DS 所需账单资料，日志中必须脱敏。 */
@@ -75,6 +84,34 @@ public class PaymentCheckoutPaymentSubmitCommandDTO implements Serializable {
         private String securityCode;
         /** 卡面持卡人姓名，属于个人信息，日志中必须脱敏。 */
         private String cardholderName;
+    }
+
+    /** 浏览器混合加密信封；密文字段不得写入普通日志或持久化。 */
+    @Getter
+    @Setter
+    public static class CardDataEnvelopeDTO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotBlank(message = "cardDataEnvelope.algorithm is required")
+        private String algorithm;
+        @NotBlank(message = "cardDataEnvelope.keyId is required")
+        @Size(max = 64, message = "cardDataEnvelope.keyId is too long")
+        private String keyId;
+        @NotBlank(message = "cardDataEnvelope.encryptedKey is required")
+        @Size(max = 1024, message = "cardDataEnvelope.encryptedKey is too long")
+        @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "cardDataEnvelope.encryptedKey format does not match")
+        private String encryptedKey;
+        @NotBlank(message = "cardDataEnvelope.iv is required")
+        @Size(max = 32, message = "cardDataEnvelope.iv is too long")
+        @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "cardDataEnvelope.iv format does not match")
+        private String iv;
+        @NotBlank(message = "cardDataEnvelope.ciphertext is required")
+        @Size(max = 8192, message = "cardDataEnvelope.ciphertext is too long")
+        @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "cardDataEnvelope.ciphertext format does not match")
+        private String ciphertext;
+        @NotBlank(message = "cardDataEnvelope.nonce is required")
+        @Size(max = 128, message = "cardDataEnvelope.nonce is too long")
+        @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "cardDataEnvelope.nonce format does not match")
+        private String nonce;
     }
 
     /**

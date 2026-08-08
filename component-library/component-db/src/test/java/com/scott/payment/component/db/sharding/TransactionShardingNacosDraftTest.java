@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : TransactionShardingNacosDraftTest
  * @date : 2026-08-02 23:59
  * @email : scott_x@163.com
- * @description : 直接加载 Nacos 分片发布草案，验证版本、23 表、物理节点和 SHA-256 激活契约一致
+ * @description : 直接加载 Nacos 分片发布草案，验证版本、正式表、物理节点和 SHA-256 激活契约一致
  * @status : create
  */
 class TransactionShardingNacosDraftTest {

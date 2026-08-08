@@ -23,7 +23,7 @@ public class HostedCheckoutProperties {
     /**
      * 商户未传 expireMinutes 时的默认有效分钟数。
      */
-    private int defaultExpireMinutes = 30;
+    private int defaultExpireMinutes = 1440;
 
     /**
      * 收银台会话最长有效分钟数。
@@ -34,4 +34,7 @@ public class HostedCheckoutProperties {
      * 默认最大支付尝试次数。
      */
     private int defaultMaxAttemptCount = 3;
+
+    /** UAT/生产必须通过配置中心覆盖的收银台敏感字段加密密钥。 */
+    private String sensitiveFieldEncryptionKey = "dev-hosted-checkout-field-key-change-me";
 }
