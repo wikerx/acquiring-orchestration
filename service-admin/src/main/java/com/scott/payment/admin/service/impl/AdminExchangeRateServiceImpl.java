@@ -1,5 +1,6 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.exchange.ExchangeRateDTOs.BusinessRateQuery;
@@ -32,6 +33,7 @@ import com.scott.payment.admin.service.AdminExchangeRateService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -289,6 +291,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率源分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SourceResponse> pageSources(SourceQuery request) {
         SourceQuery query = request == null ? new SourceQuery() : request;
         Page<ExchangeRateSourceDO> page = sourceMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
@@ -311,6 +314,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率源列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SourceResponse> listSources(SourceQuery request) {
         SourceQuery query = request == null ? new SourceQuery() : request;
         return sourceMapper.selectList(Wrappers.<ExchangeRateSourceDO>lambdaQuery()
@@ -334,6 +338,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率源详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public SourceResponse getSource(Long id) {
         return toSourceResponse(findSource(id));
     }
@@ -345,6 +350,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 新增后的汇率源详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public SourceResponse createSource(SourceSaveRequest request) {
         validateSourceRequest(request, null);
@@ -364,6 +370,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 修改后的汇率源详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public SourceResponse updateSource(Long id, SourceSaveRequest request) {
         ExchangeRateSourceDO entity = findSource(id);
@@ -381,6 +388,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 切换状态后的汇率源详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public SourceResponse updateSourceStatus(Long id, Integer status) {
         ExchangeRateSourceDO entity = findSource(id);
@@ -397,6 +405,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 汇率源主键
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void deleteSource(Long id) {
         ExchangeRateSourceDO entity = findSource(id);
@@ -415,6 +424,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 原始汇率分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<RawRateResponse> pageRawRates(RawRateQuery request) {
         RawRateQuery query = request == null ? new RawRateQuery() : request;
         Page<ExchangeRawRateDO> page = rawRateMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
@@ -441,6 +451,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 原始汇率列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<RawRateResponse> listRawRates(RawRateQuery request) {
         RawRateQuery query = request == null ? new RawRateQuery() : request;
         return rawRateMapper.selectList(Wrappers.<ExchangeRawRateDO>lambdaQuery()
@@ -468,6 +479,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 原始汇率详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public RawRateResponse getRawRate(Long id) {
         return toRawRateResponse(findRawRate(id));
     }
@@ -479,6 +491,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 新增后的原始汇率详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public RawRateResponse createManualRawRate(RawRateSaveRequest request) {
         validateRawRateRequest(request);
@@ -500,6 +513,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 作废后的原始汇率详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public RawRateResponse voidRawRate(Long id, String voidReason) {
         ExchangeRawRateDO entity = findRawRate(id);
@@ -526,6 +540,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率规则分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<RuleResponse> pageRules(RuleQuery request) {
         RuleQuery query = request == null ? new RuleQuery() : request;
         Page<ExchangeRateRuleDO> page = ruleMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
@@ -550,6 +565,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率规则列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<RuleResponse> listRules(RuleQuery request) {
         RuleQuery query = request == null ? new RuleQuery() : request;
         return ruleMapper.selectList(Wrappers.<ExchangeRateRuleDO>lambdaQuery()
@@ -575,6 +591,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率规则详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public RuleResponse getRule(Long id) {
         return toRuleResponse(findRule(id));
     }
@@ -586,6 +603,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 新增后的规则详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public RuleResponse createRule(RuleSaveRequest request) {
         validateRuleRequest(request, null);
@@ -605,6 +623,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 修改后的规则详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public RuleResponse updateRule(Long id, RuleSaveRequest request) {
         ExchangeRateRuleDO entity = findRule(id);
@@ -622,6 +641,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 切换状态后的规则详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public RuleResponse updateRuleStatus(Long id, Integer status) {
         ExchangeRateRuleDO entity = findRule(id);
@@ -639,6 +659,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 业务汇率分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<BusinessRateResponse> pageBusinessRates(BusinessRateQuery request) {
         BusinessRateQuery query = request == null ? new BusinessRateQuery() : request;
         Page<ExchangeBusinessRateDO> page = businessRateMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
@@ -662,6 +683,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 业务汇率列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<BusinessRateResponse> listBusinessRates(BusinessRateQuery request) {
         BusinessRateQuery query = request == null ? new BusinessRateQuery() : request;
         return businessRateMapper.selectList(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
@@ -686,6 +708,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 业务汇率详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public BusinessRateResponse getBusinessRate(Long id) {
         return toBusinessRateResponse(findBusinessRate(id));
     }
@@ -697,6 +720,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 新增后的业务汇率
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public BusinessRateResponse createManualBusinessRate(BusinessRateSaveRequest request) {
         validateBusinessRateRequest(request);
@@ -711,6 +735,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 新增后的业务汇率列表
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public List<BusinessRateResponse> createManualBusinessRates(BusinessRateBatchSaveRequest request) {
         if (request == null || request.getItems() == null || request.getItems().isEmpty()) {
@@ -734,6 +759,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 生成后的业务汇率详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public BusinessRateResponse generateBusinessRate(GenerateBusinessRateRequest request) {
         if (request == null || request.getRawRateId() == null || request.getRuleId() == null) {
@@ -775,6 +801,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 切换状态后的业务汇率详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public BusinessRateResponse updateBusinessRateStatus(Long id, Integer status) {
         ExchangeBusinessRateDO entity = findBusinessRate(id);
@@ -792,6 +819,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率使用快照分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<UsageSnapshotResponse> pageUsageSnapshots(UsageSnapshotQuery request) {
         UsageSnapshotQuery query = request == null ? new UsageSnapshotQuery() : request;
         Page<ExchangeRateUsageSnapshotDO> page = usageSnapshotMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
@@ -817,6 +845,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 使用快照列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<UsageSnapshotResponse> listUsageSnapshots(UsageSnapshotQuery request) {
         UsageSnapshotQuery query = request == null ? new UsageSnapshotQuery() : request;
         return usageSnapshotMapper.selectList(Wrappers.<ExchangeRateUsageSnapshotDO>lambdaQuery()
@@ -843,6 +872,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 使用快照详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public UsageSnapshotResponse getUsageSnapshot(Long id) {
         ExchangeRateUsageSnapshotDO entity = usageSnapshotMapper.selectOne(Wrappers.<ExchangeRateUsageSnapshotDO>lambdaQuery()
                 .eq(ExchangeRateUsageSnapshotDO::getId, id)
