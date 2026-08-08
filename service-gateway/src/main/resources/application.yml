@@ -11,6 +11,9 @@ acquiring:
     client-ip:
       # 默认不信任外部 X-Forwarded-For，部署在可信负载均衡之后再按环境开启。
       trust-forwarded-header: false
+  gateway-ingress:
+    # 与 service-openapi、service-checkout 使用同一独立密钥；少于 32 字符时收银台入口失败关闭。
+    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:}
 
 spring:
   application:

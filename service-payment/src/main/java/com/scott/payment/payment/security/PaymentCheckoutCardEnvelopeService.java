@@ -10,6 +10,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCo
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryResultDTO;
 import com.scott.payment.payment.config.PaymentCheckoutProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -58,6 +59,7 @@ public class PaymentCheckoutCardEnvelopeService {
     private final PrivateKey privateKey;
 
     /** 创建卡数据安全服务；生产缺少固定密钥时直接阻止应用启动。 */
+    @Autowired
     public PaymentCheckoutCardEnvelopeService(PaymentCheckoutProperties properties,
                                               ObjectProvider<StringRedisTemplate> redisTemplateProvider,
                                               PaymentRedisProperties redisProperties) {

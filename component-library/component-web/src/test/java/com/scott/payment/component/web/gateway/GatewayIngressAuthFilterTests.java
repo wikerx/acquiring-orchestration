@@ -76,6 +76,20 @@ class GatewayIngressAuthFilterTests {
         assertEquals(503, response.getStatus());
     }
 
+    /** 其他业务路径不属于收银台入口，不得因 Gateway 密钥配置而被公共过滤器拦截。 */
+    @Test
+    void shouldLeaveNonCheckoutPathsUnchanged() throws Exception {
+        GatewayIngressAuthFilter filter = filter(properties(""));
+        MockHttpServletRequest request = request("POST", "/api/rest/payment/v1/payment", null);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean invoked = new AtomicBoolean();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> invoked.set(true));
+
+        assertTrue(invoked.get());
+        assertEquals(200, response.getStatus());
+    }
+
     private GatewayIngressAuthFilter filter(GatewayIngressAuthProperties properties) {
         return new GatewayIngressAuthFilter(properties, () -> NOW);
     }

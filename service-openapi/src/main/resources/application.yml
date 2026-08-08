@@ -17,6 +17,12 @@ spring:
     # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
     allow-bean-definition-overriding: true
 
+acquiring:
+  gateway-ingress:
+    # 只接受 service-gateway 签发的收银台请求；密钥必须由 Secret 或 Nacos 环境占位符注入。
+    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:}
+    allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}
+
 openapi:
   security:
     secret-cache:

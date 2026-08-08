@@ -48,6 +48,11 @@ spring:
         # 参数说明：配置 Nacos 拉取配置失败后的重试次数，必须为非负整数。
         config-retry-time: 3
 
+acquiring:
+  gateway-ingress:
+    # dev 开箱即用密钥；设置 CHECKOUT_GATEWAY_INGRESS_SECRET 后自动覆盖，非 dev 环境禁止复用。
+    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:2acee5d27b34b556d0a9b0123e2277870558d57f39968820a0b00edc1d3b7a12}
+
 logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml

@@ -20,11 +20,17 @@ import java.util.Objects;
  */
 public final class GatewayIngressSignature {
 
+    /** 唯一可信的收银台公网入口调用方。 */
     public static final String CALLER_SERVICE_GATEWAY = "service-gateway";
+    /** Gateway 写入并由下游固定比对的调用方请求头。 */
     public static final String HEADER_CALLER = "X-Checkout-Gateway-Caller";
+    /** Gateway 签名时使用的毫秒时间戳请求头。 */
     public static final String HEADER_TIMESTAMP = "X-Checkout-Gateway-Timestamp";
+    /** Gateway 为每个转发请求生成的随机串请求头。 */
     public static final String HEADER_NONCE = "X-Checkout-Gateway-Nonce";
+    /** 下游以常量时间比较的 HMAC-SHA256 签名请求头。 */
     public static final String HEADER_SIGNATURE = "X-Checkout-Gateway-Signature";
+    /** 共享密钥最低字符数，实际部署建议使用 32 字节以上随机值。 */
     public static final int MINIMUM_SECRET_LENGTH = 32;
 
     private static final String HMAC_SHA256 = "HmacSHA256";

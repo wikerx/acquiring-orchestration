@@ -41,6 +41,24 @@ Nacos yaml 的职责边界：
 - `sharding-{env}.yaml`：ShardingSphere 逻辑拓扑和物理表治理规则；第一版直接启用单写，不保存服务级迁移 `mode`。
 - `redis-{env}.yaml`、`rocketmq-{env}.yaml`、`seata-{env}.yaml`、`xxl-job-{env}.yaml`：对应中间件配置。
 
+## Hosted Checkout Gateway 入口
+
+`/api/rest/checkout/**`、`/checkout/api/**`、`/checkout/config/**` 和 `/checkout/health`
+只允许通过 `service-gateway` 访问。Gateway 会清除客户端伪造的入口头，并使用
+`CHECKOUT_GATEWAY_INGRESS_SECRET` 生成短时 HMAC-SHA256 签名；`service-openapi` 和
+`service-checkout` 在控制器前完成验签。三个服务必须注入同一环境专属密钥，长度不得少于
+32 个字符。仓库只提供隔离的 dev 联调默认值；test、uat、prod 必须通过环境 Secret 覆盖，正式密钥
+不得写入仓库、明文 Nacos 配置或日志。
+
+滚动发布顺序：
+
+1. 先在三个服务的 Secret 管理和 Nacos 占位符中准备同一密钥。
+2. 先部署 `service-gateway`，确认转发请求已经携带新签名头。
+3. 再部署 `service-openapi` 和 `service-checkout`，启用下游直连拒绝。
+4. 最后通过网络策略、安全组或容器 Service 类型禁止公网直接访问下游端口；WAF 只指向 Gateway。
+
+密钥缺失或少于 32 个字符时，收银台入口返回 503 并失败关闭，不允许降级为直连。
+
 ## Redis
 
 Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis 地址。
@@ -107,7 +125,7 @@ docs/deployment/nacos/transaction-sharding-governance-dev-draft.yaml
 
 仓库中的候选和草案是同一个 `sharding-{env}.yaml` DataId 的评审材料：
 
-- `sharding-dev.yaml` 提供已经合并的交易逻辑拓扑和治理配置候选；
+- `sharding-dev.yaml` 提供 dev 已发布的交易逻辑拓扑和治理配置基线；
 - `transaction-sharding-dev-draft.yaml` 提供 `transaction-sharding` 业务拓扑；
 - `transaction-sharding-governance-dev-draft.yaml` 提供 `transaction-sharding.governance`。
 
@@ -119,12 +137,19 @@ docs/deployment/nacos/transaction-sharding-governance-dev-draft.yaml
 
 发布约束：
 
-- `physical-nodes` 只登记已经存在且 23 张正式表全部通过 schema、`DATETIME(3)`、字符集和号段校验的季度。
+- `physical-nodes` 只登记已经存在且当前规则声明的全部正式表通过 schema、`DATETIME(3)`、字符集和号段校验的季度。
+- 卡资料迁移完成后只接受包含 `transaction_card_vault` 的完整 24 表正式拓扑；任意缺表、未知表、重复表均拒绝启动。
+- `data.card-vault.enabled` 默认关闭；开启前必须先创建各季度 `transaction_card_vault` 物理表并发布 24 表规则，否则 `service-data` 拒绝启动。
 - Job 先 Dry Run，再建表并校验，最后只生成候选 `rule-version` 和 SHA-256 checksum；应用不会自动发布 Nacos。
 - 五个直接访问服务必须加载相同版本后才能开放新季度。
 - `/actuator/info` 的 `transactionSharding` 节点必须显示五个服务一致的 `ruleVersion` 和
   `ruleChecksumPrefix`。
 - 回滚只能使用仍识别当前全部节点的上一版 ShardingSphere 制品和规则，不能恢复旧物理路由，禁止双写。
+
+第 24 张卡资料表的推荐发布顺序为：先部署同时识别 23/24 表的兼容代码，确认所有服务继续加载
+旧 23 表规则；再预建并验证卡资料物理表；随后发布 24 表规则及对应 checksum；最后才允许开启
+`service-payment` 生产消息和 `service-data` 消费开关。回滚时先关闭卡资料生产/消费，再回退到完整
+23 表规则，禁止在已有卡资料写入期间直接移除逻辑表。
 
 完整的候选规则生成、五服务滚动加载、单写验收、季度边界和回滚门禁见
 [`ShardingSphere 发布、验收与回滚手册`](../shardingsphere-rollout-rollback-runbook.md)。该手册是

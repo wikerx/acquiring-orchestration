@@ -52,7 +52,7 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
     /** 治理日志中用于识别本验收入口的非敏感操作人名称。 */
     private static final String OPERATOR_NAME = "Codex Dev Dry Run Acceptance";
     /** 必须完整参与季度治理的正式交易逻辑表数量。 */
-    private static final int FORMAL_TABLE_COUNT = 23;
+    private static final int FORMAL_TABLE_COUNT = TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT;
     /** 本次 Dry Run 固定覆盖当前季度和下一季度。 */
     private static final int TARGET_QUARTER_COUNT = 2;
 
@@ -60,7 +60,7 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
     private final ShardingTablePreCreateApplicationService applicationService;
     /** 按治理时区解析当前和下一季度。 */
     private final ShardingQuarterResolver quarterResolver;
-    /** 从 dev Nacos 绑定的 23 表物理治理规则。 */
+    /** 从 dev Nacos 绑定的 24 表物理治理规则。 */
     private final TransactionShardingGovernanceProperties governanceProperties;
     /** 从 dev Nacos 绑定的已发布 ShardingSphere 逻辑节点。 */
     private final TransactionShardingProperties transactionShardingProperties;
