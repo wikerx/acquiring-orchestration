@@ -8,7 +8,6 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * @author : scott
@@ -52,26 +51,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
     int insertLogical(@Param("notificationDO") TransactionMerchantNotificationDO notificationDO);
 
     /**
-     * 按交易 ID 和精确分片时间查询商户通知任务。
-     *
-     * @param transactionId 平台当前交易 ID
-     * @param transactionDateTime 交易分片时间
-     * @return 商户通知任务列表
-     */
-    @Select("""
-            SELECT *
-            FROM transaction_merchant_notification
-            WHERE transaction_id = #{transactionId}
-              AND transaction_date_time = #{transactionDateTime}
-              AND deleted = 0
-            ORDER BY create_time DESC
-            LIMIT 100
-            """)
-    List<TransactionMerchantNotificationDO> selectByTransactionId(
-            @Param("transactionId") String transactionId,
-            @Param("transactionDateTime") LocalDateTime transactionDateTime);
-
-    /**
      * 按商户、源交易 ID 和精确分片时间读取最近一份可继承通知配置。
      *
      * @param merchantId 商户号
@@ -95,104 +74,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             @Param("merchantId") String merchantId,
             @Param("transactionId") String transactionId,
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
-
-    /**
-     * 按生命周期和半开时间范围查询商户通知任务。
-     *
-     * @param operationId 平台内部生命周期关联标识
-     * @param beginTime 查询开始时间
-     * @param endTimeExclusive 查询结束时间，不包含
-     * @return 商户通知任务列表
-     */
-    @Select("""
-            SELECT *
-            FROM transaction_merchant_notification
-            WHERE operation_id = #{operationId}
-              AND transaction_date_time >= #{beginTime}
-              AND transaction_date_time < #{endTimeExclusive}
-              AND deleted = 0
-            ORDER BY create_time DESC
-            LIMIT 200
-            """)
-    List<TransactionMerchantNotificationDO> selectByOperationId(
-            @Param("operationId") String operationId,
-            @Param("beginTime") LocalDateTime beginTime,
-            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
-
-    /**
-     * 按半开时间范围分页查询商户通知任务逻辑表。
-     *
-     * @param merchantId 平台商户号，可为空
-     * @param transactionId 平台交易 ID，可为空
-     * @param notifyStatus 通知状态，可为空
-     * @param beginTime 查询开始时间
-     * @param endTimeExclusive 查询结束时间，不包含
-     * @param offset 分页偏移
-     * @param limit 分页大小
-     * @return 商户通知任务列表
-     */
-    @Select("""
-            <script>
-            SELECT *
-            FROM transaction_merchant_notification
-            WHERE deleted = 0
-              AND transaction_date_time &gt;= #{beginTime}
-              AND transaction_date_time &lt; #{endTimeExclusive}
-              <if test="merchantId != null and merchantId != ''">
-                AND merchant_id = #{merchantId}
-              </if>
-              <if test="transactionId != null and transactionId != ''">
-                AND transaction_id = #{transactionId}
-              </if>
-              <if test="notifyStatus != null and notifyStatus != ''">
-                AND notify_status = #{notifyStatus}
-              </if>
-            ORDER BY transaction_date_time DESC, id DESC
-            LIMIT #{offset}, #{limit}
-            </script>
-            """)
-    List<TransactionMerchantNotificationDO> selectPageLogical(
-            @Param("merchantId") String merchantId,
-            @Param("transactionId") String transactionId,
-            @Param("notifyStatus") String notifyStatus,
-            @Param("beginTime") LocalDateTime beginTime,
-            @Param("endTimeExclusive") LocalDateTime endTimeExclusive,
-            @Param("offset") long offset,
-            @Param("limit") long limit);
-
-    /**
-     * 统计半开时间范围内的商户通知任务。
-     *
-     * @param merchantId 平台商户号，可为空
-     * @param transactionId 平台交易 ID，可为空
-     * @param notifyStatus 通知状态，可为空
-     * @param beginTime 查询开始时间
-     * @param endTimeExclusive 查询结束时间，不包含
-     * @return 命中记录数
-     */
-    @Select("""
-            <script>
-            SELECT COUNT(1)
-            FROM transaction_merchant_notification
-            WHERE deleted = 0
-              AND transaction_date_time &gt;= #{beginTime}
-              AND transaction_date_time &lt; #{endTimeExclusive}
-              <if test="merchantId != null and merchantId != ''">
-                AND merchant_id = #{merchantId}
-              </if>
-              <if test="transactionId != null and transactionId != ''">
-                AND transaction_id = #{transactionId}
-              </if>
-              <if test="notifyStatus != null and notifyStatus != ''">
-                AND notify_status = #{notifyStatus}
-              </if>
-            </script>
-            """)
-    long countPageLogical(@Param("merchantId") String merchantId,
-                          @Param("transactionId") String transactionId,
-                          @Param("notifyStatus") String notifyStatus,
-                          @Param("beginTime") LocalDateTime beginTime,
-                          @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
      * 激活逻辑表中指定交易分片的终态商户通知。

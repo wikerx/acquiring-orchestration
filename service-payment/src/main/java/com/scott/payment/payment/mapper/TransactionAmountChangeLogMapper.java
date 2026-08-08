@@ -4,10 +4,8 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.payment.entity.TransactionAmountChangeLogDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * @author : scott
@@ -49,23 +47,4 @@ public interface TransactionAmountChangeLogMapper extends BaseMapper<Transaction
             """)
     int insertLogical(@Param("logDO") TransactionAmountChangeLogDO logDO);
 
-    /**
-     * 按生命周期和半开交易时间范围查询金额变动日志逻辑表。
-     *
-     * @param operationId 平台内部生命周期关联标识
-     * @param beginTime 查询开始时间
-     * @param endTimeExclusive 查询结束时间，不包含
-     * @return 金额变动日志列表
-     */
-    @Select("""
-            SELECT *
-            FROM transaction_amount_change_log
-            WHERE operation_id = #{operationId}
-              AND transaction_date_time >= #{beginTime}
-              AND transaction_date_time < #{endTimeExclusive}
-            ORDER BY change_time ASC, id ASC
-            """)
-    List<TransactionAmountChangeLogDO> selectByOperationId(@Param("operationId") String operationId,
-                                                           @Param("beginTime") LocalDateTime beginTime,
-                                                           @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 }

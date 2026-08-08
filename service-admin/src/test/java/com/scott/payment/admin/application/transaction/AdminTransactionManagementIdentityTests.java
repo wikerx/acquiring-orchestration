@@ -6,6 +6,8 @@ import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.Ass
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.ApprovalClientRequest;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.ApprovalDecisionRequest;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.ApprovalResult;
+import com.scott.payment.admin.service.AdminChannelMatchAbnormalQueryService;
+import com.scott.payment.admin.service.AdminRefundQueryService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -88,6 +90,7 @@ class AdminTransactionManagementIdentityTests {
 
     private AdminRefundApplicationService refundService(PaymentInternalClient paymentClient) {
         return new AdminRefundApplicationService(
+                mock(AdminRefundQueryService.class),
                 paymentClient,
                 mock(ExcelExportService.class),
                 mock(ExcelI18nMessageResolver.class),
@@ -98,6 +101,7 @@ class AdminTransactionManagementIdentityTests {
 
     private AdminChannelMatchAbnormalApplicationService abnormalService(PaymentInternalClient paymentClient) {
         return new AdminChannelMatchAbnormalApplicationService(
+                mock(AdminChannelMatchAbnormalQueryService.class),
                 paymentClient,
                 mock(ExcelExportService.class),
                 mock(ExcelI18nMessageResolver.class),

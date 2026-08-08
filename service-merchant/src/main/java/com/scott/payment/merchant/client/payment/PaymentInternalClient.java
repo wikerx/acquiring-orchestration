@@ -2,11 +2,6 @@ package com.scott.payment.merchant.client.payment;
 
 import com.scott.payment.merchant.client.payment.dto.PaymentTransactionActionClientRequestDTO;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionActionResponse;
-import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundDetailResponse;
-import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundQuery;
-import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundSearchResponse;
-
-import java.time.LocalDateTime;
 
 /**
  * @author : scott
@@ -18,14 +13,6 @@ import java.time.LocalDateTime;
  * @status : create
  */
 public interface PaymentInternalClient {
-
-    /** 查询当前商户退款分页和统计。 */
-    RefundSearchResponse searchRefunds(RefundQuery query);
-
-    /** 查询当前商户单笔退款详情。 */
-    RefundDetailResponse refundDetail(String transactionId,
-                                      LocalDateTime transactionDateTime,
-                                      String merchantId);
 
     /**
      * 通过支付核心发起请款动作。
