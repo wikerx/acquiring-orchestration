@@ -1,7 +1,6 @@
 package com.scott.payment.payment.api.internal;
 
 import com.scott.payment.component.core.model.CommonResult;
-import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.payment.application.PaymentCheckoutApplicationService;
 import com.scott.payment.payment.application.PaymentTransactionApplicationService;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
@@ -12,6 +11,8 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateRe
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutThreeDsReturnCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
@@ -20,40 +21,28 @@ import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResu
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelCallbackQuery;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelLogQuery;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.MerchantNotificationQuery;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionDetailResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionOperationSearchResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionOperationResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionOrderResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionPageQuery;
 import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDateTime;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
-
-@RestController
-@RequestMapping("/internal/payment")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentInternalController
  * @date : 2026-05-31 21:52
  * @email : scott_x@163.com
- * @description : Payment Internal Controller 控制器，位于 支付核心服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
+ * @description : 支付内部控制器，负责收银台、交易命令、渠道回调、渠道勾兑与商户交互审计回写，不承载管理端或商户端列表统计查询。
  * @status : create
  */
+@RestController
+@RequestMapping("/internal/payment")
 public class PaymentInternalController {
 
     /**
@@ -70,6 +59,7 @@ public class PaymentInternalController {
      * 创建内部交易接口控制器。
      *
      * @param paymentTransactionApplicationService 收单交易应用服务
+     * @param paymentCheckoutApplicationService Hosted Checkout 应用服务
      */
     public PaymentInternalController(PaymentTransactionApplicationService paymentTransactionApplicationService,
                                      PaymentCheckoutApplicationService paymentCheckoutApplicationService) {
@@ -99,6 +89,19 @@ public class PaymentInternalController {
     public CommonResult<PaymentCheckoutSessionQueryResultDTO> queryCheckoutSession(
             @Valid @RequestBody PaymentCheckoutSessionQueryCommandDTO commandDTO) {
         return success(paymentCheckoutApplicationService.querySession(commandDTO));
+    }
+
+    /** 内部调度补偿：关闭超过付款期限的收银台订单。 */
+    @PostMapping("/checkout/session/expire-due")
+    public CommonResult<Integer> expireDueCheckoutSessions(@RequestParam(defaultValue = "200") int limit) {
+        return success(paymentCheckoutApplicationService.expireDue(LocalDateTime.now(), limit));
+    }
+
+    /** 解析卡 BIN 品牌并校验当前收银台会话是否支持。 */
+    @PostMapping("/checkout/card-bin/resolve")
+    public CommonResult<PaymentCheckoutCardBinResultDTO> resolveCheckoutCardBin(
+            @Valid @RequestBody PaymentCheckoutCardBinCommandDTO commandDTO) {
+        return success(paymentCheckoutApplicationService.resolveCardBin(commandDTO));
     }
 
     /**
@@ -258,91 +261,6 @@ public class PaymentInternalController {
     public CommonResult<TransactionChannelMatchResultDTO> matchDueChannelTransactions(
             @RequestBody TransactionChannelMatchCommandDTO commandDTO) {
         return success(paymentTransactionApplicationService.matchDueChannelTransactions(commandDTO));
-    }
-
-    /**
-     * 分页查询交易生命周期主单。
-     *
-     * @param query 查询条件
-     * @return 主单分页结果
-     */
-    @PostMapping("/transactions/orders/search")
-    public CommonResult<PageResult<TransactionOrderResponse>> pageOrders(@RequestBody(required = false) TransactionPageQuery query) {
-        return success(paymentTransactionApplicationService.pageOrders(query));
-    }
-
-    /**
-     * 分页查询交易动作单。
-     *
-     * @param query 查询条件
-     * @return 动作单分页结果
-     */
-    @PostMapping("/transactions/operations/search")
-    public CommonResult<PageResult<TransactionOperationResponse>> pageOperations(@RequestBody(required = false) TransactionPageQuery query) {
-        return success(paymentTransactionApplicationService.pageOperations(query));
-    }
-
-    /**
-     * 分页查询交易动作单，并返回当前查询条件下的全量统计。
-     *
-     * @param query 查询条件
-     * @return 动作单分页和统计结果
-     */
-    @PostMapping("/transactions/operations/search-with-summary")
-    public CommonResult<TransactionOperationSearchResponse> searchOperations(@RequestBody(required = false) TransactionPageQuery query) {
-        return success(paymentTransactionApplicationService.searchOperations(query));
-    }
-
-    /**
-     * 查询交易聚合详情。
-     *
-     * @param transactionId 平台交易 ID
-     * @param transactionDateTime 列表返回的当前动作真实分片时间
-     * @param rootTransactionDateTime 列表返回的生命周期根主单真实分片时间
-     * @return 交易详情
-     */
-    @GetMapping("/transactions/{transactionId}")
-    public CommonResult<TransactionDetailResponse> detail(
-            @PathVariable("transactionId") String transactionId,
-            @RequestParam("transactionDateTime")
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime,
-            @RequestParam("rootTransactionDateTime")
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime rootTransactionDateTime) {
-        return success(paymentTransactionApplicationService.detail(
-                transactionId, transactionDateTime, rootTransactionDateTime));
-    }
-
-    /**
-     * 分页查询渠道交互日志。
-     *
-     * @param query 查询条件
-     * @return 渠道日志分页结果
-     */
-    @PostMapping("/transactions/channel-logs/search")
-    public CommonResult<PageResult<?>> pageChannelLogs(@RequestBody(required = false) ChannelLogQuery query) {
-        return success(paymentTransactionApplicationService.pageChannelLogs(query));
-    }
-
-    /**
-     * 分页查询渠道回调业务记录。
-     *
-     * @param query 查询条件
-     * @return 渠道回调业务记录分页结果
-     */
-    @PostMapping("/transactions/channel-callbacks/search")
-    public CommonResult<PageResult<?>> pageChannelCallbacks(@RequestBody(required = false) ChannelCallbackQuery query) {
-        return success(paymentTransactionApplicationService.pageChannelCallbacks(query));
-    }
-
-    /**
-     * 分页查询商户通知任务。
-     *
-     * @param query 查询条件
-     * @return 商户通知任务分页结果
-     */
-    @PostMapping("/transactions/merchant-notifications/search")
-    public CommonResult<PageResult<?>> pageMerchantNotifications(@RequestBody(required = false) MerchantNotificationQuery query) {
-        return success(paymentTransactionApplicationService.pageMerchantNotifications(query));
     }
 
     /**

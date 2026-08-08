@@ -1,5 +1,14 @@
 # service-data 专属配置：异步操作日志、风控与安全审计持久化，以及商户通知投递参数。
 data:
+  card-vault:
+    # 默认关闭；所有密钥必须由 K8s Secret、CI/CD Secret 或 KMS 注入，禁止写入 Nacos 明文。
+    enabled: ${CHECKOUT_CARD_VAULT_CONSUME_ENABLED:false}
+    transfer-key-id: ${CHECKOUT_CARD_VAULT_TRANSFER_KEY_ID:checkout-card-vault-v1}
+    transfer-private-key-pkcs8-base64: ${CHECKOUT_CARD_VAULT_TRANSFER_PRIVATE_KEY_PKCS8_BASE64:}
+    pan-hmac-key-version: ${CHECKOUT_CARD_VAULT_PAN_HMAC_KEY_VERSION:v1}
+    pan-hmac-pepper: ${CHECKOUT_CARD_VAULT_PAN_HMAC_PEPPER:}
+    kek-version: ${CHECKOUT_CARD_VAULT_KEK_VERSION:v1}
+    kek-base64: ${CHECKOUT_CARD_VAULT_KEK_BASE64:}
   merchant-notification:
     mq:
       # 只有 service-data 注册商户通知消费者，service-payment 不再消费或发送回调。

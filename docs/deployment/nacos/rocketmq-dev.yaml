@@ -84,6 +84,11 @@ acquiring:
           type: TOPIC
           read-queue-nums: 4
           write-queue-nums: 4
+        # 收银台卡资料库 Topic 只承载由 service-data 公钥加密且不含 CVV 的信封。
+        - name: acquiring_checkout_card_vault_topic
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
         # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
         - name: acquiring-data-admin-operation-log-consumer
           # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
@@ -136,6 +141,12 @@ acquiring:
           consume-timeout-minute: 15
         # 登录审计由 service-data 集中持久化。
         - name: acquiring-data-login-audit-consumer
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        # service-data 卡资料库独立消费组，数据库唯一键承担最终幂等。
+        - name: acquiring-data-checkout-card-vault-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16

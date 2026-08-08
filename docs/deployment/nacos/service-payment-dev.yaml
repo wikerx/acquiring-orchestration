@@ -1,5 +1,11 @@
 # service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
 payment:
+  checkout:
+    card-vault:
+      # 表、分片规则、Topic、消费组和 service-data 密钥全部完成发布后再开启。
+      enabled: ${CHECKOUT_CARD_VAULT_PUBLISH_ENABLED:false}
+      key-id: ${CHECKOUT_CARD_VAULT_TRANSFER_KEY_ID:checkout-card-vault-v1}
+      public-key-x509-base64: ${CHECKOUT_CARD_VAULT_TRANSFER_PUBLIC_KEY_X509_BASE64:}
   refund:
     management:
       # dev 已完成退款管理数据库迁移，默认开启查询和来源字段能力；其他环境仍需单独发布。

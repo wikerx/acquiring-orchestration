@@ -338,6 +338,12 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 || !normalize(paymentMethod).equals(normalize(option.getCapabilityPaymentMethod()))) {
             return null;
         }
+        String cardBrand = commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getCardBrand();
+        if ("BANK_CARD".equals(normalize(paymentMethod))
+                && !matchesScope(option.getCardBrandScope(), cardBrand)) {
+            return null;
+        }
         if (!matchesScope(option.getTransactionTypeScope(), commandDTO.getTransactionType())) {
             return null;
         }
@@ -388,6 +394,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         mid.setChannelMid(option.getChannelMid());
         mid.setBusinessType(option.getBusinessType());
         mid.setPaymentMethodScope(option.getPaymentMethodScope());
+        mid.setCardBrandScope(option.getCardBrandScope());
         mid.setTransactionTypeScope(option.getTransactionTypeScope());
         mid.setCurrencyScope(option.getCurrencyScope());
         mid.setAllowedCountryScope(option.getAllowedCountryScope());

@@ -444,7 +444,7 @@ public class AdminShardingGovernanceApplicationService {
     }
 
     /**
-     * 只返回固定的 23 张正式交易表，拒绝任何 test_* 或未知治理规则进入页面和预建入口。
+     * 只返回固定的正式交易表，拒绝任何 test_* 或未知治理规则进入页面和预建入口。
      */
     private Map<String, TransactionShardingGovernanceProperties.TableRule> configuredRules() {
         Set<String> formalTables = Set.copyOf(TransactionShardingProperties.defaultLogicTables());

@@ -35,7 +35,16 @@ public class PaymentCheckoutProperties {
     /**
      * 默认会话有效分钟数。
      */
-    private int defaultExpireMinutes = 30;
+    private int defaultExpireMinutes = 1440;
+
+    /** 支付期限结束后，链接继续用于订单结果查询的天数。 */
+    private int resultAccessDays = 30;
+
+    /** 是否启用收银台到期扫描。 */
+    private boolean expirationEnabled = true;
+
+    /** 单次到期扫描最大处理数量。 */
+    private int expirationBatchSize = 200;
 
     /**
      * 默认最大支付尝试次数。
@@ -61,4 +70,39 @@ public class PaymentCheckoutProperties {
      * 收银台集成类型。
      */
     private String integrationType = "HOSTED_CHECKOUT";
+
+    /** 必须与 OpenAPI 侧同版本配置一致的收银台敏感字段解密密钥。 */
+    private String sensitiveFieldEncryptionKey = "dev-hosted-checkout-field-key-change-me";
+
+    /** 浏览器卡数据加密、公钥轮换和 nonce 防重放配置。 */
+    private CardEncryption cardEncryption = new CardEncryption();
+
+    /** 不含 CVV 的卡资料异步归档配置，默认关闭。 */
+    private CardVault cardVault = new CardVault();
+
+    @Data
+    public static class CardEncryption {
+        /** 当前 RSA 密钥版本，浏览器信封必须原样回传。 */
+        private String keyId = "checkout-card-v1";
+        /** X.509 DER Base64 RSA 公钥；UAT/生产必须由 Secret 或 KMS 注入。 */
+        private String publicKeyX509Base64;
+        /** PKCS#8 DER Base64 RSA 私钥；只允许 service-payment 读取。 */
+        private String privateKeyPkcs8Base64;
+        /** 本地开发是否允许生成进程级临时密钥；UAT/生产必须为 false。 */
+        private boolean allowEphemeralKey;
+        /** nonce 有效期秒数，覆盖正常填写和提交窗口。 */
+        private long nonceTtlSeconds = 900;
+        /** Redis 不可用时是否失败关闭；UAT/生产必须为 true。 */
+        private boolean replayStoreRequired = true;
+    }
+
+    @Data
+    public static class CardVault {
+        /** 是否向 service-data 发送卡资料密文；表、Topic、分片规则和密钥就绪后才能开启。 */
+        private boolean enabled;
+        /** service-data 卡资料传输 RSA 公钥版本。 */
+        private String keyId = "checkout-card-vault-v1";
+        /** service-data 卡资料传输 X.509 DER Base64 RSA 公钥。 */
+        private String publicKeyX509Base64;
+    }
 }

@@ -4,12 +4,10 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.payment.entity.TransactionMerchantApiInteractionLogDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 
-import java.util.List;
 
 /**
  * @author : scott
@@ -54,28 +52,6 @@ public interface TransactionMerchantApiInteractionLogMapper extends BaseMapper<T
             )
             """)
     int insertLogical(@Param("logDO") TransactionMerchantApiInteractionLogDO logDO);
-
-    /**
-     * 按生命周期和半开交易时间范围查询商户 API 交互日志。
-     *
-     * @param operationId 平台内部生命周期关联标识
-     * @param beginTime 查询开始时间
-     * @param endTimeExclusive 查询结束时间，不包含
-     * @return 商户 API 交互日志列表
-     */
-    @Select("""
-            SELECT *
-            FROM transaction_merchant_api_interaction_log
-            WHERE operation_id = #{operationId}
-              AND transaction_date_time >= #{beginTime}
-              AND transaction_date_time < #{endTimeExclusive}
-            ORDER BY request_time DESC, id DESC
-            LIMIT 500
-            """)
-    List<TransactionMerchantApiInteractionLogDO> selectByOperationIdLogical(
-            @Param("operationId") String operationId,
-            @Param("beginTime") LocalDateTime beginTime,
-            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
      * 幂等回写逻辑表中指定交易分片的响应密文摘要。

@@ -6,9 +6,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.payment.config.ChannelMatchAbnormalProperties;
 import com.scott.payment.payment.domain.reconciliation.ChannelMatchAbnormalLevelEnum;
 import com.scott.payment.payment.domain.reconciliation.ChannelMatchAbnormalStatusEnum;
@@ -20,14 +18,8 @@ import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.mapper.TransactionAbnormalEventMapper;
 import com.scott.payment.payment.service.ChannelMatchAbnormalService;
 import com.scott.payment.payment.service.TransactionChannelMatchService;
-import com.scott.payment.payment.service.TransactionQueryService;
 import com.scott.payment.payment.service.TransactionRecordService;
-import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalDetailResponse;
-import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalQuery;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalRecord;
-import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalSearchResponse;
-import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalSummary;
-import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalSummaryRow;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AssignCommand;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.BatchRequeryCommand;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.BatchRequeryResult;
@@ -39,10 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.time.DateTimeException;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -61,65 +50,41 @@ import java.util.Map;
 public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalService {
 
     private static final int MAX_BATCH_REQUERY = 100;
-    private static final String STORAGE_TIME_ZONE = TransactionShardingProperties.REQUIRED_ZONE_ID;
 
     private final TransactionAbnormalEventMapper abnormalEventMapper;
     private final TransactionRecordService transactionRecordService;
-    private final TransactionQueryService transactionQueryService;
     private final TransactionChannelMatchService channelMatchService;
     private final GlobalIdGenerator globalIdGenerator;
     private final ChannelMatchAbnormalProperties properties;
-    private final LocalDateTime registeredNodeBegin;
 
-    /** 创建勾兑异常服务并解析当前已发布分片起点。 */
+    /**
+     * 创建勾兑异常命令与建案服务。
+     *
+     * @param abnormalEventMapper 异常案件写入、精确读取和版本更新 Mapper
+     * @param transactionRecordService 交易事实读取服务
+     * @param channelMatchService 渠道主动查询和正常状态机勾兑服务
+     * @param globalIdGenerator 全局案件号生成器
+     * @param properties 自动异常建案配置
+     */
     public DefaultChannelMatchAbnormalService(TransactionAbnormalEventMapper abnormalEventMapper,
                                               TransactionRecordService transactionRecordService,
-                                              TransactionQueryService transactionQueryService,
                                               TransactionChannelMatchService channelMatchService,
                                               GlobalIdGenerator globalIdGenerator,
-                                              ChannelMatchAbnormalProperties properties,
-                                              TransactionShardingProperties shardingProperties) {
+                                              ChannelMatchAbnormalProperties properties) {
         this.abnormalEventMapper = abnormalEventMapper;
         this.transactionRecordService = transactionRecordService;
-        this.transactionQueryService = transactionQueryService;
         this.channelMatchService = channelMatchService;
         this.globalIdGenerator = globalIdGenerator;
         this.properties = properties;
-        this.registeredNodeBegin = resolveRegisteredNodeBegin(shardingProperties.getPhysicalNodes());
     }
 
-    /** 查询案件分页及完整条件统计。 */
-    @Override
-    public AbnormalSearchResponse search(AbnormalQuery query) {
-        AbnormalQuery safeQuery = normalize(query);
-        LocalDateTime endExclusive = safeQuery.getEndTime().plusNanos(1_000_000L);
-        long total = abnormalEventMapper.count(safeQuery, safeQuery.getBeginTime(), endExclusive);
-        long offset = (safeQuery.safePageNo() - 1) * safeQuery.safePageSize();
-        List<AbnormalRecord> records = offset < total
-                ? abnormalEventMapper.selectPage(safeQuery, safeQuery.getBeginTime(), endExclusive,
-                offset, safeQuery.safePageSize())
-                : List.of();
-        AbnormalSearchResponse response = new AbnormalSearchResponse();
-        response.setPage(PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), records));
-        response.setSummary(toSummary(abnormalEventMapper.selectSummary(
-                safeQuery, safeQuery.getBeginTime(), endExclusive)));
-        return response;
-    }
-
-    /** 查询精确案件详情并复用交易详情时间线。 */
-    @Override
-    public AbnormalDetailResponse detail(String eventId, LocalDateTime transactionDateTime) {
-        AbnormalRecord record = requireRecord(eventId, transactionDateTime);
-        AbnormalDetailResponse response = new AbnormalDetailResponse();
-        response.setAbnormality(record);
-        if (record.getRootTransactionDateTime() != null) {
-            response.setTransactionDetail(transactionQueryService.detail(
-                    record.getTransactionId(), record.getTransactionDateTime(), record.getRootTransactionDateTime()));
-        }
-        return response;
-    }
-
-    /** 领取或转派活动案件。 */
+    /**
+     * 领取或转派活动案件，使用期望版本防止并发覆盖。
+     *
+     * @param eventId 勾兑异常案件号
+     * @param command 真实分片时间、期望版本和可信操作人
+     * @return 领取或转派后的最新案件记录
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AbnormalRecord assign(String eventId, AssignCommand command) {
@@ -135,7 +100,13 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return requireRecord(eventId, command.getTransactionDateTime());
     }
 
-    /** 仅允许确认无需修改或忽略，不能从请求中指定交易目标状态。 */
+    /**
+     * 确认无需修改或忽略案件，不能从请求中指定交易目标状态。
+     *
+     * @param eventId 勾兑异常案件号
+     * @param command 处置类型、原因、真实分片时间和期望版本
+     * @return 处置后的最新案件记录
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AbnormalRecord resolve(String eventId, ResolveCommand command) {
@@ -162,7 +133,13 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return requireRecord(eventId, command.getTransactionDateTime());
     }
 
-    /** 使用案件保存的真实分片时间同步执行一次渠道 QUERY。 */
+    /**
+     * 使用案件保存的真实分片时间同步执行一次渠道查询。
+     *
+     * @param eventId 勾兑异常案件号
+     * @param command 真实分片时间和期望案件版本
+     * @return 重新勾兑后的最新案件记录
+     */
     @Override
     public AbnormalRecord requery(String eventId, RequeryCommand command) {
         if (command == null || command.getTransactionDateTime() == null || command.getExpectedVersion() == null) {
@@ -180,7 +157,12 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return requireRecord(eventId, command.getTransactionDateTime());
     }
 
-    /** 批量重查隔离单笔失败，避免部分案件阻断整个批次。 */
+    /**
+     * 批量重查并隔离单笔失败，避免部分案件阻断整个批次。
+     *
+     * @param command 待重查案件及其真实分片时间、期望版本
+     * @return 批量受理和失败统计
+     */
     @Override
     public BatchRequeryResult batchRequery(BatchRequeryCommand command) {
         List<CaseReference> cases = command == null || command.getCases() == null
@@ -205,7 +187,16 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return result;
     }
 
-    /** 达到阈值后以数据库唯一键原子新增、计数或重新打开案件。 */
+    /**
+     * 达到阈值后以数据库唯一键原子新增、计数或重新打开案件。
+     *
+     * @param operationDO 交易动作快照
+     * @param abnormalType 异常类型稳定编码
+     * @param description 脱敏异常说明
+     * @param matchResult 勾兑结果摘要
+     * @param sourceRecordId 渠道查询请求引用，可为空
+     * @param seenTime 本次发现时间
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void recordReviewRequired(TransactionOperationDO operationDO,
@@ -217,7 +208,17 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         recordReviewRequired(operationDO, abnormalType, description, matchResult, sourceRecordId, null, seenTime);
     }
 
-    /** 达到阈值或发现确定性金额异常后，保存渠道查询结构化金额快照。 */
+    /**
+     * 达到阈值或发现确定性金额异常后，保存渠道查询结构化金额快照。
+     *
+     * @param operationDO 交易动作快照
+     * @param abnormalType 异常类型稳定编码
+     * @param description 脱敏异常说明
+     * @param matchResult 勾兑结果摘要
+     * @param sourceRecordId 渠道查询请求引用，可为空
+     * @param channelResponse 渠道明确返回的币种和主币种单位金额，可为空
+     * @param seenTime 本次发现时间
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void recordReviewRequired(TransactionOperationDO operationDO,
@@ -297,7 +298,15 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return StringUtils.hasText(currency) ? currency.trim().toUpperCase(Locale.ROOT) : null;
     }
 
-    /** 正常状态机完成后只关闭活动案件。 */
+    /**
+     * 正常状态机确认一致结果后关闭活动案件，不修改交易状态。
+     *
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 交易真实分片时间
+     * @param referenceId 自动恢复依据引用，可为空
+     * @param resolvedTime 案件关闭时间，为空时使用当前时间
+     * @return 关闭案件数
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public int autoResolve(String transactionId,
@@ -320,76 +329,6 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
             throw new ServiceException(ApiResultEnum.ABNORMAL_CASE_NOT_FOUND);
         }
         return record;
-    }
-
-    private AbnormalQuery normalize(AbnormalQuery query) {
-        AbnormalQuery safe = query == null ? new AbnormalQuery() : query;
-        if (safe.getMinimumOccurrenceCount() != null && safe.getMinimumOccurrenceCount() <= 0) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
-        }
-        ZoneId queryZone = resolveQueryZone(safe.getQueryTimeZone());
-        ZoneId storageZone = ZoneId.of(STORAGE_TIME_ZONE);
-        boolean useRegisteredNodeBegin = safe.getBeginTime() == null;
-        LocalDateTime queryBegin = safe.getBeginTime();
-        LocalDateTime queryEnd = safe.getEndTime() == null ? LocalDateTime.now(queryZone) : safe.getEndTime();
-        if (!useRegisteredNodeBegin && queryBegin.isAfter(queryEnd)) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "abnormal time range is invalid");
-        }
-        safe.setBeginTime(useRegisteredNodeBegin
-                ? registeredNodeBegin : convertBetweenZones(queryBegin, queryZone, storageZone));
-        safe.setEndTime(convertBetweenZones(queryEnd, queryZone, storageZone));
-        safe.setQueryTimeZone(storageZone.getId());
-        return safe;
-    }
-
-    private ZoneId resolveQueryZone(String queryTimeZone) {
-        String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : STORAGE_TIME_ZONE;
-        try {
-            return ZoneId.of(normalizeZoneId(zone));
-        } catch (DateTimeException exception) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "queryTimeZone is invalid", exception);
-        }
-    }
-
-    private String normalizeZoneId(String zone) {
-        String normalized = zone.trim();
-        String upper = normalized.toUpperCase();
-        if ("UTC".equals(upper) || "GMT".equals(upper)) {
-            return upper;
-        }
-        if (upper.startsWith("UTC+") || upper.startsWith("UTC-")
-                || upper.startsWith("GMT+") || upper.startsWith("GMT-")) {
-            String prefix = upper.substring(0, 3);
-            String offset = upper.substring(3);
-            if (offset.matches("[+-]\\d{1,2}")) {
-                return prefix + String.format("%+03d:00", Integer.parseInt(offset));
-            }
-            if (offset.matches("[+-]\\d{1,2}:\\d{2}")) {
-                String[] parts = offset.substring(1).split(":");
-                return prefix + offset.charAt(0)
-                        + String.format("%02d:%s", Integer.parseInt(parts[0]), parts[1]);
-            }
-        }
-        return normalized;
-    }
-
-    private LocalDateTime convertBetweenZones(LocalDateTime value, ZoneId sourceZone, ZoneId targetZone) {
-        return value == null ? null
-                : value.atZone(sourceZone).withZoneSameInstant(targetZone).toLocalDateTime();
-    }
-
-    private AbnormalSummary toSummary(AbnormalSummaryRow row) {
-        AbnormalSummary summary = new AbnormalSummary();
-        if (row == null) {
-            return summary;
-        }
-        summary.setTotalCount(value(row.getTotalCount()));
-        summary.setOpenCount(value(row.getOpenCount()));
-        summary.setProcessingCount(value(row.getProcessingCount()));
-        summary.setResolvedCount(value(row.getResolvedCount()));
-        summary.setIgnoredCount(value(row.getIgnoredCount()));
-        summary.setHighOrCriticalCount(value(row.getHighOrCriticalCount()));
-        return summary;
     }
 
     private String buildEvidence(TransactionOperationDO operationDO,
@@ -429,20 +368,4 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
         return value.substring(0, maxLength);
     }
 
-    private LocalDateTime resolveRegisteredNodeBegin(List<String> physicalNodes) {
-        if (physicalNodes == null || physicalNodes.isEmpty()) {
-            return LocalDate.now().withDayOfMonth(1).atStartOfDay();
-        }
-        return physicalNodes.stream()
-                .filter(value -> value != null && value.matches("\\d{4}0[1-4]"))
-                .map(this::quarterBegin)
-                .min(LocalDateTime::compareTo)
-                .orElse(LocalDate.now().withDayOfMonth(1).atStartOfDay());
-    }
-
-    private LocalDateTime quarterBegin(String suffix) {
-        int year = Integer.parseInt(suffix.substring(0, 4));
-        int quarter = Integer.parseInt(suffix.substring(5, 6));
-        return LocalDateTime.of(year, (quarter - 1) * 3 + 1, 1, 0, 0);
-    }
 }

@@ -27,7 +27,7 @@ transaction-sharding:
       max-sequence: 999999999999
 
     # 规则范围是滚动治理窗口，不等于 ShardingSphere actualDataNodes。
-    # actualDataNodes 只能由预建任务对 23 张表全部校验通过后生成。
+    # actualDataNodes 只能由预建任务对 24 张表全部校验通过后生成。
     tables:
       transaction_order:
         enabled: true
@@ -231,6 +231,15 @@ transaction-sharding:
         enabled: true
         logical-table: transaction_abnormal_event
         template-table: transaction_abnormal_event
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        actual-data-source: master
+      transaction_card_vault:
+        enabled: true
+        logical-table: transaction_card_vault
+        template-table: transaction_card_vault
         start-year: 2026
         start-quarter: 3
         end-year: 2099

@@ -136,11 +136,16 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getCover()).isEqualTo("visual-cover");
         assertThat(captured.getDeviceIdHash()).isNotBlank();
         assertThat(captured.getLanguage()).isEqualTo("en-US");
+        assertThat(responseVO.getCardEncryption()).isNotNull();
+        assertThat(responseVO.getCardEncryption().getAlgorithm()).isEqualTo("RSA-OAEP-256+A256GCM");
+        assertThat(responseVO.getCardEncryption().getKeyId()).isEqualTo("checkout-card-v1");
+        assertThat(responseVO.getCardEncryption().getPublicKey()).isEqualTo("public-key-base64");
+        assertThat(responseVO.getCardEncryption().getNonce()).isEqualTo("checkout-nonce");
         assertThat(JsonUtils.toJsonString(captured)).doesNotContain(RAW_OPAQUE_TOKEN);
     }
 
     @Test
-    void shouldSubmitCardPaymentWithTokenHashAndMaskedSerializableSummary() {
+    void shouldSubmitEncryptedCardEnvelopeWithoutPlainCardData() {
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
         bindRequestContext("200001");
@@ -150,16 +155,17 @@ class HostedCheckoutServiceImplTests {
         PaymentCheckoutClientDTOs.PaymentSubmitRequest captured = paymentInternalClient.paymentSubmitRequest;
         assertThat(responseVO.getPageState()).isEqualTo("PROCESSING");
         assertThat(captured.getTokenHash()).isEqualTo(HostedCheckoutTokenSupport.hmacSha256Hex(RAW_OPAQUE_TOKEN, TOKEN_PEPPER));
-        assertThat(captured.getCardInfo().getCardNo()).isEqualTo("4111111111111111");
-        assertThat(captured.getCardInfo().getSecurityCode()).isEqualTo("123");
+        assertThat(captured.getCardDataEnvelope().getAlgorithm()).isEqualTo("RSA-OAEP-256+A256GCM");
+        assertThat(captured.getCardDataEnvelope().getKeyId()).isEqualTo("checkout-card-v1");
+        assertThat(captured.getCardDataEnvelope().getEncryptedKey()).startsWith("encryptedKey");
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
         assertThat(captured.getRequestFingerprint()).isNotBlank();
-        assertThat(captured.getBrowserInfoJson()).doesNotContain(RAW_OPAQUE_TOKEN, "4111111111111111", "123");
-        assertThat(captured.toString()).doesNotContain("4111111111111111", "123", RAW_OPAQUE_TOKEN);
+        assertThat(captured.getBrowserInfoJson()).doesNotContain(RAW_OPAQUE_TOKEN);
+        assertThat(captured.toString()).doesNotContain("cardNo", "securityCode", RAW_OPAQUE_TOKEN);
 
         String maskedJson = SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(captured));
-        assertThat(maskedJson).doesNotContain("4111111111111111", "\"securityCode\":\"123\"", RAW_OPAQUE_TOKEN);
-        assertThat(maskedJson).contains("\"cardNo\":\"411111******1111\"", "\"securityCode\":\"***\"");
+        assertThat(maskedJson).doesNotContain("encryptedKeyValue", "ciphertextValue", RAW_OPAQUE_TOKEN);
+        assertThat(maskedJson).contains("\"encryptedKey\":\"***\"", "\"ciphertext\":\"***\"");
     }
 
     private HostedCheckoutServiceImpl newCheckoutService(CapturingCheckoutClient paymentInternalClient) {
@@ -246,13 +252,15 @@ class HostedCheckoutServiceImplTests {
         requestDTO.setPaymentMethod("bank_card");
         requestDTO.setClientContext(clientContext());
 
-        HostedCheckoutBrowserRequestDTOs.CardInfoDTO cardInfo = new HostedCheckoutBrowserRequestDTOs.CardInfoDTO();
-        cardInfo.setCardNo("4111111111111111");
-        cardInfo.setExpirationMonth("09");
-        cardInfo.setExpirationYear("2029");
-        cardInfo.setSecurityCode("123");
-        cardInfo.setCardholderName("Payer Example");
-        requestDTO.setCardInfo(cardInfo);
+        HostedCheckoutBrowserRequestDTOs.CardDataEnvelopeDTO envelope =
+                new HostedCheckoutBrowserRequestDTOs.CardDataEnvelopeDTO();
+        envelope.setAlgorithm("RSA-OAEP-256+A256GCM");
+        envelope.setKeyId("checkout-card-v1");
+        envelope.setEncryptedKey("encryptedKeyValue" + "A".repeat(64));
+        envelope.setIv("ivValue1234567890");
+        envelope.setCiphertext("ciphertextValue1234567890");
+        envelope.setNonce("nonceValue1234567890");
+        requestDTO.setCardDataEnvelope(envelope);
 
         HostedCheckoutBrowserRequestDTOs.BillingCardHolderInfoDTO billing = new HostedCheckoutBrowserRequestDTOs.BillingCardHolderInfoDTO();
         billing.setFirstName("Payer");
@@ -465,6 +473,13 @@ class HostedCheckoutServiceImplTests {
             checkout.setRemainingAttemptCount(3);
             checkout.setPollingIntervalSeconds(2);
             responseDTO.setCheckout(checkout);
+            PaymentCheckoutClientDTOs.CardEncryption cardEncryption =
+                    new PaymentCheckoutClientDTOs.CardEncryption();
+            cardEncryption.setAlgorithm("RSA-OAEP-256+A256GCM");
+            cardEncryption.setKeyId("checkout-card-v1");
+            cardEncryption.setPublicKey("public-key-base64");
+            cardEncryption.setNonce("checkout-nonce");
+            responseDTO.setCardEncryption(cardEncryption);
             return responseDTO;
         }
 
@@ -491,6 +506,13 @@ class HostedCheckoutServiceImplTests {
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
                 PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {
+            throw new UnsupportedOperationException();
+        }
+
+        /** 当前测试不覆盖卡 BIN 解析，调用即表示用例准备不完整。 */
+        @Override
+        public PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
+                PaymentCheckoutClientDTOs.CardBinRequest requestDTO) {
             throw new UnsupportedOperationException();
         }
     }

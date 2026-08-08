@@ -18,6 +18,12 @@ spring:
     allow-bean-definition-overriding: true
 
 payment:
+  checkout:
+    card-vault:
+      # 必须先完成分片表、Topic、消费组和 service-data 密钥发布；默认关闭。
+      enabled: ${CHECKOUT_CARD_VAULT_PUBLISH_ENABLED:false}
+      key-id: ${CHECKOUT_CARD_VAULT_TRANSFER_KEY_ID:checkout-card-vault-v1}
+      public-key-x509-base64: ${CHECKOUT_CARD_VAULT_TRANSFER_PUBLIC_KEY_X509_BASE64:}
   transaction:
     outbox:
       # 参数说明：控制事务 Outbox Relay 是否运行；关闭会导致已提交事件停止向 MQ 投递。

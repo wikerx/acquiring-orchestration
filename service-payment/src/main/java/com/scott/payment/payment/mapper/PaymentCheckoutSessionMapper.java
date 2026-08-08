@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Hosted Checkout 会话 Mapper。
@@ -245,4 +246,61 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                       @Param("processStage") String processStage,
                       @Param("version") Integer version,
                       @Param("now") LocalDateTime now);
+
+    /** 查询已超过付款期限且尚未提交渠道的会话候选。 */
+    @Select("""
+            SELECT *
+            FROM payment_checkout_session
+            WHERE expire_time <= #{now}
+              AND checkout_status IN ('PAYABLE', 'PAYABLE_FAILED_RETRYABLE')
+              AND success_attempt_id IS NULL
+              AND deleted = 0
+            ORDER BY expire_time ASC, id ASC
+            LIMIT #{limit}
+            """)
+    List<PaymentCheckoutSessionDO> selectExpireDue(@Param("now") LocalDateTime now,
+                                                   @Param("limit") int limit);
+
+    /** 将未支付会话按版本 CAS 推进到过期失败状态。 */
+    @Update("""
+            UPDATE payment_checkout_session
+            SET checkout_status = 'EXPIRED',
+                process_stage = 'RESULT_RENDERED',
+                result_snapshot = #{resultSnapshot},
+                last_status_time = #{now},
+                version = version + 1,
+                update_time = #{now}
+            WHERE checkout_session_id = #{checkoutSessionId}
+              AND expire_time <= #{now}
+              AND checkout_status IN ('PAYABLE', 'PAYABLE_FAILED_RETRYABLE')
+              AND success_attempt_id IS NULL
+              AND version = #{version}
+              AND deleted = 0
+            """)
+    int markExpiredCas(@Param("checkoutSessionId") String checkoutSessionId,
+                       @Param("resultSnapshot") String resultSnapshot,
+                       @Param("version") Integer version,
+                       @Param("now") LocalDateTime now);
+
+    /** 付款人明确重试过期失败订单时，开启新的受控付款期限。 */
+    @Update("""
+            UPDATE payment_checkout_session
+            SET checkout_status = 'PAYABLE_FAILED_RETRYABLE',
+                process_stage = 'WAITING_PAYER',
+                expire_time = #{newExpireTime},
+                last_status_time = #{now},
+                version = version + 1,
+                update_time = #{now}
+            WHERE checkout_session_id = #{checkoutSessionId}
+              AND checkout_status = 'EXPIRED'
+              AND retry_allowed = 1
+              AND attempt_count < max_attempt_count
+              AND success_attempt_id IS NULL
+              AND version = #{version}
+              AND deleted = 0
+            """)
+    int reopenExpiredForRetryCas(@Param("checkoutSessionId") String checkoutSessionId,
+                                 @Param("newExpireTime") LocalDateTime newExpireTime,
+                                 @Param("version") Integer version,
+                                 @Param("now") LocalDateTime now);
 }

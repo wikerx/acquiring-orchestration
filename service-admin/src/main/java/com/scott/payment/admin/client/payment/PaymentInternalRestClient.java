@@ -3,25 +3,13 @@ package com.scott.payment.admin.client.payment;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.admin.config.PaymentInternalClientProperties;
 import com.scott.payment.admin.client.payment.dto.PaymentTransactionActionClientRequestDTO;
-import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
-import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelLogQuery;
-import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
-import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
-import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
-import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
-import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
-import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.ApprovalClientRequest;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.ApprovalResult;
-import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundDetailResponse;
-import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
-import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSearchResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
-import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -33,11 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
-import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -47,7 +32,7 @@ import java.util.regex.Pattern;
  * @classname : PaymentInternalRestClient
  * @date : 2026-07-14 23:57
  * @email : scott_x@163.com
- * @description : service-payment 内部查询 REST 客户端，位于 service-admin 客户端层，为管理后台交易查询封装 HMAC 签名和统一响应解包。
+ * @description : service-payment 内部命令 REST 客户端，为管理端交易变更、退款审批和异常案件处置封装 HMAC 签名与统一响应解包。
  * @status : create
  */
 @Service
@@ -79,15 +64,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
 
-    /** 支付主单分页查询内部接口。 */
-    private static final String ORDER_SEARCH_PATH = "/internal/payment/transactions/orders/search";
-
-    /** 支付动作单分页查询内部接口。 */
-    private static final String OPERATION_SEARCH_PATH = "/internal/payment/transactions/operations/search";
-
-    private static final String OPERATION_SEARCH_WITH_SUMMARY_PATH =
-            "/internal/payment/transactions/operations/search-with-summary";
-
     /** 请款动作内部接口。 */
     private static final String CAPTURE_PATH = "/internal/payment/capture";
 
@@ -96,22 +72,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
 
     /** 撤销动作内部接口。 */
     private static final String VOID_PATH = "/internal/payment/void";
-
-    /** 单笔交易详情内部接口前缀，后续拼接平台交易号。 */
-    private static final String DETAIL_BASE_PATH = "/internal/payment/transactions";
-
-    /** 渠道请求日志分页查询内部接口。 */
-    private static final String CHANNEL_LOG_SEARCH_PATH = "/internal/payment/transactions/channel-logs/search";
-
-    /** 渠道回调日志分页查询内部接口。 */
-    private static final String CHANNEL_CALLBACK_SEARCH_PATH = "/internal/payment/transactions/channel-callbacks/search";
-
-    private static final String MERCHANT_NOTIFICATION_SEARCH_PATH =
-            "/internal/payment/transactions/merchant-notifications/search";
-
-    private static final String REFUND_SEARCH_PATH = "/internal/payment/refunds/search";
-
-    private static final String REFUND_DETAIL_PATH = "/internal/payment/refunds";
 
     private static final String REFUND_APPROVAL_PATH = "/internal/payment/refund-approvals";
 
@@ -149,7 +109,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     private final PaymentInternalClientProperties properties;
 
     /**
-     * 创建 service-payment 内部查询 REST 客户端。
+     * 创建 service-payment 内部命令 REST 客户端。
      *
      * @param directRestTemplate       直连 RestTemplate
      * @param loadBalancedRestTemplate 负载均衡 RestTemplate
@@ -163,28 +123,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         this.properties = properties;
     }
 
-    /** 查询退款分页和统计。 */
-    @Override
-    public RefundSearchResponse searchRefunds(RefundQuery query) {
-        CommonResult<RefundSearchResponse> result = post(
-                servicePaymentUrl(REFUND_SEARCH_PATH), query,
-                new TypeReference<CommonResult<RefundSearchResponse>>() {
-                });
-        return unwrapData(result);
-    }
-
-    /** 查询退款详情。 */
-    @Override
-    public RefundDetailResponse refundDetail(String transactionId, LocalDateTime transactionDateTime) {
-        String url = UriComponentsBuilder.fromUriString(servicePaymentUrl(REFUND_DETAIL_PATH) + "/" + transactionId)
-                .queryParam("transactionDateTime", transactionDateTime)
-                .build().encode().toUriString();
-        CommonResult<RefundDetailResponse> result = get(
-                url, new TypeReference<CommonResult<RefundDetailResponse>>() {
-                });
-        return unwrapData(result);
-    }
-
     /** 审批通过退款。 */
     @Override
     public ApprovalResult approveRefund(String approvalId, ApprovalClientRequest request) {
@@ -195,31 +133,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public ApprovalResult rejectRefund(String approvalId, ApprovalClientRequest request) {
         return decideRefund(approvalId, "reject", request);
-    }
-
-    /** 查询勾兑异常分页和统计。 */
-    @Override
-    public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSearchResponse
-    searchChannelMatchAbnormalities(
-            com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalQuery query) {
-        CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSearchResponse> result =
-                post(servicePaymentUrl(CHANNEL_MATCH_ABNORMAL_PATH + "/search"), query,
-                        new TypeReference<CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSearchResponse>>() {
-                        });
-        return unwrapData(result);
-    }
-
-    /** 查询勾兑异常详情。 */
-    @Override
-    public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalDetailResponse
-    channelMatchAbnormalityDetail(String eventId, LocalDateTime transactionDateTime) {
-        String url = UriComponentsBuilder.fromUriString(servicePaymentUrl(CHANNEL_MATCH_ABNORMAL_PATH) + "/" + eventId)
-                .queryParam("transactionDateTime", transactionDateTime)
-                .build().encode().toUriString();
-        CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalDetailResponse> result =
-                get(url, new TypeReference<CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalDetailResponse>>() {
-                });
-        return unwrapData(result);
     }
 
     /** 领取或转派勾兑异常案件。 */
@@ -286,58 +199,10 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     }
 
     /**
-     * 分页查询交易主单。
-     *
-     * @param query 查询条件
-     * @return 主单分页结果
-     */
-    @Override
-    public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
-        CommonResult<PageResult<TransactionOrderResponse>> result = post(
-                servicePaymentUrl(ORDER_SEARCH_PATH),
-                query,
-                new TypeReference<CommonResult<PageResult<TransactionOrderResponse>>>() {
-                });
-        return unwrapData(result);
-    }
-
-    /**
-     * 分页查询交易动作单。
-     *
-     * @param query 查询条件
-     * @return 动作单分页结果
-     */
-    @Override
-    public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
-        CommonResult<PageResult<TransactionOperationResponse>> result = post(
-                servicePaymentUrl(OPERATION_SEARCH_PATH),
-                query,
-                new TypeReference<CommonResult<PageResult<TransactionOperationResponse>>>() {
-                });
-        return unwrapData(result);
-    }
-
-    /**
-     * 分页查询交易动作单，并返回当前查询条件下的全量统计。
-     *
-     * @param query 查询条件
-     * @return 动作单分页与统计结果
-     */
-    @Override
-    public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
-        CommonResult<TransactionOperationSearchResponse> result = post(
-                servicePaymentUrl(OPERATION_SEARCH_WITH_SUMMARY_PATH),
-                query,
-                new TypeReference<CommonResult<TransactionOperationSearchResponse>>() {
-                });
-        return unwrapData(result);
-    }
-
-    /**
-     * 通过支付核心发起退款动作。
+     * 通过支付核心发起请款动作。
      *
      * @param requestDTO 支付核心内部退款命令
-     * @return 退款动作结果
+     * @return 请款动作结果
      */
     @Override
     public TransactionActionResponse capture(PaymentTransactionActionClientRequestDTO requestDTO) {
@@ -379,94 +244,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 new TypeReference<CommonResult<TransactionActionResponse>>() {
                 });
         return unwrapData(result);
-    }
-
-    /**
-     * 查询交易聚合详情。
-     *
-     * @param transactionId 平台交易 ID
-     * @param transactionDateTime 列表返回的当前动作真实分片时间
-     * @param rootTransactionDateTime 列表返回的生命周期根主单真实分片时间
-     * @return 交易聚合详情
-     */
-    @Override
-    public TransactionDetailResponse detail(String transactionId,
-                                            LocalDateTime transactionDateTime,
-                                            LocalDateTime rootTransactionDateTime) {
-        String url = UriComponentsBuilder
-                .fromUriString(servicePaymentUrl(DETAIL_BASE_PATH) + "/" + transactionId)
-                .queryParam("transactionDateTime", transactionDateTime)
-                .queryParam("rootTransactionDateTime", rootTransactionDateTime)
-                .build()
-                .encode()
-                .toUriString();
-        CommonResult<TransactionDetailResponse> result = get(
-                url,
-                new TypeReference<CommonResult<TransactionDetailResponse>>() {
-                });
-        return unwrapData(result);
-    }
-
-    /**
-     * 分页查询渠道交互日志。
-     *
-     * @param query 查询条件
-     * @return 渠道交互日志分页结果
-     */
-    @Override
-    public PageResult<Map<String, Object>> pageChannelLogs(ChannelLogQuery query) {
-        CommonResult<PageResult<Map<String, Object>>> result = post(
-                servicePaymentUrl(CHANNEL_LOG_SEARCH_PATH),
-                query,
-                new TypeReference<CommonResult<PageResult<Map<String, Object>>>>() {
-                });
-        return unwrapData(result);
-    }
-
-    /**
-     * 分页查询渠道回调业务记录。
-     *
-     * @param query 查询条件
-     * @return 渠道回调分页结果
-     */
-    @Override
-    public PageResult<Map<String, Object>> pageChannelCallbacks(ChannelCallbackQuery query) {
-        CommonResult<PageResult<Map<String, Object>>> result = post(
-                servicePaymentUrl(CHANNEL_CALLBACK_SEARCH_PATH),
-                query,
-                new TypeReference<CommonResult<PageResult<Map<String, Object>>>>() {
-                });
-        return unwrapData(result);
-    }
-
-    /**
-     * 分页查询商户通知任务。
-     *
-     * @param query 查询条件
-     * @return 商户通知任务分页结果
-     */
-    @Override
-    public PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query) {
-        CommonResult<PageResult<Map<String, Object>>> result = post(
-                servicePaymentUrl(MERCHANT_NOTIFICATION_SEARCH_PATH),
-                query,
-                new TypeReference<CommonResult<PageResult<Map<String, Object>>>>() {
-                });
-        return unwrapData(result);
-    }
-
-    private <T> T get(String url, TypeReference<T> typeReference) {
-        URI uri = URI.create(url);
-        try {
-            String responseBody = chooseRestTemplate(uri).exchange(uri, HttpMethod.GET,
-                    buildSignedEntity(uri, HttpMethod.GET, null), String.class).getBody();
-            return JsonUtils.parseObject(responseBody, typeReference);
-        } catch (HttpStatusCodeException exception) {
-            throw translateHttpException(HttpMethod.GET, uri, exception);
-        } catch (RestClientException exception) {
-            log.warn("service-payment get call failed, targetUri: {}", uri, exception);
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment get call failed");
-        }
     }
 
     /**

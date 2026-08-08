@@ -44,6 +44,10 @@ public class HostedCheckoutSessionCreateRequestDTO implements Serializable {
     @Valid
     private PayerInfoDTO payerInfo;
 
+    /** 可选账单资料；提供后付款页自动预填，付款人仍可修改。 */
+    @Valid
+    private BillingInfoDTO billingInfo;
+
     /**
      * Hosted Checkout 会话所属商户信息。
      */
@@ -203,9 +207,40 @@ public class HostedCheckoutSessionCreateRequestDTO implements Serializable {
          */
         private String email;
 
+        /** 付款人名字。 */
+        private String firstName;
+
+        /** 付款人姓氏。 */
+        private String lastName;
+
+        /** 付款人联系电话。 */
+        private String phone;
+
         /**
          * 付款人国家/地区，用于收银台展示和后续通道路由辅助。
          */
         private String country;
+
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+    }
+
+    /** Hosted Checkout 账单地址预填快照。 */
+    @Data
+    public static class BillingInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String firstName;
+        private String lastName;
+        private String email;
+        private String phone;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
     }
 }

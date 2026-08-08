@@ -1,9 +1,6 @@
 package com.scott.payment.payment.service.dto.reconciliation;
 
-import com.scott.payment.component.core.model.PageRequest;
-import com.scott.payment.component.core.model.PageResult;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -16,36 +13,12 @@ import java.util.List;
  * @version : v1.0.0
  * @classname : ChannelMatchAbnormalDTOs
  * @date : 2026-08-06 00:00
- * @description : 管理端勾兑异常内部 DTO 集合，承载查询、统计、详情、领取、重查和非资金终态处置契约。
+ * @description : Payment 勾兑异常内部 DTO 集合，承载案件记录、领取、重查和非资金终态处置命令；管理端查询模型由 service-admin 维护。
  * @status : create
  */
 public final class ChannelMatchAbnormalDTOs {
 
     private ChannelMatchAbnormalDTOs() {
-    }
-
-    /** 勾兑异常分页查询条件，时间范围按交易动作分片时间解释。 */
-    @Data
-    @EqualsAndHashCode(callSuper = true)
-    public static class AbnormalQuery extends PageRequest {
-        private static final long serialVersionUID = 1L;
-        private String eventId;
-        private String transactionId;
-        private String merchantId;
-        private String merchantOrderNo;
-        private String abnormalType;
-        private String abnormalLevel;
-        private String eventStatus;
-        private String transactionType;
-        private String platformStatus;
-        private String channelCode;
-        private String channelOrderNo;
-        private String assignedToId;
-        private String detectSource;
-        private Integer minimumOccurrenceCount;
-        private LocalDateTime beginTime;
-        private LocalDateTime endTime;
-        private String queryTimeZone;
     }
 
     /** 勾兑异常列表与详情记录，金额使用币种主单位 BigDecimal。 */
@@ -95,46 +68,6 @@ public final class ChannelMatchAbnormalDTOs {
         private Integer version;
         private LocalDateTime createTime;
         private LocalDateTime updateTime;
-    }
-
-    /** 当前查询条件下的案件状态统计。 */
-    @Data
-    public static class AbnormalSummary implements Serializable {
-        private static final long serialVersionUID = 1L;
-        private long totalCount;
-        private long openCount;
-        private long processingCount;
-        private long resolvedCount;
-        private long ignoredCount;
-        private long highOrCriticalCount;
-    }
-
-    /** Mapper 状态统计投影。 */
-    @Data
-    public static class AbnormalSummaryRow implements Serializable {
-        private static final long serialVersionUID = 1L;
-        private Long totalCount;
-        private Long openCount;
-        private Long processingCount;
-        private Long resolvedCount;
-        private Long ignoredCount;
-        private Long highOrCriticalCount;
-    }
-
-    /** 分页和完整条件统计组合响应。 */
-    @Data
-    public static class AbnormalSearchResponse implements Serializable {
-        private static final long serialVersionUID = 1L;
-        private PageResult<AbnormalRecord> page;
-        private AbnormalSummary summary;
-    }
-
-    /** 案件详情及现有交易时间线。 */
-    @Data
-    public static class AbnormalDetailResponse implements Serializable {
-        private static final long serialVersionUID = 1L;
-        private AbnormalRecord abnormality;
-        private Object transactionDetail;
     }
 
     /** 领取或转派命令。 */

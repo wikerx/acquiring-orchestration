@@ -22,6 +22,12 @@ public class TransactionShardingProperties {
     public static final String REQUIRED_ZONE_ID = "Asia/Shanghai";
     /** 所有交易逻辑表统一使用的分片键。 */
     public static final String REQUIRED_SHARDING_COLUMN = "transaction_date_time";
+    /** 当前正式交易逻辑表数量。 */
+    public static final int FORMAL_LOGIC_TABLE_COUNT = 24;
+    /** 第 24 张卡资料表上线前已发布的正式交易逻辑表数量。 */
+    public static final int PREVIOUS_FORMAL_LOGIC_TABLE_COUNT = 23;
+    /** 仅在卡资料能力启用后才必须加入活动分片规则的逻辑表。 */
+    public static final String CARD_VAULT_LOGIC_TABLE = "transaction_card_vault";
 
     /** 版本化规则标识，未发布配置不得激活复合数据源。 */
     private String ruleVersion = "unpublished";
@@ -37,7 +43,7 @@ public class TransactionShardingProperties {
     private List<String> replicaDataSources = new ArrayList<>(List.of(DataSourceName.SLAVE_1, DataSourceName.SLAVE_2));
     /** 已建表且通过 schema、字符集和号段校验的季度后缀集合。 */
     private List<String> physicalNodes = new ArrayList<>();
-    /** 必须同时发布并配置为 Binding 的 23 张正式交易逻辑表。 */
+    /** 必须匹配已发布 23 表基线或包含卡资料表的 24 表目标拓扑。 */
     private List<String> logicTables = new ArrayList<>(defaultLogicTables());
     /** 允许直接选择 transaction 逻辑数据源的服务白名单。 */
     private List<String> directAccessServices = new ArrayList<>(List.of(
@@ -48,7 +54,7 @@ public class TransactionShardingProperties {
     /**
      * 返回必须被同一规则版本完整接管的交易表集合。
      *
-     * @return 不可变的 23 张逻辑表名
+     * @return 不可变的 24 张逻辑表名
      */
     public static List<String> defaultLogicTables() {
         return List.of(
@@ -74,7 +80,19 @@ public class TransactionShardingProperties {
                 "transaction_merchant_notification_log",
                 "transaction_merchant_api_interaction_log",
                 "transaction_event_outbox",
-                "transaction_abnormal_event");
+                "transaction_abnormal_event",
+                CARD_VAULT_LOGIC_TABLE);
+    }
+
+    /**
+     * 返回卡资料表上线前已发布的 23 张交易逻辑表基线。
+     *
+     * @return 不含卡资料表的不可变逻辑表集合
+     */
+    public static List<String> previousLogicTables() {
+        return defaultLogicTables().stream()
+                .filter(table -> !CARD_VAULT_LOGIC_TABLE.equals(table))
+                .toList();
     }
 
     /**
@@ -99,8 +117,9 @@ public class TransactionShardingProperties {
                 || physicalNodes.stream().distinct().count() != physicalNodes.size()) {
             throw new IllegalStateException("transaction sharding physical nodes must be unique yyyyQQ suffixes");
         }
-        if (logicTables == null || !logicTables.containsAll(defaultLogicTables()) || logicTables.size() != 23) {
-            throw new IllegalStateException("transaction sharding rules must contain exactly 23 formal logic tables");
+        if (!matchesPublishedLogicTableTopology()) {
+            throw new IllegalStateException("transaction sharding rules must match the published 23-table "
+                    + "baseline or 24-table card-vault topology");
         }
         validateQueryBudget();
         String calculated = TransactionShardingRuleChecksum.calculate(this);
@@ -184,9 +203,20 @@ public class TransactionShardingProperties {
         return logicTables;
     }
 
-    /** @param logicTables 必须一次发布的 23 张正式逻辑表 */
+    /** @param logicTables 已发布 23 表基线或包含卡资料表的 24 表目标拓扑 */
     public void setLogicTables(List<String> logicTables) {
         this.logicTables = logicTables == null ? new ArrayList<>() : new ArrayList<>(logicTables);
+    }
+
+    /** 仅允许两个已知完整集合，防止滚动兼容被误用为任意缺表放行。 */
+    private boolean matchesPublishedLogicTableTopology() {
+        if (logicTables == null || logicTables.stream().distinct().count() != logicTables.size()) {
+            return false;
+        }
+        return (logicTables.size() == FORMAL_LOGIC_TABLE_COUNT
+                && logicTables.containsAll(defaultLogicTables()))
+                || (logicTables.size() == PREVIOUS_FORMAL_LOGIC_TABLE_COUNT
+                && logicTables.containsAll(previousLogicTables()));
     }
 
     /** @return 允许直接访问 transaction 数据源的服务名 */

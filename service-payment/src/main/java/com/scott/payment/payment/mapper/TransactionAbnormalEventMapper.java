@@ -2,18 +2,13 @@ package com.scott.payment.payment.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.payment.entity.TransactionAbnormalEventDO;
-import com.scott.payment.payment.mapper.provider.ChannelMatchAbnormalSqlProvider;
-import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalQuery;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalRecord;
-import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalSummaryRow;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.SelectProvider;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * @author : scott
@@ -172,26 +167,6 @@ public interface TransactionAbnormalEventMapper extends BaseMapper<TransactionAb
             """)
     TransactionAbnormalEventDO selectByEventId(@Param("eventId") String eventId,
                                                @Param("transactionDateTime") LocalDateTime transactionDateTime);
-
-    /** @return 查询条件下的案件数 */
-    @SelectProvider(type = ChannelMatchAbnormalSqlProvider.class, method = "countSql")
-    long count(@Param("query") AbnormalQuery query,
-               @Param("beginTime") LocalDateTime beginTime,
-               @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
-
-    /** @return 查询条件下的案件分页 */
-    @SelectProvider(type = ChannelMatchAbnormalSqlProvider.class, method = "pageSql")
-    List<AbnormalRecord> selectPage(@Param("query") AbnormalQuery query,
-                                    @Param("beginTime") LocalDateTime beginTime,
-                                    @Param("endTimeExclusive") LocalDateTime endTimeExclusive,
-                                    @Param("offset") long offset,
-                                    @Param("limit") long limit);
-
-    /** @return 查询条件下的案件状态统计 */
-    @SelectProvider(type = ChannelMatchAbnormalSqlProvider.class, method = "summarySql")
-    AbnormalSummaryRow selectSummary(@Param("query") AbnormalQuery query,
-                                     @Param("beginTime") LocalDateTime beginTime,
-                                     @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /** @return 精确案件详情投影 */
     @Select("""

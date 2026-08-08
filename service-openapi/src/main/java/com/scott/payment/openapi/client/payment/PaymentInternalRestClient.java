@@ -32,6 +32,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -152,6 +154,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * Hosted Checkout 3DS bridge 回跳内部路径。
      */
     private static final String CHECKOUT_THREE_DS_RETURN_PATH = "/internal/payment/checkout/3ds/return";
+
+    /** Hosted Checkout 卡 BIN 解析内部路径。 */
+    private static final String CHECKOUT_CARD_BIN_RESOLVE_PATH = "/internal/payment/checkout/card-bin/resolve";
 
     /**
      * 直连 RestTemplate，用于 localhost、IP 或完整域名。
@@ -475,6 +480,18 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         );
     }
 
+    @Override
+    public PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
+            PaymentCheckoutClientDTOs.CardBinRequest requestDTO) {
+        return postCheckout(
+                "CHECKOUT_CARD_BIN_RESOLVE",
+                servicePaymentUrl(CHECKOUT_CARD_BIN_RESOLVE_PATH),
+                requestDTO,
+                new TypeReference<CommonResult<PaymentCheckoutClientDTOs.CardBinResponse>>() {
+                }
+        );
+    }
+
     /**
      * 调用支付核心查询 Hosted Checkout 会话展示快照。
      *
@@ -496,7 +513,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     /**
      * 调用支付核心提交 Hosted Checkout 付款尝试。
      *
-     * <p>内部签名保护服务边界；PAN 和 CVV 仅随本次请求发送，日志摘要必须经过统一脱敏。</p>
+     * <p>内部签名保护服务边界；仅转发卡数据密文信封，OpenAPI 不接收 PAN/CVV 明文。</p>
      *
      * @param requestDTO 付款尝试内部请求
      * @return 支付核心受理结果或 3DS 动作
@@ -777,6 +794,20 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * @return 可写入日志的请求摘要
      */
     private String requestSummary(Object requestDTO) {
+        if (requestDTO instanceof PaymentCheckoutClientDTOs.PaymentSubmitRequest submitRequest) {
+            Map<String, Object> summary = new LinkedHashMap<>();
+            summary.put("checkoutSessionId", submitRequest.getCheckoutSessionId());
+            summary.put("attemptRequestId", submitRequest.getAttemptRequestId());
+            summary.put("paymentMethod", submitRequest.getPaymentMethod());
+            summary.put("requestFingerprint", submitRequest.getRequestFingerprint());
+            summary.put("cardEnvelopeAlgorithm", submitRequest.getCardDataEnvelope() == null
+                    ? null : submitRequest.getCardDataEnvelope().getAlgorithm());
+            summary.put("cardEnvelopeKeyId", submitRequest.getCardDataEnvelope() == null
+                    ? null : submitRequest.getCardDataEnvelope().getKeyId());
+            summary.put("billingCountry", submitRequest.getBillingCardHolderInfo() == null
+                    ? null : submitRequest.getBillingCardHolderInfo().getCountry());
+            return truncate(JsonUtils.toJsonString(summary));
+        }
         return truncate(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(requestDTO)));
     }
 

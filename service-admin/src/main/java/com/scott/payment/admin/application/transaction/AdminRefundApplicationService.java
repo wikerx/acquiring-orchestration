@@ -9,6 +9,7 @@ import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundRecord;
 import com.scott.payment.admin.dto.export.RefundManagementExportRow;
+import com.scott.payment.admin.service.AdminRefundQueryService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -35,7 +36,7 @@ import java.util.Locale;
  * @classname : AdminRefundApplicationService
  * @date : 2026-08-06 16:00
  * @email : scott_x@163.com
- * @description : 管理端退款应用服务，编排只读查询并从认证上下文构造不可由浏览器伪造的审批操作人。
+ * @description : 管理端退款应用服务，本地编排只读查询和导出，并仅将审批命令及可信操作人身份提交给 service-payment。
  * @status : create
  */
 @Service
@@ -45,6 +46,7 @@ public class AdminRefundApplicationService {
     private static final Duration EXPORT_LEASE_TIME = Duration.ofMinutes(5);
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+    private final AdminRefundQueryService refundQueryService;
     private final PaymentInternalClient paymentInternalClient;
     private final ExcelExportService excelExportService;
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
@@ -52,13 +54,25 @@ public class AdminRefundApplicationService {
     private final TransactionShardingProperties shardingProperties;
     private final RedisConcurrencyLimiter exportConcurrencyLimiter;
 
-    /** 创建管理端退款应用服务。 */
-    public AdminRefundApplicationService(PaymentInternalClient paymentInternalClient,
+    /**
+     * 创建管理端退款应用服务。
+     *
+     * @param refundQueryService service-admin 本地退款查询服务
+     * @param paymentInternalClient service-payment 退款审批命令客户端
+     * @param excelExportService Excel 分页导出服务
+     * @param excelI18nMessageResolver Excel 国际化消息解析器
+     * @param excelLocaleResolver Excel 语言环境解析器
+     * @param shardingProperties 交易查询预算配置
+     * @param exportConcurrencyLimiter 导出并发限制器
+     */
+    public AdminRefundApplicationService(AdminRefundQueryService refundQueryService,
+                                         PaymentInternalClient paymentInternalClient,
                                          ExcelExportService excelExportService,
                                          ExcelI18nMessageResolver excelI18nMessageResolver,
                                          ExcelLocaleResolver excelLocaleResolver,
                                          TransactionShardingProperties shardingProperties,
                                          RedisConcurrencyLimiter exportConcurrencyLimiter) {
+        this.refundQueryService = refundQueryService;
         this.paymentInternalClient = paymentInternalClient;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
@@ -67,17 +81,34 @@ public class AdminRefundApplicationService {
         this.exportConcurrencyLimiter = exportConcurrencyLimiter;
     }
 
-    /** @param query 查询条件 @return 退款分页和统计 */
+    /**
+     * 查询管理端退款分页及统计。
+     *
+     * @param query 退款筛选、时间范围和分页条件
+     * @return 退款分页和统计结果
+     */
     public RefundSearchResponse search(RefundQuery query) {
-        return paymentInternalClient.searchRefunds(query);
+        return refundQueryService.search(query);
     }
 
-    /** @return 退款详情 */
+    /**
+     * 查询管理端退款详情。
+     *
+     * @param transactionId 退款或撤销交易号
+     * @param transactionDateTime 列表返回的真实交易分片时间
+     * @return 退款记录和交易生命周期详情
+     */
     public RefundDetailResponse detail(String transactionId, LocalDateTime transactionDateTime) {
-        return paymentInternalClient.refundDetail(transactionId, transactionDateTime);
+        return refundQueryService.detail(transactionId, transactionDateTime);
     }
 
-    /** 按查询条件分页流式导出退款和撤销记录。 */
+    /**
+     * 按查询条件分页流式导出退款和撤销记录。
+     *
+     * @param query 退款筛选条件
+     * @param operator 页面展示的导出操作人
+     * @param response 文件下载响应
+     */
     public void export(RefundQuery query, String operator, HttpServletResponse response) {
         String identity = currentAdminIdentity(operator);
         boolean acquired = exportConcurrencyLimiter.execute(
@@ -90,12 +121,24 @@ public class AdminRefundApplicationService {
         }
     }
 
-    /** @return 审批通过结果 */
+    /**
+     * 提交退款审批通过命令。
+     *
+     * @param approvalId 退款审批任务号
+     * @param request 页面审批决策及期望版本
+     * @return 支付核心返回的审批结果
+     */
     public ApprovalResult approve(String approvalId, ApprovalDecisionRequest request) {
         return paymentInternalClient.approveRefund(approvalId, clientRequest(request));
     }
 
-    /** @return 审批拒绝结果 */
+    /**
+     * 提交退款审批拒绝命令。
+     *
+     * @param approvalId 退款审批任务号
+     * @param request 页面审批决策及期望版本
+     * @return 支付核心返回的审批结果
+     */
     public ApprovalResult reject(String approvalId, ApprovalDecisionRequest request) {
         return paymentInternalClient.rejectRefund(approvalId, clientRequest(request));
     }
@@ -143,7 +186,7 @@ public class AdminRefundApplicationService {
     private List<RefundManagementExportRow> loadExportPage(RefundQuery query, int pageNo) {
         query.setPageNo(pageNo);
         query.setPageSize(EXPORT_PAGE_SIZE);
-        RefundSearchResponse searchResponse = paymentInternalClient.searchRefunds(query);
+        RefundSearchResponse searchResponse = refundQueryService.search(query);
         if (searchResponse == null || searchResponse.getPage() == null) {
             return List.of();
         }

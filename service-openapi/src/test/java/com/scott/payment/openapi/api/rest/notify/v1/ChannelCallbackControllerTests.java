@@ -209,5 +209,12 @@ class ChannelCallbackControllerTests {
                 PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {
             throw new UnsupportedOperationException();
         }
+
+        /** 本测试桩不覆盖收银台卡 BIN 解析，调用即表示测试路径越界。 */
+        @Override
+        public PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
+                PaymentCheckoutClientDTOs.CardBinRequest requestDTO) {
+            throw new UnsupportedOperationException();
+        }
     }
 }

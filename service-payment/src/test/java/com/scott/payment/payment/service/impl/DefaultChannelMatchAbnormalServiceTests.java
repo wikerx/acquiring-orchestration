@@ -2,7 +2,6 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.component.core.exception.ServiceException;
-import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.config.ChannelMatchAbnormalProperties;
 import com.scott.payment.payment.domain.reconciliation.ChannelMatchAbnormalTypeEnum;
@@ -11,12 +10,11 @@ import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.mapper.TransactionAbnormalEventMapper;
 import com.scott.payment.payment.service.TransactionChannelMatchService;
-import com.scott.payment.payment.service.TransactionQueryService;
 import com.scott.payment.payment.service.TransactionRecordService;
-import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalQuery;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.AbnormalRecord;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.RequeryCommand;
 import com.scott.payment.payment.service.dto.reconciliation.ChannelMatchAbnormalDTOs.ResolveCommand;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -38,6 +36,7 @@ import static org.mockito.Mockito.when;
  * @description : 勾兑异常服务测试，覆盖确定性去重键、脱敏建案、受控处置和正常状态机恢复后的案件关闭。
  * @status : create
  */
+@Slf4j
 class DefaultChannelMatchAbnormalServiceTests {
 
     private static final LocalDateTime TRANSACTION_TIME = LocalDateTime.of(2026, 8, 6, 12, 0);
@@ -45,6 +44,7 @@ class DefaultChannelMatchAbnormalServiceTests {
     /** 自动升级只写案件，不从建案命令接受目标交易状态。 */
     @Test
     void shouldBuildDeterministicCaseForReviewRequiredTransaction() {
+        log.info("用例：验证勾兑异常使用稳定去重键建案且不接受目标交易状态");
         Fixture fixture = new Fixture();
         TransactionOperationDO operation = operation();
         TransactionOrderDO order = new TransactionOrderDO();
@@ -64,10 +64,12 @@ class DefaultChannelMatchAbnormalServiceTests {
         assertThat(row.getSourceTransactionDateTime()).isNull();
         assertThat(row.getPlatformAmount()).isEqualByComparingTo("12.34");
         assertThat(row.getRawReferenceJson()).contains("QUERY_EXCEPTION").doesNotContain("targetStatus");
+        log.info("结果：案件以异常类型和交易号生成去重键，保存脱敏证据且未携带目标状态");
     }
 
     @Test
     void shouldPersistChannelMoneyWithoutCrossCurrencyDifference() {
+        log.info("用例：验证跨币种渠道金额只保存事实快照而不计算差额");
         Fixture fixture = new Fixture();
         TransactionOperationDO operation = operation();
         ChannelPaymentResponse response = new ChannelPaymentResponse();
@@ -91,10 +93,12 @@ class DefaultChannelMatchAbnormalServiceTests {
         assertThat(row.getChannelCurrency()).isEqualTo("EUR");
         assertThat(row.getChannelAmount()).isEqualByComparingTo("12.50");
         assertThat(row.getAmountDifference()).isNull();
+        log.info("结果：平台与渠道币种不同时金额差额保持为空");
     }
 
     @Test
     void shouldPersistChannelMinusPlatformDifferenceForSameCurrency() {
+        log.info("用例：验证同币种异常案件按渠道金额减平台金额保存差额");
         Fixture fixture = new Fixture();
         ChannelPaymentResponse response = new ChannelPaymentResponse();
         response.setChannelCurrency("USD");
@@ -114,11 +118,13 @@ class DefaultChannelMatchAbnormalServiceTests {
         TransactionAbnormalEventDO row = captor.getValue();
         assertThat(row.getChannelAmount()).isEqualByComparingTo("12.50");
         assertThat(row.getAmountDifference()).isEqualByComparingTo("0.16");
+        log.info("结果：同币种金额差额按主币种BigDecimal精确计算为0.16");
     }
 
     /** 人工处置不能使用系统自动恢复类型，也不能携带任意交易终态。 */
     @Test
     void shouldRejectAutomaticResolutionTypeFromManualRequest() {
+        log.info("用例：验证人工处置不能提交系统自动恢复类型");
         Fixture fixture = new Fixture();
         ResolveCommand command = new ResolveCommand();
         command.setTransactionDateTime(TRANSACTION_TIME);
@@ -134,11 +140,13 @@ class DefaultChannelMatchAbnormalServiceTests {
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        log.info("结果：非法人工处置在更新案件前被拒绝");
     }
 
     /** 渠道重查确认终态时只调用案件自动关闭，不由案件服务写交易状态。 */
     @Test
     void shouldAutoResolveCaseAfterNormalChannelMatchCompletes() {
+        log.info("用例：验证渠道重查匹配后仅通过正常状态机关闭活动案件");
         Fixture fixture = new Fixture();
         AbnormalRecord open = record("OPEN", 3);
         AbnormalRecord resolved = record("RESOLVED", 4);
@@ -164,35 +172,7 @@ class DefaultChannelMatchAbnormalServiceTests {
                 org.mockito.ArgumentMatchers.eq(TRANSACTION_TIME),
                 org.mockito.ArgumentMatchers.contains("MANUAL_REQUERY"),
                 org.mockito.ArgumentMatchers.any());
-    }
-
-    /** 页面查询时间必须按所选时区换算为交易库固定时区。 */
-    @Test
-    void shouldConvertQueryRangeToTransactionStorageTimezone() {
-        Fixture fixture = new Fixture();
-        AbnormalQuery query = new AbnormalQuery();
-        query.setBeginTime(LocalDateTime.of(2026, 8, 6, 0, 0));
-        query.setEndTime(LocalDateTime.of(2026, 8, 6, 1, 0));
-        query.setQueryTimeZone("UTC");
-
-        fixture.service.search(query);
-
-        ArgumentCaptor<LocalDateTime> beginCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
-        ArgumentCaptor<LocalDateTime> endCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(fixture.mapper).count(org.mockito.ArgumentMatchers.eq(query), beginCaptor.capture(), endCaptor.capture());
-        assertThat(beginCaptor.getValue()).isEqualTo(LocalDateTime.of(2026, 8, 6, 8, 0));
-        assertThat(endCaptor.getValue()).isEqualTo(LocalDateTime.of(2026, 8, 6, 9, 0, 0, 1_000_000));
-    }
-
-    /** 非法页面时区必须返回参数错误，不得进入异常案件查询。 */
-    @Test
-    void shouldRejectInvalidQueryTimezone() {
-        Fixture fixture = new Fixture();
-        AbnormalQuery query = new AbnormalQuery();
-        query.setQueryTimeZone("UTC+25:00");
-
-        assertThatThrownBy(() -> fixture.service.search(query))
-                .hasMessageContaining("queryTimeZone is invalid");
+        log.info("结果：匹配成功后只关闭异常案件并返回最新案件状态");
     }
 
     private TransactionOperationDO operation() {
@@ -229,17 +209,14 @@ class DefaultChannelMatchAbnormalServiceTests {
     private static class Fixture {
         private final TransactionAbnormalEventMapper mapper = mock(TransactionAbnormalEventMapper.class);
         private final TransactionRecordService recordService = mock(TransactionRecordService.class);
-        private final TransactionQueryService queryService = mock(TransactionQueryService.class);
         private final TransactionChannelMatchService matchService = mock(TransactionChannelMatchService.class);
         private final DefaultChannelMatchAbnormalService service;
 
         private Fixture() {
             ChannelMatchAbnormalProperties properties = new ChannelMatchAbnormalProperties();
             properties.setEnabled(true);
-            TransactionShardingProperties shardingProperties = new TransactionShardingProperties();
             service = new DefaultChannelMatchAbnormalService(
-                    mapper, recordService, queryService, matchService,
-                    () -> "1001", properties, shardingProperties);
+                    mapper, recordService, matchService, () -> "1001", properties);
         }
     }
 }

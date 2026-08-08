@@ -49,7 +49,7 @@ public class TransactionShardingDataSourceConfiguration {
 
     /** ShardingSphere 读写分离组名，逻辑表节点仅引用该组而不直接绑定连接池。 */
     private static final String READWRITE_GROUP = "transaction_rw";
-    /** 23 张逻辑表共享的季度分片算法注册名。 */
+    /** 正式交易逻辑表共享的季度分片算法注册名。 */
     private static final String ALGORITHM_NAME = "transaction_quarter";
     /** 只读副本轮询负载均衡器注册名。 */
     private static final String LOAD_BALANCER_NAME = "transaction_round_robin";

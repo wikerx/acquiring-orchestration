@@ -4,10 +4,8 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.payment.entity.TransactionFlowEventDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * @author : scott
@@ -47,42 +45,4 @@ public interface TransactionFlowEventMapper extends BaseMapper<TransactionFlowEv
             """)
     int insertLogical(@Param("eventDO") TransactionFlowEventDO eventDO);
 
-    /**
-     * 按交易 ID 和精确分片时间查询流程事件。
-     *
-     * @param transactionId 平台当前交易 ID
-     * @param transactionDateTime 交易分片时间
-     * @return 流程事件列表
-     */
-    @Select("""
-            SELECT *
-            FROM transaction_flow_event
-            WHERE transaction_id = #{transactionId}
-              AND transaction_date_time = #{transactionDateTime}
-            ORDER BY event_time ASC, id ASC
-            LIMIT 200
-            """)
-    List<TransactionFlowEventDO> selectByTransactionId(@Param("transactionId") String transactionId,
-                                                       @Param("transactionDateTime") LocalDateTime transactionDateTime);
-
-    /**
-     * 按生命周期和半开交易时间范围查询流程事件。
-     *
-     * @param operationId 平台内部生命周期关联标识
-     * @param beginTime 查询开始时间
-     * @param endTimeExclusive 查询结束时间，不包含
-     * @return 流程事件列表
-     */
-    @Select("""
-            SELECT *
-            FROM transaction_flow_event
-            WHERE operation_id = #{operationId}
-              AND transaction_date_time >= #{beginTime}
-              AND transaction_date_time < #{endTimeExclusive}
-            ORDER BY event_time ASC, id ASC
-            LIMIT 500
-            """)
-    List<TransactionFlowEventDO> selectByOperationId(@Param("operationId") String operationId,
-                                                     @Param("beginTime") LocalDateTime beginTime,
-                                                     @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 }

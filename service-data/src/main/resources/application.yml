@@ -15,3 +15,14 @@ spring:
   main:
     # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
     allow-bean-definition-overriding: true
+
+data:
+  card-vault:
+    # 默认关闭；开启后缺失传输私钥、HMAC pepper 或 KEK 会阻止服务启动。
+    enabled: ${CHECKOUT_CARD_VAULT_CONSUME_ENABLED:false}
+    transfer-key-id: ${CHECKOUT_CARD_VAULT_TRANSFER_KEY_ID:checkout-card-vault-v1}
+    transfer-private-key-pkcs8-base64: ${CHECKOUT_CARD_VAULT_TRANSFER_PRIVATE_KEY_PKCS8_BASE64:}
+    pan-hmac-key-version: ${CHECKOUT_CARD_VAULT_PAN_HMAC_KEY_VERSION:v1}
+    pan-hmac-pepper: ${CHECKOUT_CARD_VAULT_PAN_HMAC_PEPPER:}
+    kek-version: ${CHECKOUT_CARD_VAULT_KEK_VERSION:v1}
+    kek-base64: ${CHECKOUT_CARD_VAULT_KEK_BASE64:}

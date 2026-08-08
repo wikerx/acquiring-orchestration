@@ -6,6 +6,7 @@ import com.scott.payment.openapi.service.HostedCheckoutService;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionCreateVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
+import com.scott.payment.openapi.vo.checkout.HostedCheckoutCardBinVO;
 import org.springframework.stereotype.Service;
 
 /**
@@ -81,5 +82,9 @@ public class OpenApiHostedCheckoutApplicationService {
     public HostedCheckoutPaymentResultVO handleThreeDsReturn(
             HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest requestDTO) {
         return hostedCheckoutService.handleThreeDsReturn(requestDTO);
+    }
+
+    public HostedCheckoutCardBinVO resolveCardBin(HostedCheckoutBrowserRequestDTOs.CardBinRequest requestDTO) {
+        return hostedCheckoutService.resolveCardBin(requestDTO);
     }
 }

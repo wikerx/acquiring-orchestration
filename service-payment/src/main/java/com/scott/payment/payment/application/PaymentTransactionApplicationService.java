@@ -8,23 +8,11 @@ import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResu
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
-import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.payment.service.TransactionCallbackService;
 import com.scott.payment.payment.service.TransactionChannelMatchService;
 import com.scott.payment.payment.service.TransactionRecordService;
-import com.scott.payment.payment.service.TransactionQueryService;
 import com.scott.payment.payment.service.PaymentTransactionService;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelCallbackQuery;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelLogQuery;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.MerchantNotificationQuery;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionDetailResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionOperationSearchResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionOperationResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionOrderResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionPageQuery;
 import org.springframework.stereotype.Service;
-
-import java.time.LocalDateTime;
 
 /**
  * @author : scott
@@ -54,11 +42,6 @@ public class PaymentTransactionApplicationService {
     private final TransactionChannelMatchService transactionChannelMatchService;
 
     /**
-     * 交易聚合查询服务。
-     */
-    private final TransactionQueryService transactionQueryService;
-
-    /**
      * 交易事实记录服务，用于回写 OpenAPI 响应加密摘要等审计信息。
      */
     private final TransactionRecordService transactionRecordService;
@@ -69,18 +52,15 @@ public class PaymentTransactionApplicationService {
      * @param paymentTransactionService 收单支付交易服务
      * @param transactionCallbackService 交易渠道回调服务
      * @param transactionChannelMatchService 渠道交易查询勾兑服务
-     * @param transactionQueryService 交易聚合查询服务
      * @param transactionRecordService 交易事实记录服务
      */
     public PaymentTransactionApplicationService(PaymentTransactionService paymentTransactionService,
                                                 TransactionCallbackService transactionCallbackService,
                                                 TransactionChannelMatchService transactionChannelMatchService,
-                                                TransactionQueryService transactionQueryService,
                                                 TransactionRecordService transactionRecordService) {
         this.paymentTransactionService = paymentTransactionService;
         this.transactionCallbackService = transactionCallbackService;
         this.transactionChannelMatchService = transactionChannelMatchService;
-        this.transactionQueryService = transactionQueryService;
         this.transactionRecordService = transactionRecordService;
     }
 
@@ -192,81 +172,6 @@ public class PaymentTransactionApplicationService {
      */
     public TransactionChannelMatchResultDTO matchDueChannelTransactions(TransactionChannelMatchCommandDTO commandDTO) {
         return transactionChannelMatchService.matchDue(commandDTO);
-    }
-
-    /**
-     * 分页查询交易主单。
-     *
-     * @param query 查询条件
-     * @return 主单分页结果
-     */
-    public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
-        return transactionQueryService.pageOrders(query);
-    }
-
-    /**
-     * 分页查询交易动作单。
-     *
-     * @param query 查询条件
-     * @return 动作单分页结果
-     */
-    public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
-        return transactionQueryService.pageOperations(query);
-    }
-
-    /**
-     * 分页查询交易动作单，并返回当前查询条件下的全量统计。
-     *
-     * @param query 查询条件
-     * @return 交易动作分页与统计响应
-     */
-    public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
-        return transactionQueryService.searchOperations(query);
-    }
-
-    /**
-     * 查询交易详情聚合数据。
-     *
-     * @param transactionId 平台交易 ID
-     * @param transactionDateTime 列表返回的当前动作真实分片时间
-     * @param rootTransactionDateTime 列表返回的生命周期根主单真实分片时间
-     * @return 交易详情
-     */
-    public TransactionDetailResponse detail(String transactionId,
-                                            LocalDateTime transactionDateTime,
-                                            LocalDateTime rootTransactionDateTime) {
-        return transactionQueryService.detail(
-                transactionId, transactionDateTime, rootTransactionDateTime);
-    }
-
-    /**
-     * 分页查询渠道交互日志。
-     *
-     * @param query 查询条件
-     * @return 渠道交互日志分页结果
-     */
-    public PageResult<?> pageChannelLogs(ChannelLogQuery query) {
-        return transactionQueryService.pageChannelLogs(query);
-    }
-
-    /**
-     * 分页查询渠道回调业务记录。
-     *
-     * @param query 查询条件
-     * @return 渠道回调业务记录分页结果
-     */
-    public PageResult<?> pageChannelCallbacks(ChannelCallbackQuery query) {
-        return transactionQueryService.pageChannelCallbacks(query);
-    }
-
-    /**
-     * 分页查询商户通知任务。
-     *
-     * @param query 查询条件
-     * @return 商户通知任务分页结果
-     */
-    public PageResult<?> pageMerchantNotifications(MerchantNotificationQuery query) {
-        return transactionQueryService.pageMerchantNotifications(query);
     }
 
     /**

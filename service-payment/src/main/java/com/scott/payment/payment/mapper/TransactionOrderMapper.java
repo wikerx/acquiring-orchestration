@@ -9,7 +9,6 @@ import org.apache.ibatis.annotations.Update;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * @author : scott
@@ -21,32 +20,6 @@ import java.util.List;
  * @status : create
  */
 public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
-
-    /**
-     * 在已发布分片时间范围内批量定位生命周期主单，供退款列表补充真实根分片时间。
-     *
-     * @param operationIds 生命周期标识集合
-     * @param beginTime 最早已发布季度起点
-     * @param endTimeExclusive 查询结束时间
-     * @return 生命周期主单
-     */
-    @Select("""
-            <script>
-            SELECT *
-            FROM transaction_order
-            WHERE operation_id IN
-            <foreach collection="operationIds" item="operationId" open="(" separator="," close=")">
-              #{operationId}
-            </foreach>
-              AND transaction_date_time &gt;= #{beginTime}
-              AND transaction_date_time &lt; #{endTimeExclusive}
-              AND deleted = 0
-            </script>
-            """)
-    List<TransactionOrderDO> selectByOperationIds(
-            @Param("operationIds") List<String> operationIds,
-            @Param("beginTime") LocalDateTime beginTime,
-            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
      * 通过交易分片时间在逻辑表中查询生命周期主单。
@@ -84,90 +57,6 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
             """)
     TransactionOrderDO selectByOperationIdForUpdate(@Param("operationId") String operationId,
                                                     @Param("transactionDateTime") LocalDateTime transactionDateTime);
-
-    /**
-     * 按半开交易时间范围分页查询生命周期主单逻辑表。
-     *
-     * @param merchantId 平台商户号，可为空
-     * @param merchantOrderNo 商户订单号，可为空
-     * @param transactionId 平台交易 ID，可为空
-     * @param transactionStatus 交易状态，可为空
-     * @param beginTime 查询开始时间
-     * @param endTimeExclusive 查询结束时间，不包含
-     * @param offset 分页偏移
-     * @param limit 分页大小
-     * @return 主单列表
-     */
-    @Select("""
-            <script>
-            SELECT *
-            FROM transaction_order
-            WHERE deleted = 0
-              AND transaction_date_time &gt;= #{beginTime}
-              AND transaction_date_time &lt; #{endTimeExclusive}
-              <if test="merchantId != null and merchantId != ''">
-                AND merchant_id = #{merchantId}
-              </if>
-              <if test="merchantOrderNo != null and merchantOrderNo != ''">
-                AND merchant_order_no = #{merchantOrderNo}
-              </if>
-              <if test="transactionId != null and transactionId != ''">
-                AND (root_transaction_id = #{transactionId} OR latest_transaction_id = #{transactionId})
-              </if>
-              <if test="transactionStatus != null and transactionStatus != ''">
-                AND transaction_status = #{transactionStatus}
-              </if>
-            ORDER BY transaction_date_time DESC, id DESC
-            LIMIT #{offset}, #{limit}
-            </script>
-            """)
-    List<TransactionOrderDO> selectPageLogical(@Param("merchantId") String merchantId,
-                                               @Param("merchantOrderNo") String merchantOrderNo,
-                                               @Param("transactionId") String transactionId,
-                                               @Param("transactionStatus") String transactionStatus,
-                                               @Param("beginTime") LocalDateTime beginTime,
-                                               @Param("endTimeExclusive") LocalDateTime endTimeExclusive,
-                                               @Param("offset") long offset,
-                                               @Param("limit") long limit);
-
-    /**
-     * 统计半开交易时间范围内的生命周期主单。
-     *
-     * @param merchantId 平台商户号，可为空
-     * @param merchantOrderNo 商户订单号，可为空
-     * @param transactionId 平台交易 ID，可为空
-     * @param transactionStatus 交易状态，可为空
-     * @param beginTime 查询开始时间
-     * @param endTimeExclusive 查询结束时间，不包含
-     * @return 命中记录数
-     */
-    @Select("""
-            <script>
-            SELECT COUNT(1)
-            FROM transaction_order
-            WHERE deleted = 0
-              AND transaction_date_time &gt;= #{beginTime}
-              AND transaction_date_time &lt; #{endTimeExclusive}
-              <if test="merchantId != null and merchantId != ''">
-                AND merchant_id = #{merchantId}
-              </if>
-              <if test="merchantOrderNo != null and merchantOrderNo != ''">
-                AND merchant_order_no = #{merchantOrderNo}
-              </if>
-              <if test="transactionId != null and transactionId != ''">
-                AND (root_transaction_id = #{transactionId} OR latest_transaction_id = #{transactionId})
-              </if>
-              <if test="transactionStatus != null and transactionStatus != ''">
-                AND transaction_status = #{transactionStatus}
-              </if>
-            </script>
-            """)
-    long countPageLogical(@Param("merchantId") String merchantId,
-                          @Param("merchantOrderNo") String merchantOrderNo,
-                          @Param("transactionId") String transactionId,
-                          @Param("transactionStatus") String transactionStatus,
-                          @Param("beginTime") LocalDateTime beginTime,
-                          @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
      * 使用分片时间和版本 CAS 汇总请款成功金额。

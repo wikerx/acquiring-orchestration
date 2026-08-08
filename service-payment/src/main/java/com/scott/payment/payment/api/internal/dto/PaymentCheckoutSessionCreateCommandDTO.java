@@ -77,6 +77,12 @@ public class PaymentCheckoutSessionCreateCommandDTO implements Serializable {
     private String merchantCancelUrl;
     /** 商户通知地址摘要，不持久化完整地址。 */
     private String merchantNotifyUrlHash;
+    /** 商户通知地址 AES-GCM 密文，不得进入日志或页面响应。 */
+    private String merchantNotifyUrlCiphertext;
+    /** 付款人预填信息 AES-GCM 密文。 */
+    private String payerInfoCiphertext;
+    /** 账单预填信息 AES-GCM 密文。 */
+    private String billingInfoCiphertext;
     /** 付款人 ISO 3166 国家或地区代码。 */
     private String payerCountry;
     /** 已脱敏的付款人邮箱。 */

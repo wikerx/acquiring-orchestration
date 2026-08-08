@@ -90,6 +90,29 @@ public interface PaymentCheckoutAttemptMapper extends BaseMapper<PaymentCheckout
                         @Param("now") LocalDateTime now);
 
     /**
+     * 将已完成本地校验的卡支付尝试标记为已提交支付核心。
+     *
+     * @return 更新行数，0 表示尝试状态或版本已变化
+     */
+    @Update("""
+            UPDATE payment_checkout_attempt
+            SET attempt_status = #{nextStatus},
+                process_stage = #{nextProcessStage},
+                channel_submit_time = #{now},
+                version = version + 1,
+                update_time = #{now}
+            WHERE checkout_attempt_id = #{checkoutAttemptId}
+              AND attempt_status = 'CARD_SUBMITTED'
+              AND version = #{version}
+              AND deleted = 0
+            """)
+    int markChannelSubmittedCas(@Param("checkoutAttemptId") String checkoutAttemptId,
+                                @Param("nextStatus") String nextStatus,
+                                @Param("nextProcessStage") String nextProcessStage,
+                                @Param("version") Integer version,
+                                @Param("now") LocalDateTime now);
+
+    /**
      * 将卡数据已提交的尝试 CAS 推进为需要 3DS 挑战。
      *
      * <p>仅持久化一次性回跳令牌和跳转地址的摘要，不保存令牌或带敏感参数的地址明文。</p>

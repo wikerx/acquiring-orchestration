@@ -12,6 +12,7 @@ import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.Bat
 import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.RequeryCommand;
 import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.ResolveCommand;
 import com.scott.payment.admin.dto.export.ChannelMatchAbnormalExportRow;
+import com.scott.payment.admin.service.AdminChannelMatchAbnormalQueryService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -37,7 +38,7 @@ import java.util.Locale;
  * @version : v1.0.0
  * @classname : AdminChannelMatchAbnormalApplicationService
  * @date : 2026-08-06 00:00
- * @description : Admin 勾兑异常应用服务，编排 Payment 签名调用并从认证上下文生成默认领取账号。
+ * @description : 管理端勾兑异常应用服务，本地编排案件查询和导出，仅将领取、重查及关闭命令提交给 service-payment。
  * @status : create
  */
 @Service
@@ -48,6 +49,7 @@ public class AdminChannelMatchAbnormalApplicationService {
     private static final Duration EXPORT_LEASE_TIME = Duration.ofMinutes(5);
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+    private final AdminChannelMatchAbnormalQueryService abnormalQueryService;
     private final PaymentInternalClient paymentInternalClient;
     private final ExcelExportService excelExportService;
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
@@ -55,13 +57,25 @@ public class AdminChannelMatchAbnormalApplicationService {
     private final TransactionShardingProperties shardingProperties;
     private final RedisConcurrencyLimiter exportConcurrencyLimiter;
 
-    /** 创建 Admin 勾兑异常应用服务。 */
-    public AdminChannelMatchAbnormalApplicationService(PaymentInternalClient paymentInternalClient,
+    /**
+     * 创建管理端勾兑异常应用服务。
+     *
+     * @param abnormalQueryService service-admin 本地勾兑异常查询服务
+     * @param paymentInternalClient service-payment 案件处置命令客户端
+     * @param excelExportService Excel 分页导出服务
+     * @param excelI18nMessageResolver Excel 国际化消息解析器
+     * @param excelLocaleResolver Excel 语言环境解析器
+     * @param shardingProperties 交易查询预算配置
+     * @param exportConcurrencyLimiter 导出并发限制器
+     */
+    public AdminChannelMatchAbnormalApplicationService(AdminChannelMatchAbnormalQueryService abnormalQueryService,
+                                                       PaymentInternalClient paymentInternalClient,
                                                        ExcelExportService excelExportService,
                                                        ExcelI18nMessageResolver excelI18nMessageResolver,
                                                        ExcelLocaleResolver excelLocaleResolver,
                                                        TransactionShardingProperties shardingProperties,
                                                        RedisConcurrencyLimiter exportConcurrencyLimiter) {
+        this.abnormalQueryService = abnormalQueryService;
         this.paymentInternalClient = paymentInternalClient;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
@@ -70,17 +84,33 @@ public class AdminChannelMatchAbnormalApplicationService {
         this.exportConcurrencyLimiter = exportConcurrencyLimiter;
     }
 
-    /** @return 案件分页和统计 */
+    /**
+     * 查询勾兑异常案件分页及统计。
+     *
+     * @param query 案件筛选、时间范围和分页条件
+     * @return 案件分页和状态统计
+     */
     public AbnormalSearchResponse search(AbnormalQuery query) {
-        return paymentInternalClient.searchChannelMatchAbnormalities(query);
+        return abnormalQueryService.search(query);
     }
 
-    /** @return 案件聚合详情 */
+    /**
+     * 查询勾兑异常案件聚合详情。
+     *
+     * @param eventId 勾兑异常案件号
+     * @param transactionDateTime 列表返回的真实交易分片时间
+     * @return 案件记录和交易生命周期详情
+     */
     public AbnormalDetailResponse detail(String eventId, LocalDateTime transactionDateTime) {
-        return paymentInternalClient.channelMatchAbnormalityDetail(eventId, transactionDateTime);
+        return abnormalQueryService.detail(eventId, transactionDateTime);
     }
 
-    /** 按查询条件分页流式导出脱敏案件记录。 */
+    /**
+     * 按查询条件分页流式导出脱敏案件记录。
+     *
+     * @param query 案件筛选条件
+     * @param response 文件下载响应
+     */
     public void export(AbnormalQuery query, HttpServletResponse response) {
         InternalAuthAccount account = currentAccount();
         boolean acquired = exportConcurrencyLimiter.execute(
@@ -93,7 +123,13 @@ public class AdminChannelMatchAbnormalApplicationService {
         }
     }
 
-    /** @return 领取或转派后的案件 */
+    /**
+     * 提交案件领取或转派命令。
+     *
+     * @param eventId 勾兑异常案件号
+     * @param request 目标账号、真实分片时间和期望版本
+     * @return 支付核心返回的最新案件记录
+     */
     public AbnormalRecord assign(String eventId, AssignRequest request) {
         if (request == null || request.getTransactionDateTime() == null || request.getExpectedVersion() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -111,19 +147,36 @@ public class AdminChannelMatchAbnormalApplicationService {
         return paymentInternalClient.assignChannelMatchAbnormality(eventId, command);
     }
 
-    /** @return 单笔重查后的案件 */
+    /**
+     * 提交单笔重新勾兑命令。
+     *
+     * @param eventId 勾兑异常案件号
+     * @param command 真实分片时间和期望版本
+     * @return 支付核心返回的最新案件记录
+     */
     public AbnormalRecord requery(String eventId, RequeryCommand command) {
         currentAccount();
         return paymentInternalClient.requeryChannelMatchAbnormality(eventId, command);
     }
 
-    /** @return 批量重查结果 */
+    /**
+     * 提交批量重新勾兑命令。
+     *
+     * @param command 待重查案件及其真实分片时间、期望版本
+     * @return 批量受理和失败统计
+     */
     public BatchRequeryResult batchRequery(BatchRequeryCommand command) {
         currentAccount();
         return paymentInternalClient.batchRequeryChannelMatchAbnormalities(command);
     }
 
-    /** @return 关闭或忽略后的案件 */
+    /**
+     * 提交关闭或忽略案件命令，不允许指定交易目标状态。
+     *
+     * @param eventId 勾兑异常案件号
+     * @param command 处置类型、原因、真实分片时间和期望版本
+     * @return 支付核心返回的最新案件记录
+     */
     public AbnormalRecord resolve(String eventId, ResolveCommand command) {
         currentAccount();
         return paymentInternalClient.resolveChannelMatchAbnormality(eventId, command);
@@ -165,7 +218,7 @@ public class AdminChannelMatchAbnormalApplicationService {
     private List<ChannelMatchAbnormalExportRow> loadExportPage(AbnormalQuery query, int pageNo) {
         query.setPageNo(pageNo);
         query.setPageSize(EXPORT_PAGE_SIZE);
-        AbnormalSearchResponse searchResponse = paymentInternalClient.searchChannelMatchAbnormalities(query);
+        AbnormalSearchResponse searchResponse = abnormalQueryService.search(query);
         if (searchResponse == null || searchResponse.getPage() == null) {
             return List.of();
         }

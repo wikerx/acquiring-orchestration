@@ -4,10 +4,8 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.payment.entity.TransactionChannelCallbackLogDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * @author : scott
@@ -49,42 +47,4 @@ public interface TransactionChannelCallbackLogMapper extends BaseMapper<Transact
             """)
     int insertLogical(@Param("logDO") TransactionChannelCallbackLogDO logDO);
 
-    /**
-     * 按交易 ID 和精确分片时间查询回调原始日志。
-     *
-     * @param transactionId 平台当前交易 ID
-     * @param transactionDateTime 交易分片时间
-     * @return 回调原始日志列表
-     */
-    @Select("""
-            SELECT *
-            FROM transaction_channel_callback_log
-            WHERE transaction_id = #{transactionId}
-              AND transaction_date_time = #{transactionDateTime}
-            ORDER BY callback_received_time DESC
-            LIMIT 100
-            """)
-    List<TransactionChannelCallbackLogDO> selectByTransactionId(@Param("transactionId") String transactionId,
-                                                                @Param("transactionDateTime") LocalDateTime transactionDateTime);
-
-    /**
-     * 按生命周期和半开交易时间范围查询回调原始日志。
-     *
-     * @param operationId 平台内部生命周期关联标识
-     * @param beginTime 查询开始时间
-     * @param endTimeExclusive 查询结束时间，不包含
-     * @return 回调原始日志列表
-     */
-    @Select("""
-            SELECT *
-            FROM transaction_channel_callback_log
-            WHERE operation_id = #{operationId}
-              AND transaction_date_time >= #{beginTime}
-              AND transaction_date_time < #{endTimeExclusive}
-            ORDER BY callback_received_time DESC
-            LIMIT 200
-            """)
-    List<TransactionChannelCallbackLogDO> selectByOperationId(@Param("operationId") String operationId,
-                                                              @Param("beginTime") LocalDateTime beginTime,
-                                                              @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 }

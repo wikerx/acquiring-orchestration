@@ -51,31 +51,6 @@ public interface TransactionPaymentMethodInfoMapper extends BaseMapper<Transacti
     int insertLogical(@Param("infoDO") TransactionPaymentMethodInfoDO infoDO);
 
     /**
-     * 按交易 ID 集合和半开时间范围查询支付工具摘要。
-     *
-     * @param transactionIds 平台交易 ID 集合
-     * @param beginTime 查询开始时间
-     * @param endTimeExclusive 查询结束时间，不包含
-     * @return 支付工具摘要列表
-     */
-    @Select("""
-            <script>
-            SELECT *
-            FROM transaction_payment_method_info
-            WHERE transaction_date_time &gt;= #{beginTime}
-              AND transaction_date_time &lt; #{endTimeExclusive}
-              AND transaction_id IN
-            <foreach collection="transactionIds" item="transactionId" open="(" separator="," close=")">
-              #{transactionId}
-            </foreach>
-            </script>
-            """)
-    List<TransactionPaymentMethodInfoDO> selectByTransactionIds(
-            @Param("transactionIds") Collection<String> transactionIds,
-            @Param("beginTime") LocalDateTime beginTime,
-            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
-
-    /**
      * 按生命周期和半开时间范围查询支付工具摘要。
      *
      * @param operationId 平台内部生命周期关联标识

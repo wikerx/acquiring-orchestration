@@ -61,7 +61,7 @@ class TransactionPersistenceMapperContractTests {
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(toShardingProperties(sharding)));
         assertThat(maintenance).containsEntry("allow-create-from-template-table", true)
                 .containsEntry("allow-alter-existing-table", false);
-        assertThat(tables).hasSize(23);
+        assertThat(tables).hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT);
         assertThat(tables.values()).allSatisfy(value -> {
             assertThat(value).isInstanceOf(Map.class);
             @SuppressWarnings("unchecked")
@@ -171,7 +171,6 @@ class TransactionPersistenceMapperContractTests {
                 TransactionEventOutboxMapper.class,
                 TransactionFlowEventMapper.class,
                 TransactionMerchantApiInteractionLogMapper.class,
-                TransactionMerchantNotificationLogMapper.class,
                 TransactionMerchantNotificationMapper.class,
                 TransactionOperationMapper.class,
                 TransactionOrderMapper.class,
@@ -257,33 +256,6 @@ class TransactionPersistenceMapperContractTests {
     }
 
     @Test
-    void operationLogicalQueriesShouldUseBindingTimeAndCurrencySafeAggregation() {
-        String pageSql = annotationValue(methodNamed(TransactionOperationMapper.class, "selectPageLogical"), Select.class);
-        String countSql = annotationValue(methodNamed(TransactionOperationMapper.class, "countPageLogical"), Select.class);
-        String amountSql = annotationValue(
-                methodNamed(TransactionOperationMapper.class, "selectAmountSummaryLogical"), Select.class);
-        String paymentSql = annotationValue(
-                methodNamed(TransactionOperationMapper.class, "selectPaymentMethodSummaryLogical"), Select.class);
-
-        assertLogicalRangeSql(pageSql);
-        assertLogicalRangeSql(countSql);
-        assertLogicalRangeSql(amountSql);
-        assertLogicalRangeSql(paymentSql);
-        assertThat(pageSql)
-                .contains("ORDER BY o.transaction_date_time DESC, o.id DESC")
-                .contains("FROM transaction_payment_method_info p");
-        assertThat(amountSql)
-                .contains("GROUP BY o.transaction_status, COALESCE(o.transaction_currency, 'UNKNOWN')")
-                .contains("AS currency");
-        assertThat(paymentSql)
-                .contains("LEFT JOIN transaction_payment_method_info p")
-                .contains("p.transaction_date_time = o.transaction_date_time")
-                .contains("COALESCE(o.transaction_currency, 'UNKNOWN') AS currency")
-                .contains("GROUP BY COALESCE(p.payment_method, 'UNKNOWN'), p.payment_brand,")
-                .contains("COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent");
-    }
-
-    @Test
     void callbackLogicalUpdateShouldRequireShardTimeVersionAndCurrentStatus() {
         String sql = annotationValue(
                 methodNamed(TransactionChannelCallbackMapper.class, "updateProcessResultLogical"), Update.class);
@@ -321,7 +293,8 @@ class TransactionPersistenceMapperContractTests {
             "transaction_merchant_notification_log",
             "transaction_merchant_api_interaction_log",
             "transaction_event_outbox",
-            "transaction_abnormal_event");
+            "transaction_abnormal_event",
+            "transaction_card_vault");
 
     @Test
     void transactionMappersShouldNotExposeDynamicPhysicalTableSql() {
@@ -334,7 +307,6 @@ class TransactionPersistenceMapperContractTests {
                 TransactionEventOutboxMapper.class,
                 TransactionFlowEventMapper.class,
                 TransactionMerchantApiInteractionLogMapper.class,
-                TransactionMerchantNotificationLogMapper.class,
                 TransactionMerchantNotificationMapper.class,
                 TransactionOperationMapper.class,
                 TransactionOrderMapper.class,
@@ -480,14 +452,6 @@ class TransactionPersistenceMapperContractTests {
                 .contains("FROM " + logicalTable)
                 .contains("transaction_date_time = #{transactionDateTime}")
                 .contains("deleted = 0")
-                .doesNotContain("${");
-    }
-
-    private static void assertLogicalRangeSql(String sql) {
-        assertThat(sql)
-                .contains("transaction_operation")
-                .contains("o.transaction_date_time &gt;= #{beginTime}")
-                .contains("o.transaction_date_time &lt; #{endTimeExclusive}")
                 .doesNotContain("${");
     }
 

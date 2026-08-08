@@ -6,6 +6,8 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
+import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.component.security.crypto.SensitiveFieldCipher;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
@@ -14,9 +16,12 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateRe
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutThreeDsReturnCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.config.PaymentCheckoutProperties;
+import com.scott.payment.payment.config.MerchantNotificationProperties;
 import com.scott.payment.payment.domain.state.PaymentCheckoutAttemptStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentCheckoutEventResultEnum;
 import com.scott.payment.payment.domain.state.PaymentCheckoutPageStateEnum;
@@ -31,11 +36,15 @@ import com.scott.payment.payment.entity.PaymentCheckoutEventDO;
 import com.scott.payment.payment.entity.PaymentCheckoutSecurityEventDO;
 import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
 import com.scott.payment.payment.entity.PaymentCheckoutTokenDO;
+import com.scott.payment.payment.entity.TransactionMerchantNotificationDO;
 import com.scott.payment.payment.mapper.PaymentCheckoutAttemptMapper;
 import com.scott.payment.payment.mapper.PaymentCheckoutEventMapper;
 import com.scott.payment.payment.mapper.PaymentCheckoutSecurityEventMapper;
 import com.scott.payment.payment.mapper.PaymentCheckoutSessionMapper;
 import com.scott.payment.payment.mapper.PaymentCheckoutTokenMapper;
+import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
+import com.scott.payment.payment.security.PaymentCheckoutCardEnvelopeService;
+import com.scott.payment.payment.security.PaymentCheckoutCardVaultPublisher;
 import com.scott.payment.payment.service.PaymentCheckoutService;
 import com.scott.payment.payment.service.PaymentCheckoutThreeDsService;
 import com.scott.payment.payment.service.PaymentTransactionService;
@@ -55,11 +64,15 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -88,6 +101,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private static final String EVENT_THREE_DS_FAILED = "THREE_DS_FAILED";
     /** 浏览器查询支付状态事件类型。 */
     private static final String EVENT_PAYMENT_STATUS_QUERIED = "PAYMENT_STATUS_QUERIED";
+    /** 未在付款期限内完成的会话到期事件类型。 */
+    private static final String EVENT_SESSION_EXPIRED = "SESSION_EXPIRED";
     /** 浏览器 3DS 回跳到达事件类型。 */
     private static final String EVENT_THREE_DS_RETURNED = "THREE_DS_RETURNED";
     /** 访问令牌不存在、撤销或格式非法的安全事件类型。 */
@@ -106,8 +121,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private static final String FAILURE_PAYMENT_DECLINED = "PAYMENT_DECLINED";
     /** 不暴露渠道原文或内部异常的付款人默认失败提示。 */
     private static final String DEFAULT_PAYER_FAILURE_MESSAGE = "Payment could not be completed. Please try another card or contact your bank.";
-    /** 一次性 3DS 回跳令牌的安全随机字节数。 */
-    private static final int THREE_DS_RETURN_TOKEN_BYTES = 32;
+    /** 收银台超时通知任务编号前缀。 */
+    private static final String MERCHANT_NOTIFICATION_PREFIX = "TMN";
+    /** 支付业务默认时区。 */
+    private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
     /** 单次 3DS 挑战最长等待时间，单位秒。 */
     private static final int THREE_DS_TIMEOUT_SECONDS = 600;
 
@@ -131,6 +148,16 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private final PaymentTransactionService paymentTransactionService;
     /** 划分本地提交事务与外部 3DS/渠道调用边界的事务执行器。 */
     private final TransactionOperations transactionOperations;
+    /** 复用交易商户通知表，由 service-data 统一投递。 */
+    private final TransactionMerchantNotificationMapper merchantNotificationMapper;
+    /** 商户通知最大重试次数配置。 */
+    private final MerchantNotificationProperties merchantNotificationProperties;
+    /** 商户 MID 能力聚合与 BIN 品牌解析服务。 */
+    private PaymentCheckoutCardCapabilityService cardCapabilityService;
+    /** 浏览器卡数据密文解密与一次性 nonce 防重放服务。 */
+    private PaymentCheckoutCardEnvelopeService cardEnvelopeService;
+    /** 无 CVV 卡资料可靠消息发布器，配置关闭时不写 Outbox。 */
+    private PaymentCheckoutCardVaultPublisher cardVaultPublisher;
 
     /**
      * 创建 Hosted Checkout 默认服务。
@@ -147,6 +174,11 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                          PaymentCheckoutProperties properties,
                                          PaymentCheckoutThreeDsService threeDsService,
                                          PaymentTransactionService paymentTransactionService,
+                                         TransactionMerchantNotificationMapper merchantNotificationMapper,
+                                         MerchantNotificationProperties merchantNotificationProperties,
+                                         PaymentCheckoutCardCapabilityService cardCapabilityService,
+                                         PaymentCheckoutCardEnvelopeService cardEnvelopeService,
+                                         PaymentCheckoutCardVaultPublisher cardVaultPublisher,
                                          PlatformTransactionManager transactionManager) {
         this.sessionMapper = sessionMapper;
         this.tokenMapper = tokenMapper;
@@ -157,6 +189,11 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         this.properties = properties;
         this.threeDsService = threeDsService;
         this.paymentTransactionService = paymentTransactionService;
+        this.merchantNotificationMapper = merchantNotificationMapper;
+        this.merchantNotificationProperties = merchantNotificationProperties;
+        this.cardCapabilityService = cardCapabilityService;
+        this.cardEnvelopeService = cardEnvelopeService;
+        this.cardVaultPublisher = cardVaultPublisher;
         this.transactionOperations = new TransactionTemplate(transactionManager);
     }
 
@@ -170,6 +207,23 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                   PaymentCheckoutThreeDsService threeDsService,
                                   PaymentTransactionService paymentTransactionService,
                                   TransactionOperations transactionOperations) {
+        this(sessionMapper, tokenMapper, attemptMapper, eventMapper, securityEventMapper, globalIdGenerator,
+                properties, threeDsService, paymentTransactionService, null,
+                new MerchantNotificationProperties(), transactionOperations);
+    }
+
+    DefaultPaymentCheckoutService(PaymentCheckoutSessionMapper sessionMapper,
+                                  PaymentCheckoutTokenMapper tokenMapper,
+                                  PaymentCheckoutAttemptMapper attemptMapper,
+                                  PaymentCheckoutEventMapper eventMapper,
+                                  PaymentCheckoutSecurityEventMapper securityEventMapper,
+                                  GlobalIdGenerator globalIdGenerator,
+                                  PaymentCheckoutProperties properties,
+                                  PaymentCheckoutThreeDsService threeDsService,
+                                  PaymentTransactionService paymentTransactionService,
+                                  TransactionMerchantNotificationMapper merchantNotificationMapper,
+                                  MerchantNotificationProperties merchantNotificationProperties,
+                                  TransactionOperations transactionOperations) {
         this.sessionMapper = sessionMapper;
         this.tokenMapper = tokenMapper;
         this.attemptMapper = attemptMapper;
@@ -180,6 +234,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         this.threeDsService = threeDsService;
         this.paymentTransactionService = paymentTransactionService;
         this.transactionOperations = transactionOperations;
+        this.merchantNotificationMapper = merchantNotificationMapper;
+        this.merchantNotificationProperties = merchantNotificationProperties;
     }
 
     /**
@@ -245,13 +301,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                     commandDTO.getRefererHash(), commandDTO.getDeviceIdHash(), now);
             return blockedSessionResult();
         }
-        if (isExpired(sessionDO, tokenDO, now)) {
-            recordSecurityEvent(commandDTO.getTokenHash(), sessionDO.getCheckoutSessionId(), null, SECURITY_EXPIRED_TOKEN,
-                    PaymentCheckoutSecurityDecisionEnum.BLOCK, commandDTO.getTraceId(),
-                    commandDTO.getClientIpHash(), commandDTO.getUserAgentHash(), commandDTO.getOriginHash(),
-                    commandDTO.getRefererHash(), commandDTO.getDeviceIdHash(), now);
-            return expiredSessionResult(sessionDO);
-        }
+        sessionDO = expireSessionIfDue(sessionDO, now);
         tokenMapper.markUsed(commandDTO.getTokenHash(), commandDTO.getClientIpHash(), commandDTO.getUserAgentHash(), now);
         sessionMapper.markOpened(sessionDO.getCheckoutSessionId(), now);
         insertEvent(event(sessionDO, null, EVENT_SESSION_OPENED, PaymentCheckoutProcessStageEnum.WAITING_PAYER,
@@ -260,36 +310,67 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     }
 
     /**
-     * 提交一次收银台付款尝试，事务内先锁定会话和尝试号，事务外再调用 3DS/支付核心。
+     * 批量推进超过付款期限的未支付会话；CAS 使调度重入和多实例并发保持幂等。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int expireDue(LocalDateTime now, int limit) {
+        LocalDateTime effectiveNow = now == null ? LocalDateTime.now() : now;
+        int effectiveLimit = Math.max(1, Math.min(limit, 1000));
+        List<PaymentCheckoutSessionDO> candidates = sessionMapper.selectExpireDue(effectiveNow, effectiveLimit);
+        int expired = 0;
+        for (PaymentCheckoutSessionDO candidate : candidates) {
+            if (markSessionExpired(candidate, effectiveNow)) {
+                expired++;
+            }
+        }
+        return expired;
+    }
+
+    /** 根据当前会话的 MID 品牌快照解析 BIN 并返回权威支持状态。 */
+    @Override
+    public PaymentCheckoutCardBinResultDTO resolveCardBin(PaymentCheckoutCardBinCommandDTO commandDTO) {
+        LocalDateTime now = LocalDateTime.now();
+        PaymentCheckoutTokenDO tokenDO = validateTokenAndSession(commandDTO.getTokenHash(),
+                commandDTO.getCheckoutSessionId(), now, commandDTO.getTraceId(),
+                null, null, null, null, null);
+        PaymentCheckoutSessionDO sessionDO = sessionMapper.selectByCheckoutSessionId(tokenDO.getCheckoutSessionId());
+        if (sessionDO == null) {
+            throw new ServiceException(ApiResultEnum.QUERY_RESULT_NOT_FOUND);
+        }
+        String brand = cardCapabilityService == null
+                ? resolveCardBrandByPrefix(commandDTO.getCardBin())
+                : cardCapabilityService.resolveCardBrand(commandDTO.getCardBin());
+        PaymentCheckoutCardBinResultDTO resultDTO = new PaymentCheckoutCardBinResultDTO();
+        resultDTO.setCardBrand(brand);
+        resultDTO.setRecognized(!"UNKNOWN".equals(brand));
+        resultDTO.setSupported(isCardBrandAllowed(sessionDO, brand));
+        return resultDTO;
+    }
+
+    /**
+     * 提交一次收银台付款尝试，事务内先锁定会话和尝试号，事务外直接调用一步式支付核心。
      *
      * @param commandDTO 付款人提交的卡信息、账单信息和 attemptRequestId
      * @return 收银台页面可直接渲染的下一步状态
      */
     @Override
     public PaymentCheckoutPaymentResultDTO submitPayment(PaymentCheckoutPaymentSubmitCommandDTO commandDTO) {
-        PaymentSubmissionContext context = transactionOperations.execute(status -> createPaymentSubmission(commandDTO));
-        if (context == null) {
-            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "checkout payment submission failed");
-        }
-        if (context.duplicate()) {
-            return paymentResult(context.sessionDO(), context.attemptDO());
-        }
+        try {
+            PaymentSubmissionContext context = transactionOperations.execute(status -> createPaymentSubmission(commandDTO));
+            if (context == null) {
+                throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "checkout payment submission failed");
+            }
+            if (context.duplicate()) {
+                return paymentResult(context.sessionDO(), context.attemptDO());
+            }
 
-        PaymentCheckoutThreeDsResultDTO threeDsResult = threeDsService.authenticate(
-                context.sessionDO(), context.attemptDO(), commandDTO, context.threeDsReturnUrl());
-        threeDsResult = safeThreeDsResult(threeDsResult);
-        if (threeDsResult.challengeRequired()) {
-            return applyThreeDsChallengeRequired(context, threeDsResult);
+            PaymentCheckoutAttemptDO submittedAttempt = markDirectChannelSubmission(context.attemptDO());
+            PaymentCreateResultDTO paymentResultDTO = createCorePayment(context.sessionDO(), submittedAttempt, commandDTO, null);
+            return applyPaymentCoreResult(context.sessionDO(), submittedAttempt, paymentResultDTO);
+        } finally {
+            commandDTO.setCardInfo(null);
         }
-        if (threeDsResult.failed()) {
-            return applyThreeDsFailed(context, threeDsResult);
-        }
-        if (threeDsResult.processing()) {
-            return applyThreeDsProcessing(context, threeDsResult);
-        }
-        PaymentCheckoutAttemptDO authenticatedAttempt = applyThreeDsPassed(context, threeDsResult);
-        PaymentCreateResultDTO paymentResultDTO = createCorePayment(context.sessionDO(), authenticatedAttempt, commandDTO, threeDsResult);
-        return applyPaymentCoreResult(context.sessionDO(), authenticatedAttempt, paymentResultDTO);
     }
 
     /**
@@ -372,7 +453,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         sessionDO.setOrderSubject(commandDTO.getOrderSubject());
         sessionDO.setOrderDescription(commandDTO.getOrderDescription());
         sessionDO.setOrderItemsJson(commandDTO.getOrderItemsJson());
-        sessionDO.setAllowedPaymentMethodsJson(JsonUtils.toJsonString(defaultAllowedPaymentMethods(commandDTO.getAllowedPaymentMethods())));
+        List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> allowedMethods = cardCapabilityService == null
+                ? defaultAllowedPaymentMethods(commandDTO.getAllowedPaymentMethods())
+                : cardCapabilityService.resolveAllowedMethods(commandDTO.getMerchantId(), commandDTO.getAllowedPaymentMethods());
+        sessionDO.setAllowedPaymentMethodsJson(JsonUtils.toJsonString(allowedMethods));
         sessionDO.setSelectedPaymentMethod(PAYMENT_METHOD_BANK_CARD);
         sessionDO.setSelectedPaymentBrand(null);
         sessionDO.setChannelCode(resolveChannelCode(commandDTO.getAllowedPaymentMethods()));
@@ -381,6 +465,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         sessionDO.setMerchantReturnUrl(commandDTO.getMerchantReturnUrl());
         sessionDO.setMerchantCancelUrl(commandDTO.getMerchantCancelUrl());
         sessionDO.setMerchantNotifyUrlHash(commandDTO.getMerchantNotifyUrlHash());
+        sessionDO.setMerchantNotifyUrlCiphertext(commandDTO.getMerchantNotifyUrlCiphertext());
+        sessionDO.setPayerInfoCiphertext(commandDTO.getPayerInfoCiphertext());
+        sessionDO.setBillingInfoCiphertext(commandDTO.getBillingInfoCiphertext());
         sessionDO.setLocale(defaultIfBlank(commandDTO.getLocale(), "en-US"));
         sessionDO.setPayerCountry(commandDTO.getPayerCountry());
         sessionDO.setPayerEmailMasked(commandDTO.getPayerEmailMasked());
@@ -412,7 +499,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         tokenDO.setTokenKeyVersion(properties.getTokenKeyVersion());
         tokenDO.setTokenStatus(PaymentCheckoutTokenStatusEnum.ACTIVE.getCode());
         tokenDO.setIssueReason(issueReason);
-        tokenDO.setExpireTime(sessionExpireTime);
+        LocalDateTime resultAccessExpireTime = now.plusDays(Math.max(1, properties.getResultAccessDays()));
+        tokenDO.setExpireTime(sessionExpireTime != null && sessionExpireTime.isAfter(resultAccessExpireTime)
+                ? sessionExpireTime : resultAccessExpireTime);
         tokenDO.setUseCount(0);
         tokenDO.setVersion(0);
         tokenDO.setDeleted(0);
@@ -500,15 +589,15 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             return new PaymentSubmissionContext(sessionDO, existedAttempt, null, true);
         }
 
+        sessionDO = reopenExpiredForRetry(sessionDO, now);
         ensureSessionPayable(sessionDO, now);
+        decryptCardDataIfRequired(commandDTO, sessionDO);
         ensurePaymentMethodAllowed(sessionDO, commandDTO);
         int remainingAttempts = remainingAttempts(sessionDO);
         if (remainingAttempts <= 0) {
             throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(), "checkout max attempt count exceeded");
         }
         PaymentCheckoutAttemptDO attemptDO = buildAttempt(sessionDO, commandDTO, now);
-        String threeDsReturnToken = PaymentCheckoutTokenSupport.newUrlSafeToken(THREE_DS_RETURN_TOKEN_BYTES);
-        attemptDO.setThreeDsReturnTokenHash(PaymentCheckoutTokenSupport.hmacSha256Hex(threeDsReturnToken, properties.getTokenPepper()));
         attemptMapper.insert(attemptDO);
         int updated = sessionMapper.markSubmittedCas(sessionDO.getCheckoutSessionId(),
                 PaymentCheckoutSessionStatusEnum.PAYING.getCode(),
@@ -526,9 +615,45 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         insertEvent(event(latestSession == null ? sessionDO : latestSession, attemptDO, EVENT_PAYMENT_SUBMITTED,
                 PaymentCheckoutProcessStageEnum.CARD_SUBMITTED, PaymentCheckoutEventResultEnum.SUCCESS,
                 commandDTO.getTraceId(), commandDTO.getAttemptRequestId(), now));
+        if (cardVaultPublisher != null) {
+            cardVaultPublisher.publishIfEnabled(
+                    latestSession == null ? sessionDO : latestSession, attemptDO, commandDTO.getCardInfo());
+        }
         return new PaymentSubmissionContext(latestSession == null ? sessionDO : latestSession,
-                attemptDO, buildThreeDsReturnUrl(latestSession == null ? sessionDO : latestSession,
-                attemptDO, threeDsReturnToken), false);
+                attemptDO, null, false);
+    }
+
+    /** 重复 attempt 已在上方直接返回；新 attempt 必须先原子消费 nonce，再在当前调用栈解密卡数据。 */
+    private void decryptCardDataIfRequired(PaymentCheckoutPaymentSubmitCommandDTO commandDTO,
+                                           PaymentCheckoutSessionDO sessionDO) {
+        if (commandDTO.getCardInfo() != null) {
+            return;
+        }
+        if (cardEnvelopeService == null) {
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "checkout card envelope service is unavailable");
+        }
+        commandDTO.setCardInfo(cardEnvelopeService.decryptAndConsume(
+                commandDTO.getCardDataEnvelope(),
+                sessionDO.getCheckoutSessionId(),
+                commandDTO.getAttemptRequestId()));
+    }
+
+    /**
+     * 在调用支付核心前记录一步式支付已提交事实，避免渠道异常时收银台仍停留在卡信息阶段。
+     */
+    private PaymentCheckoutAttemptDO markDirectChannelSubmission(PaymentCheckoutAttemptDO attemptDO) {
+        LocalDateTime now = LocalDateTime.now();
+        int updated = attemptMapper.markChannelSubmittedCas(attemptDO.getCheckoutAttemptId(),
+                PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED.getCode(),
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL.getCode(),
+                attemptDO.getVersion(),
+                now);
+        if (updated != 1) {
+            throw new ServiceException(ApiResultEnum.NETWORK_BUSY.getCode(), "checkout payment attempt status changed, please retry");
+        }
+        PaymentCheckoutAttemptDO latestAttempt = attemptMapper.selectByCheckoutAttemptId(attemptDO.getCheckoutAttemptId());
+        return latestAttempt == null ? attemptDO : latestAttempt;
     }
 
     /**
@@ -675,6 +800,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         createCommand.setChannelIdentity(toCoreChannelIdentity(threeDsResult));
         createCommand.setTransactionInfo(toCoreTransactionInfo(sessionDO, attemptDO));
         createCommand.setSourceUrl(commandDTO.getOriginHash());
+        createCommand.setCallbackUrl(decryptMerchantNotifyUrl(sessionDO));
         createCommand.setPayerIp(commandDTO.getClientIpHash());
         createCommand.setUserAgent(commandDTO.getUserAgentHash());
         // 卡号和 CVV 只在当前内存调用链传递给支付核心，不落库、不进入事件或日志明文。
@@ -682,6 +808,16 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             return paymentTransactionService.createAuthorization(createCommand);
         }
         return paymentTransactionService.createPayment(createCommand);
+    }
+
+    /** 解密商户回调地址，明文只在创建核心交易或通知任务的当前调用栈中存在。 */
+    private String decryptMerchantNotifyUrl(PaymentCheckoutSessionDO sessionDO) {
+        if (sessionDO == null || !StringUtils.hasText(sessionDO.getMerchantNotifyUrlCiphertext())) {
+            return null;
+        }
+        return SensitiveFieldCipher.decrypt(sessionDO.getMerchantNotifyUrlCiphertext(),
+                properties.getSensitiveFieldEncryptionKey(),
+                sessionDO.getMerchantId() + "|" + sessionDO.getMerchantOrderNo());
     }
 
     /**
@@ -780,7 +916,43 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         checkoutDTO.setRemainingAttemptCount(Math.max(0, remainingAttempts(sessionDO)));
         checkoutDTO.setPollingIntervalSeconds(properties.getPollingIntervalSeconds());
         resultDTO.setCheckout(checkoutDTO);
+        resultDTO.setPayerInfo(decryptCheckoutSnapshot(sessionDO,
+                sessionDO.getPayerInfoCiphertext(), "payer", PaymentCheckoutSessionQueryResultDTO.PayerInfoDTO.class));
+        resultDTO.setBillingInfo(decryptCheckoutSnapshot(sessionDO,
+                sessionDO.getBillingInfoCiphertext(), "billing", PaymentCheckoutSessionQueryResultDTO.BillingInfoDTO.class));
+        PaymentCheckoutAttemptDO latestAttempt = resolveAttempt(sessionDO, null);
+        if (latestAttempt != null || !PaymentCheckoutSessionStatusEnum.PAYABLE.getCode().equals(sessionDO.getCheckoutStatus())) {
+            resultDTO.setPaymentResult(paymentResult(sessionDO, latestAttempt));
+        }
+        if (cardEnvelopeService != null && mayStartPayment(sessionDO)) {
+            resultDTO.setCardEncryption(cardEnvelopeService.issue(sessionDO.getCheckoutSessionId()));
+        }
         return resultDTO;
+    }
+
+    /** 只有仍可新建支付尝试的页面状态才下发一次性卡数据 nonce。 */
+    private boolean mayStartPayment(PaymentCheckoutSessionDO sessionDO) {
+        String status = sessionDO.getCheckoutStatus();
+        if (PaymentCheckoutSessionStatusEnum.PAYABLE.getCode().equals(status)) {
+            return remainingAttempts(sessionDO) > 0;
+        }
+        boolean retryState = PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE.getCode().equals(status)
+                || PaymentCheckoutSessionStatusEnum.EXPIRED.getCode().equals(status);
+        return retryState && Integer.valueOf(1).equals(sessionDO.getRetryAllowed()) && remainingAttempts(sessionDO) > 0;
+    }
+
+    /** 解密付款页预填快照，密文通过 AAD 绑定到原商户订单及字段用途。 */
+    private <T> T decryptCheckoutSnapshot(PaymentCheckoutSessionDO sessionDO,
+                                          String ciphertext,
+                                          String purpose,
+                                          Class<T> targetType) {
+        if (!StringUtils.hasText(ciphertext)) {
+            return null;
+        }
+        String json = SensitiveFieldCipher.decrypt(ciphertext,
+                properties.getSensitiveFieldEncryptionKey(),
+                sessionDO.getMerchantId() + "|" + sessionDO.getMerchantOrderNo() + "|" + purpose);
+        return JsonUtils.parseObject(json, targetType);
     }
 
     /**
@@ -827,12 +999,20 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      */
     private PaymentCheckoutPaymentResultDTO.FailureDTO failureDetail(PaymentCheckoutSessionDO sessionDO,
                                                                      PaymentCheckoutAttemptDO attemptDO) {
-        if (sessionDO == null || attemptDO == null || attemptDO.getFailureReasonCode() == null) {
+        if (sessionDO == null) {
             return null;
         }
         PaymentCheckoutPaymentResultDTO.FailureDTO failureDTO = new PaymentCheckoutPaymentResultDTO.FailureDTO();
-        failureDTO.setReasonCode(attemptDO.getFailureReasonCode());
-        failureDTO.setMessage(attemptDO.getPayerVisibleMessage());
+        if (attemptDO == null || attemptDO.getFailureReasonCode() == null) {
+            if (!PaymentCheckoutSessionStatusEnum.EXPIRED.getCode().equals(sessionDO.getCheckoutStatus())) {
+                return null;
+            }
+            failureDTO.setReasonCode("PAYMENT_TIMEOUT");
+            failureDTO.setMessage("Payment was not completed within the allowed time.");
+        } else {
+            failureDTO.setReasonCode(attemptDO.getFailureReasonCode());
+            failureDTO.setMessage(attemptDO.getPayerVisibleMessage());
+        }
         failureDTO.setRetryAllowed(sessionDO.getRetryAllowed() != null && sessionDO.getRetryAllowed() == 1);
         failureDTO.setRemainingAttemptCount(Math.max(0, remainingAttempts(sessionDO)));
         return failureDTO;
@@ -1003,6 +1183,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      * 将收银台 3DS 认证摘要透传给支付核心，用于责任转移和渠道身份复用。
      */
     private PaymentCreateCommandDTO.ThreeDsInfoDTO toCoreThreeDsInfo(PaymentCheckoutThreeDsResultDTO source) {
+        if (source == null) {
+            return null;
+        }
         PaymentCreateCommandDTO.ThreeDsInfoDTO target = new PaymentCreateCommandDTO.ThreeDsInfoDTO();
         target.setAuthenticationTransactionId(source.getAuthenticationTransactionId());
         target.setEci(source.getEci());
@@ -1016,6 +1199,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      * 复用 3DS 阶段生成的渠道订单身份，避免授权阶段重新生成不一致的渠道订单。
      */
     private PaymentCreateCommandDTO.ChannelIdentityDTO toCoreChannelIdentity(PaymentCheckoutThreeDsResultDTO source) {
+        if (source == null || !StringUtils.hasText(source.getChannelOrderNo())) {
+            return null;
+        }
         PaymentCreateCommandDTO.ChannelIdentityDTO target = new PaymentCreateCommandDTO.ChannelIdentityDTO();
         target.setChannelOrderNo(source.getChannelOrderNo());
         return target;
@@ -1028,6 +1214,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                                                             PaymentCheckoutAttemptDO attemptDO) {
         PaymentCreateCommandDTO.TransactionInfoDTO target = new PaymentCreateCommandDTO.TransactionInfoDTO();
         target.setTransactionId(attemptDO.getTransactionId());
+        target.setCardBrand(attemptDO.getPaymentBrand());
         target.setDescription(sessionDO.getOrderDescription());
         return target;
     }
@@ -1166,6 +1353,130 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     }
 
     /**
+     * 过期失败订单仅在服务端确认允许重试且仍有次数时重新开启付款窗口。
+     */
+    private PaymentCheckoutSessionDO reopenExpiredForRetry(PaymentCheckoutSessionDO sessionDO, LocalDateTime now) {
+        if (sessionDO == null || !PaymentCheckoutSessionStatusEnum.EXPIRED.getCode().equals(sessionDO.getCheckoutStatus())) {
+            return sessionDO;
+        }
+        if (!Integer.valueOf(1).equals(sessionDO.getRetryAllowed()) || remainingAttempts(sessionDO) <= 0) {
+            return sessionDO;
+        }
+        int updated = sessionMapper.reopenExpiredForRetryCas(sessionDO.getCheckoutSessionId(),
+                now.plusMinutes(properties.getDefaultExpireMinutes()), sessionDO.getVersion(), now);
+        if (updated != 1) {
+            throw new ServiceException(ApiResultEnum.NETWORK_BUSY.getCode(), "checkout retry status changed, please refresh");
+        }
+        PaymentCheckoutSessionDO reopened = sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId());
+        return reopened == null ? sessionDO : reopened;
+    }
+
+    /** 查询时惰性补偿到期状态，避免调度延迟导致页面仍展示付款表单。 */
+    private PaymentCheckoutSessionDO expireSessionIfDue(PaymentCheckoutSessionDO sessionDO, LocalDateTime now) {
+        if (sessionDO == null || sessionDO.getExpireTime() == null || sessionDO.getExpireTime().isAfter(now)) {
+            return sessionDO;
+        }
+        markSessionExpired(sessionDO, now);
+        PaymentCheckoutSessionDO latest = sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId());
+        return latest == null ? sessionDO : latest;
+    }
+
+    /** CAS 标记单个会话过期并写入审计事件。 */
+    private boolean markSessionExpired(PaymentCheckoutSessionDO sessionDO, LocalDateTime now) {
+        if (sessionDO == null || sessionDO.getVersion() == null) {
+            return false;
+        }
+        String snapshot = "{\"pageState\":\"EXPIRED\",\"failureCode\":\"PAYMENT_TIMEOUT\"}";
+        int updated = sessionMapper.markExpiredCas(sessionDO.getCheckoutSessionId(), snapshot, sessionDO.getVersion(), now);
+        if (updated != 1) {
+            return false;
+        }
+        insertEvent(event(sessionDO, null, EVENT_SESSION_EXPIRED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED, PaymentCheckoutEventResultEnum.FAILED,
+                null, null, now));
+        createTimeoutMerchantNotification(sessionDO, now);
+        return true;
+    }
+
+    /**
+     * 在到期状态事务内创建商户通知任务，实际 HTTP 投递复用 service-data 的重试机制。
+     */
+    private void createTimeoutMerchantNotification(PaymentCheckoutSessionDO sessionDO, LocalDateTime now) {
+        if (merchantNotificationMapper == null) {
+            return;
+        }
+        String callbackUrl = decryptMerchantNotifyUrl(sessionDO);
+        if (!StringUtils.hasText(callbackUrl)) {
+            return;
+        }
+        String transactionId = firstText(sessionDO.getLatestTransactionId(), sessionDO.getCheckoutSessionId());
+        String operationId = firstText(sessionDO.getOperationId(), sessionDO.getCheckoutSessionId());
+        Map<String, Object> payload = timeoutMerchantPayload(sessionDO, transactionId);
+        String payloadJson = JsonUtils.toJsonString(payload);
+        TransactionMerchantNotificationDO notificationDO = new TransactionMerchantNotificationDO();
+        notificationDO.setNotifyId(PaymentOrderNoGenerator.nextOrderNo(MERCHANT_NOTIFICATION_PREFIX, now));
+        notificationDO.setTransactionId(transactionId);
+        notificationDO.setOperationId(operationId);
+        notificationDO.setMerchantId(sessionDO.getMerchantId());
+        notificationDO.setMerchantOrderNo(sessionDO.getMerchantOrderNo());
+        notificationDO.setNotifyType("PAYMENT_RESULT");
+        notificationDO.setEventType("CHECKOUT_PAYMENT_TIMEOUT");
+        notificationDO.setNotifyStatus("INIT");
+        notificationDO.setNotifyConfigSnapshotJson(JsonUtils.toJsonString(Map.of(
+                "callbackUrl", callbackUrl,
+                "payloadJson", payloadJson)));
+        notificationDO.setTargetUrlHash(sha256Hex(callbackUrl));
+        notificationDO.setTargetUrlMasked(maskUrl(callbackUrl));
+        notificationDO.setPayloadJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(payloadJson));
+        notificationDO.setLastAttemptNo(0);
+        notificationDO.setMaxRetryCount(merchantNotificationProperties.getMaxRetryCount());
+        notificationDO.setNextRetryTime(now);
+        notificationDO.setTransactionDateTime(now);
+        notificationDO.setTransactionUtcTime(now.atZone(ZoneId.of(DEFAULT_TIME_ZONE))
+                .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime());
+        notificationDO.setTransactionTimeZone(DEFAULT_TIME_ZONE);
+        notificationDO.setVersion(0);
+        notificationDO.setDeleted(0);
+        notificationDO.setCreateTime(now);
+        notificationDO.setUpdateTime(now);
+        merchantNotificationMapper.insertLogical(notificationDO);
+    }
+
+    /** 构造与交易回调同一层级结构的收银台超时载荷。 */
+    private Map<String, Object> timeoutMerchantPayload(PaymentCheckoutSessionDO sessionDO, String transactionId) {
+        Map<String, Object> merchantInfo = new LinkedHashMap<>();
+        merchantInfo.put("merchantId", sessionDO.getMerchantId());
+        Map<String, Object> orderInfo = new LinkedHashMap<>();
+        orderInfo.put("orderNo", sessionDO.getMerchantOrderNo());
+        orderInfo.put("orderId", sessionDO.getMerchantRequestId());
+        orderInfo.put("amount", sessionDO.getLabelAmount());
+        orderInfo.put("currency", sessionDO.getLabelCurrency());
+        Map<String, Object> transactionInfo = new LinkedHashMap<>();
+        transactionInfo.put("code", "PAYMENT_TIMEOUT");
+        transactionInfo.put("message", "Payment was not completed within the allowed time");
+        transactionInfo.put("transactionId", transactionId);
+        transactionInfo.put("transactionType", PaymentTransactionTypeEnum.PAYMENT.getCode());
+        transactionInfo.put("transactionStatus", PaymentTransactionStatusEnum.FAILED.getCode());
+        transactionInfo.put("failReasonCode", "PAYMENT_TIMEOUT");
+        transactionInfo.put("transactionDateTime", sessionDO.getExpireTime());
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("merchantInfo", merchantInfo);
+        payload.put("orderInfo", orderInfo);
+        payload.put("transactionInfo", transactionInfo);
+        payload.put("checkoutSessionId", sessionDO.getCheckoutSessionId());
+        return payload;
+    }
+
+    /** URL 审计值只保留 query 之前的地址。 */
+    private String maskUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        int queryIndex = url.indexOf('?');
+        return queryIndex < 0 ? url : url.substring(0, queryIndex) + "?***";
+    }
+
+    /**
      * 校验商户创建会话时允许的支付方式快照，当前 V1 只放行 BANK_CARD + MPGS。
      */
     private void ensurePaymentMethodAllowed(PaymentCheckoutSessionDO sessionDO,
@@ -1174,13 +1485,23 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED.getCode(),
                     "hosted checkout v1 only supports BANK_CARD");
         }
+        String cardBrand = resolveCardBrand(commandDTO.getCardInfo());
         boolean allowed = parsePaymentMethods(sessionDO.getAllowedPaymentMethodsJson()).stream()
                 .anyMatch(method -> PAYMENT_METHOD_BANK_CARD.equals(method.getPaymentMethod())
-                        && CHANNEL_MPGS.equals(method.getChannelCode()));
+                        && (method.getBrands() == null || method.getBrands().stream()
+                        .map(this::normalizeCode).anyMatch(cardBrand::equals)));
         if (!allowed) {
             throw new ServiceException(ApiResultEnum.CARD_NOT_SUPPORTED.getCode(),
-                    "checkout payment method is not allowed");
+                    "current card brand is not supported by merchant channel MID");
         }
+    }
+
+    private boolean isCardBrandAllowed(PaymentCheckoutSessionDO sessionDO, String cardBrand) {
+        return StringUtils.hasText(cardBrand) && !"UNKNOWN".equals(cardBrand)
+                && parsePaymentMethods(sessionDO.getAllowedPaymentMethodsJson()).stream()
+                .filter(method -> PAYMENT_METHOD_BANK_CARD.equals(method.getPaymentMethod()))
+                .anyMatch(method -> method.getBrands() != null && method.getBrands().stream()
+                        .map(this::normalizeCode).anyMatch(cardBrand::equals));
     }
 
     /**
@@ -1202,16 +1523,6 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 && PaymentCheckoutTokenStatusEnum.ACTIVE.getCode().equals(tokenDO.getTokenStatus())
                 && tokenDO.getExpireTime() != null
                 && tokenDO.getExpireTime().isAfter(now);
-    }
-
-    /**
-     * 会话和 token 任一过期都视为收银台不可继续支付。
-     */
-    private boolean isExpired(PaymentCheckoutSessionDO sessionDO, PaymentCheckoutTokenDO tokenDO, LocalDateTime now) {
-        return sessionDO.getExpireTime() == null
-                || !sessionDO.getExpireTime().isAfter(now)
-                || tokenDO.getExpireTime() == null
-                || !tokenDO.getExpireTime().isAfter(now);
     }
 
     /**
@@ -1240,22 +1551,6 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private PaymentCheckoutSessionQueryResultDTO blockedSessionResult() {
         PaymentCheckoutSessionQueryResultDTO resultDTO = new PaymentCheckoutSessionQueryResultDTO();
         resultDTO.setPageState(PaymentCheckoutPageStateEnum.BLOCKED.getCode());
-        return resultDTO;
-    }
-
-    /**
-     * 返回过期视图，付款按钮必须关闭且不允许继续重试。
-     */
-    private PaymentCheckoutSessionQueryResultDTO expiredSessionResult(PaymentCheckoutSessionDO sessionDO) {
-        PaymentCheckoutSessionQueryResultDTO resultDTO = new PaymentCheckoutSessionQueryResultDTO();
-        resultDTO.setCheckoutSessionId(sessionDO.getCheckoutSessionId());
-        resultDTO.setPageState(PaymentCheckoutPageStateEnum.EXPIRED.getCode());
-        PaymentCheckoutSessionQueryResultDTO.CheckoutDTO checkoutDTO = new PaymentCheckoutSessionQueryResultDTO.CheckoutDTO();
-        checkoutDTO.setExpireTime(sessionDO.getExpireTime());
-        checkoutDTO.setRetryAllowed(false);
-        checkoutDTO.setRemainingAttemptCount(0);
-        checkoutDTO.setPollingIntervalSeconds(properties.getPollingIntervalSeconds());
-        resultDTO.setCheckout(checkoutDTO);
         return resultDTO;
     }
 
@@ -1470,7 +1765,15 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         if (cardInfoDTO == null || !StringUtils.hasText(cardInfoDTO.getCardNo())) {
             return null;
         }
-        String cardNo = cardInfoDTO.getCardNo().trim();
+        if (cardCapabilityService != null) {
+            return cardCapabilityService.resolveCardBrand(cardInfoDTO.getCardNo());
+        }
+        return resolveCardBrandByPrefix(cardInfoDTO.getCardNo());
+    }
+
+    /** BIN 基础表不可用时使用卡组织公开前缀做保守兜底。 */
+    private String resolveCardBrandByPrefix(String value) {
+        String cardNo = value == null ? "" : value.trim();
         if (cardNo.startsWith("4")) {
             return "VISA";
         }
@@ -1484,6 +1787,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             return "MASTERCARD";
         }
         return "UNKNOWN";
+    }
+
+    private String normalizeCode(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     /**

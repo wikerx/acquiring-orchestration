@@ -51,6 +51,11 @@ public final class MqTopic {
      */
     public static final String EMAIL_DELIVERY = "acquiring_email_delivery_topic";
 
+    /**
+     * 收银台卡资料库传输 Topic，只允许承载由 service-data 公钥加密且不含 CVV 的信封。
+     */
+    public static final String CHECKOUT_CARD_VAULT = "acquiring_checkout_card_vault_topic";
+
     private MqTopic() {
     }
 }

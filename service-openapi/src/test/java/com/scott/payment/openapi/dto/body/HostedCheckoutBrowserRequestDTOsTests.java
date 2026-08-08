@@ -35,12 +35,12 @@ class HostedCheckoutBrowserRequestDTOsTests {
     }
 
     @Test
-    void shouldRejectInvalidCardPaymentSubmitRequestBeforeCallingPaymentService() {
+    void shouldRejectInvalidCardEnvelopeBeforeCallingPaymentService() {
         HostedCheckoutBrowserRequestDTOs.PaymentSubmitRequest requestDTO = validSubmitRequest();
-        requestDTO.getCardInfo().setCardNo("4111 1111 1111 1111");
-        requestDTO.getCardInfo().setExpirationMonth("13");
-        requestDTO.getCardInfo().setExpirationYear("29");
-        requestDTO.getCardInfo().setSecurityCode("12");
+        requestDTO.getCardDataEnvelope().setEncryptedKey("not base64+");
+        requestDTO.getCardDataEnvelope().setIv("short");
+        requestDTO.getCardDataEnvelope().setCiphertext("ciphertext+");
+        requestDTO.getCardDataEnvelope().setNonce("short");
         requestDTO.getBillingCardHolderInfo().setEmail("payer");
         requestDTO.getBillingCardHolderInfo().setCountry("US");
 
@@ -49,10 +49,10 @@ class HostedCheckoutBrowserRequestDTOsTests {
 
         assertThat(violations).extracting(ConstraintViolation::getMessage)
                 .contains(
-                        "cardInfo.cardNo format does not match",
-                        "cardInfo.expirationMonth format does not match",
-                        "cardInfo.expirationYear format does not match",
-                        "cardInfo.securityCode format does not match",
+                        "cardDataEnvelope.encryptedKey format does not match",
+                        "cardDataEnvelope.iv format does not match",
+                        "cardDataEnvelope.ciphertext format does not match",
+                        "cardDataEnvelope.nonce format does not match",
                         "billingCardHolderInfo.email format does not match",
                         "billingCardHolderInfo.country format does not match"
                 );
@@ -74,13 +74,15 @@ class HostedCheckoutBrowserRequestDTOsTests {
         requestDTO.setAttemptRequestId("ATTEMPT-001");
         requestDTO.setPaymentMethod("BANK_CARD");
 
-        HostedCheckoutBrowserRequestDTOs.CardInfoDTO cardInfo = new HostedCheckoutBrowserRequestDTOs.CardInfoDTO();
-        cardInfo.setCardNo("4111111111111111");
-        cardInfo.setExpirationMonth("09");
-        cardInfo.setExpirationYear("2029");
-        cardInfo.setSecurityCode("123");
-        cardInfo.setCardholderName("Payer Example");
-        requestDTO.setCardInfo(cardInfo);
+        HostedCheckoutBrowserRequestDTOs.CardDataEnvelopeDTO envelope =
+                new HostedCheckoutBrowserRequestDTOs.CardDataEnvelopeDTO();
+        envelope.setAlgorithm("RSA-OAEP-256+A256GCM");
+        envelope.setKeyId("checkout-card-v1");
+        envelope.setEncryptedKey("A".repeat(342));
+        envelope.setIv("A".repeat(16));
+        envelope.setCiphertext("A".repeat(64));
+        envelope.setNonce("A".repeat(32));
+        requestDTO.setCardDataEnvelope(envelope);
 
         HostedCheckoutBrowserRequestDTOs.BillingCardHolderInfoDTO billing =
                 new HostedCheckoutBrowserRequestDTOs.BillingCardHolderInfoDTO();
