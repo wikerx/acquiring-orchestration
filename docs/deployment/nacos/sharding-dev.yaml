@@ -1,5 +1,5 @@
-# ShardingSphere-JDBC 交易逻辑路由与物理表治理的 dev 非秘密发布草案。
-# 未经确认不得发布 Nacos；actualDataNodes 只包含已建表且通过治理校验的季度。
+# ShardingSphere-JDBC 交易逻辑路由与物理表治理的 dev 已发布非秘密配置。
+# actualDataNodes 只包含已建表且通过治理校验的季度；变更后必须重新计算并校验规则 checksum。
 transaction-sharding:
   rule-version: "2026.08.08-001"
   rule-checksum: "sha256:b1db8acacbe4ff66fcf95c7dd8232e0a2260dba2cf76b8af2806ff1ece7b67d4"

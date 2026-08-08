@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
@@ -21,16 +20,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class TransactionShardingRuleChecksumTest {
 
-    /** 已发布的 23 表基线在第 24 表滚动上线期间必须仍可激活。 */
+    /** 迁移完成后旧 23 表拓扑必须拒绝激活，避免服务启动后治理任务才暴露缺表。 */
     @Test
-    void shouldActivatePreviousTwentyThreeTableBaselineDuringRollingUpgrade() {
+    void shouldRejectPreviousTwentyThreeTableBaselineAfterMigration() {
         TransactionShardingProperties properties = validProperties();
         List<String> previousBaseline = new ArrayList<>(TransactionShardingProperties.defaultLogicTables());
         previousBaseline.remove("transaction_card_vault");
         properties.setLogicTables(previousBaseline);
         properties.setRuleChecksum(TransactionShardingRuleChecksum.calculate(properties));
 
-        assertDoesNotThrow(properties::validateForActivation);
+        assertThrows(IllegalStateException.class, properties::validateForActivation);
     }
 
     /** 兼容窗口只接受完整历史集合，不能把任意 23 张表误判为旧基线。 */

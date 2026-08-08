@@ -18,7 +18,7 @@ import java.util.List;
  * @classname : ExchangeRateDTOs
  * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : Exchange Rate DTOs 聚合类型，位于 运营后台服务，集中定义同一业务域下的请求、响应、查询条件和持久化视图模型。
+ * @description : 管理端汇率业务接口模型集合，统一定义汇率源、原始汇率、业务汇率及使用快照的查询和响应契约。
  * @status : create
  */
 public final class ExchangeRateDTOs {
@@ -503,42 +503,20 @@ public final class ExchangeRateDTOs {
          * </p>
          */
         private String createMethod;
-        /**
-         * publish Start Time，用于保存 Raw Rate Query 中与 publishstarttime 相关的业务属性。
-         * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
+        /** 发布时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
         private LocalDateTime publishStartTime;
-        /**
-         * publish End Time，用于保存 Raw Rate Query 中与 publishendtime 相关的业务属性。
-         * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
+        /** 发布时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
         private LocalDateTime publishEndTime;
-        /**
-         * fetch Start Time，用于保存 Raw Rate Query 中与 fetchstarttime 相关的业务属性。
-         * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
+        /** 拉取时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
         private LocalDateTime fetchStartTime;
-        /**
-         * fetch End Time，用于保存 Raw Rate Query 中与 fetchendtime 相关的业务属性。
-         * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
+        /** 拉取时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
         private LocalDateTime fetchEndTime;
+
+        /** 原始汇率生效时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        private LocalDateTime effectiveStartTime;
+
+        /** 原始汇率生效时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        private LocalDateTime effectiveEndTime;
     }
 
     /**
@@ -1227,7 +1205,7 @@ public final class ExchangeRateDTOs {
     }
 
     /**
-     * 业务汇率分页查询条件。
+     * 业务汇率分页和导出查询条件，时间范围均按闭区间处理。
      */
     @Data
     @EqualsAndHashCode(callSuper = true)
@@ -1279,15 +1257,20 @@ public final class ExchangeRateDTOs {
          * </p>
          */
         private String rateStatus;
-        /**
-         * generate Method，表示支付方式、通知方式或调用方式。
-         * <p>
-         * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
+        /** 生成方式，取值为 AUTO 或 MANUAL，允许为空，非敏感字段。 */
         private String generateMethod;
+
+        /** 业务汇率生效时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        private LocalDateTime effectiveStartTime;
+
+        /** 业务汇率生效时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        private LocalDateTime effectiveEndTime;
+
+        /** 业务汇率创建时间查询下界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        private LocalDateTime createStartTime;
+
+        /** 业务汇率创建时间查询上界，按系统业务时区解释，包含边界，允许为空，非敏感字段。 */
+        private LocalDateTime createEndTime;
     }
 
     /**
@@ -1389,32 +1372,11 @@ public final class ExchangeRateDTOs {
          * </p>
          */
         private String adjustDescription;
-        /**
-         * effective Time，用于保存 Business Rate Response 中与 effectivetime 相关的业务属性。
-         * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
+        /** 业务汇率开始生效的时间点，按系统业务时区返回，不允许为空，非敏感字段。 */
         private LocalDateTime effectiveTime;
-        /**
-         * expire Time，用于保存 Business Rate Response 中与 expiretime 相关的业务属性。
-         * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
+        /** 业务汇率失效时间；为空表示永不过期，按系统业务时区返回，非敏感字段。 */
         private LocalDateTime expireTime;
-        /**
-         * generate Method，表示支付方式、通知方式或调用方式。
-         * <p>
-         * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
+        /** 生成方式，AUTO 表示按原始汇率和规则生成，MANUAL 表示人工录入，非敏感字段。 */
         private String generateMethod;
         /**
          * rate Status，表示当前记录在业务流程中的处理状态。
@@ -1429,23 +1391,13 @@ public final class ExchangeRateDTOs {
          * 汇率管理备注字段，用于记录人工说明，不参与核心状态流转。
          */
         private String remark;
-        /**
-         * create Time，用于保存 Business Rate Response 中与 createtime 相关的业务属性。
-         * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
+        /** 记录创建时间，按系统业务时区返回，不允许为空，非敏感字段。 */
         private LocalDateTime createTime;
-        /**
-         * update Time，用于保存 Business Rate Response 中与 updatetime 相关的业务属性。
-         * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
+
+        /** 最近一次修改记录的管理员名称；历史数据可能为空，非敏感字段。 */
+        private String updateBy;
+
+        /** 最近更新时间，按系统业务时区返回，不允许为空，非敏感字段。 */
         private LocalDateTime updateTime;
     }
 

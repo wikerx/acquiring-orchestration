@@ -1,4 +1,10 @@
 # service-openapi 专属配置：开放 API 鉴权、幂等、回调重试等参数。
+acquiring:
+  gateway-ingress:
+    # 与 dev Gateway 保持一致；环境变量优先覆盖，非 dev 环境禁止复用该默认值。
+    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:2acee5d27b34b556d0a9b0123e2277870558d57f39968820a0b00edc1d3b7a12}
+    allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}
+
 openapi:
   merchant:
     # JWT iat/exp 与服务器时间允许的最大偏差，单位秒。

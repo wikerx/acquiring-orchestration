@@ -9,6 +9,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryRes
 import com.scott.payment.payment.config.PaymentCheckoutProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.security.PublicKey;
@@ -73,6 +74,23 @@ class PaymentCheckoutCardEnvelopeServiceTests {
                 .isInstanceOf(ServiceException.class)
                 .extracting("code")
                 .isEqualTo(ApiResultEnum.ENCRYPTED_DATA_INVALID.getCode());
+    }
+
+    /** 生产 Bean 必须由 Spring 使用依赖构造器创建，不能退回不存在的无参构造器。 */
+    @Test
+    void shouldCreateCardEnvelopeServiceThroughSpringContext() {
+        new ApplicationContextRunner()
+                .withBean(PaymentCheckoutProperties.class, () -> {
+                    PaymentCheckoutProperties properties = new PaymentCheckoutProperties();
+                    properties.getCardEncryption().setAllowEphemeralKey(true);
+                    properties.getCardEncryption().setReplayStoreRequired(false);
+                    properties.getCardEncryption().setKeyId("checkout-card-context-test-v1");
+                    return properties;
+                })
+                .withBean(PaymentRedisProperties.class)
+                .withBean(PaymentCheckoutCardEnvelopeService.class)
+                .run(context -> assertThat(context)
+                        .hasSingleBean(PaymentCheckoutCardEnvelopeService.class));
     }
 
     /** 使用下发公钥构建与浏览器相同字段结构的测试信封。 */

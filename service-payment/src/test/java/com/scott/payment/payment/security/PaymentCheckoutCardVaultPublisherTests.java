@@ -12,6 +12,7 @@ import com.scott.payment.payment.entity.PaymentCheckoutAttemptDO;
 import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import java.security.KeyPair;
 import java.time.LocalDateTime;
@@ -82,6 +83,16 @@ class PaymentCheckoutCardVaultPublisherTests {
 
         verify(mqPublisher, never()).publish(eq(MqTopic.CHECKOUT_CARD_VAULT),
                 eq(MqTag.CHECKOUT_CARD_VAULT_STORE), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldCreateCardVaultPublisherThroughSpringContext() {
+        new ApplicationContextRunner()
+                .withBean(PaymentCheckoutProperties.class)
+                .withBean(ReliableMqPublisher.class, () -> mock(ReliableMqPublisher.class))
+                .withBean(PaymentCheckoutCardVaultPublisher.class)
+                .run(context -> assertThat(context)
+                        .hasSingleBean(PaymentCheckoutCardVaultPublisher.class));
     }
 
     private PaymentCheckoutProperties properties(KeyPair keyPair) {

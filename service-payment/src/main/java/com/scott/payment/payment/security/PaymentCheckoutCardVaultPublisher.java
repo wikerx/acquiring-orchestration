@@ -10,6 +10,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCo
 import com.scott.payment.payment.config.PaymentCheckoutProperties;
 import com.scott.payment.payment.entity.PaymentCheckoutAttemptDO;
 import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -45,6 +46,7 @@ public class PaymentCheckoutCardVaultPublisher {
      * @param properties 收银台配置
      * @param mqPublisher 可靠 MQ 发布器
      */
+    @Autowired
     public PaymentCheckoutCardVaultPublisher(PaymentCheckoutProperties properties,
                                              ReliableMqPublisher mqPublisher) {
         this(properties, mqPublisher, new CheckoutCardEnvelopeCipher());
