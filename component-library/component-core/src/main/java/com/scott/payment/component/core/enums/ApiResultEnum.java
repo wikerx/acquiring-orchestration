@@ -53,7 +53,7 @@ public enum ApiResultEnum implements IResult {
     /**
      * 通用失败枚举，作为未细分系统异常的兜底返回。
      */
-    COMMON_FAILED("F500", "Internal server error"),
+    COMMON_FAILED("F500", "The system is busy; please try again later."),
 
     /**
      * 支付、退款或代付交易处理成功。
@@ -124,7 +124,7 @@ public enum ApiResultEnum implements IResult {
      * 商户号不存在、状态不可用或与请求不匹配。
      */
     MERCHANT_INVALID("F401009", "Merchant is invalid or unavailable"),
-    MERCHANT_FROZEN("F401010", "当前商户已经被冻结，请联系您的专属管家"),
+    MERCHANT_FROZEN("F401010", "Merchant account is frozen"),
 
     /**
      * 请求参数值不合法。
@@ -187,9 +187,14 @@ public enum ApiResultEnum implements IResult {
     CARD_BRAND_NOT_SUPPORTED("F413", "Unsupported card brands"),
 
     /**
+     * 原交易当前不允许继续执行关联动作。
+     */
+    ORIGINAL_TRANSACTION_REJECTED("F414", "Original transaction rejected."),
+
+    /**
      * 服务内部错误。
      */
-    INTERNAL_SERVER_ERROR("F500", "Internal Server Error"),
+    INTERNAL_SERVER_ERROR("F500", "The system is busy; please try again later."),
 
     /**
      * 上游服务不可用或响应异常。

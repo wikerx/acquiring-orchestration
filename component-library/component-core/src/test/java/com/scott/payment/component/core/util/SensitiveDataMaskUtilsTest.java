@@ -45,6 +45,7 @@ class SensitiveDataMaskUtilsTest {
                   "enterprise":"Example Trading Limited",
                   "customerId":"CUSTOMER-0001",
                   "deviceFingerprint":"device-fingerprint-value",
+                  "merchantWebsite":"https://shop.merchant.example/checkout?token=secret",
                   "billingAddress":"1 Billing Street",
                   "shippingAddress":"2 Shipping Street",
                   "idCard":"110101199001011234",
@@ -78,6 +79,7 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).contains("\"enterprise\":\"***\"");
         assertThat(masked).contains("\"customerId\":\"***\"");
         assertThat(masked).contains("\"deviceFingerprint\":\"***\"");
+        assertThat(masked).contains("\"merchantWebsite\":\"***\"");
         assertThat(masked).contains("\"billingAddress\":\"***\"");
         assertThat(masked).contains("\"shippingAddress\":\"***\"");
         assertThat(masked).contains("\"idCard\":\"***\"");
@@ -89,6 +91,7 @@ class SensitiveDataMaskUtilsTest {
                 "65432198765",
                 "scott@example.com", "merchant@example.com", "John Smith", "Jane Owner",
                 "Example Trading Limited", "CUSTOMER-0001", "device-fingerprint-value",
+                "https://shop.merchant.example/checkout?token=secret",
                 "1 Billing Street", "2 Shipping Street");
     }
 
@@ -123,5 +126,53 @@ class SensitiveDataMaskUtilsTest {
 
         assertThat(masked).isEqualTo("***MASK_FAILED***");
         assertThat(masked).doesNotContain("4111111111111111", "123");
+    }
+
+    @Test
+    void shouldOnlyMaskPaymentDataAndCredentialsForTransactionInteractionJson() {
+        String json = """
+                {
+                  "Authorization":"Bearer abc.def",
+                  "merchantKey":"merchant-key",
+                  "cardNo":"4111111111111111",
+                  "pan":"5555555555554444",
+                  "expirationMonth":"12",
+                  "expirationYear":"2030",
+                  "expiryDate":"12/30",
+                  "securityCode":"123",
+                  "cvv":"456",
+                  "cavv":"AAABBIIFmAAAAAAAAAAAAAAAAAA=",
+                  "threeDSSessionData":"session-data",
+                  "merchantWebsite":"https://shop.merchant.example/checkout",
+                  "cardholderName":"John Smith",
+                  "billingAddress":"1 Billing Street",
+                  "email":"scott@example.com",
+                  "phone":"+8613812345678",
+                  "orderNo":"M202608100001"
+                }
+                """;
+
+        String masked = SensitiveDataMaskUtils.maskTransactionInteractionJson(json);
+
+        assertThat(masked).contains("\"Authorization\":\"***\"");
+        assertThat(masked).contains("\"merchantKey\":\"***\"");
+        assertThat(masked).contains("\"cardNo\":\"411111******1111\"");
+        assertThat(masked).contains("\"pan\":\"555555******4444\"");
+        assertThat(masked).contains("\"expirationMonth\":\"***\"");
+        assertThat(masked).contains("\"expirationYear\":\"***\"");
+        assertThat(masked).contains("\"expiryDate\":\"***\"");
+        assertThat(masked).contains("\"securityCode\":\"***\"");
+        assertThat(masked).contains("\"cvv\":\"***\"");
+        assertThat(masked).contains("\"cavv\":\"***\"");
+        assertThat(masked).contains("\"threeDSSessionData\":\"***\"");
+        assertThat(masked).contains("\"merchantWebsite\":\"https://shop.merchant.example/checkout\"");
+        assertThat(masked).contains("\"cardholderName\":\"John Smith\"");
+        assertThat(masked).contains("\"billingAddress\":\"1 Billing Street\"");
+        assertThat(masked).contains("\"email\":\"scott@example.com\"");
+        assertThat(masked).contains("\"phone\":\"+8613812345678\"");
+        assertThat(masked).contains("\"orderNo\":\"M202608100001\"");
+        assertThat(masked).doesNotContain("Bearer abc.def", "merchant-key", "4111111111111111",
+                "5555555555554444", "\"securityCode\":\"123\"", "\"cvv\":\"456\"",
+                "AAABBIIFmAAAAAAAAAAAAAAAAAA=", "session-data");
     }
 }

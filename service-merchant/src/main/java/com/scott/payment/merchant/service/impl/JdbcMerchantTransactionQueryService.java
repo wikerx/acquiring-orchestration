@@ -33,11 +33,13 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -79,6 +81,8 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * </p>
      */
     private static final String TRANSACTION_PAYMENT_METHOD_INFO_TABLE = "transaction_payment_method_info";
+    private static final String ACCESS_TYPE_DIRECT_API = "DIRECT_API";
+    private static final String ACCESS_TYPE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
     /**
      * DEFAULT QUERY TIME ZONE，用于保存 Jdbc Merchant Transaction Query Service 中与 defaultquerytimezone 相关的业务属性。
      * <p>
@@ -748,7 +752,41 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                         row.getTransactionStatus(),
                         order.getMerchantResponseMessage()));
             }
-            row.setAccessType("DIRECT_API");
+        }
+        enrichAccessTypes(rows);
+    }
+
+    /** 批量识别当前商户的历史收银台交易，避免逐条查询和跨商户读取。 */
+    private void enrichAccessTypes(List<TransactionOperationResponse> rows) {
+        String merchantId = rows.stream()
+                .map(TransactionOperationResponse::getMerchantId)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(null);
+        List<String> unresolvedTransactionIds = rows.stream()
+                .filter(row -> !ACCESS_TYPE_HOSTED_CHECKOUT.equals(row.getAccessType()))
+                .map(TransactionOperationResponse::getTransactionId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (!StringUtils.hasText(merchantId) || unresolvedTransactionIds.isEmpty()) {
+            return;
+        }
+        Set<String> hostedTransactionIds = new HashSet<>(jdbcTemplate.queryForList("""
+                SELECT DISTINCT transaction_id
+                FROM payment_checkout_attempt
+                WHERE merchant_id = :merchantId
+                  AND transaction_id IN (:transactionIds)
+                  AND deleted = 0
+                """, new MapSqlParameterSource()
+                .addValue("merchantId", merchantId)
+                .addValue("transactionIds", unresolvedTransactionIds), String.class));
+        for (TransactionOperationResponse row : rows) {
+            if (hostedTransactionIds.contains(row.getTransactionId())) {
+                row.setAccessType(ACCESS_TYPE_HOSTED_CHECKOUT);
+            } else if (!StringUtils.hasText(row.getAccessType())) {
+                row.setAccessType(ACCESS_TYPE_DIRECT_API);
+            }
         }
     }
 
@@ -1375,8 +1413,16 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setChannelMatchStatus(rs.getString("channel_match_status"));
             row.setTransactionDateTime(localDateTime(rs, "transaction_date_time"));
             row.setOperationTime(localDateTime(rs, "operation_time"));
+            row.setAccessType(resolveAccessType(getStringIfExists(rs, "request_source")));
             return row;
         };
+    }
+
+    /** 将支付核心持久化的请求来源映射为商户端接入类型。 */
+    private String resolveAccessType(String requestSource) {
+        return ACCESS_TYPE_HOSTED_CHECKOUT.equalsIgnoreCase(requestSource)
+                ? ACCESS_TYPE_HOSTED_CHECKOUT
+                : ACCESS_TYPE_DIRECT_API;
     }
 
     /**
@@ -1492,6 +1538,15 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     private Integer nullableInt(ResultSet rs, String column) throws SQLException {
         int value = rs.getInt(column);
         return rs.wasNull() ? null : value;
+    }
+
+    /** 兼容历史结果集缺少新增来源字段的场景。 */
+    private String getStringIfExists(ResultSet rs, String column) {
+        try {
+            return rs.getString(column);
+        } catch (SQLException exception) {
+            return null;
+        }
     }
 
     /**

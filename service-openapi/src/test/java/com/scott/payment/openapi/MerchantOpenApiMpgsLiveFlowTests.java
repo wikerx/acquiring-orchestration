@@ -742,6 +742,9 @@ class MerchantOpenApiMpgsLiveFlowTests {
                                  boolean includeInvalidThreeDs,
                                  OfficialTestCard card) {
         Map<String, Object> payload = basePayload(orderNo, orderId, amount, currency, description, null);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> transactionInfo = (Map<String, Object>) payload.get("transactionInfo");
+        transactionInfo.put("merchantWebsite", "https://merchant.example.com/checkout");
         Map<String, Object> cardInfo = new LinkedHashMap<>();
         cardInfo.put("cardNo", card.cardNo());
         cardInfo.put("expirationMonth", TEST_CARD_EXPIRY_MONTH);

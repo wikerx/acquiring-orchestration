@@ -60,6 +60,9 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     private static final String RISK_RECORD_PREFIX = "RK";
 
+    /** 支付核心内部生成的 Hosted Checkout 来源，商户 OpenAPI 不允许控制该值。 */
+    private static final String REQUEST_SOURCE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
+
     /**
      * 来源阻断关键词，当前仅用于骨架验证，正式名单应来自配置或数据库。
      */
@@ -292,20 +295,22 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                     buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.IP_WHITELIST_MISSED, riskRecordNo),
                     details);
         }
-        Optional<RiskListMatch> sourceUrlMiss = findSourceUrlRestrictionMiss(requestDTO, context);
-        sourceUrlMiss.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_MISS)));
-        if (sourceUrlMiss.isPresent()) {
-            return RiskEvaluationOutcome.of(
-                    buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.SOURCE_URL_NOT_ALLOWED, riskRecordNo),
-                    details);
-        }
-        Optional<RiskListMatch> sourceUrlRule = findSourceUrlRule(requestDTO, context);
-        sourceUrlRule.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_HIT)));
-        if (sourceUrlRule.isPresent() && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(sourceUrlRule.get().getDecisionAction())) {
-            return RiskEvaluationOutcome.of(
-                    buildResult(resolveDecision(sourceUrlRule.get(), RiskDecisionEnum.REVIEW),
-                            RiskReasonCodeEnum.RULE_HIT, riskRecordNo),
-                    details);
+        if (!isHostedCheckout(requestDTO)) {
+            Optional<RiskListMatch> sourceUrlMiss = findSourceUrlRestrictionMiss(requestDTO, context);
+            sourceUrlMiss.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_MISS)));
+            if (sourceUrlMiss.isPresent()) {
+                return RiskEvaluationOutcome.of(
+                        buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.SOURCE_URL_NOT_ALLOWED, riskRecordNo),
+                        details);
+            }
+            Optional<RiskListMatch> sourceUrlRule = findSourceUrlRule(requestDTO, context);
+            sourceUrlRule.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_HIT)));
+            if (sourceUrlRule.isPresent() && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(sourceUrlRule.get().getDecisionAction())) {
+                return RiskEvaluationOutcome.of(
+                        buildResult(resolveDecision(sourceUrlRule.get(), RiskDecisionEnum.REVIEW),
+                                RiskReasonCodeEnum.RULE_HIT, riskRecordNo),
+                        details);
+            }
         }
         ReadOnlyEvaluation readOnlyEvaluation = properties.isReadOnlyParallelEnabled()
                 ? evaluateReadOnlyGroups(requestDTO, context)
@@ -510,6 +515,17 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             return Optional.empty();
         }
         return riskListRuntimeRepository.findSourceUrlRestrictionMiss(requestDTO.getMerchantId(), context.sourceHostLookup());
+    }
+
+    /**
+     * 判断当前请求是否由平台 Hosted Checkout 内部链路发起。
+     *
+     * @param requestDTO 支付风控请求
+     * @return 可信来源标识为 HOSTED_CHECKOUT 时返回 {@code true}
+     */
+    private boolean isHostedCheckout(RiskPaymentEvaluateRequestDTO requestDTO) {
+        return requestDTO != null
+                && REQUEST_SOURCE_HOSTED_CHECKOUT.equals(requestDTO.getRequestSource());
     }
 
     /**

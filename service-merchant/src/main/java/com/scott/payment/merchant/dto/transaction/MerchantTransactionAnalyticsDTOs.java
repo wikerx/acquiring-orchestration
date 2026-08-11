@@ -133,6 +133,10 @@ public final class MerchantTransactionAnalyticsDTOs {
         private long successCount;
         /** 当前维度终态失败交易数，单位为笔。 */
         private long failedCount;
+        /** 当前维度待处理交易数，单位为笔。 */
+        private long pendingCount;
+        /** 当前维度处理中交易数，单位为笔。 */
+        private long processingCount;
         /** 当前维度终态成功率，单位为百分比。 */
         private BigDecimal successRate = BigDecimal.ZERO;
     }

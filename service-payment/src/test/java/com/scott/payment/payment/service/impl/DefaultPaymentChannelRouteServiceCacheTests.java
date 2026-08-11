@@ -4,6 +4,7 @@ import com.scott.payment.component.db.route.model.MerchantRouteProfile;
 import com.scott.payment.component.db.route.model.MerchantRouteProfile.RouteOption;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
+import com.scott.payment.payment.entity.ChannelMidConfigDO;
 import com.scott.payment.payment.mapper.PaymentChannelInfoMapper;
 import com.scott.payment.payment.mapper.PaymentChannelMidConfigMapper;
 import com.scott.payment.payment.service.MerchantRouteProfileCacheService;
@@ -80,8 +81,80 @@ class DefaultPaymentChannelRouteServiceCacheTests {
 
         assertThatThrownBy(() -> service.route(command))
                 .isInstanceOf(ServiceException.class)
-                .hasMessageContaining("商户未配置可用渠道MID");
+                .hasMessage("Invalid request parameter");
         verifyNoInteractions(metadataCache, midMapper, channelMapper);
+    }
+
+    /** 路由必须同时满足 MID 范围和渠道支付能力卡品牌，不能只校验 MID。 */
+    @Test
+    void shouldRejectRouteWhenCapabilityDoesNotSupportCardBrand() {
+        PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
+        PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);
+        MerchantRouteProfileCacheService profileCache = mock(MerchantRouteProfileCacheService.class);
+        PaymentChannelMidMetadataCache metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        MerchantRouteProfile profile = profile(LocalDateTime.of(2026, 8, 1, 15, 40));
+        profile.getRouteOptions().get(0).setCapabilitySupportedCardBrands(
+                new ArrayList<>(List.of("VISA"))
+        );
+        when(profileCache.findRouteProfile("200045")).thenReturn(profile);
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                midMapper, channelMapper, profileCache, metadataCache);
+        PaymentCreateCommandDTO command = command();
+        command.getTransactionInfo().setCardBrand("MASTERCARD");
+
+        assertThatThrownBy(() -> service.route(command))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("Invalid request parameter");
+        verifyNoInteractions(metadataCache, midMapper, channelMapper);
+    }
+
+    /** 增量授权必须命中能力开关，不能只依赖交易类型文本范围。 */
+    @Test
+    void shouldRejectIncrementalAuthorizationWhenCapabilitySwitchIsDisabled() {
+        PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
+        PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);
+        MerchantRouteProfileCacheService profileCache = mock(MerchantRouteProfileCacheService.class);
+        PaymentChannelMidMetadataCache metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        MerchantRouteProfile profile = profile(LocalDateTime.of(2026, 8, 1, 15, 40));
+        RouteOption option = profile.getRouteOptions().get(0);
+        option.setCapabilityTransactionType("PAYMENT,INCREMENTAL_AUTHORIZATION");
+        option.setCapabilitySupportIncrementalAuthorization(0);
+        when(profileCache.findRouteProfile("200045")).thenReturn(profile);
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                midMapper, channelMapper, profileCache, metadataCache);
+        PaymentCreateCommandDTO command = command();
+        command.setTransactionType("INCREMENTAL_AUTHORIZATION");
+
+        assertThatThrownBy(() -> service.route(command))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("Invalid request parameter");
+        verifyNoInteractions(metadataCache, midMapper, channelMapper);
+    }
+
+    /** 关联交易不得使用已禁用的原 MID，也不得向商户暴露具体配置原因。 */
+    @Test
+    void shouldRejectRestoredRouteWithF414WhenOriginalMidIsDisabled() {
+        PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
+        PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);
+        MerchantRouteProfileCacheService profileCache = mock(MerchantRouteProfileCacheService.class);
+        PaymentChannelMidMetadataCache metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        ChannelMidConfigDO midConfig = new ChannelMidConfigDO();
+        midConfig.setId(10L);
+        midConfig.setChannelId(20L);
+        midConfig.setChannelCode("MPGS");
+        midConfig.setChannelMid("ORIGINAL-MID");
+        midConfig.setMidStatus(0);
+        midConfig.setDeleted(0L);
+        when(midMapper.selectById(10L)).thenReturn(midConfig);
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                midMapper, channelMapper, profileCache, metadataCache);
+
+        assertThatThrownBy(() -> service.restore("MPGS", 20L, 10L, "ORIGINAL-MID"))
+                .isInstanceOfSatisfying(ServiceException.class, exception -> {
+                    assertThat(exception.getCode()).isEqualTo("F414");
+                    assertThat(exception.getMessage()).isEqualTo("Original transaction rejected.");
+                });
+        verifyNoInteractions(channelMapper, metadataCache);
     }
 
     /** 构造交易命令。 */
@@ -129,6 +202,7 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         option.setCapabilityBusinessType("ACQUIRING");
         option.setCapabilityPaymentMethod("BANK_CARD");
         option.setCapabilityTransactionType("PAYMENT");
+        option.setCapabilitySupportedCardBrands(new ArrayList<>(List.of("VISA", "MASTERCARD")));
         option.setCapabilityStatus(1);
         option.setCapabilitySortOrder(1);
         option.setSupportedCurrencies(new ArrayList<>(List.of("USD")));

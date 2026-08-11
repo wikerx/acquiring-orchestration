@@ -176,12 +176,12 @@ class WorldPayPaymentChannelClientTests {
         assertThat(response.getRequestBodyJsonMasked()).contains("\"amount\":1234");
         assertThat(response.getRequestBodyJsonMasked()).contains("\"currency\":\"USD\"");
         assertThat(response.getRequestBodyJsonMasked()).contains("\"type\":\"plain\"");
-        assertThat(response.getRequestBodyJsonMasked()).contains("\"cardExpiryDate\":{\"month\":\"01\",\"year\":\"2030\"}");
+        assertThat(response.getRequestBodyJsonMasked()).contains("\"cardExpiryDate\":{\"month\":\"***\",\"year\":\"***\"}");
         assertThat(response.getRequestBodyJsonMasked()).doesNotContain("\"expiryDate\"");
         assertThat(response.getRequestBodyJsonMasked()).doesNotContain("\"operation\"", "\"actionLink\"", "\"metadata\"");
         assertThat(response.getRequestBodyJsonMasked()).contains("\"cardNumber\":\"512345******0008\"");
         assertThat(response.getRequestBodyJsonMasked()).contains("\"cvc\":\"***\"");
-        assertThat(response.getRequestBodyJsonMasked()).doesNotContain("5123450000000008", "\"cvc\":\"100\"");
+        assertThat(response.getRequestBodyJsonMasked()).doesNotContain("5123450000000008", "\"month\":\"01\"", "\"year\":\"2030\"", "\"cvc\":\"100\"");
         assertThat(response.getRequestBodyJsonMasked()).doesNotContain("json-password");
         assertThat(response.getResponseHeaderJsonMasked()).contains("WP-CorrelationId");
         assertThat(response.getRawResponse()).containsEntry("wpCorrelationId", "WP-CORR-001");
@@ -301,6 +301,7 @@ class WorldPayPaymentChannelClientTests {
         String json = "{\"card\":{\"cardNumber\":\"5123450000000008\",\"cvc\":\"100\"},"
                 + "\"threeDs\":{\"cavv\":\"AAABBIIFmAAAAAAAAAAAAAAAAAA=\"},"
                 + "\"authenticationValue\":\"AUTHVALUE\","
+                + "\"cardExpiryDate\":{\"month\":\"01\",\"year\":\"2039\"},"
                 + "\"billingAddress\":{\"address1\":\"1 Main Street\",\"postalCode\":\"12345\"},"
                 + "\"cardHolderName\":\"Jane Doe\","
                 + "\"password\":\"secret-value\",\"Authorization\":\"Basic abcdef\"}";
@@ -311,13 +312,14 @@ class WorldPayPaymentChannelClientTests {
         assertThat(masked).contains("\"cvc\":\"***\"");
         assertThat(masked).contains("\"cavv\":\"***\"");
         assertThat(masked).contains("\"authenticationValue\":\"***\"");
-        assertThat(masked).contains("\"address1\":\"***\"");
-        assertThat(masked).contains("\"postalCode\":\"***\"");
-        assertThat(masked).contains("\"cardHolderName\":\"***\"");
+        assertThat(masked).contains("\"cardExpiryDate\":{\"month\":\"***\",\"year\":\"***\"}");
+        assertThat(masked).contains("\"address1\":\"1 Main Street\"");
+        assertThat(masked).contains("\"postalCode\":\"12345\"");
+        assertThat(masked).contains("\"cardHolderName\":\"Jane Doe\"");
         assertThat(masked).contains("\"password\":\"***\"");
         assertThat(masked).contains("\"Authorization\":\"***\"");
         assertThat(masked).doesNotContain("5123450000000008", "\"cvc\":\"100\"", "AAABBIIFmAAAAAAAAAAAAAAAAAA=",
-                "AUTHVALUE", "1 Main Street", "\"postalCode\":\"12345\"", "Jane Doe", "secret-value", "Basic abcdef");
+                "AUTHVALUE", "\"month\":\"01\"", "\"year\":\"2039\"", "secret-value", "Basic abcdef");
     }
 
     /**
@@ -447,8 +449,12 @@ class WorldPayPaymentChannelClientTests {
                 Authorization: Basic abcdef
                 <paymentService merchantCode="AWAPGTEST">
                   <cardNumber>5123450000000008</cardNumber>
+                  <expiryDate><date month="01" year="2039"/></expiryDate>
                   <cvc>100</cvc>
                   <cavv>AAABBIIFmAAAAAAAAAAAAAAAAAA=</cavv>
+                  <cardHolderName>Jane Doe</cardHolderName>
+                  <address1>1 Main Street</address1>
+                  <shopperEmailAddress>shopper@example.com</shopperEmailAddress>
                   <password>secret-value</password>
                 </paymentService>
                 """;
@@ -456,11 +462,16 @@ class WorldPayPaymentChannelClientTests {
         String masked = WorldPayXmlApiClient.maskWorldPayXml(xml);
 
         assertThat(masked).contains("<cardNumber>512345******0008</cardNumber>");
+        assertThat(masked).contains("<expiryDate><date month=\"***\" year=\"***\"/></expiryDate>");
         assertThat(masked).contains("<cvc>***</cvc>");
         assertThat(masked).contains("<cavv>***</cavv>");
+        assertThat(masked).contains("<cardHolderName>Jane Doe</cardHolderName>");
+        assertThat(masked).contains("<address1>1 Main Street</address1>");
+        assertThat(masked).contains("<shopperEmailAddress>shopper@example.com</shopperEmailAddress>");
         assertThat(masked).contains("<password>***</password>");
         assertThat(masked).contains("Authorization: Basic ***");
-        assertThat(masked).doesNotContain("5123450000000008", "<cvc>100</cvc>", "AAABBIIFmAAAAAAAAAAAAAAAAAA=", "secret-value", "Basic abcdef");
+        assertThat(masked).doesNotContain("5123450000000008", "month=\"01\"", "year=\"2039\"",
+                "<cvc>100</cvc>", "AAABBIIFmAAAAAAAAAAAAAAAAAA=", "secret-value", "Basic abcdef");
     }
 
     private ChannelPaymentRequest worldPayXmlPaymentRequest() {

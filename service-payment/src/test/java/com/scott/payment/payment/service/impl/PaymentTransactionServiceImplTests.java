@@ -766,6 +766,8 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getTransactionInfo()).hasSize(1);
         assertThat(resultDTO.getTransactionInfo().get(0).getTransactionId()).isEqualTo(SOURCE_TRANSACTION_ID);
         assertThat(resultDTO.getTransactionInfo().get(0).getCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(resultDTO.getTransactionInfo().get(0).getMerchantWebsite())
+                .isEqualTo("https://merchant.example.com/checkout");
         assertThat(resultDTO.getTransactionInfo().get(0).getRootTransactionDateTime())
                 .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 30));
     }
@@ -1220,15 +1222,34 @@ class PaymentTransactionServiceImplTests {
     }
 
     private PaymentChannelRouteService routeService() {
-        return commandDTO -> {
-            PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
-            routeResultDTO.setChannelId(101L);
-            routeResultDTO.setMidConfigId(1001L);
-            routeResultDTO.setMidNo("TESTDEVMER031");
-            routeResultDTO.setRequestedCurrency(commandDTO.getCurrency());
-            routeResultDTO.setRoutedCurrency(commandDTO.getCurrency());
-            return routeResultDTO;
+        return new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                return routeResult(commandDTO.getCurrency(), "TESTDEVMER031");
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                PaymentRouteResultDTO routeResultDTO = routeResult(null, fallbackMidNo);
+                routeResultDTO.setChannelCode(channelCode);
+                routeResultDTO.setChannelId(channelId);
+                routeResultDTO.setMidConfigId(midConfigId);
+                return routeResultDTO;
+            }
         };
+    }
+
+    private PaymentRouteResultDTO routeResult(String currency, String midNo) {
+        PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
+        routeResultDTO.setChannelId(101L);
+        routeResultDTO.setMidConfigId(1001L);
+        routeResultDTO.setMidNo(midNo);
+        routeResultDTO.setRequestedCurrency(currency);
+        routeResultDTO.setRoutedCurrency(currency);
+        return routeResultDTO;
     }
 
     private PaymentExchangeRateService exchangeRateService() {
@@ -1580,6 +1601,7 @@ class PaymentTransactionServiceImplTests {
             orderDO.setMerchantId("200001");
             orderDO.setMerchantOrderNo("M202607120001");
             orderDO.setMerchantOrderId("AUTH202607120001");
+            orderDO.setMerchantWebsite("https://merchant.example.com/checkout");
             orderDO.setTransactionType(sourceTransactionType);
             orderDO.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
             orderDO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
@@ -1594,6 +1616,10 @@ class PaymentTransactionServiceImplTests {
             orderDO.setTransactionDateTime(transactionDateTime);
             orderDO.setTransactionUtcTime(LocalDateTime.of(2026, 7, 12, 2, 30));
             orderDO.setTransactionTimeZone("Asia/Shanghai");
+            orderDO.setChannelId(101L);
+            orderDO.setChannelCode("MPGS");
+            orderDO.setChannelMidConfigId(1001L);
+            orderDO.setChannelMerchantId("TESTDEVMER031");
             orderDO.setVersion(0);
             return orderDO;
         }
@@ -1664,6 +1690,10 @@ class PaymentTransactionServiceImplTests {
             TransactionOperationDO operationDO = new TransactionOperationDO();
             operationDO.setOperationId(SOURCE_OPERATION_ID);
             operationDO.setTransactionId(sourceTransactionId);
+            operationDO.setChannelCode("MPGS");
+            operationDO.setChannelId(101L);
+            operationDO.setChannelMidConfigId(1001L);
+            operationDO.setChannelTerminalId("TESTDEVMER031");
             operationDO.setChannelOrderNo(SOURCE_TRANSACTION_ID);
             operationDO.setChannelTransactionId(SOURCE_TRANSACTION_ID.equals(sourceTransactionId)
                     ? SOURCE_CHANNEL_TRANSACTION_ID

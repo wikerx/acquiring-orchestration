@@ -1,6 +1,7 @@
 package com.scott.payment.payment.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -48,6 +49,14 @@ public class ChannelPaymentCapabilityDO {
      * 支持的交易类型范围，逗号分隔时按单项匹配。
      */
     private String transactionType;
+
+    /** 是否支持 3DS：0 不支持，1 支持。 */
+    @TableField("support_3ds")
+    private Integer support3ds;
+
+    /** 是否支持增量授权：0 不支持，1 支持。 */
+    @TableField("support_incremental_authorization")
+    private Integer supportIncrementalAuthorization;
 
     /**
      * 能力状态，1 表示启用。

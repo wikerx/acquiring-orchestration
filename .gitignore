@@ -62,3 +62,4 @@ docs/sql/*
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md
 !docs/archive/reports/transaction-sharding-scan-and-remediation-report.md
+/scripts/

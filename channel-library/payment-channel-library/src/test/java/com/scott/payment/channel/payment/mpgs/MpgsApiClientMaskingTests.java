@@ -51,6 +51,8 @@ class MpgsApiClientMaskingTests {
     void shouldMaskMpgsCardNumberAndAuthenticationToken() {
         String json = "{\"sourceOfFunds\":{\"provided\":{\"card\":{\"number\":\"5123450000000008\",\"securityCode\":\"100\"}}},"
                 + "\"authentication\":{\"threeDs\":{\"authenticationToken\":\"AAABBIIFmAAAAAAAAAAAAAAAAAA=\"}},"
+                + "\"expiry\":{\"month\":\"01\",\"year\":\"39\"},"
+                + "\"cardholderName\":\"Jane Doe\",\"billingAddress\":\"1 Main Street\","
                 + "\"apiPassword\":\"secret-value\"}";
         log.info("MPGS脱敏测试开始，case=卡号、安全码、认证令牌、渠道密码");
 
@@ -60,8 +62,12 @@ class MpgsApiClientMaskingTests {
         assertThat(masked).contains("\"number\":\"512345******0008\"");
         assertThat(masked).contains("\"securityCode\":\"***\"");
         assertThat(masked).contains("\"authenticationToken\":\"***\"");
+        assertThat(masked).contains("\"expiry\":{\"month\":\"***\",\"year\":\"***\"}");
+        assertThat(masked).contains("\"cardholderName\":\"Jane Doe\"");
+        assertThat(masked).contains("\"billingAddress\":\"1 Main Street\"");
         assertThat(masked).contains("\"apiPassword\":\"***\"");
-        assertThat(masked).doesNotContain("5123450000000008", "AAABBIIFmAAAAAAAAAAAAAAAAAA=", "secret-value");
+        assertThat(masked).doesNotContain("5123450000000008", "\"securityCode\":\"100\"",
+                "AAABBIIFmAAAAAAAAAAAAAAAAAA=", "\"month\":\"01\"", "\"year\":\"39\"", "secret-value");
     }
 
     /**

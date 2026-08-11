@@ -96,7 +96,6 @@ public class PaymentRedisCacheAutoConfiguration {
         return RedisCacheManager.builder(redisConnectionFactory)
                 .cacheDefaults(defaultConfiguration)
                 .withInitialCacheConfigurations(cacheConfigurations)
-                .disableCreateOnMissingCache()
                 .enableStatistics()
                 .transactionAware()
                 .build();
@@ -284,7 +283,8 @@ public class PaymentRedisCacheAutoConfiguration {
         if (PaymentCacheNames.MERCHANT_RUNTIME_PROFILE.equals(cacheName)
                 || PaymentCacheNames.MERCHANT_OPENAPI_ACCESS.equals(cacheName)
                 || PaymentCacheNames.MERCHANT_KEY_METADATA.equals(cacheName)
-                || PaymentCacheNames.MERCHANT_ROUTE.equals(cacheName)) {
+                || PaymentCacheNames.MERCHANT_ROUTE.equals(cacheName)
+                || PaymentCacheNames.SYSTEM_CONFIG.equals(cacheName)) {
             throw exception;
         }
     }

@@ -1,7 +1,6 @@
 package com.scott.payment.admin.application.monitor;
 
 import com.scott.payment.component.core.cache.PaymentCacheNames;
-import com.scott.payment.component.core.cache.PlatformConfigCachePolicy;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.redis.cache.PaymentCacheProperties;
@@ -351,10 +350,10 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 校验单 Key 是已登记的平台公开配置数据，而不是 pending 门禁或同前缀未知 Key。
+     * 校验单 Key 属于统一系统参数数据命名空间。
      *
-     * <p>仅检查命名空间不足以保护 {@code config:public:pending:*} 控制 Key，因此必须同时
-     * 使用 {@link PlatformConfigCachePolicy} 校验物理 Key 的业务后缀。</p>
+     * <p>pending 门禁使用独立的 {@code system:configPending:*} 命名空间，因此这里可以安全
+     * 管理全部全局唯一系统参数缓存，而不会误删一致性控制 Key。</p>
      *
      * @param key 待查询或删除的完整 Redis Key
      */
@@ -365,10 +364,10 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 判断物理 Key 是否对应四个已登记的非敏感平台公开配置。
+     * 判断物理 Key 是否对应统一系统参数缓存中的实际数据 Key。
      *
      * @param key 待检查的完整 Redis Key
-     * @return 业务后缀属于公开配置白名单时返回 true
+     * @return Key 位于受管命名空间且配置键后缀非空时返回 true
      */
     private boolean isManagedDataKey(String key) {
         String managedPrefix = managedKeyPrefix();
@@ -377,7 +376,7 @@ public class AdminMonitorCacheApplicationService {
                 || !key.startsWith(managedPrefix)) {
             return false;
         }
-        return PlatformConfigCachePolicy.isCacheable(key.substring(managedPrefix.length()));
+        return StringUtils.hasText(key.substring(managedPrefix.length()));
     }
 
     /**
@@ -404,7 +403,7 @@ public class AdminMonitorCacheApplicationService {
         while (configuredPrefix.endsWith(":")) {
             configuredPrefix = configuredPrefix.substring(0, configuredPrefix.length() - 1);
         }
-        return configuredPrefix + ":" + PaymentCacheNames.PLATFORM_CONFIG + ":";
+        return configuredPrefix + ":" + PaymentCacheNames.SYSTEM_CONFIG + ":";
     }
 
     /**

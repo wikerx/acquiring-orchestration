@@ -25,6 +25,12 @@ public class MerchantRouteProfile implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /** 当前快照结构版本，用于永久 Redis 数据的在线兼容升级。 */
+    public static final int CURRENT_SCHEMA_VERSION = 2;
+
+    /** 构建该快照时使用的结构版本；旧缓存反序列化后为空。 */
+    private Integer schemaVersion;
+
     /** 平台商户号，同时作为永久缓存业务键。 */
     private String merchantId;
 
@@ -124,6 +130,15 @@ public class MerchantRouteProfile implements Serializable {
 
         /** 能力支持的交易类型范围。 */
         private String capabilityTransactionType;
+
+        /** 能力明确启用的卡品牌；银行卡路由必须同时满足该范围和 MID 范围。 */
+        private List<String> capabilitySupportedCardBrands = new ArrayList<>();
+
+        /** 能力是否支持 3DS：0 不支持，1 支持。 */
+        private Integer capabilitySupport3ds;
+
+        /** 能力是否支持增量授权：0 不支持，1 支持。 */
+        private Integer capabilitySupportIncrementalAuthorization;
 
         /** 能力启用状态。 */
         private Integer capabilityStatus;

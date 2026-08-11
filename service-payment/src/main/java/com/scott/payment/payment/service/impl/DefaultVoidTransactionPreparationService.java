@@ -298,7 +298,33 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentCreateResultDTO resultDTO = buildVoidResult(commandDTO, sourceOrderDO, transactionId);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
-        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
+        PaymentRouteResultDTO routeResultDTO;
+        try {
+            routeResultDTO = OriginalTransactionRouteResolver.restore(
+                    paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
+        } catch (ServiceException exception) {
+            if (!OriginalTransactionRejectionSupport.isOriginalTransactionRejected(exception)) {
+                throw exception;
+            }
+            PaymentRouteResultDTO sourceRouteSnapshot = OriginalTransactionRouteResolver.snapshot(
+                    sourceOrderDO, sourceOperationDO);
+            OriginalTransactionRejectionSupport.apply(resultDTO);
+            enrichVoidResult(commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO);
+            OriginalTransactionRejectionSupport.apply(resultDTO);
+            recordVoidPreparedFact(
+                    commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO, currencyExponent);
+            saveTransactionCreatedEvent(commandDTO, resultDTO);
+            completeIdempotency(idempotencyKey, commandDTO, resultDTO);
+            VoidPreparationResultDTO target = new VoidPreparationResultDTO();
+            target.setCallChannel(false);
+            target.setIdempotencyKey(idempotencyKey);
+            target.setCommandDTO(commandDTO);
+            target.setSourceOrderDO(sourceOrderDO);
+            target.setRouteResultDTO(sourceRouteSnapshot);
+            target.setResultDTO(resultDTO);
+            target.setCurrencyExponent(currencyExponent);
+            return target;
+        }
         resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
         enrichVoidResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);

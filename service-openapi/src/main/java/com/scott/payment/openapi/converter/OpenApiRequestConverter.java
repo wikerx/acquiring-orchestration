@@ -88,6 +88,7 @@ public interface OpenApiRequestConverter {
         transactionInfoVO.setArn(responseDTO.getAcquirerReferenceNo());
         transactionInfoVO.setDescription(responseDTO.getDescription());
         transactionInfoVO.setCallbackUrl(responseDTO.getCallbackUrl());
+        transactionInfoVO.setMerchantWebsite(responseDTO.getMerchantWebsite());
         transactionInfoVO.setFailReasonCode(responseDTO.getFailReasonCode());
         transactionInfoVO.setFailReasonMessage(responseDTO.getFailReasonMessage());
         transactionInfoVO.setPendingReasonCode(responseDTO.getPendingReasonCode());
@@ -555,6 +556,7 @@ public interface OpenApiRequestConverter {
         target.setArn(source.getArn());
         target.setDescription(source.getDescription());
         target.setCallbackUrl(source.getCallbackUrl());
+        target.setMerchantWebsite(source.getMerchantWebsite());
         return target;
     }
 
@@ -631,6 +633,7 @@ public interface OpenApiRequestConverter {
      * @param source OpenAPI 交易扩展信息
      * @return 支付内部调用交易扩展信息
      */
+    @Mapping(target = "cardBrand", ignore = true)
     PaymentCreateClientRequestDTO.TransactionInfoDTO toPaymentClientTransactionInfo(ApiMerchantPaymentRequestDTO.TransactionInfoDTO source);
 
     /**

@@ -3,6 +3,8 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
@@ -786,6 +788,112 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
     }
 
+    /** Capture 和 PreAuth Completion 必须复用原交易渠道及 MID，禁止按当前绑定重新选路。 */
+    @Test
+    void shouldRestoreOriginalChannelMidForCaptureWithoutRerouting() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        AtomicInteger restoreCount = new AtomicInteger();
+        PaymentChannelRouteService sourceRouteService = new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                throw new AssertionError("capture must not reroute by current merchant binding");
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                restoreCount.incrementAndGet();
+                assertThat(channelCode).isEqualTo("MPGS");
+                assertThat(channelId).isEqualTo(101L);
+                assertThat(midConfigId).isEqualTo(1001L);
+                assertThat(fallbackMidNo).isEqualTo("TEST-MID");
+                PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed(channelCode);
+                routeResultDTO.setChannelId(channelId);
+                routeResultDTO.setMidConfigId(midConfigId);
+                routeResultDTO.setMidNo(fallbackMidNo);
+                return routeResultDTO;
+            }
+        };
+        DefaultCaptureTransactionPreparationService preparationService =
+                new DefaultCaptureTransactionPreparationService(
+                        isoDictionaryService(),
+                        sourceRouteService,
+                        idempotencyService,
+                        new CapturingTransactionEventOutboxService(),
+                        recordService,
+                        new DefaultTransactionStateMachineService());
+
+        CapturePreparationResultDTO resultDTO = preparationService.prepareCapture(
+                followUpCommand("CAPTURE-ORIGINAL-MID", new BigDecimal("5.00")),
+                "200001:TX202607230001:CAPTURE-ORIGINAL-MID:CAPTURE",
+                PaymentTransactionTypeEnum.CAPTURE);
+
+        assertThat(restoreCount).hasValue(1);
+        assertThat(resultDTO.getRouteResultDTO().getChannelCode()).isEqualTo("MPGS");
+        assertThat(resultDTO.getRouteResultDTO().getMidConfigId()).isEqualTo(1001L);
+    }
+
+    /** 原 MID 不可用时仍须落失败动作和幂等快照，重复请求不得再次尝试渠道恢复。 */
+    @Test
+    void shouldPersistF414CaptureRejectionWithoutCallingChannel() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        AtomicInteger restoreCount = new AtomicInteger();
+        PaymentChannelRouteService unavailableRouteService = new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                throw new AssertionError("capture rejection must not reroute");
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                restoreCount.incrementAndGet();
+                throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
+            }
+        };
+        DefaultCaptureTransactionPreparationService preparationService =
+                new DefaultCaptureTransactionPreparationService(
+                        isoDictionaryService(),
+                        unavailableRouteService,
+                        idempotencyService,
+                        new CapturingTransactionEventOutboxService(),
+                        recordService,
+                        new DefaultTransactionStateMachineService());
+        PaymentCreateCommandDTO command = followUpCommand("CAPTURE-F414", new BigDecimal("5.00"));
+        String idempotencyKey = "200001:TX202607230001:CAPTURE-F414:CAPTURE";
+
+        CapturePreparationResultDTO rejected = preparationService.prepareCapture(
+                command, idempotencyKey, PaymentTransactionTypeEnum.CAPTURE);
+        CapturePreparationResultDTO duplicate = preparationService.prepareCapture(
+                followUpCommand("CAPTURE-F414", new BigDecimal("5.00")),
+                idempotencyKey,
+                PaymentTransactionTypeEnum.CAPTURE);
+
+        assertThat(rejected.isCallChannel()).isFalse();
+        assertThat(rejected.getResultDTO().getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(rejected.getResultDTO().getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(rejected.getResultDTO().getMerchantResponseCode()).isEqualTo("F414");
+        assertThat(rejected.getResultDTO().getMerchantResponseMessage()).isEqualTo("Original transaction rejected.");
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(recordService.channelRequestCount).isZero();
+        assertThat(idempotencyService.completedCount).isEqualTo(1);
+        assertThat(duplicate.isDuplicate()).isTrue();
+        assertThat(duplicate.getResultDTO().getTransactionId()).isEqualTo(rejected.getResultDTO().getTransactionId());
+        assertThat(restoreCount).hasValue(1);
+    }
+
     /**
      * 05C-CAP-02：Capture 渠道成功后结果事务失败，重复同动作号只能返回已提交的 PROCESSING 事实，不能重新发起 Capture。
      */
@@ -979,6 +1087,56 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
         assertThat(recordService.lastFollowUpOperation.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.REFUND.getCode());
         assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
+    }
+
+    /** 退款必须复用原成功交易的渠道和 MID，禁止按 REFUND 能力重新执行商户路由。 */
+    @Test
+    void shouldRestoreOriginalChannelMidForRefundWithoutRerouting() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        AtomicInteger restoreCount = new AtomicInteger();
+        PaymentChannelRouteService sourceRouteService = new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                throw new AssertionError("refund must not reroute by REFUND capability");
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                restoreCount.incrementAndGet();
+                assertThat(channelCode).isEqualTo("MPGS");
+                assertThat(channelId).isEqualTo(101L);
+                assertThat(midConfigId).isEqualTo(1001L);
+                assertThat(fallbackMidNo).isEqualTo("TEST-MID");
+                PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed(channelCode);
+                routeResultDTO.setChannelId(channelId);
+                routeResultDTO.setMidConfigId(midConfigId);
+                routeResultDTO.setMidNo(fallbackMidNo);
+                return routeResultDTO;
+            }
+        };
+        DefaultRefundTransactionPreparationService preparationService =
+                new DefaultRefundTransactionPreparationService(
+                        isoDictionaryService(),
+                        sourceRouteService,
+                        idempotencyService,
+                        new CapturingTransactionEventOutboxService(),
+                        recordService,
+                        new DefaultTransactionStateMachineService());
+
+        RefundPreparationResultDTO resultDTO = preparationService.prepareRefund(
+                followUpCommand("REFUND-ORIGINAL-MID", new BigDecimal("5.00")),
+                "200001:TX202607230001:REFUND-ORIGINAL-MID:REFUND");
+
+        assertThat(restoreCount).hasValue(1);
+        assertThat(resultDTO.getRouteResultDTO().getChannelCode()).isEqualTo("MPGS");
+        assertThat(resultDTO.getRouteResultDTO().getMidConfigId()).isEqualTo(1001L);
     }
 
     /**
@@ -2179,14 +2337,29 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     private PaymentChannelRouteService routeService() {
-        return commandDTO -> {
-            PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
-            routeResultDTO.setChannelId(101L);
-            routeResultDTO.setMidConfigId(1001L);
-            routeResultDTO.setMidNo("TEST-MID");
-            routeResultDTO.setRequestedCurrency(commandDTO.getCurrency());
-            routeResultDTO.setRoutedCurrency(commandDTO.getCurrency());
-            return routeResultDTO;
+        return new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
+                routeResultDTO.setChannelId(101L);
+                routeResultDTO.setMidConfigId(1001L);
+                routeResultDTO.setMidNo("TEST-MID");
+                routeResultDTO.setRequestedCurrency(commandDTO.getCurrency());
+                routeResultDTO.setRoutedCurrency(commandDTO.getCurrency());
+                return routeResultDTO;
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed(channelCode);
+                routeResultDTO.setChannelId(channelId);
+                routeResultDTO.setMidConfigId(midConfigId);
+                routeResultDTO.setMidNo(fallbackMidNo);
+                return routeResultDTO;
+            }
         };
     }
 
@@ -2837,6 +3010,9 @@ class PaymentTransactionConsistencyBaselineTests {
             operationDO.setTransactionAmount(new BigDecimal("12.34"));
             operationDO.setTransactionCurrency("USD");
             operationDO.setChannelCode("MPGS");
+            operationDO.setChannelId(101L);
+            operationDO.setChannelMidConfigId(1001L);
+            operationDO.setChannelTerminalId("TEST-MID");
             operationDO.setChannelOrderNo(sourceTransactionId);
             operationDO.setChannelTransactionId("CH-" + sourceTransactionId);
             operationDO.setTransactionDateTime(TRANSACTION_TIME);

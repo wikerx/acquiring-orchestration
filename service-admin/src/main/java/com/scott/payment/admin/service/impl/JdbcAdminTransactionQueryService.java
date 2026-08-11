@@ -39,6 +39,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -86,6 +87,8 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * </p>
      */
     private static final String TRANSACTION_PAYMENT_METHOD_INFO_TABLE = "transaction_payment_method_info";
+    private static final String ACCESS_TYPE_DIRECT_API = "DIRECT_API";
+    private static final String ACCESS_TYPE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
     /**
      * TRANSACTION CHANNEL INTERACTION LOG TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易渠道interaction日志table 相关的业务属性。
      * <p>
@@ -853,6 +856,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         if (rows == null || rows.isEmpty()) {
             return;
         }
+        enrichAccessTypes(rows);
         List<String> operationIds = rows.stream()
                 .map(TransactionOperationResponse::getOperationId)
                 .filter(StringUtils::hasText)
@@ -889,6 +893,32 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setRefundedAmount(order.getRefundedAmount());
             row.setAvailableCaptureAmount(order.getAvailableCaptureAmount());
             row.setAvailableRefundAmount(order.getAvailableRefundAmount());
+        }
+    }
+
+    /** 批量识别历史收银台交易，避免为每条动作单单独查询。 */
+    private void enrichAccessTypes(List<TransactionOperationResponse> rows) {
+        List<String> unresolvedTransactionIds = rows.stream()
+                .filter(row -> !ACCESS_TYPE_HOSTED_CHECKOUT.equals(row.getAccessType()))
+                .map(TransactionOperationResponse::getTransactionId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (unresolvedTransactionIds.isEmpty()) {
+            return;
+        }
+        Set<String> hostedTransactionIds = new HashSet<>(jdbcTemplate.queryForList("""
+                SELECT DISTINCT transaction_id
+                FROM payment_checkout_attempt
+                WHERE transaction_id IN (:transactionIds)
+                  AND deleted = 0
+                """, new MapSqlParameterSource("transactionIds", unresolvedTransactionIds), String.class));
+        for (TransactionOperationResponse row : rows) {
+            if (hostedTransactionIds.contains(row.getTransactionId())) {
+                row.setAccessType(ACCESS_TYPE_HOSTED_CHECKOUT);
+            } else if (!StringUtils.hasText(row.getAccessType())) {
+                row.setAccessType(ACCESS_TYPE_DIRECT_API);
+            }
         }
     }
 
@@ -1569,9 +1599,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setChannelMatchStatus(rs.getString("channel_match_status"));
             row.setTransactionDateTime(localDateTime(rs, "transaction_date_time"));
             row.setOperationTime(localDateTime(rs, "operation_time"));
-            row.setAccessType("DIRECT_API");
+            row.setAccessType(resolveAccessType(getStringIfExists(rs, "request_source")));
             return row;
         };
+    }
+
+    /** 将支付核心可信请求来源映射为管理端接入类型。 */
+    private String resolveAccessType(String requestSource) {
+        return ACCESS_TYPE_HOSTED_CHECKOUT.equalsIgnoreCase(requestSource)
+                ? ACCESS_TYPE_HOSTED_CHECKOUT
+                : ACCESS_TYPE_DIRECT_API;
     }
 
     /**

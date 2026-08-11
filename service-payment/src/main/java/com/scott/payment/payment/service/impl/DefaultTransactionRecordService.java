@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service.impl;
 
+import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -163,6 +164,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * 商户 OpenAPI 交互日志编号前缀。
      */
     private static final String MERCHANT_API_LOG_PREFIX = "MAL";
+
+    /** 渠道适配器生成真实 HTTP 请求后写入请求扩展的 HTTP 方法。 */
+    private static final String RAW_HTTP_METHOD = "httpMethod";
 
     /**
      * RAW REQUEST HEADER JSON MASKED，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
@@ -1446,6 +1450,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         fillOrderRouteFields(orderDO, routeResultDTO, channelResponse, riskDecisionEnum);
         orderDO.setInternalRiskRecordNo(commandDTO.getRiskRecordNo());
         fillOrderRouteFieldsFromRequest(orderDO, invokeResultDTO);
+        orderDO.setMerchantWebsite(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getMerchantWebsite());
         orderDO.setTransactionDateTime(commandDTO.getTransactionDateTime());
         orderDO.setTransactionUtcTime(toUtcTime(commandDTO.getTransactionDateTime(), DEFAULT_TIME_ZONE));
         orderDO.setTransactionTimeZone(DEFAULT_TIME_ZONE);
@@ -1480,6 +1486,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
         operationDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
         operationDO.setMerchantOperationNo(commandDTO.getMerchantOrderNo());
+        operationDO.setRequestSource(commandDTO.getRequestSource());
         operationDO.setOperationSequence(INITIAL_OPERATION_SEQUENCE);
         operationDO.setTransactionType(resultDTO.getTransactionType());
         operationDO.setTransactionStatus(resultDTO.getStatus());
@@ -1550,7 +1557,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setPendingReasonCode(resultDTO.getPendingReasonCode());
         operationDO.setFailReasonCode(resultDTO.getFailReasonCode());
         operationDO.setFailReasonMessage(recordDTO.getChannelResponse() == null
-                ? resultDTO.getFailReasonCode()
+                ? resultDTO.getFailReasonMessage()
                 : recordDTO.getChannelResponse().getChannelResponseMessage());
         fillFollowUpAmountFields(operationDO, sourceOrderDO, commandDTO, resultDTO, recordDTO.getCurrencyExponent());
         fillOperationRouteFields(operationDO, recordDTO.getRouteResultDTO(), recordDTO.getChannelResponse());
@@ -2216,7 +2223,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resultDTO.getStatus(),
                 resolveMerchantResponseCode(resultDTO),
                 resolveMerchantResponseMessage(resultDTO),
-                safeLength(maskedJson(merchantVisiblePayload(commandDTO, resultDTO)), 16_000),
+                safeLength(transactionInteractionJson(merchantVisiblePayload(commandDTO, resultDTO)), 16_000),
                 now,
                 resolveDurationMillis(commandDTO.getOpenApiRequestTime(), now));
     }
@@ -3052,6 +3059,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         infoDO.setPaymentAccountHash(sha256Hex(cardNo));
         infoDO.setExpiryMonth(cardInfoDTO.getExpirationMonth());
         infoDO.setExpiryYear(cardInfoDTO.getExpirationYear());
+        if (commandDTO.getTransactionInfo() != null) {
+            infoDO.setIssuerCountry(commandDTO.getTransactionInfo().getIssuerCountry());
+        }
         if (commandDTO.getThreeDsInfo() != null) {
             infoDO.setThreeDsIndicator(commandDTO.getThreeDsInfo().getEci());
         }
@@ -3147,14 +3157,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setHttpMethod(resolveChannelHttpMethod(invokeResultDTO));
         logDO.setRequestUrlMasked(resolveChannelRequestUrl(invokeResultDTO));
         logDO.setHttpStatus(resolveChannelHttpStatus(invokeResultDTO));
-        logDO.setRequestHeaderJsonMasked(safeLength(channelRawAudit(response, RAW_REQUEST_HEADER_JSON_MASKED), 16_000));
-        logDO.setRequestBodyJsonMasked(firstText(
-                safeLength(channelRawAudit(response, RAW_REQUEST_BODY_JSON_MASKED), 16_000),
-                maskedJson(invokeResultDTO.getChannelRequest())));
+        logDO.setRequestHeaderJsonMasked(safeLength(firstText(
+                channelRawAudit(response, RAW_REQUEST_HEADER_JSON_MASKED),
+                channelRequestRawAudit(invokeResultDTO.getChannelRequest(), RAW_REQUEST_HEADER_JSON_MASKED)), 16_000));
+        logDO.setRequestBodyJsonMasked(safeLength(firstText(
+                channelRawAudit(response, RAW_REQUEST_BODY_JSON_MASKED),
+                channelRequestRawAudit(invokeResultDTO.getChannelRequest(), RAW_REQUEST_BODY_JSON_MASKED)), 16_000));
         logDO.setResponseHeaderJsonMasked(safeLength(channelRawAudit(response, RAW_RESPONSE_HEADER_JSON_MASKED), 16_000));
         logDO.setResponseBodyJsonMasked(firstText(
                 safeLength(channelRawAudit(response, RAW_RESPONSE_BODY_JSON_MASKED), 16_000),
-                maskedJson(response)));
+                transactionInteractionJson(response)));
         logDO.setExceptionType(invokeResultDTO.getExceptionType());
         logDO.setExceptionMessage(safeLength(invokeResultDTO.getExceptionMessage(), 1024));
         logDO.setDurationMillis(invokeResultDTO.getDurationMillis());
@@ -3206,7 +3218,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return null;
         }
         ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
-        return firstText(response == null ? null : response.getHttpMethod(), invokeResultDTO.getHttpMethod());
+        return firstText(
+                response == null ? null : response.getHttpMethod(),
+                channelRequestRawAudit(invokeResultDTO.getChannelRequest(), RAW_HTTP_METHOD),
+                invokeResultDTO.getHttpMethod());
     }
 
     /**
@@ -3227,7 +3242,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return firstText(
                 response == null ? null : response.getRequestUrlMasked(),
                 channelRawAudit(response, RAW_REQUEST_URL_MASKED),
+                channelRequestRawAudit(invokeResultDTO.getChannelRequest(), RAW_REQUEST_URL_MASKED),
                 invokeResultDTO.getRequestUrlMasked());
+    }
+
+    /** 读取渠道适配器在真实报文生成后写入统一请求扩展的脱敏审计字段。 */
+    private String channelRequestRawAudit(ChannelPaymentRequest request, String key) {
+        if (request == null || request.getExtension() == null || !StringUtils.hasText(key)) {
+            return null;
+        }
+        return request.getExtension().get(key);
     }
 
     /**
@@ -3505,7 +3529,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setResponseResult(resultDTO.getStatus());
         logDO.setMerchantResponseCode(resolveMerchantResponseCode(resultDTO));
         logDO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO));
-        logDO.setResponsePlainJsonMasked(safeLength(maskedJson(merchantVisiblePayload(commandDTO, resultDTO)), 16_000));
+        logDO.setResponsePlainJsonMasked(safeLength(transactionInteractionJson(merchantVisiblePayload(commandDTO, resultDTO)), 16_000));
         logDO.setDurationMillis(resolveDurationMillis(commandDTO.getOpenApiRequestTime(), now));
         fillTransactionTime(logDO, commandDTO.getTransactionDateTime());
         logDO.setCreateTime(now);
@@ -4349,6 +4373,19 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return null;
         }
         return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(value));
+    }
+
+    /**
+     * 对管理端交易交互正文执行最小脱敏，保留普通业务字段用于排障。
+     *
+     * @param value 待写入商户/渠道交互审计正文的对象
+     * @return 最小脱敏后的 JSON 文本
+     */
+    private String transactionInteractionJson(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return SensitiveDataMaskUtils.maskTransactionInteractionJsonSafely(JsonUtils.toJsonString(value));
     }
 
     /**

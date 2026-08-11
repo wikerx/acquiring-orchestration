@@ -1,7 +1,5 @@
 package com.scott.payment.admin.constant;
 
-import com.scott.payment.component.core.cache.PlatformConfigCachePolicy;
-
 import java.util.Map;
 import java.util.Set;
 
@@ -39,7 +37,12 @@ public final class SystemConfigKeys {
     /**
      * 需要校验为 HTTP(S) URL 的系统参数。
      */
-    public static final Set<String> HTTP_BASE_URL_KEYS = PlatformConfigCachePolicy.cacheableKeys();
+    public static final Set<String> HTTP_BASE_URL_KEYS = Set.of(
+            GATEWAY_BASE_URL,
+            CHECKOUT_FRONTEND_BASE_URL,
+            MERCHANT_FRONTEND_BASE_URL,
+            ADMIN_FRONTEND_BASE_URL
+    );
 
     /**
      * 邮件模板中自动注入的访问地址变量与系统参数键映射。

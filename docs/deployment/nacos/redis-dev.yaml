@@ -101,9 +101,9 @@ payment:
         # 商户 OpenAPI IP 聚合策略为常驻安全读模型；白名单或开关变化后可靠失效。
         # 环境说明：环境变量：PAYMENT_CACHE_MERCHANT_OPENAPI_TTL，dev 配置默认值为 "0s"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
         "[merchant:openapi]": ${PAYMENT_CACHE_MERCHANT_OPENAPI_TTL:0s}
-        # 仅四个非敏感公开 URL 参数进入常驻缓存；敏感配置禁止写入 Redis。
-        # 环境说明：环境变量：PAYMENT_CACHE_PUBLIC_CONFIG_TTL，dev 配置默认值为 "0s"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
-        "[config:public]": ${PAYMENT_CACHE_PUBLIC_CONFIG_TTL:0s}
+        # 全局唯一系统参数使用跨服务常驻快照；管理端变更通过事务 Outbox 精确失效。
+        # 环境说明：环境变量：PAYMENT_CACHE_SYSTEM_CONFIG_TTL，常驻缓存只允许配置为 "0s"。
+        "[system:config]": ${PAYMENT_CACHE_SYSTEM_CONFIG_TTL:0s}
   global-id:
     # 是否启用全系统统一唯一标识生成器自动装配。
     enabled: true

@@ -319,6 +319,11 @@ public class TransactionOrderDO implements Serializable {
     private String internalRiskRecordNo;
 
     /**
+     * 首次支付、授权或预授权请求中的商户网站原始 URL，用于查询接口稳定回显。
+     */
+    private String merchantWebsite;
+
+    /**
      * 商户通知地址 SHA-256。
      */
     private String callbackUrlHash;

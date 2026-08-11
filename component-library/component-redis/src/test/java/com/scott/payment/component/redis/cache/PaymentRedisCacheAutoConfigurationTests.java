@@ -31,6 +31,8 @@ import org.springframework.data.redis.serializer.SerializationException;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -96,7 +98,7 @@ class PaymentRedisCacheAutoConfigurationTests {
         assertThat(propertyNames).contains(
                 "payment.cache.redis.ttl[merchant:info]",
                 "payment.cache.redis.ttl[merchant:openapi]",
-                "payment.cache.redis.ttl[config:public]"
+                "payment.cache.redis.ttl[system:config]"
         );
     }
 
@@ -113,6 +115,8 @@ class PaymentRedisCacheAutoConfigurationTests {
 
         assertThat(configuration.getKeyPrefixFor("merchant:info"))
                 .isEqualTo("acquiring:dev:merchant:info:");
+        assertThat(configuration.getKeyPrefixFor(PaymentCacheNames.CARD_BIN))
+                .isEqualTo("acquiring:dev:cardBin:");
         assertThat(configuration.getTtlFunction().getTimeToLive("merchant:info", "200045"))
                 .isEqualTo(Duration.ofMinutes(30));
         log.info("有限期缓存物理 Key 测试完成，结果: 短前缀与 TTL 均符合约束");
@@ -129,8 +133,8 @@ class PaymentRedisCacheAutoConfigurationTests {
                 " acquiring:dev::: "
         );
 
-        assertThat(configuration.getKeyPrefixFor("config:public"))
-                .isEqualTo("acquiring:dev:config:public:");
+        assertThat(configuration.getKeyPrefixFor(PaymentCacheNames.SYSTEM_CONFIG))
+                .isEqualTo("acquiring:dev:system:config:");
         log.info("Spring Cache 前缀规范化测试完成，结果: 尾部仅保留一个分隔符");
     }
 
@@ -170,22 +174,28 @@ class PaymentRedisCacheAutoConfigurationTests {
                 properties
         );
         cacheManager.afterPropertiesSet();
-        TransactionAwareCacheDecorator cacheDecorator = (TransactionAwareCacheDecorator) cacheManager
-                .getCache(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE);
-        RedisCache redisCache = (RedisCache) cacheDecorator.getTargetCache();
-        RedisCacheConfiguration configuration = redisCache.getCacheConfiguration();
-
         assertThat(properties.getTtlJitterPercent()).isEqualTo(10);
-        assertThat(configuration.getTtl()).isZero();
-        assertThat(configuration.getTtlFunction().getTimeToLive("200045", "value")).isZero();
+        for (String cacheName : List.of(
+                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+                PaymentCacheNames.SYSTEM_CONFIG,
+                PaymentCacheNames.ADMIN_USER_PROFILE,
+                PaymentCacheNames.CARD_BIN)) {
+            TransactionAwareCacheDecorator cacheDecorator = (TransactionAwareCacheDecorator) cacheManager
+                    .getCache(cacheName);
+            RedisCache redisCache = (RedisCache) cacheDecorator.getTargetCache();
+            RedisCacheConfiguration configuration = redisCache.getCacheConfiguration();
+
+            assertThat(configuration.getTtl()).as(cacheName).isZero();
+            assertThat(configuration.getTtlFunction().getTimeToLive("business-key", "value"))
+                    .as(cacheName)
+                    .isZero();
+        }
         log.info("常驻业务缓存测试完成，结果: 物理 TTL 为零且未应用随机抖动");
     }
 
-    /**
-     * CacheManager 只能创建 Registry 已登记的 Cache，避免业务绕过 Catalog 动态扩展命名空间。
-     */
+    /** 未登记的普通缓存按全局默认 TTL 动态创建，不要求每次使用 @Cacheable 都修改 Registry。 */
     @Test
-    void shouldRejectCacheNamesOutsideRegistry() {
+    void shouldCreateUnregisteredCacheWithDefaultTtl() {
         RedisCacheManager cacheManager = (RedisCacheManager) autoConfiguration.redisCacheManager(
                 mock(RedisConnectionFactory.class),
                 new PaymentCacheProperties()
@@ -193,7 +203,46 @@ class PaymentRedisCacheAutoConfigurationTests {
         cacheManager.afterPropertiesSet();
 
         assertThat(cacheManager.getCache(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE)).isNotNull();
-        assertThat(cacheManager.getCache("unregistered:cache")).isNull();
+        TransactionAwareCacheDecorator dynamicCache = (TransactionAwareCacheDecorator)
+                cacheManager.getCache("ordinary:query");
+        assertThat(dynamicCache).isNotNull();
+        RedisCache redisCache = (RedisCache) dynamicCache.getTargetCache();
+        assertThat(redisCache.getCacheConfiguration().getTtl())
+                .isBetween(Duration.ofMinutes(9), Duration.ofMinutes(11));
+    }
+
+    /**
+     * 公共缓存名称必须全部进入 Registry，避免业务注解在运行时因缓存未登记而中断请求。
+     */
+    @Test
+    void shouldRegisterEveryDeclaredPaymentCacheName() throws IllegalAccessException {
+        RedisCacheManager cacheManager = (RedisCacheManager) autoConfiguration.redisCacheManager(
+                mock(RedisConnectionFactory.class),
+                new PaymentCacheProperties()
+        );
+        cacheManager.afterPropertiesSet();
+
+        for (Field field : PaymentCacheNames.class.getFields()) {
+            if (Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
+                String cacheName = (String) field.get(null);
+                assertThat(cacheManager.getCache(cacheName))
+                        .as("Payment cache must be registered: %s", cacheName)
+                        .isNotNull();
+            }
+        }
+    }
+
+    /**
+     * 后台用户资料缓存必须显式登记为不携带物理过期时间的常驻读模型。
+     */
+    @Test
+    void shouldRegisterAdminUserProfileAsPersistentCache() {
+        log.info("测试后台用户资料缓存生命周期，关键输入: cacheName=admin:user:profile");
+
+        assertThat(PaymentCacheRegistry.defaultTtls())
+                .containsEntry("admin:user:profile", Duration.ZERO);
+
+        log.info("后台用户资料缓存生命周期验证完成，结果: 已登记为 Duration.ZERO");
     }
 
     /**
@@ -227,9 +276,9 @@ class PaymentRedisCacheAutoConfigurationTests {
      */
     @Test
     void shouldRejectPositiveOverrideForPersistentCache() {
-        log.info("测试常驻缓存配置保护，关键输入: config:public 被覆盖为 5 分钟");
+        log.info("测试常驻缓存配置保护，关键输入: system:config 被覆盖为 5 分钟");
         PaymentCacheProperties properties = new PaymentCacheProperties();
-        properties.setTtl(Map.of(PaymentCacheNames.PLATFORM_CONFIG, Duration.ofMinutes(5)));
+        properties.setTtl(Map.of(PaymentCacheNames.SYSTEM_CONFIG, Duration.ofMinutes(5)));
 
         assertThatIllegalArgumentException().isThrownBy(() -> autoConfiguration.redisCacheManager(
                 mock(RedisConnectionFactory.class),
@@ -255,7 +304,7 @@ class PaymentRedisCacheAutoConfigurationTests {
         );
         cacheManager.afterPropertiesSet();
         TransactionAwareCacheDecorator cacheDecorator = (TransactionAwareCacheDecorator) cacheManager
-                .getCache(PaymentCacheNames.PLATFORM_CONFIG);
+                .getCache(PaymentCacheNames.SYSTEM_CONFIG);
         RedisCache redisCache = (RedisCache) cacheDecorator.getTargetCache();
 
         cacheDecorator.get("missing-config");
@@ -302,8 +351,10 @@ class PaymentRedisCacheAutoConfigurationTests {
     void shouldFailOpenForReadsAndEscalateSecurityEvictionFailures() {
         Cache securityCache = mock(Cache.class);
         when(securityCache.getName()).thenReturn(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE);
+        Cache systemConfigCache = mock(Cache.class);
+        when(systemConfigCache.getName()).thenReturn(PaymentCacheNames.SYSTEM_CONFIG);
         Cache ordinaryCache = mock(Cache.class);
-        when(ordinaryCache.getName()).thenReturn(PaymentCacheNames.PLATFORM_CONFIG);
+        when(ordinaryCache.getName()).thenReturn("ordinary:query");
         CacheErrorHandler errorHandler = autoConfiguration.paymentCacheErrorHandler(
                 RedisBusinessMetrics.noop()
         );
@@ -323,6 +374,9 @@ class PaymentRedisCacheAutoConfigurationTests {
                 .isSameAs(redisFailure);
         assertThatThrownBy(() ->
                 errorHandler.handleCacheClearError(redisFailure, securityCache))
+                .isSameAs(redisFailure);
+        assertThatThrownBy(() ->
+                errorHandler.handleCacheEvictError(redisFailure, systemConfigCache, "system.name"))
                 .isSameAs(redisFailure);
         assertThatCode(() ->
                 errorHandler.handleCacheEvictError(redisFailure, ordinaryCache, "system.name"))

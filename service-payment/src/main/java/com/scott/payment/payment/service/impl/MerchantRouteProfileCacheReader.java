@@ -6,17 +6,20 @@ import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.route.model.MerchantRouteProfile;
 import com.scott.payment.component.db.route.model.MerchantRouteProfile.RouteOption;
+import com.scott.payment.payment.entity.ChannelCapabilityCardBrandDO;
 import com.scott.payment.payment.entity.ChannelCapabilityCurrencyDO;
 import com.scott.payment.payment.entity.ChannelInfoDO;
 import com.scott.payment.payment.entity.ChannelMidConfigDO;
 import com.scott.payment.payment.entity.ChannelPaymentCapabilityDO;
 import com.scott.payment.payment.entity.MerchantChannelMidBindingDO;
+import com.scott.payment.payment.mapper.PaymentChannelCapabilityCardBrandMapper;
 import com.scott.payment.payment.mapper.PaymentChannelCapabilityCurrencyMapper;
 import com.scott.payment.payment.mapper.PaymentChannelInfoMapper;
 import com.scott.payment.payment.mapper.PaymentChannelMidConfigMapper;
 import com.scott.payment.payment.mapper.PaymentChannelPaymentCapabilityMapper;
 import com.scott.payment.payment.mapper.PaymentMerchantChannelMidBindingMapper;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -35,7 +38,7 @@ import java.util.stream.Collectors;
  * @classname : MerchantRouteProfileCacheReader
  * @date : 2026-08-01 15:35
  * @email : scott_x@163.com
- * @description : 使用五次有界批量主库查询构建 merchant:route 永久快照，禁止把渠道敏感元数据写入 Redis
+ * @description : 使用六次有界批量主库查询构建 merchant:route 永久快照，禁止把渠道敏感元数据写入 Redis
  * @status : create
  */
 @Service
@@ -68,6 +71,9 @@ public class MerchantRouteProfileCacheReader {
     /** 渠道能力币种 Mapper。 */
     private final PaymentChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
 
+    /** 渠道能力卡品牌 Mapper。 */
+    private final PaymentChannelCapabilityCardBrandMapper capabilityCardBrandMapper;
+
     /**
      * 创建商户路由快照读取器。
      */
@@ -75,12 +81,14 @@ public class MerchantRouteProfileCacheReader {
                                            PaymentChannelMidConfigMapper midConfigMapper,
                                            PaymentChannelInfoMapper channelInfoMapper,
                                            PaymentChannelPaymentCapabilityMapper capabilityMapper,
-                                           PaymentChannelCapabilityCurrencyMapper capabilityCurrencyMapper) {
+                                           PaymentChannelCapabilityCurrencyMapper capabilityCurrencyMapper,
+                                           PaymentChannelCapabilityCardBrandMapper capabilityCardBrandMapper) {
         this.midBindingMapper = midBindingMapper;
         this.midConfigMapper = midConfigMapper;
         this.channelInfoMapper = channelInfoMapper;
         this.capabilityMapper = capabilityMapper;
         this.capabilityCurrencyMapper = capabilityCurrencyMapper;
+        this.capabilityCardBrandMapper = capabilityCardBrandMapper;
     }
 
     /**
@@ -100,9 +108,17 @@ public class MerchantRouteProfileCacheReader {
         return load(merchantId);
     }
 
+    /** 仅供缓存门面在识别到旧结构快照时原 Key 在线升级。 */
+    @DS(DataSourceName.MASTER)
+    @CachePut(cacheNames = PaymentCacheNames.MERCHANT_ROUTE, key = "#p0")
+    public MerchantRouteProfile refreshCached(String merchantId) {
+        return load(merchantId);
+    }
+
     /** 使用批量查询组装不含渠道凭据的商户路由快照。 */
     private MerchantRouteProfile load(String merchantId) {
         MerchantRouteProfile profile = new MerchantRouteProfile();
+        profile.setSchemaVersion(MerchantRouteProfile.CURRENT_SCHEMA_VERSION);
         profile.setMerchantId(merchantId);
         List<MerchantChannelMidBindingDO> bindings = safeList(midBindingMapper.selectList(
                 Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
@@ -171,6 +187,20 @@ public class MerchantRouteProfileCacheReader {
                         ChannelCapabilityCurrencyDO::getCapabilityId,
                         Collectors.mapping(row -> normalize(row.getCurrencyCode()), Collectors.toList())
                 ));
+        List<ChannelCapabilityCardBrandDO> cardBrandRows = safeList(capabilityCardBrandMapper.selectList(
+                Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
+                        .in(ChannelCapabilityCardBrandDO::getCapabilityId, capabilityIds)
+                        .eq(ChannelCapabilityCardBrandDO::getBrandStatus, ENABLED)
+                        .eq(ChannelCapabilityCardBrandDO::getDeleted, NOT_DELETED)
+                        .orderByAsc(ChannelCapabilityCardBrandDO::getSortOrder)
+                        .orderByAsc(ChannelCapabilityCardBrandDO::getId)
+        ));
+        Map<Long, List<String>> cardBrandsByCapability = cardBrandRows.stream()
+                .filter(row -> row.getCapabilityId() != null && StringUtils.hasText(row.getCardBrand()))
+                .collect(Collectors.groupingBy(
+                        ChannelCapabilityCardBrandDO::getCapabilityId,
+                        Collectors.mapping(row -> normalize(row.getCardBrand()), Collectors.toList())
+                ));
         Map<Long, List<ChannelPaymentCapabilityDO>> capabilitiesByChannel = capabilities.stream()
                 .collect(Collectors.groupingBy(ChannelPaymentCapabilityDO::getChannelId));
 
@@ -188,7 +218,14 @@ public class MerchantRouteProfileCacheReader {
                         mid.getCurrencyScope()
                 );
                 if (!supportedCurrencies.isEmpty()) {
-                    options.add(toOption(binding, mid, channel, capability, supportedCurrencies));
+                    options.add(toOption(
+                            binding,
+                            mid,
+                            channel,
+                            capability,
+                            supportedCurrencies,
+                            cardBrandsByCapability.getOrDefault(capability.getId(), List.of())
+                    ));
                 }
             }
         }
@@ -196,12 +233,13 @@ public class MerchantRouteProfileCacheReader {
         return profile;
     }
 
-    /** 将五张表的非敏感字段展平为稳定缓存对象。 */
+    /** 将渠道运行时配置的非敏感字段展平为稳定缓存对象。 */
     private RouteOption toOption(MerchantChannelMidBindingDO binding,
                                  ChannelMidConfigDO mid,
                                  ChannelInfoDO channel,
                                  ChannelPaymentCapabilityDO capability,
-                                 List<String> supportedCurrencies) {
+                                 List<String> supportedCurrencies,
+                                 List<String> supportedCardBrands) {
         RouteOption option = new RouteOption();
         option.setBindingId(binding.getId());
         option.setBindingStatus(binding.getBindingStatus());
@@ -230,6 +268,12 @@ public class MerchantRouteProfileCacheReader {
         option.setCapabilityBusinessType(capability.getBusinessType());
         option.setCapabilityPaymentMethod(capability.getPaymentMethod());
         option.setCapabilityTransactionType(capability.getTransactionType());
+        option.setCapabilitySupportedCardBrands(supportedCardBrands.stream()
+                .filter(StringUtils::hasText)
+                .distinct()
+                .collect(Collectors.toCollection(ArrayList::new)));
+        option.setCapabilitySupport3ds(capability.getSupport3ds());
+        option.setCapabilitySupportIncrementalAuthorization(capability.getSupportIncrementalAuthorization());
         option.setCapabilityStatus(capability.getCapabilityStatus());
         option.setCapabilitySortOrder(capability.getSortOrder());
         option.setSupportedCurrencies(new ArrayList<>(supportedCurrencies));

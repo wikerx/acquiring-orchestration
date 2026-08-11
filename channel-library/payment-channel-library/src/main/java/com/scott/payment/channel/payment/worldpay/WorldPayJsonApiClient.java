@@ -140,10 +140,10 @@ public class WorldPayJsonApiClient {
     );
 
     /**
-     * WorldPay JSON 个人信息字段脱敏规则，避免持卡人姓名和账单地址完整进入渠道日志。
+     * WorldPay JSON 卡有效期脱敏规则。
      */
-    private static final Pattern WORLDPAY_PERSONAL_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:cardHolderName|address1|postalCode|email|phone)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+    private static final Pattern WORLDPAY_EXPIRY_PATTERN = Pattern.compile(
+            "(\"cardExpiryDate\"\\s*:\\s*\\{\\s*\"month\"\\s*:\\s*\")([^\"\\\\]*)(\"\\s*,\\s*\"year\"\\s*:\\s*\")([^\"\\\\]*)(\"\\s*})",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -996,13 +996,14 @@ public class WorldPayJsonApiClient {
     /**
      * 对 WPGJSON 请求/响应执行脱敏。
      * <p>
-     * 先复用全局 JSON 脱敏工具，再补充 WorldPay JSON 中 cardNumber、cvc、cavv 和 Basic Auth 相关字段，确保日志、测试和审计字段使用同一套规则。
+     * 先复用交易交互正文最小脱敏工具，再补充 WorldPay JSON 中 cardNumber、cardExpiryDate、cvc、cavv 和 Basic Auth 相关字段，
+     * 确保日志、测试和审计字段使用同一套规则。
      * </p>
      * @param json 原始 JSON
      * @return 脱敏后的 JSON
      */
     static String maskWorldPayJson(String json) {
-        String masked = SensitiveDataMaskUtils.maskJsonSafely(json);
+        String masked = SensitiveDataMaskUtils.maskTransactionInteractionJsonSafely(json);
         if (masked == null || masked.isEmpty()) {
             return masked;
         }
@@ -1013,8 +1014,9 @@ public class WorldPayJsonApiClient {
                         + matchResult.group(4)
                         + matchResult.group(5)
         ));
+        masked = WORLDPAY_EXPIRY_PATTERN.matcher(masked).replaceAll("$1***$3***$5");
         masked = WORLDPAY_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
-        return WORLDPAY_PERSONAL_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        return masked;
     }
 
     /**

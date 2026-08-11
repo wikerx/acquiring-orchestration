@@ -585,7 +585,8 @@ public class PaymentServiceImpl implements PaymentService {
         clientRequestDTO.setOpenApiRequestPath(resolveRequestPath());
         clientRequestDTO.setOpenApiRequestTime(LocalDateTime.now());
         clientRequestDTO.setMerchantRequestCipherMasked(maskCipher(encryptedData));
-        clientRequestDTO.setMerchantRequestPlainJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(requestDTO)));
+        clientRequestDTO.setMerchantRequestPlainJsonMasked(
+                SensitiveDataMaskUtils.maskTransactionInteractionJsonSafely(JsonUtils.toJsonString(requestDTO)));
         clientRequestDTO.setSubMerchantInfo(converter.toPaymentClientSubMerchantInfo(
                 requestDTO.getMerchantInfo() == null ? null : requestDTO.getMerchantInfo().getSubMerchantInfo()));
         clientRequestDTO.setBillingCardHolderInfo(converter.toPaymentClientBillingCardHolderInfo(requestDTO.getBillingCardHolderInfo()));
@@ -593,8 +594,27 @@ public class PaymentServiceImpl implements PaymentService {
         clientRequestDTO.setThreeDsInfo(converter.toPaymentClientThreeDsInfo(requestDTO.getThreeDsInfo()));
         clientRequestDTO.setTransactionInfo(converter.toPaymentClientTransactionInfo(requestDTO.getTransactionInfo()));
         clientRequestDTO.setRiskContext(converter.toPaymentClientRiskContext(requestDTO.getRiskContext()));
+        clientRequestDTO.setSourceUrl(resolveMerchantWebsite(requestDTO, operation));
         populateRequestSource(clientRequestDTO);
         return clientRequestDTO;
+    }
+
+    /**
+     * 仅首次支付类接口使用商户上送网站执行来源网址限定，后续动作不得改变生命周期来源。
+     *
+     * @param requestDTO 商户请求
+     * @param operation 当前交易动作
+     * @return 商户网站原值，非首次支付动作返回 null
+     */
+    private String resolveMerchantWebsite(ApiMerchantPaymentRequestDTO requestDTO,
+                                          OpenApiPaymentOperationEnum operation) {
+        if (operation != OpenApiPaymentOperationEnum.PAYMENT
+                && operation != OpenApiPaymentOperationEnum.AUTHORIZATION
+                && operation != OpenApiPaymentOperationEnum.PRE_AUTHORIZATION) {
+            return null;
+        }
+        return requestDTO == null || requestDTO.getTransactionInfo() == null
+                ? null : requestDTO.getTransactionInfo().getMerchantWebsite();
     }
 
     /**
@@ -858,8 +878,6 @@ public class PaymentServiceImpl implements PaymentService {
         HttpServletRequest request = attributes.getRequest();
         clientRequestDTO.setPayerIp(resolveClientIp(request));
         clientRequestDTO.setUserAgent(request.getHeader(USER_AGENT));
-        String origin = request.getHeader(ORIGIN);
-        clientRequestDTO.setSourceUrl(StringUtils.hasText(origin) ? origin : request.getHeader(REFERER));
     }
 
     /**

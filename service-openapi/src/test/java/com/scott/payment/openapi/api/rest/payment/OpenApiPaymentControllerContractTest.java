@@ -1,6 +1,7 @@
 package com.scott.payment.openapi.api.rest.payment;
 
 import com.scott.payment.component.web.version.ApiVersion;
+import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiAuthorizationController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiCaptureController;
@@ -11,6 +12,7 @@ import com.scott.payment.openapi.api.rest.payment.v1.OpenApiPreAuthCompletionCon
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiPreAuthorizationController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiRefundController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiVoidController;
+import com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentResponseFactory;
 import com.scott.payment.openapi.application.payment.OpenApiAuthorizationApplicationService;
 import com.scott.payment.openapi.application.payment.OpenApiCaptureApplicationService;
 import com.scott.payment.openapi.application.payment.OpenApiIncrementalAuthorizationApplicationService;
@@ -21,13 +23,16 @@ import com.scott.payment.openapi.application.payment.OpenApiPreAuthorizationAppl
 import com.scott.payment.openapi.application.payment.OpenApiRefundApplicationService;
 import com.scott.payment.openapi.application.payment.OpenApiVoidApplicationService;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
+import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -67,6 +72,42 @@ class OpenApiPaymentControllerContractTest {
             assertDedicatedApplicationService(controllerCase);
         }
         log.info("收单 OpenAPI 控制器契约校验完成，caseCount: {}", controllerCases().size());
+    }
+
+    /**
+     * 商户请求只允许上送来源网站，卡品牌必须由平台识别后在响应中返回。
+     */
+    @Test
+    void shouldExposeMerchantWebsiteButNotCardBrandInMerchantRequest() {
+        List<String> fieldNames = Arrays.stream(ApiMerchantPaymentRequestDTO.TransactionInfoDTO.class.getDeclaredFields())
+                .map(Field::getName)
+                .toList();
+
+        assertThat(fieldNames).contains("merchantWebsite").doesNotContain("cardBrand");
+
+        ApiMerchantPaymentRequestDTO.TransactionInfoDTO transactionInfo =
+                new ApiMerchantPaymentRequestDTO.TransactionInfoDTO();
+        transactionInfo.setMerchantWebsite("https://merchant.example/checkout?order=10001");
+        assertThat(transactionInfo.isMerchantWebsiteValid()).isTrue();
+        transactionInfo.setMerchantWebsite("https://user:secret@merchant.example/checkout");
+        assertThat(transactionInfo.isMerchantWebsiteValid()).isFalse();
+    }
+
+    /** 创建类交易业务失败时，顶层响应码与加密 data 内的当前交易结果保持一致。 */
+    @Test
+    void shouldKeepFailedTransactionDataAndExposeF414AtEnvelopeLevel() {
+        PaymentCreateVO response = new PaymentCreateVO();
+        PaymentCreateVO.TransactionInfoVO transactionInfo = new PaymentCreateVO.TransactionInfoVO();
+        transactionInfo.setCode("F414");
+        transactionInfo.setMessage("Original transaction rejected.");
+        transactionInfo.setTransactionId("TX-F414-001");
+        response.setTransactionInfo(transactionInfo);
+
+        CommonResult<PaymentCreateVO> result = OpenApiPaymentResponseFactory.from(response);
+
+        assertThat(result.getCode()).isEqualTo("F414");
+        assertThat(result.getMessage()).isEqualTo("Original transaction rejected.");
+        assertThat(result.getData()).isSameAs(response);
     }
 
     /**

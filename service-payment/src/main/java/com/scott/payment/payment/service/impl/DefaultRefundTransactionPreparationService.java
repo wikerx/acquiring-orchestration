@@ -338,7 +338,32 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentCreateResultDTO resultDTO = buildRefundResult(commandDTO, sourceOrderDO, transactionId);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
-        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
+        PaymentRouteResultDTO routeResultDTO;
+        try {
+            routeResultDTO = restoreSourceRoute(sourceOrderDO, sourceOperationDO);
+        } catch (ServiceException exception) {
+            if (!OriginalTransactionRejectionSupport.isOriginalTransactionRejected(exception)) {
+                throw exception;
+            }
+            PaymentRouteResultDTO sourceRouteSnapshot = OriginalTransactionRouteResolver.snapshot(
+                    sourceOrderDO, sourceOperationDO);
+            OriginalTransactionRejectionSupport.apply(resultDTO);
+            enrichRefundResult(commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO);
+            OriginalTransactionRejectionSupport.apply(resultDTO);
+            recordRefundPreparedFact(
+                    commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO, currencyExponent);
+            saveTransactionCreatedEvent(commandDTO, resultDTO);
+            completeIdempotency(idempotencyKey, commandDTO, resultDTO);
+            RefundPreparationResultDTO target = new RefundPreparationResultDTO();
+            target.setCallChannel(false);
+            target.setIdempotencyKey(idempotencyKey);
+            target.setCommandDTO(commandDTO);
+            target.setSourceOrderDO(sourceOrderDO);
+            target.setRouteResultDTO(sourceRouteSnapshot);
+            target.setResultDTO(resultDTO);
+            target.setCurrencyExponent(currencyExponent);
+            return target;
+        }
         boolean approvalRequired = refundApprovalPolicyService.requiresApproval(commandDTO.getRefundScope());
         resultDTO.setStatus(approvalRequired
                 ? PaymentTransactionStatusEnum.PENDING.getCode()
@@ -376,6 +401,19 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         target.setResultDTO(resultDTO);
         target.setCurrencyExponent(currencyExponent);
         return target;
+    }
+
+    /**
+     * 从原交易事实恢复退款渠道身份，退款不得按当前商户路由重新选择其他 MID。
+     *
+     * @param sourceOrderDO 原交易主单
+     * @param sourceOperationDO 原交易动作单
+     * @return 原交易渠道和 MID 对应的路由快照
+     */
+    private PaymentRouteResultDTO restoreSourceRoute(TransactionOrderDO sourceOrderDO,
+                                                     TransactionOperationDO sourceOperationDO) {
+        return OriginalTransactionRouteResolver.restore(
+                paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
     }
 
     /**

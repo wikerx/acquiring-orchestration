@@ -4,11 +4,13 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.component.db.route.model.MerchantRouteProfile;
 import com.scott.payment.payment.entity.ChannelCapabilityCurrencyDO;
+import com.scott.payment.payment.entity.ChannelCapabilityCardBrandDO;
 import com.scott.payment.payment.entity.ChannelInfoDO;
 import com.scott.payment.payment.entity.ChannelMidConfigDO;
 import com.scott.payment.payment.entity.ChannelPaymentCapabilityDO;
 import com.scott.payment.payment.entity.MerchantChannelMidBindingDO;
 import com.scott.payment.payment.mapper.PaymentChannelCapabilityCurrencyMapper;
+import com.scott.payment.payment.mapper.PaymentChannelCapabilityCardBrandMapper;
 import com.scott.payment.payment.mapper.PaymentChannelInfoMapper;
 import com.scott.payment.payment.mapper.PaymentChannelMidConfigMapper;
 import com.scott.payment.payment.mapper.PaymentChannelPaymentCapabilityMapper;
@@ -38,6 +40,18 @@ import static org.mockito.Mockito.when;
  */
 class MerchantRouteProfileCacheReaderTests {
 
+    /** 交易路由快照必须承载管理端支付能力中的运行时约束。 */
+    @Test
+    void shouldExposeCapabilityRuntimePolicyFields() {
+        assertThat(List.of(MerchantRouteProfile.RouteOption.class.getDeclaredFields()))
+                .extracting(Field::getName)
+                .contains(
+                        "capabilitySupportedCardBrands",
+                        "capabilitySupport3ds",
+                        "capabilitySupportIncrementalAuthorization"
+                );
+    }
+
     /** 初始化 MyBatis-Plus Lambda 字段缓存。 */
     @BeforeEach
     void setUp() {
@@ -46,13 +60,14 @@ class MerchantRouteProfileCacheReaderTests {
         initializeTableInfo(ChannelInfoDO.class);
         initializeTableInfo(ChannelPaymentCapabilityDO.class);
         initializeTableInfo(ChannelCapabilityCurrencyDO.class);
+        initializeTableInfo(ChannelCapabilityCardBrandDO.class);
     }
 
     /**
      * 验证路由聚合按 Mapper 各执行一次批量查询，并剔除 metadata_value_json。
      */
     @Test
-    void shouldBuildNonSensitiveRouteProfileWithFiveBatchQueries() {
+    void shouldBuildNonSensitiveRouteProfileWithSixBatchQueries() {
         PaymentMerchantChannelMidBindingMapper bindingMapper =
                 mock(PaymentMerchantChannelMidBindingMapper.class);
         PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
@@ -61,17 +76,21 @@ class MerchantRouteProfileCacheReaderTests {
                 mock(PaymentChannelPaymentCapabilityMapper.class);
         PaymentChannelCapabilityCurrencyMapper currencyMapper =
                 mock(PaymentChannelCapabilityCurrencyMapper.class);
+        PaymentChannelCapabilityCardBrandMapper cardBrandMapper =
+                mock(PaymentChannelCapabilityCardBrandMapper.class);
         when(bindingMapper.selectList(any())).thenReturn(List.of(binding()));
         when(midMapper.selectList(any())).thenReturn(List.of(mid()));
         when(channelMapper.selectList(any())).thenReturn(List.of(channel()));
         when(capabilityMapper.selectList(any())).thenReturn(List.of(capability()));
         when(currencyMapper.selectList(any())).thenReturn(List.of(currency()));
+        when(cardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand()));
         MerchantRouteProfileCacheReader reader = new MerchantRouteProfileCacheReader(
                 bindingMapper,
                 midMapper,
                 channelMapper,
                 capabilityMapper,
-                currencyMapper
+                currencyMapper,
+                cardBrandMapper
         );
 
         MerchantRouteProfile profile = reader.findFresh("200045");
@@ -82,6 +101,9 @@ class MerchantRouteProfileCacheReaderTests {
             assertThat(option.getMidConfigId()).isEqualTo(10L);
             assertThat(option.getChannelCode()).isEqualTo("MPGS");
             assertThat(option.getCardBrandScope()).isEqualTo("VISA,MASTERCARD");
+            assertThat(option.getCapabilitySupportedCardBrands()).containsExactly("VISA");
+            assertThat(option.getCapabilitySupport3ds()).isEqualTo(1);
+            assertThat(option.getCapabilitySupportIncrementalAuthorization()).isZero();
             assertThat(option.getSupportedCurrencies()).containsExactly("USD");
         });
         assertThat(List.of(MerchantRouteProfile.RouteOption.class.getDeclaredFields()))
@@ -92,6 +114,7 @@ class MerchantRouteProfileCacheReaderTests {
         verify(channelMapper).selectList(any());
         verify(capabilityMapper).selectList(any());
         verify(currencyMapper).selectList(any());
+        verify(cardBrandMapper).selectList(any());
     }
 
     /** 构造启用的商户 MID 绑定。 */
@@ -148,6 +171,8 @@ class MerchantRouteProfileCacheReaderTests {
         row.setBusinessType("ACQUIRING");
         row.setPaymentMethod("BANK_CARD");
         row.setTransactionType("PAYMENT");
+        row.setSupport3ds(1);
+        row.setSupportIncrementalAuthorization(0);
         row.setCapabilityStatus(1);
         row.setSortOrder(1);
         row.setDeleted(0L);
@@ -161,6 +186,18 @@ class MerchantRouteProfileCacheReaderTests {
         row.setCapabilityId(30L);
         row.setCurrencyCode("USD");
         row.setCurrencyStatus(1);
+        row.setDeleted(0L);
+        return row;
+    }
+
+    /** 构造能力支持卡品牌。 */
+    private ChannelCapabilityCardBrandDO cardBrand() {
+        ChannelCapabilityCardBrandDO row = new ChannelCapabilityCardBrandDO();
+        row.setId(50L);
+        row.setCapabilityId(30L);
+        row.setCardBrand("VISA");
+        row.setBrandStatus(1);
+        row.setSortOrder(1);
         row.setDeleted(0L);
         return row;
     }

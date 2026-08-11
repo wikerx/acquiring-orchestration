@@ -1889,6 +1889,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         target.setArn(operationDO.getAcquirerReferenceNo());
         target.setDescription(null);
         target.setCallbackUrl(null);
+        target.setMerchantWebsite(orderDO.getMerchantWebsite());
         return target;
     }
 
@@ -2046,6 +2047,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         enrichPaymentMethodSummary(resultDTO, channelResponse);
         resultDTO.setDescription(commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getDescription());
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
+        resultDTO.setMerchantWebsite(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getMerchantWebsite());
         if (channelResponse != null) {
             resultDTO.setAuthCode(channelResponse.getAuthCode());
             resultDTO.setAcquirerReferenceNo(channelResponse.getAcquirerReferenceNo());

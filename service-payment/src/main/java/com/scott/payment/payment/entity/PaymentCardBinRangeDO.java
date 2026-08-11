@@ -17,6 +17,9 @@ public class PaymentCardBinRangeDO {
     private Long cardBinEnd;
     private Integer binLength;
     private String cardBrand;
+    private String issuerCountryName;
+    private String issuerCountryAlpha2;
+    private String issuerCountryAlpha3;
     private Integer sourcePriority;
     private LocalDateTime effectiveTime;
     private LocalDateTime expireTime;

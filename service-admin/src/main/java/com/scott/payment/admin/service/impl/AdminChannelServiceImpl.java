@@ -577,6 +577,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @Transactional(rollbackFor = Exception.class)
     public LimitResponse createLimit(LimitSaveRequest request) {
         ChannelInfoDO channel = validateLimitRequest(request, null);
+        prepareRouteInvalidationByChannel(channel.getId());
         ChannelLimitRuleDO entity = new ChannelLimitRuleDO();
         fillLimit(entity, request, channel, LocalDateTime.now());
         entity.setCreateTime(entity.getUpdateTime());
@@ -639,6 +640,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     public LimitResponse updateLimit(Long id, LimitSaveRequest request) {
         ChannelLimitRuleDO entity = findLimit(id);
         ChannelInfoDO channel = validateLimitRequest(request, id);
+        prepareRouteInvalidationByChannel(entity.getChannelId());
+        if (!Objects.equals(entity.getChannelId(), channel.getId())) {
+            prepareRouteInvalidationByChannel(channel.getId());
+        }
         fillLimit(entity, request, channel, LocalDateTime.now());
         limitRuleMapper.updateById(entity);
         return toLimitResponse(entity, channel);
@@ -656,6 +661,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     public LimitResponse updateLimitStatus(Long id, Integer status) {
         ChannelLimitRuleDO entity = findLimit(id);
         validateStatus(status);
+        prepareRouteInvalidationByChannel(entity.getChannelId());
         entity.setRuleStatus(status);
         entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
@@ -672,6 +678,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteLimit(Long id) {
         ChannelLimitRuleDO entity = findLimit(id);
+        prepareRouteInvalidationByChannel(entity.getChannelId());
         entity.setDeleted(entity.getId());
         entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());

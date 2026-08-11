@@ -314,7 +314,33 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentCreateResultDTO resultDTO = buildCaptureResult(commandDTO, sourceOrderDO, transactionId, transactionType);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
-        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
+        PaymentRouteResultDTO routeResultDTO;
+        try {
+            routeResultDTO = OriginalTransactionRouteResolver.restore(
+                    paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
+        } catch (ServiceException exception) {
+            if (!OriginalTransactionRejectionSupport.isOriginalTransactionRejected(exception)) {
+                throw exception;
+            }
+            PaymentRouteResultDTO sourceRouteSnapshot = OriginalTransactionRouteResolver.snapshot(
+                    sourceOrderDO, sourceOperationDO);
+            OriginalTransactionRejectionSupport.apply(resultDTO);
+            enrichCaptureResult(commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO);
+            OriginalTransactionRejectionSupport.apply(resultDTO);
+            recordCapturePreparedFact(
+                    commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO, currencyExponent);
+            saveTransactionCreatedEvent(commandDTO, resultDTO);
+            completeIdempotency(idempotencyKey, commandDTO, resultDTO);
+            CapturePreparationResultDTO target = new CapturePreparationResultDTO();
+            target.setCallChannel(false);
+            target.setIdempotencyKey(idempotencyKey);
+            target.setCommandDTO(commandDTO);
+            target.setSourceOrderDO(sourceOrderDO);
+            target.setRouteResultDTO(sourceRouteSnapshot);
+            target.setResultDTO(resultDTO);
+            target.setCurrencyExponent(currencyExponent);
+            return target;
+        }
         resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
         enrichCaptureResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);
