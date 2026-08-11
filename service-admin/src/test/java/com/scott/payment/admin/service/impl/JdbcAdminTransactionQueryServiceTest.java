@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -284,6 +285,8 @@ class JdbcAdminTransactionQueryServiceTest {
         LocalDateTime rootTime = LocalDateTime.of(2026, 4, 10, 9, 15, 30);
         TransactionOperationResponse firstOperation = operation("operation-a", "transaction-a", actionTime);
         TransactionOperationResponse secondOperation = operation("operation-b", "transaction-b", actionTime.plusSeconds(1));
+        firstOperation.setAccessType("DIRECT_API");
+        secondOperation.setAccessType("DIRECT_API");
         TransactionOrderResponse firstOrder = order("operation-a", rootTime);
         TransactionOrderResponse secondOrder = order("operation-b", rootTime.plusSeconds(1));
         when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
@@ -299,6 +302,10 @@ class JdbcAdminTransactionQueryServiceTest {
                     }
                     return Collections.emptyList();
                 });
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class), eq(String.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0, String.class).contains("payment_checkout_attempt")
+                        ? List.of("transaction-a")
+                        : Collections.emptyList());
         JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
         TransactionPageQuery query = new TransactionPageQuery();
         query.setBeginTime(LocalDateTime.of(2026, 7, 1, 0, 0));
@@ -309,6 +316,9 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(rows)
                 .extracting(TransactionOperationResponse::getRootTransactionDateTime)
                 .containsExactly(rootTime, rootTime.plusSeconds(1));
+        assertThat(rows)
+                .extracting(TransactionOperationResponse::getAccessType)
+                .containsExactly("HOSTED_CHECKOUT", "DIRECT_API");
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate, atLeast(2)).query(
                 sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
@@ -320,6 +330,23 @@ class JdbcAdminTransactionQueryServiceTest {
                     assertThat(sql).contains("transaction_date_time >= :registeredNodeBegin");
                     assertThat(sql).contains("transaction_date_time < :registeredNodeEnd");
                 });
+    }
+
+    /** 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationMapperShouldUsePersistedHostedCheckoutSource() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("request_source")).thenReturn("HOSTED_CHECKOUT");
+        RowMapper<TransactionOperationResponse> mapper =
+                (RowMapper<TransactionOperationResponse>) ReflectionTestUtils.invokeMethod(
+                        service, "operationMapper", false);
+
+        TransactionOperationResponse row = mapper.mapRow(resultSet, 0);
+
+        assertThat(row.getAccessType()).isEqualTo("HOSTED_CHECKOUT");
     }
 
     /**

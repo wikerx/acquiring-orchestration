@@ -402,6 +402,11 @@ public class PaymentCreateVO implements Serializable {
         private String callbackUrl;
 
         /**
+         * 商户发起支付的网站原始 URL，按首次请求保存值原样返回。
+         */
+        private String merchantWebsite;
+
+        /**
          * 内部失败原因码，仅用于后台和测试链路兼容，不返回商户。
          */
         @JSONField(serialize = false)

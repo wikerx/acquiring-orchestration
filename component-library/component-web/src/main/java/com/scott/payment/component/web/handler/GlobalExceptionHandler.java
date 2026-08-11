@@ -44,7 +44,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ApiException.class)
     public CommonResult<Void> handleApiException(ApiException exception) {
         log.warn("Open API exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
-        return CommonResult.error(exception);
+        return errorResult(exception.getCode(), exception.getMessage());
     }
 
     /**
@@ -56,7 +56,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ServiceException.class)
     public CommonResult<Void> handleServiceException(ServiceException exception) {
         log.warn("Service exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
-        return CommonResult.error(exception);
+        return errorResult(exception.getCode(), exception.getMessage());
     }
 
     /**
@@ -68,7 +68,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BizException.class)
     public CommonResult<Void> handleBizException(BizException exception) {
         log.warn("Business exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
-        return CommonResult.error(exception);
+        return errorResult(exception.getCode(), exception.getMessage());
     }
 
     /**
@@ -153,6 +153,20 @@ public class GlobalExceptionHandler {
         }
         log.error("System exception", exception);
         return CommonResult.error(ApiResultEnum.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * 对外隐藏 F500 内部详情，其他业务错误保持原始响应。
+     *
+     * @param code    业务错误码
+     * @param message 原始错误说明
+     * @return 统一错误响应
+     */
+    private CommonResult<Void> errorResult(String code, String message) {
+        if (ApiResultEnum.INTERNAL_SERVER_ERROR.getCode().equals(code)) {
+            return CommonResult.error(ApiResultEnum.INTERNAL_SERVER_ERROR);
+        }
+        return CommonResult.error(code, message);
     }
 
     /**

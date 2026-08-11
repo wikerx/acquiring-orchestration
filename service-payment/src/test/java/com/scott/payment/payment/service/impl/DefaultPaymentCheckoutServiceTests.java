@@ -7,6 +7,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDT
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutThreeDsReturnCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO;
@@ -314,6 +315,7 @@ class DefaultPaymentCheckoutServiceTests {
                 .thenReturn(1);
         when(paymentTransactionService.createPayment(any())).thenReturn(coreResult);
         ArgumentCaptor<PaymentCheckoutAttemptDO> attemptCaptor = ArgumentCaptor.forClass(PaymentCheckoutAttemptDO.class);
+        ArgumentCaptor<PaymentCreateCommandDTO> createCommandCaptor = ArgumentCaptor.forClass(PaymentCreateCommandDTO.class);
 
         PaymentCheckoutPaymentResultDTO resultDTO = service.submitPayment(submitCommand());
 
@@ -328,7 +330,9 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(attemptDO.getBrowserInfoJson()).contains("\"securityCode\":\"***\"");
         assertThat(attemptDO.getAttemptStatus()).isEqualTo(PaymentCheckoutAttemptStatusEnum.CARD_SUBMITTED.getCode());
         verify(threeDsService, never()).authenticate(any(), any(), any(), anyString());
-        verify(paymentTransactionService).createPayment(any());
+        verify(paymentTransactionService).createPayment(createCommandCaptor.capture());
+        assertThat(createCommandCaptor.getValue().getRequestSource()).isEqualTo("HOSTED_CHECKOUT");
+        assertThat(createCommandCaptor.getValue().getSourceUrl()).isNull();
     }
 
     @Test

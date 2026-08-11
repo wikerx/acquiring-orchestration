@@ -272,7 +272,9 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 SELECT %s AS dimension_key%s,
                        COUNT(1) AS total_count,
                        SUM(CASE WHEN o.transaction_status = :successStatus THEN 1 ELSE 0 END) AS success_count,
-                       SUM(CASE WHEN o.transaction_status = :failedStatus THEN 1 ELSE 0 END) AS failed_count
+                       SUM(CASE WHEN o.transaction_status = :failedStatus THEN 1 ELSE 0 END) AS failed_count,
+                       SUM(CASE WHEN o.transaction_status = :pendingStatus THEN 1 ELSE 0 END) AS pending_count,
+                       SUM(CASE WHEN o.transaction_status = :processingStatus THEN 1 ELSE 0 END) AS processing_count
                 FROM %s o
                 %s
                 WHERE %s
@@ -290,6 +292,8 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
             metric.setTotalCount(rs.getLong("total_count"));
             metric.setSuccessCount(rs.getLong("success_count"));
             metric.setFailedCount(rs.getLong("failed_count"));
+            metric.setPendingCount(rs.getLong("pending_count"));
+            metric.setProcessingCount(rs.getLong("processing_count"));
             metric.setSuccessRate(successRate(metric.getSuccessCount(), metric.getFailedCount()));
             return metric;
         });

@@ -7,6 +7,7 @@ import com.scott.payment.channel.payment.exception.ChannelResponseException;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -88,7 +89,7 @@ public class WorldPayXmlApiClient {
     /**
      * 脱敏请求体审计字段名。
      * <p>
-     * 单位：无；格式：XML 字符串；卡号、CVC、CAVV、地址和邮箱已掩码；不允许为空。
+     * 单位：无；格式：XML 字符串；卡号、有效期、CVC、CAVV 和认证凭据已掩码；不允许为空。
      * 数据来源：XML 编码器输出，供渠道请求记录表保存排查摘要。
      * </p>
      */
@@ -157,14 +158,10 @@ public class WorldPayXmlApiClient {
     );
 
     /**
-     * XML 持卡人个人信息节点脱敏规则。
-     * <p>
-     * 单位：无；格式：正则表达式；个人信息保护字段；不允许为空。
-     * 覆盖持卡人姓名、街道地址、邮编和邮箱，日志只保存排查所需的结构摘要。
-     * </p>
+     * XML 卡有效期属性脱敏规则。
      */
-    private static final Pattern XML_PERSONAL_ELEMENT_PATTERN = Pattern.compile(
-            "(<(?:cardHolderName|address1|postalCode|shopperEmailAddress)>)([^<]*)(</(?:cardHolderName|address1|postalCode|shopperEmailAddress)>)",
+    private static final Pattern XML_EXPIRY_DATE_PATTERN = Pattern.compile(
+            "(<expiryDate>\\s*<date\\s+month=\")([^\"]*)(\"\\s+year=\")([^\"]*)(\"\\s*/>\\s*</expiryDate>)",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -797,7 +794,7 @@ public class WorldPayXmlApiClient {
     /**
      * 对 Worldpay XML 报文执行日志脱敏。
      * <p>
-     * 覆盖 PAN、CVC、CAVV、Basic Auth 密码、持卡人姓名、地址和邮箱；该方法用于请求日志、响应日志和渠道审计字段。
+     * 覆盖 PAN、有效期、CVC、CAVV 和 Basic Auth 密码；该方法用于请求日志、响应日志和渠道审计字段。
      * </p>
      *
      * @param xml Worldpay XML 请求或响应原文
@@ -815,7 +812,8 @@ public class WorldPayXmlApiClient {
                         + matchResult.group(5)
         ));
         masked = XML_SECRET_ELEMENT_PATTERN.matcher(masked).replaceAll("$1***$3");
-        masked = XML_PERSONAL_ELEMENT_PATTERN.matcher(masked).replaceAll("$1***$3");
+        masked = XML_EXPIRY_DATE_PATTERN.matcher(masked).replaceAll("$1***$3***$5");
+        masked = SensitiveDataMaskUtils.maskTransactionInteractionJson(masked);
         return masked.replaceAll("(Authorization: Basic )[^\\r\\n]+", "$1***");
     }
 

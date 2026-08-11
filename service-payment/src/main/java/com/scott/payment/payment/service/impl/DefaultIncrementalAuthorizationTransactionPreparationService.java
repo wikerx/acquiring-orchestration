@@ -304,7 +304,34 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentCreateResultDTO resultDTO = buildIncrementalAuthorizationResult(commandDTO, sourceOrderDO, transactionId);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
-        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
+        PaymentRouteResultDTO routeResultDTO;
+        try {
+            routeResultDTO = OriginalTransactionRouteResolver.restore(
+                    paymentChannelRouteService, sourceOrderDO, sourceOperationDO);
+        } catch (ServiceException exception) {
+            if (!OriginalTransactionRejectionSupport.isOriginalTransactionRejected(exception)) {
+                throw exception;
+            }
+            PaymentRouteResultDTO sourceRouteSnapshot = OriginalTransactionRouteResolver.snapshot(
+                    sourceOrderDO, sourceOperationDO);
+            OriginalTransactionRejectionSupport.apply(resultDTO);
+            enrichIncrementalAuthorizationResult(commandDTO, sourceOrderDO, null, resultDTO);
+            OriginalTransactionRejectionSupport.apply(resultDTO);
+            recordIncrementalAuthorizationPreparedFact(
+                    commandDTO, sourceOrderDO, sourceRouteSnapshot, null, resultDTO, currencyExponent);
+            saveTransactionCreatedEvent(commandDTO, resultDTO);
+            completeIdempotency(idempotencyKey, commandDTO, resultDTO);
+            IncrementalAuthorizationPreparationResultDTO target =
+                    new IncrementalAuthorizationPreparationResultDTO();
+            target.setCallChannel(false);
+            target.setIdempotencyKey(idempotencyKey);
+            target.setCommandDTO(commandDTO);
+            target.setSourceOrderDO(sourceOrderDO);
+            target.setRouteResultDTO(sourceRouteSnapshot);
+            target.setResultDTO(resultDTO);
+            target.setCurrencyExponent(currencyExponent);
+            return target;
+        }
         resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
         enrichIncrementalAuthorizationResult(commandDTO, sourceOrderDO, null, resultDTO);

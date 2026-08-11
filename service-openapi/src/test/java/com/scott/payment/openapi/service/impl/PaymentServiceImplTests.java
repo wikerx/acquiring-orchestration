@@ -82,9 +82,11 @@ class PaymentServiceImplTests {
         assertThat(captured.getCardInfo().getSecurityCode()).isEqualTo("123");
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("user@example.com");
         assertThat(captured.getThreeDsInfo().getDsTransactionId()).isEqualTo("b96c957d-daa1-4b7f-b8b4-373fb9dec47b");
-        assertThat(captured.getTransactionInfo().getCardBrand()).isEqualTo("MASTERCARD");
+        assertThat(captured.getTransactionInfo().getCardBrand()).isNull();
+        assertThat(captured.getTransactionInfo().getMerchantWebsite())
+                .isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
         assertThat(captured.getCallbackUrl()).isEqualTo("https://merchant.example/callback");
-        assertThat(captured.getSourceUrl()).isEqualTo("https://checkout.example");
+        assertThat(captured.getSourceUrl()).isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
         assertThat(captured.getPayerIp()).isEqualTo("198.51.100.10");
         assertThat(captured.getUserAgent()).isEqualTo("JUnit");
         assertThat(captured.getRiskContext().getCustomerId()).isEqualTo("CUSTOMER-001");
@@ -92,6 +94,21 @@ class PaymentServiceImplTests {
         assertThat(captured.getRiskContext().getShippingAddress()).isEqualTo("2 Shipping St");
         assertThat(captured.getRiskContext().getShippingPostalCode()).isEqualTo("10003");
         assertThat(captured.getRiskContext().getShippingCountry()).isEqualTo("USA");
+    }
+
+    @Test
+    void shouldUsePaymentResultAsMerchantWebsiteResponseSource() {
+        OpenApiRequestConverter converter = Mappers.getMapper(OpenApiRequestConverter.class);
+        ApiMerchantPaymentRequestDTO requestDTO = buildRequest();
+        PaymentCreateClientResponseDTO responseDTO = new PaymentCreateClientResponseDTO();
+
+        assertThat(converter.toPaymentCreateVO(requestDTO, responseDTO, null)
+                .getTransactionInfo().getMerchantWebsite()).isNull();
+
+        responseDTO.setMerchantWebsite("https://stored-merchant.example/original");
+        assertThat(converter.toPaymentCreateVO(requestDTO, responseDTO, null)
+                .getTransactionInfo().getMerchantWebsite())
+                .isEqualTo("https://stored-merchant.example/original");
     }
 
     @Test
@@ -143,6 +160,7 @@ class PaymentServiceImplTests {
         PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);
         ApiMerchantPaymentRequestDTO requestDTO = buildRequest();
         requestDTO.getTransactionInfo().setSourceTransactionId(null);
+        requestDTO.getTransactionInfo().setMerchantWebsite(null);
         requestDTO.getTransactionInfo().setTransactionId("202607120001000001");
         requestDTO.getTransactionInfo().setSourceTransactionDateTime(
                 OffsetDateTime.of(2026, 7, 12, 2, 30, 0, 123_000_000, ZoneOffset.UTC));
@@ -167,6 +185,8 @@ class PaymentServiceImplTests {
         assertThat(responseVO.getTransactionInfo().get(0).getTransactionId()).isEqualTo("202607120001000001");
         assertThat(responseVO.getTransactionInfo().get(0).getRootTransactionDateTime())
                 .isEqualTo(OffsetDateTime.of(2026, 7, 12, 0, 15, 0, 456_000_000, ZoneOffset.ofHours(8)));
+        assertThat(responseVO.getTransactionInfo().get(0).getMerchantWebsite())
+                .isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
     }
 
     @Test
@@ -202,6 +222,7 @@ class PaymentServiceImplTests {
         assertThat(responseJson).doesNotContain("failReasonMessage");
         assertThat(responseJson).doesNotContain("null");
         assertThat(responseJson).contains("\"cardBrand\":\"MASTERCARD\"");
+        assertThat(responseJson).contains("\"merchantWebsite\":\"https://merchant-shop.example/checkout?cart=ABC123\"");
         assertThat(responseMap).containsOnlyKeys("merchantInfo", "orderInfo", "billingCardHolderInfo", "transactionInfo", "billingInfo");
         assertThat(responseMap).doesNotContainKeys("merchantId", "orderNo", "orderId", "transactionId", "status", "currency", "amount");
     }
@@ -402,7 +423,7 @@ class PaymentServiceImplTests {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-Gateway-Client-Ip", "198.51.100.10");
         request.addHeader("X-Forwarded-For", "203.0.113.1, 10.0.0.1");
-        request.addHeader("Origin", "https://checkout.example");
+        request.addHeader("Origin", "https://untrusted-header.example");
         request.addHeader("User-Agent", "JUnit");
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setMerchantId("200001");
@@ -464,7 +485,7 @@ class PaymentServiceImplTests {
         ApiMerchantPaymentRequestDTO.TransactionInfoDTO transactionInfo = new ApiMerchantPaymentRequestDTO.TransactionInfoDTO();
         transactionInfo.setSourceTransactionId("source-001");
         transactionInfo.setCallbackUrl("https://merchant.example/callback");
-        transactionInfo.setCardBrand("MASTERCARD");
+        transactionInfo.setMerchantWebsite("https://merchant-shop.example/checkout?cart=ABC123");
         requestDTO.setTransactionInfo(transactionInfo);
 
         ApiMerchantPaymentRequestDTO.RiskContextDTO riskContext = new ApiMerchantPaymentRequestDTO.RiskContextDTO();
@@ -690,6 +711,7 @@ class PaymentServiceImplTests {
             transactionInfoDTO.setPaymentMethod(createResponseDTO.getPaymentMethod());
             transactionInfoDTO.setCardBrand(createResponseDTO.getPaymentBrand());
             transactionInfoDTO.setCardBin(createResponseDTO.getCardBin());
+            transactionInfoDTO.setMerchantWebsite("https://merchant-shop.example/checkout?cart=ABC123");
             responseDTO.getTransactionInfo().add(transactionInfoDTO);
             return responseDTO;
         }
@@ -829,6 +851,8 @@ class PaymentServiceImplTests {
             responseDTO.setCardBin("538738****6554");
             responseDTO.setDescription(requestDTO.getTransactionInfo() == null ? null : requestDTO.getTransactionInfo().getDescription());
             responseDTO.setCallbackUrl(requestDTO.getTransactionInfo() == null ? null : requestDTO.getTransactionInfo().getCallbackUrl());
+            responseDTO.setMerchantWebsite(requestDTO.getTransactionInfo() == null
+                    ? null : requestDTO.getTransactionInfo().getMerchantWebsite());
             return responseDTO;
         }
 

@@ -3,6 +3,7 @@ package com.scott.payment.admin.converter;
 import com.scott.payment.admin.dto.SysConfigDTO;
 import com.scott.payment.admin.dto.export.SysConfigExportRow;
 import com.scott.payment.admin.entity.SysConfigDO;
+import com.scott.payment.component.db.systemconfig.model.SystemConfigSnapshot;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -25,6 +26,14 @@ public interface ConfigConverter {
      * @return 配置 DTO
      */
     SysConfigDTO toDTO(SysConfigDO entity);
+
+    /**
+     * 公共缓存快照转管理端详情 DTO。
+     *
+     * @param snapshot 跨服务系统参数缓存快照
+     * @return 管理端配置详情
+     */
+    SysConfigDTO toDTO(SystemConfigSnapshot snapshot);
 
     /**
      * 配置 DTO 转导出行对象。

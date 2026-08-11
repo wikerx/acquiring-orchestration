@@ -13,8 +13,10 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
@@ -155,6 +157,8 @@ class JdbcMerchantTransactionQueryServiceTests {
         LocalDateTime rootTime = LocalDateTime.of(2026, 4, 10, 9, 15, 30);
         TransactionOperationResponse firstOperation = operation("operation-a", "transaction-a", actionTime);
         TransactionOperationResponse secondOperation = operation("operation-b", "transaction-b", actionTime.plusSeconds(1));
+        firstOperation.setAccessType("DIRECT_API");
+        secondOperation.setAccessType("DIRECT_API");
         TransactionOrderResponse firstOrder = order("operation-a", rootTime);
         TransactionOrderResponse secondOrder = order("operation-b", rootTime.plusSeconds(1));
         when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
@@ -170,6 +174,10 @@ class JdbcMerchantTransactionQueryServiceTests {
                     }
                     return Collections.emptyList();
                 });
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class), eq(String.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0, String.class).contains("payment_checkout_attempt")
+                        ? List.of("transaction-a")
+                        : Collections.emptyList());
         JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(jdbcTemplate);
         TransactionPageQuery query = new TransactionPageQuery();
         query.setMerchantId("merchant-a");
@@ -181,6 +189,9 @@ class JdbcMerchantTransactionQueryServiceTests {
         assertThat(response.getPage().getRecords())
                 .extracting(TransactionOperationResponse::getRootTransactionDateTime)
                 .containsExactly(rootTime, rootTime.plusSeconds(1));
+        assertThat(response.getPage().getRecords())
+                .extracting(TransactionOperationResponse::getAccessType)
+                .containsExactly("HOSTED_CHECKOUT", "DIRECT_API");
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(jdbcTemplate, atLeast(2)).query(
@@ -199,6 +210,22 @@ class JdbcMerchantTransactionQueryServiceTests {
             }
         }
         assertThat(lifecycleIndexes).hasSize(1);
+    }
+
+    /** 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationMapperShouldUsePersistedHostedCheckoutSource() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(jdbcTemplate);
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("request_source")).thenReturn("HOSTED_CHECKOUT");
+        RowMapper<TransactionOperationResponse> mapper =
+                (RowMapper<TransactionOperationResponse>) ReflectionTestUtils.invokeMethod(service, "operationMapper");
+
+        TransactionOperationResponse row = mapper.mapRow(resultSet, 0);
+
+        assertThat(row.getAccessType()).isEqualTo("HOSTED_CHECKOUT");
     }
 
     @Test

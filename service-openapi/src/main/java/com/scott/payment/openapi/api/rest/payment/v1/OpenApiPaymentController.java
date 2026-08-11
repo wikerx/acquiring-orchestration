@@ -1,11 +1,14 @@
 package com.scott.payment.openapi.api.rest.payment.v1;
 
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.request.RequestHeaderParams;
 import com.scott.payment.component.web.version.ApiVersion;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.application.payment.OpenApiPaymentApplicationService;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-import static com.scott.payment.component.core.model.CommonResult.success;
+import static com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentResponseFactory.from;
 
 /**
  * @author : scott
@@ -24,6 +27,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @description : 商户 OpenAPI 一步支付 V1 控制器，仅暴露支付接口并统一走加密、验签和防重放链路。
  * @status : create
  */
+@Slf4j
 @ApiVersion(apiVersion = 1)
 @RestController
 @RequestMapping("/api/rest/payment/{version}")
@@ -63,6 +67,9 @@ public class OpenApiPaymentController {
     public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
                                                        @RequestBody String encryptedData,
                                                        ApiMerchantPaymentRequestDTO requestDTO) {
-        return success(paymentApplicationService.createPayment(encryptedData, requestDTO));
+        log.info("RequestHeaderMessages:{}" , JsonUtils.toJsonString(RequestHeaderParams.getRequestHeaders(request)));
+        log.info("RequestEncryptedBodyParams:{}" , encryptedData);
+        log.info("RequestdBodyParams:{}" , JsonUtils.toJsonString(requestDTO));
+        return from(paymentApplicationService.createPayment(encryptedData, requestDTO));
     }
 }

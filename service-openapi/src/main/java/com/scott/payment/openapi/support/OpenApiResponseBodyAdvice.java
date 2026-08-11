@@ -194,7 +194,7 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         requestDTO.setTransactionDateTime(transactionInfo.getTransactionDateTime()
                 .atZoneSameInstant(TRANSACTION_DATABASE_ZONE)
                 .toLocalDateTime());
-        requestDTO.setResponsePlainJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(plainDataJson));
+        requestDTO.setResponsePlainJsonMasked(SensitiveDataMaskUtils.maskTransactionInteractionJsonSafely(plainDataJson));
         requestDTO.setResponseCipherDigest(sha256Hex(encryptedData));
         requestDTO.setResponseCipherMasked(maskCipher(encryptedData));
         requestDTO.setResponseTime(LocalDateTime.now());

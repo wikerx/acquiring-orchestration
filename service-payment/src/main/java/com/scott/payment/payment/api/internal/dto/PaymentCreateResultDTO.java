@@ -271,6 +271,11 @@ public class PaymentCreateResultDTO implements Serializable {
      */
     private String callbackUrl;
 
+    /**
+     * 首次交易保存的商户网站原始 URL，创建和幂等响应必须返回同一值。
+     */
+    private String merchantWebsite;
+
     @Data
     /**
      * @author : scott

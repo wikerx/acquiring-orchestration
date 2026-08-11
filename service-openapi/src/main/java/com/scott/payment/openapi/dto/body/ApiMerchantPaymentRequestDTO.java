@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.net.URI;
 import java.time.OffsetDateTime;
 
 import jakarta.validation.Valid;
@@ -14,6 +15,7 @@ import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 
 @Data
@@ -636,10 +638,33 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String callbackUrl;
 
         /**
-         * 兼容字段，不建议商户上送；响应卡品牌以平台卡 BIN 库识别结果为准。
+         * 商户发起支付的网站原始 URL，仅支付、授权和预授权用于来源网址限定，并在交易响应中原样返回。
          */
-        @Pattern(regexp = "^$|^(VISA|MASTERCARD|AMEX|JCB|DISCOVER|UNIONPAY)$", message = "transactionInfo.cardBrand format does not match", groups = {Format.class})
-        private String cardBrand;
+        @Size(max = 512, message = "transactionInfo.merchantWebsite format does not match", groups = {Format.class})
+        @Pattern(regexp = "^$|^(?i:https?)://\\S+$",
+                message = "transactionInfo.merchantWebsite format does not match", groups = {Format.class})
+        private String merchantWebsite;
+
+        /**
+         * 校验商户网站必须包含可解析的 HTTP/HTTPS 主机名，避免非法 authority 绕过来源网址限定。
+         *
+         * @return 空值或合法商户网站返回 {@code true}
+         */
+        @JSONField(serialize = false)
+        @AssertTrue(message = "transactionInfo.merchantWebsite format does not match", groups = {Format.class})
+        public boolean isMerchantWebsiteValid() {
+            if (!hasText(merchantWebsite)) {
+                return true;
+            }
+            try {
+                URI uri = URI.create(merchantWebsite);
+                return uri.getUserInfo() == null
+                        && hasText(uri.getHost())
+                        && ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()));
+            } catch (IllegalArgumentException exception) {
+                return false;
+            }
+        }
     }
 
     /**

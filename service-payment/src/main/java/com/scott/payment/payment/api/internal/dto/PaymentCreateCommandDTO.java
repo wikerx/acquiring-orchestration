@@ -697,6 +697,11 @@ public class PaymentCreateCommandDTO implements Serializable {
         private String callbackUrl;
 
         /**
+         * 商户发起支付的网站原始 URL，用于来源网址限定、交易主单留存和商户响应回显。
+         */
+        private String merchantWebsite;
+
+        /**
          * card Brand，用于保存 Transaction Info DTO 中与 cardbrand 相关的业务属性。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
@@ -705,6 +710,9 @@ public class PaymentCreateCommandDTO implements Serializable {
          * </p>
          */
         private String cardBrand;
+
+        /** BIN 基础数据识别出的发卡国家/地区，优先保存 ISO Alpha-2 编码。 */
+        private String issuerCountry;
     }
 
     /**

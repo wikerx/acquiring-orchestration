@@ -227,7 +227,8 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
      * {@code acquiring:{environment}:merchant:openapi:pending:{merchantId}}、
      * {@code acquiring:{environment}:merchant:keyMeta:pending:{merchantId}}、
      * {@code acquiring:{environment}:merchant:route:pending:{merchantId}} 和
-     * {@code acquiring:{environment}:config:public:pending:{configKey}}。
+     * {@code acquiring:{environment}:system:configPending:{configKeyDigest}}、
+     * {@code acquiring:{environment}:admin:user:profile:pending:{accountId}}。
      * </p>
      *
      * @param cacheName   Spring Cache 名称
@@ -244,8 +245,14 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
                     redisProperties.businessKey("merchant", "keyMeta", "pending", businessKey);
             case PaymentCacheNames.MERCHANT_ROUTE ->
                     redisProperties.businessKey("merchant", "route", "pending", businessKey);
-            case PaymentCacheNames.PLATFORM_CONFIG ->
-                    redisProperties.businessKey("config", "public", "pending", businessKey);
+            case PaymentCacheNames.SYSTEM_CONFIG ->
+                    redisProperties.businessKey(
+                            "system",
+                            "configPending",
+                            com.scott.payment.component.redis.support.RedisKeyDigest.sha256(businessKey)
+                    );
+            case PaymentCacheNames.ADMIN_USER_PROFILE ->
+                    redisProperties.businessKey("admin", "user", "profile", "pending", businessKey);
             default -> throw new IllegalArgumentException(
                     "Cache invalidation guard does not allow cache name: " + cacheName
             );

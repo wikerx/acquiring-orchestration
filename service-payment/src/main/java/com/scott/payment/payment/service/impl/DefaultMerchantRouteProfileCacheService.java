@@ -55,9 +55,18 @@ public class DefaultMerchantRouteProfileCacheService implements MerchantRoutePro
             return cacheReader.findFresh(normalizedMerchantId);
         }
         MerchantRouteProfile profile = cacheReader.findCached(normalizedMerchantId);
-        return mustBypassCache(normalizedMerchantId)
-                ? cacheReader.findFresh(normalizedMerchantId)
-                : profile;
+        if (mustBypassCache(normalizedMerchantId)) {
+            return cacheReader.findFresh(normalizedMerchantId);
+        }
+        return isCurrentSchema(profile)
+                ? profile
+                : cacheReader.refreshCached(normalizedMerchantId);
+    }
+
+    /** 永久缓存只接受当前结构版本，旧结构在首次读取时从主库在线重建。 */
+    private boolean isCurrentSchema(MerchantRouteProfile profile) {
+        return profile != null
+                && Integer.valueOf(MerchantRouteProfile.CURRENT_SCHEMA_VERSION).equals(profile.getSchemaVersion());
     }
 
     /** Redis 门禁查询失败时强制绕过共享快照，防止旧渠道配置继续参与交易。 */

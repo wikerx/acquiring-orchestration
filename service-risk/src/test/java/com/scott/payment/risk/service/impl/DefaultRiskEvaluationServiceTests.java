@@ -342,6 +342,42 @@ class DefaultRiskEvaluationServiceTests {
     }
 
     @Test
+    void shouldBypassOnlySourceUrlRestrictionForHostedCheckout() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withSourceUrlMiss(match("SYSTEM", "sourceUrl", "HIGH", "REJECT"))
+                .withSourceUrlRule(match("RULE", "sourceUrl", "MEDIUM", "REVIEW"));
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                repository, new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setRequestSource("HOSTED_CHECKOUT");
+        requestDTO.setSourceUrl("https://not-allowed.example.test/pay");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NONE.getCode());
+    }
+
+    @Test
+    void shouldStillRejectAmlHitForHostedCheckout() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withSourceUrlMiss(match("SYSTEM", "sourceUrl", "HIGH", "REJECT"))
+                .withListHit(RiskListFunction.AML_CARD,
+                        match("AML", "card", "CRITICAL", "REJECT"));
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                repository, new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setRequestSource("HOSTED_CHECKOUT");
+        requestDTO.setSourceUrl("https://not-allowed.example.test/pay");
+        requestDTO.setCardNo("4111111111111234");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.AML_HIT.getCode());
+    }
+
+    @Test
     void shouldReviewWhenAmlCardBinHitWithReviewAction() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
                 .withListHit(RiskListFunction.AML_CARD_BIN, match("AML", "cardBin", "CRITICAL", "REVIEW"));

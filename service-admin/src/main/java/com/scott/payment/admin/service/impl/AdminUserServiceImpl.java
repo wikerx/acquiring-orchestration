@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.SysUserAccountCreateRequest;
 import com.scott.payment.admin.dto.SysUserAccountDTO;
+import com.scott.payment.admin.dto.AdminUserProfileDTO;
 import com.scott.payment.admin.dto.SysUserAccountQueryRequest;
 import com.scott.payment.admin.dto.SysUserAccountResetPasswordRequest;
 import com.scott.payment.admin.dto.SysUserAccountStatusRequest;
@@ -20,6 +21,7 @@ import com.scott.payment.admin.service.AdminUserService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -54,6 +56,8 @@ import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserPostMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -166,7 +170,6 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 系统参数服务，用于读取管理系统访问地址。
      */
     private final AdminConfigService adminConfigService;
-
     /**
      * 创建后台用户服务实现，显式注入用户、组织、角色和会话相关数据访问接口。
      *
@@ -308,6 +311,51 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
+     * 按账号主键查询后台用户维护资料，数据库不存在时返回标准未找到异常。
+     *
+     * @param accountId 后台账号主键
+     * @return 用户维护资料
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Cacheable(
+            cacheNames = PaymentCacheNames.ADMIN_USER_PROFILE,
+            key = "#p0",
+            condition = "#p0 != null and #p0 > 0"
+    )
+    public AdminUserProfileDTO getUserProfile(Long accountId) {
+        if (accountId == null || accountId <= 0) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "accountId is invalid");
+        }
+        SysAppDO app = getAdminApp();
+        SysAccountDO account = getAccount(app.getId(), accountId);
+        SysUserDO user = getUser(account.getUserId());
+        AdminUserProfileDTO profile = new AdminUserProfileDTO();
+        profile.setAccountId(account.getId());
+        profile.setUserId(user.getId());
+        profile.setDeptId(user.getDeptId());
+        profile.setPostIds(new ArrayList<>(loadUserPostMap(List.of(user.getId()))
+                .getOrDefault(user.getId(), List.of())
+                .stream()
+                .map(SysPostDO::getId)
+                .toList()));
+        profile.setRoleIds(new ArrayList<>(loadAccountRoleMap(app.getId(), List.of(account.getId()))
+                .getOrDefault(account.getId(), List.of())
+                .stream()
+                .map(SysRoleDO::getId)
+                .toList()));
+        profile.setLoginAccount(account.getLoginAccount());
+        profile.setRealName(user.getRealName());
+        profile.setMobile(account.getMobile());
+        profile.setEmail(account.getEmail());
+        profile.setUserType(user.getUserType());
+        profile.setStatus(account.getStatus());
+        profile.setRemark(account.getRemark());
+        profile.setCreatedAt(account.getCreatedAt());
+        return profile;
+    }
+
+    /**
      * 新增后台用户。新账号不自动绑定角色，角色必须通过“分配角色”单独授权。
      *
      * @param request 新增请求
@@ -379,6 +427,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = PaymentCacheNames.ADMIN_USER_PROFILE, key = "#p0.accountId")
     public SysUserAccountDTO updateUser(SysUserAccountUpdateRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -389,7 +438,6 @@ public class AdminUserServiceImpl implements AdminUserService {
         String mobile = request.getMobile() == null ? account.getMobile() : normalize(request.getMobile());
         String email = requireEmail(request.getEmail());
         String remark = normalize(request.getRemark());
-
         user.setRealName(realName);
         user.setDeptId(validateDept(app.getId(), request.getDeptId()));
         user.setMobile(mobile);
@@ -421,6 +469,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = PaymentCacheNames.ADMIN_USER_PROFILE, key = "#p0.accountId")
     public void updateStatus(SysUserAccountStatusRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -496,6 +545,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = PaymentCacheNames.ADMIN_USER_PROFILE, key = "#p0.accountId")
     public void grantRoles(SysUserRoleGrantRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -541,6 +591,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = PaymentCacheNames.ADMIN_USER_PROFILE, allEntries = true)
     public void removeUsers(List<Long> accountIds) {
         List<Long> normalizedIds = normalizeIds(accountIds);
         if (normalizedIds.isEmpty()) {
@@ -548,9 +599,15 @@ public class AdminUserServiceImpl implements AdminUserService {
         }
         SysAppDO app = getAdminApp();
         LocalDateTime now = LocalDateTime.now();
+        List<UserRemovalTarget> targets = new ArrayList<>(normalizedIds.size());
         for (Long accountId : normalizedIds) {
             SysAccountDO account = getAccount(app.getId(), accountId);
             SysUserDO user = getUser(account.getUserId());
+            targets.add(new UserRemovalTarget(account, user));
+        }
+        for (UserRemovalTarget target : targets) {
+            SysAccountDO account = target.account();
+            SysUserDO user = target.user();
             account.setDeleted(account.getId());
             account.setUpdatedAt(now);
             sysAccountMapper.updateById(account);
@@ -590,6 +647,10 @@ public class AdminUserServiceImpl implements AdminUserService {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "ADMIN app not found");
         }
         return app;
+    }
+
+    /** 已完成存在性校验、等待在同一事务内逻辑删除的账号和用户。 */
+    private record UserRemovalTarget(SysAccountDO account, SysUserDO user) {
     }
 
     /**

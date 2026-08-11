@@ -12,7 +12,7 @@ import java.util.Map;
  * @classname : PaymentCacheRegistry
  * @date : 2026-07-30 09:35
  * @email : scott_x@163.com
- * @description : 支付系统 Spring Cache 注册表，集中约束允许创建的 Cache Name 及持久化策略
+ * @description : 支付系统特殊 Spring Cache 生命周期注册表；普通缓存使用 CacheManager 默认 TTL 动态创建
  * @status : create
  */
 public final class PaymentCacheRegistry {
@@ -28,7 +28,9 @@ public final class PaymentCacheRegistry {
             PaymentCacheNames.MERCHANT_OPENAPI_ACCESS, Duration.ZERO,
             PaymentCacheNames.MERCHANT_KEY_METADATA, Duration.ZERO,
             PaymentCacheNames.MERCHANT_ROUTE, Duration.ZERO,
-            PaymentCacheNames.PLATFORM_CONFIG, Duration.ZERO
+            PaymentCacheNames.SYSTEM_CONFIG, Duration.ZERO,
+            PaymentCacheNames.ADMIN_USER_PROFILE, Duration.ZERO,
+            PaymentCacheNames.CARD_BIN, Duration.ZERO
     );
 
     private PaymentCacheRegistry() {
@@ -47,7 +49,8 @@ public final class PaymentCacheRegistry {
      * 校验并合并 Cache 生命周期配置。
      *
      * <p>当前登记项均属于业务常驻快照，部署配置只能显式声明为零，不能临时改成
-     * 有限 TTL 掩盖失效链路问题。未来如增加临时查询缓存，应先在注册表登记正数默认值。</p>
+     * 有限 TTL 掩盖失效链路问题。普通有限期缓存无需登记，直接使用 CacheManager 默认 TTL；
+     * 只有永久缓存或需要特殊 TTL 的缓存才进入本注册表。</p>
      *
      * @param overrides 配置中心提供的生命周期覆盖；零值表示常驻
      * @return 包含全部已登记 Cache 的有效生命周期

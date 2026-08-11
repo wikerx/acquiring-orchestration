@@ -72,11 +72,11 @@ class RedisCacheInvalidationGuardTests {
     }
 
     /**
-     * 验证 OpenAPI 策略和平台公开配置使用各自缓存命名空间下的 pending Key。
+     * 验证 OpenAPI 策略和系统参数使用相互隔离的 pending Key。
      */
     @Test
-    void shouldBuildConciseOpenApiAndPlatformConfigGateKeys() {
-        log.info("测试永久缓存短门禁 Key，关键输入: merchant:openapi 与 config:public");
+    void shouldBuildConciseOpenApiAndSystemConfigGateKeys() {
+        log.info("测试永久缓存短门禁 Key，关键输入: merchant:openapi 与 system:config");
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
@@ -94,7 +94,7 @@ class RedisCacheInvalidationGuardTests {
                 Duration.ofHours(2)
         );
         guard.acquire(
-                PaymentCacheNames.PLATFORM_CONFIG,
+                PaymentCacheNames.SYSTEM_CONFIG,
                 "platform.gateway.base-url",
                 Duration.ofHours(2)
         );
@@ -107,9 +107,45 @@ class RedisCacheInvalidationGuardTests {
         );
         assertThat(keyCaptor.getAllValues()).isEqualTo(List.of(
                 "acquiring:test:merchant:openapi:pending:200045",
-                "acquiring:test:config:public:pending:platform.gateway.base-url"
+                "acquiring:test:system:configPending:"
+                        + com.scott.payment.component.redis.support.RedisKeyDigest
+                        .sha256("platform.gateway.base-url")
         ));
         log.info("永久缓存短门禁 Key 测试完成，结果: 两个命名空间均符合 acquiring:test 短格式");
+    }
+
+    /**
+     * 验证后台用户资料使用独立的 admin 命名空间门禁 Key。
+     */
+    @Test
+    void shouldBuildAdminUserProfileGateKey() {
+        log.info("测试后台用户资料失效门禁，关键输入: accountId=10001");
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofHours(2))))
+                .thenReturn(true);
+        RedisCacheInvalidationGuard guard = new RedisCacheInvalidationGuard(
+                redisTemplate,
+                redisProperties()
+        );
+
+        guard.acquire(
+                PaymentCacheNames.ADMIN_USER_PROFILE,
+                "10001",
+                Duration.ofHours(2)
+        );
+
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(valueOperations).setIfAbsent(
+                keyCaptor.capture(),
+                anyString(),
+                eq(Duration.ofHours(2))
+        );
+        assertThat(keyCaptor.getValue())
+                .isEqualTo("acquiring:test:admin:user:profile:pending:10001");
+        log.info("后台用户资料失效门禁验证完成，结果: 使用独立 admin 命名空间");
     }
 
     /**

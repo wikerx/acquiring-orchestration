@@ -675,21 +675,23 @@ POST /api/rest/iso/v1/currencies/query
 | `transactionId` | string | 查询 O | 查询时用于精确过滤，其他请求不应上送 |
 | `description` | string | O | 本次动作描述，最长 128 个字符 |
 | `callbackUrl` | string | O | HTTP/HTTPS 通知地址，最长 256 个字符；使用边界见 4.5 节 |
-| `cardBrand` | string | O | 兼容字段，不建议上送；响应以平台识别结果为准 |
+| `merchantWebsite` | string | 一步支付、授权、预授权 O | 商户发起交易的网站原始 HTTP/HTTPS URL，最长 512 个字符；必须包含合法主机名且不得包含用户信息 |
+
+`cardBrand` 由平台根据卡 BIN 识别，只在响应中返回，商户请求不应上送。`merchantWebsite` 会作为交易生命周期属性保存并原样回显；商户启用来源网址限定后，该字段缺失或主机名不匹配将被风控拒绝。
 
 ### 7.2 支付操作字段矩阵
 
-| 接口 | amount | currency | orderNo | orderId | card/holder | sourceTransactionId | transactionId |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 一步支付 | M | M | M | M | M | - | - |
-| 授权 | M | M | M | M | M | - | - |
-| 预授权 | M | M | M | M | M | - | - |
-| 增量授权 | M | M | M | M | - | M | - |
-| 预授权完成 | M | M | M | M | - | M | - |
-| 请款 | M | M | M | M | - | M | - |
-| 退款 | M | O | O | M | - | M | - |
-| 撤销 | - | - | M | M | - | M | - |
-| 查询 | - | - | M | M | - | - | O |
+| 接口 | amount | currency | orderNo | orderId | card/holder | merchantWebsite | sourceTransactionId | transactionId |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 一步支付 | M | M | M | M | M | O | - | - |
+| 授权 | M | M | M | M | M | O | - | - |
+| 预授权 | M | M | M | M | M | O | - | - |
+| 增量授权 | M | M | M | M | - | - | M | - |
+| 预授权完成 | M | M | M | M | - | - | M | - |
+| 请款 | M | M | M | M | - | - | M | - |
+| 退款 | M | O | O | M | - | - | M | - |
+| 撤销 | - | - | M | M | - | - | M | - |
+| 查询 | - | - | M | M | - | - | - | O |
 
 `-` 表示该接口不需要该字段。不要为了“字段完整”向撤销或查询请求附加无意义金额。
 
@@ -736,6 +738,7 @@ POST /api/rest/iso/v1/currencies/query
 | `arn` | string | ARN/收单参考号，渠道返回时存在 |
 | `description` | string | 商户上送的动作描述 |
 | `callbackUrl` | string | 商户上送或配置的通知地址 |
+| `merchantWebsite` | string | 首次支付、授权或预授权保存的商户网站原始 URL |
 | `pendingReasonCode` | string | 待确认原因，适用时存在 |
 
 **billingInfo 响应字段**
@@ -807,7 +810,8 @@ merchantId + orderInfo.orderId + PAYMENT
     "shippingCountry": "USA"
   },
   "transactionInfo": {
-    "description": "Order M202608010001"
+    "description": "Order M202608010001",
+    "merchantWebsite": "https://shop.merchant.example/checkout"
   }
 }
 ```
@@ -838,7 +842,8 @@ merchantId + orderInfo.orderId + PAYMENT
     "cardBrand": "VISA",
     "cardBin": "411111****1111",
     "authCode": "123456",
-    "description": "Order M202608010001"
+    "description": "Order M202608010001",
+    "merchantWebsite": "https://shop.merchant.example/checkout"
   },
   "billingInfo": {
     "labelAmount": 10.25,
@@ -899,7 +904,8 @@ merchantId + orderInfo.orderId + AUTHORIZATION
     "securityCode": "{sandbox-cvv}"
   },
   "transactionInfo": {
-    "description": "Authorize order M202608010002"
+    "description": "Authorize order M202608010002",
+    "merchantWebsite": "https://shop.merchant.example/checkout"
   }
 }
 ```
@@ -926,7 +932,8 @@ merchantId + orderInfo.orderId + AUTHORIZATION
     "paymentMethod": "BANK_CARD",
     "cardBrand": "VISA",
     "cardBin": "411111****1111",
-    "authCode": "654321"
+    "authCode": "654321",
+    "merchantWebsite": "https://shop.merchant.example/checkout"
   }
 }
 ```
@@ -978,7 +985,8 @@ merchantId + orderInfo.orderId + PRE_AUTHORIZATION
     "securityCode": "{sandbox-cvv}"
   },
   "transactionInfo": {
-    "description": "Pre-authorize order M202608010003"
+    "description": "Pre-authorize order M202608010003",
+    "merchantWebsite": "https://shop.merchant.example/checkout"
   }
 }
 ```
@@ -1005,7 +1013,8 @@ merchantId + orderInfo.orderId + PRE_AUTHORIZATION
     "paymentMethod": "BANK_CARD",
     "cardBrand": "VISA",
     "cardBin": "411111****1111",
-    "authCode": "789012"
+    "authCode": "789012",
+    "merchantWebsite": "https://shop.merchant.example/checkout"
   }
 }
 ```
@@ -1402,7 +1411,7 @@ POST /api/rest/payment/v1/query
 | `transactionInfo` | array | 关联交易动作列表 |
 | `billingInfo` | object | 账单和换汇摘要，适用时存在 |
 
-数组元素包含：`transactionId`、`sourceTransactionId`、`code`、`message`、`transactionType`、`transactionDateTime`、`paymentMethod`、`cardBrand`、`cardBin`、`authCode`、`arn`、`description` 和 `callbackUrl`。
+数组元素包含：`transactionId`、`sourceTransactionId`、`code`、`message`、`transactionType`、`transactionDateTime`、`paymentMethod`、`cardBrand`、`cardBin`、`authCode`、`arn`、`description`、`callbackUrl` 和 `merchantWebsite`。同一生命周期内，每个数组元素的 `merchantWebsite` 都返回首次交易主单保存的原值；历史交易未保存该值时不返回该字段。
 
 **解密后的响应示例**
 
@@ -1429,7 +1438,8 @@ POST /api/rest/payment/v1/query
       "paymentMethod": "BANK_CARD",
       "cardBrand": "VISA",
       "cardBin": "411111****1111",
-      "authCode": "654321"
+      "authCode": "654321",
+      "merchantWebsite": "https://shop.merchant.example/checkout"
     },
     {
       "transactionId": "202608011100001230004",
@@ -1437,7 +1447,8 @@ POST /api/rest/payment/v1/query
       "code": "T200",
       "message": "Success",
       "transactionType": "INCREMENTAL_AUTHORIZATION",
-      "transactionDateTime": "2026-08-01T11:00:00.123+08:00"
+      "transactionDateTime": "2026-08-01T11:00:00.123+08:00",
+      "merchantWebsite": "https://shop.merchant.example/checkout"
     },
     {
       "transactionId": "202608011120001230006",
@@ -1446,7 +1457,8 @@ POST /api/rest/payment/v1/query
       "message": "Success",
       "transactionType": "CAPTURE",
       "transactionDateTime": "2026-08-01T11:20:00.123+08:00",
-      "arn": "12345678901234567890123"
+      "arn": "12345678901234567890123",
+      "merchantWebsite": "https://shop.merchant.example/checkout"
     }
   ]
 }
@@ -1622,6 +1634,8 @@ public class CallbackApplicationService {
 ### 8.1 创建收银台会话
 
 创建平台托管收银台会话。商户服务端调用本接口后，将返回的 `checkoutUrl` 交给付款人浏览器打开；付款人卡信息由平台收银台采集。
+
+Hosted Checkout 的支付提交由平台内部可信链路发起，因此不使用商户 OpenAPI 的 `transactionInfo.merchantWebsite`，也不执行商户来源网址限定。该豁免只针对来源网址限定；商户 IP 白名单、黑白名单、AML、金额、频率、3DS 等其他风险规则仍正常执行。
 
 **接口**
 
@@ -1872,6 +1886,7 @@ merchantId + merchantOrderNo
 | `F411` | `Transaction currency is not supported` | 交易币种不支持 |
 | `F412` | `Transaction type is not supported` | 交易类型不支持 |
 | `F413` | `Unsupported card brands` | 卡品牌不支持 |
+| `F414` | `Original transaction rejected.` | 原交易渠道或 MID 已不可用，关联动作被拒绝 |
 | `F510` | `Order already exist` | 商户订单已存在或发生幂等冲突 |
 | `F511` | `Order does not exist` | 订单不存在 |
 | `F512` | `The search result set is invalid/does not exist` | 查询无结果 |
@@ -1881,7 +1896,7 @@ merchantId + merchantOrderNo
 
 | code | 标准 message | 场景 |
 | --- | --- | --- |
-| `F500` | `Internal Server Error` | 平台内部异常 |
+| `F500` | `The system is busy; please try again later.` | 平台内部异常 |
 | `F502` | `Bad gateway` | 上游服务不可用或响应异常 |
 | `F503` | `The network is busy, please try again later` | 服务繁忙 |
 | `Z605` | `Request parse error` | 请求报文解析失败 |

@@ -205,6 +205,11 @@ public class MpgsApiClient {
             Pattern.CASE_INSENSITIVE
     );
 
+    private static final Pattern MPGS_EXPIRY_PATTERN = Pattern.compile(
+            "(\"expiry\"\\s*:\\s*\\{\\s*\"month\"\\s*:\\s*\")([^\"\\\\]*)(\"\\s*,\\s*\"year\"\\s*:\\s*\")([^\"\\\\]*)(\"\\s*})",
+            Pattern.CASE_INSENSITIVE
+    );
+
     private static final Pattern MPGS_HTML_FIELD_PATTERN = Pattern.compile(
             "(\"html\"\\s*:\\s*\")((?:\\\\.|[^\"\\\\])*)(\")",
             Pattern.CASE_INSENSITIVE
@@ -1283,14 +1288,14 @@ public class MpgsApiClient {
     /**
      * 对 MPGS JSON 请求/响应执行脱敏。
      * <p>
-     * 该方法会先复用全局 JSON 脱敏工具，再补充 MPGS 特有字段：sourceOfFunds.provided.card.number 和
-     * authentication.threeDs.authenticationToken。测试日志、生产日志和断言都应复用此方法，避免多套脱敏规则。
+     * 该方法会先复用交易交互正文最小脱敏工具，再补充 MPGS 特有字段：sourceOfFunds.provided.card.number、
+     * expiry.month/year 和 authentication.threeDs.authenticationToken。测试日志、生产日志和断言都应复用此方法，避免多套脱敏规则。
      *
      * @param json MPGS 原始 JSON
      * @return 脱敏后的 JSON
      */
     static String maskMpgsJson(String json) {
-        String masked = SensitiveDataMaskUtils.maskJsonSafely(json);
+        String masked = SensitiveDataMaskUtils.maskTransactionInteractionJsonSafely(json);
         if (masked == null || masked.isEmpty()) {
             return masked;
         }
@@ -1301,6 +1306,7 @@ public class MpgsApiClient {
                         + matchResult.group(4)
                         + matchResult.group(5)
         ));
+        masked = MPGS_EXPIRY_PATTERN.matcher(masked).replaceAll("$1***$3***$5");
         masked = MPGS_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         masked = MPGS_SECRET_QUERY_PARAM_PATTERN.matcher(masked).replaceAll("$1***");
         return MPGS_HTML_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");

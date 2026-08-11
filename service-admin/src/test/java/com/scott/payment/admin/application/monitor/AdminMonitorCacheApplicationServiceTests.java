@@ -43,7 +43,7 @@ import static org.mockito.Mockito.when;
  * @classname : AdminMonitorCacheApplicationServiceTests
  * @date : 2026-07-30 00:00
  * @email : scott_x@163.com
- * @description : Redis 缓存监控应用服务测试，验证 SCAN、平台配置白名单、元数据只读和分页上限。
+ * @description : Redis 缓存监控应用服务测试，验证 SCAN、系统参数命名空间、元数据只读和分页上限。
  * @status : create
  */
 @Slf4j
@@ -55,16 +55,16 @@ class AdminMonitorCacheApplicationServiceTests {
     private static final String CACHE_PREFIX = "acquiring:test:";
 
     /**
-     * 管理端唯一允许扫描和删除的平台配置缓存前缀。
+     * 管理端唯一允许扫描和删除的系统参数缓存前缀。
      */
-    private static final String MANAGED_PREFIX = CACHE_PREFIX + "config:public:";
+    private static final String MANAGED_PREFIX = CACHE_PREFIX + "system:config:";
 
     /**
      * Key 列表必须使用有界 SCAN，不能回退到阻塞式 KEYS。
      */
     @Test
     void shouldScanOnlyManagedPlatformConfigurationKeys() {
-        log.info("测试平台公开配置缓存扫描，关键输入: acquiring:test:config:public 命名空间");
+        log.info("测试系统参数缓存扫描，关键输入: acquiring:test:system:config 命名空间");
         ScanFixture fixture = scanFixture(List.of(
                 List.of(MANAGED_PREFIX + "platform.gateway.base-url"),
                 List.of(MANAGED_PREFIX + "platform.checkout.frontend-base-url")
@@ -86,15 +86,15 @@ class AdminMonitorCacheApplicationServiceTests {
                 });
         verify(fixture.template(), never()).keys(anyString());
         fixture.cursors().forEach(cursor -> verify(cursor).close());
-        log.info("平台公开配置缓存扫描测试完成，结果: 逐 Master 使用有界 SCAN 且命名空间正确");
+        log.info("系统参数缓存扫描测试完成，结果: 逐 Master 使用有界 SCAN 且命名空间正确");
     }
 
     /**
-     * 单次扫描最多检查 1000 个物理 Key，且只返回四个已登记公开配置。
+     * 单次扫描最多检查 1000 个物理 Key，并允许全部全局唯一系统参数进入结果。
      */
     @Test
-    void shouldEnforceScanLimitAndPublicConfigAllowlist() {
-        log.info("测试缓存监控扫描边界，关键输入: 4 个公开配置 Key 与 1096 个未登记同前缀 Key");
+    void shouldEnforceScanLimitAcrossAllSystemConfigKeys() {
+        log.info("测试缓存监控扫描边界，关键输入: 1100 个统一系统参数缓存 Key");
         List<String> keys = new ArrayList<>(1100);
         keys.add(MANAGED_PREFIX + "platform.gateway.base-url");
         keys.add(MANAGED_PREFIX + "platform.checkout.frontend-base-url");
@@ -110,11 +110,11 @@ class AdminMonitorCacheApplicationServiceTests {
 
         Map<String, Object> result = service.keys("*", 1, 500);
 
-        assertThat(result.get("total")).isEqualTo(4);
+        assertThat(result.get("total")).isEqualTo(1000);
         assertThat(result.get("truncated")).isEqualTo(true);
-        assertThat((List<?>) result.get("records")).hasSize(4);
+        assertThat((List<?>) result.get("records")).hasSize(100);
         verify(fixture.clusterConnection(), never()).scan(eq(fixture.masterNodes().get(1)), any(ScanOptions.class));
-        log.info("缓存监控扫描边界测试完成，结果: 检查上限生效且仅返回 4 个公开配置 Key");
+        log.info("缓存监控扫描边界测试完成，结果: 检查上限生效且全部系统参数 Key 均受管");
     }
 
     /**
@@ -214,17 +214,17 @@ class AdminMonitorCacheApplicationServiceTests {
     }
 
     /**
-     * dev 单节点 Redis 的 Key 列表仍必须使用有界 SCAN 和公开配置白名单。
+     * dev 单节点 Redis 的 Key 列表仍必须使用有界 SCAN 并隔离失效门禁命名空间。
      */
     @Test
     void shouldScanManagedKeysFromStandaloneRedis() {
-        log.info("测试单节点 Redis SCAN，关键输入: 公开配置 Key、pending Key 与未登记 Key");
+        log.info("测试单节点 Redis SCAN，关键输入: 两个配置 Key 与独立 pending Key");
         StringRedisTemplate template = mock(StringRedisTemplate.class);
         RedisConnection connection = mock(RedisConnection.class);
         Cursor<byte[]> cursor = cursor(List.of(
                 MANAGED_PREFIX + "platform.gateway.base-url",
-                MANAGED_PREFIX + "pending:platform.gateway.base-url",
-                MANAGED_PREFIX + "unregistered"
+                CACHE_PREFIX + "system:configPending:config-key-digest",
+                MANAGED_PREFIX + "system.name"
         ));
         when(connection.scan(any(ScanOptions.class))).thenReturn(cursor);
         when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
@@ -239,11 +239,11 @@ class AdminMonitorCacheApplicationServiceTests {
 
         Map<String, Object> result = service.keys(null, 1, 10);
 
-        assertThat(result).containsEntry("total", 1).containsEntry("truncated", false);
+        assertThat(result).containsEntry("total", 2).containsEntry("truncated", false);
         verify(connection).scan(any(ScanOptions.class));
         verify(template, never()).keys(anyString());
         verify(cursor).close();
-        log.info("单节点 Redis SCAN 测试完成，结果: 仅返回登记的公开配置 Key");
+        log.info("单节点 Redis SCAN 测试完成，结果: 返回配置数据且不包含 pending Key");
     }
 
     /**
@@ -291,38 +291,37 @@ class AdminMonitorCacheApplicationServiceTests {
                 .hasMessageContaining("outside the managed");
         assertThatThrownBy(() -> service.delete(forbiddenKey))
                 .isInstanceOf(ServiceException.class);
-        assertThatThrownBy(() -> service.keys("acquiring:prod:config:public:*", 1, 10))
+        assertThatThrownBy(() -> service.keys("acquiring:prod:system:config:*", 1, 10))
                 .isInstanceOf(ServiceException.class);
         verify(template, never()).delete(anyString());
         log.info("缓存监控命名空间隔离测试完成，结果: 非 test 公开配置 Key 均被拒绝");
     }
 
     /**
-     * pending 门禁和同前缀未登记 Key 必须从列表隐藏，并拒绝详情与删除操作。
+     * pending 门禁必须位于独立控制命名空间，普通系统参数键均允许管理。
      */
     @Test
-    void shouldHideAndRejectInvalidationGateOrUnregisteredKeys() {
-        log.info("测试缓存监控控制 Key 隔离，关键输入: config:public:pending 与未登记配置");
+    void shouldKeepInvalidationGateOutsideManagedDataNamespace() {
+        log.info("测试缓存监控控制 Key 隔离，关键输入: system:configPending 与普通系统参数");
         String validKey = MANAGED_PREFIX + "platform.gateway.base-url";
-        String pendingKey = MANAGED_PREFIX + "pending:platform.gateway.base-url";
-        String unregisteredKey = MANAGED_PREFIX + "system.name";
-        ScanFixture fixture = scanFixture(List.of(List.of(validKey, pendingKey), List.of(unregisteredKey)));
+        String pendingKey = CACHE_PREFIX + "system:configPending:config-key-digest";
+        String regularKey = MANAGED_PREFIX + "system.name";
+        ScanFixture fixture = scanFixture(List.of(List.of(validKey, pendingKey), List.of(regularKey)));
         AdminMonitorCacheApplicationService service = service(fixture.template());
 
         Map<String, Object> result = service.keys("*", 1, 10);
 
-        assertThat(result.get("total")).isEqualTo(1);
+        assertThat(result.get("total")).isEqualTo(2);
         assertThat((List<Map<String, Object>>) result.get("records"))
-                .singleElement()
-                .satisfies(row -> assertThat(row.get("key")).isEqualTo(validKey));
+                .extracting(row -> row.get("key"))
+                .containsExactly(validKey, regularKey);
         assertThatThrownBy(() -> service.value(pendingKey))
                 .isInstanceOf(ServiceException.class);
         assertThatThrownBy(() -> service.delete(pendingKey))
                 .isInstanceOf(ServiceException.class);
-        assertThatThrownBy(() -> service.value(unregisteredKey))
-                .isInstanceOf(ServiceException.class);
+        assertThat(service.value(regularKey).get("key")).isEqualTo(regularKey);
         verify(fixture.template(), never()).delete(anyString());
-        log.info("缓存监控控制 Key 隔离测试完成，结果: pending 和未登记 Key 均不可见且不可删除");
+        log.info("缓存监控控制 Key 隔离测试完成，结果: pending 不可见，普通唯一配置键可管理");
     }
 
     /**
@@ -330,7 +329,7 @@ class AdminMonitorCacheApplicationServiceTests {
      */
     @Test
     void shouldDeleteManagedPlatformConfigurationKey() {
-        log.info("测试平台公开配置缓存精确删除，关键输入: platform.admin.frontend-base-url");
+        log.info("测试系统参数缓存精确删除，关键输入: platform.admin.frontend-base-url");
         StringRedisTemplate template = mock(StringRedisTemplate.class);
         String key = MANAGED_PREFIX + "platform.admin.frontend-base-url";
         when(template.delete(key)).thenReturn(true);
@@ -339,7 +338,7 @@ class AdminMonitorCacheApplicationServiceTests {
         assertThat(service.delete(key)).isTrue();
 
         verify(template).delete(key);
-        log.info("平台公开配置缓存精确删除测试完成，结果: 仅删除白名单内完整物理 Key");
+        log.info("系统参数缓存精确删除测试完成，结果: 仅删除统一命名空间内完整物理 Key");
     }
 
     private AdminMonitorCacheApplicationService service(StringRedisTemplate template) {

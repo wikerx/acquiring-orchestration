@@ -37,6 +37,7 @@ import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -151,6 +152,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      */
     private final PaymentChannelRouteService paymentChannelRouteService;
 
+    /** 服务端卡品牌解析器；BIN 数据库优先，公开 IIN 规则兜底。 */
+    private final PaymentCheckoutCardCapabilityService cardCapabilityService;
+
     /**
      * payment Exchange Rate Service 依赖，用于 Default Payment Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -217,9 +221,30 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                                                        TransactionIdempotencyService transactionIdempotencyService,
                                                        TransactionEventOutboxService transactionEventOutboxService,
                                                        TransactionRecordService transactionRecordService) {
+        this(isoDictionaryService,
+                paymentRiskInvokeService,
+                paymentChannelRouteService,
+                paymentExchangeRateService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                null);
+    }
+
+    /** Spring 生产构造器，注入统一卡品牌解析能力。 */
+    @Autowired
+    public DefaultPaymentTransactionPreparationService(IsoDictionaryService isoDictionaryService,
+                                                       PaymentRiskInvokeService paymentRiskInvokeService,
+                                                       PaymentChannelRouteService paymentChannelRouteService,
+                                                       PaymentExchangeRateService paymentExchangeRateService,
+                                                       TransactionIdempotencyService transactionIdempotencyService,
+                                                       TransactionEventOutboxService transactionEventOutboxService,
+                                                       TransactionRecordService transactionRecordService,
+                                                       PaymentCheckoutCardCapabilityService cardCapabilityService) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentRiskInvokeService = paymentRiskInvokeService;
         this.paymentChannelRouteService = paymentChannelRouteService;
+        this.cardCapabilityService = cardCapabilityService;
         this.paymentExchangeRateService = paymentExchangeRateService;
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
@@ -240,6 +265,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
     @Transactional(rollbackFor = Exception.class)
     public PaymentInitialPreparationResultDTO prepareInitialTransaction(PaymentCreateCommandDTO commandDTO, String transactionType) {
         long startNanos = System.nanoTime();
+        if (cardCapabilityService != null) {
+            cardCapabilityService.enrichCardBrand(commandDTO);
+        }
         String idempotencyKey = transactionIdempotencyService.buildTransactionOperationKey(
                 commandDTO.getMerchantId(), commandDTO.getMerchantOrderId(), transactionType);
         String merchantOrderFlowKey = transactionIdempotencyService.buildMerchantOrderFlowKey(
@@ -942,6 +970,8 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         resultDTO.setCardBin(resolveCardBin(commandDTO));
         resultDTO.setDescription(commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getDescription());
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
+        resultDTO.setMerchantWebsite(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getMerchantWebsite());
         enrichMerchantResponse(resultDTO, channelResponse);
         if (PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {
             resultDTO.setFailReasonMessage(merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));
@@ -1240,23 +1270,8 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         if (commandDTO.getCardInfo() == null || !StringUtils.hasText(commandDTO.getCardInfo().getCardNo())) {
             return null;
         }
-        String cardNo = commandDTO.getCardInfo().getCardNo().trim();
-        if (cardNo.startsWith("4")) {
-            return "VISA";
-        }
-        if (cardNo.startsWith("34") || cardNo.startsWith("37")) {
-            return "AMEX";
-        }
-        if (cardNo.startsWith("35")) {
-            return "JCB";
-        }
-        if (cardNo.startsWith("62")) {
-            return "UNIONPAY";
-        }
-        if (cardNo.startsWith("5") || cardNo.startsWith("22")) {
-            return "MASTERCARD";
-        }
-        return null;
+        String digits = commandDTO.getCardInfo().getCardNo().replaceAll("\\D", "");
+        return PaymentCardBrandRuleMatcher.resolve(digits);
     }
 
     /**

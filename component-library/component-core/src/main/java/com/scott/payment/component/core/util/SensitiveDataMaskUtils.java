@@ -46,6 +46,14 @@ public final class SensitiveDataMaskUtils {
     );
 
     /**
+     * 交易交互正文中的卡有效期字段脱敏规则。
+     */
+    private static final Pattern CARD_EXPIRY_FIELD_PATTERN = Pattern.compile(
+            "(\"(?:expirationMonth|expirationYear|expiryMonth|expiryYear|expiryDate|cardExpiryMonth|cardExpiryYear|cardExpiryDate)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
      * 银行账号、IBAN、Swift/BIC 保留少量定位信息，避免完整账号或银行路由信息进入日志。
      */
     private static final Pattern ACCOUNT_FIELD_PATTERN = Pattern.compile(
@@ -93,6 +101,12 @@ public final class SensitiveDataMaskUtils {
             Pattern.CASE_INSENSITIVE
     );
 
+    /** 商户网站可能携带路径或查询参数，日志和审计明文摘要中不保留原值。 */
+    private static final Pattern MERCHANT_WEBSITE_FIELD_PATTERN = Pattern.compile(
+            "(\"merchantWebsite\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
     /**
      * URL encoded 表单中的 3DS 敏感字段统一隐藏。
      */
@@ -126,6 +140,7 @@ public final class SensitiveDataMaskUtils {
         masked = SECURITY_CODE_PATTERN.matcher(masked).replaceAll("$1***$3");
         masked = ID_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         masked = PERSONAL_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        masked = MERCHANT_WEBSITE_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         return FORM_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***");
     }
 
@@ -139,6 +154,37 @@ public final class SensitiveDataMaskUtils {
      */
     public static String maskJsonSafely(String json) {
         return maskJsonSafely(json, SensitiveDataMaskUtils::maskJson);
+    }
+
+    /**
+     * 对管理端交易交互正文执行最小脱敏。
+     * <p>
+     * 该方法仅用于商户请求/响应、渠道请求/响应的审计正文展示：业务字段尽量保留明文，
+     * 但完整 PAN、CVV/CVC、卡有效期、认证凭据、密钥、JWT、Token 和 3DS 认证材料必须继续隐藏。
+     * 普通安全日志、回调日志和风控日志仍应使用 {@link #maskJsonSafely(String)} 的强脱敏规则。
+     *
+     * @param json 原始 JSON 文本
+     * @return 最小脱敏后的 JSON 文本
+     */
+    public static String maskTransactionInteractionJsonSafely(String json) {
+        return maskJsonSafely(json, SensitiveDataMaskUtils::maskTransactionInteractionJson);
+    }
+
+    /**
+     * 对交易交互正文执行最小脱敏。
+     *
+     * @param json 原始 JSON 文本
+     * @return 最小脱敏后的 JSON 文本
+     */
+    public static String maskTransactionInteractionJson(String json) {
+        if (json == null || json.isEmpty()) {
+            return json;
+        }
+        String masked = SECRET_FIELD_PATTERN.matcher(json).replaceAll("$1***$3");
+        masked = maskCardNo(masked);
+        masked = SECURITY_CODE_PATTERN.matcher(masked).replaceAll("$1***$3");
+        masked = CARD_EXPIRY_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        return FORM_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***");
     }
 
     /**

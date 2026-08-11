@@ -570,6 +570,9 @@ public class PaymentCreateClientRequestDTO implements Serializable {
          */
         private String callbackUrl;
 
+        /** 商户发起支付的网站原始 URL，用于来源网址限定和响应回显。 */
+        private String merchantWebsite;
+
         /**
          * card Brand，用于保存 Transaction Info DTO 中与 cardbrand 相关的业务属性。
          * <p>

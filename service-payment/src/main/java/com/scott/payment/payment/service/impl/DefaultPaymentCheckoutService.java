@@ -125,6 +125,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private static final String MERCHANT_NOTIFICATION_PREFIX = "TMN";
     /** 支付业务默认时区。 */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
+
+    /** 支付核心和风控共同识别的可信 Hosted Checkout 请求来源。 */
+    private static final String REQUEST_SOURCE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
     /** 单次 3DS 挑战最长等待时间，单位秒。 */
     private static final int THREE_DS_TIMEOUT_SECONDS = 600;
 
@@ -794,12 +797,12 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         createCommand.setLabelCurrency(sessionDO.getLabelCurrency());
         createCommand.setTransactionDateTime(attemptDO.getTransactionDateTime());
         createCommand.setRequestFingerprint(commandDTO.getRequestFingerprint());
+        createCommand.setRequestSource(REQUEST_SOURCE_HOSTED_CHECKOUT);
         createCommand.setCardInfo(toCoreCardInfo(commandDTO.getCardInfo()));
         createCommand.setBillingCardHolderInfo(toCoreBillingInfo(commandDTO.getBillingCardHolderInfo()));
         createCommand.setThreeDsInfo(toCoreThreeDsInfo(threeDsResult));
         createCommand.setChannelIdentity(toCoreChannelIdentity(threeDsResult));
         createCommand.setTransactionInfo(toCoreTransactionInfo(sessionDO, attemptDO));
-        createCommand.setSourceUrl(commandDTO.getOriginHash());
         createCommand.setCallbackUrl(decryptMerchantNotifyUrl(sessionDO));
         createCommand.setPayerIp(commandDTO.getClientIpHash());
         createCommand.setUserAgent(commandDTO.getUserAgentHash());

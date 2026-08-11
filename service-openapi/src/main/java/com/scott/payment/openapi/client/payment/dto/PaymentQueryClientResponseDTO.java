@@ -375,5 +375,10 @@ public class PaymentQueryClientResponseDTO implements Serializable {
          * </p>
          */
         private String callbackUrl;
+
+        /**
+         * 生命周期首次交易保存的商户网站原始 URL。
+         */
+        private String merchantWebsite;
     }
 }

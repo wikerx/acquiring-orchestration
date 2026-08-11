@@ -203,6 +203,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setTransactionType(commandDTO.getTransactionType());
         requestDTO.setPaymentMethod(commandDTO.getPaymentMethod());
         requestDTO.setRequestId(commandDTO.getRequestId());
+        requestDTO.setRequestSource(commandDTO.getRequestSource());
         requestDTO.setAmount(commandDTO.getAmount());
         requestDTO.setCurrency(commandDTO.getCurrency());
         requestDTO.setTransactionDateTime(commandDTO.getTransactionDateTime());

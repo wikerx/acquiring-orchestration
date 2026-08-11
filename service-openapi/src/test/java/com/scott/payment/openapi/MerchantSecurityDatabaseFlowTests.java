@@ -177,7 +177,7 @@ class MerchantSecurityDatabaseFlowTests {
                         result.getResponse().getStatus(),
                         keyMaterialFactory.fingerprint(result.getResponse().getContentAsString())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ApiResultEnum.SUCCESS.getCode()))
+                .andExpect(jsonPath("$.code").value(ApiResultEnum.PROCESSING.getCode()))
                 .andExpect(jsonPath("$.data").isString())
                 .andReturn();
 
@@ -188,6 +188,7 @@ class MerchantSecurityDatabaseFlowTests {
         assertThat(merchantResponse.getOrderInfo().getAmount()).isEqualByComparingTo("12389.45");
         assertThat(merchantResponse.getBillingInfo().getTransactionAmount()).isEqualByComparingTo("12389.45");
         assertThat(merchantResponse.getBillingInfo().getTransactionRate()).isEqualByComparingTo("1.00000000");
+        assertThat(merchantResponse.getTransactionInfo().getCode()).isEqualTo(ApiResultEnum.PROCESSING.getCode());
     }
 
     private MerchantSecurityMaterialDTO provisionMerchant(String merchantId) {

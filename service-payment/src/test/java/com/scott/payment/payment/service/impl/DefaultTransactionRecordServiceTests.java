@@ -167,6 +167,7 @@ class DefaultTransactionRecordServiceTests {
         assertThat(orderCapture.value.getTransactionUtcTime()).isEqualTo(LocalDateTime.of(2026, 6, 30, 16, 30));
         assertThat(orderCapture.value.getAuthorizedAmount()).isEqualByComparingTo("12.34");
         assertThat(orderCapture.value.getAvailableCaptureAmount()).isEqualByComparingTo("12.34");
+        assertThat(orderCapture.value.getMerchantWebsite()).isEqualTo("https://merchant.example.com/checkout");
         assertThat(operationCapture.value.getChannelOrderNo()).isEqualTo("CODX260714180001");
         assertThat(operationCapture.value.getChannelTransactionId()).isEqualTo("CH260714180001");
         assertThat(operationCapture.value.getChannelResponseCode()).isEqualTo("00");
@@ -175,8 +176,10 @@ class DefaultTransactionRecordServiceTests {
         assertThat(operationCapture.value.getAcquirerReferenceNo()).isEqualTo("REF001");
         assertThat(operationCapture.value.getApprovedAmount()).isEqualByComparingTo("12.34");
         assertThat(operationCapture.value.getMerchantOperationNo()).isEqualTo("M202607140001");
+        assertThat(operationCapture.value.getRequestSource()).isEqualTo("HOSTED_CHECKOUT");
         assertThat(paymentInfoCapture.value.getPaymentMethod()).isEqualTo("BANK_CARD");
         assertThat(paymentInfoCapture.value.getPaymentBrand()).isEqualTo("MASTERCARD");
+        assertThat(paymentInfoCapture.value.getIssuerCountry()).isEqualTo("AE");
         assertThat(paymentInfoCapture.value.getCardBin()).isEqualTo("51234567");
         assertThat(paymentInfoCapture.value.getCardLast4()).isEqualTo("0008");
         assertThat(paymentInfoCapture.value.getCardNumberMasked()).doesNotContain("5123456789010008");
@@ -1594,6 +1597,71 @@ class DefaultTransactionRecordServiceTests {
         assertNestedMerchantPayload(notificationCapture.value.getPayloadJsonMasked());
     }
 
+    /** 渠道已生成并发出请求但网络异常时，应从请求扩展保存真实脱敏渠道报文。 */
+    @Test
+    void shouldRecordGeneratedChannelPayloadFromRequestWhenResponseIsMissing() {
+        PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
+        invokeResultDTO.setChannelResponse(null);
+        invokeResultDTO.setExceptionType("ChannelRequestException");
+        invokeResultDTO.setExceptionMessage("MPGS network request failed");
+        invokeResultDTO.getChannelRequest().getExtension().put("httpMethod", "PUT");
+        invokeResultDTO.getChannelRequest().getExtension().put("requestUrlMasked",
+                "https://test-gateway.mastercard.com/api/rest/version/100/merchant/TESTDEVMER031/order/TX260714180001/transaction/CH260714180001");
+        invokeResultDTO.getChannelRequest().getExtension().put("requestHeaderJsonMasked",
+                "{\"Authorization\":\"Basic ***\"}");
+        invokeResultDTO.getChannelRequest().getExtension().put("requestBodyJsonMasked",
+                "{\"apiOperation\":\"AUTHORIZE\",\"sourceOfFunds\":{\"provided\":{\"card\":{\"number\":\"512345******0008\",\"securityCode\":\"***\"}}}}");
+
+        TransactionChannelInteractionLogDO interactionDO = recordInitialInteraction(invokeResultDTO);
+
+        assertThat(interactionDO.getHttpMethod()).isEqualTo("PUT");
+        assertThat(interactionDO.getRequestUrlMasked()).contains("/version/100/merchant/TESTDEVMER031/");
+        assertThat(interactionDO.getRequestHeaderJsonMasked()).isEqualTo("{\"Authorization\":\"Basic ***\"}");
+        assertThat(interactionDO.getRequestBodyJsonMasked()).contains("\"apiOperation\":\"AUTHORIZE\"");
+        assertThat(interactionDO.getRequestBodyJsonMasked()).doesNotContain("\"channelCode\"");
+    }
+
+    /** 渠道发送前校验失败时没有真实 HTTP 请求，后台不得把内部统一请求对象冒充渠道报文。 */
+    @Test
+    void shouldLeaveChannelPayloadEmptyWhenRequestWasNotGenerated() {
+        PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
+        invokeResultDTO.setChannelResponse(null);
+        invokeResultDTO.setExceptionType("ChannelRequestException");
+        invokeResultDTO.setExceptionMessage("MPGS merchantId is required");
+
+        TransactionChannelInteractionLogDO interactionDO = recordInitialInteraction(invokeResultDTO);
+
+        assertThat(interactionDO.getRequestHeaderJsonMasked()).isNull();
+        assertThat(interactionDO.getRequestBodyJsonMasked()).isNull();
+    }
+
+    /** 执行首次交易事实写入并捕获渠道交互日志。 */
+    private TransactionChannelInteractionLogDO recordInitialInteraction(PaymentChannelInvokeResultDTO invokeResultDTO) {
+        TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
+        Captured<TransactionChannelInteractionLogDO> interactionCapture = new Captured<>();
+        when(interactionLogMapper.insertLogical(any(TransactionChannelInteractionLogDO.class))).thenAnswer(invocation -> {
+            interactionCapture.value = invocation.getArgument(0);
+            return 1;
+        });
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                mock(TransactionOrderMapper.class),
+                mock(TransactionOperationMapper.class),
+                mock(TransactionStatusHistoryMapper.class),
+                mock(TransactionChannelRequestMapper.class),
+                interactionLogMapper,
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+
+        recordService.recordInitialTransaction(baseCommand(), routeResult(), invokeResultDTO, resultDTO(),
+                PaymentRiskDecisionEnum.PASS, 2);
+        return interactionCapture.value;
+    }
+
     private PaymentCreateCommandDTO baseCommand() {
         PaymentCreateCommandDTO commandDTO = new PaymentCreateCommandDTO();
         commandDTO.setMerchantId("200001");
@@ -1603,8 +1671,11 @@ class DefaultTransactionRecordServiceTests {
         commandDTO.setAmount(new BigDecimal("12.34"));
         commandDTO.setCurrency("USD");
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 1, 0, 30));
+        commandDTO.setRequestSource("HOSTED_CHECKOUT");
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
         transactionInfoDTO.setCardBrand("MASTERCARD");
+        transactionInfoDTO.setIssuerCountry("AE");
+        transactionInfoDTO.setMerchantWebsite("https://merchant.example.com/checkout");
         commandDTO.setTransactionInfo(transactionInfoDTO);
         PaymentCreateCommandDTO.CardInfoDTO cardInfoDTO = new PaymentCreateCommandDTO.CardInfoDTO();
         cardInfoDTO.setCardNo("5123456789010008");

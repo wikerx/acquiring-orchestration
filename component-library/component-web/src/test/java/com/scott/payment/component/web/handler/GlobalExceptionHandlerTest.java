@@ -1,6 +1,9 @@
 package com.scott.payment.component.web.handler;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.exception.BizException;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
 import com.scott.payment.component.core.model.CommonResult;
 import org.junit.jupiter.api.Test;
@@ -20,6 +23,19 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @status : create
  */
 class GlobalExceptionHandlerTest {
+
+    /** 所有 F500 异常都只向商户返回统一繁忙提示，不暴露内部失败详情。 */
+    @Test
+    void shouldReturnStandardMerchantMessageForAllF500Exceptions() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+        assertStandardInternalError(handler.handleApiException(
+                new ApiException("F500", "sensitive api failure detail")));
+        assertStandardInternalError(handler.handleServiceException(
+                new ServiceException("F500", "sensitive service failure detail")));
+        assertStandardInternalError(handler.handleBizException(
+                new BizException("F500", "sensitive business failure detail")));
+    }
 
     /** ShardingSphere 包装路由异常后，Web 边界仍应返回明确的季度数据不可用错误。 */
     @Test
@@ -79,5 +95,11 @@ class GlobalExceptionHandlerTest {
 
         assertThat(result.getCode()).isEqualTo(ApiResultEnum.NOT_FOUND.getCode());
         assertThat(result.getMessage()).isEqualTo(ApiResultEnum.NOT_FOUND.getMessage());
+    }
+
+    private void assertStandardInternalError(CommonResult<Void> result) {
+        assertThat(result.getCode()).isEqualTo("F500");
+        assertThat(result.getMessage()).isEqualTo("The system is busy; please try again later.");
+        assertThat(result.getData()).isNull();
     }
 }

@@ -192,7 +192,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     bindingCount,
                     candidates.size(),
                     elapsedMillis(startNanos));
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户未配置可用渠道MID");
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
         if (candidates.size() > 1) {
             log.warn("event: PAYMENT_ROUTE_MULTI_CANDIDATE stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} candidateCount: {} candidates: {} durationMs: {}",
@@ -207,7 +207,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     candidates.size(),
                     candidateSummary(candidates),
                     elapsedMillis(startNanos));
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户渠道MID配置命中多条，请先收敛绑定关系");
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
         RouteCandidate candidate = candidates.get(0);
         PaymentRouteResultDTO resultDTO = PaymentRouteResultDTO.routed(candidate.channelInfo().getChannelCode());
@@ -270,20 +270,28 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         long startNanos = System.nanoTime();
         String normalizedChannelCode = normalize(channelCode);
         if (!StringUtils.hasText(normalizedChannelCode) || midConfigId == null) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channelCode and midConfigId are required");
+            rejectOriginalTransaction("original channel identity is incomplete", channelCode, channelId, midConfigId);
         }
         ChannelMidConfigDO midConfig = midConfigMapper.selectById(midConfigId);
-        if (midConfig == null || NOT_DELETED != safeDeleted(midConfig.getDeleted())) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel MID config is not available");
+        LocalDateTime now = LocalDateTime.now();
+        if (midConfig == null
+                || NOT_DELETED != safeDeleted(midConfig.getDeleted())
+                || !Integer.valueOf(ENABLED).equals(midConfig.getMidStatus())
+                || !isActive(now, midConfig.getEffectiveTime(), midConfig.getExpireTime())) {
+            rejectOriginalTransaction("original channel MID is unavailable", channelCode, channelId, midConfigId);
         }
         Long resolvedChannelId = channelId == null ? midConfig.getChannelId() : channelId;
         ChannelInfoDO channelInfo = resolvedChannelId == null ? null : channelInfoMapper.selectById(resolvedChannelId);
-        if (channelInfo == null || NOT_DELETED != safeDeleted(channelInfo.getDeleted())) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel info is not available");
+        if (channelInfo == null
+                || NOT_DELETED != safeDeleted(channelInfo.getDeleted())
+                || !Integer.valueOf(ENABLED).equals(channelInfo.getChannelStatus())
+                || !Integer.valueOf(ENABLED).equals(channelInfo.getSupportAcquiring())) {
+            rejectOriginalTransaction("original channel is unavailable", channelCode, resolvedChannelId, midConfigId);
         }
         String restoredChannelCode = firstText(channelInfo.getChannelCode(), midConfig.getChannelCode(), normalizedChannelCode);
         if (!normalizedChannelCode.equals(normalize(restoredChannelCode))) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel config does not match operation channel");
+            rejectOriginalTransaction("original channel identity does not match current configuration",
+                    channelCode, resolvedChannelId, midConfigId);
         }
         PaymentRouteResultDTO resultDTO = PaymentRouteResultDTO.routed(restoredChannelCode);
         resultDTO.setChannelId(channelInfo.getId());
@@ -304,6 +312,18 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 resultDTO.getRouteReason(),
                 elapsedMillis(startNanos));
         return resultDTO;
+    }
+
+    /**
+     * 拒绝不可继续执行的原交易；具体配置原因只进入内部日志，对外保持稳定响应。
+     */
+    private void rejectOriginalTransaction(String internalReason,
+                                           String channelCode,
+                                           Long channelId,
+                                           Long midConfigId) {
+        log.warn("event: ORIGINAL_TRANSACTION_ROUTE_REJECTED stage=ROUTE traceId: {} channelCode: {} channelId: {} midConfigId: {} reason: {}",
+                TraceContext.getTraceId(), channelCode, channelId, midConfigId, internalReason);
+        throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
     }
 
     /**
@@ -341,10 +361,15 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         String cardBrand = commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getCardBrand();
         if ("BANK_CARD".equals(normalize(paymentMethod))
-                && !matchesScope(option.getCardBrandScope(), cardBrand)) {
+                && (!matchesScope(option.getCardBrandScope(), cardBrand)
+                || !matchesCapabilityCardBrand(option.getCapabilitySupportedCardBrands(), cardBrand))) {
             return null;
         }
         if (!matchesScope(option.getTransactionTypeScope(), commandDTO.getTransactionType())) {
+            return null;
+        }
+        if ("INCREMENTAL_AUTHORIZATION".equals(normalize(commandDTO.getTransactionType()))
+                && !Integer.valueOf(ENABLED).equals(option.getCapabilitySupportIncrementalAuthorization())) {
             return null;
         }
         String payerCountry = commandDTO.getBillingCardHolderInfo() == null ? null : commandDTO.getBillingCardHolderInfo().getCountry();
@@ -369,6 +394,18 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 routedCurrency,
                 !directCurrencySupported
         );
+    }
+
+    /** 银行卡路由必须命中能力表明确启用的卡品牌。 */
+    private boolean matchesCapabilityCardBrand(List<String> supportedCardBrands, String cardBrand) {
+        if (supportedCardBrands == null || supportedCardBrands.isEmpty() || !StringUtils.hasText(cardBrand)) {
+            return false;
+        }
+        String normalizedCardBrand = normalize(cardBrand);
+        return supportedCardBrands.stream()
+                .filter(StringUtils::hasText)
+                .map(this::normalize)
+                .anyMatch(normalizedCardBrand::equals);
     }
 
     /** 将缓存候选适配为既有路由内部渠道对象。 */
@@ -415,6 +452,8 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         capability.setBusinessType(option.getCapabilityBusinessType());
         capability.setPaymentMethod(option.getCapabilityPaymentMethod());
         capability.setTransactionType(option.getCapabilityTransactionType());
+        capability.setSupport3ds(option.getCapabilitySupport3ds());
+        capability.setSupportIncrementalAuthorization(option.getCapabilitySupportIncrementalAuthorization());
         capability.setCapabilityStatus(option.getCapabilityStatus());
         capability.setSortOrder(option.getCapabilitySortOrder());
         capability.setDeleted(NOT_DELETED);

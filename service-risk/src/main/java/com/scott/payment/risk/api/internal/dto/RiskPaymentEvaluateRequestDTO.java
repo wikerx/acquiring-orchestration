@@ -56,6 +56,11 @@ public class RiskPaymentEvaluateRequestDTO implements Serializable {
     private String requestId;
 
     /**
+     * 支付核心确认的可信请求来源，例如 OPENAPI 或 HOSTED_CHECKOUT。
+     */
+    private String requestSource;
+
+    /**
      * 交易金额，主币种单位，不能为空且必须大于 0。
      */
     @NotNull(message = "amount is required")
