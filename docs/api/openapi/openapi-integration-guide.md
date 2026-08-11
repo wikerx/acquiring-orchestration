@@ -2,12 +2,12 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 文档版本 | `v2.1.0` |
+| 文档版本 | `v2.2.0` |
 | API 版本 | `v1` |
-| 更新日期 | `2026-08-04` |
+| 更新日期 | `2026-08-11` |
 | 适用对象 | 商户服务端开发、测试、运维和安全人员 |
 
-本文档说明商户服务端如何接入支付平台 OpenAPI，包括身份认证、请求加密、响应解密、幂等、终态回调和重试规则，以及当前 13 个正式开放接口的请求和响应契约。
+本文档说明商户服务端如何接入支付平台 OpenAPI，包括身份认证、请求加密、响应解密、幂等、终态回调和重试规则，以及当前 15 个正式开放接口的请求和响应契约。
 
 除 4.7 节明确列出的 Sandbox 测试卡外，本文档中的商户号、密钥、卡号、账户号和交易号均为格式示例，不能用于真实交易。各环境的商户凭据、平台公钥和商户响应私钥以商户系统或开户邮件提供的材料为准。
 
@@ -79,7 +79,7 @@ Sandbox 地址使用 HTTP，仅限测试联调，不得用于真实持卡人数�
 | 协议 | Production 必须使用 HTTPS |
 | 字符集 | UTF-8 |
 | Content-Type | `application/json` |
-| HTTP Method | 当前 13 个接口全部使用 `POST` |
+| HTTP Method | 当前 15 个接口全部使用 `POST` |
 | API 版本 | 当前为 `v1`，版本位于 URL 中 |
 | 请求体 | 外层 JSON 只传加密后的 `data` |
 | 成功响应 | 外层 `code/message` 明文，`data` 加密 |
@@ -414,19 +414,21 @@ Sandbox 模拟器可通过有效期触发预期交易结果。本文 API 使用�
 | ---: | --- | --- | --- | --- |
 | 1 | ISO 字典 | 查询国家地区 | POST | `/api/rest/iso/v1/countries/query` |
 | 2 | ISO 字典 | 查询币种 | POST | `/api/rest/iso/v1/currencies/query` |
-| 3 | 收单支付 | 一步支付 | POST | `/api/rest/payment/v1/payment` |
-| 4 | 收单支付 | 授权 | POST | `/api/rest/payment/v1/authorization` |
-| 5 | 收单支付 | 预授权 | POST | `/api/rest/payment/v1/pre-authorization` |
-| 6 | 收单支付 | 增量授权 | POST | `/api/rest/payment/v1/incremental-authorization` |
-| 7 | 收单支付 | 预授权完成 | POST | `/api/rest/payment/v1/pre-auth-completion` |
-| 8 | 收单支付 | 请款 | POST | `/api/rest/payment/v1/capture` |
-| 9 | 收单支付 | 退款 | POST | `/api/rest/payment/v1/refund` |
-| 10 | 收单支付 | 撤销 | POST | `/api/rest/payment/v1/void` |
-| 11 | 收单支付 | 交易查询 | POST | `/api/rest/payment/v1/query` |
-| 12 | Hosted Checkout | 创建收银台会话 | POST | `/api/rest/checkout/v1/session` |
-| 13 | 代付 | 创建代付 | POST | `/api/rest/payout/v1/create` |
+| 3 | 基础数据 | IP 数据检索 | POST | `/api/rest/ip/v1/query` |
+| 4 | 基础数据 | 卡 BIN 数据检索 | POST | `/api/rest/card-bin/v1/query` |
+| 5 | 收单支付 | 一步支付 | POST | `/api/rest/payment/v1/payment` |
+| 6 | 收单支付 | 授权 | POST | `/api/rest/payment/v1/authorization` |
+| 7 | 收单支付 | 预授权 | POST | `/api/rest/payment/v1/pre-authorization` |
+| 8 | 收单支付 | 增量授权 | POST | `/api/rest/payment/v1/incremental-authorization` |
+| 9 | 收单支付 | 预授权完成 | POST | `/api/rest/payment/v1/pre-auth-completion` |
+| 10 | 收单支付 | 请款 | POST | `/api/rest/payment/v1/capture` |
+| 11 | 收单支付 | 退款 | POST | `/api/rest/payment/v1/refund` |
+| 12 | 收单支付 | 撤销 | POST | `/api/rest/payment/v1/void` |
+| 13 | 收单支付 | 交易查询 | POST | `/api/rest/payment/v1/query` |
+| 14 | Hosted Checkout | 创建收银台会话 | POST | `/api/rest/checkout/v1/session` |
+| 15 | 代付 | 创建代付 | POST | `/api/rest/payout/v1/create` |
 
-## 6. ISO 字典接口
+## 6. ISO 与基础数据接口
 
 ### 6.1 查询国家地区
 
@@ -572,6 +574,134 @@ POST /api/rest/iso/v1/currencies/query
 ```
 
 币种精度和最小单位可能随平台字典更新。商户不得在代码中永久假定所有币种均为两位小数。
+
+### 6.3 IP 数据检索
+
+根据单个 IPv4 或 IPv6 地址查询平台当前 IP 库中的归属信息。只支持精确 IP 字面量，不支持域名、CIDR、IP 范围或批量查询。
+
+**接口**
+
+```http
+POST /api/rest/ip/v1/query
+```
+
+**明文请求参数**
+
+| 字段 | 类型 | 必填 | 规则 |
+| --- | --- | --- | --- |
+| `ipAddress` | string | M | 标准 IPv4 或 IPv6 字面量，最长 45 个字符 |
+
+**明文请求示例**
+
+```json
+{
+  "ipAddress": "8.8.8.8"
+}
+```
+
+商户必须按第 3 章规则加密上述 JSON。实际 HTTP 请求体仍然只包含密文 `data`：
+
+```json
+{
+  "data": "{five-part-compact-payload}"
+}
+```
+
+**解密后的响应字段**
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `matched` | boolean | 是否命中当前有效 IP 归属区间 |
+| `ipAddress` | string | 平台规范化后的 IP 地址 |
+| `ipType` | string | `IPV4` 或 `IPV6` |
+| `countryAlpha2` | string | 国家或地区 ISO Alpha-2 编码，未命中时为空 |
+| `countryAlpha3` | string | 国家或地区 ISO Alpha-3 编码，未命中时为空 |
+| `countryNumeric` | string | 国家或地区 ISO Numeric 编码，未命中时为空 |
+| `countryName` | string | 国家或地区英文名称，未命中时为空 |
+| `stateProvince` | string | 州或省名称，未命中或数据源未提供时为空 |
+| `city` | string | 城市名称，未命中或数据源未提供时为空 |
+
+**解密后的响应示例**
+
+```json
+{
+  "matched": true,
+  "ipAddress": "8.8.8.8",
+  "ipType": "IPV4",
+  "countryAlpha2": "US",
+  "countryAlpha3": "USA",
+  "countryNumeric": "840",
+  "countryName": "United States",
+  "stateProvince": "California",
+  "city": "Mountain View"
+}
+```
+
+格式正确但未命中时，接口仍返回 `T200`，解密后的 `data.matched=false`。未命中不是系统异常，商户不应立即高频重试。IP 归属数据属于参考信息，可能随数据版本更新或从库同步存在短暂延迟，不应单独作为付款、开户或风控放行依据。
+
+### 6.4 卡 BIN 数据检索
+
+根据 6 至 11 位纯数字卡 BIN 查询平台当前有效的卡品牌、卡类型和发卡机构归属信息。不得向本接口传入完整卡号、CVV 或其他持卡人数据。
+
+**接口**
+
+```http
+POST /api/rest/card-bin/v1/query
+```
+
+**明文请求参数**
+
+| 字段 | 类型 | 必填 | 规则 |
+| --- | --- | --- | --- |
+| `cardBin` | string | M | 6 至 11 位纯数字，不允许传入完整卡号 |
+
+**明文请求示例**
+
+```json
+{
+  "cardBin": "411111"
+}
+```
+
+商户必须按第 3 章规则加密上述 JSON，成功响应的 `data` 同样为密文，必须使用商户响应私钥解密。
+
+**解密后的响应字段**
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `matched` | boolean | 是否命中当前有效卡 BIN 区间 |
+| `cardBin` | string | 商户提交的卡 BIN |
+| `binLength` | integer | 命中记录精度，范围为 6 至 11，且不会大于请求长度 |
+| `cardBrand` | string | 卡品牌代码，未命中时为空 |
+| `cardSubBrand` | string | 卡子品牌或产品名称，未命中时为空 |
+| `cardType` | string | 卡类型代码，未命中时为空 |
+| `cardLevel` | string | 卡等级，未命中时为空 |
+| `issuerCountryName` | string | 发卡国家或地区名称，未命中时为空 |
+| `issuerCountryAlpha2` | string | 发卡国家或地区 ISO Alpha-2 编码，未命中时为空 |
+| `issuerCountryAlpha3` | string | 发卡国家或地区 ISO Alpha-3 编码，未命中时为空 |
+| `issuerCountryNumeric` | string | 发卡国家或地区 ISO Numeric 编码，未命中时为空 |
+| `issuerBank` | string | 发卡行名称，未命中时为空 |
+
+**解密后的响应示例**
+
+```json
+{
+  "matched": true,
+  "cardBin": "411111",
+  "binLength": 6,
+  "cardBrand": "VISA",
+  "cardSubBrand": "CLASSIC",
+  "cardType": "CREDIT",
+  "cardLevel": "GOLD",
+  "issuerCountryName": "United States",
+  "issuerCountryAlpha2": "US",
+  "issuerCountryAlpha3": "USA",
+  "issuerCountryNumeric": "840",
+  "issuerBank": "Example Bank"
+}
+```
+
+格式正确但未命中时，接口仍返回 `T200`，解密后的 `data.matched=false`。卡 BIN 数据属于参考信息，可能随数据源和从库同步更新，不能替代卡组织、发卡行或实际交易授权结果。
 
 ## 7. 收单支付接口
 
@@ -1942,6 +2072,7 @@ HTTP/网络结果
 | 内层 `F207/F210` | 否 | 当前动作已失败，不自动重复提交同一扣款 |
 | `F510/F515` | 否 | 查询既有订单或核对幂等参数，不得换号绕过 |
 | 查询无结果 | 可再次查询 | 每次查询使用新的查询 `orderId` 和 JWT `jti` |
+| IP 或卡 BIN 未命中 | 不应立即重发 | 按 `T200 + matched=false` 处理；需要再次查询时使用新的 JWT `jti` |
 | 代付结果不确定 | 否 | 保留 `merchantOrderNo`，联系平台核查；不得换号自动重提 |
 
 重试同一个支付业务动作时，请求业务内容和 `orderInfo.orderId` 必须保持一致，但 JWT `jti` 必须重新生成。相同业务幂等标识对应不同金额、币种、源交易号或收款方，应视为幂等冲突。
@@ -2242,6 +2373,7 @@ String responsePlainJson = OpenApiCrypto.decryptResponse(
 
 | 版本 | 日期 | 说明 |
 | --- | --- | --- |
+| `v2.2.0` | 2026-08-11 | 增加 IP 与卡 BIN 基础数据检索接口，明确请求加密、响应解密、未命中语义和数据同步延迟 |
 | `v2.1.0` | 2026-08-04 | 增加商户终态回调协议、JWT/Header/密文、SDK 接收、事件幂等、人工重发和商户订单失败重试规则 |
 | `v2.0.1` | 2026-08-01 | 增加 Sandbox 地址、密钥材料获取方式、测试卡数据和 Java SDK 参考 |
 | `v2.0.0` | 2026-08-01 | 重构为商户交付版；统一安全协议、公共规则、13 个逐接口契约、错误码、重试和排查附录 |
