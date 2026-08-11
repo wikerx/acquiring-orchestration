@@ -38,10 +38,10 @@ public final class SensitiveDataMaskUtils {
     );
 
     /**
-     * 扩展 CardBin 最多只允许在日志中保留前 6 位。
+     * IP 与卡 BIN 检索条件可识别具体查询对象，诊断日志中不保留任何明文片段。
      */
-    private static final Pattern CARD_BIN_FIELD_PATTERN = Pattern.compile(
-            "(\"cardBin\"\\s*:\\s*\")([0-9]{6})[0-9]{1,5}(\")",
+    private static final Pattern REFERENCE_LOOKUP_FIELD_PATTERN = Pattern.compile(
+            "(\"(?:ipAddress|cardBin)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -133,7 +133,7 @@ public final class SensitiveDataMaskUtils {
         }
         String masked = SECRET_FIELD_PATTERN.matcher(json).replaceAll("$1***$3");
         masked = maskCardNo(masked);
-        masked = CARD_BIN_FIELD_PATTERN.matcher(masked).replaceAll("$1$2*****$3");
+        masked = REFERENCE_LOOKUP_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         masked = maskAccountNumber(masked);
         masked = maskMobileField(masked);
         masked = maskEmailField(masked);

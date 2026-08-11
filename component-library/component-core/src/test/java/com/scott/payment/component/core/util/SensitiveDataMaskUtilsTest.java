@@ -33,6 +33,7 @@ class SensitiveDataMaskUtilsTest {
                   "authenticationToken":"three-ds-token",
                   "privateKey":"pem",
                   "cardNo":"4111111111111111",
+                  "ipAddress":"2001:4860:4860::8888",
                   "cardBin":"65432198765",
                   "pan":"5555555555554444",
                   "cvv":"123",
@@ -67,7 +68,8 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).contains("\"authenticationToken\":\"***\"");
         assertThat(masked).contains("\"privateKey\":\"***\"");
         assertThat(masked).contains("\"cardNo\":\"411111******1111\"");
-        assertThat(masked).contains("\"cardBin\":\"654321*****\"");
+        assertThat(masked).contains("\"ipAddress\":\"***\"");
+        assertThat(masked).contains("\"cardBin\":\"***\"");
         assertThat(masked).contains("\"pan\":\"555555******4444\"");
         assertThat(masked).contains("\"cvv\":\"***\"");
         assertThat(masked).contains("\"mobile\":\"138****5678\"");
@@ -88,11 +90,23 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).contains("\"iban\":\"GB82******5432\"");
         assertThat(masked).doesNotContain("plain", "Bearer abc.def", "mpgs-password",
                 "mid-password", "mid-password-alias", "merchant-key", "three-ds-token", "pem", "1234567890123",
-                "65432198765",
+                "2001:4860:4860::8888", "65432198765",
                 "scott@example.com", "merchant@example.com", "John Smith", "Jane Owner",
                 "Example Trading Limited", "CUSTOMER-0001", "device-fingerprint-value",
                 "https://shop.merchant.example/checkout?token=secret",
                 "1 Billing Street", "2 Shipping Street");
+    }
+
+    /**
+     * 六位 BIN 也必须脱敏，避免最短合法查询值完整进入诊断日志。
+     */
+    @Test
+    void shouldMaskSixDigitCardBin() {
+        String masked = SensitiveDataMaskUtils.maskJson("{\"cardBin\":\"411111\"}");
+
+        assertThat(masked)
+                .isEqualTo("{\"cardBin\":\"***\"}")
+                .doesNotContain("411111");
     }
 
     /**
