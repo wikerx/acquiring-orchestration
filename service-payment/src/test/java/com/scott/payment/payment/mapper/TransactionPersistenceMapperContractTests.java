@@ -404,6 +404,9 @@ class TransactionPersistenceMapperContractTests {
                 TransactionOperationMapper.class, "updateChannelMatch"), Update.class);
 
         assertThat(selectSql).contains("channel_code IS NOT NULL");
+        assertThat(selectSql).contains("request_status = 'INIT'");
+        assertThat(selectSql).contains("channel_match_flag = 0");
+        assertThat(selectSql).contains("r.transaction_date_time = o.transaction_date_time");
         assertThat(selectSql).doesNotContain("channel_order_no IS NOT NULL");
         assertThat(selectSql).doesNotContain("channel_transaction_id IS NOT NULL");
         assertThat(updateSql).contains("version = #{expectedVersion}");

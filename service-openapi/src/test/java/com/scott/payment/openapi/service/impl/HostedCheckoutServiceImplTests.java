@@ -92,6 +92,19 @@ class HostedCheckoutServiceImplTests {
     }
 
     @Test
+    void shouldLeaveUnspecifiedChannelForPaymentRouting() {
+        CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
+        HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
+        bindRequestContext("200001");
+        HostedCheckoutSessionCreateRequestDTO requestDTO = buildCreateRequest("200001");
+        requestDTO.getCheckoutInfo().getAllowedPaymentMethods().get(0).setChannelCode(null);
+
+        checkoutService.createSession("encrypted-request-body", requestDTO);
+
+        assertThat(paymentInternalClient.sessionCreateRequest.getAllowedPaymentMethods().get(0).getChannelCode()).isNull();
+    }
+
+    @Test
     void shouldUsePlatformConfigWhenMerchantProvidesCheckoutDomain() {
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
@@ -161,11 +174,43 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
         assertThat(captured.getRequestFingerprint()).isNotBlank();
         assertThat(captured.getBrowserInfoJson()).doesNotContain(RAW_OPAQUE_TOKEN);
+        assertThat(captured.getBrowserInfoJson())
+                .contains("\"userAgent\":\"JUnit\"")
+                .contains("\"acceptHeaders\":\"text/html,application/xhtml+xml\"")
+                .contains("\"challengeWindowSize\":\"FULL_SCREEN\"")
+                .contains("\"colorDepth\":24")
+                .contains("\"javaScriptEnabled\":true")
+                .contains("\"screenHeight\":900")
+                .contains("\"screenWidth\":1440");
         assertThat(captured.toString()).doesNotContain("cardNo", "securityCode", RAW_OPAQUE_TOKEN);
 
         String maskedJson = SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(captured));
         assertThat(maskedJson).doesNotContain("encryptedKeyValue", "ciphertextValue", RAW_OPAQUE_TOKEN);
         assertThat(maskedJson).contains("\"encryptedKey\":\"***\"", "\"ciphertext\":\"***\"");
+    }
+
+    @Test
+    void shouldForwardThreeDsReturnSafelyAndExposeFreshCardEncryptionMetadata() {
+        CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
+        HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
+        bindRequestContext("200001");
+        HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest requestDTO = buildThreeDsReturnRequest();
+
+        HostedCheckoutPaymentResultVO responseVO = checkoutService.handleThreeDsReturn(requestDTO);
+
+        PaymentCheckoutClientDTOs.ThreeDsReturnRequest captured = paymentInternalClient.threeDsReturnRequest;
+        assertThat(responseVO.getPageState()).isEqualTo("THREE_DS_REQUIRED");
+        assertThat(responseVO.getThreeDsAction().getPhase()).isEqualTo("AUTHENTICATE");
+        assertThat(responseVO.getThreeDsAction().getCardEncryption().getAlgorithm())
+                .isEqualTo("RSA-OAEP-256+A256GCM");
+        assertThat(responseVO.getThreeDsAction().getCardEncryption().getNonce()).isEqualTo("fresh-3ds-nonce");
+        assertThat(captured.getThreeDsReturnTokenHash())
+                .isEqualTo(HostedCheckoutTokenSupport.hmacSha256Hex("raw-3ds-return-token", TOKEN_PEPPER));
+        assertThat(captured.getAuthenticationDataJsonMasked()).contains("\"cres\":\"***\"", "\"cavv\":\"***\"");
+        assertThat(captured.getAuthenticationDataJsonMasked()).doesNotContain("raw-cres-value", "raw-cavv-value");
+        assertThat(captured.getCardDataEnvelope().getEncryptedKey()).startsWith("encryptedKey");
+        assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
+        assertThat(captured.getBrowserInfoJson()).contains("\"language\":\"en-US\"");
     }
 
     private HostedCheckoutServiceImpl newCheckoutService(CapturingCheckoutClient paymentInternalClient) {
@@ -192,6 +237,7 @@ class HostedCheckoutServiceImplTests {
         request.addHeader("Origin", "https://merchant.example");
         request.addHeader("Referer", "https://merchant.example/order");
         request.addHeader("User-Agent", "JUnit");
+        request.addHeader("Accept", "text/html,application/xhtml+xml");
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setMerchantId(merchantId);
         request.setAttribute(OpenApiRequestAttributes.REQUEST_HEADER, headerDTO);
@@ -275,12 +321,32 @@ class HostedCheckoutServiceImplTests {
         return requestDTO;
     }
 
+    private HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest buildThreeDsReturnRequest() {
+        HostedCheckoutBrowserRequestDTOs.PaymentSubmitRequest submitRequest = buildSubmitRequest();
+        HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest requestDTO =
+                new HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest();
+        requestDTO.setThreeDsReturnToken("raw-3ds-return-token");
+        requestDTO.setCheckoutSessionId(submitRequest.getCheckoutSessionId());
+        requestDTO.setCheckoutAttemptId("CA202607270001");
+        requestDTO.setAuthenticationData("{\"cres\":\"raw-cres-value\",\"cavv\":\"raw-cavv-value\"}");
+        requestDTO.setCardDataEnvelope(submitRequest.getCardDataEnvelope());
+        requestDTO.setBillingCardHolderInfo(submitRequest.getBillingCardHolderInfo());
+        requestDTO.setClientContext(submitRequest.getClientContext());
+        return requestDTO;
+    }
+
     private HostedCheckoutBrowserRequestDTOs.ClientContextDTO clientContext() {
         HostedCheckoutBrowserRequestDTOs.ClientContextDTO contextDTO = new HostedCheckoutBrowserRequestDTOs.ClientContextDTO();
         contextDTO.setDeviceId("browser-device-id");
         contextDTO.setLanguage("en-US");
         contextDTO.setScreen("1440x900");
         contextDTO.setTimezoneOffset("-480");
+        contextDTO.setChallengeWindowSize("FULL_SCREEN");
+        contextDTO.setColorDepth(24);
+        contextDTO.setJavaEnabled(false);
+        contextDTO.setJavaScriptEnabled(true);
+        contextDTO.setScreenHeight(900);
+        contextDTO.setScreenWidth(1440);
         return contextDTO;
     }
 
@@ -368,6 +434,9 @@ class HostedCheckoutServiceImplTests {
 
         /** 捕获的支付提交请求，用于断言卡数据和 3DS 参数的最小传递范围。 */
         private PaymentCheckoutClientDTOs.PaymentSubmitRequest paymentSubmitRequest;
+
+        /** 捕获的 3DS 回跳请求，用于断言令牌摘要、敏感载荷脱敏和卡密文续传。 */
+        private PaymentCheckoutClientDTOs.ThreeDsReturnRequest threeDsReturnRequest;
 
         /** 本测试桩不覆盖授权交易，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
@@ -502,11 +571,29 @@ class HostedCheckoutServiceImplTests {
             throw new UnsupportedOperationException();
         }
 
-        /** 当前测试不覆盖 3DS 返回分支，调用即表示用例准备不完整。 */
+        /** 捕获 3DS 回跳请求并返回下一阶段动作，验证新 nonce 能透传到浏览器。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
                 PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {
-            throw new UnsupportedOperationException();
+            this.threeDsReturnRequest = requestDTO;
+            PaymentCheckoutClientDTOs.PaymentResultResponse responseDTO = new PaymentCheckoutClientDTOs.PaymentResultResponse();
+            responseDTO.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
+            responseDTO.setCheckoutAttemptId(requestDTO.getCheckoutAttemptId());
+            responseDTO.setPageState("THREE_DS_REQUIRED");
+            PaymentCheckoutClientDTOs.ThreeDsAction action = new PaymentCheckoutClientDTOs.ThreeDsAction();
+            action.setActionType("HTML_CHALLENGE");
+            action.setPhase("AUTHENTICATE");
+            action.setHtml("<form action=\"https://acs.example.test/challenge\"></form>");
+            action.setReturnUrl("https://api.example.test/checkout/api/v1/3ds/bridge");
+            action.setTimeoutSeconds(300);
+            PaymentCheckoutClientDTOs.CardEncryption cardEncryption = new PaymentCheckoutClientDTOs.CardEncryption();
+            cardEncryption.setAlgorithm("RSA-OAEP-256+A256GCM");
+            cardEncryption.setKeyId("checkout-card-v1");
+            cardEncryption.setPublicKey("public-key-base64");
+            cardEncryption.setNonce("fresh-3ds-nonce");
+            action.setCardEncryption(cardEncryption);
+            responseDTO.setThreeDsAction(action);
+            return responseDTO;
         }
 
         /** 当前测试不覆盖卡 BIN 解析，调用即表示用例准备不完整。 */

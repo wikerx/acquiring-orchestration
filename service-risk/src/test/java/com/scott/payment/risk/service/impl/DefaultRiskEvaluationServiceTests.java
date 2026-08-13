@@ -1295,6 +1295,7 @@ class DefaultRiskEvaluationServiceTests {
          */
         @Override
         public Optional<RiskListMatch> findThreeDsRule(String merchantId,
+                                                       String channelCode,
                                                        String paymentMethod,
                                                        String cardBrand,
                                                        BigDecimal amount,

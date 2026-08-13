@@ -86,9 +86,12 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     private static final String DEFAULT_CALLBACK_TYPE = "CHANNEL_CALLBACK";
 
     /**
-     * MPGS 3DS callback only confirms payer-authentication progress and never proves payment finality.
+     * 3DS callback only confirms payer-authentication progress and never proves payment finality.
      */
-    private static final String MPGS_3DS_CALLBACK_TYPE = "MPGS_3DS_CALLBACK";
+    private static final String THREE_DS_CALLBACK_TYPE = "THREE_DS_AUTHENTICATION_CALLBACK";
+
+    /** 通用 3DS 渠道事件类型，用于兼容已进入回调链的旧内部分类值。 */
+    private static final String THREE_DS_EVENT_TYPE = "THREE_DS_CALLBACK";
 
     /**
      * 回调接收状态。
@@ -548,7 +551,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     context.operationDO().getTransactionStatus(),
                     parsedStatus.targetStatus(),
                     PROCESS_RESULT_PENDING,
-                    "mpgs 3ds callback waits payer authentication or payment result confirmation",
+                    "3ds authentication callback waits payer authentication or payment result confirmation",
                     now);
         }
         if (parsedStatus.targetStatus() == null) {
@@ -641,7 +644,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     /**
      * 判断回调解析出的平台状态是否为终态。
      * <p>
-     * WorldPay AUTHORISED 这类非终态回调只记录待处理，不触发交易完成和商户终态通知。
+     * AUTHORIZED 这类非终态回调只记录待处理，不触发交易完成和商户终态通知。
      *
      * @param transactionStatus 平台交易状态
      * @return true 表示成功或失败终态
@@ -864,16 +867,20 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         if (resolved) {
             try {
                 operationDO = resolveCallbackOperation(commandDTO, transactionId, channelOrderNo, channelTransactionId);
-                LocalDateTime orderTransactionDateTime = parseOperationDateTime(operationDO.getOperationId());
-                if (orderTransactionDateTime == null) {
-                    orderTransactionDateTime = operationDO.getTransactionDateTime();
-                }
-                orderDO = transactionRecordService.findOrder(orderTransactionDateTime, operationDO.getOperationId());
-                operationId = operationDO.getOperationId();
-                transactionId = operationDO.getTransactionId();
-                transactionDateTime = operationDO.getTransactionDateTime();
-                if (orderDO != null && !StringUtils.hasText(channelOrderNo)) {
-                    channelOrderNo = orderDO.getRootTransactionId();
+                if (operationDO == null) {
+                    resolved = false;
+                } else {
+                    LocalDateTime orderTransactionDateTime = parseOperationDateTime(operationDO.getOperationId());
+                    if (orderTransactionDateTime == null) {
+                        orderTransactionDateTime = operationDO.getTransactionDateTime();
+                    }
+                    orderDO = transactionRecordService.findOrder(orderTransactionDateTime, operationDO.getOperationId());
+                    operationId = operationDO.getOperationId();
+                    transactionId = operationDO.getTransactionId();
+                    transactionDateTime = operationDO.getTransactionDateTime();
+                    if (orderDO != null && !StringUtils.hasText(channelOrderNo)) {
+                        channelOrderNo = orderDO.getRootTransactionId();
+                    }
                 }
             } catch (ServiceException exception) {
                 resolved = false;
@@ -945,8 +952,8 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     /**
      * 解析渠道回调对应的平台状态。
      * <p>
-     * 这里复用 ChannelTransactionStatusResolver，确保同步响应、回调和查询勾兑对 WPGXML/WPGJSON
-     * AUTHORISED/CAPTURED 的判断一致。
+     * 这里复用 ChannelTransactionStatusResolver，确保同步响应、回调和查询勾兑对
+     * AUTHORIZED/CAPTURED 等统一动作状态的判断一致。
      *
      * @param commandDTO 回调内部命令
      * @param channelCallbackResult 渠道回调解析结果
@@ -1003,7 +1010,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      * 构造渠道回调幂等键。
      * <p>
      * 优先使用渠道处理器解析出的 callbackEventId；否则使用渠道订单号、渠道交易号、原始状态和回调类型组合。
-     * WorldPay 可能先回调 AUTHORISED 再回调 CAPTURED，因此幂等键必须包含原始状态，不能吞掉后续终态事件。
+     * 同一渠道交易可能先回调 AUTHORIZED 再回调 CAPTURED，因此幂等键必须包含原始状态，不能吞掉后续终态事件。
      *
      * @param commandDTO 回调内部命令
      * @param channelCallbackResult 渠道回调解析结果
@@ -1037,13 +1044,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 识别 MPGS 3DS 专用回调，避免认证结果回调误走普通支付入账状态机。
+     * 识别 3DS 认证回调，避免认证结果回调误走普通支付入账状态机。
      *
      * @param commandDTO 渠道回调内部命令
      * @return true 表示该回调只处理 3DS 认证状态
      */
     private boolean isThreeDsCallback(TransactionChannelCallbackCommandDTO commandDTO) {
-        return MPGS_3DS_CALLBACK_TYPE.equalsIgnoreCase(resolveCallbackType(commandDTO));
+        return THREE_DS_CALLBACK_TYPE.equalsIgnoreCase(resolveCallbackType(commandDTO))
+                || THREE_DS_EVENT_TYPE.equalsIgnoreCase(commandDTO.getChannelEventType());
     }
 
     /**

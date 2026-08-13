@@ -1,9 +1,11 @@
 package com.scott.payment.payment.service.impl;
 
+import com.scott.payment.channel.payment.enums.ChannelThreeDsPhase;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutThreeDsReturnCommandDTO;
@@ -34,7 +36,10 @@ import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.service.PaymentCheckoutThreeDsService;
 import com.scott.payment.payment.service.PaymentTransactionService;
 import com.scott.payment.payment.security.PaymentCheckoutCardEnvelopeService;
+import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
 import com.scott.payment.payment.service.dto.PaymentCheckoutThreeDsResultDTO;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
+import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.support.PaymentCheckoutTokenSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -112,6 +117,18 @@ class DefaultPaymentCheckoutServiceTests {
         properties = new PaymentCheckoutProperties();
         properties.setTokenPepper("unit-test-hosted-checkout-token-pepper");
         properties.setTokenKeyVersion("test-v1");
+        when(threeDsService.authenticate(any(), any(), any(), anyString(), any()))
+                .thenReturn(notRequiredThreeDsResult());
+        when(paymentTransactionService.preparePayment(any()))
+                .thenAnswer(invocation -> preparedCoreTransaction(invocation.getArgument(0)));
+        when(paymentTransactionService.prepareAuthorization(any()))
+                .thenAnswer(invocation -> preparedCoreTransaction(invocation.getArgument(0)));
+        when(paymentTransactionService.submitPreparedTransaction(any())).thenReturn(successPaymentResult());
+        when(paymentTransactionService.resumePreparedTransaction(any())).thenReturn(successPaymentResult());
+        when(attemptMapper.markCorePreparedCas(anyString(), anyString(), anyString(), any(), anyString(), any(),
+                anyString(), any(), anyString(), anyString(), any(), any(), any())).thenReturn(1);
+        when(sessionMapper.syncPreparedIdentityCas(anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), any(), anyString(), any(), any())).thenReturn(1);
         service = new DefaultPaymentCheckoutService(
                 sessionMapper,
                 tokenMapper,
@@ -150,6 +167,32 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(sessionDO.getExpireTime()).isAfter(LocalDateTime.now().plusHours(23));
         assertThat(tokenDO.getExpireTime()).isAfter(sessionDO.getExpireTime().plusDays(28));
         assertThat(resultDTO.getCheckoutUrl()).doesNotContain(tokenDO.getTokenHash());
+    }
+
+    @Test
+    void shouldAcceptProviderNeutralChannelCodeInCheckoutSnapshot() {
+        PaymentCheckoutSessionCreateCommandDTO commandDTO = createCommand();
+        commandDTO.getAllowedPaymentMethods().get(0).setChannelCode("ALTERNATE_PROVIDER");
+        ArgumentCaptor<PaymentCheckoutSessionDO> sessionCaptor = ArgumentCaptor.forClass(PaymentCheckoutSessionDO.class);
+
+        service.createSession(commandDTO);
+
+        verify(sessionMapper).insert(sessionCaptor.capture());
+        assertThat(sessionCaptor.getValue().getChannelCode()).isEqualTo("ALTERNATE_PROVIDER");
+        assertThat(sessionCaptor.getValue().getAllowedPaymentMethodsJson()).contains("ALTERNATE_PROVIDER");
+    }
+
+    @Test
+    void shouldLeaveUnspecifiedCheckoutChannelForPaymentRouting() {
+        PaymentCheckoutSessionCreateCommandDTO commandDTO = createCommand();
+        commandDTO.getAllowedPaymentMethods().get(0).setChannelCode(null);
+        ArgumentCaptor<PaymentCheckoutSessionDO> sessionCaptor = ArgumentCaptor.forClass(PaymentCheckoutSessionDO.class);
+
+        service.createSession(commandDTO);
+
+        verify(sessionMapper).insert(sessionCaptor.capture());
+        assertThat(sessionCaptor.getValue().getChannelCode()).isNull();
+        assertThat(sessionCaptor.getValue().getAllowedPaymentMethodsJson()).doesNotContain("MPGS");
     }
 
     @Test
@@ -226,6 +269,123 @@ class DefaultPaymentCheckoutServiceTests {
     }
 
     @Test
+    void shouldConvergeTimedOutPreChannelThreeDsProcessingDuringStatusPolling() {
+        PaymentCheckoutSessionDO processingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutSessionDO retryableSession = sessionWithStatus(
+                PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+        retryableSession.setProcessStage(PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode());
+        retryableSession.setVersion(2);
+        PaymentCheckoutAttemptDO processingAttempt = processingAttempt(processingSession);
+        processingAttempt.setThreeDsRequired(1);
+        processingAttempt.setProcessStage(PaymentCheckoutProcessStageEnum.WAITING_CHANNEL.getCode());
+        processingAttempt.setAuthenticationStartTime(null);
+        processingAttempt.setSubmitTime(LocalDateTime.now().minusSeconds(601));
+        PaymentCheckoutAttemptDO failedAttempt = attemptWithStatus(processingSession,
+                PaymentCheckoutAttemptStatusEnum.FAILED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        failedAttempt.setFailureReasonCode("THREE_DS_AUTHENTICATION_FAILED");
+        failedAttempt.setPayerVisibleMessage("Payment could not be completed. Please try another card or contact your bank.");
+        failedAttempt.setVersion(2);
+        PaymentCheckoutPaymentStatusCommandDTO commandDTO = new PaymentCheckoutPaymentStatusCommandDTO();
+        commandDTO.setTokenHash("token-hash");
+        commandDTO.setCheckoutSessionId(processingSession.getCheckoutSessionId());
+        commandDTO.setCheckoutAttemptId(processingAttempt.getCheckoutAttemptId());
+
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(processingSession));
+        when(sessionMapper.selectByCheckoutSessionId(processingSession.getCheckoutSessionId()))
+                .thenReturn(processingSession, processingSession, retryableSession);
+        when(attemptMapper.selectByCheckoutAttemptId(processingAttempt.getCheckoutAttemptId()))
+                .thenReturn(processingAttempt, failedAttempt);
+        when(attemptMapper.markThreeDsTimedOutCas(anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), any(), any())).thenReturn(1);
+        when(sessionMapper.markFailedCas(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.queryPaymentStatus(commandDTO);
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.FAILED_RETRYABLE.getCode());
+        assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo("THREE_DS_AUTHENTICATION_FAILED");
+        verify(sessionMapper).markFailedCas(eq(processingSession.getCheckoutSessionId()),
+                eq(PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE.getCode()),
+                eq(PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode()), any(), any());
+        verifyNoInteractions(paymentTransactionService);
+    }
+
+    @Test
+    void shouldKeepRecentPreChannelThreeDsProcessingDuringStatusPolling() {
+        PaymentCheckoutSessionDO processingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutAttemptDO processingAttempt = processingAttempt(processingSession);
+        processingAttempt.setThreeDsRequired(1);
+        processingAttempt.setProcessStage(PaymentCheckoutProcessStageEnum.WAITING_CHANNEL.getCode());
+        processingAttempt.setAuthenticationStartTime(LocalDateTime.now().minusSeconds(599));
+        PaymentCheckoutPaymentStatusCommandDTO commandDTO = paymentStatusCommand(processingSession, processingAttempt);
+
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(processingSession));
+        when(sessionMapper.selectByCheckoutSessionId(processingSession.getCheckoutSessionId()))
+                .thenReturn(processingSession);
+        when(attemptMapper.selectByCheckoutAttemptId(processingAttempt.getCheckoutAttemptId()))
+                .thenReturn(processingAttempt);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.queryPaymentStatus(commandDTO);
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.PROCESSING.getCode());
+        verify(attemptMapper, never()).markThreeDsTimedOutCas(anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), any(), any(), any());
+        verify(sessionMapper, never()).markFailedCas(anyString(), anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void shouldNotFailSessionWhenThreeDsTimeoutCasLosesToNewerAttemptState() {
+        PaymentCheckoutSessionDO processingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutAttemptDO timedOutAttempt = processingAttempt(processingSession);
+        timedOutAttempt.setThreeDsRequired(1);
+        timedOutAttempt.setAuthenticationStartTime(LocalDateTime.now().minusSeconds(601));
+        PaymentCheckoutAttemptDO submittedAttempt = attemptWithStatus(processingSession,
+                PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
+                PaymentCheckoutProcessStageEnum.WAITING_CHANNEL);
+        submittedAttempt.setThreeDsRequired(1);
+        submittedAttempt.setVersion(1);
+        PaymentCheckoutPaymentStatusCommandDTO commandDTO = paymentStatusCommand(processingSession, timedOutAttempt);
+
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(processingSession));
+        when(sessionMapper.selectByCheckoutSessionId(processingSession.getCheckoutSessionId()))
+                .thenReturn(processingSession, processingSession);
+        when(attemptMapper.selectByCheckoutAttemptId(timedOutAttempt.getCheckoutAttemptId()))
+                .thenReturn(timedOutAttempt, submittedAttempt);
+        when(attemptMapper.markThreeDsTimedOutCas(anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), any(), any())).thenReturn(0);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.queryPaymentStatus(commandDTO);
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.PROCESSING.getCode());
+        verify(sessionMapper, never()).markFailedCas(anyString(), anyString(), anyString(), any(), any());
+        verifyNoInteractions(paymentTransactionService);
+    }
+
+    @Test
+    void shouldNeverApplyThreeDsTimeoutAfterFundsWereSubmittedToChannel() {
+        PaymentCheckoutSessionDO processingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutAttemptDO submittedProcessingAttempt = processingAttempt(processingSession);
+        submittedProcessingAttempt.setThreeDsRequired(1);
+        submittedProcessingAttempt.setAuthenticationStartTime(LocalDateTime.now().minusSeconds(601));
+        submittedProcessingAttempt.setChannelSubmitTime(LocalDateTime.now().minusSeconds(590));
+        PaymentCheckoutPaymentStatusCommandDTO commandDTO = paymentStatusCommand(
+                processingSession, submittedProcessingAttempt);
+
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(processingSession));
+        when(sessionMapper.selectByCheckoutSessionId(processingSession.getCheckoutSessionId()))
+                .thenReturn(processingSession);
+        when(attemptMapper.selectByCheckoutAttemptId(submittedProcessingAttempt.getCheckoutAttemptId()))
+                .thenReturn(submittedProcessingAttempt);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.queryPaymentStatus(commandDTO);
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.PROCESSING.getCode());
+        verify(attemptMapper, never()).markThreeDsTimedOutCas(anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), any(), any(), any());
+        verify(sessionMapper, never()).markFailedCas(anyString(), anyString(), anyString(), any(), any());
+    }
+
+    @Test
     void shouldQueryPayableSessionAndMarkTokenUsed() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
         PaymentCheckoutTokenDO tokenDO = activeToken(sessionDO);
@@ -287,7 +447,7 @@ class DefaultPaymentCheckoutServiceTests {
     }
 
     @Test
-    void shouldSubmitDirectPaymentWithoutInvokingThreeDs() {
+    void shouldSubmitNonThreeDsPaymentUsingThePolicyRouteIdentity() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
         PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
         PaymentCheckoutSessionDO processingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
@@ -313,7 +473,7 @@ class DefaultPaymentCheckoutServiceTests {
         when(sessionMapper.markProcessingCas(anyString(), anyString(), eq(0), any())).thenReturn(1);
         when(sessionMapper.markSucceededCas(anyString(), anyString(), anyString(), anyString(), anyString(), any(), eq(0), any()))
                 .thenReturn(1);
-        when(paymentTransactionService.createPayment(any())).thenReturn(coreResult);
+        when(paymentTransactionService.submitPreparedTransaction(any())).thenReturn(coreResult);
         ArgumentCaptor<PaymentCheckoutAttemptDO> attemptCaptor = ArgumentCaptor.forClass(PaymentCheckoutAttemptDO.class);
         ArgumentCaptor<PaymentCreateCommandDTO> createCommandCaptor = ArgumentCaptor.forClass(PaymentCreateCommandDTO.class);
 
@@ -329,14 +489,86 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(attemptDO.getPaymentAccountHash()).doesNotContain("512345");
         assertThat(attemptDO.getBrowserInfoJson()).contains("\"securityCode\":\"***\"");
         assertThat(attemptDO.getAttemptStatus()).isEqualTo(PaymentCheckoutAttemptStatusEnum.CARD_SUBMITTED.getCode());
-        verify(threeDsService, never()).authenticate(any(), any(), any(), anyString());
-        verify(paymentTransactionService).createPayment(createCommandCaptor.capture());
+        verify(threeDsService).authenticate(any(), any(), any(), anyString(), any());
+        verify(paymentTransactionService).preparePayment(createCommandCaptor.capture());
+        verify(paymentTransactionService).submitPreparedTransaction(any());
         assertThat(createCommandCaptor.getValue().getRequestSource()).isEqualTo("HOSTED_CHECKOUT");
         assertThat(createCommandCaptor.getValue().getSourceUrl()).isNull();
+        assertThat(createCommandCaptor.getValue().getChannelIdentity().getChannelCode()).isEqualTo("MPGS");
+        assertThat(createCommandCaptor.getValue().getChannelIdentity().getChannelId()).isEqualTo(101L);
+        assertThat(createCommandCaptor.getValue().getChannelIdentity().getChannelMidConfigId()).isEqualTo(1001L);
     }
 
     @Test
-    void shouldIgnoreThreeDsChallengeConfigurationAndSubmitDirectPayment() {
+    void shouldFailRetryablyWhenRouteFailsBeforeChannelSubmission() {
+        PaymentCheckoutSessionDO sessionDO = payableSession();
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO retryableSessionDO = sessionWithStatus(
+                PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+        PaymentCheckoutAttemptDO failedAttempt = attemptWithStatus(sessionDO,
+                PaymentCheckoutAttemptStatusEnum.FAILED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        failedAttempt.setFailureReasonCode("ROUTE_FAILED");
+        failedAttempt.setPayerVisibleMessage("Payment could not be completed. Please try another card or contact your bank.");
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(sessionDO));
+        when(sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId()))
+                .thenReturn(sessionDO, payingSessionDO, payingSessionDO, retryableSessionDO);
+        when(attemptMapper.selectMaxAttemptNo(sessionDO.getCheckoutSessionId())).thenReturn(0);
+        when(sessionMapper.markSubmittedCas(anyString(), anyString(), anyString(), anyString(), any(), any(), any(), eq(0), any()))
+                .thenReturn(1);
+        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), eq(0), any()))
+                .thenReturn(1);
+        when(attemptMapper.selectByCheckoutAttemptId(anyString())).thenReturn(failedAttempt);
+        when(sessionMapper.markFailedCas(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
+        when(threeDsService.authenticate(any(), any(), any(), anyString(), any()))
+                .thenThrow(new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "no channel route candidate"));
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.submitPayment(submitCommand());
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.FAILED_RETRYABLE.getCode());
+        assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo("ROUTE_FAILED");
+        verify(attemptMapper).markResultCas(anyString(), eq("FAILED"), eq("RESULT_RENDERED"),
+                isNull(), isNull(), isNull(), eq("ROUTE_FAILED"), isNull(),
+                eq("Payment could not be completed. Please try another card or contact your bank."),
+                anyString(), eq(0), any());
+        verify(sessionMapper).markFailedCas(anyString(), eq("PAYABLE_FAILED_RETRYABLE"),
+                eq("RESULT_RENDERED"), eq(0), any());
+        verify(paymentTransactionService).preparePayment(any());
+        verify(paymentTransactionService, never()).failPreparedTransaction(any(), anyString(), anyString());
+    }
+
+    @Test
+    void shouldNotReopenPaymentWhenCoreFailsAfterChannelSubmissionWasMarked() {
+        PaymentCheckoutSessionDO sessionDO = payableSession();
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutAttemptDO submittedAttempt = attemptWithStatus(sessionDO,
+                PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(sessionDO));
+        when(sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId()))
+                .thenReturn(sessionDO, payingSessionDO);
+        when(attemptMapper.selectMaxAttemptNo(sessionDO.getCheckoutSessionId())).thenReturn(0);
+        when(sessionMapper.markSubmittedCas(anyString(), anyString(), anyString(), anyString(), any(), any(), any(), eq(0), any()))
+                .thenReturn(1);
+        when(attemptMapper.markChannelSubmittedCas(anyString(), anyString(), anyString(), eq(0), any()))
+                .thenReturn(1);
+        when(attemptMapper.selectByCheckoutAttemptId(anyString())).thenReturn(submittedAttempt);
+        when(paymentTransactionService.submitPreparedTransaction(any()))
+                .thenThrow(new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "unknown funding result"));
+
+        assertThatThrownBy(() -> service.submitPayment(submitCommand()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("unknown funding result");
+
+        verify(attemptMapper).markChannelSubmittedCas(anyString(), eq("CHANNEL_SUBMITTED"),
+                eq("SUBMIT_CHANNEL"), eq(0), any());
+        verify(attemptMapper, never()).markResultCas(anyString(), anyString(), anyString(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(sessionMapper, never()).markFailedCas(anyString(), anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void shouldReturnThreeDsHtmlWithoutSubmittingFundsBeforeAuthenticationPasses() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
         PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
         PaymentCheckoutSessionDO processingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
@@ -353,20 +585,75 @@ class DefaultPaymentCheckoutServiceTests {
         when(attemptMapper.selectMaxAttemptNo(sessionDO.getCheckoutSessionId())).thenReturn(0);
         when(sessionMapper.markSubmittedCas(anyString(), anyString(), anyString(), anyString(), any(), any(), any(), eq(0), any()))
                 .thenReturn(1);
-        when(attemptMapper.markChannelSubmittedCas(anyString(), anyString(), anyString(), eq(0), any())).thenReturn(1);
-        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), eq(0), any()))
+        PaymentCheckoutAttemptDO initiatedAttempt = attemptWithStatus(sessionDO,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_INITIATED,
+                PaymentCheckoutProcessStageEnum.AUTHENTICATE_PAYER);
+        PaymentCheckoutAttemptDO requiredAttempt = attemptWithStatus(sessionDO,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED,
+                PaymentCheckoutProcessStageEnum.WAITING_3DS);
+        when(attemptMapper.markAuthenticationResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(attemptMapper.markThreeDsRequiredCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any()))
                 .thenReturn(1);
-        when(attemptMapper.selectByCheckoutAttemptId(anyString())).thenReturn(channelSubmittedAttempt, processingAttempt);
-        when(sessionMapper.markProcessingCas(anyString(), anyString(), eq(0), any())).thenReturn(1);
-        when(threeDsService.authenticate(any(), any(), any(), anyString())).thenThrow(new AssertionError("3DS must be disabled"));
-        when(paymentTransactionService.createPayment(any())).thenReturn(processingPaymentResult());
+        when(attemptMapper.selectByCheckoutAttemptId(anyString())).thenReturn(initiatedAttempt, requiredAttempt);
+        when(sessionMapper.markAuthenticatingCas(anyString(), anyString(), any(), any())).thenReturn(1);
+        when(threeDsService.authenticate(any(), any(), any(), anyString(), any())).thenReturn(challengeThreeDsResult());
 
         PaymentCheckoutPaymentResultDTO resultDTO = service.submitPayment(submitCommand());
 
-        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.PROCESSING.getCode());
-        assertThat(resultDTO.getThreeDsAction()).isNull();
-        verify(threeDsService, never()).authenticate(any(), any(), any(), anyString());
-        verify(paymentTransactionService).createPayment(any());
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.THREE_DS_REQUIRED.getCode());
+        assertThat(resultDTO.getThreeDsAction().getPhase()).isEqualTo(ChannelThreeDsPhase.AUTHENTICATE.name());
+        assertThat(resultDTO.getThreeDsAction().getHtml()).contains("acs.example.test/challenge");
+        verify(threeDsService).authenticate(any(), any(), any(), anyString(), any());
+        verify(paymentTransactionService).preparePayment(any());
+        verify(paymentTransactionService, never()).submitPreparedTransaction(any());
+        verify(paymentTransactionService, never()).resumePreparedTransaction(any());
+    }
+
+    @Test
+    void shouldSubmitFundsOnlyAfterServerConfirmedThreeDsPass() {
+        PaymentCheckoutSessionDO sessionDO = payableSession();
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO succeededSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutAttemptDO passedAttempt = attemptWithStatus(sessionDO,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_PASSED,
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
+        PaymentCheckoutAttemptDO submittedAttempt = attemptWithStatus(sessionDO,
+                PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
+        PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(sessionDO,
+                PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(sessionDO));
+        when(sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId()))
+                .thenReturn(sessionDO, payingSessionDO, payingSessionDO, succeededSessionDO);
+        when(attemptMapper.selectMaxAttemptNo(sessionDO.getCheckoutSessionId())).thenReturn(0);
+        when(sessionMapper.markSubmittedCas(anyString(), anyString(), anyString(), anyString(), any(), any(), any(), eq(0), any()))
+                .thenReturn(1);
+        when(attemptMapper.markAuthenticationResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(attemptMapper.markChannelSubmittedCas(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
+        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(attemptMapper.selectByCheckoutAttemptId(anyString()))
+                .thenReturn(passedAttempt, submittedAttempt, succeededAttempt);
+        when(sessionMapper.markSucceededCas(anyString(), anyString(), anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenReturn(1);
+        when(threeDsService.authenticate(any(), any(), any(), anyString(), any())).thenReturn(passedThreeDsResult());
+        ArgumentCaptor<PaymentCreateCommandDTO> commandCaptor = ArgumentCaptor.forClass(PaymentCreateCommandDTO.class);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.submitPayment(submitCommand());
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.SUCCEEDED.getCode());
+        verify(paymentTransactionService).preparePayment(commandCaptor.capture());
+        verify(paymentTransactionService).submitPreparedTransaction(any());
+        assertThat(commandCaptor.getValue().getThreeDsRequired()).isTrue();
+        assertThat(commandCaptor.getValue().getThreeDsInfo().getAuthenticationStatus()).isEqualTo("PASSED");
+        assertThat(commandCaptor.getValue().getThreeDsInfo().getAuthenticationTransactionId())
+                .isEqualTo("3DS2607271200000000000047");
+        assertThat(commandCaptor.getValue().getChannelIdentity().getChannelOrderNo())
+                .isEqualTo("2607271200000000000047");
+        assertThat(commandCaptor.getValue().getChannelIdentity().getChannelTransactionId()).isNull();
     }
 
     @Test
@@ -393,7 +680,7 @@ class DefaultPaymentCheckoutServiceTests {
                 .thenReturn(1);
         when(attemptMapper.selectByCheckoutAttemptId(anyString())).thenReturn(channelSubmittedAttempt, processingAttempt);
         when(sessionMapper.markProcessingCas(anyString(), anyString(), eq(0), any())).thenReturn(1);
-        when(paymentTransactionService.createPayment(any())).thenReturn(processingPaymentResult());
+        when(paymentTransactionService.submitPreparedTransaction(any())).thenReturn(processingPaymentResult());
         PaymentCheckoutPaymentSubmitCommandDTO commandDTO = submitCommand();
         commandDTO.setAttemptRequestId("ATTEMPT-RETRY-002");
         ArgumentCaptor<PaymentCheckoutAttemptDO> attemptCaptor = ArgumentCaptor.forClass(PaymentCheckoutAttemptDO.class);
@@ -437,7 +724,7 @@ class DefaultPaymentCheckoutServiceTests {
                 .thenReturn(1);
         when(attemptMapper.selectByCheckoutAttemptId(anyString())).thenReturn(channelSubmittedAttempt, processingAttempt);
         when(sessionMapper.markProcessingCas(anyString(), anyString(), eq(0), any())).thenReturn(1);
-        when(paymentTransactionService.createPayment(any())).thenReturn(processingPaymentResult());
+        when(paymentTransactionService.submitPreparedTransaction(any())).thenReturn(processingPaymentResult());
         PaymentCheckoutPaymentSubmitCommandDTO commandDTO = submitCommand();
         commandDTO.setAttemptRequestId("ATTEMPT-EXPIRED-002");
         ArgumentCaptor<PaymentCheckoutAttemptDO> attemptCaptor = ArgumentCaptor.forClass(PaymentCheckoutAttemptDO.class);
@@ -471,6 +758,60 @@ class DefaultPaymentCheckoutServiceTests {
     }
 
     @Test
+    void shouldFailTimedOutThreeDsReturnWithoutCallingChannelOrPaymentCore() {
+        PaymentCheckoutThreeDsReturnCommandDTO commandDTO = new PaymentCheckoutThreeDsReturnCommandDTO();
+        commandDTO.setCheckoutSessionId("2607271200000000000010");
+        commandDTO.setCheckoutAttemptId("2607271200000000000038");
+        commandDTO.setThreeDsReturnTokenHash("return-token-hash");
+        commandDTO.setCardInfo(submitCommand().getCardInfo());
+
+        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
+        PaymentCheckoutSessionDO retryableSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+        PaymentCheckoutAttemptDO challengeAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED,
+                PaymentCheckoutProcessStageEnum.WAITING_3DS);
+        challengeAttempt.setThreeDsStatus("CHALLENGE_REQUIRED");
+        challengeAttempt.setAuthenticationStartTime(LocalDateTime.now().minusSeconds(601));
+        PaymentCheckoutAttemptDO returnedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_RETURNED,
+                PaymentCheckoutProcessStageEnum.WAITING_CHANNEL);
+        returnedAttempt.setThreeDsStatus("CHALLENGE_REQUIRED");
+        returnedAttempt.setAuthenticationStartTime(challengeAttempt.getAuthenticationStartTime());
+        returnedAttempt.setVersion(1);
+        PaymentCheckoutAttemptDO authenticationFailedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_FAILED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        authenticationFailedAttempt.setChannelRequestId("CR-2607271200000000000047");
+        authenticationFailedAttempt.setVersion(2);
+        PaymentCheckoutAttemptDO failedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.FAILED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        failedAttempt.setFailureReasonCode("THREE_DS_AUTHENTICATION_FAILED");
+        failedAttempt.setVersion(3);
+
+        when(attemptMapper.selectByCheckoutAttemptId(commandDTO.getCheckoutAttemptId()))
+                .thenReturn(challengeAttempt, returnedAttempt, authenticationFailedAttempt, failedAttempt);
+        when(sessionMapper.selectByCheckoutSessionId(authenticatingSession.getCheckoutSessionId()))
+                .thenReturn(authenticatingSession, authenticatingSession, retryableSession);
+        when(attemptMapper.markThreeDsReturnedCas(anyString(), anyString(), eq(0), any())).thenReturn(1);
+        when(attemptMapper.markAuthenticationResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(sessionMapper.markFailedCas(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.handleThreeDsReturn(commandDTO);
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.FAILED_RETRYABLE.getCode());
+        assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo("THREE_DS_AUTHENTICATION_FAILED");
+        verifyNoInteractions(threeDsService);
+        verify(paymentTransactionService).markThreeDsIndicator(anyString(), any(), anyString());
+        verify(paymentTransactionService).failPreparedTransaction(any(), eq("THREE_DS_AUTHENTICATION_FAILED"), anyString());
+        verify(attemptMapper).markAuthenticationResultCas(anyString(), eq("THREE_DS_FAILED"), anyString(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void shouldNotMarkSuccessOnThreeDsReturn() {
         PaymentCheckoutThreeDsReturnCommandDTO commandDTO = new PaymentCheckoutThreeDsReturnCommandDTO();
         commandDTO.setCheckoutSessionId("2607271200000000000010");
@@ -481,17 +822,262 @@ class DefaultPaymentCheckoutServiceTests {
         PaymentCheckoutAttemptDO attemptDO = processingAttempt(sessionDO);
         attemptDO.setAttemptStatus(PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED.getCode());
         attemptDO.setThreeDsReturnTokenHash("return-token-hash");
+        attemptDO.setThreeDsStatus("CHALLENGE_REQUIRED");
+        attemptDO.setAttemptRequestId("ATTEMPT-001");
+        attemptDO.setOperationId("OP-001");
+        attemptDO.setChannelCode("MPGS");
+        attemptDO.setChannelMidConfigId(1001L);
         PaymentCheckoutAttemptDO returnedAttempt = processingAttempt(sessionDO);
-        returnedAttempt.setAttemptStatus(PaymentCheckoutAttemptStatusEnum.PROCESSING.getCode());
+        returnedAttempt.setAttemptStatus(PaymentCheckoutAttemptStatusEnum.THREE_DS_RETURNED.getCode());
+        returnedAttempt.setThreeDsStatus("CHALLENGE_REQUIRED");
+        returnedAttempt.setAttemptRequestId("ATTEMPT-001");
+        returnedAttempt.setOperationId("OP-001");
+        returnedAttempt.setChannelCode("MPGS");
+        returnedAttempt.setChannelMidConfigId(1001L);
+        commandDTO.setCardInfo(submitCommand().getCardInfo());
         when(attemptMapper.selectByCheckoutAttemptId(commandDTO.getCheckoutAttemptId())).thenReturn(attemptDO, returnedAttempt);
         when(sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId())).thenReturn(sessionDO, processingSessionDO);
         when(attemptMapper.markThreeDsReturnedCas(anyString(), anyString(), eq(0), any())).thenReturn(1);
         when(sessionMapper.markProcessingCas(anyString(), anyString(), eq(0), any())).thenReturn(1);
+        when(attemptMapper.markAuthenticationResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+        PaymentCheckoutThreeDsResultDTO processingThreeDs = new PaymentCheckoutThreeDsResultDTO();
+        processingThreeDs.setStatus("PROCESSING");
+        processingThreeDs.setChannelCode("MPGS");
+        processingThreeDs.setChannelMidConfigId(1001L);
+        when(threeDsService.continueAuthentication(any(), any(), any(), anyString(), any())).thenReturn(processingThreeDs);
 
         PaymentCheckoutPaymentResultDTO resultDTO = service.handleThreeDsReturn(commandDTO);
 
         assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.PROCESSING.getCode());
         verify(sessionMapper, never()).markSucceededCas(anyString(), anyString(), anyString(), anyString(), anyString(), any(), any(), any());
+        verify(paymentTransactionService).markThreeDsIndicator(anyString(), any(), anyString());
+        verify(paymentTransactionService, never()).resumePreparedTransaction(any());
+    }
+
+    @Test
+    void shouldVerifyChallengeAndSubmitFundsOnlyAfterServerConfirmedPass() {
+        PaymentCheckoutThreeDsReturnCommandDTO commandDTO = new PaymentCheckoutThreeDsReturnCommandDTO();
+        commandDTO.setCheckoutSessionId("2607271200000000000010");
+        commandDTO.setCheckoutAttemptId("2607271200000000000038");
+        commandDTO.setThreeDsReturnTokenHash("return-token-hash");
+        commandDTO.setCardInfo(submitCommand().getCardInfo());
+        commandDTO.setBillingCardHolderInfo(submitCommand().getBillingCardHolderInfo());
+
+        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
+        PaymentCheckoutSessionDO payingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutAttemptDO challengeAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED,
+                PaymentCheckoutProcessStageEnum.WAITING_3DS);
+        challengeAttempt.setThreeDsStatus("CHALLENGE_REQUIRED");
+        challengeAttempt.setAttemptRequestId("ATTEMPT-001");
+        challengeAttempt.setOperationId("OP-001");
+        challengeAttempt.setChannelCode("MPGS");
+        challengeAttempt.setChannelMidConfigId(1001L);
+        PaymentCheckoutAttemptDO returnedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_RETURNED,
+                PaymentCheckoutProcessStageEnum.WAITING_CHANNEL);
+        returnedAttempt.setThreeDsStatus("CHALLENGE_REQUIRED");
+        returnedAttempt.setAttemptRequestId("ATTEMPT-001");
+        returnedAttempt.setOperationId("OP-001");
+        returnedAttempt.setChannelCode("MPGS");
+        returnedAttempt.setChannelMidConfigId(1001L);
+        PaymentCheckoutAttemptDO passedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_PASSED,
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
+        PaymentCheckoutAttemptDO submittedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
+        PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+
+        when(attemptMapper.selectByCheckoutAttemptId(commandDTO.getCheckoutAttemptId()))
+                .thenReturn(challengeAttempt, returnedAttempt, passedAttempt, submittedAttempt, succeededAttempt);
+        when(sessionMapper.selectByCheckoutSessionId(authenticatingSession.getCheckoutSessionId()))
+                .thenReturn(authenticatingSession, payingSession, succeededSession);
+        when(attemptMapper.markThreeDsReturnedCas(anyString(), anyString(), eq(0), any())).thenReturn(1);
+        when(attemptMapper.markAuthenticationResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(attemptMapper.markChannelSubmittedCas(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
+        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(sessionMapper.markSucceededCas(anyString(), anyString(), anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenReturn(1);
+        when(threeDsService.continueAuthentication(any(), any(), any(), anyString(), eq(ChannelThreeDsPhase.VERIFY)))
+                .thenReturn(passedThreeDsResult());
+        when(paymentTransactionService.resumePreparedTransaction(any())).thenReturn(successPaymentResult());
+        ArgumentCaptor<PaymentCreateCommandDTO> createCommandCaptor = ArgumentCaptor.forClass(PaymentCreateCommandDTO.class);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.handleThreeDsReturn(commandDTO);
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.SUCCEEDED.getCode());
+        verify(threeDsService).continueAuthentication(any(), any(), any(), anyString(), eq(ChannelThreeDsPhase.VERIFY));
+        verify(paymentTransactionService).resumePreparedTransaction(createCommandCaptor.capture());
+        assertThat(createCommandCaptor.getValue().getThreeDsRequired()).isTrue();
+        assertThat(createCommandCaptor.getValue().getThreeDsInfo().getAuthenticationStatus()).isEqualTo("PASSED");
+        assertThat(createCommandCaptor.getValue().getThreeDsInfo().getAuthenticationTransactionId())
+                .isEqualTo("3DS2607271200000000000047");
+        assertThat(createCommandCaptor.getValue().getChannelIdentity().getChannelCode()).isEqualTo("MPGS");
+        assertThat(createCommandCaptor.getValue().getChannelIdentity().getChannelMidConfigId()).isEqualTo(1001L);
+        assertThat(commandDTO.getCardInfo()).isNull();
+    }
+
+    @Test
+    void shouldResumeVerificationWhenThreeDsReturnWasAlreadyAccepted() {
+        PaymentCheckoutThreeDsReturnCommandDTO commandDTO = new PaymentCheckoutThreeDsReturnCommandDTO();
+        commandDTO.setCheckoutSessionId("2607271200000000000010");
+        commandDTO.setCheckoutAttemptId("2607271200000000000038");
+        commandDTO.setThreeDsReturnTokenHash("return-token-hash");
+        commandDTO.setCardInfo(submitCommand().getCardInfo());
+        commandDTO.setBillingCardHolderInfo(submitCommand().getBillingCardHolderInfo());
+
+        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
+        PaymentCheckoutSessionDO payingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutAttemptDO returnedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_RETURNED,
+                PaymentCheckoutProcessStageEnum.WAITING_CHANNEL);
+        returnedAttempt.setThreeDsStatus("CHALLENGE_REQUIRED");
+        returnedAttempt.setAttemptRequestId("ATTEMPT-001");
+        returnedAttempt.setOperationId("OP-001");
+        returnedAttempt.setChannelCode("MPGS");
+        returnedAttempt.setChannelMidConfigId(1001L);
+        PaymentCheckoutAttemptDO passedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_PASSED,
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
+        PaymentCheckoutAttemptDO submittedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
+        PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+
+        when(attemptMapper.selectByCheckoutAttemptId(commandDTO.getCheckoutAttemptId()))
+                .thenReturn(returnedAttempt, passedAttempt, submittedAttempt, succeededAttempt);
+        when(sessionMapper.selectByCheckoutSessionId(authenticatingSession.getCheckoutSessionId()))
+                .thenReturn(authenticatingSession, payingSession, succeededSession);
+        when(attemptMapper.markAuthenticationResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+        when(attemptMapper.markChannelSubmittedCas(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
+        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(sessionMapper.markSucceededCas(anyString(), anyString(), anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenReturn(1);
+        when(threeDsService.continueAuthentication(any(), any(), any(), anyString(), eq(ChannelThreeDsPhase.VERIFY)))
+                .thenReturn(passedThreeDsResult());
+        when(paymentTransactionService.resumePreparedTransaction(any())).thenReturn(successPaymentResult());
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.handleThreeDsReturn(commandDTO);
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.SUCCEEDED.getCode());
+        verify(attemptMapper, never()).markThreeDsReturnedCas(anyString(), anyString(), any(), any());
+        verify(threeDsService).continueAuthentication(any(), any(), any(), anyString(), eq(ChannelThreeDsPhase.VERIFY));
+        verify(paymentTransactionService).resumePreparedTransaction(any());
+    }
+
+    @Test
+    void shouldResumePaymentWhenThreeDsPassWasAlreadyPersisted() {
+        PaymentCheckoutThreeDsReturnCommandDTO commandDTO = new PaymentCheckoutThreeDsReturnCommandDTO();
+        commandDTO.setCheckoutSessionId("2607271200000000000010");
+        commandDTO.setCheckoutAttemptId("2607271200000000000038");
+        commandDTO.setThreeDsReturnTokenHash("return-token-hash");
+        commandDTO.setCardInfo(submitCommand().getCardInfo());
+        commandDTO.setBillingCardHolderInfo(submitCommand().getBillingCardHolderInfo());
+
+        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
+        PaymentCheckoutSessionDO payingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutAttemptDO passedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.THREE_DS_PASSED,
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
+        passedAttempt.setThreeDsStatus("AUTHENTICATION_SUCCESSFUL");
+        passedAttempt.setThreeDsTransactionId("3DS2607271200000000000047");
+        passedAttempt.setThreeDsVersion("3DS2");
+        passedAttempt.setDsTransactionId("ds-tx-001");
+        passedAttempt.setEci("05");
+        passedAttempt.setAttemptRequestId("ATTEMPT-001");
+        passedAttempt.setOperationId("OP-001");
+        passedAttempt.setChannelCode("MPGS");
+        passedAttempt.setChannelMidConfigId(1001L);
+        passedAttempt.setChannelOrderNo("2607271200000000000047");
+        passedAttempt.setChannelTransactionId("3DS2607271200000000000047");
+        PaymentCheckoutAttemptDO submittedAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
+        PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(authenticatingSession,
+                PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+
+        when(attemptMapper.selectByCheckoutAttemptId(commandDTO.getCheckoutAttemptId()))
+                .thenReturn(passedAttempt, submittedAttempt, succeededAttempt);
+        when(sessionMapper.selectByCheckoutSessionId(authenticatingSession.getCheckoutSessionId()))
+                .thenReturn(authenticatingSession, payingSession, succeededSession);
+        when(attemptMapper.markChannelSubmittedCas(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
+        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(sessionMapper.markSucceededCas(anyString(), anyString(), anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenReturn(1);
+        when(paymentTransactionService.resumePreparedTransaction(any())).thenReturn(successPaymentResult());
+        ArgumentCaptor<PaymentCreateCommandDTO> createCommandCaptor = ArgumentCaptor.forClass(PaymentCreateCommandDTO.class);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.handleThreeDsReturn(commandDTO);
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.SUCCEEDED.getCode());
+        verifyNoInteractions(threeDsService);
+        verify(paymentTransactionService).resumePreparedTransaction(createCommandCaptor.capture());
+        assertThat(createCommandCaptor.getValue().getThreeDsInfo().getAuthenticationStatus()).isEqualTo("PASSED");
+        assertThat(createCommandCaptor.getValue().getThreeDsInfo().getAuthenticationTransactionId())
+                .isEqualTo("3DS2607271200000000000047");
+        assertThat(createCommandCaptor.getValue().getChannelIdentity().getChannelMidConfigId()).isEqualTo(1001L);
+    }
+
+    @Test
+    void shouldResumeIdempotentCorePaymentWhenChannelSubmissionWasAlreadyMarked() {
+        PaymentCheckoutThreeDsReturnCommandDTO commandDTO = new PaymentCheckoutThreeDsReturnCommandDTO();
+        commandDTO.setCheckoutSessionId("2607271200000000000010");
+        commandDTO.setCheckoutAttemptId("2607271200000000000038");
+        commandDTO.setThreeDsReturnTokenHash("return-token-hash");
+        commandDTO.setCardInfo(submitCommand().getCardInfo());
+        commandDTO.setBillingCardHolderInfo(submitCommand().getBillingCardHolderInfo());
+
+        PaymentCheckoutSessionDO payingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutAttemptDO submittedAttempt = attemptWithStatus(payingSession,
+                PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
+                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
+        submittedAttempt.setThreeDsStatus("AUTHENTICATION_SUCCESSFUL");
+        submittedAttempt.setThreeDsTransactionId("3DS2607271200000000000047");
+        submittedAttempt.setThreeDsVersion("3DS2");
+        submittedAttempt.setDsTransactionId("ds-tx-001");
+        submittedAttempt.setEci("05");
+        submittedAttempt.setAttemptRequestId("ATTEMPT-001");
+        submittedAttempt.setOperationId("OP-001");
+        submittedAttempt.setChannelCode("MPGS");
+        submittedAttempt.setChannelMidConfigId(1001L);
+        submittedAttempt.setChannelOrderNo("2607271200000000000047");
+        submittedAttempt.setChannelTransactionId("3DS2607271200000000000047");
+        PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(payingSession,
+                PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+
+        when(attemptMapper.selectByCheckoutAttemptId(commandDTO.getCheckoutAttemptId()))
+                .thenReturn(submittedAttempt, succeededAttempt);
+        when(sessionMapper.selectByCheckoutSessionId(payingSession.getCheckoutSessionId()))
+                .thenReturn(payingSession, payingSession, succeededSession);
+        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(sessionMapper.markSucceededCas(anyString(), anyString(), anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenReturn(1);
+        when(paymentTransactionService.resumePreparedTransaction(any())).thenReturn(successPaymentResult());
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.handleThreeDsReturn(commandDTO);
+
+        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.SUCCEEDED.getCode());
+        verifyNoInteractions(threeDsService);
+        verify(attemptMapper, never()).markChannelSubmittedCas(anyString(), anyString(), anyString(), any(), any());
+        verify(paymentTransactionService).resumePreparedTransaction(any());
     }
 
     @Test
@@ -563,6 +1149,15 @@ class DefaultPaymentCheckoutServiceTests {
         billingDTO.setEmail("buyer@example.com");
         billingDTO.setCountry("USA");
         commandDTO.setBillingCardHolderInfo(billingDTO);
+        return commandDTO;
+    }
+
+    private PaymentCheckoutPaymentStatusCommandDTO paymentStatusCommand(PaymentCheckoutSessionDO sessionDO,
+                                                                        PaymentCheckoutAttemptDO attemptDO) {
+        PaymentCheckoutPaymentStatusCommandDTO commandDTO = new PaymentCheckoutPaymentStatusCommandDTO();
+        commandDTO.setTokenHash("token-hash");
+        commandDTO.setCheckoutSessionId(sessionDO.getCheckoutSessionId());
+        commandDTO.setCheckoutAttemptId(attemptDO.getCheckoutAttemptId());
         return commandDTO;
     }
 
@@ -664,19 +1259,61 @@ class DefaultPaymentCheckoutServiceTests {
         resultDTO.setStatus("PASSED");
         resultDTO.setAuthenticationTransactionId("3DS2607271200000000000047");
         resultDTO.setChannelOrderNo("2607271200000000000047");
+        resultDTO.setChannelTransactionId("3DS2607271200000000000047");
         resultDTO.setThreeDsStatus("AUTHENTICATION_SUCCESSFUL");
         resultDTO.setThreeDsVersion("3DS2");
         resultDTO.setDsTransactionId("ds-tx-001");
         resultDTO.setEci("05");
         resultDTO.setCavv("masked-token");
+        resultDTO.setChannelCode("MPGS");
+        resultDTO.setChannelId(101L);
+        resultDTO.setChannelMidConfigId(1001L);
+        return resultDTO;
+    }
+
+    private PaymentCheckoutThreeDsResultDTO notRequiredThreeDsResult() {
+        PaymentCheckoutThreeDsResultDTO resultDTO = new PaymentCheckoutThreeDsResultDTO();
+        resultDTO.setStatus("NOT_REQUIRED");
+        resultDTO.setChannelCode("MPGS");
+        resultDTO.setChannelId(101L);
+        resultDTO.setChannelMidConfigId(1001L);
+        resultDTO.setThreeDsPolicyAction("NONE");
         return resultDTO;
     }
 
     private PaymentCheckoutThreeDsResultDTO challengeThreeDsResult() {
         PaymentCheckoutThreeDsResultDTO resultDTO = passedThreeDsResult();
+        resultDTO.setPhase(ChannelThreeDsPhase.AUTHENTICATE.name());
         resultDTO.setStatus("CHALLENGE_REQUIRED");
         resultDTO.setRedirectHtml("<html><body><form action=\"https://acs.example.test/challenge\"></form></body></html>");
         return resultDTO;
+    }
+
+    /** 构造已经提交本地事务、尚未请求 PSP 的核心交易准备结果。 */
+    private PaymentInitialPreparationResultDTO preparedCoreTransaction(PaymentCreateCommandDTO commandDTO) {
+        commandDTO.setTransactionAmount(commandDTO.getAmount());
+        commandDTO.setTransactionCurrency(commandDTO.getCurrency());
+        PaymentCreateResultDTO resultDTO = processingPaymentResult();
+        resultDTO.setProcessStage("CHANNEL_REQUESTING");
+        resultDTO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
+        routeResultDTO.setChannelId(101L);
+        routeResultDTO.setMidConfigId(1001L);
+        routeResultDTO.setRequestedCurrency(commandDTO.getCurrency());
+        routeResultDTO.setRoutedCurrency(commandDTO.getCurrency());
+        routeResultDTO.setThreeDsSupported(true);
+        PaymentPreparedChannelRequestDTO preparedRequestDTO = new PaymentPreparedChannelRequestDTO();
+        preparedRequestDTO.setRequestId("CR-" + resultDTO.getTransactionId());
+        preparedRequestDTO.setChannelOrderNo(resultDTO.getTransactionId());
+        PaymentInitialPreparationResultDTO preparation = new PaymentInitialPreparationResultDTO();
+        preparation.setCallChannel(true);
+        preparation.setCommandDTO(commandDTO);
+        preparation.setRouteResultDTO(routeResultDTO);
+        preparation.setPreparedChannelRequestDTO(preparedRequestDTO);
+        preparation.setResultDTO(resultDTO);
+        preparation.setIdempotencyKey("CHECKOUT:" + commandDTO.getMerchantOrderId());
+        preparation.setCurrencyExponent(2);
+        return preparation;
     }
 
     private PaymentCreateResultDTO successPaymentResult() {

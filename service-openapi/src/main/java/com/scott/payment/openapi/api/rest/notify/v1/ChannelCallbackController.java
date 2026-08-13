@@ -47,12 +47,12 @@ public class ChannelCallbackController {
     private static final String CHANNEL_CALLBACK_TYPE = "CHANNEL_CALLBACK";
 
     /**
-     * MPGS 3DS 专用通知的内部回调分类。
+     * 3DS 认证通知的统一内部回调分类。
      */
-    private static final String MPGS_3DS_CALLBACK_TYPE = "MPGS_3DS_CALLBACK";
+    private static final String THREE_DS_CALLBACK_TYPE = "THREE_DS_AUTHENTICATION_CALLBACK";
 
     /**
-     * MPGS 3DS 回调写入支付核心时使用的渠道事件类型。
+     * 3DS 回调写入支付核心时使用的统一渠道事件类型。
      */
     private static final String THREE_DS_EVENT_TYPE = "THREE_DS_CALLBACK";
 
@@ -115,11 +115,11 @@ public class ChannelCallbackController {
     }
 
     /**
-     * 接收 MPGS 3DS 专用回调通知。
+     * 接收渠道 3DS 认证回调通知。
      *
      * @param channelCode 渠道编码
      * @param request HTTP 请求上下文
-     * @param rawBody MPGS 3DS 回调原文
+     * @param rawBody 渠道 3DS 回调原文
      * @return 回调受理结果
      */
     @PostMapping("/{channelCode}/3ds")
@@ -139,7 +139,7 @@ public class ChannelCallbackController {
                 safeLength(SensitiveDataMaskUtils.maskJsonSafely(rawBody), 1200));
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
                 callbackSecuritySupport.verifyChannelCallback(channelCode, request, rawBody);
-        paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, MPGS_3DS_CALLBACK_TYPE,
+        paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, THREE_DS_CALLBACK_TYPE,
                 THREE_DS_EVENT_TYPE, request, rawBody, securityResult));
         log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_END stage=CALLBACK_RECEIVE traceId: {} channelCode: {} signatureValid: {} ipAllowed: {} durationMs: {}",
                 TraceContext.getTraceId(),

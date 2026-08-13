@@ -411,6 +411,15 @@ public final class PaymentCheckoutClientDTOs {
          */
         private String authenticationDataJsonMasked;
 
+        /** 新 nonce 对应的卡数据密文信封。 */
+        private CardDataEnvelope cardDataEnvelope;
+
+        /** 继续认证和支付所需账单资料。 */
+        private BillingCardHolderInfo billingCardHolderInfo;
+
+        /** 当前浏览器环境摘要。 */
+        private String browserInfoJson;
+
         /**
          * TraceId 贯穿 3DS 回跳链路。
          */
@@ -742,6 +751,9 @@ public final class PaymentCheckoutClientDTOs {
          */
         private String actionType;
 
+        /** 当前 HTML 所属 3DS 阶段：INITIALIZE 为 Method，AUTHENTICATE 为 Challenge。 */
+        private String phase;
+
         /**
          * 渠道返回的 3DS HTML，进入前端前应保持原样但不得写入明文日志。
          */
@@ -756,6 +768,9 @@ public final class PaymentCheckoutClientDTOs {
          * 3DS 质询超时时间。
          */
         private Integer timeoutSeconds;
+
+        /** 下一 3DS 浏览器阶段重新加密卡数据所需公钥和 nonce。 */
+        private CardEncryption cardEncryption;
     }
 
     /**

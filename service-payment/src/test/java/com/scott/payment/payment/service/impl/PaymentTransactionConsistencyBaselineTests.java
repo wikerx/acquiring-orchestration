@@ -3491,6 +3491,30 @@ class PaymentTransactionConsistencyBaselineTests {
                     riskDecisionEnum,
                     currencyExponent);
         }
+
+        @Override
+        public boolean claimInitialChannelSubmission(String requestId, LocalDateTime transactionDateTime) {
+            return true;
+        }
+
+        @Override
+        public boolean recordInitialPreChannelFailure(PaymentCreateCommandDTO commandDTO,
+                                                      PaymentRouteResultDTO routeResultDTO,
+                                                      PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                      PaymentCreateResultDTO resultDTO,
+                                                      PaymentRiskDecisionEnum riskDecisionEnum,
+                                                      int currencyExponent) {
+            recordInitialChannelResult(commandDTO, routeResultDTO, invokeResultDTO, resultDTO,
+                    riskDecisionEnum, currencyExponent);
+            return true;
+        }
+
+        @Override
+        public void markThreeDsIndicator(String transactionId,
+                                         LocalDateTime transactionDateTime,
+                                         String indicator) {
+            // This baseline fixture does not persist payment-method capability metadata.
+        }
     }
 
     private static class CapturingCaptureChannelResultTransactionService implements CaptureChannelResultTransactionService {

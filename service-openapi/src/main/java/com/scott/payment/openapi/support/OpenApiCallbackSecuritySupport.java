@@ -1,5 +1,9 @@
 package com.scott.payment.openapi.support;
 
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationRequest;
+import com.scott.payment.channel.payment.exception.ChannelCallbackVerificationException;
+import com.scott.payment.channel.payment.registry.PaymentChannelCallbackVerifierRegistry;
+import com.scott.payment.channel.payment.security.HmacPaymentChannelCallbackVerifier;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
@@ -8,20 +12,15 @@ import com.scott.payment.openapi.config.OpenApiCallbackProperties;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * @author : scott
@@ -38,34 +37,27 @@ public class OpenApiCallbackSecuritySupport {
     /**
      * 渠道回调时间戳请求头。
      */
-    public static final String CHANNEL_TIMESTAMP_HEADER = "X-Channel-Timestamp";
+    public static final String CHANNEL_TIMESTAMP_HEADER = HmacPaymentChannelCallbackVerifier.TIMESTAMP_HEADER;
 
     /**
      * 渠道回调随机串请求头。
      */
-    public static final String CHANNEL_NONCE_HEADER = "X-Channel-Nonce";
+    public static final String CHANNEL_NONCE_HEADER = HmacPaymentChannelCallbackVerifier.NONCE_HEADER;
 
     /**
      * 渠道回调签名请求头。
      */
-    public static final String CHANNEL_SIGNATURE_HEADER = "X-Channel-Signature";
+    public static final String CHANNEL_SIGNATURE_HEADER = HmacPaymentChannelCallbackVerifier.SIGNATURE_HEADER;
 
     /**
-     * Worldpay 事件签名请求头，格式通常为 keyId/SHA256/signature。
+     * 渠道事件签名请求头，格式为 keyId/SHA256/signature。
      */
-    public static final String WORLDPAY_EVENT_SIGNATURE_HEADER = "Event-Signature";
+    public static final String CHANNEL_EVENT_SIGNATURE_HEADER = HmacPaymentChannelCallbackVerifier.EVENT_SIGNATURE_HEADER;
 
     /**
      * 商户通知重试维护密钥请求头。
      */
     public static final String NOTIFY_RETRY_TOKEN_HEADER = "X-Notify-Retry-Token";
-
-    /**
-     * 渠道回调签名算法常量，签名原文和密钥不得写入日志。
-     */
-    private static final String HMAC_SHA256 = "HmacSHA256";
-
-    private static final Set<String> WORLDPAY_CHANNELS = Set.of("WPGJSON", "WPGXML");
 
     /**
      * 回调安全配置。
@@ -77,16 +69,29 @@ public class OpenApiCallbackSecuritySupport {
      */
     private final SecurityInterceptEventRecorder securityInterceptEventRecorder;
 
+    /** 按渠道编码定位 provider 验签实现。 */
+    private final PaymentChannelCallbackVerifierRegistry callbackVerifierRegistry;
+
     /**
      * 创建回调入口安全校验组件。
      *
      * @param callbackProperties 回调安全配置
      * @param securityInterceptEventRecorder 安全拦截事件记录器
      */
+    @Autowired
     public OpenApiCallbackSecuritySupport(OpenApiCallbackProperties callbackProperties,
-                                          SecurityInterceptEventRecorder securityInterceptEventRecorder) {
+                                          SecurityInterceptEventRecorder securityInterceptEventRecorder,
+                                          PaymentChannelCallbackVerifierRegistry callbackVerifierRegistry) {
         this.callbackProperties = callbackProperties;
         this.securityInterceptEventRecorder = securityInterceptEventRecorder;
+        this.callbackVerifierRegistry = callbackVerifierRegistry;
+    }
+
+    /** 兼容不启动 Spring 容器的安全单元测试，生产环境使用三参数构造器注入 Registry。 */
+    public OpenApiCallbackSecuritySupport(OpenApiCallbackProperties callbackProperties,
+                                          SecurityInterceptEventRecorder securityInterceptEventRecorder) {
+        this(callbackProperties, securityInterceptEventRecorder,
+                new PaymentChannelCallbackVerifierRegistry(List.of(new HmacPaymentChannelCallbackVerifier())));
     }
 
     /**
@@ -122,166 +127,92 @@ public class OpenApiCallbackSecuritySupport {
         if (!callbackProperties.isChannelSignatureRequired()) {
             return new CallbackSecurityResult(true, ipAllowed);
         }
-        String worldpayEventSignature = request.getHeader(WORLDPAY_EVENT_SIGNATURE_HEADER);
-        if (isWorldpay(channelCode) && StringUtils.hasText(worldpayEventSignature)) {
-            verifyWorldpayEventSignature(channelCode, request, rawBody, worldpayEventSignature);
-            return new CallbackSecurityResult(true, ipAllowed);
+        Map<String, String> headers = new LinkedHashMap<>();
+        for (String headerName : List.of(CHANNEL_TIMESTAMP_HEADER, CHANNEL_NONCE_HEADER,
+                CHANNEL_SIGNATURE_HEADER, CHANNEL_EVENT_SIGNATURE_HEADER)) {
+            String value = request.getHeader(headerName);
+            if (value != null) {
+                headers.put(headerName, value);
+            }
         }
-        verifyInternalChannelSignature(channelCode, request, rawBody);
+        try {
+            callbackVerifierRegistry.verify(new ChannelCallbackVerificationRequest(
+                    channelCode,
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    headers,
+                    rawBody,
+                    channelSecret(channelCode),
+                    channelEventSecrets(channelCode),
+                    callbackProperties.getAllowedClockSkewMillis(),
+                    InternalServiceSignature.currentTimeMillis()));
+        } catch (ChannelCallbackVerificationException exception) {
+            throw mapVerificationException(request, exception,
+                    StringUtils.hasText(request.getHeader(CHANNEL_EVENT_SIGNATURE_HEADER)));
+        } catch (com.scott.payment.channel.payment.exception.ChannelException exception) {
+            throw recordAndReturnChannelException(request,
+                    "CHANNEL_CALLBACK_VERIFIER_MISSING",
+                    SecurityInterceptEventRecorder.RISK_CRITICAL,
+                    "CHANNEL_CALLBACK_SIGNATURE",
+                    "channel callback verifier is not configured");
+        }
         return new CallbackSecurityResult(true, ipAllowed);
     }
 
     /**
-     * 校验平台自定义渠道回调签名。
-     * <p>
-     * 该签名用于未提供官方 webhook 签名格式的渠道，签名文本绑定 method、path、时间戳、nonce、渠道编码和原文 body 摘要。
+     * 将渠道插件验签失败映射为 OpenAPI 既有错误码，并保留安全审计分类。
      *
-     * @param channelCode 渠道编码
      * @param request HTTP 请求
-     * @param rawBody 回调原文
+     * @param exception 渠道插件返回的稳定失败原因
+     * @param eventSignature 是否使用 Event-Signature 格式
+     * @return 对外 API 异常
      */
-    private void verifyInternalChannelSignature(String channelCode, HttpServletRequest request, String rawBody) {
-        String timestampText = request.getHeader(CHANNEL_TIMESTAMP_HEADER);
-        String nonce = request.getHeader(CHANNEL_NONCE_HEADER);
-        String signature = request.getHeader(CHANNEL_SIGNATURE_HEADER);
-        if (!StringUtils.hasText(channelCode)
-                || !StringUtils.hasText(timestampText)
-                || !StringUtils.hasText(nonce)
-                || !StringUtils.hasText(signature)) {
-            throw recordAndReturnChannelException(request,
-                    "CHANNEL_SIGNATURE_HEADER_MISSING",
-                    SecurityInterceptEventRecorder.RISK_HIGH,
-                    "CHANNEL_CALLBACK_SIGNATURE",
-                    "channel callback signature headers are required");
+    private ApiException mapVerificationException(HttpServletRequest request,
+                                                   ChannelCallbackVerificationException exception,
+                                                   boolean eventSignature) {
+        String hitRuleCode = eventSignature ? "CHANNEL_EVENT_SIGNATURE" : "CHANNEL_CALLBACK_SIGNATURE";
+        String eventType;
+        String riskLevel;
+        switch (exception.getReason()) {
+            case HEADER_MISSING -> {
+                eventType = "CHANNEL_SIGNATURE_HEADER_MISSING";
+                riskLevel = SecurityInterceptEventRecorder.RISK_HIGH;
+            }
+            case HEADER_INVALID -> {
+                eventType = "CHANNEL_SIGNATURE_HEADER_INVALID";
+                riskLevel = SecurityInterceptEventRecorder.RISK_HIGH;
+            }
+            case TIMESTAMP_INVALID -> {
+                eventType = "CHANNEL_SIGNATURE_TIMESTAMP_INVALID";
+                riskLevel = SecurityInterceptEventRecorder.RISK_HIGH;
+            }
+            case TIMESTAMP_EXPIRED -> {
+                eventType = "CHANNEL_SIGNATURE_TIMESTAMP_EXPIRED";
+                riskLevel = SecurityInterceptEventRecorder.RISK_HIGH;
+            }
+            case SECRET_MISSING -> {
+                eventType = "CHANNEL_CALLBACK_SECRET_MISSING";
+                riskLevel = SecurityInterceptEventRecorder.RISK_CRITICAL;
+            }
+            case ALGORITHM_UNSUPPORTED -> {
+                eventType = "CHANNEL_SIGNATURE_ALGORITHM_UNSUPPORTED";
+                riskLevel = SecurityInterceptEventRecorder.RISK_HIGH;
+            }
+            case SIGNATURE_INVALID -> {
+                eventType = "CHANNEL_SIGNATURE_INVALID";
+                riskLevel = SecurityInterceptEventRecorder.RISK_CRITICAL;
+            }
+            case INTERNAL_ERROR -> {
+                eventType = "CHANNEL_SIGNATURE_INTERNAL_ERROR";
+                riskLevel = SecurityInterceptEventRecorder.RISK_CRITICAL;
+            }
+            default -> throw new IllegalStateException("unsupported callback verification reason: " + exception.getReason());
         }
-        long timestamp;
-        try {
-            timestamp = parseTimestamp(timestampText);
-        } catch (ApiException exception) {
-            securityInterceptEventRecorder.recordBlocked(
-                    request,
-                    SecurityInterceptEventRecorder.SOURCE_CHANNEL,
-                    "CHANNEL_SIGNATURE_TIMESTAMP_INVALID",
-                    SecurityInterceptEventRecorder.RISK_HIGH,
-                    null,
-                    "CHANNEL_CALLBACK_SIGNATURE",
-                    securityInterceptEventRecorder.reasonCode(exception),
-                    securityInterceptEventRecorder.reasonMessage(exception)
-            );
-            throw exception;
-        }
-        if (Math.abs(InternalServiceSignature.currentTimeMillis() - timestamp) > callbackProperties.getAllowedClockSkewMillis()) {
-            throw recordAndReturnChannelException(request,
-                    "CHANNEL_SIGNATURE_TIMESTAMP_EXPIRED",
-                    SecurityInterceptEventRecorder.RISK_HIGH,
-                    "CHANNEL_CALLBACK_SIGNATURE",
-                    "channel callback signature timestamp is expired");
-        }
-        String normalizedChannelCode = normalizeConfigKey(channelCode);
-        String channelSecret = channelSecret(channelCode);
-        if (!StringUtils.hasText(channelSecret)) {
-            throw recordAndReturnChannelException(request,
-                    "CHANNEL_CALLBACK_SECRET_MISSING",
-                    SecurityInterceptEventRecorder.RISK_CRITICAL,
-                    "CHANNEL_CALLBACK_SIGNATURE",
-                    "channel callback secret is not configured");
-        }
-        String expectedSignature = InternalServiceSignature.sign(
-                request.getMethod(),
-                request.getRequestURI(),
-                timestamp,
-                nonce,
-                normalizedChannelCode,
-                sha256Hex(rawBody),
-                channelSecret
-        );
-        if (!InternalServiceSignature.matches(expectedSignature, signature)) {
-            throw recordAndReturnChannelException(request,
-                    "CHANNEL_SIGNATURE_INVALID",
-                    SecurityInterceptEventRecorder.RISK_CRITICAL,
-                    "CHANNEL_CALLBACK_SIGNATURE",
-                    "channel callback signature is invalid");
-        }
-    }
-
-    /**
-     * 校验 Worldpay Event-Signature。
-     * <p>
-     * Worldpay 回调签名头携带 keyId、算法和签名值，平台使用对应 keyId 的共享密钥对原始 body 计算 HMAC-SHA256。
-     *
-     * @param channelCode 渠道编码
-     * @param request HTTP 请求
-     * @param rawBody 回调原文
-     * @param eventSignature Event-Signature 请求头
-     */
-    private void verifyWorldpayEventSignature(String channelCode,
-                                              HttpServletRequest request,
-                                              String rawBody,
-                                              String eventSignature) {
-        WorldpayEventSignature parsedSignature = parseWorldpayEventSignature(request, eventSignature);
-        String secret = worldpayEventSecret(channelCode, parsedSignature.keyId());
-        if (!StringUtils.hasText(secret)) {
-            throw recordAndReturnChannelException(request,
-                    "CHANNEL_CALLBACK_SECRET_MISSING",
-                    SecurityInterceptEventRecorder.RISK_CRITICAL,
-                    "WORLDPAY_EVENT_SIGNATURE",
-                    "worldpay callback event signature secret is not configured");
-        }
-        if (!"SHA256".equalsIgnoreCase(parsedSignature.algorithm())) {
-            throw recordAndReturnChannelException(request,
-                    "CHANNEL_SIGNATURE_ALGORITHM_UNSUPPORTED",
-                    SecurityInterceptEventRecorder.RISK_HIGH,
-                    "WORLDPAY_EVENT_SIGNATURE",
-                    "worldpay callback event signature algorithm is unsupported");
-        }
-        String expectedSignature = hmacSha256(rawBody == null ? "" : rawBody, secret);
-        if (!InternalServiceSignature.matches(expectedSignature, parsedSignature.signature())) {
-            throw recordAndReturnChannelException(request,
-                    "CHANNEL_SIGNATURE_INVALID",
-                    SecurityInterceptEventRecorder.RISK_CRITICAL,
-                    "WORLDPAY_EVENT_SIGNATURE",
-                    "worldpay callback event signature is invalid");
-        }
-    }
-
-    /**
-     * 解析 Worldpay Event-Signature 请求头。
-     *
-     * @param eventSignature 原始签名头
-     * @return 解析后的 keyId、算法和签名值
-     */
-    private WorldpayEventSignature parseWorldpayEventSignature(HttpServletRequest request, String eventSignature) {
-        String[] segments = eventSignature == null ? new String[0] : eventSignature.split("/", 3);
-        if (segments.length != 3
-                || !StringUtils.hasText(segments[0])
-                || !StringUtils.hasText(segments[1])
-                || !StringUtils.hasText(segments[2])) {
-            throw recordAndReturnChannelException(request,
-                    "CHANNEL_SIGNATURE_HEADER_INVALID",
-                    SecurityInterceptEventRecorder.RISK_HIGH,
-                    "WORLDPAY_EVENT_SIGNATURE",
-                    "worldpay callback event signature is invalid");
-        }
-        return new WorldpayEventSignature(segments[0].trim(), segments[1].trim(), segments[2].trim());
-    }
-
-    /**
-     * 读取 Worldpay 指定 keyId 对应的事件签名密钥。
-     *
-     * @param channelCode 渠道编码
-     * @param keyId Worldpay 签名 keyId
-     * @return HMAC-SHA256 共享密钥
-     */
-    private String worldpayEventSecret(String channelCode, String keyId) {
-        Map<String, String> secrets = channelEventSecrets(channelCode);
-        String secret = secrets.get(keyId);
-        if (!StringUtils.hasText(secret)) {
-            secret = secrets.get(normalizeConfigKey(keyId));
-        }
-        if (StringUtils.hasText(secret)) {
-            return secret;
-        }
-        return channelSecret(channelCode);
+        ApiResultEnum result = exception.getReason() == ChannelCallbackVerificationException.Reason.INTERNAL_ERROR
+                ? ApiResultEnum.INTERNAL_SERVER_ERROR
+                : ApiResultEnum.UNAUTHORIZED;
+        return recordAndReturnChannelException(request, eventType, riskLevel, hitRuleCode,
+                exception.getMessage(), result);
     }
 
     /**
@@ -418,16 +349,6 @@ public class OpenApiCallbackSecuritySupport {
     }
 
     /**
-     * 判断是否为 Worldpay 独立渠道。
-     *
-     * @param channelCode 渠道编码
-     * @return true 表示 WPGJSON 或 WPGXML
-     */
-    private boolean isWorldpay(String channelCode) {
-        return WORLDPAY_CHANNELS.contains(normalizeChannelCode(channelCode));
-    }
-
-    /**
      * 将配置 key 规范化为小写。
      *
      * @param value 原始配置 key
@@ -445,23 +366,6 @@ public class OpenApiCallbackSecuritySupport {
      */
     private String normalizeChannelCode(String channelCode) {
         return channelCode == null ? null : channelCode.trim().toUpperCase(Locale.ROOT);
-    }
-
-    /**
-     * 计算 HMAC-SHA256 十六进制签名。
-     *
-     * @param rawBody 回调原文
-     * @param secret 共享密钥
-     * @return 小写十六进制签名
-     */
-    private String hmacSha256(String rawBody, String secret) {
-        try {
-            Mac mac = Mac.getInstance(HMAC_SHA256);
-            mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_SHA256));
-            return java.util.HexFormat.of().formatHex(mac.doFinal(rawBody.getBytes(StandardCharsets.UTF_8)));
-        } catch (GeneralSecurityException exception) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR, "channel callback signature can not be calculated");
-        }
     }
 
 /**
@@ -516,7 +420,17 @@ public class OpenApiCallbackSecuritySupport {
                                                          String riskLevel,
                                                          String hitRuleCode,
                                                          String message) {
-        ApiException exception = new ApiException(ApiResultEnum.UNAUTHORIZED, message);
+        return recordAndReturnChannelException(request, eventType, riskLevel, hitRuleCode,
+                message, ApiResultEnum.UNAUTHORIZED);
+    }
+
+    private ApiException recordAndReturnChannelException(HttpServletRequest request,
+                                                         String eventType,
+                                                         String riskLevel,
+                                                         String hitRuleCode,
+                                                         String message,
+                                                         ApiResultEnum result) {
+        ApiException exception = new ApiException(result, message);
         securityInterceptEventRecorder.recordBlocked(
                 request,
                 SecurityInterceptEventRecorder.SOURCE_CHANNEL,
@@ -531,44 +445,6 @@ public class OpenApiCallbackSecuritySupport {
     }
 
     /**
-     * 解析parsetimestamp，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param timestampText 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 构造、转换或解析后的业务值
-     */
-    private long parseTimestamp(String timestampText) {
-        try {
-            return Long.parseLong(timestampText);
-        } catch (NumberFormatException exception) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED, "channel callback signature timestamp is invalid");
-        }
-    }
-
-    /**
-     * 计算SHA-256 十六进制摘要，用不可逆指纹关联原始内容而不暴露明文。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param rawBody raw Body 输入值，参与 raw报文体 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private String sha256Hex(String rawBody) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest((rawBody == null ? "" : rawBody).getBytes(StandardCharsets.UTF_8));
-            return java.util.HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR, "channel callback body digest can not be calculated");
-        }
-    }
-
-    /**
      * 渠道回调入口安全校验结果。
      *
      * @param signatureValid 签名校验是否通过
@@ -577,13 +453,4 @@ public class OpenApiCallbackSecuritySupport {
     public record CallbackSecurityResult(boolean signatureValid, boolean ipAllowed) {
     }
 
-    /**
-     * Worldpay Event-Signature 解析结果。
-     *
-     * @param keyId 签名密钥标识
-     * @param algorithm 签名算法
-     * @param signature 请求头中的签名值
-     */
-    private record WorldpayEventSignature(String keyId, String algorithm, String signature) {
-    }
 }

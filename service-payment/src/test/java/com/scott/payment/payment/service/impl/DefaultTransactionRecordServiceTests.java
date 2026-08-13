@@ -359,14 +359,20 @@ class DefaultTransactionRecordServiceTests {
      */
     @Test
     void shouldMarkChannelFlowEventFailedWhenChannelBusinessResultFailed() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        Captured<TransactionOrderDO> orderCapture = new Captured<>();
+        when(orderMapper.insert(any(TransactionOrderDO.class))).thenAnswer(invocation -> {
+            orderCapture.value = invocation.getArgument(0);
+            return 1;
+        });
         CapturedList<TransactionFlowEventDO> flowEventCapture = new CapturedList<>();
         when(flowEventMapper.insertLogical(any(TransactionFlowEventDO.class))).thenAnswer(invocation -> {
             flowEventCapture.values.add(invocation.getArgument(0));
             return 1;
         });
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
-                mock(TransactionOrderMapper.class),
+                orderMapper,
                 mock(TransactionOperationMapper.class),
                 mock(TransactionStatusHistoryMapper.class),
                 mock(TransactionChannelRequestMapper.class),
@@ -408,6 +414,8 @@ class DefaultTransactionRecordServiceTests {
                 .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode() + "：" + ApiResultEnum.PAYMENT_REJECTED.getMessage());
         assertThat(statusEvent.getErrorCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
         assertThat(statusEvent.getErrorCode()).isNotEqualTo(resultDTO.getFailReasonCode());
+        assertThat(orderCapture.value.getMerchantVisibleMessage())
+                .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
     }
 
     /**

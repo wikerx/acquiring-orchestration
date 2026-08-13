@@ -208,6 +208,7 @@ public interface RiskListRuntimeRepository {
      * 查询适用于本次交易的 3DS 风控规则。
      *
      * @param merchantId 当前商户号
+     * @param channelCode 已完成路由的渠道编码
      * @param paymentMethod 支付方式编码
      * @param cardBrand 卡品牌编码
      * @param amount 交易金额
@@ -216,6 +217,7 @@ public interface RiskListRuntimeRepository {
      * @return 优先级最高的适用 3DS 规则；无规则时返回空
      */
     Optional<RiskListMatch> findThreeDsRule(String merchantId,
+                                            String channelCode,
                                             String paymentMethod,
                                             String cardBrand,
                                             BigDecimal amount,

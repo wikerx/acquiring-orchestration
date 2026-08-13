@@ -669,6 +669,9 @@ public final class AdminTransactionDTOs {
          */
         private BigDecimal transactionRate;
 
+        /** 是否按 3DS 交易处理：0 否，1 是。 */
+        private Integer threeDsEnabled;
+
         /**
          * 是否启用 DCC，0 否、1 是。
          */
@@ -982,6 +985,9 @@ public final class AdminTransactionDTOs {
          * 标签金额转交易金额使用的汇率，未换汇时返回 1.00000000。
          */
         private BigDecimal transactionRate;
+
+        /** 是否按 3DS 交易处理：0 否，1 是。 */
+        private Integer threeDsEnabled;
 
         /**
          * 是否启用 DCC，0 否、1 是。

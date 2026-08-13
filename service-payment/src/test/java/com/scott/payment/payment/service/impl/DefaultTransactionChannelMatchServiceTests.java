@@ -77,6 +77,25 @@ class DefaultTransactionChannelMatchServiceTests {
     }
 
     @Test
+    void shouldNotQueryChannelBeforeOriginalFundsRequestWasSent() {
+        TransactionOperationDO operationDO = pendingOperation();
+        TransactionChannelRequestDO originalRequest = originalRequest(operationDO);
+        originalRequest.setRequestStatus("INIT");
+        InMemoryRecordService recordService = new InMemoryRecordService(operationDO, originalRequest);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+
+        TransactionChannelMatchResultDTO resultDTO = matchService(
+                recordService, invokeService, resultTransactionService).matchDue(matchCommand());
+
+        assertThat(resultDTO.getPendingCount()).isEqualTo(1);
+        assertThat(invokeService.queryInvokeCount()).isZero();
+        assertThat(invokeService.paymentInvokeCount()).isZero();
+        assertThat(recordService.completedStatus).isNull();
+    }
+
+    @Test
     void shouldRestoreMissingChannelTransactionIdFromOriginalChannelRequest() {
         TransactionOperationDO operationDO = pendingOperation();
         operationDO.setChannelTransactionId(null);

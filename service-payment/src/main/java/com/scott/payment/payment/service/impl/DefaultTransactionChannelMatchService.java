@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 /**
  * @author : scott
@@ -65,6 +66,10 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
      * 缺少渠道查询身份时按天重试，等待迟到回调或人工补齐渠道身份，避免无效高频查询。
      */
     private static final long MISSING_IDENTITY_RETRY_HOURS = 24L;
+
+    /** 只有真正尝试发送过的资金请求才允许进入渠道状态查询。 */
+    private static final Set<String> QUERYABLE_ORIGINAL_REQUEST_STATUSES = Set.of(
+            "SENT", "SUCCESS", "TIMEOUT", "FAILED");
 
     /**
      * transaction Record Service 依赖，用于 Default Transaction Channel Match Service 调用对应的数据访问、远程调用或领域服务能力。
@@ -228,6 +233,10 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                             LocalDateTime now,
                             TransactionChannelMatchResultDTO resultDTO) {
         TransactionChannelRequestDO originalRequestDO = transactionRecordService.findOriginalChannelRequestForQuery(operationDO);
+        if (originalRequestDO != null && !isQueryableOriginalRequest(originalRequestDO)) {
+            resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
+            return;
+        }
         PaymentPreparedChannelRequestDTO preparedQueryRequest = buildQueryReference(operationDO, originalRequestDO);
         PaymentCreateCommandDTO queryCommand = toQueryCommand(operationDO);
         PaymentRouteResultDTO routeResult = restoreRouteResult(operationDO);
@@ -277,6 +286,13 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             markPending(operationDO, originalRequestDO, now, null, "QUERY_EXCEPTION", exception.getMessage());
             resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
         }
+    }
+
+    private boolean isQueryableOriginalRequest(TransactionChannelRequestDO originalRequestDO) {
+        return originalRequestDO != null
+                && StringUtils.hasText(originalRequestDO.getRequestStatus())
+                && QUERYABLE_ORIGINAL_REQUEST_STATUSES.contains(
+                        originalRequestDO.getRequestStatus().trim().toUpperCase(java.util.Locale.ROOT));
     }
 
     /**

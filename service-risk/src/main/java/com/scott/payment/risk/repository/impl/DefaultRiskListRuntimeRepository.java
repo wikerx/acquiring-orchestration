@@ -1081,14 +1081,20 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      */
     @Override
     public Optional<RiskListMatch> findThreeDsRule(String merchantId,
+                                                   String channelCode,
                                                    String paymentMethod,
                                                    String cardBrand,
                                                    BigDecimal amount,
                                                    String currency,
                                                    String currentRiskLevel) {
-        if (!properties.isRuntimeEnabled() || amount == null || !StringUtils.hasText(currency) || riskRuntimeMapper == null) {
+        if (!properties.isRuntimeEnabled()
+                || !StringUtils.hasText(channelCode)
+                || amount == null
+                || !StringUtils.hasText(currency)
+                || riskRuntimeMapper == null) {
             return Optional.empty();
         }
+        String normalizedChannelCode = channelCode.trim().toUpperCase();
         String normalizedCurrency = currency.trim().toUpperCase();
         String normalizedPaymentMethod = defaultAll(paymentMethod);
         String normalizedCardBrand = defaultAll(cardBrand);
@@ -1096,6 +1102,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         Supplier<Optional<RiskListMatch>> legacyLoader =
                 () -> Optional.ofNullable(riskRuntimeMapper.selectThreeDsRule(
                 trim(merchantId),
+                normalizedChannelCode,
                 normalizedPaymentMethod,
                 normalizedCardBrand,
                 amount,
@@ -1108,6 +1115,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     "rule",
                     "three-ds",
                     safeMerchant(merchantId),
+                    normalizedChannelCode,
                     normalizedPaymentMethod,
                     normalizedCardBrand,
                     normalizedCurrency,
@@ -1120,6 +1128,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 ? snapshot.rows().stream()
                 .filter(row -> threeDsRuleMatches(
                         row,
+                        normalizedChannelCode,
                         normalizedPaymentMethod,
                         normalizedCardBrand,
                         amount,
@@ -1135,6 +1144,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     "rule",
                     "three-ds",
                     safeMerchant(merchantId),
+                    normalizedChannelCode,
                     normalizedPaymentMethod,
                     normalizedCardBrand,
                     normalizedCurrency,
@@ -1828,6 +1838,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * 判断一条 3DS 快照规则是否适用于当前交易。
      *
      * @param row           3DS 快照行
+     * @param channelCode   规范化路由渠道编码
      * @param paymentMethod 规范化支付方式
      * @param cardBrand     规范化卡品牌
      * @param amount        交易金额
@@ -1836,16 +1847,20 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 所有维度均匹配时为 true
      */
     private boolean threeDsRuleMatches(RiskRuleSnapshotRow row,
+                                       String channelCode,
                                        String paymentMethod,
                                        String cardBrand,
                                        BigDecimal amount,
                                        String currency,
                                        int riskWeight) {
+        boolean channelMatches = "ALL".equals(normalizedUpper(row.getChannelCode()))
+                || equalsIgnoreCase(row.getChannelCode(), channelCode);
         boolean paymentMethodMatches = "ALL".equals(normalizedUpper(row.getPaymentMethod()))
                 || equalsIgnoreCase(row.getPaymentMethod(), paymentMethod);
         boolean cardBrandMatches = "ALL".equals(normalizedUpper(row.getCardBrand()))
                 || equalsIgnoreCase(row.getCardBrand(), cardBrand);
-        return paymentMethodMatches
+        return channelMatches
+                && paymentMethodMatches
                 && cardBrandMatches
                 && equalsIgnoreCase(row.getCurrency(), currency)
                 && amountConditionMatches(row, amount)

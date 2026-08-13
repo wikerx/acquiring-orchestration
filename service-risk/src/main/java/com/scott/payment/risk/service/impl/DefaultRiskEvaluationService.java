@@ -840,6 +840,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         }
         return riskListRuntimeRepository.findThreeDsRule(
                 requestDTO.getMerchantId(),
+                requestDTO.getChannelCode(),
                 requestDTO.getPaymentMethod(),
                 requestDTO.getCardBrand(),
                 requestDTO.getAmount(),

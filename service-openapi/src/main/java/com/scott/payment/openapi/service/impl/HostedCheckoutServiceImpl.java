@@ -37,8 +37,10 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Hosted Checkout 开放接口默认实现。
@@ -51,11 +53,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      * 当前 Hosted Checkout 支持的银行卡支付方式编码。
      */
     private static final String PAYMENT_METHOD_BANK_CARD = "BANK_CARD";
-
-    /**
-     * 当前 Hosted Checkout 默认接入的 MPGS 渠道编码。
-     */
-    private static final String CHANNEL_MPGS = "MPGS";
 
     /**
      * 代理链客户端 IP 请求头。
@@ -81,6 +78,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      * 浏览器 User-Agent 请求头。
      */
     private static final String HEADER_USER_AGENT = "User-Agent";
+
+    /** 浏览器声明可接收内容类型的请求头，MPGS PAYER_BROWSER 认证要求提供。 */
+    private static final String HEADER_ACCEPT = "Accept";
 
     /**
      * 平台收银台前端基础地址的系统参数键。
@@ -271,6 +271,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         clientRequest.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
         clientRequest.setCheckoutAttemptId(requestDTO.getCheckoutAttemptId());
         clientRequest.setAuthenticationDataJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(requestDTO.getAuthenticationData()));
+        clientRequest.setCardDataEnvelope(toClientCardDataEnvelope(requestDTO.getCardDataEnvelope()));
+        clientRequest.setBillingCardHolderInfo(toClientBillingInfo(requestDTO.getBillingCardHolderInfo()));
+        clientRequest.setBrowserInfoJson(browserInfoJson(requestDTO.getClientContext()));
         clientRequest.setTraceId(TraceContext.getTraceId());
         fillBrowserSecurity(clientRequest, requestDTO.getClientContext());
         PaymentCheckoutClientDTOs.PaymentResultResponse response =
@@ -609,9 +612,11 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         }
         HostedCheckoutPaymentResultVO.ThreeDsActionVO target = new HostedCheckoutPaymentResultVO.ThreeDsActionVO();
         target.setActionType(source.getActionType());
+        target.setPhase(source.getPhase());
         target.setHtml(source.getHtml());
         target.setReturnUrl(source.getReturnUrl());
         target.setTimeoutSeconds(source.getTimeoutSeconds());
+        target.setCardEncryption(toCardEncryptionVO(source.getCardEncryption()));
         return target;
     }
 
@@ -691,11 +696,11 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     }
 
     /**
-     * 规范化渠道编码，未指定时默认使用 MPGS 卡支付通道。
+     * 规范化可选渠道编码；未指定时保持为空，由支付服务根据商户路由选择。
      */
     private String normalizeChannelCode(String channelCode) {
         String normalized = channelCode == null ? null : channelCode.trim().toUpperCase(Locale.ROOT);
-        return StringUtils.hasText(normalized) ? normalized : CHANNEL_MPGS;
+        return StringUtils.hasText(normalized) ? normalized : null;
     }
 
     /**
@@ -817,7 +822,21 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      * 生成脱敏后的 browserInfo JSON，供 MPGS 3DS 请求和审计快照使用。
      */
     private String browserInfoJson(HostedCheckoutBrowserRequestDTOs.ClientContextDTO context) {
-        return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(context));
+        HttpServletRequest request = currentRequest();
+        Map<String, Object> browserInfo = new LinkedHashMap<>();
+        browserInfo.put("userAgent", request == null ? null : request.getHeader(HEADER_USER_AGENT));
+        browserInfo.put("acceptHeaders", request == null ? null : request.getHeader(HEADER_ACCEPT));
+        if (context != null) {
+            browserInfo.put("challengeWindowSize", context.getChallengeWindowSize());
+            browserInfo.put("colorDepth", context.getColorDepth());
+            browserInfo.put("javaEnabled", context.getJavaEnabled());
+            browserInfo.put("javaScriptEnabled", context.getJavaScriptEnabled());
+            browserInfo.put("language", context.getLanguage());
+            browserInfo.put("screenHeight", context.getScreenHeight());
+            browserInfo.put("screenWidth", context.getScreenWidth());
+            browserInfo.put("timezoneOffset", context.getTimezoneOffset());
+        }
+        return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(browserInfo));
     }
 
     /**

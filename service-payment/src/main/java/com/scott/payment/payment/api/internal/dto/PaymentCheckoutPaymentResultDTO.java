@@ -71,12 +71,16 @@ public class PaymentCheckoutPaymentResultDTO implements Serializable {
 
         /** 3DS 动作类型，例如 HTML 桥接或外部跳转。 */
         private String actionType;
+        /** 当前 HTML 所属 3DS 阶段，INITIALIZE 表示 Method，AUTHENTICATE 表示 ACS Challenge。 */
+        private String phase;
         /** 受控 3DS HTML，禁止写入普通日志或拼接未转义脚本。 */
         private String html;
         /** 3DS 完成后的平台受控返回地址。 */
         private String returnUrl;
         /** 3DS 动作超时时间，单位秒。 */
         private Integer timeoutSeconds;
+        /** 下一浏览器阶段重新加密卡数据所需的新公钥元数据和一次性 nonce。 */
+        private PaymentCheckoutSessionQueryResultDTO.CardEncryptionDTO cardEncryption;
     }
 
     /**

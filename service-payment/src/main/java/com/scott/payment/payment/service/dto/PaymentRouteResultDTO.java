@@ -86,6 +86,9 @@ public class PaymentRouteResultDTO implements Serializable {
      */
     private Long capabilityId;
 
+    /** 当前渠道能力和 MID 是否明确支持 3DS。 */
+    private boolean threeDsSupported;
+
     /**
      * 当前能力和 MID 共同允许的交易币种，按路由优先级排序。
      */

@@ -11,7 +11,7 @@ import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
  * @classname : PaymentChannelInvokeService
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : 收单渠道调用服务，位于 service-payment 服务层，用于把平台交易上下文转换为 payment-channel-library 请求并调用渠道执行器，同时返回审计落库所需上下文。
+ * @description : 收单渠道调用服务，位于 service-payment 服务层，用于把平台交易上下文转换为 payment-channel-api 统一请求并调用 core 执行器，同时返回审计落库所需上下文。
  * @status : create
  */
 public interface PaymentChannelInvokeService {

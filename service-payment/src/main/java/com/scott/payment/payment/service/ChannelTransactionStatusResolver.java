@@ -10,7 +10,7 @@ import com.scott.payment.payment.service.dto.ChannelTransactionStatusResolution;
  * @classname : ChannelTransactionStatusResolver
  * @date : 2026-07-19 22:00
  * @email : scott_x@163.com
- * @description : 渠道结果状态解析服务，位于 service-payment 服务层，用于按渠道、交易类型和渠道原始状态决定平台交易状态；不负责渠道 HTTP 调用、报文签名或真实渠道接通。
+ * @description : 渠道结果状态解析服务，位于 service-payment 服务层，用于按渠道统一状态和交易类型决定平台交易状态；不识别具体 provider 原始协议。
  * @status : create
  */
 public interface ChannelTransactionStatusResolver {
@@ -18,7 +18,7 @@ public interface ChannelTransactionStatusResolver {
     /**
      * 解析渠道同步响应对应的平台交易状态。
      * <p>
-     * 对 WPGXML/WPGJSON，一步支付和请款同步 AUTHORISED 只能解析为等待回调/查询，不能直接按成功终态处理。
+     * 一步支付和请款收到统一 AUTHORIZED 只能解析为等待回调/查询，不能直接按成功终态处理。
      *
      * @param channelCode 渠道编码
      * @param transactionType 平台交易类型

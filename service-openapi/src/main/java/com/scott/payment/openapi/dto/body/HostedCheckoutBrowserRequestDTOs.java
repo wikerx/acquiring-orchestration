@@ -138,6 +138,15 @@ public final class HostedCheckoutBrowserRequestDTOs {
         /** 渠道返回的 3DS 认证数据，属于敏感协议载荷，禁止完整记录。 */
         private String authenticationData;
 
+        /** 使用 3DS 动作响应中新 nonce 加密的卡数据，供服务端继续认证或认证后扣款。 */
+        @Valid
+        @NotNull(message = "cardDataEnvelope is required")
+        private CardDataEnvelopeDTO cardDataEnvelope;
+
+        /** 继续认证和资金动作所需的账单持卡人资料。 */
+        @Valid
+        private BillingCardHolderInfoDTO billingCardHolderInfo;
+
         /** 3DS 返回时的浏览器环境摘要。 */
         private ClientContextDTO clientContext;
     }
@@ -246,6 +255,24 @@ public final class HostedCheckoutBrowserRequestDTOs {
          * 屏幕信息，进入 3DS browserInfo 前会整体脱敏保存。
          */
         private String screen;
+
+        /** ACS challenge 窗口尺寸，例如 FULL_SCREEN。 */
+        private String challengeWindowSize;
+
+        /** 浏览器屏幕颜色深度。 */
+        private Integer colorDepth;
+
+        /** 浏览器是否启用 Java。 */
+        private Boolean javaEnabled;
+
+        /** 浏览器是否启用 JavaScript。 */
+        private Boolean javaScriptEnabled;
+
+        /** 浏览器屏幕高度。 */
+        private Integer screenHeight;
+
+        /** 浏览器屏幕宽度。 */
+        private Integer screenWidth;
 
         /**
          * 前端生成的设备标识，内部只传输 hash，不能作为唯一安全凭据。

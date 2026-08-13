@@ -1,6 +1,9 @@
 package com.scott.payment.openapi.support;
 
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.channel.payment.api.PaymentChannelCallbackVerifier;
+import com.scott.payment.channel.payment.exception.ChannelCallbackVerificationException;
+import com.scott.payment.channel.payment.registry.PaymentChannelCallbackVerifierRegistry;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.openapi.config.OpenApiCallbackProperties;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
@@ -13,11 +16,12 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.HexFormat;
 import java.util.UUID;
+import java.util.Set;
 
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_NONCE_HEADER;
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_SIGNATURE_HEADER;
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_TIMESTAMP_HEADER;
-import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.WORLDPAY_EVENT_SIGNATURE_HEADER;
+import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_EVENT_SIGNATURE_HEADER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -42,6 +46,7 @@ class OpenApiCallbackSecuritySupportTests {
      * </p>
      */
     private static final String CHANNEL_CODE = "mpgs";
+    private static final String EVENT_CHANNEL_CODE = "EVENT_PROVIDER";
     /**
      * SECRET，用于保存 Open API Callback Security Support Tests 中与 secret 相关的业务属性。
      * <p>
@@ -83,38 +88,65 @@ class OpenApiCallbackSecuritySupportTests {
     }
 
     /**
-     * Worldpay Event-Signature 使用 keyId/SHA256/signature 头时应按原始 body 计算 HMAC-SHA256。
+     * 配置事件密钥的渠道使用 keyId/SHA256/signature 头时应按原始 body 计算 HMAC-SHA256。
      */
     @Test
-    void shouldVerifyWorldpayEventSignature() {
+    void shouldVerifyConfiguredChannelEventSignature() {
         OpenApiCallbackProperties properties = properties();
-        properties.getChannelEventSecrets().put("WPGJSON", java.util.Map.of("AWAPGTEST", SECRET));
+        properties.getChannelEventSecrets().put(EVENT_CHANNEL_CODE, java.util.Map.of("KEY-001", SECRET));
         OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties, mock(SecurityInterceptEventRecorder.class));
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/channel/v1/callbacks/WPGJSON");
-        request.addHeader(WORLDPAY_EVENT_SIGNATURE_HEADER, "AWAPGTEST/SHA256/" + hmacSha256(RAW_BODY, SECRET));
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/channel/v1/callbacks/" + EVENT_CHANNEL_CODE);
+        request.addHeader(CHANNEL_EVENT_SIGNATURE_HEADER, "KEY-001/SHA256/" + hmacSha256(RAW_BODY, SECRET));
 
         OpenApiCallbackSecuritySupport.CallbackSecurityResult result =
-                support.verifyChannelCallback("WPGJSON", request, RAW_BODY);
+                support.verifyChannelCallback(EVENT_CHANNEL_CODE, request, RAW_BODY);
 
         assertThat(result.signatureValid()).isTrue();
         assertThat(result.ipAllowed()).isTrue();
     }
 
     /**
-     * Worldpay Event-Signature 与回调原文不匹配时必须拒绝，避免伪造 CAPTURED 等终态通知。
+     * 渠道 Event-Signature 与回调原文不匹配时必须拒绝，避免伪造 CAPTURED 等终态通知。
      */
     @Test
-    void shouldRejectWorldpayEventSignatureWhenBodyIsTampered() {
+    void shouldRejectChannelEventSignatureWhenBodyIsTampered() {
         OpenApiCallbackProperties properties = properties();
-        properties.getChannelEventSecrets().put("WPGJSON", java.util.Map.of("AWAPGTEST", SECRET));
+        properties.getChannelEventSecrets().put(EVENT_CHANNEL_CODE, java.util.Map.of("KEY-001", SECRET));
         OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties, mock(SecurityInterceptEventRecorder.class));
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/channel/v1/callbacks/WPGJSON");
-        request.addHeader(WORLDPAY_EVENT_SIGNATURE_HEADER, "AWAPGTEST/SHA256/" + hmacSha256(RAW_BODY, SECRET));
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/channel/v1/callbacks/" + EVENT_CHANNEL_CODE);
+        request.addHeader(CHANNEL_EVENT_SIGNATURE_HEADER, "KEY-001/SHA256/" + hmacSha256(RAW_BODY, SECRET));
 
-        assertThatThrownBy(() -> support.verifyChannelCallback("WPGJSON", request,
+        assertThatThrownBy(() -> support.verifyChannelCallback(EVENT_CHANNEL_CODE, request,
                 "{\"eventType\":\"sentForSettlement\",\"paymentId\":\"WP-PAY-002\"}"))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("worldpay callback event signature is invalid");
+                .hasMessageContaining("channel callback event signature is invalid");
+    }
+
+    /** Provider 内部加密故障必须映射为 F500，不能伪装成外部未授权请求。 */
+    @Test
+    void shouldMapVerifierInternalErrorToInternalServerError() {
+        PaymentChannelCallbackVerifier failingVerifier = new PaymentChannelCallbackVerifier() {
+            @Override
+            public Set<String> channelCodes() {
+                return Set.of("MPGS");
+            }
+
+            @Override
+            public void verify(com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationRequest request) {
+                throw new ChannelCallbackVerificationException(
+                        ChannelCallbackVerificationException.Reason.INTERNAL_ERROR,
+                        "channel callback signature can not be calculated");
+            }
+        };
+        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(
+                properties(),
+                mock(SecurityInterceptEventRecorder.class),
+                new PaymentChannelCallbackVerifierRegistry(List.of(failingVerifier)));
+        MockHttpServletRequest request = signedRequest(RAW_BODY);
+
+        assertThatThrownBy(() -> support.verifyChannelCallback(CHANNEL_CODE, request, RAW_BODY))
+                .isInstanceOfSatisfying(ApiException.class,
+                        exception -> assertThat(exception.getCode()).isEqualTo("F500"));
     }
 
     /**

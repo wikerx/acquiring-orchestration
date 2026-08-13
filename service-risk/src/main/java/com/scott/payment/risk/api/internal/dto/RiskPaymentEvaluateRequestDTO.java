@@ -51,6 +51,11 @@ public class RiskPaymentEvaluateRequestDTO implements Serializable {
     private String paymentMethod;
 
     /**
+     * 已完成路由的渠道编码；路由前评估允许为空，渠道专属 3DS 策略评估必须提供。
+     */
+    private String channelCode;
+
+    /**
      * 上游请求唯一标识，用于串联 OpenAPI、payment 和 risk 调用链路。
      */
     private String requestId;

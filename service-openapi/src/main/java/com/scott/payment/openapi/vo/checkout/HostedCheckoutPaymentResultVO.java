@@ -85,6 +85,9 @@ public class HostedCheckoutPaymentResultVO implements Serializable {
         /** 3DS 动作类型，例如 HTML 桥接或外部跳转。 */
         private String actionType;
 
+        /** 当前 HTML 所属 3DS 阶段，供收银台选择 Method 或 Challenge 编排。 */
+        private String phase;
+
         /** 受控 3DS HTML 内容，前端必须按专用桥接页面处理，禁止拼接脚本。 */
         private String html;
 
@@ -93,6 +96,9 @@ public class HostedCheckoutPaymentResultVO implements Serializable {
 
         /** 3DS 动作超时时间，单位秒。 */
         private Integer timeoutSeconds;
+
+        /** 下一浏览器阶段重新加密卡数据所需的新公钥元数据和 nonce。 */
+        private HostedCheckoutSessionVO.CardEncryptionVO cardEncryption;
     }
 
     /**

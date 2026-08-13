@@ -50,7 +50,12 @@
         </dependency>
         <dependency>
             <groupId>com.scott.payment</groupId>
-            <artifactId>payout-channel-library</artifactId>
+            <artifactId>payout-channel-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>payout-channel-core</artifactId>
             <version>${project.version}</version>
         </dependency>
     </dependencies>

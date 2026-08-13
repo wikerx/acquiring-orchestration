@@ -4367,44 +4367,44 @@ CREATE TABLE `sys_merchant_user_role` (
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_mq_consume_record`;
 CREATE TABLE `sys_mq_consume_record` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'ä¸»é”®ID',
-  `consumer_group` varchar(128) NOT NULL COMMENT 'æ¶ˆè´¹è€…ç»„',
-  `message_id` varchar(64) NOT NULL COMMENT 'æ¶ˆæ¯å”¯ä¸€ç¼–å·',
-  `topic` varchar(128) NOT NULL COMMENT 'æ¶ˆæ¯Topic',
-  `consumed_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'ä¸šåŠ¡è½åº“å®Œæˆæ—¶é—´',
-  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'åˆ›å»ºæ—¶é—´',
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `consumer_group` varchar(128) NOT NULL COMMENT '消费者组',
+  `message_id` varchar(64) NOT NULL COMMENT '消息唯一编号',
+  `topic` varchar(128) NOT NULL COMMENT '消息Topic',
+  `consumed_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '业务落库完成时间',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_sys_mq_consume_group_message` (`consumer_group`,`message_id`),
   KEY `idx_sys_mq_consume_time` (`consumed_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=141 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='MQæ¶ˆè´¹æ•°æ®åº“å¹‚ç­‰è®°å½•è¡¨';
+) ENGINE=InnoDB AUTO_INCREMENT=141 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='MQ消费数据库幂等记录表';
 
 -- ----------------------------
 -- Table structure for sys_mq_outbox
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_mq_outbox`;
 CREATE TABLE `sys_mq_outbox` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'ä¸»é”®ID',
-  `event_id` varchar(64) NOT NULL COMMENT 'æ¶ˆæ¯å”¯ä¸€ç¼–å·',
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `event_id` varchar(64) NOT NULL COMMENT '消息唯一编号',
   `topic` varchar(128) NOT NULL COMMENT 'RocketMQ Topic',
   `tag` varchar(128) DEFAULT NULL COMMENT 'RocketMQ Tag',
-  `producer_service` varchar(64) NOT NULL COMMENT 'ç”Ÿäº§æœåŠ¡ç¼–ç ',
-  `trace_id` varchar(64) DEFAULT NULL COMMENT 'é“¾è·¯è¿½è¸ªå·',
-  `payload_json` mediumtext NOT NULL COMMENT 'å·²è„±æ•æ¶ˆæ¯JSONå¿«ç…§',
-  `event_status` varchar(16) NOT NULL DEFAULT 'INIT' COMMENT 'INITã€PROCESSINGã€RETRY_WAITã€SENTã€CLOSED',
-  `retry_count` int NOT NULL DEFAULT '0' COMMENT 'å·²å¤±è´¥é‡è¯•æ¬¡æ•°',
-  `max_retry_count` int NOT NULL DEFAULT '8' COMMENT 'æœ€å¤§å¤±è´¥é‡è¯•æ¬¡æ•°',
-  `next_retry_time` datetime(3) DEFAULT NULL COMMENT 'ä¸‹æ¬¡å…è®¸é‡è¯•æ—¶é—´',
-  `processing_started_time` datetime(3) DEFAULT NULL COMMENT 'æœ¬æ¬¡æŠ•é€’æŠ¢å æ—¶é—´',
-  `sent_time` datetime(3) DEFAULT NULL COMMENT 'æŠ•é€’æˆåŠŸæ—¶é—´',
-  `failure_reason` varchar(512) DEFAULT NULL COMMENT 'æœ€è¿‘å¤±è´¥åŽŸå› æ‘˜è¦',
-  `version` int NOT NULL DEFAULT '0' COMMENT 'CASç‰ˆæœ¬å·',
-  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT 'åˆ›å»ºæ—¶é—´',
-  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT 'æ›´æ–°æ—¶é—´',
+  `producer_service` varchar(64) NOT NULL COMMENT '生产服务编码',
+  `trace_id` varchar(64) DEFAULT NULL COMMENT '链路追踪号',
+  `payload_json` mediumtext NOT NULL COMMENT '已脱敏消息JSON快照',
+  `event_status` varchar(16) NOT NULL DEFAULT 'INIT' COMMENT 'INIT、PROCESSING、RETRY_WAIT、SENT、CLOSED',
+  `retry_count` int NOT NULL DEFAULT '0' COMMENT '已失败重试次数',
+  `max_retry_count` int NOT NULL DEFAULT '8' COMMENT '最大失败重试次数',
+  `next_retry_time` datetime(3) DEFAULT NULL COMMENT '下次允许重试时间',
+  `processing_started_time` datetime(3) DEFAULT NULL COMMENT '本次投递抢占时间',
+  `sent_time` datetime(3) DEFAULT NULL COMMENT '投递成功时间',
+  `failure_reason` varchar(512) DEFAULT NULL COMMENT '最近失败原因摘要',
+  `version` int NOT NULL DEFAULT '0' COMMENT 'CAS版本号',
+  `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+  `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_sys_mq_outbox_event` (`event_id`),
   KEY `idx_sys_mq_outbox_due` (`event_status`,`next_retry_time`,`create_time`,`id`),
   KEY `idx_sys_mq_outbox_processing` (`event_status`,`processing_started_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=5930 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='éžäº¤æ˜“å¯é MQæœ¬åœ°æ¶ˆæ¯è¡¨';
+) ENGINE=InnoDB AUTO_INCREMENT=5930 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='非交易可靠MQ本地消息表';
 
 -- ----------------------------
 -- Table structure for sys_notice

@@ -132,21 +132,33 @@ public class TransactionOrderExportRow {
     @ExcelExportColumn(order = 19, headerKey = "excel.transaction.common.channelMatchStatus", width = 18)
     private String channelMatchStatus;
 
+    /** 本笔交易是否实际使用 3DS。 */
+    @ExcelExportColumn(order = 20, headerKey = "excel.transaction.common.threeDs", width = 12)
+    private String threeDs;
+
+    /** 本笔交易是否实际启用 DCC。 */
+    @ExcelExportColumn(order = 21, headerKey = "excel.transaction.common.dcc", width = 12)
+    private String dcc;
+
+    /** 本笔交易是否实际启用 EDC。 */
+    @ExcelExportColumn(order = 22, headerKey = "excel.transaction.common.edc", width = 12)
+    private String edc;
+
     /**
      * 对账状态。
      */
-    @ExcelExportColumn(order = 20, headerKey = "excel.transaction.common.reconciliationStatus", width = 18)
+    @ExcelExportColumn(order = 23, headerKey = "excel.transaction.common.reconciliationStatus", width = 18)
     private String reconciliationStatus;
 
     /**
      * 结算状态。
      */
-    @ExcelExportColumn(order = 21, headerKey = "excel.transaction.common.settlementStatus", width = 18)
+    @ExcelExportColumn(order = 24, headerKey = "excel.transaction.common.settlementStatus", width = 18)
     private String settlementStatus;
 
     /**
      * 交易发生时间。
      */
-    @ExcelExportColumn(order = 22, headerKey = "excel.transaction.common.transactionDateTime", width = 22)
+    @ExcelExportColumn(order = 25, headerKey = "excel.transaction.common.transactionDateTime", width = 22)
     private LocalDateTime transactionDateTime;
 }

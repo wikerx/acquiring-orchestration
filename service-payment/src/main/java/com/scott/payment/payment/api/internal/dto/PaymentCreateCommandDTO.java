@@ -223,6 +223,9 @@ public class PaymentCreateCommandDTO implements Serializable {
      */
     private ThreeDsInfoDTO threeDsInfo;
 
+    /** Hosted Checkout 已命中强制 3DS；为 true 时支付核心只接受服务端确认的 PASSED 结果。 */
+    private Boolean threeDsRequired;
+
     /**
      * Hosted Checkout 等内部编排透传的渠道身份，不对商户开放。
      */
@@ -577,6 +580,9 @@ public class PaymentCreateCommandDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 平台服务端确认的认证状态；资金动作只接受 PASSED。 */
+        private String authenticationStatus;
+
         /**
          * MPGS 3DS authentication transaction id，PAY/AUTHORIZE 必须引用同一认证交易。
          */
@@ -625,6 +631,13 @@ public class PaymentCreateCommandDTO implements Serializable {
     public static class ChannelIdentityDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
+
+        /** 3DS 策略评估和后续资金动作共同使用的渠道编码。 */
+        private String channelCode;
+        /** 已路由渠道主键。 */
+        private Long channelId;
+        /** 已路由渠道 MID 配置主键。 */
+        private Long channelMidConfigId;
 
         /** 渠道订单号。 */
         private String channelOrderNo;

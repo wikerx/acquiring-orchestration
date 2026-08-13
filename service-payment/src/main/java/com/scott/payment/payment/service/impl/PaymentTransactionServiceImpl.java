@@ -665,11 +665,36 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     private PaymentCreateResultDTO createTransaction(PaymentCreateCommandDTO commandDTO,
                                                      PaymentTransactionTypeEnum transactionTypeEnum) {
+        long startNanos = System.nanoTime();
+        PaymentInitialPreparationResultDTO preparationResultDTO = prepareTransaction(commandDTO, transactionTypeEnum);
+        if (preparationResultDTO.isDuplicate() || !preparationResultDTO.isCallChannel()) {
+            logPaymentEnd("PAYMENT_TRANSACTION_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+            return preparationResultDTO.getResultDTO();
+        }
+        PaymentCreateResultDTO resultDTO = submitPreparedTransaction(preparationResultDTO);
+        logPaymentEnd("PAYMENT_TRANSACTION_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
+        return resultDTO;
+    }
+
+    @Override
+    public PaymentInitialPreparationResultDTO preparePayment(PaymentCreateCommandDTO commandDTO) {
+        return prepareTransaction(commandDTO, PaymentTransactionTypeEnum.PAYMENT);
+    }
+
+    @Override
+    public PaymentInitialPreparationResultDTO prepareAuthorization(PaymentCreateCommandDTO commandDTO) {
+        return prepareTransaction(commandDTO, PaymentTransactionTypeEnum.AUTHORIZATION);
+    }
+
+    /**
+     * 使用现有分布式准备锁和数据库幂等表提交首次交易事实，但不调用 PSP。
+     */
+    private PaymentInitialPreparationResultDTO prepareTransaction(PaymentCreateCommandDTO commandDTO,
+                                                                  PaymentTransactionTypeEnum transactionTypeEnum) {
         if (commandDTO != null) {
             commandDTO.setTransactionType(transactionTypeEnum.getCode());
         }
         validateCreateCommand(commandDTO);
-        long startNanos = System.nanoTime();
         String transactionType = resolveTransactionType(commandDTO);
         String idempotencyKey = transactionIdempotencyService.buildTransactionOperationKey(
                 commandDTO.getMerchantId(), commandDTO.getMerchantOrderId(), transactionType);
@@ -695,7 +720,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                     transactionType,
                     idempotencyKey);
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
-                    .map(this::toDuplicateResult)
+                    .map(record -> PaymentInitialPreparationResultDTO.duplicate(toDuplicateResult(record)))
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
         }
         PaymentInitialPreparationResultDTO preparationResultDTO;
@@ -709,7 +734,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                         transactionType,
                         idempotencyKey);
                 return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
-                        .map(this::toDuplicateResult)
+                        .map(record -> PaymentInitialPreparationResultDTO.duplicate(toDuplicateResult(record)))
                         .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
             }
             preparationResultDTO = paymentTransactionPreparationService.prepareInitialTransaction(
@@ -719,8 +744,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             unlockPreparationLock(operationLockKey, operationLocked);
         }
         if (preparationResultDTO.isDuplicate()) {
-            logPaymentEnd("PAYMENT_TRANSACTION_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
-            return preparationResultDTO.getResultDTO();
+            return preparationResultDTO;
         }
         logRouteDecision(commandDTO, preparationResultDTO.getRouteResultDTO(), preparationResultDTO.getResultDTO());
         log.info("event: PAYMENT_TRANSACTION_PREPARED stage=LOCAL_PREPARE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} callChannel: {} riskDecision: {} channelCode: {}",
@@ -732,9 +756,25 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 preparationResultDTO.isCallChannel(),
                 preparationResultDTO.getRiskDecisionEnum(),
                 preparationResultDTO.getRouteResultDTO() == null ? null : preparationResultDTO.getRouteResultDTO().getChannelCode());
-        if (!preparationResultDTO.isCallChannel()) {
-            logPaymentEnd("PAYMENT_TRANSACTION_END", preparationResultDTO.getCommandDTO(), preparationResultDTO.getResultDTO(), startNanos);
+        return preparationResultDTO;
+    }
+
+    @Override
+    public PaymentCreateResultDTO submitPreparedTransaction(PaymentInitialPreparationResultDTO preparationResultDTO) {
+        if (preparationResultDTO == null || preparationResultDTO.getResultDTO() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "prepared transaction is required");
+        }
+        if (preparationResultDTO.isDuplicate() || !preparationResultDTO.isCallChannel()
+                || isTerminal(preparationResultDTO.getResultDTO())) {
             return preparationResultDTO.getResultDTO();
+        }
+        PaymentPreparedChannelRequestDTO preparedRequest = preparationResultDTO.getPreparedChannelRequestDTO();
+        if (preparedRequest == null || !StringUtils.hasText(preparedRequest.getRequestId())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "prepared channel request is required");
+        }
+        if (!paymentChannelResultTransactionService.claimInitialChannelSubmission(
+                preparedRequest.getRequestId(), preparationResultDTO.getCommandDTO().getTransactionDateTime())) {
+            return latestPreparedResult(preparationResultDTO);
         }
         PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
                 preparationResultDTO.getCommandDTO(),
@@ -754,8 +794,204 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 preparationResultDTO.getRiskDecisionEnum(),
                 preparationResultDTO.getCurrencyExponent());
         completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
-        logPaymentEnd("PAYMENT_TRANSACTION_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
         return resultDTO;
+    }
+
+    @Override
+    public PaymentCreateResultDTO resumePreparedTransaction(PaymentCreateCommandDTO commandDTO) {
+        validatePreparedIdentity(commandDTO);
+        return submitPreparedTransaction(restorePreparedTransaction(commandDTO));
+    }
+
+    @Override
+    public PaymentCreateResultDTO failPreparedTransaction(PaymentCreateCommandDTO commandDTO,
+                                                          String failureCode,
+                                                          String failureMessage) {
+        validatePreparedIdentity(commandDTO);
+        PaymentInitialPreparationResultDTO preparation = restorePreparedTransaction(commandDTO);
+        PaymentCreateResultDTO resultDTO = preparation.getResultDTO();
+        if (isTerminal(resultDTO)) {
+            return resultDTO;
+        }
+        resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+        resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+        resultDTO.setFailReasonCode(StringUtils.hasText(failureCode)
+                ? failureCode : PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
+        resultDTO.setFailReasonMessage(failureMessage);
+        resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        resultDTO.setMerchantResponseMessage(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        PaymentChannelInvokeResultDTO preChannelFailure = preparedFailureInvokeResult(
+                preparation.getPreparedChannelRequestDTO(), preparation.getCommandDTO(),
+                preparation.getRouteResultDTO(), resultDTO.getOperationId(), resultDTO.getTransactionId(),
+                resultDTO.getFailReasonCode(), failureMessage);
+        boolean statusChanged = paymentChannelResultTransactionService.recordInitialPreChannelFailure(
+                preparation.getCommandDTO(),
+                preparation.getRouteResultDTO(),
+                preChannelFailure,
+                resultDTO,
+                preparation.getRiskDecisionEnum(),
+                preparation.getCurrencyExponent());
+        if (!statusChanged) {
+            return latestPreparedResult(preparation);
+        }
+        completeIdempotency(preparation.getIdempotencyKey(), preparation.getCommandDTO(), resultDTO);
+        return resultDTO;
+    }
+
+    @Override
+    public void markThreeDsIndicator(String transactionId,
+                                     LocalDateTime transactionDateTime,
+                                     String indicator) {
+        paymentChannelResultTransactionService.markThreeDsIndicator(
+                transactionId, transactionDateTime,
+                StringUtils.hasText(indicator) ? indicator : "REQUIRED");
+    }
+
+    /** 从动作单、主单和原渠道请求恢复浏览器回跳后的提交上下文。 */
+    private PaymentInitialPreparationResultDTO restorePreparedTransaction(PaymentCreateCommandDTO commandDTO) {
+        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(
+                commandDTO.getTransactionId(), commandDTO.getTransactionDateTime());
+        if (operationDO == null) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        TransactionOrderDO orderDO = transactionRecordService.findOrder(
+                operationDO.getTransactionDateTime(), operationDO.getOperationId());
+        com.scott.payment.payment.entity.TransactionChannelRequestDO requestDO =
+                transactionRecordService.findOriginalChannelRequestForQuery(operationDO);
+        if (orderDO == null || requestDO == null) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND.getCode(), "prepared transaction can not be restored");
+        }
+        commandDTO.setTransactionType(operationDO.getTransactionType());
+        commandDTO.setMerchantId(operationDO.getMerchantId());
+        commandDTO.setMerchantOrderNo(operationDO.getMerchantOrderNo());
+        commandDTO.setMerchantOrderId(orderDO.getMerchantOrderId());
+        commandDTO.setPaymentMethod(orderDO.getPaymentMethod());
+        commandDTO.setAmount(operationDO.getLabelAmount());
+        commandDTO.setCurrency(operationDO.getLabelCurrency());
+        commandDTO.setLabelAmount(operationDO.getLabelAmount());
+        commandDTO.setLabelCurrency(operationDO.getLabelCurrency());
+        commandDTO.setTransactionAmount(operationDO.getTransactionAmount());
+        commandDTO.setTransactionCurrency(operationDO.getTransactionCurrency());
+        commandDTO.setTransactionRate(operationDO.getTransactionRate());
+        commandDTO.setDccEnabled(operationDO.getDccEnabled());
+        commandDTO.setEdcEnabled(operationDO.getEdcEnabled());
+        PaymentCreateCommandDTO.ChannelIdentityDTO identity = commandDTO.getChannelIdentity();
+        if (identity == null) {
+            identity = new PaymentCreateCommandDTO.ChannelIdentityDTO();
+            commandDTO.setChannelIdentity(identity);
+        }
+        identity.setChannelCode(operationDO.getChannelCode());
+        identity.setChannelId(operationDO.getChannelId());
+        identity.setChannelMidConfigId(operationDO.getChannelMidConfigId());
+        identity.setChannelOrderNo(requestDO.getChannelOrderNo());
+        identity.setChannelTransactionId(requestDO.getChannelTransactionId());
+
+        PaymentRouteResultDTO route = paymentChannelRouteService.restore(
+                operationDO.getChannelCode(), operationDO.getChannelId(),
+                operationDO.getChannelMidConfigId(), orderDO.getChannelMerchantId());
+        PaymentPreparedChannelRequestDTO preparedRequest = new PaymentPreparedChannelRequestDTO();
+        preparedRequest.setRequestId(requestDO.getRequestId());
+        preparedRequest.setChannelOrderNo(requestDO.getChannelOrderNo());
+        preparedRequest.setChannelTransactionId(requestDO.getChannelTransactionId());
+        PaymentCreateResultDTO result = resultFromPreparedFacts(commandDTO, operationDO, orderDO);
+        PaymentInitialPreparationResultDTO preparation = new PaymentInitialPreparationResultDTO();
+        preparation.setCallChannel(!isTerminal(result));
+        preparation.setIdempotencyKey(transactionIdempotencyService.buildTransactionOperationKey(
+                commandDTO.getMerchantId(), commandDTO.getMerchantOrderId(), commandDTO.getTransactionType()));
+        preparation.setCommandDTO(commandDTO);
+        preparation.setRouteResultDTO(route);
+        preparation.setPreparedChannelRequestDTO(preparedRequest);
+        preparation.setResultDTO(result);
+        preparation.setRiskDecisionEnum(PaymentRiskDecisionEnum.of(orderDO.getInternalRiskDecision()));
+        preparation.setCurrencyExponent(operationDO.getCurrencyExponent() == null ? 0 : operationDO.getCurrencyExponent());
+        return preparation;
+    }
+
+    /** 构造当前数据库事实对应的首次交易结果。 */
+    private PaymentCreateResultDTO resultFromPreparedFacts(PaymentCreateCommandDTO commandDTO,
+                                                            TransactionOperationDO operationDO,
+                                                            TransactionOrderDO orderDO) {
+        PaymentCreateResultDTO result = new PaymentCreateResultDTO();
+        result.setTransactionId(operationDO.getTransactionId());
+        result.setOperationId(operationDO.getOperationId());
+        result.setMerchantOrderNo(operationDO.getMerchantOrderNo());
+        result.setMerchantOrderId(orderDO.getMerchantOrderId());
+        result.setMerchantId(operationDO.getMerchantId());
+        result.setTransactionType(operationDO.getTransactionType());
+        result.setStatus(operationDO.getTransactionStatus());
+        result.setProcessStage(operationDO.getProcessStage());
+        result.setFailReasonCode(operationDO.getFailReasonCode());
+        result.setFailReasonMessage(operationDO.getFailReasonMessage());
+        result.setLabelAmount(operationDO.getLabelAmount());
+        result.setLabelCurrency(operationDO.getLabelCurrency());
+        result.setTransactionAmount(operationDO.getTransactionAmount());
+        result.setTransactionCurrency(operationDO.getTransactionCurrency());
+        result.setCurrency(operationDO.getTransactionCurrency());
+        result.setAmount(operationDO.getTransactionAmount() == null
+                ? null : toMinorAmount(operationDO.getTransactionAmount(), operationDO.getTransactionCurrency()));
+        result.setTransactionRate(operationDO.getTransactionRate());
+        result.setTransactionDateTime(operationDO.getTransactionDateTime());
+        result.setRootTransactionDateTime(orderDO.getTransactionDateTime());
+        result.setTransactionTimeZone(orderDO.getTransactionTimeZone());
+        result.setPaymentMethod(orderDO.getPaymentMethod());
+        result.setPaymentBrand(orderDO.getPaymentBrand());
+        enrichMerchantResponse(result, null);
+        return result;
+    }
+
+    /** 渠道请求已被其他线程抢占时返回数据库中的最新状态。 */
+    private PaymentCreateResultDTO latestPreparedResult(PaymentInitialPreparationResultDTO preparation) {
+        return restorePreparedTransaction(preparation.getCommandDTO()).getResultDTO();
+    }
+
+    /** 构造 3DS 等资金请求前失败的本地结果上下文，不包含伪造的渠道响应。 */
+    private PaymentChannelInvokeResultDTO preparedFailureInvokeResult(PaymentPreparedChannelRequestDTO prepared,
+                                                                       PaymentCreateCommandDTO command,
+                                                                       PaymentRouteResultDTO route,
+                                                                       String operationId,
+                                                                       String transactionId,
+                                                                       String failureCode,
+                                                                       String failureMessage) {
+        com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest request =
+                new com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest();
+        request.setChannelCode(route.getChannelCode());
+        request.setOperationId(operationId);
+        request.setTransactionId(transactionId);
+        request.setMerchantId(command.getMerchantId());
+        request.setMerchantOrderNo(command.getMerchantOrderNo());
+        request.setMerchantOrderId(command.getMerchantOrderId());
+        request.setTransactionType(command.getTransactionType());
+        request.setPaymentMethod(command.getPaymentMethod());
+        request.setAmount(command.getTransactionAmount());
+        request.setCurrency(command.getTransactionCurrency());
+        request.setTransactionDateTime(command.getTransactionDateTime());
+        request.setChannelOrderNo(prepared.getChannelOrderNo());
+        request.setChannelTransactionId(prepared.getChannelTransactionId());
+        PaymentChannelInvokeResultDTO invokeResult = new PaymentChannelInvokeResultDTO();
+        invokeResult.setRequestId(prepared.getRequestId());
+        invokeResult.setChannelRequest(request);
+        invokeResult.setRequestStatus("FAILED");
+        invokeResult.setRequestScene(command.getTransactionType());
+        invokeResult.setExceptionType(failureCode);
+        invokeResult.setExceptionMessage(failureMessage);
+        invokeResult.setOutcomeUncertain(false);
+        invokeResult.setResponseTime(LocalDateTime.now());
+        invokeResult.setDurationMillis(0);
+        return invokeResult;
+    }
+
+    /** 校验收银台回跳携带的已准备交易身份。 */
+    private void validatePreparedIdentity(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO == null
+                || !StringUtils.hasText(commandDTO.getTransactionId())
+                || commandDTO.getTransactionDateTime() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "prepared transaction identity is required");
+        }
+        if (Boolean.TRUE.equals(commandDTO.getThreeDsRequired())
+                && (commandDTO.getThreeDsInfo() == null
+                || !"PASSED".equals(commandDTO.getThreeDsInfo().getAuthenticationStatus()))) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "3DS authentication has not passed");
+        }
     }
 
 /**
@@ -1249,7 +1485,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             completeIdempotency(idempotencyKey, commandDTO, resultDTO);
             return resultDTO;
         }
-        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
+        PaymentRouteResultDTO routeResultDTO = resolveInitialRoute(commandDTO);
         logRouteDecision(commandDTO, routeResultDTO, resultDTO);
         if (!applyCurrencyConversion(commandDTO, routeResultDTO, resultDTO)) {
             int currencyExponent = resolveCurrencyExponent(commandDTO.getTransactionCurrency());
@@ -1278,8 +1514,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     /**
      * 填充渠道同步响应对应的平台状态。
      * <p>
-     * 该方法只解释同步响应，不直接推进数据库终态；WPGXML/WPGJSON 的 AUTHORISED/CAPTURED 语义由
-     * ChannelTransactionStatusResolver 统一处理。渠道调用异常必须区分确定性失败和结果不确定：前者进入失败终态，
+     * 该方法只解释同步响应，不直接推进数据库终态；AUTHORIZED/CAPTURED 等统一动作状态由
+     * ChannelTransactionStatusResolver 结合交易类型处理。渠道调用异常必须区分确定性失败和结果不确定：前者进入失败终态，
      * 后者保持 PROCESSING 并等待查询或回调勾兑，避免重复发起可能已经被渠道受理的资金动作。
      *
      * @param resultDTO 待填充交易结果
@@ -1400,6 +1636,25 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         if (!StringUtils.hasText(commandDTO.getTransactionType())) {
             commandDTO.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
         }
+        if (Boolean.TRUE.equals(commandDTO.getThreeDsRequired())
+                && (commandDTO.getThreeDsInfo() == null
+                || !"PASSED".equals(commandDTO.getThreeDsInfo().getAuthenticationStatus()))) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "3DS authentication has not passed");
+        }
+    }
+
+    /** Hosted Checkout 已完成路由和 3DS 策略评估时恢复同一 MID，禁止资金动作再次随机路由。 */
+    private PaymentRouteResultDTO resolveInitialRoute(PaymentCreateCommandDTO commandDTO) {
+        PaymentCreateCommandDTO.ChannelIdentityDTO identity = commandDTO.getChannelIdentity();
+        if (identity == null) {
+            return paymentChannelRouteService.route(commandDTO);
+        }
+        if (!StringUtils.hasText(identity.getChannelCode()) || identity.getChannelMidConfigId() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "fixed channel identity is incomplete");
+        }
+        return paymentChannelRouteService.restore(identity.getChannelCode(), identity.getChannelId(),
+                identity.getChannelMidConfigId(), null);
     }
 
     /**

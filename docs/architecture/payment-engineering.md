@@ -348,7 +348,7 @@ openapi.security.replay.required=true
 7. 状态机合法流转校验。
 8. 异常回调告警。
 
-当前 MPGS 回调解析通过 `payment-channel-library` 的 `PaymentChannelCallbackHandler` 完成，平台侧只负责验签、脱敏落库、幂等和状态推进。MPGS 的 `order.id` 对应平台原始 `transaction_id`，`transaction.id` 对应平台生成并落库的 `channel_transaction_id`；交易成功判断仍以 `result=SUCCESS` 且 `response.acquirerCode=00` 为核心。
+当前渠道回调契约由 `payment-channel-api` 的 `PaymentChannelCallbackHandler` 定义，回调实现发现与注册由 `payment-channel-core` 负责，MPGS 协议解析位于 `payment-channel-mpgs`。平台侧只负责安全校验、脱敏落库、幂等和状态推进。MPGS 的 `order.id` 对应平台原始 `transaction_id`，`transaction.id` 对应平台生成并落库的 `channel_transaction_id`；交易成功判断仍以 `result=SUCCESS` 且 `response.acquirerCode=00` 为核心。
 
 ## 11. 内部接口约束
 

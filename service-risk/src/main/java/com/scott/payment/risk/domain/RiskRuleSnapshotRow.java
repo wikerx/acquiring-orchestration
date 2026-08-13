@@ -68,6 +68,9 @@ public class RiskRuleSnapshotRow extends RiskListMatch {
     /** ISO 4217 Alpha-3 币种代码；非金额规则允许为空。 */
     private String currency;
 
+    /** 3DS 规则适用的渠道编码，例如 MPGS；ALL 表示全部渠道。 */
+    private String channelCode;
+
     /** 3DS 支付方式维度，ALL 表示全部；非 3DS 规则允许为空。 */
     private String paymentMethod;
 

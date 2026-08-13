@@ -376,7 +376,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                     commandDTO.getPaymentMethod(),
                     commandDTO.getCurrency(),
                     commandDTO.getAmount());
-            routeResultDTO = paymentChannelRouteService.route(commandDTO);
+            routeResultDTO = resolveInitialRoute(commandDTO);
             log.info("event: PAYMENT_ROUTE_EVALUATE_END stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} channelMidId: {} midNo: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} durationMs: {}",
                     TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
@@ -482,6 +482,19 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         target.setRiskDecisionEnum(riskDecisionEnum);
         target.setCurrencyExponent(currencyExponent);
         return target;
+    }
+
+    /** 已有渠道身份表示上游完成过路由，准备阶段必须恢复同一 MID。 */
+    private PaymentRouteResultDTO resolveInitialRoute(PaymentCreateCommandDTO commandDTO) {
+        PaymentCreateCommandDTO.ChannelIdentityDTO identity = commandDTO.getChannelIdentity();
+        if (identity == null) {
+            return paymentChannelRouteService.route(commandDTO);
+        }
+        if (!StringUtils.hasText(identity.getChannelCode()) || identity.getChannelMidConfigId() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "fixed channel identity is incomplete");
+        }
+        return paymentChannelRouteService.restore(identity.getChannelCode(), identity.getChannelId(),
+                identity.getChannelMidConfigId(), null);
     }
 
     /**

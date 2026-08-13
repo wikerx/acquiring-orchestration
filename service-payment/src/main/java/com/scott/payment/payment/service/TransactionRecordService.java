@@ -87,6 +87,29 @@ public interface TransactionRecordService {
     }
 
     /**
+     * 将首次交易的 INIT 渠道请求 CAS 推进为 SENT，作为外部资金调用的数据库最终抢占。
+     */
+    default boolean claimInitialChannelSubmission(String requestId, LocalDateTime transactionDateTime) {
+        return false;
+    }
+
+    /**
+     * 在资金请求尚为 INIT 时抢占认证前失败收敛，防止与外部渠道提交并发执行。
+     */
+    default boolean claimInitialPreChannelFailure(String requestId, LocalDateTime transactionDateTime) {
+        return false;
+    }
+
+    /**
+     * 标记本笔交易实际启用了 3DS；不依赖 Hosted Checkout 过程表，Direct API 也可复用。
+     */
+    default int markThreeDsIndicator(String transactionId,
+                                     LocalDateTime transactionDateTime,
+                                     String indicator) {
+        return 0;
+    }
+
+    /**
      * 按原交易业务时间和内部 operation_id 定位交易生命周期主单。
      *
      * @param transactionDateTime 原交易业务时间，对应 transaction_date_time 分表字段

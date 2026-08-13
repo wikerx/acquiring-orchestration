@@ -499,7 +499,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         appendTextFilter(sql, query.getPaymentMethod(), "AND payment_method = :paymentMethod");
         appendTextFilter(sql, query.getPaymentBrand(), "AND payment_brand = :paymentBrand");
         appendTextFilter(sql, query.getChannelOrderNo(), "AND channel_order_no = :channelOrderNo");
-        appendTextFilter(sql, query.getChannelMatchStatus(), "AND channel_match_status = :channelMatchStatus");
         appendTextFilter(sql, query.getReconciliationStatus(), "AND reconciliation_status = :reconciliationStatus");
         appendTextFilter(sql, query.getSettlementStatus(), "AND settlement_status = :settlementStatus");
         return sql.toString();
@@ -524,7 +523,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         appendTextFilter(sql, query.getTransactionType(), "AND o.transaction_type = :transactionType");
         appendTextFilter(sql, query.getTransactionStatus(), "AND o.transaction_status = :transactionStatus");
         appendTextFilter(sql, query.getChannelOrderNo(), "AND o.channel_order_no = :channelOrderNo");
-        appendTextFilter(sql, query.getChannelMatchStatus(), "AND o.channel_match_status = :channelMatchStatus");
         appendTextFilter(sql, query.getReconciliationStatus(), "AND o.reconciliation_status = :reconciliationStatus");
         appendTextFilter(sql, query.getSettlementStatus(), "AND o.settlement_status = :settlementStatus");
         if (StringUtils.hasText(query.getPaymentMethod())) {
@@ -575,7 +573,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .addValue("paymentMethod", query.getPaymentMethod())
                 .addValue("paymentBrand", query.getPaymentBrand())
                 .addValue("channelOrderNo", query.getChannelOrderNo())
-                .addValue("channelMatchStatus", query.getChannelMatchStatus())
                 .addValue("reconciliationStatus", query.getReconciliationStatus())
                 .addValue("settlementStatus", query.getSettlementStatus());
     }
@@ -598,7 +595,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .addValue("transactionType", query.getTransactionType())
                 .addValue("transactionStatus", query.getTransactionStatus())
                 .addValue("channelOrderNo", query.getChannelOrderNo())
-                .addValue("channelMatchStatus", query.getChannelMatchStatus())
                 .addValue("reconciliationStatus", query.getReconciliationStatus())
                 .addValue("settlementStatus", query.getSettlementStatus())
                 .addValue("paymentMethod", query.getPaymentMethod())
@@ -754,6 +750,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             }
         }
         enrichAccessTypes(rows);
+        enrichOperationThreeDs(rows);
     }
 
     /** 批量识别当前商户的历史收银台交易，避免逐条查询和跨商户读取。 */
@@ -828,6 +825,71 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 }
             }
         }
+        enrichOrderThreeDs(rows);
+    }
+
+    /** 按生命周期操作号批量补齐商户可见主单 3DS 标识。 */
+    private void enrichOrderThreeDs(List<TransactionOrderResponse> rows) {
+        Set<String> threeDsOperationIds = findThreeDsOperationIds(rows.stream()
+                .map(TransactionOrderResponse::getOperationId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList(), rows.get(0).getMerchantId());
+        rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
+    }
+
+    /** 按生命周期操作号批量补齐商户可见动作单 3DS 标识。 */
+    private void enrichOperationThreeDs(List<TransactionOperationResponse> rows) {
+        Set<String> threeDsOperationIds = findThreeDsOperationIds(rows.stream()
+                .map(TransactionOperationResponse::getOperationId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList(), rows.get(0).getMerchantId());
+        rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
+    }
+
+    /**
+     * 在商户边界内优先读取平台支付方式 3DS 快照，并回退 Hosted Checkout 尝试记录。
+     * 支付方式查询同时绑定操作号、登记分片范围和动作单商户归属，避免跨商户读取。
+     */
+    private Set<String> findThreeDsOperationIds(List<String> operationIds, String merchantId) {
+        if (operationIds == null || operationIds.isEmpty() || !StringUtils.hasText(merchantId)) {
+            return Set.of();
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("operationIds", operationIds)
+                .addValue("merchantId", merchantId)
+                .addValue("registeredNodeBegin", registeredNodeBegin)
+                .addValue("registeredNodeEnd", exclusiveEnd(LocalDateTime.now()));
+        Set<String> result = new HashSet<>(jdbcTemplate.queryForList("""
+                SELECT DISTINCT p.operation_id
+                FROM transaction_payment_method_info p
+                WHERE p.operation_id IN (:operationIds)
+                  AND p.transaction_date_time >= :registeredNodeBegin
+                  AND p.transaction_date_time < :registeredNodeEnd
+                  AND NULLIF(TRIM(p.three_ds_indicator), '') IS NOT NULL
+                  AND EXISTS (
+                      SELECT 1
+                      FROM transaction_operation o
+                      WHERE o.operation_id = p.operation_id
+                        AND o.transaction_date_time = p.transaction_date_time
+                        AND o.merchant_id = :merchantId
+                        AND o.deleted = 0
+                  )
+                """, params, String.class));
+        if (result.size() < operationIds.size()) {
+            result.addAll(jdbcTemplate.queryForList("""
+                    SELECT DISTINCT operation_id
+                    FROM payment_checkout_attempt
+                    WHERE merchant_id = :merchantId
+                      AND operation_id IN (:operationIds)
+                      AND three_ds_required = 1
+                      AND deleted = 0
+                    """, new MapSqlParameterSource()
+                    .addValue("merchantId", merchantId)
+                    .addValue("operationIds", operationIds), String.class));
+        }
+        return result;
     }
 
     /**
@@ -1346,6 +1408,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                     rs.getBigDecimal("authorized_amount")));
             row.setCurrencyExponent(nullableInt(rs, "currency_exponent"));
             row.setTransactionRate(defaultRate(rs.getBigDecimal("transaction_rate")));
+            row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
             row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
@@ -1360,7 +1423,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setSettlementStatus(rs.getString("settlement_status"));
             row.setReconciliationStatus(rs.getString("reconciliation_status"));
             row.setAccountingStatus(rs.getString("accounting_status"));
-            row.setChannelMatchStatus(rs.getString("channel_match_status"));
             row.setChannelCode(rs.getString("channel_code"));
             row.setChannelOrderNo(rs.getString("channel_order_no"));
             row.setTransactionDateTime(localDateTime(rs, "transaction_date_time"));
@@ -1398,6 +1460,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setTransactionAmount(rs.getBigDecimal("transaction_amount"));
             row.setCurrencyExponent(nullableInt(rs, "currency_exponent"));
             row.setTransactionRate(defaultRate(rs.getBigDecimal("transaction_rate")));
+            row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
             row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
@@ -1410,7 +1473,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setSettlementStatus(rs.getString("settlement_status"));
             row.setReconciliationStatus(rs.getString("reconciliation_status"));
             row.setAccountingStatus(rs.getString("accounting_status"));
-            row.setChannelMatchStatus(rs.getString("channel_match_status"));
             row.setTransactionDateTime(localDateTime(rs, "transaction_date_time"));
             row.setOperationTime(localDateTime(rs, "operation_time"));
             row.setAccessType(resolveAccessType(getStringIfExists(rs, "request_source")));
@@ -1690,7 +1752,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     static String resolveMerchantResponseMessage(String transactionStatus, String persistedMessage) {
-        if ("FAILED".equals(transactionStatus) && StringUtils.hasText(persistedMessage)) {
+        if ("FAILED".equals(transactionStatus)
+                && StringUtils.hasText(persistedMessage)
+                && !isInternalFailureToken(persistedMessage)) {
             return persistedMessage.trim();
         }
         if ("SUCCESS".equals(transactionStatus)) {
@@ -1703,6 +1767,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             return ApiResultEnum.PENDING.getMessage();
         }
         return ApiResultEnum.PROCESSING.getMessage();
+    }
+
+    private static boolean isInternalFailureToken(String message) {
+        return message != null && message.trim().matches("[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+");
     }
 
     /**

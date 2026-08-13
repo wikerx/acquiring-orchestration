@@ -612,6 +612,44 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 通过数据库状态抢占保证一次已准备交易只会发起一次外部资金请求。
+     */
+    @Override
+    public boolean claimInitialChannelSubmission(String requestId, LocalDateTime transactionDateTime) {
+        if (!StringUtils.hasText(requestId) || transactionDateTime == null) {
+            return false;
+        }
+        return transactionChannelRequestMapper.claimSubmissionLogical(
+                requestId, transactionDateTime, LocalDateTime.now()) == 1;
+    }
+
+    /** 通过 INIT 状态抢占 3DS 等渠道调用前失败收敛。 */
+    @Override
+    public boolean claimInitialPreChannelFailure(String requestId, LocalDateTime transactionDateTime) {
+        if (!StringUtils.hasText(requestId) || transactionDateTime == null) {
+            return false;
+        }
+        return transactionChannelRequestMapper.claimPreChannelFailureLogical(
+                requestId, transactionDateTime, LocalDateTime.now()) == 1;
+    }
+
+    /**
+     * 更新通用交易支付工具表中的 3DS 使用标识，不依赖收银台过程表。
+     */
+    @Override
+    public int markThreeDsIndicator(String transactionId,
+                                    LocalDateTime transactionDateTime,
+                                    String indicator) {
+        if (!StringUtils.hasText(transactionId)
+                || transactionDateTime == null
+                || !StringUtils.hasText(indicator)) {
+            return 0;
+        }
+        return transactionPaymentMethodInfoMapper.updateThreeDsIndicator(
+                transactionId, transactionDateTime, indicator.trim(), LocalDateTime.now());
+    }
+
+    /**
      * 按原交易业务时间和 operation_id 定位交易生命周期主单。
      *
      * @param transactionDateTime 原交易业务时间
@@ -2068,7 +2106,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 firstText(invokeResultDTO.getExceptionMessage(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage()),
                 invokeResultDTO.getResponseTime() == null ? now : invokeResultDTO.getResponseTime(),
                 invokeResultDTO.getDurationMillis());
-        if (updated != 1 && isRequestResultConflict(requestDO, resultDTO)) {
+        boolean preChannelFailureAlreadyClaimed = "FAILED".equals(requestDO.getRequestStatus())
+                && "FAILED".equals(invokeResultDTO.getRequestStatus())
+                && invokeResultDTO.getChannelResponse() == null
+                && PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());
+        if (updated != 1 && !preChannelFailureAlreadyClaimed && isRequestResultConflict(requestDO, resultDTO)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel request state has changed");
         }
         log.info("event: PAYMENT_CHANNEL_REQUEST_DB_UPDATED stage=CHANNEL_RESULT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} channelCode: {} channelRequestId: {} channelTransactionId: {} requestStatus: {} platformStatus: {} channelResultCode: {} acquirerCode: {} logicalTable: {} affectedRows: {}",
@@ -2632,7 +2674,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     /**
      * 激活待发送商户通知。
      * <p>
-     * 只有主单状态或动作终态被成功推进后才激活通知，避免 WorldPay AUTHORISED 这类非终态事件提前通知商户成功。
+     * 只有主单状态或动作终态被成功推进后才激活通知，避免 AUTHORIZED 这类非终态事件提前通知商户成功。
      *
      * @param operationDO 交易动作单
      * @param targetTransactionStatus 目标交易状态
@@ -4220,7 +4262,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (PaymentRiskDecisionSupport.isRiskRejected(failReasonCode)) {
             return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
         }
-        return "Payment failed. Please use the transaction ID to query details or contact support.";
+        return ApiResultEnum.PAYMENT_REJECTED.getMessage();
     }
 
     /**
