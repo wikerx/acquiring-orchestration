@@ -45,6 +45,12 @@ public class MpgsRequestPayload {
      */
     private Device device;
 
+    /** MPGS 付款人账单地址，仅在 Authenticate Payer 阶段按已有资料发送。 */
+    private Billing billing;
+
+    /** MPGS 付款人资料，仅在 Authenticate Payer 阶段按已有资料发送。 */
+    private Customer customer;
+
     @Data
     /**
      * @author : scott
@@ -71,6 +77,9 @@ public class MpgsRequestPayload {
          * 平台商户订单号，用于 MPGS order.reference。
          */
         private String reference;
+
+        /** Webhook notification URL, supported on INITIATE AUTHENTICATION. */
+        private String notificationUrl;
     }
 
     @Data
@@ -173,6 +182,9 @@ public class MpgsRequestPayload {
          * CVV/CVC 安全码，只允许内存渠道调用，不允许日志、MQ 或落库。
          */
         private String securityCode;
+
+        /** 卡面持卡人姓名，PAYER_BROWSER 认证要求提供。 */
+        private String nameOnCard;
     }
 
     @Data
@@ -265,8 +277,36 @@ public class MpgsRequestPayload {
         /** 浏览器 User-Agent，MPGS 在 PAYER_BROWSER 模式下要求提供。 */
         private String browser;
 
+        /** 付款人真实 IPv4/IPv6 地址。 */
+        private String ipAddress;
+
         /** EMV 3DS 浏览器能力详情。 */
         private BrowserDetails browserDetails;
+    }
+
+    /** MPGS 账单信息。 */
+    @Data
+    public static class Billing {
+        private Address address;
+    }
+
+    /** MPGS 地址字段。 */
+    @Data
+    public static class Address {
+        private String city;
+        private String country;
+        private String postcodeZip;
+        private String stateProvince;
+        private String street;
+    }
+
+    /** MPGS 付款人字段。 */
+    @Data
+    public static class Customer {
+        private String email;
+        private String firstName;
+        private String lastName;
+        private String mobilePhone;
     }
 
     /** MPGS Authenticate Payer 浏览器能力详情。 */

@@ -168,6 +168,7 @@ class TransactionPersistenceMapperContractTests {
                 TransactionChannelCallbackMapper.class,
                 TransactionChannelInteractionLogMapper.class,
                 TransactionChannelRequestMapper.class,
+                TransactionAuthenticationInfoMapper.class,
                 TransactionEventOutboxMapper.class,
                 TransactionFlowEventMapper.class,
                 TransactionMerchantApiInteractionLogMapper.class,
@@ -213,6 +214,27 @@ class TransactionPersistenceMapperContractTests {
                                 .doesNotContain("${");
                     }
                 });
+    }
+
+    @Test
+    void authenticationMapperShouldUseLogicalTableAndNeverPersistCavv() {
+        String upsertSql = annotationValue(methodNamed(
+                TransactionAuthenticationInfoMapper.class, "upsertPhase"), Insert.class);
+        String selectSql = annotationValue(methodNamed(
+                TransactionAuthenticationInfoMapper.class, "selectByAuthenticationInfoId"), Select.class);
+
+        assertThat(upsertSql)
+                .contains("INSERT INTO transaction_authentication_info")
+                .contains("ON DUPLICATE KEY UPDATE")
+                .contains("cavv = NULL")
+                .contains("authentication_status IN ('AUTHENTICATED', 'FAILED')")
+                .contains("#{row.transactionDateTime}")
+                .doesNotContain("#{row.cavv}")
+                .doesNotContain("${");
+        assertThat(selectSql)
+                .contains("authentication_info_id = #{authenticationInfoId}")
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .doesNotContain("${");
     }
 
     @Test
@@ -346,6 +368,23 @@ class TransactionPersistenceMapperContractTests {
         assertThat(updateStatusSql).contains("request_status IN");
         assertThat(updateStatusSql).contains("version = version + 1");
         assertThat(updateStatusSql).contains("transaction_date_time = #{transactionDateTime}");
+    }
+
+    /**
+     * 3DS 认证结果只能写入认证专用字段，不能覆盖支付或授权已准备好的渠道交易号。
+     */
+    @Test
+    void checkoutAuthenticationResultShouldNotOverwriteFundsTransactionIdentity() {
+        Method method = methodNamed(PaymentCheckoutAttemptMapper.class, "markAuthenticationResultCas");
+        String sql = annotationValue(method, Update.class);
+
+        assertThat(sql)
+                .contains("three_ds_transaction_id = #{threeDsTransactionId}")
+                .doesNotContain("channel_transaction_id = #{channelTransactionId}")
+                .doesNotContain("channel_request_id = #{channelRequestId}");
+        assertThat(Arrays.stream(method.getParameters())
+                .map(java.lang.reflect.Parameter::getName))
+                .doesNotContain("channelTransactionId", "channelRequestId");
     }
 
     /**

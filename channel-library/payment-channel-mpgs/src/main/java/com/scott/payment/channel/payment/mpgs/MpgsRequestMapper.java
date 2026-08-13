@@ -4,6 +4,7 @@ import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
 import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import lombok.Data;
 import org.springframework.util.StringUtils;
 
@@ -66,7 +67,9 @@ public class MpgsRequestMapper {
         payload.setSourceOfFunds(threeDsSourceOfFunds(request, apiOperation));
         payload.setAuthentication(authentication(request, apiOperation));
         if (MpgsApiOperation.AUTHENTICATE_PAYER.equals(apiOperation)) {
-            payload.setDevice(device(request.getBrowserInfoJson()));
+            payload.setDevice(device(request));
+            payload.setBilling(billing(request.getBillingInfo()));
+            payload.setCustomer(customer(request.getBillingInfo()));
         }
         return payload;
     }
@@ -276,6 +279,8 @@ public class MpgsRequestMapper {
         requireText(request.getExpirationYear(), "MPGS card expiry year is required");
         if (MpgsApiOperation.AUTHENTICATE_PAYER.equals(apiOperation)) {
             requireText(request.getRedirectResponseUrl(), "MPGS 3DS redirectResponseUrl is required");
+            requireText(request.getCardholderName(), "MPGS 3DS cardholder name is required");
+            requireText(request.getPayerIp(), "MPGS 3DS payer IP is required");
         }
     }
 
@@ -288,6 +293,9 @@ public class MpgsRequestMapper {
         order.setCurrency(currency(request.getCurrency()));
         if (MpgsApiOperation.INITIATE_AUTHENTICATION.equals(apiOperation)) {
             order.setReference(request.getTransactionId());
+            if (StringUtils.hasText(request.getNotificationUrl())) {
+                order.setNotificationUrl(request.getNotificationUrl());
+            }
         } else if (MpgsApiOperation.AUTHENTICATE_PAYER.equals(apiOperation)) {
             order.setAmount(amount(request.getAmount()));
         }
@@ -308,6 +316,7 @@ public class MpgsRequestMapper {
             expiry.setYear(normalizeYear(request.getExpirationYear()));
             card.setExpiry(expiry);
             card.setSecurityCode(request.getSecurityCode());
+            card.setNameOnCard(request.getCardholderName());
         }
 
         MpgsRequestPayload.Provided provided = new MpgsRequestPayload.Provided();
@@ -336,10 +345,10 @@ public class MpgsRequestMapper {
     }
 
     /** 将平台浏览器摘要转换为 MPGS Authenticate Payer 的 device.browserDetails。 */
-    private MpgsRequestPayload.Device device(String browserInfoJson) {
+    private MpgsRequestPayload.Device device(MpgsThreeDsAuthenticationRequest request) {
         BrowserInfo browserInfo;
         try {
-            browserInfo = JsonUtils.parseObject(browserInfoJson, BrowserInfo.class);
+            browserInfo = JsonUtils.parseObject(request.getBrowserInfoJson(), BrowserInfo.class);
         } catch (RuntimeException exception) {
             throw new ChannelRequestException("MPGS 3DS browserInfoJson is invalid", exception);
         }
@@ -372,8 +381,58 @@ public class MpgsRequestMapper {
 
         MpgsRequestPayload.Device device = new MpgsRequestPayload.Device();
         device.setBrowser(browserInfo.getUserAgent());
+        try {
+            device.setIpAddress(IpAddressNormalizer.normalizeExact(request.getPayerIp()).ipValue());
+        } catch (IllegalArgumentException exception) {
+            throw new ChannelRequestException("MPGS 3DS payer IP is invalid", exception);
+        }
         device.setBrowserDetails(details);
         return device;
+    }
+
+    /** Map available platform billing data to MPGS billing.address. */
+    private MpgsRequestPayload.Billing billing(ChannelPaymentRequest.BillingInfo source) {
+        if (source == null || !hasAddress(source)) {
+            return null;
+        }
+        MpgsRequestPayload.Address address = new MpgsRequestPayload.Address();
+        address.setCity(source.getCity());
+        address.setCountry(source.getCountry());
+        address.setPostcodeZip(source.getPostal());
+        address.setStateProvince(source.getState());
+        address.setStreet(source.getStreet());
+        MpgsRequestPayload.Billing billing = new MpgsRequestPayload.Billing();
+        billing.setAddress(address);
+        return billing;
+    }
+
+    /** Map available platform payer data to MPGS customer. */
+    private MpgsRequestPayload.Customer customer(ChannelPaymentRequest.BillingInfo source) {
+        if (source == null || !hasCustomer(source)) {
+            return null;
+        }
+        MpgsRequestPayload.Customer customer = new MpgsRequestPayload.Customer();
+        customer.setEmail(optionalText(source.getEmail()));
+        customer.setFirstName(optionalText(source.getFirstName()));
+        customer.setLastName(optionalText(source.getLastName()));
+        customer.setMobilePhone(optionalText(source.getPhone()));
+        return customer;
+    }
+
+    /** MPGS optional strings must be omitted instead of serialized as blank values. */
+    private String optionalText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private boolean hasAddress(ChannelPaymentRequest.BillingInfo source) {
+        return StringUtils.hasText(source.getCity()) || StringUtils.hasText(source.getCountry())
+                || StringUtils.hasText(source.getPostal()) || StringUtils.hasText(source.getState())
+                || StringUtils.hasText(source.getStreet());
+    }
+
+    private boolean hasCustomer(ChannelPaymentRequest.BillingInfo source) {
+        return StringUtils.hasText(source.getEmail()) || StringUtils.hasText(source.getFirstName())
+                || StringUtils.hasText(source.getLastName()) || StringUtils.hasText(source.getPhone());
     }
 
     /** 平台浏览器摘要的内部解析模型，不作为 MPGS 或平台公共 DTO 暴露。 */

@@ -292,6 +292,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             request.setExpirationMonth(commandDTO.getCardInfo().getExpirationMonth());
             request.setExpirationYear(commandDTO.getCardInfo().getExpirationYear());
             request.setSecurityCode(commandDTO.getCardInfo().getSecurityCode());
+            request.setCardholderName(commandDTO.getCardInfo().getCardholderName());
         }
         if (commandDTO.getTransactionInfo() != null) {
             request.setCardBrand(commandDTO.getTransactionInfo().getCardBrand());

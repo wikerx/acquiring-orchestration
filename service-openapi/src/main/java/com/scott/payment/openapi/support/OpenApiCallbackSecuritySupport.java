@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +34,10 @@ import java.util.Map;
  */
 @Component
 public class OpenApiCallbackSecuritySupport {
+
+    private static final int MAX_VERIFICATION_HEADER_COUNT = 32;
+    private static final int MAX_VERIFICATION_HEADER_NAME_LENGTH = 128;
+    private static final int MAX_VERIFICATION_HEADER_VALUE_LENGTH = 4096;
 
     /**
      * 渠道回调时间戳请求头。
@@ -127,14 +132,7 @@ public class OpenApiCallbackSecuritySupport {
         if (!callbackProperties.isChannelSignatureRequired()) {
             return new CallbackSecurityResult(true, ipAllowed);
         }
-        Map<String, String> headers = new LinkedHashMap<>();
-        for (String headerName : List.of(CHANNEL_TIMESTAMP_HEADER, CHANNEL_NONCE_HEADER,
-                CHANNEL_SIGNATURE_HEADER, CHANNEL_EVENT_SIGNATURE_HEADER)) {
-            String value = request.getHeader(headerName);
-            if (value != null) {
-                headers.put(headerName, value);
-            }
-        }
+        Map<String, String> headers = verificationHeaders(request);
         try {
             callbackVerifierRegistry.verify(new ChannelCallbackVerificationRequest(
                     channelCode,
@@ -157,6 +155,30 @@ public class OpenApiCallbackSecuritySupport {
                     "channel callback verifier is not configured");
         }
         return new CallbackSecurityResult(true, ipAllowed);
+    }
+
+    /**
+     * Collect a bounded HTTP header context for provider-specific callback verification.
+     * Header values are never logged here; persistence uses the controller's masked summary.
+     */
+    private Map<String, String> verificationHeaders(HttpServletRequest request) {
+        Enumeration<String> names = request.getHeaderNames();
+        if (names == null) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> headers = new LinkedHashMap<>();
+        while (names.hasMoreElements() && headers.size() < MAX_VERIFICATION_HEADER_COUNT) {
+            String name = names.nextElement();
+            if (!StringUtils.hasText(name) || name.length() > MAX_VERIFICATION_HEADER_NAME_LENGTH) {
+                continue;
+            }
+            String value = request.getHeader(name);
+            if (value != null) {
+                headers.put(name, value.length() <= MAX_VERIFICATION_HEADER_VALUE_LENGTH
+                        ? value : value.substring(0, MAX_VERIFICATION_HEADER_VALUE_LENGTH));
+            }
+        }
+        return headers;
     }
 
     /**

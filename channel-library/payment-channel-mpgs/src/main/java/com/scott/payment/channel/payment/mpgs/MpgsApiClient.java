@@ -838,6 +838,9 @@ public class MpgsApiClient {
         put(response, "acsTransactionId", response.getAcsTransactionId());
         put(response, "dsTransactionId", response.getDsTransactionId());
         put(response, "eci", response.getEci());
+        put(response, "providerResult", payload == null ? null : payload.getResult());
+        put(response, "errorField", error == null ? null : error.getField());
+        put(response, "validationType", error == null ? null : error.getValidationType());
         return response;
     }
 
@@ -1372,14 +1375,15 @@ public class MpgsApiClient {
     /**
      * 对 MPGS JSON 请求/响应执行脱敏。
      * <p>
-     * 该方法会先复用交易交互正文最小脱敏工具，再补充 MPGS 特有字段：sourceOfFunds.provided.card.number、
-     * expiry.month/year 和 authentication.threeDs.authenticationToken。测试日志、生产日志和断言都应复用此方法，避免多套脱敏规则。
+     * 该方法会先复用公共强脱敏工具隐藏付款人 IP、姓名、联系方式和账单地址，再补充 MPGS 特有字段：
+     * sourceOfFunds.provided.card.number、expiry.month/year 和 authentication.threeDs.authenticationToken。
+     * 渠道审计、测试日志和断言都应复用此方法，避免敏感字段因协议命名差异泄露。
      *
      * @param json MPGS 原始 JSON
      * @return 脱敏后的 JSON
      */
     static String maskMpgsJson(String json) {
-        String masked = SensitiveDataMaskUtils.maskTransactionInteractionJsonSafely(json);
+        String masked = SensitiveDataMaskUtils.maskJsonSafely(json);
         if (masked == null || masked.isEmpty()) {
             return masked;
         }

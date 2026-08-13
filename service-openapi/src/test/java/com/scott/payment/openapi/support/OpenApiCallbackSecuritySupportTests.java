@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.HexFormat;
 import java.util.UUID;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_NONCE_HEADER;
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_SIGNATURE_HEADER;
@@ -57,6 +58,33 @@ class OpenApiCallbackSecuritySupportTests {
      */
     private static final String SECRET = "test-channel-callback-secret";
     private static final String RAW_BODY = "{\"result\":\"SUCCESS\",\"response\":{\"acquirerCode\":\"00\"}}";
+
+    @Test
+    void shouldPassProviderSpecificHeadersToCallbackVerifier() {
+        AtomicReference<String> notificationSecret = new AtomicReference<>();
+        PaymentChannelCallbackVerifier verifier = new PaymentChannelCallbackVerifier() {
+            @Override
+            public Set<String> channelCodes() {
+                return Set.of("MPGS");
+            }
+
+            @Override
+            public void verify(com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationRequest request) {
+                notificationSecret.set(request.header("X-Notification-Secret"));
+            }
+        };
+        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(
+                properties(), mock(SecurityInterceptEventRecorder.class),
+                new PaymentChannelCallbackVerifierRegistry(List.of(verifier)));
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "POST", "/channel/v1/callbacks/MPGS/3ds");
+        request.addHeader("X-Notification-Secret", SECRET);
+        request.addHeader("X-Notification-ID", "notification-001");
+
+        support.verifyChannelCallback("MPGS", request, RAW_BODY);
+
+        assertThat(notificationSecret.get()).isEqualTo(SECRET);
+    }
 
     /**
      * 验证渠道回调签名携带正确 body 摘要时可以通过校验。

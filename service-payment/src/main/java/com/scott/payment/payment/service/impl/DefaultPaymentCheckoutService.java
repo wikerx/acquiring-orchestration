@@ -47,6 +47,7 @@ import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.security.PaymentCheckoutCardEnvelopeService;
 import com.scott.payment.payment.security.PaymentCheckoutCardVaultPublisher;
 import com.scott.payment.payment.service.PaymentCheckoutService;
+import com.scott.payment.payment.service.PaymentAuthenticationRecordService;
 import com.scott.payment.payment.service.PaymentCheckoutThreeDsService;
 import com.scott.payment.payment.service.PaymentTransactionService;
 import com.scott.payment.payment.service.dto.PaymentCheckoutThreeDsResultDTO;
@@ -59,8 +60,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -81,6 +84,7 @@ import java.util.Objects;
  * Hosted Checkout 默认内部服务。
  */
 @Service
+@Slf4j
 public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
 
     /** 当前收银台支持的银行卡支付方式编码。 */
@@ -155,6 +159,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private final PaymentCheckoutThreeDsService threeDsService;
     /** 支付交易核心服务，负责数据库幂等和交易状态机。 */
     private final PaymentTransactionService paymentTransactionService;
+    /** 3DS 认证阶段安全审计服务。 */
+    private final PaymentAuthenticationRecordService authenticationRecordService;
     /** 划分本地提交事务与外部 3DS/渠道调用边界的事务执行器。 */
     private final TransactionOperations transactionOperations;
     /** 复用交易商户通知表，由 service-data 统一投递。 */
@@ -183,6 +189,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                          PaymentCheckoutProperties properties,
                                          PaymentCheckoutThreeDsService threeDsService,
                                          PaymentTransactionService paymentTransactionService,
+                                         PaymentAuthenticationRecordService authenticationRecordService,
                                          TransactionMerchantNotificationMapper merchantNotificationMapper,
                                          MerchantNotificationProperties merchantNotificationProperties,
                                          PaymentCheckoutCardCapabilityService cardCapabilityService,
@@ -198,6 +205,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         this.properties = properties;
         this.threeDsService = threeDsService;
         this.paymentTransactionService = paymentTransactionService;
+        this.authenticationRecordService = authenticationRecordService;
         this.merchantNotificationMapper = merchantNotificationMapper;
         this.merchantNotificationProperties = merchantNotificationProperties;
         this.cardCapabilityService = cardCapabilityService;
@@ -218,7 +226,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                   TransactionOperations transactionOperations) {
         this(sessionMapper, tokenMapper, attemptMapper, eventMapper, securityEventMapper, globalIdGenerator,
                 properties, threeDsService, paymentTransactionService, null,
-                new MerchantNotificationProperties(), transactionOperations);
+                new MerchantNotificationProperties(), null, transactionOperations);
     }
 
     DefaultPaymentCheckoutService(PaymentCheckoutSessionMapper sessionMapper,
@@ -233,6 +241,24 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                   TransactionMerchantNotificationMapper merchantNotificationMapper,
                                   MerchantNotificationProperties merchantNotificationProperties,
                                   TransactionOperations transactionOperations) {
+        this(sessionMapper, tokenMapper, attemptMapper, eventMapper, securityEventMapper,
+                globalIdGenerator, properties, threeDsService, paymentTransactionService,
+                merchantNotificationMapper, merchantNotificationProperties, null, transactionOperations);
+    }
+
+    DefaultPaymentCheckoutService(PaymentCheckoutSessionMapper sessionMapper,
+                                  PaymentCheckoutTokenMapper tokenMapper,
+                                  PaymentCheckoutAttemptMapper attemptMapper,
+                                  PaymentCheckoutEventMapper eventMapper,
+                                  PaymentCheckoutSecurityEventMapper securityEventMapper,
+                                  GlobalIdGenerator globalIdGenerator,
+                                  PaymentCheckoutProperties properties,
+                                  PaymentCheckoutThreeDsService threeDsService,
+                                  PaymentTransactionService paymentTransactionService,
+                                  TransactionMerchantNotificationMapper merchantNotificationMapper,
+                                  MerchantNotificationProperties merchantNotificationProperties,
+                                  PaymentAuthenticationRecordService authenticationRecordService,
+                                  TransactionOperations transactionOperations) {
         this.sessionMapper = sessionMapper;
         this.tokenMapper = tokenMapper;
         this.attemptMapper = attemptMapper;
@@ -242,6 +268,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         this.properties = properties;
         this.threeDsService = threeDsService;
         this.paymentTransactionService = paymentTransactionService;
+        this.authenticationRecordService = authenticationRecordService;
         this.transactionOperations = transactionOperations;
         this.merchantNotificationMapper = merchantNotificationMapper;
         this.merchantNotificationProperties = merchantNotificationProperties;
@@ -478,6 +505,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                     latestAttempt == null ? attemptDO : latestAttempt);
         }
         latestAttempt = latestAttempt == null ? attemptDO : latestAttempt;
+        recordThreeDsTimeout(latestAttempt);
         failPreparedCoreTransaction(latestAttempt, FAILURE_THREE_DS_AUTHENTICATION_TIMEOUT,
                 MESSAGE_THREE_DS_AUTHENTICATION_TIMEOUT);
         PaymentCheckoutSessionDO latestSession = failSession(sessionDO, latestAttempt, now);
@@ -485,6 +513,20 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 PaymentCheckoutProcessStageEnum.RESULT_RENDERED, PaymentCheckoutEventResultEnum.FAILED,
                 null, latestAttempt.getAttemptRequestId(), now));
         return new PaymentStatusContext(latestSession, latestAttempt);
+    }
+
+    /** 超时 CAS 成功后补记认证失败摘要；审计异常不反向阻断核心交易失败收敛。 */
+    private void recordThreeDsTimeout(PaymentCheckoutAttemptDO attemptDO) {
+        if (authenticationRecordService == null) {
+            return;
+        }
+        try {
+            authenticationRecordService.recordTimeout(attemptDO);
+        } catch (RuntimeException exception) {
+            log.warn("event: THREE_DS_AUDIT_WRITE_FAILED transactionId: {} phase: TIMEOUT errorType: {}",
+                    attemptDO == null ? null : attemptDO.getTransactionId(),
+                    exception.getClass().getSimpleName());
+        }
     }
 
     /**
@@ -567,8 +609,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                     blockedPaymentResult(commandDTO.getCheckoutSessionId(), commandDTO.getCheckoutAttemptId()));
         }
         PaymentCheckoutSessionDO sessionDO = sessionMapper.selectByCheckoutSessionId(attemptDO.getCheckoutSessionId());
-        if (PaymentCheckoutAttemptStatusEnum.THREE_DS_RETURNED.getCode().equals(attemptDO.getAttemptStatus())
-                || PaymentCheckoutAttemptStatusEnum.THREE_DS_PASSED.getCode().equals(attemptDO.getAttemptStatus())
+        if (PaymentCheckoutAttemptStatusEnum.THREE_DS_RETURNED.getCode().equals(attemptDO.getAttemptStatus())) {
+            return new ThreeDsReturnContext(sessionDO, attemptDO, paymentResult(sessionDO, attemptDO));
+        }
+        if (PaymentCheckoutAttemptStatusEnum.THREE_DS_PASSED.getCode().equals(attemptDO.getAttemptStatus())
                 || PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED.getCode().equals(attemptDO.getAttemptStatus())) {
             return new ThreeDsReturnContext(sessionDO, attemptDO, null);
         }
@@ -625,9 +669,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         result.setChannelCode(attemptDO.getChannelCode());
         result.setChannelMidConfigId(attemptDO.getChannelMidConfigId());
         result.setChannelOrderNo(attemptDO.getChannelOrderNo());
-        result.setChannelTransactionId(attemptDO.getChannelTransactionId());
-        result.setAuthenticationTransactionId(firstText(
-                attemptDO.getThreeDsTransactionId(), attemptDO.getChannelTransactionId()));
+        result.setAuthenticationTransactionId(attemptDO.getThreeDsTransactionId());
         result.setThreeDsVersion(attemptDO.getThreeDsVersion());
         result.setThreeDsServerTransactionId(attemptDO.getThreeDsServerTransactionId());
         result.setAcsTransactionId(attemptDO.getAcsTransactionId());
@@ -657,6 +699,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         target.setBillingCardHolderInfo(source.getBillingCardHolderInfo());
         target.setBrowserInfoJson(source.getBrowserInfoJson());
         target.setClientIpHash(source.getClientIpHash());
+        target.setPayerIp(source.getPayerIp());
         target.setUserAgentHash(source.getUserAgentHash());
         return target;
     }
@@ -665,12 +708,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private PaymentCheckoutThreeDsResultDTO restorePassedThreeDsResult(PaymentCheckoutAttemptDO attemptDO) {
         PaymentCheckoutThreeDsResultDTO result = new PaymentCheckoutThreeDsResultDTO();
         result.setStatus("PASSED");
-        result.setAuthenticationTransactionId(firstText(
-                attemptDO.getThreeDsTransactionId(), attemptDO.getChannelTransactionId()));
+        result.setAuthenticationTransactionId(attemptDO.getThreeDsTransactionId());
         result.setChannelCode(attemptDO.getChannelCode());
         result.setChannelMidConfigId(attemptDO.getChannelMidConfigId());
         result.setChannelOrderNo(attemptDO.getChannelOrderNo());
-        result.setChannelTransactionId(attemptDO.getChannelTransactionId());
         result.setThreeDsPolicyAction("FORCE_3DS");
         result.setThreeDsStatus(attemptDO.getThreeDsStatus());
         result.setThreeDsVersion(attemptDO.getThreeDsVersion());
@@ -1007,8 +1048,26 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         preparedCommand.setBillingCardHolderInfo(enriched.getBillingCardHolderInfo());
         preparedCommand.setThreeDsInfo(enriched.getThreeDsInfo());
         preparedCommand.setThreeDsRequired(enriched.getThreeDsRequired());
-        preparedCommand.setChannelIdentity(enriched.getChannelIdentity());
+        preparedCommand.setChannelIdentity(preparedFundsIdentity(preparation, enriched.getChannelIdentity()));
         return paymentTransactionService.submitPreparedTransaction(preparation);
+    }
+
+    /** 初次资金提交只使用核心准备阶段生成的订单号和交易号，3DS 响应不得改写资金身份。 */
+    private PaymentCreateCommandDTO.ChannelIdentityDTO preparedFundsIdentity(
+            PaymentInitialPreparationResultDTO preparation,
+            PaymentCreateCommandDTO.ChannelIdentityDTO fallback) {
+        PaymentCreateCommandDTO.ChannelIdentityDTO target = fallback == null
+                ? new PaymentCreateCommandDTO.ChannelIdentityDTO() : fallback;
+        if (preparation.getRouteResultDTO() != null) {
+            target.setChannelCode(preparation.getRouteResultDTO().getChannelCode());
+            target.setChannelId(preparation.getRouteResultDTO().getChannelId());
+            target.setChannelMidConfigId(preparation.getRouteResultDTO().getMidConfigId());
+        }
+        if (preparation.getPreparedChannelRequestDTO() != null) {
+            target.setChannelOrderNo(preparation.getPreparedChannelRequestDTO().getChannelOrderNo());
+            target.setChannelTransactionId(preparation.getPreparedChannelRequestDTO().getChannelTransactionId());
+        }
+        return target;
     }
 
     /** 3DS 浏览器回跳跨请求后，从核心数据库恢复同一笔交易并提交资金渠道。 */
@@ -1025,7 +1084,6 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                              String failureCode,
                                              String failureMessage) {
         if (attemptDO == null || !StringUtils.hasText(attemptDO.getTransactionId())
-                || !StringUtils.hasText(attemptDO.getChannelRequestId())
                 || attemptDO.getTransactionDateTime() == null) {
             return;
         }
@@ -1210,7 +1268,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         createCommand.setBillingCardHolderInfo(toCoreBillingInfo(commandDTO.getBillingCardHolderInfo()));
         createCommand.setThreeDsInfo(toCoreThreeDsInfo(threeDsResult));
         createCommand.setThreeDsRequired(threeDsResult != null && !threeDsResult.notRequired());
-        createCommand.setChannelIdentity(toCoreChannelIdentity(threeDsResult));
+        createCommand.setChannelIdentity(toCoreChannelIdentity(attemptDO, threeDsResult));
         createCommand.setTransactionInfo(toCoreTransactionInfo(sessionDO, attemptDO));
         createCommand.setCallbackUrl(sessionDO == null ? null : decryptMerchantNotifyUrl(sessionDO));
         createCommand.setPayerIp(commandDTO.getClientIpHash());
@@ -1312,7 +1370,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         orderDTO.setOrderNo(sessionDO.getMerchantOrderNo());
         orderDTO.setSubject(sessionDO.getOrderSubject());
         orderDTO.setDescription(sessionDO.getOrderDescription());
-        orderDTO.setAmount(sessionDO.getLabelAmount());
+        orderDTO.setAmount(displayAmount(sessionDO));
         orderDTO.setCurrency(sessionDO.getLabelCurrency());
         orderDTO.setCurrencyExponent(sessionDO.getCurrencyExponent());
         orderDTO.setItemsJson(sessionDO.getOrderItemsJson());
@@ -1377,6 +1435,9 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         resultDTO.setActions(actionDetail(sessionDO));
         if (attemptDO != null && PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED.getCode().equals(attemptDO.getAttemptStatus())) {
             resultDTO.setPageState(PaymentCheckoutPageStateEnum.THREE_DS_REQUIRED.getCode());
+        } else if (attemptDO != null
+                && PaymentCheckoutAttemptStatusEnum.THREE_DS_RETURNED.getCode().equals(attemptDO.getAttemptStatus())) {
+            resultDTO.setPageState(PaymentCheckoutPageStateEnum.PROCESSING.getCode());
         }
         return resultDTO;
     }
@@ -1390,7 +1451,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             return null;
         }
         PaymentCheckoutPaymentResultDTO.PaymentResultDTO resultDTO = new PaymentCheckoutPaymentResultDTO.PaymentResultDTO();
-        resultDTO.setAmount(sessionDO.getLabelAmount());
+        resultDTO.setAmount(displayAmount(sessionDO));
         resultDTO.setCurrency(sessionDO.getLabelCurrency());
         resultDTO.setMerchantOrderNo(sessionDO.getMerchantOrderNo());
         resultDTO.setPaymentMethod(attemptDO == null ? sessionDO.getSelectedPaymentMethod() : attemptDO.getPaymentMethod());
@@ -1400,6 +1461,21 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         resultDTO.setTransactionDateTime(attemptDO == null ? sessionDO.getTransactionDateTime() : attemptDO.getTransactionDateTime());
         resultDTO.setAuthCode(attemptDO == null ? null : attemptDO.getChannelResponseCode());
         return resultDTO;
+    }
+
+    /**
+     * 按会话创建时固化的 ISO 币种精度输出金额；只调整展示 scale，不改变落库金额或计算精度。
+     */
+    private BigDecimal displayAmount(PaymentCheckoutSessionDO sessionDO) {
+        if (sessionDO == null || sessionDO.getLabelAmount() == null) {
+            return null;
+        }
+        Integer currencyExponent = sessionDO.getCurrencyExponent();
+        if (currencyExponent == null || currencyExponent < 0) {
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "checkout currency exponent is invalid");
+        }
+        return sessionDO.getLabelAmount().setScale(currencyExponent, RoundingMode.UNNECESSARY);
     }
 
     /**
@@ -1480,8 +1556,6 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 threeDsResult.getChannelCode(),
                 threeDsResult.getChannelMidConfigId(),
                 threeDsResult.getChannelOrderNo(),
-                threeDsResult.getChannelTransactionId(),
-                threeDsResult.getChannelRequestId(),
                 threeDsResult.notRequired() ? 0 : 1,
                 threeDsResult.getStatus(),
                 threeDsResult.getThreeDsVersion(),
@@ -1576,6 +1650,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         target.setExpirationMonth(source.getExpirationMonth());
         target.setExpirationYear(source.getExpirationYear());
         target.setSecurityCode(source.getSecurityCode());
+        target.setCardholderName(source.getCardholderName());
         return target;
     }
 
@@ -1621,16 +1696,24 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      * 复用 3DS 阶段选择的渠道、MID 和渠道订单号。
      * 认证交易号只通过 threeDsInfo.authenticationTransactionId 引用；PAY/AUTHORIZE 必须生成独立渠道交易号。
      */
-    private PaymentCreateCommandDTO.ChannelIdentityDTO toCoreChannelIdentity(PaymentCheckoutThreeDsResultDTO source) {
-        if (source == null || !StringUtils.hasText(source.getChannelCode())
-                || source.getChannelMidConfigId() == null) {
+    private PaymentCreateCommandDTO.ChannelIdentityDTO toCoreChannelIdentity(
+            PaymentCheckoutAttemptDO attemptDO,
+            PaymentCheckoutThreeDsResultDTO threeDsResult) {
+        String channelCode = firstText(attemptDO == null ? null : attemptDO.getChannelCode(),
+                threeDsResult == null ? null : threeDsResult.getChannelCode());
+        Long channelMidConfigId = attemptDO != null && attemptDO.getChannelMidConfigId() != null
+                ? attemptDO.getChannelMidConfigId()
+                : threeDsResult == null ? null : threeDsResult.getChannelMidConfigId();
+        if (!StringUtils.hasText(channelCode) || channelMidConfigId == null) {
             return null;
         }
         PaymentCreateCommandDTO.ChannelIdentityDTO target = new PaymentCreateCommandDTO.ChannelIdentityDTO();
-        target.setChannelCode(source.getChannelCode());
-        target.setChannelId(source.getChannelId());
-        target.setChannelMidConfigId(source.getChannelMidConfigId());
-        target.setChannelOrderNo(source.getChannelOrderNo());
+        target.setChannelCode(channelCode);
+        target.setChannelId(threeDsResult == null ? null : threeDsResult.getChannelId());
+        target.setChannelMidConfigId(channelMidConfigId);
+        target.setChannelOrderNo(firstText(attemptDO == null ? null : attemptDO.getChannelOrderNo(),
+                threeDsResult == null ? null : threeDsResult.getChannelOrderNo()));
+        target.setChannelTransactionId(attemptDO == null ? null : attemptDO.getChannelTransactionId());
         return target;
     }
 

@@ -6,6 +6,7 @@ import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
+import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.component.security.crypto.SensitiveFieldCipher;
@@ -792,7 +793,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private void fillBrowserSecurity(PaymentCheckoutClientDTOs.PaymentSubmitRequest target,
                                      HostedCheckoutBrowserRequestDTOs.ClientContextDTO context) {
         HttpServletRequest request = currentRequest();
-        target.setClientIpHash(sha256Hex(resolveClientIp(request)));
+        String payerIp = normalizedClientIp(request);
+        target.setClientIpHash(sha256Hex(payerIp));
+        target.setPayerIp(payerIp);
         target.setUserAgentHash(sha256Hex(request == null ? null : request.getHeader(HEADER_USER_AGENT)));
         target.setOriginHash(sha256Hex(request == null ? null : request.getHeader(HEADER_ORIGIN)));
         target.setRefererHash(sha256Hex(request == null ? null : request.getHeader(HEADER_REFERER)));
@@ -814,8 +817,23 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private void fillBrowserSecurity(PaymentCheckoutClientDTOs.ThreeDsReturnRequest target,
                                      HostedCheckoutBrowserRequestDTOs.ClientContextDTO context) {
         HttpServletRequest request = currentRequest();
-        target.setClientIpHash(sha256Hex(resolveClientIp(request)));
+        String payerIp = normalizedClientIp(request);
+        target.setClientIpHash(sha256Hex(payerIp));
+        target.setPayerIp(payerIp);
         target.setUserAgentHash(sha256Hex(request == null ? null : request.getHeader(HEADER_USER_AGENT)));
+    }
+
+    /** Normalize the payer IP before it enters the transient 3DS provider call chain. */
+    private String normalizedClientIp(HttpServletRequest request) {
+        String clientIp = resolveClientIp(request);
+        if (!StringUtils.hasText(clientIp)) {
+            return null;
+        }
+        try {
+            return IpAddressNormalizer.normalizeExact(clientIp).ipValue();
+        } catch (IllegalArgumentException exception) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "payer IP address is invalid");
+        }
     }
 
     /**

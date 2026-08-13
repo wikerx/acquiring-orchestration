@@ -11,6 +11,7 @@ import com.scott.payment.channel.payment.exception.ChannelResponseException;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
 import com.scott.payment.channel.payment.executor.PaymentChannelExecutor;
 import com.scott.payment.channel.payment.registry.PaymentChannelRegistry;
+import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.client.risk.RiskInternalClient;
@@ -21,6 +22,7 @@ import com.scott.payment.payment.client.risk.dto.RiskThreeDsPolicyClientResponse
 import com.scott.payment.payment.entity.PaymentCheckoutAttemptDO;
 import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
+import com.scott.payment.payment.service.PaymentAuthenticationRecordService;
 import com.scott.payment.payment.service.dto.PaymentCheckoutThreeDsResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * @author : scott
@@ -143,7 +149,7 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
         assertThat(result.getStatus()).isEqualTo("METHOD_REQUIRED");
         assertThat(result.getAuthenticationTransactionId()).isEqualTo("3DSTX-001");
         assertThat(result.getChannelOrderNo()).isEqualTo("TX-001");
-        assertThat(result.getChannelTransactionId()).isEqualTo("3DSTX-001");
+        assertThat(result.getChannelTransactionId()).isNull();
         assertThat(result.getChannelMidConfigId()).isEqualTo(1001L);
         assertThat(result.getRedirectHtml()).isEqualTo("<form id=\"three-ds\"></form>");
 
@@ -155,6 +161,8 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
         assertThat(request.getAuthenticationTransactionId()).isEqualTo("3DSTX-001");
         assertThat(request.getCardNo()).isEqualTo("5123450000000008");
         assertThat(request.getSecurityCode()).isEqualTo("100");
+        assertThat(request.getCardholderName()).isEqualTo("Test Buyer");
+        assertThat(request.getPayerIp()).isEqualTo("203.0.113.9");
         assertThat(request.getRedirectResponseUrl()).isEqualTo("https://checkout.example.test/3ds/return");
         assertThat(request.getExtension())
                 .containsEntry("requestUrl", "https://gateway.example.test/api/rest")
@@ -166,11 +174,79 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
     }
 
     @Test
+    void shouldUsePlatformGatewayForOptionalMpgsNotificationWithoutMerchantUrls() {
+        CapturingThreeDsChannelClient channelClient = new CapturingThreeDsChannelClient();
+        PaymentChannelRegistry registry = new PaymentChannelRegistry(Optional.of(List.of(channelClient)));
+        SystemConfigReadService configReadService = mock(SystemConfigReadService.class);
+        when(configReadService.findEnabledValue("platform.gateway.base-url"))
+                .thenReturn(Optional.of("https://218258jc58.goho.co/"));
+        DefaultPaymentCheckoutThreeDsService service = new DefaultPaymentCheckoutThreeDsService(
+                new PaymentChannelExecutor(registry), command -> routeResult(), policyClient(true), configReadService);
+        PaymentCheckoutSessionDO session = session();
+        session.setMerchantReturnUrl("https://merchant.example.com/checkout/return");
+        session.setMerchantCancelUrl("https://merchant.example.com/checkout/cancel");
+        session.setMerchantNotifyUrlCiphertext("merchant-notify-url-ciphertext");
+
+        service.authenticate(session, attempt(), submitCommand(),
+                "https://21872i5858.imdo.co/checkout/api/v1/3ds/bridge");
+
+        assertThat(channelClient.request.getNotificationUrl())
+                .isEqualTo("https://218258jc58.goho.co/channel/v1/callbacks/MPGS/3ds");
+        assertThat(channelClient.request.getRedirectResponseUrl())
+                .isEqualTo("https://21872i5858.imdo.co/checkout/api/v1/3ds/bridge");
+        assertThat(channelClient.request.toString())
+                .doesNotContain("merchant.example.com", "merchant-notify-url-ciphertext");
+    }
+
+    @Test
+    void shouldContinueMpgsThreeDsWhenOptionalNotificationUrlIsNotConfigured() {
+        CapturingThreeDsChannelClient channelClient = new CapturingThreeDsChannelClient();
+        PaymentChannelRegistry registry = new PaymentChannelRegistry(Optional.of(List.of(channelClient)));
+        SystemConfigReadService configReadService = mock(SystemConfigReadService.class);
+        when(configReadService.findEnabledValue("platform.gateway.base-url")).thenReturn(Optional.empty());
+        DefaultPaymentCheckoutThreeDsService service = new DefaultPaymentCheckoutThreeDsService(
+                new PaymentChannelExecutor(registry), command -> routeResult(), policyClient(true), configReadService);
+
+        PaymentCheckoutThreeDsResultDTO result = service.authenticate(
+                session(), attempt(), submitCommand(), "https://checkout.example.test/3ds/return");
+
+        assertThat(result.getStatus()).isEqualTo("METHOD_REQUIRED");
+        assertThat(channelClient.request.getNotificationUrl()).isNull();
+    }
+
+    @Test
+    void shouldRejectUnsafeConfiguredPlatformGatewayOrigins() {
+        for (String configured : List.of(
+                "http://gateway.example.test",
+                "https://user:password@gateway.example.test",
+                "https://gateway.example.test?source=merchant",
+                "https://gateway.example.test#fragment",
+                "https://gateway.example.test/unexpected/path")) {
+            CapturingThreeDsChannelClient channelClient = new CapturingThreeDsChannelClient();
+            PaymentChannelRegistry registry = new PaymentChannelRegistry(Optional.of(List.of(channelClient)));
+            SystemConfigReadService configReadService = mock(SystemConfigReadService.class);
+            when(configReadService.findEnabledValue("platform.gateway.base-url"))
+                    .thenReturn(Optional.of(configured));
+            DefaultPaymentCheckoutThreeDsService service = new DefaultPaymentCheckoutThreeDsService(
+                    new PaymentChannelExecutor(registry), command -> routeResult(), policyClient(true), configReadService);
+
+            assertThatThrownBy(() -> service.authenticate(
+                    session(), attempt(), submitCommand(), "https://checkout.example.test/3ds/return"))
+                    .isInstanceOf(ChannelRequestException.class)
+                    .hasMessageContaining("platform gateway base URL");
+            assertThat(channelClient.request).isNull();
+        }
+    }
+
+    @Test
     void shouldAuthenticatePayerImmediatelyWhenMethodIsNotRequired() {
         ReadyThenPassedThreeDsChannelClient channelClient = new ReadyThenPassedThreeDsChannelClient();
         PaymentChannelRegistry registry = new PaymentChannelRegistry(Optional.of(List.of(channelClient)));
+        PaymentAuthenticationRecordService authenticationRecordService =
+                mock(PaymentAuthenticationRecordService.class);
         DefaultPaymentCheckoutThreeDsService service = new DefaultPaymentCheckoutThreeDsService(
-                new PaymentChannelExecutor(registry), command -> routeResult(), policyClient(true));
+                new PaymentChannelExecutor(registry), command -> routeResult(), policyClient(true),
+                null, authenticationRecordService);
 
         PaymentCheckoutThreeDsResultDTO result = service.authenticate(
                 session(), attempt(), submitCommand(), "https://checkout.example.test/3ds/return");
@@ -179,6 +255,16 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
         assertThat(result.getPhase()).isEqualTo("AUTHENTICATE");
         assertThat(channelClient.phases)
                 .containsExactly(ChannelThreeDsPhase.INITIALIZE, ChannelThreeDsPhase.AUTHENTICATE);
+        verify(authenticationRecordService).recordChannelResult(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.argThat(response ->
+                        ChannelThreeDsPhase.INITIALIZE.equals(response.getPhase())
+                                && ChannelThreeDsStatus.READY_TO_AUTHENTICATE.equals(response.getStatus())));
+        verify(authenticationRecordService).recordChannelResult(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.argThat(response ->
+                        ChannelThreeDsPhase.AUTHENTICATE.equals(response.getPhase())
+                                && ChannelThreeDsStatus.PASSED.equals(response.getStatus())));
     }
 
     /**
@@ -198,7 +284,7 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
         assertThat(result.getStatus()).isEqualTo("PROCESSING");
         assertThat(result.getAuthenticationTransactionId()).isEqualTo("3DSTX-001");
         assertThat(result.getChannelOrderNo()).isEqualTo("TX-001");
-        assertThat(result.getChannelTransactionId()).isEqualTo("3DSTX-001");
+        assertThat(result.getChannelTransactionId()).isNull();
         assertThat(result.getChannelMidConfigId()).isEqualTo(1001L);
         assertThat(result.getFailureCode()).isEqualTo("ChannelTimeoutException");
         log.info("统一3DS编排测试完成，status: {}, failureCode: {}",
@@ -255,6 +341,38 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
         assertThat(result.getChannelMidConfigId()).isEqualTo(1001L);
     }
 
+    @Test
+    void shouldReuseAuthenticationIdentityAcrossAllThreeDsPhasesWithoutFundsTransactionId() {
+        IdentityCapturingThreeDsChannelClient channelClient = new IdentityCapturingThreeDsChannelClient();
+        PaymentChannelRegistry registry = new PaymentChannelRegistry(Optional.of(List.of(channelClient)));
+        DefaultPaymentCheckoutThreeDsService service = new DefaultPaymentCheckoutThreeDsService(
+                new PaymentChannelExecutor(registry), new CapturingRestoreRouteService(), policyClient(true));
+        PaymentCheckoutAttemptDO attempt = attempt();
+        attempt.setChannelOrderNo("MPGS-ORDER-001");
+        attempt.setChannelTransactionId("FUNDS-TX-001");
+        attempt.setChannelCode("MPGS");
+        attempt.setChannelMidConfigId(1001L);
+
+        PaymentCheckoutThreeDsResultDTO authenticated = service.authenticate(
+                session(), attempt, submitCommand(), "https://checkout.example.test/3ds/return", routeResult());
+        PaymentCheckoutThreeDsResultDTO verified = service.continueAuthentication(
+                session(), attempt, submitCommand(), "https://checkout.example.test/3ds/return",
+                ChannelThreeDsPhase.VERIFY);
+
+        assertThat(authenticated.passed()).isTrue();
+        assertThat(verified.passed()).isTrue();
+        assertThat(channelClient.requests)
+                .extracting(ThreeDsRequestIdentity::phase)
+                .containsExactly(ChannelThreeDsPhase.INITIALIZE, ChannelThreeDsPhase.AUTHENTICATE,
+                        ChannelThreeDsPhase.VERIFY);
+        assertThat(channelClient.requests)
+                .allSatisfy(identity -> {
+                    assertThat(identity.channelOrderNo()).isEqualTo("MPGS-ORDER-001");
+                    assertThat(identity.authenticationTransactionId()).isEqualTo("3DSTX-001");
+                    assertThat(identity.channelTransactionId()).isNull();
+                });
+    }
+
     private PaymentCheckoutSessionDO session() {
         PaymentCheckoutSessionDO session = new PaymentCheckoutSessionDO();
         session.setMerchantId("MERCHANT-001");
@@ -283,8 +401,10 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
         card.setExpirationMonth("01");
         card.setExpirationYear("2039");
         card.setSecurityCode("100");
+        card.setCardholderName("Test Buyer");
         PaymentCheckoutPaymentSubmitCommandDTO command = new PaymentCheckoutPaymentSubmitCommandDTO();
         command.setCardInfo(card);
+        command.setPayerIp("203.0.113.9");
         command.setBrowserInfoJson("{\"javaEnabled\":false}");
         return command;
     }
@@ -471,6 +591,39 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
             response.setChannelOrderNo(request.getChannelOrderNo());
             return response;
         }
+    }
+
+    private static class IdentityCapturingThreeDsChannelClient implements PaymentChannelClient {
+        private final List<ThreeDsRequestIdentity> requests = new ArrayList<>();
+
+        @Override
+        public String channelCode() {
+            return "MPGS";
+        }
+
+        @Override
+        public Set<ChannelCapability> capabilities() {
+            return Set.of(ChannelCapability.THREE_DS_AUTHENTICATION);
+        }
+
+        @Override
+        public ChannelThreeDsAuthenticationResponse authenticateThreeDs(ChannelThreeDsAuthenticationRequest request) {
+            requests.add(new ThreeDsRequestIdentity(request.getPhase(), request.getChannelOrderNo(),
+                    request.getAuthenticationTransactionId(), request.getChannelTransactionId()));
+            ChannelThreeDsAuthenticationResponse response = new ChannelThreeDsAuthenticationResponse();
+            response.setPhase(request.getPhase());
+            response.setAuthenticationTransactionId(request.getAuthenticationTransactionId());
+            response.setChannelOrderNo(request.getChannelOrderNo());
+            response.setStatus(ChannelThreeDsPhase.INITIALIZE.equals(request.getPhase())
+                    ? ChannelThreeDsStatus.READY_TO_AUTHENTICATE : ChannelThreeDsStatus.PASSED);
+            return response;
+        }
+    }
+
+    private record ThreeDsRequestIdentity(ChannelThreeDsPhase phase,
+                                          String channelOrderNo,
+                                          String authenticationTransactionId,
+                                          String channelTransactionId) {
     }
 
     private class CapturingRestoreRouteService implements PaymentChannelRouteService {

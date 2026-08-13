@@ -54,7 +54,8 @@ class MpgsApiClientMaskingTests {
         String json = "{\"sourceOfFunds\":{\"provided\":{\"card\":{\"number\":\"5123450000000008\",\"securityCode\":\"100\"}}},"
                 + "\"authentication\":{\"threeDs\":{\"authenticationToken\":\"AAABBIIFmAAAAAAAAAAAAAAAAAA=\"}},"
                 + "\"expiry\":{\"month\":\"01\",\"year\":\"39\"},"
-                + "\"cardholderName\":\"Jane Doe\",\"billingAddress\":\"1 Main Street\","
+                + "\"cardholderName\":\"Jane Doe\",\"nameOnCard\":\"Jane Doe MPGS\","
+                + "\"ipAddress\":\"203.0.113.9\",\"billingAddress\":\"1 Main Street\","
                 + "\"apiPassword\":\"secret-value\"}";
         log.info("MPGS脱敏测试开始，case=卡号、安全码、认证令牌、渠道密码");
 
@@ -65,11 +66,14 @@ class MpgsApiClientMaskingTests {
         assertThat(masked).contains("\"securityCode\":\"***\"");
         assertThat(masked).contains("\"authenticationToken\":\"***\"");
         assertThat(masked).contains("\"expiry\":{\"month\":\"***\",\"year\":\"***\"}");
-        assertThat(masked).contains("\"cardholderName\":\"Jane Doe\"");
-        assertThat(masked).contains("\"billingAddress\":\"1 Main Street\"");
+        assertThat(masked).contains("\"cardholderName\":\"***\"");
+        assertThat(masked).contains("\"nameOnCard\":\"***\"");
+        assertThat(masked).contains("\"ipAddress\":\"***\"");
+        assertThat(masked).contains("\"billingAddress\":\"***\"");
         assertThat(masked).contains("\"apiPassword\":\"***\"");
         assertThat(masked).doesNotContain("5123450000000008", "\"securityCode\":\"100\"",
-                "AAABBIIFmAAAAAAAAAAAAAAAAAA=", "\"month\":\"01\"", "\"year\":\"39\"", "secret-value");
+                "AAABBIIFmAAAAAAAAAAAAAAAAAA=", "Jane Doe", "Jane Doe MPGS", "203.0.113.9", "1 Main Street",
+                "\"month\":\"01\"", "\"year\":\"39\"", "secret-value");
     }
 
     /**
@@ -264,6 +268,34 @@ class MpgsApiClientMaskingTests {
         assertThatThrownBy(() -> client.initiateAuthentication(request))
                 .isInstanceOfSatisfying(ChannelResponseException.class,
                         exception -> assertThat(exception.isOutcomeUncertain()).isFalse());
+    }
+
+    /** MPGS 标准校验错误应保留字段和校验类型，便于定位请求模型问题且不能依赖原始响应落库。 */
+    @Test
+    void shouldRetainStructuredThreeDsValidationDiagnostics() {
+        CapturingHttpClient httpClient = new CapturingHttpClient(400, """
+                {
+                  "result":"ERROR",
+                  "error":{
+                    "cause":"INVALID_REQUEST",
+                    "explanation":"Invalid value provided for field sourceOfFunds.type",
+                    "field":"sourceOfFunds.type",
+                    "validationType":"INVALID"
+                  }
+                }
+                """);
+        MpgsApiClient client = new MpgsApiClient(new MpgsChannelProperties(),
+                new MpgsRequestMapper(), new MpgsResponseMapper(), httpClient);
+
+        MpgsThreeDsAuthenticationResponse response = client.initiateAuthentication(authenticationRequest());
+
+        assertThat(response.getResponseCode()).isEqualTo("INVALID_REQUEST");
+        assertThat(response.getResponseMessage())
+                .isEqualTo("Invalid value provided for field sourceOfFunds.type");
+        assertThat(response.getExtension())
+                .containsEntry("providerResult", "ERROR")
+                .containsEntry("errorField", "sourceOfFunds.type")
+                .containsEntry("validationType", "INVALID");
     }
 
     /** MPGS 5xx 不足以证明请求未处理，必须保留后续查询或回调勾兑语义。 */

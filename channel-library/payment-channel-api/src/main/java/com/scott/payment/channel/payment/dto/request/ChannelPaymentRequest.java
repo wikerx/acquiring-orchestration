@@ -113,6 +113,11 @@ public class ChannelPaymentRequest implements Serializable {
     private String securityCode;
 
     /**
+     * 卡面持卡人姓名，只允许在当前渠道调用链中使用，不允许明文日志或落库。
+     */
+    private String cardholderName;
+
+    /**
      * 卡品牌。
      */
     private String cardBrand;

@@ -254,9 +254,12 @@ public class MpgsPaymentChannelClient extends AbstractPaymentChannelClient {
         target.setExpirationMonth(source.getExpirationMonth());
         target.setExpirationYear(source.getExpirationYear());
         target.setSecurityCode(source.getSecurityCode());
+        target.setCardholderName(source.getCardholderName());
         target.setCardBrand(source.getCardBrand());
         target.setRedirectResponseUrl(source.getRedirectResponseUrl());
+        target.setNotificationUrl(source.getNotificationUrl());
         target.setBrowserInfoJson(source.getBrowserInfoJson());
+        target.setPayerIp(source.getPayerIp());
         target.setBillingInfo(source.getBillingInfo());
         if (source.getExtension() != null) {
             target.getExtension().putAll(source.getExtension());
@@ -282,7 +285,6 @@ public class MpgsPaymentChannelClient extends AbstractPaymentChannelClient {
         target.setOperationId(source.getOperationId());
         target.setTransactionId(source.getTransactionId());
         target.setChannelOrderNo(source.getChannelOrderNo());
-        target.setChannelTransactionId(source.getAuthenticationTransactionId());
         target.setAuthenticationTransactionId(source.getAuthenticationTransactionId());
         target.setThreeDsStatus(source.getAuthenticationStatus());
         target.setThreeDsVersion(source.getThreeDsVersion());
@@ -319,11 +321,18 @@ public class MpgsPaymentChannelClient extends AbstractPaymentChannelClient {
         }
         String recommendation = normalize(response.getGatewayRecommendation());
         String authenticationStatus = normalize(response.getAuthenticationStatus());
-        if ("DO_NOT_PROCEED".equals(recommendation)
+        String result = normalize(response.getResult());
+        if ("FAILURE".equals(result)
+                || "DO_NOT_PROCEED".equals(recommendation)
+                || "DO_NOT_PROCEED_ABANDON_ORDER".equals(recommendation)
+                || "RESUBMIT_WITH_ALTERNATIVE_PAYMENT_DETAILS".equals(recommendation)
                 || authenticationStatus.contains("FAILED")
                 || authenticationStatus.contains("REJECTED")
                 || "AUTHENTICATION_ATTEMPTED".equals(authenticationStatus)
-                || authenticationStatus.contains("NOT_SUPPORTED")) {
+                || authenticationStatus.contains("NOT_SUPPORTED")
+                || "AUTHENTICATION_UNAVAILABLE".equals(authenticationStatus)
+                || "AUTHENTICATION_REQUIRED".equals(authenticationStatus)
+                || "AUTHENTICATION_NOT_IN_EFFECT".equals(authenticationStatus)) {
             return ChannelThreeDsStatus.FAILED;
         }
         if (ChannelThreeDsPhase.INITIALIZE.equals(phase)) {

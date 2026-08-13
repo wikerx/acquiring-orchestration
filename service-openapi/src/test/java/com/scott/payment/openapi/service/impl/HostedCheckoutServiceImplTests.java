@@ -172,6 +172,7 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getCardDataEnvelope().getKeyId()).isEqualTo("checkout-card-v1");
         assertThat(captured.getCardDataEnvelope().getEncryptedKey()).startsWith("encryptedKey");
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
+        assertThat(captured.getPayerIp()).isEqualTo("203.0.113.9");
         assertThat(captured.getRequestFingerprint()).isNotBlank();
         assertThat(captured.getBrowserInfoJson()).doesNotContain(RAW_OPAQUE_TOKEN);
         assertThat(captured.getBrowserInfoJson())
@@ -187,6 +188,20 @@ class HostedCheckoutServiceImplTests {
         String maskedJson = SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(captured));
         assertThat(maskedJson).doesNotContain("encryptedKeyValue", "ciphertextValue", RAW_OPAQUE_TOKEN);
         assertThat(maskedJson).contains("\"encryptedKey\":\"***\"", "\"ciphertext\":\"***\"");
+    }
+
+    @Test
+    void shouldRejectMalformedPayerIpBeforeCallingPaymentService() {
+        CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
+        HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
+        String malformedIp = "203.0.113.9 injected-value";
+        bindRequestContext("200001", malformedIp);
+
+        assertThatThrownBy(() -> checkoutService.submitPayment(buildSubmitRequest()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("payer IP address is invalid")
+                .hasMessageNotContaining(malformedIp);
+        assertThat(paymentInternalClient.paymentSubmitRequest).isNull();
     }
 
     @Test
@@ -210,6 +225,7 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getAuthenticationDataJsonMasked()).doesNotContain("raw-cres-value", "raw-cavv-value");
         assertThat(captured.getCardDataEnvelope().getEncryptedKey()).startsWith("encryptedKey");
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
+        assertThat(captured.getPayerIp()).isEqualTo("203.0.113.9");
         assertThat(captured.getBrowserInfoJson()).contains("\"language\":\"en-US\"");
     }
 
@@ -230,10 +246,14 @@ class HostedCheckoutServiceImplTests {
     }
 
     private void bindRequestContext(String merchantId) {
+        bindRequestContext(merchantId, "203.0.113.9, 10.0.0.1");
+    }
+
+    private void bindRequestContext(String merchantId, String forwardedFor) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/rest/checkout/v1/session");
         request.setRemoteAddr("198.51.100.11");
-        request.addHeader("X-Forwarded-For", "203.0.113.9, 10.0.0.1");
+        request.addHeader("X-Forwarded-For", forwardedFor);
         request.addHeader("Origin", "https://merchant.example");
         request.addHeader("Referer", "https://merchant.example/order");
         request.addHeader("User-Agent", "JUnit");

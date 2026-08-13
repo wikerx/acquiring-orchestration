@@ -3,6 +3,7 @@ package com.scott.payment.channel.payment.mpgs;
 import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
+import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.channel.payment.exception.ChannelRequestException;
@@ -12,7 +13,9 @@ import java.math.BigDecimal;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @author : scott
@@ -39,6 +42,17 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
      * 3DS 付款人认证回调的内部原始状态。
      */
     private static final String THREE_DS_PAYER_AUTHENTICATION = "3DS_PAYER_AUTHENTICATION";
+
+    /** MPGS Webhook 中明确表示 3DS 认证交易的 transaction.type。 */
+    private static final String AUTHENTICATION_TRANSACTION_TYPE = "AUTHENTICATION";
+
+    /**
+     * order.notificationUrl 是订单级通知地址，认证完成后的资金动作会继续投递到同一 URL。
+     * 这些 transaction.type 必须进入普通资金状态映射。
+     */
+    private static final Set<String> FINANCIAL_TRANSACTION_TYPES = Set.of(
+            "AUTHORIZATION", "PAYMENT", "CAPTURE", "REFUND", "VOID",
+            "UPDATE_AUTHORIZATION", "VERIFICATION", "DISBURSEMENT");
 
     /**
      * trade Status Mapper，表示当前记录在业务流程中的处理状态。
@@ -109,7 +123,9 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         }
         ChannelCallbackResult result = new ChannelCallbackResult();
         result.setChannelCode(MpgsChannelCode.MPGS);
-        result.setCallbackEventId(callbackEventId(payload));
+        result.setCallbackKind(ChannelCallbackKind.FINANCIAL_TRANSACTION);
+        result.setCallbackEventId(firstText(header(request, MpgsCallbackVerifier.NOTIFICATION_ID_HEADER),
+                callbackEventId(payload)));
         result.setChannelOrderNo(payload.getOrder() == null ? null : payload.getOrder().getId());
         result.setChannelTransactionId(payload.getTransaction() == null ? null : payload.getTransaction().getId());
         result.setRawChannelStatus(firstText(payload.getOrder() == null ? null : payload.getOrder().getStatus(), payload.getResult()));
@@ -129,6 +145,7 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
             put(result, "acquirerCode", payload.getResponse().getAcquirerCode());
             put(result, "acquirerMessage", payload.getResponse().getAcquirerMessage());
         }
+        put(result, "notificationAttempt", header(request, MpgsCallbackVerifier.NOTIFICATION_ATTEMPT_HEADER));
         return result;
     }
 
@@ -173,7 +190,9 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
 
         ChannelCallbackResult result = new ChannelCallbackResult();
         result.setChannelCode(MpgsChannelCode.MPGS);
-        result.setCallbackEventId(firstText(threeDsServerTransactionId, transactionId, orderId));
+        result.setCallbackKind(ChannelCallbackKind.THREE_DS_AUTHENTICATION);
+        result.setCallbackEventId(firstText(header(request, MpgsCallbackVerifier.NOTIFICATION_ID_HEADER),
+                threeDsServerTransactionId, transactionId, orderId));
         result.setChannelOrderNo(orderId);
         result.setChannelTransactionId(transactionId);
         result.setRawChannelStatus(methodCompletion ? THREE_DS_METHOD_COMPLETED : firstText(gatewayRecommendation, resultValue, THREE_DS_PAYER_AUTHENTICATION));
@@ -187,19 +206,49 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         put(result, "threeDsServerTransactionId", threeDsServerTransactionId);
         put(result, "gatewayRecommendation", gatewayRecommendation);
         put(result, "result", resultValue);
+        put(result, "notificationAttempt", header(request, MpgsCallbackVerifier.NOTIFICATION_ATTEMPT_HEADER));
         if (StringUtils.hasText(sessionData)) {
             put(result, "threeDsSessionData", "present,length=" + sessionData.length());
         }
         return result;
     }
 
+    /** Read a callback header using HTTP case-insensitive semantics. */
+    private String header(ChannelCallbackRequest request, String name) {
+        if (request == null || request.getHeaders() == null || name == null) {
+            return null;
+        }
+        String value = request.getHeaders().get(name);
+        if (value != null) {
+            return value;
+        }
+        for (Map.Entry<String, String> entry : request.getHeaders().entrySet()) {
+            if (name.equalsIgnoreCase(entry.getKey())) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
     /**
-     * 根据回调路径和协议特征判断是否属于 MPGS 3DS 回调。
+     * 根据 MPGS transaction.type、浏览器返回字段和路径判断是否属于 3DS 认证事件。
+     *
+     * <p>transaction.type 优先级最高。order.notificationUrl 是订单级 Webhook，同一 /3ds URL
+     * 可能先后收到 AUTHENTICATION 和 PAYMENT/AUTHORIZATION，不能仅按 URL 分类。</p>
      *
      * @param request 渠道回调请求
-     * @return 命中 3DS 路径或关键字段时返回 {@code true}
+     * @return 认证交易或浏览器 Method/Challenge 返回时返回 {@code true}
      */
     private boolean isThreeDsCallback(ChannelCallbackRequest request) {
+        MpgsResponsePayload payload = parsePayload(request.getBody());
+        String transactionType = payload == null || payload.getTransaction() == null
+                ? "" : normalize(payload.getTransaction().getType());
+        if (AUTHENTICATION_TRANSACTION_TYPE.equals(transactionType)) {
+            return true;
+        }
+        if (FINANCIAL_TRANSACTION_TYPES.contains(transactionType)) {
+            return false;
+        }
         String requestUri = request.getRequestUri();
         if (StringUtils.hasText(requestUri) && requestUri.toLowerCase().contains(THREE_DS_CALLBACK_PATH_SEGMENT)) {
             return true;
@@ -210,6 +259,11 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
                 || containsIgnoreCase(body, "gatewayRecommendation")
                 || containsIgnoreCase(body, "\"orderId\"")
                 || containsIgnoreCase(body, "orderId=");
+    }
+
+    /** 统一 MPGS 枚举型协议字段的大小写和空白。 */
+    private String normalize(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     /**

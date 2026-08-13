@@ -50,6 +50,7 @@ class MpgsPaymentChannelClientThreeDsTests {
         assertThat(response.getStatus()).isEqualTo(ChannelThreeDsStatus.READY_TO_AUTHENTICATE);
         assertThat(response.getChannelCode()).isEqualTo("MPGS");
         assertThat(response.getAuthenticationTransactionId()).isEqualTo("3DSTX-001");
+        assertThat(response.getChannelTransactionId()).isNull();
         assertThat(response.getThreeDsTransactionId()).isEqualTo("3DS-PROTOCOL-001");
         assertThat(response.getEci()).isEqualTo("05");
         assertThat(response.getCavv()).isEqualTo("authentication-value");
@@ -111,6 +112,7 @@ class MpgsPaymentChannelClientThreeDsTests {
 
         assertThat(response.getPhase()).isEqualTo(ChannelThreeDsPhase.AUTHENTICATE);
         assertThat(response.getStatus()).isEqualTo(ChannelThreeDsStatus.PASSED);
+        assertThat(response.getChannelTransactionId()).isNull();
         verify(apiClient, never()).initiateAuthentication(any(MpgsThreeDsAuthenticationRequest.class));
         verify(apiClient).authenticatePayer(any(MpgsThreeDsAuthenticationRequest.class));
         log.info("MPGS统一3DS测试完成，status: {}", response.getStatus());
@@ -144,6 +146,43 @@ class MpgsPaymentChannelClientThreeDsTests {
         MpgsThreeDsAuthenticationResponse authenticate = mpgsResponse();
         authenticate.setGatewayRecommendation("PROCEED");
         authenticate.setAuthenticationStatus("AUTHENTICATION_NOT_SUPPORTED");
+        when(apiClient.authenticatePayer(any(MpgsThreeDsAuthenticationRequest.class))).thenReturn(authenticate);
+        MpgsPaymentChannelClient client = new MpgsPaymentChannelClient(apiClient);
+        ChannelThreeDsAuthenticationRequest request = request();
+        request.setPhase(ChannelThreeDsPhase.AUTHENTICATE);
+
+        ChannelThreeDsAuthenticationResponse response = client.authenticateThreeDs(request);
+
+        assertThat(response.getStatus()).isEqualTo(ChannelThreeDsStatus.FAILED);
+    }
+
+    @Test
+    void shouldMapDefinitiveAuthenticationTerminalStatusesToFailed() {
+        for (String status : new String[]{
+                "AUTHENTICATION_UNAVAILABLE", "AUTHENTICATION_REQUIRED", "AUTHENTICATION_NOT_IN_EFFECT"}) {
+            MpgsApiClient apiClient = mock(MpgsApiClient.class);
+            MpgsThreeDsAuthenticationResponse authenticate = mpgsResponse();
+            authenticate.setGatewayRecommendation("PROCEED");
+            authenticate.setAuthenticationStatus(status);
+            when(apiClient.authenticatePayer(any(MpgsThreeDsAuthenticationRequest.class))).thenReturn(authenticate);
+            MpgsPaymentChannelClient client = new MpgsPaymentChannelClient(apiClient);
+            ChannelThreeDsAuthenticationRequest request = request();
+            request.setPhase(ChannelThreeDsPhase.AUTHENTICATE);
+
+            ChannelThreeDsAuthenticationResponse response = client.authenticateThreeDs(request);
+
+            assertThat(response.getStatus()).as("authenticationStatus=%s", status)
+                    .isEqualTo(ChannelThreeDsStatus.FAILED);
+        }
+    }
+
+    @Test
+    void shouldMapExplicitMpgsFailureResultToFailed() {
+        MpgsApiClient apiClient = mock(MpgsApiClient.class);
+        MpgsThreeDsAuthenticationResponse authenticate = mpgsResponse();
+        authenticate.setResult("FAILURE");
+        authenticate.setGatewayRecommendation("PROCEED");
+        authenticate.setAuthenticationStatus("AUTHENTICATION_PENDING");
         when(apiClient.authenticatePayer(any(MpgsThreeDsAuthenticationRequest.class))).thenReturn(authenticate);
         MpgsPaymentChannelClient client = new MpgsPaymentChannelClient(apiClient);
         ChannelThreeDsAuthenticationRequest request = request();
@@ -226,6 +265,28 @@ class MpgsPaymentChannelClientThreeDsTests {
                 response.getStatus(), response.getFailureCode());
     }
 
+    /** 官方要求放弃订单或更换支付信息时，强制 3DS 交易不得继续资金提交。 */
+    @Test
+    void shouldFailWhenGatewayRequiresAbandonOrAlternativePaymentDetails() {
+        for (String recommendation : new String[]{
+                "DO_NOT_PROCEED_ABANDON_ORDER", "RESUBMIT_WITH_ALTERNATIVE_PAYMENT_DETAILS"}) {
+            MpgsApiClient apiClient = mock(MpgsApiClient.class);
+            MpgsThreeDsAuthenticationResponse authenticate = mpgsResponse();
+            authenticate.setGatewayRecommendation(recommendation);
+            authenticate.setAuthenticationStatus("AUTHENTICATION_PENDING");
+            when(apiClient.authenticatePayer(any(MpgsThreeDsAuthenticationRequest.class))).thenReturn(authenticate);
+            MpgsPaymentChannelClient client = new MpgsPaymentChannelClient(apiClient);
+            ChannelThreeDsAuthenticationRequest request = request();
+            request.setPhase(ChannelThreeDsPhase.AUTHENTICATE);
+
+            ChannelThreeDsAuthenticationResponse response = client.authenticateThreeDs(request);
+
+            assertThat(response.getStatus())
+                    .as("gatewayRecommendation=%s", recommendation)
+                    .isEqualTo(ChannelThreeDsStatus.FAILED);
+        }
+    }
+
     /**
      * 验证 MPGS 已明确返回非 2xx 时归一化为 FAILED，不能作为未知结果永久停留在 PROCESSING。
      */
@@ -293,6 +354,7 @@ class MpgsPaymentChannelClientThreeDsTests {
 
         assertThat(response.getPhase()).isEqualTo(ChannelThreeDsPhase.VERIFY);
         assertThat(response.getStatus()).isEqualTo(ChannelThreeDsStatus.PASSED);
+        assertThat(response.getChannelTransactionId()).isNull();
         verify(apiClient).retrieveAuthentication(any(MpgsThreeDsAuthenticationRequest.class));
         verify(apiClient, never()).initiateAuthentication(any(MpgsThreeDsAuthenticationRequest.class));
         verify(apiClient, never()).authenticatePayer(any(MpgsThreeDsAuthenticationRequest.class));

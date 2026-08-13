@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.api.rest.notify.v1;
 
+import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.model.ApiResult;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
@@ -9,6 +10,9 @@ import com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -151,6 +155,21 @@ public class ChannelCallbackController {
     }
 
     /**
+     * Webhook providers determine delivery from HTTP status, so callback failures must not be wrapped in HTTP 200.
+     */
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<ApiResult<Void>> handleCallbackApiException(ApiException exception) {
+        HttpStatus status = switch (exception.getCode()) {
+            case "F401" -> HttpStatus.UNAUTHORIZED;
+            case "F502" -> HttpStatus.BAD_GATEWAY;
+            case "F500" -> HttpStatus.INTERNAL_SERVER_ERROR;
+            default -> exception.getCode() != null && exception.getCode().startsWith("F4")
+                    ? HttpStatus.BAD_REQUEST : HttpStatus.SERVICE_UNAVAILABLE;
+        };
+        return ResponseEntity.status(status).body(ApiResult.fail(exception.getCode(), exception.getMessage()));
+    }
+
+    /**
      * 组装发送至支付核心的渠道回调记录请求。
      *
      * <p>请求携带渠道安全校验结论和原始报文，由支付核心负责持久化、幂等处理及后续状态流转；
@@ -243,7 +262,8 @@ public class ChannelCallbackController {
                 || "cookie".equalsIgnoreCase(headerName)
                 || "set-cookie".equalsIgnoreCase(headerName)
                 || "x-api-key".equalsIgnoreCase(headerName)
-                || "api-key".equalsIgnoreCase(headerName));
+                || "api-key".equalsIgnoreCase(headerName)
+                || "x-notification-secret".equalsIgnoreCase(headerName));
     }
 
     /**

@@ -564,6 +564,9 @@ public class PaymentCreateCommandDTO implements Serializable {
          * CVV/CVC 安全码，只允许用于内存渠道调用，不允许明文日志、MQ 或落库。
          */
         private String securityCode;
+
+        /** 卡面持卡人姓名，只允许在当前支付渠道调用链使用。 */
+        private String cardholderName;
     }
 
     @Data

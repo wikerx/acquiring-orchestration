@@ -1,5 +1,6 @@
 package com.scott.payment.channel.payment.dto.callback;
 
+import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -30,6 +31,11 @@ public class ChannelCallbackResult implements Serializable {
      * 渠道回调事件 ID。
      */
     private String callbackEventId;
+
+    /**
+     * 渠道解析后的协议中立业务类型；为空时由支付核心按旧回调入口标签兼容判断。
+     */
+    private ChannelCallbackKind callbackKind;
 
     /**
      * 渠道订单号。

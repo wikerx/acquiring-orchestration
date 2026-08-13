@@ -46,6 +46,8 @@ public class PaymentCheckoutThreeDsReturnCommandDTO implements Serializable {
     private String traceId;
     /** 客户端 IP 摘要。 */
     private String clientIpHash;
+    /** 继续 3DS 认证需要的真实 IP，仅允许在当前请求调用栈使用。 */
+    private String payerIp;
     /** User-Agent 摘要。 */
     private String userAgentHash;
 }

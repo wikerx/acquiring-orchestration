@@ -6,7 +6,9 @@ import com.scott.payment.channel.payment.dto.response.ChannelThreeDsAuthenticati
 import com.scott.payment.channel.payment.enums.ChannelThreeDsPhase;
 import com.scott.payment.channel.payment.enums.ChannelThreeDsStatus;
 import com.scott.payment.channel.payment.exception.ChannelException;
+import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.channel.payment.executor.PaymentChannelExecutor;
+import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.client.risk.RiskInternalClient;
@@ -15,11 +17,17 @@ import com.scott.payment.payment.client.risk.dto.RiskThreeDsPolicyClientResponse
 import com.scott.payment.payment.entity.PaymentCheckoutAttemptDO;
 import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
+import com.scott.payment.payment.service.PaymentAuthenticationRecordService;
 import com.scott.payment.payment.service.PaymentCheckoutThreeDsService;
 import com.scott.payment.payment.service.dto.PaymentCheckoutThreeDsResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
+
+import java.net.URI;
+import java.net.URISyntaxException;
 
 /**
  * @author : scott
@@ -31,7 +39,11 @@ import org.springframework.util.StringUtils;
  * @status : create
  */
 @Service
+@Slf4j
 public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThreeDsService {
+
+    private static final String GATEWAY_BASE_URL_CONFIG_KEY = "platform.gateway.base-url";
+    private static final String THREE_DS_CALLBACK_PATH_PREFIX = "/channel/v1/callbacks/";
 
     /** 统一渠道执行器，根据路由结果定位 3DS provider。 */
     private final PaymentChannelExecutor paymentChannelExecutor;
@@ -42,6 +54,12 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
     /** service-risk 路由后 3DS 策略只读客户端。 */
     private final RiskInternalClient riskInternalClient;
 
+    /** Platform-owned configuration used to construct provider Webhook URLs. */
+    private final SystemConfigReadService systemConfigReadService;
+
+    /** 平台认证审计服务，每次渠道 3DS 阶段调用后只落安全摘要。 */
+    private final PaymentAuthenticationRecordService authenticationRecordService;
+
     /**
      * 创建 Hosted Checkout 统一 3DS 编排服务。
      *
@@ -49,12 +67,32 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
      * @param paymentChannelRouteService 支付渠道路由服务
      * @param riskInternalClient         service-risk 内部客户端
      */
+    @Autowired
     public DefaultPaymentCheckoutThreeDsService(PaymentChannelExecutor paymentChannelExecutor,
                                                 PaymentChannelRouteService paymentChannelRouteService,
-                                                RiskInternalClient riskInternalClient) {
+                                                RiskInternalClient riskInternalClient,
+                                                SystemConfigReadService systemConfigReadService,
+                                                PaymentAuthenticationRecordService authenticationRecordService) {
         this.paymentChannelExecutor = paymentChannelExecutor;
         this.paymentChannelRouteService = paymentChannelRouteService;
         this.riskInternalClient = riskInternalClient;
+        this.systemConfigReadService = systemConfigReadService;
+        this.authenticationRecordService = authenticationRecordService;
+    }
+
+    /** Constructor retained for isolated unit tests that do not exercise provider Webhook URL mapping. */
+    DefaultPaymentCheckoutThreeDsService(PaymentChannelExecutor paymentChannelExecutor,
+                                         PaymentChannelRouteService paymentChannelRouteService,
+                                         RiskInternalClient riskInternalClient) {
+        this(paymentChannelExecutor, paymentChannelRouteService, riskInternalClient, null, null);
+    }
+
+    DefaultPaymentCheckoutThreeDsService(PaymentChannelExecutor paymentChannelExecutor,
+                                         PaymentChannelRouteService paymentChannelRouteService,
+                                         RiskInternalClient riskInternalClient,
+                                         SystemConfigReadService systemConfigReadService) {
+        this(paymentChannelExecutor, paymentChannelRouteService, riskInternalClient,
+                systemConfigReadService, null);
     }
 
     /**
@@ -135,24 +173,54 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
                                                    boolean authenticateWhenReady) {
         try {
             ChannelThreeDsAuthenticationResponse response = paymentChannelExecutor.authenticateThreeDs(request);
+            recordChannelResult(request, response);
             if (authenticateWhenReady && response != null
                     && ChannelThreeDsStatus.READY_TO_AUTHENTICATE.equals(response.getStatus())) {
                 request.setPhase(ChannelThreeDsPhase.AUTHENTICATE);
                 response = paymentChannelExecutor.authenticateThreeDs(request);
+                recordChannelResult(request, response);
             }
             return routeResult(copy(response), routeResultDTO, policy, null);
         } catch (ChannelException exception) {
+            ChannelThreeDsStatus failureStatus = exception.isOutcomeUncertain()
+                    ? ChannelThreeDsStatus.PROCESSING : ChannelThreeDsStatus.FAILED;
+            recordChannelFailure(request, failureStatus, exception.getClass().getSimpleName());
             PaymentCheckoutThreeDsResultDTO result = new PaymentCheckoutThreeDsResultDTO();
             result.setPhase(request.getPhase().name());
-            result.setStatus(exception.isOutcomeUncertain()
-                    ? ChannelThreeDsStatus.PROCESSING.name()
-                    : ChannelThreeDsStatus.FAILED.name());
+            result.setStatus(failureStatus.name());
             result.setAuthenticationTransactionId(request.getAuthenticationTransactionId());
             result.setChannelOrderNo(request.getChannelOrderNo());
-            result.setChannelTransactionId(request.getAuthenticationTransactionId());
             result.setFailureCode(exception.getClass().getSimpleName());
             result.setFailureMessage(exception.getMessage());
             return routeResult(result, routeResultDTO, policy, null);
+        }
+    }
+
+    private void recordChannelResult(ChannelThreeDsAuthenticationRequest request,
+                                     ChannelThreeDsAuthenticationResponse response) {
+        if (authenticationRecordService != null) {
+            try {
+                authenticationRecordService.recordChannelResult(request, response);
+            } catch (RuntimeException exception) {
+                log.warn("event: THREE_DS_AUDIT_WRITE_FAILED transactionId: {} phase: {} errorType: {}",
+                        request.getTransactionId(),
+                        response != null && response.getPhase() != null
+                                ? response.getPhase() : request.getPhase(),
+                        exception.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private void recordChannelFailure(ChannelThreeDsAuthenticationRequest request,
+                                      ChannelThreeDsStatus status,
+                                      String failureCode) {
+        if (authenticationRecordService != null) {
+            try {
+                authenticationRecordService.recordChannelFailure(request, status, failureCode);
+            } catch (RuntimeException exception) {
+                log.warn("event: THREE_DS_AUDIT_WRITE_FAILED transactionId: {} phase: {} errorType: {}",
+                        request.getTransactionId(), request.getPhase(), exception.getClass().getSimpleName());
+            }
         }
     }
 
@@ -229,7 +297,8 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         request.setChannelCode(routeResultDTO.getChannelCode());
         request.setOperationId(attemptDO.getOperationId());
         request.setTransactionId(attemptDO.getTransactionId());
-        request.setChannelOrderNo(attemptDO.getTransactionId());
+        request.setChannelOrderNo(StringUtils.hasText(attemptDO.getChannelOrderNo())
+                ? attemptDO.getChannelOrderNo() : attemptDO.getTransactionId());
         request.setAuthenticationTransactionId(authenticationTransactionId(attemptDO));
         request.setMerchantId(sessionDO.getMerchantId());
         request.setMerchantOrderNo(sessionDO.getMerchantOrderNo());
@@ -240,6 +309,9 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         request.setTransactionDateTime(attemptDO.getTransactionDateTime());
         request.setCardBrand(attemptDO.getPaymentBrand());
         request.setRedirectResponseUrl(returnUrl);
+        if (ChannelThreeDsPhase.INITIALIZE.equals(phase)) {
+            request.setNotificationUrl(notificationUrl(routeResultDTO.getChannelCode()));
+        }
         request.setBrowserInfoJson(commandDTO.getBrowserInfoJson());
         request.getExtension().put("requestUrl", emptyIfNull(routeResultDTO.getRequestUrl()));
         request.getExtension().put("connectTimeoutSeconds", routeResultDTO.getConnectTimeoutSeconds() == null
@@ -255,9 +327,38 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
             request.setExpirationMonth(commandDTO.getCardInfo().getExpirationMonth());
             request.setExpirationYear(commandDTO.getCardInfo().getExpirationYear());
             request.setSecurityCode(commandDTO.getCardInfo().getSecurityCode());
+            request.setCardholderName(commandDTO.getCardInfo().getCardholderName());
         }
+        request.setPayerIp(commandDTO.getPayerIp());
         request.setBillingInfo(toBillingInfo(commandDTO.getBillingCardHolderInfo()));
         return request;
+    }
+
+    /** Build a provider callback URL from the platform-owned HTTPS gateway origin. */
+    private String notificationUrl(String channelCode) {
+        if (systemConfigReadService == null) {
+            return null;
+        }
+        String configured = systemConfigReadService.findEnabledValue(GATEWAY_BASE_URL_CONFIG_KEY)
+                .orElse(null);
+        if (!StringUtils.hasText(configured)) {
+            return null;
+        }
+        try {
+            URI base = new URI(configured.trim());
+            if (!"https".equalsIgnoreCase(base.getScheme())
+                    || !StringUtils.hasText(base.getHost())
+                    || base.getUserInfo() != null
+                    || base.getQuery() != null
+                    || base.getFragment() != null
+                    || (StringUtils.hasText(base.getPath()) && !"/".equals(base.getPath()))) {
+                throw new ChannelRequestException("platform gateway base URL must be a secure HTTPS origin");
+            }
+            return new URI("https", null, base.getHost(), base.getPort(),
+                    THREE_DS_CALLBACK_PATH_PREFIX + channelCode + "/3ds", null, null).toString();
+        } catch (URISyntaxException exception) {
+            throw new ChannelRequestException("platform gateway base URL is invalid", exception);
+        }
     }
 
     /**
@@ -340,7 +441,6 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
                 ? ChannelThreeDsStatus.PROCESSING.name() : response.getStatus().name());
         result.setAuthenticationTransactionId(response.getAuthenticationTransactionId());
         result.setChannelOrderNo(response.getChannelOrderNo());
-        result.setChannelTransactionId(response.getChannelTransactionId());
         result.setChannelRequestId(response.getChannelRequestId());
         result.setThreeDsStatus(response.getThreeDsStatus());
         result.setThreeDsVersion(response.getThreeDsVersion());

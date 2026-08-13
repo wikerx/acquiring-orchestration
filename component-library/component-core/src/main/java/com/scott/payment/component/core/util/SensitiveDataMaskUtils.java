@@ -41,7 +41,7 @@ public final class SensitiveDataMaskUtils {
      * IP 与卡 BIN 检索条件可识别具体查询对象，诊断日志中不保留任何明文片段。
      */
     private static final Pattern REFERENCE_LOOKUP_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:ipAddress|cardBin)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:ipAddress|payerIp|cardBin)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -97,7 +97,7 @@ public final class SensitiveDataMaskUtils {
      * 姓名、地址、客户标识和设备指纹不保留明文片段。
      */
     private static final Pattern PERSONAL_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:firstName|lastName|cardholderName|legalPerson|enterprise|subName|subCompanyName|customerId|deviceFingerprint|billingAddress|shippingAddress|merchantBillingAddress|street|subStreet)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:firstName|lastName|cardholderName|nameOnCard|legalPerson|enterprise|subName|subCompanyName|customerId|deviceFingerprint|billingAddress|shippingAddress|merchantBillingAddress|street|subStreet)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 

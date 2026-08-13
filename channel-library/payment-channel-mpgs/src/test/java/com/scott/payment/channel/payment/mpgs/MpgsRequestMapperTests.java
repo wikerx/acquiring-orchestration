@@ -95,6 +95,7 @@ class MpgsRequestMapperTests {
                 .contains("\"channel\":\"PAYER_BROWSER\"")
                 .contains("\"purpose\":\"PAYMENT_TRANSACTION\"")
                 .contains("\"currency\":\"USD\"")
+                .contains("\"notificationUrl\":\"https://gateway.example.com/channel/v1/callbacks/MPGS/3ds\"")
                 .contains("\"reference\":\"TX-3DS-001\"")
                 .contains("\"number\":\"5123450000000008\"")
                 .doesNotContain("\"amount\"")
@@ -102,6 +103,19 @@ class MpgsRequestMapperTests {
                 .doesNotContain("\"securityCode\"")
                 .doesNotContain("\"device\":")
                 .doesNotContain("browserPayment");
+    }
+
+    @Test
+    void shouldAllowInitiateAuthenticationWithoutOptionalWebhookUrl() {
+        MpgsThreeDsAuthenticationRequest request = threeDsRequest();
+        request.setNotificationUrl(null);
+
+        String json = JsonUtils.toJsonString(
+                mapper.toMpgsThreeDsRequest(request, MpgsApiOperation.INITIATE_AUTHENTICATION));
+
+        assertThat(json)
+                .contains("\"apiOperation\":\"INITIATE_AUTHENTICATION\"")
+                .doesNotContain("notificationUrl");
     }
 
     @Test
@@ -118,14 +132,42 @@ class MpgsRequestMapperTests {
                 .contains("\"number\":\"5123450000000008\"")
                 .contains("\"expiry\":{\"month\":\"01\",\"year\":\"39\"}")
                 .contains("\"securityCode\":\"100\"")
+                .contains("\"nameOnCard\":\"Test Buyer\"")
                 .contains("\"browser\":\"Mozilla/5.0\"")
+                .contains("\"ipAddress\":\"203.0.113.9\"")
                 .contains("\"3DSecureChallengeWindowSize\":\"FULL_SCREEN\"")
                 .contains("\"acceptHeaders\":\"text/html,application/xhtml+xml\"")
                 .contains("\"javaScriptEnabled\":true")
+                .contains("\"billing\":{\"address\":")
+                .contains("\"city\":\"Singapore\"")
+                .contains("\"country\":\"SGP\"")
+                .contains("\"postcodeZip\":\"018956\"")
+                .contains("\"stateProvince\":\"Singapore\"")
+                .contains("\"street\":\"1 Marina Boulevard\"")
+                .contains("\"customer\":{")
+                .contains("\"email\":\"buyer@example.com\"")
+                .contains("\"firstName\":\"Test\"")
+                .contains("\"lastName\":\"Buyer\"")
+                .contains("\"mobilePhone\":\"+6591234567\"")
+                .doesNotContain("notificationUrl")
                 .doesNotContain("\"type\":\"CARD\"")
                 .doesNotContain("\"reference\"")
                 .doesNotContain("browserPayment")
                 .doesNotContain("\"payerInteraction\":\"REQUIRED\"");
+    }
+
+    @Test
+    void shouldOmitBlankOptionalCustomerPhoneForAuthenticatePayer() {
+        MpgsThreeDsAuthenticationRequest request = threeDsRequest();
+        request.getBillingInfo().setPhone(" ");
+
+        String json = JsonUtils.toJsonString(
+                mapper.toMpgsThreeDsRequest(request, MpgsApiOperation.AUTHENTICATE_PAYER));
+
+        assertThat(json)
+                .contains("\"customer\":{")
+                .contains("\"email\":\"buyer@example.com\"")
+                .doesNotContain("mobilePhone");
     }
 
     /**
@@ -361,7 +403,21 @@ class MpgsRequestMapperTests {
         request.setExpirationMonth("01");
         request.setExpirationYear("2039");
         request.setSecurityCode("100");
+        request.setCardholderName("Test Buyer");
+        request.setPayerIp("203.0.113.9");
         request.setRedirectResponseUrl("https://pay.example.com/checkout/api/v1/3ds/bridge");
+        request.setNotificationUrl("https://gateway.example.com/channel/v1/callbacks/MPGS/3ds");
+        ChannelPaymentRequest.BillingInfo billingInfo = new ChannelPaymentRequest.BillingInfo();
+        billingInfo.setFirstName("Test");
+        billingInfo.setLastName("Buyer");
+        billingInfo.setEmail("buyer@example.com");
+        billingInfo.setPhone("+6591234567");
+        billingInfo.setCountry("SGP");
+        billingInfo.setState("Singapore");
+        billingInfo.setCity("Singapore");
+        billingInfo.setStreet("1 Marina Boulevard");
+        billingInfo.setPostal("018956");
+        request.setBillingInfo(billingInfo);
         request.setBrowserInfoJson("""
                 {"userAgent":"Mozilla/5.0","acceptHeaders":"text/html,application/xhtml+xml",
                 "challengeWindowSize":"FULL_SCREEN","colorDepth":24,"javaEnabled":false,

@@ -42,6 +42,8 @@ class SensitiveDataMaskUtilsTest {
                   "email":"scott@example.com",
                   "subEmail":"merchant@example.com",
                   "cardholderName":"John Smith",
+                  "nameOnCard":"John Smith MPGS",
+                  "payerIp":"203.0.113.9",
                   "legalPerson":"Jane Owner",
                   "enterprise":"Example Trading Limited",
                   "customerId":"CUSTOMER-0001",
@@ -77,6 +79,8 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).contains("\"email\":\"s***@example.com\"");
         assertThat(masked).contains("\"subEmail\":\"m***@example.com\"");
         assertThat(masked).contains("\"cardholderName\":\"***\"");
+        assertThat(masked).contains("\"nameOnCard\":\"***\"");
+        assertThat(masked).contains("\"payerIp\":\"***\"");
         assertThat(masked).contains("\"legalPerson\":\"***\"");
         assertThat(masked).contains("\"enterprise\":\"***\"");
         assertThat(masked).contains("\"customerId\":\"***\"");
@@ -91,7 +95,7 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).doesNotContain("plain", "Bearer abc.def", "mpgs-password",
                 "mid-password", "mid-password-alias", "merchant-key", "three-ds-token", "pem", "1234567890123",
                 "2001:4860:4860::8888", "65432198765",
-                "scott@example.com", "merchant@example.com", "John Smith", "Jane Owner",
+                "scott@example.com", "merchant@example.com", "John Smith", "John Smith MPGS", "203.0.113.9", "Jane Owner",
                 "Example Trading Limited", "CUSTOMER-0001", "device-fingerprint-value",
                 "https://shop.merchant.example/checkout?token=secret",
                 "1 Billing Street", "2 Shipping Street");

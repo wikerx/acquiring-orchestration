@@ -28,6 +28,12 @@ public class ChannelThreeDsAuthenticationRequest extends ChannelPaymentRequest {
     /** 3DS 完成后返回平台受控收银台的地址，不允许来自未校验的外部输入。 */
     private String redirectResponseUrl;
 
+    /** 渠道服务端通知地址，由平台可信配置构造，不允许来自商户输入。 */
+    private String notificationUrl;
+
     /** 3DS 浏览器环境 JSON，可能包含设备信息，只允许在渠道调用链中按最小必要原则传递。 */
     private String browserInfoJson;
+
+    /** 付款人真实 IP，仅在 3DS 瞬时调用链传递，不允许写入日志、缓存或数据库。 */
+    private String payerIp;
 }

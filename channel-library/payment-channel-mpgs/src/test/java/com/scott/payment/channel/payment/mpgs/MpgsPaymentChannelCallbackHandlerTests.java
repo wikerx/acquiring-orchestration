@@ -2,10 +2,12 @@ package com.scott.payment.channel.payment.mpgs;
 
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
+import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -90,6 +92,7 @@ class MpgsPaymentChannelCallbackHandlerTests {
         assertThat(result.getChannelResponseCode()).isEqualTo("3DS_METHOD_COMPLETED");
         assertThat(result.getExtension()).containsEntry("threeDsServerTransactionId", "7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8");
         assertThat(result.getExtension()).containsEntry("callbackKind", "3DS_METHOD_COMPLETION");
+        assertThat(result.getCallbackKind()).isEqualTo(ChannelCallbackKind.THREE_DS_AUTHENTICATION);
     }
 
     /**
@@ -113,6 +116,52 @@ class MpgsPaymentChannelCallbackHandlerTests {
         assertThat(result.getChannelResponseCode()).isEqualTo("PROCEED");
         assertThat(result.getChannelResponseMessage()).isEqualTo("3DS payer authentication callback received");
         assertThat(result.getExtension()).containsEntry("callbackKind", "3DS_PAYER_AUTHENTICATION");
+    }
+
+    @Test
+    void shouldUseNotificationIdAsWebhookIdempotencyKey() {
+        ChannelCallbackRequest request = request("""
+                {
+                  "order": {"id": "TX202607141000000000005", "status": "AUTHENTICATION_INITIATED"},
+                  "transaction": {"id": "3DS-TX-005"},
+                  "response": {"gatewayRecommendation": "PROCEED"}
+                }
+                """);
+        request.setHeaders(Map.of(
+                MpgsCallbackVerifier.NOTIFICATION_ID_HEADER, "notification-005",
+                MpgsCallbackVerifier.NOTIFICATION_ATTEMPT_HEADER, "2"));
+
+        ChannelCallbackResult result = handler.handle(request);
+
+        assertThat(result.getCallbackEventId()).isEqualTo("notification-005");
+        assertThat(result.getExtension()).containsEntry("notificationAttempt", "2");
+    }
+
+    /**
+     * order.notificationUrl 属于订单级 Webhook，同一路径也会收到后续 PAY 通知；
+     * transaction.type=PAYMENT 时必须按资金事件解析，不能仅因 URL 包含 /3ds 而停在认证阶段。
+     */
+    @Test
+    void shouldParsePaymentWebhookOnThreeDsNotificationUrlAsFinancialCallback() {
+        ChannelCallbackRequest request = request("""
+                {
+                  "result": "SUCCESS",
+                  "order": {"id": "TX202607141000000000006", "status": "CAPTURED", "amount": "44.37", "currency": "USD"},
+                  "transaction": {"id": "CH202607141000000000006", "type": "PAYMENT"},
+                  "response": {"gatewayCode": "APPROVED", "acquirerCode": "00", "acquirerMessage": "Approved"}
+                }
+                """);
+        request.setRequestUri("/channel/v1/callbacks/MPGS/3ds");
+
+        ChannelCallbackResult result = handler.handle(request);
+
+        assertThat(result.getChannelOrderNo()).isEqualTo("TX202607141000000000006");
+        assertThat(result.getChannelTransactionId()).isEqualTo("CH202607141000000000006");
+        assertThat(result.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.SUCCESS.getCode());
+        assertThat(result.getChannelResponseCode()).isEqualTo("00");
+        assertThat(result.getExtension()).containsEntry("transactionType", "PAYMENT");
+        assertThat(result.getExtension()).doesNotContainEntry("callbackKind", "3DS_PAYER_AUTHENTICATION");
+        assertThat(result.getCallbackKind()).isEqualTo(ChannelCallbackKind.FINANCIAL_TRANSACTION);
     }
 
     private ChannelCallbackRequest request(String body) {

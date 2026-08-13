@@ -303,6 +303,9 @@ public final class PaymentCheckoutClientDTOs {
         /** 客户端 IP 摘要。 */
         private String clientIpHash;
 
+        /** 3DS 渠道调用需要的真实 IP，仅允许在本次内部调用链中使用。 */
+        private String payerIp;
+
         /** User-Agent 摘要。 */
         private String userAgentHash;
 
@@ -429,6 +432,9 @@ public final class PaymentCheckoutClientDTOs {
          * 回跳浏览器 IP 摘要，用于非法回跳审计。
          */
         private String clientIpHash;
+
+        /** 继续 3DS 认证需要的真实 IP，仅允许在本次内部调用链中使用。 */
+        private String payerIp;
 
         /**
          * 回跳浏览器 UA 摘要，用于非法回跳审计。

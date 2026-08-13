@@ -97,6 +97,9 @@ public class MpgsThreeDsAuthenticationRequest implements Serializable {
      */
     private String securityCode;
 
+    /** 卡面持卡人姓名，仅用于当前 MPGS 认证请求。 */
+    private String cardholderName;
+
     /**
      * 卡品牌编码，用于 MPGS 协议映射。
      */
@@ -107,10 +110,16 @@ public class MpgsThreeDsAuthenticationRequest implements Serializable {
      */
     private String redirectResponseUrl;
 
+    /** INITIATE AUTHENTICATION 的 order.notificationUrl。 */
+    private String notificationUrl;
+
     /**
      * 3DS 浏览器信息 JSON，可能包含设备与网络指纹，日志只能记录摘要。
      */
     private String browserInfoJson;
+
+    /** PAYER_BROWSER 认证使用的付款人真实 IP，不得落库或记录明文日志。 */
+    private String payerIp;
 
     /**
      * 账单持卡人信息，包含姓名和地址等个人信息，只按渠道最小必要字段传递。
