@@ -9,6 +9,7 @@ import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommand
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
 import com.scott.payment.payment.config.ChannelMatchAbnormalProperties;
+import com.scott.payment.payment.config.ChannelMatchRecoveryProperties;
 import com.scott.payment.payment.domain.reconciliation.ChannelMatchAbnormalTypeEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
@@ -81,6 +82,7 @@ class DefaultTransactionChannelMatchServiceTests {
         TransactionOperationDO operationDO = pendingOperation();
         TransactionChannelRequestDO originalRequest = originalRequest(operationDO);
         originalRequest.setRequestStatus("INIT");
+        originalRequest.setCreateTime(LocalDateTime.now());
         InMemoryRecordService recordService = new InMemoryRecordService(operationDO, originalRequest);
         QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
         CapturingMatchResultTransactionService resultTransactionService =
@@ -93,6 +95,25 @@ class DefaultTransactionChannelMatchServiceTests {
         assertThat(invokeService.queryInvokeCount()).isZero();
         assertThat(invokeService.paymentInvokeCount()).isZero();
         assertThat(recordService.completedStatus).isNull();
+    }
+
+    @Test
+    void shouldQueryStaleInitRequestWhenChannelIdentityAlreadyExists() {
+        TransactionOperationDO operationDO = pendingOperation();
+        TransactionChannelRequestDO originalRequest = originalRequest(operationDO);
+        originalRequest.setRequestStatus("INIT");
+        originalRequest.setCreateTime(LocalDateTime.now().minusMinutes(10));
+        InMemoryRecordService recordService = new InMemoryRecordService(operationDO, originalRequest);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+
+        TransactionChannelMatchResultDTO resultDTO = matchService(
+                recordService, invokeService, resultTransactionService).matchDue(matchCommand());
+
+        assertThat(resultDTO.getMatchedCount()).isEqualTo(1);
+        assertThat(invokeService.queryInvokeCount()).isEqualTo(1);
+        assertThat(recordService.completedStatus).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
     }
 
     @Test
@@ -190,6 +211,29 @@ class DefaultTransactionChannelMatchServiceTests {
     }
 
     @Test
+    void shouldMarkChannelMatchFailedAndCreateCaseAfterUnknownResultThreshold() {
+        TransactionOperationDO operation = pendingOperation();
+        operation.setChannelMatchCount(11);
+        InMemoryRecordService recordService = new InMemoryRecordService(operation);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.PROCESSING);
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+        ChannelMatchAbnormalService abnormalService = mock(ChannelMatchAbnormalService.class);
+
+        matchService(recordService, invokeService, resultTransactionService, abnormalService).matchDue(matchCommand());
+
+        assertThat(recordService.lastMatchStatus).isEqualTo("FAILED");
+        assertThat(recordService.completedStatus).isNull();
+        verify(abnormalService).recordReviewRequired(
+                eq(operation),
+                eq(ChannelMatchAbnormalTypeEnum.QUERY_RESULT_UNKNOWN.getCode()),
+                any(),
+                any(),
+                eq("CR-ORIGINAL-001"),
+                any());
+    }
+
+    @Test
     void shouldCreateReviewCaseInsteadOfCompletingWhenChannelCurrencyDiffers() {
         TransactionOperationDO operation = pendingOperation();
         InMemoryRecordService recordService = new InMemoryRecordService(operation);
@@ -202,8 +246,9 @@ class DefaultTransactionChannelMatchServiceTests {
         TransactionChannelMatchResultDTO resultDTO = matchService(
                 recordService, invokeService, resultTransactionService, abnormalService).matchDue(matchCommand());
 
-        assertThat(resultDTO.getPendingCount()).isEqualTo(1);
+        assertThat(resultDTO.getFailedCount()).isEqualTo(1);
         assertThat(recordService.completeAttemptCount).isZero();
+        assertThat(recordService.lastMatchStatus).isEqualTo("MISMATCHED");
         assertThat(recordService.lastMatchResult).isEqualTo(ChannelMatchAbnormalTypeEnum.CURRENCY_MISMATCH.getCode());
         verify(abnormalService).recordReviewRequired(
                 eq(operation),
@@ -228,8 +273,9 @@ class DefaultTransactionChannelMatchServiceTests {
         TransactionChannelMatchResultDTO resultDTO = matchService(
                 recordService, invokeService, resultTransactionService, abnormalService).matchDue(matchCommand());
 
-        assertThat(resultDTO.getPendingCount()).isEqualTo(1);
+        assertThat(resultDTO.getFailedCount()).isEqualTo(1);
         assertThat(recordService.completeAttemptCount).isZero();
+        assertThat(recordService.lastMatchStatus).isEqualTo("MISMATCHED");
         assertThat(recordService.lastMatchResult).isEqualTo(ChannelMatchAbnormalTypeEnum.AMOUNT_MISMATCH.getCode());
         verify(abnormalService).recordReviewRequired(
                 eq(operation),
@@ -345,6 +391,7 @@ class DefaultTransactionChannelMatchServiceTests {
                 restoreRouteService(),
                 new DefaultChannelTransactionStatusResolver(),
                 properties,
+                new ChannelMatchRecoveryProperties(),
                 provider);
     }
 
@@ -628,6 +675,31 @@ class DefaultTransactionChannelMatchServiceTests {
                     nextMatchTime,
                     failReason);
         }
+
+        @Override
+        public boolean markPendingByQuery(TransactionOperationDO operationDO,
+                                          TransactionChannelRequestDO originalRequestDO,
+                                          PaymentChannelInvokeResultDTO invokeResultDTO,
+                                          String matchStatus,
+                                          String matchResult,
+                                          LocalDateTime matchTime,
+                                          LocalDateTime nextMatchTime,
+                                          String failReason) {
+            pendingCount++;
+            recordService.updateOriginalChannelRequestByQuery(operationDO,
+                    originalRequestDO,
+                    invokeResultDTO,
+                    matchResult,
+                    failReason);
+            return recordService.updateChannelMatch(
+                    operationDO,
+                    matchStatus,
+                    matchResult,
+                    originalRequestDO == null ? null : originalRequestDO.getRequestId(),
+                    matchTime,
+                    nextMatchTime,
+                    failReason);
+        }
     }
 
     private class InMemoryRecordService implements TransactionRecordService {
@@ -721,6 +793,9 @@ class DefaultTransactionChannelMatchServiceTests {
          * </p>
          */
         private String lastMatchResult;
+
+        /** 最近一次写入的渠道勾兑状态。 */
+        private String lastMatchStatus;
 
         /**
          * last Fail Reason，用于保存 In Memory Record Service 中与 lastfailreason 相关的业务属性。
@@ -950,6 +1025,7 @@ class DefaultTransactionChannelMatchServiceTests {
                     || PaymentTransactionStatusEnum.FAILED.getCode().equals(operation.getTransactionStatus())) {
                 return false;
             }
+            lastMatchStatus = matchStatus;
             lastMatchResult = matchResult;
             lastFailReason = failReason;
             lastNextMatchTime = nextMatchTime;

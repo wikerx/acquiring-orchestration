@@ -215,6 +215,35 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                        @Param("channelMatchStatus") String channelMatchStatus);
 
     /**
+     * 同步当前最新动作的渠道勾兑摘要，不修改订单交易状态。
+     *
+     * @return 影响行数；历史动作或已勾兑订单返回 0
+     */
+    @Update("""
+            UPDATE transaction_order
+            SET channel_match_status = #{matchStatus},
+                channel_match_result = #{matchResult},
+                last_channel_match_time = #{matchTime},
+                next_channel_match_time = #{nextMatchTime},
+                channel_match_fail_reason = #{failReason},
+                version = version + 1,
+                update_time = #{matchTime}
+            WHERE operation_id = #{operationId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND latest_transaction_id = #{latestTransactionId}
+              AND channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')
+              AND deleted = 0
+            """)
+    int updateLatestChannelMatch(@Param("operationId") String operationId,
+                                 @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                 @Param("latestTransactionId") String latestTransactionId,
+                                 @Param("matchStatus") String matchStatus,
+                                 @Param("matchResult") String matchResult,
+                                 @Param("matchTime") LocalDateTime matchTime,
+                                 @Param("nextMatchTime") LocalDateTime nextMatchTime,
+                                 @Param("failReason") String failReason);
+
+    /**
      * 使用分片时间和版本 CAS 推进首次交易成功并初始化金额汇总。
      *
      * @return 影响行数

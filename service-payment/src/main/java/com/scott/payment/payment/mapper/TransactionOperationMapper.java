@@ -252,16 +252,6 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               AND o.transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND o.channel_code IS NOT NULL
               AND (o.next_channel_match_time IS NULL OR o.next_channel_match_time &lt;= #{now})
-              AND NOT EXISTS (
-                SELECT 1
-                FROM transaction_channel_request r
-                WHERE r.transaction_id = o.transaction_id
-                  AND r.channel_code = o.channel_code
-                  AND r.transaction_date_time = o.transaction_date_time
-                  AND r.channel_match_flag = 0
-                  AND r.request_status = 'INIT'
-                  AND r.deleted = 0
-              )
               <if test="channelCode != null and channelCode != ''">
                 AND o.channel_code = #{channelCode}
               </if>
@@ -295,7 +285,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             WHERE id = #{id}
               AND transaction_date_time = #{transactionDateTime}
               AND version = #{expectedVersion}
-              AND channel_match_status IN ('PENDING', 'REVIEW_REQUIRED')
+              AND channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')
               AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND deleted = 0
             """)

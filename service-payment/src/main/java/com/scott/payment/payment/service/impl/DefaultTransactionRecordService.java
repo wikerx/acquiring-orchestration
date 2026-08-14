@@ -8,12 +8,10 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
-import com.scott.payment.component.security.crypto.SensitiveFieldCipher;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
 import com.scott.payment.payment.config.MerchantNotificationProperties;
-import com.scott.payment.payment.config.PaymentCheckoutProperties;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.refund.RefundRequestSourceEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
@@ -405,9 +403,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     /** 首次交易请求幂等和商户订单流守卫状态同步服务。 */
     private final TransactionIdempotencyService transactionIdempotencyService;
 
-    /** 交易敏感字段加密配置，callback URL 与付款人快照使用同一版本化密钥。 */
-    private final PaymentCheckoutProperties paymentCheckoutProperties;
-
     /**
      * 创建交易事实记录服务默认实现。
      *
@@ -443,8 +438,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                            TransactionShardingKeyParser transactionShardingKeyParser,
                                            TransactionShardingProperties transactionShardingProperties,
                                            MerchantNotificationProperties merchantNotificationProperties,
-                                           TransactionIdempotencyService transactionIdempotencyService,
-                                           PaymentCheckoutProperties paymentCheckoutProperties) {
+                                           TransactionIdempotencyService transactionIdempotencyService) {
         this.transactionOrderMapper = transactionOrderMapper;
         this.transactionOperationMapper = transactionOperationMapper;
         this.transactionStatusHistoryMapper = transactionStatusHistoryMapper;
@@ -461,7 +455,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         this.transactionShardingProperties = transactionShardingProperties;
         this.merchantNotificationProperties = merchantNotificationProperties;
         this.transactionIdempotencyService = transactionIdempotencyService;
-        this.paymentCheckoutProperties = paymentCheckoutProperties;
     }
 
     /** 测试构造入口，使用与生产默认值一致的有界通知策略。 */
@@ -521,8 +514,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 transactionShardingKeyParser,
                 transactionShardingProperties,
                 new MerchantNotificationProperties(),
-                null,
-                new PaymentCheckoutProperties());
+                null);
     }
 
     /**
@@ -721,41 +713,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time and operation_id are required");
         }
         return transactionOrderMapper.selectByOperationId(operationId, transactionDateTime);
-    }
-
-    /**
-     * 使用主单保存的根交易号作为 AES-GCM AAD 恢复 callback URL。
-     * 密钥版本不匹配时失败关闭，避免误用轮换后的当前密钥解密历史密文。
-     */
-    @Override
-    public String decryptCallbackUrl(TransactionOrderDO orderDO) {
-        if (orderDO == null || !StringUtils.hasText(orderDO.getCallbackUrlCiphertext())) {
-            return null;
-        }
-        if (!Objects.equals(orderDO.getCallbackUrlEncryptionKeyVersion(),
-                paymentCheckoutProperties.getSensitiveFieldKeyVersion())) {
-            throw new IllegalStateException("callback URL encryption key version is unavailable");
-        }
-        return SensitiveFieldCipher.decrypt(
-                orderDO.getCallbackUrlCiphertext(),
-                paymentCheckoutProperties.getSensitiveFieldEncryptionKey(),
-                callbackUrlAad(orderDO.getMerchantId(), orderDO.getRootTransactionId()));
-    }
-
-    /** 使用生命周期根交易号作为 AAD 恢复 Hosted Checkout redirect URL。 */
-    @Override
-    public String decryptRedirectUrl(TransactionOrderDO orderDO) {
-        if (orderDO == null || !StringUtils.hasText(orderDO.getRedirectUrlCiphertext())) {
-            return null;
-        }
-        if (!Objects.equals(orderDO.getRedirectUrlEncryptionKeyVersion(),
-                paymentCheckoutProperties.getSensitiveFieldKeyVersion())) {
-            throw new IllegalStateException("redirect URL encryption key version is unavailable");
-        }
-        return SensitiveFieldCipher.decrypt(
-                orderDO.getRedirectUrlCiphertext(),
-                paymentCheckoutProperties.getSensitiveFieldEncryptionKey(),
-                redirectUrlAad(orderDO.getMerchantId(), orderDO.getRootTransactionId()));
     }
 
     /** {@inheritDoc} */
@@ -1476,6 +1433,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 actualMatchTime,
                 nextMatchTime,
                 safeLength(failReason, 512));
+        if (updated == 1) {
+            transactionOrderMapper.updateLatestChannelMatch(
+                    operationDO.getOperationId(),
+                    operationDO.getTransactionDateTime(),
+                    operationDO.getTransactionId(),
+                    matchStatus,
+                    safeLength(matchResult, 256),
+                    actualMatchTime,
+                    nextMatchTime,
+                    safeLength(failReason, 512));
+        }
         return updated == 1;
     }
 
@@ -1598,18 +1566,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setMerchantWebsite(commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getMerchantWebsite());
         String callbackUrl = resolveCallbackUrl(commandDTO);
-        orderDO.setCallbackUrlHash(sha256Hex(callbackUrl));
-        orderDO.setCallbackUrlCiphertext(encryptCallbackUrl(
-                callbackUrl, commandDTO.getMerchantId(), resultDTO.getTransactionId()));
-        orderDO.setCallbackUrlEncryptionKeyVersion(StringUtils.hasText(callbackUrl)
-                ? paymentCheckoutProperties.getSensitiveFieldKeyVersion() : null);
+        orderDO.setCallbackUrl(callbackUrl);
         String redirectUrl = commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getRedirectUrl();
-        orderDO.setRedirectUrlHash(sha256Hex(redirectUrl));
-        orderDO.setRedirectUrlCiphertext(encryptRedirectUrl(
-                redirectUrl, commandDTO.getMerchantId(), resultDTO.getTransactionId()));
-        orderDO.setRedirectUrlEncryptionKeyVersion(StringUtils.hasText(redirectUrl)
-                ? paymentCheckoutProperties.getSensitiveFieldKeyVersion() : null);
+        orderDO.setRedirectUrl(redirectUrl);
         orderDO.setLanguage(commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getLanguage());
         orderDO.setTransactionDateTime(commandDTO.getTransactionDateTime());
@@ -3996,12 +3956,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         notificationDO.setNotifyStatus(NOTIFY_STATUS_INIT);
         Map<String, Object> callbackPayload = merchantVisiblePayload(commandDTO, resultDTO);
         String callbackPayloadJson = JsonUtils.toJsonString(callbackPayload);
-        // 正式载荷和实际 URL 只进入受保护执行快照；管理查询和日志始终读取脱敏审计列。
-        notificationDO.setNotifyConfigSnapshotJson(JsonUtils.toJsonString(Map.of(
-                "callbackUrlCiphertext", encryptCallbackUrl(
-                        callbackUrl, commandDTO.getMerchantId(), resultDTO.getTransactionId()),
-                "callbackUrlEncryptionKeyVersion", paymentCheckoutProperties.getSensitiveFieldKeyVersion(),
-                "payloadJson", callbackPayloadJson)));
+        notificationDO.setCallbackUrl(callbackUrl);
+        notificationDO.setPayloadJson(callbackPayloadJson);
         notificationDO.setTargetUrlHash(sha256Hex(callbackUrl));
         notificationDO.setTargetUrlMasked(maskUrl(callbackUrl));
         notificationDO.setPayloadJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(callbackPayloadJson));
@@ -4527,10 +4483,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return resolveSourceTransactionCallbackUrl(commandDTO);
     }
 
-    /**
-     * 后续动作按源交易精确分片时间继承 Payment 内部保存的通知配置，避免真实回调地址经过管理端或商户端。
-     * 配置快照异常不能回滚已经提交到外部渠道的资金动作，因此只记录不含敏感值的告警并跳过通知创建。
-     */
+    /** 后续动作按源交易精确分片时间继承 Payment 内部保存的通知地址。 */
     private String resolveSourceTransactionCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfo = commandDTO.getTransactionInfo();
         if (transactionInfo == null
@@ -4544,66 +4497,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                         commandDTO.getMerchantId(),
                         transactionInfo.getSourceTransactionId(),
                         transactionInfo.getSourceTransactionDateTime());
-        if (sourceNotification == null || !StringUtils.hasText(sourceNotification.getNotifyConfigSnapshotJson())) {
-            return null;
-        }
-        try {
-            Map<?, ?> configSnapshot = JsonUtils.parseObject(
-                    sourceNotification.getNotifyConfigSnapshotJson(), Map.class);
-            Object ciphertext = configSnapshot == null ? null : configSnapshot.get("callbackUrlCiphertext");
-            Object keyVersion = configSnapshot == null ? null : configSnapshot.get("callbackUrlEncryptionKeyVersion");
-            if (!(ciphertext instanceof String value) || !StringUtils.hasText(value)) {
-                Object legacyCallbackUrl = configSnapshot == null ? null : configSnapshot.get("callbackUrl");
-                return legacyCallbackUrl instanceof String legacyValue && StringUtils.hasText(legacyValue)
-                        ? legacyValue : null;
-            }
-            if (!Objects.equals(keyVersion, paymentCheckoutProperties.getSensitiveFieldKeyVersion())) {
-                throw new IllegalStateException("callback URL encryption key version is unavailable");
-            }
-            return SensitiveFieldCipher.decrypt(
-                    value,
-                    paymentCheckoutProperties.getSensitiveFieldEncryptionKey(),
-                    callbackUrlAad(commandDTO.getMerchantId(), transactionInfo.getSourceTransactionId()));
-        } catch (RuntimeException exception) {
-            log.warn("event: PAYMENT_MERCHANT_NOTIFY_CONFIG_INVALID stage=NOTIFY_CREATE traceId: {} merchantId: {} sourceTransactionId: {} sourceTransactionDateTime: {} exceptionType: {}",
-                    TraceContext.getTraceId(),
-                    commandDTO.getMerchantId(),
-                    transactionInfo.getSourceTransactionId(),
-                    transactionInfo.getSourceTransactionDateTime(),
-                    exception.getClass().getSimpleName());
-            return null;
-        }
-    }
-
-    /** 使用交易与商户身份绑定的 AAD 加密商户 callback URL。 */
-    private String encryptCallbackUrl(String callbackUrl, String merchantId, String transactionId) {
-        if (!StringUtils.hasText(callbackUrl)) {
-            return null;
-        }
-        return SensitiveFieldCipher.encrypt(
-                callbackUrl,
-                paymentCheckoutProperties.getSensitiveFieldEncryptionKey(),
-                callbackUrlAad(merchantId, transactionId));
-    }
-
-    /** callback URL 的 AES-GCM 附加认证数据，防止跨商户或跨交易替换密文。 */
-    private String callbackUrlAad(String merchantId, String transactionId) {
-        return merchantId + "|" + transactionId + "|callbackUrl";
-    }
-
-    /** 使用生命周期根交易号绑定 Hosted Checkout redirect URL 密文。 */
-    private String encryptRedirectUrl(String redirectUrl, String merchantId, String transactionId) {
-        if (!StringUtils.hasText(redirectUrl)) {
-            return null;
-        }
-        return SensitiveFieldCipher.encrypt(
-                redirectUrl,
-                paymentCheckoutProperties.getSensitiveFieldEncryptionKey(),
-                redirectUrlAad(merchantId, transactionId));
-    }
-
-    private String redirectUrlAad(String merchantId, String transactionId) {
-        return merchantId + "|" + transactionId + "|redirectUrl";
+        return sourceNotification == null ? null : sourceNotification.getCallbackUrl();
     }
 
     /**

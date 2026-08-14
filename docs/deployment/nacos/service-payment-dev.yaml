@@ -1,9 +1,6 @@
 # service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
 payment:
   checkout:
-    # callback 和 redirect URL 的字段级加密密钥；正式环境只允许由 Secret/KMS 注入。
-    sensitive-field-encryption-key: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_ENCRYPTION_KEY:dev-hosted-checkout-field-key-change-me}
-    sensitive-field-key-version: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_KEY_VERSION:dev-v1}
     card-vault:
       # 表、分片规则、Topic、消费组和 service-data 密钥全部完成发布后再开启。
       enabled: ${CHECKOUT_CARD_VAULT_PUBLISH_ENABLED:false}
@@ -22,6 +19,9 @@ payment:
       execution-recovery-batch-size: ${PAYMENT_REFUND_EXECUTION_RECOVERY_BATCH_SIZE:100}
       execution-recovery-stale-seconds: ${PAYMENT_REFUND_EXECUTION_RECOVERY_STALE_SECONDS:300}
   channel-match:
+    recovery:
+      # INIT 原资金请求仍可能在途，超过该秒数且已保存渠道查询身份后才允许主动勾兑。
+      init-request-grace-seconds: ${PAYMENT_CHANNEL_MATCH_INIT_REQUEST_GRACE_SECONDS:300}
     abnormal:
       # dev 完成异常表迁移和 Admin 权限后开启；test/uat/prod 不继承该默认值。
       enabled: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_ENABLED:true}

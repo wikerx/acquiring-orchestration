@@ -6,7 +6,7 @@ INSERT INTO sys_job_task (
 ) VALUES (
     'MERCHANT_NOTIFICATION_RETRY', '商户通知补偿重试任务', 'transaction', 'merchantNotificationRetry',
     '0 */5 * * * ?', 'DISTRIBUTED', 'CRON', 'SYNC', 'LOCAL', 'FIRE_ONCE',
-    300, 1, 60, 0, JSON_OBJECT('limit', 5, 'mode', 'MQ'), 'ENABLED',
+    300, 0, 60, 0, JSON_OBJECT('limit', 5, 'mode', 'MQ'), 'ENABLED',
     '每五分钟对账全部已发布季度的到期商户通知并重新可靠入 MQ；数据库版本 CAS 防止重复回调。',
     DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 5 MINUTE), 0, 0, 'system', 'system'
 )

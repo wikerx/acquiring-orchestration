@@ -30,7 +30,7 @@ public interface DataMerchantNotificationMapper {
      */
     @Select("""
             SELECT id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
-                   notify_config_snapshot_json, target_url_hash, target_url_masked,
+                   callback_url, payload_json, target_url_hash, target_url_masked,
                    payload_json_masked, sign_type, last_attempt_no, max_retry_count,
                    transaction_date_time, version
             FROM transaction_merchant_notification
@@ -59,7 +59,7 @@ public interface DataMerchantNotificationMapper {
      */
     @Select("""
             SELECT id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
-                   notify_config_snapshot_json, target_url_hash, target_url_masked,
+                   callback_url, payload_json, target_url_hash, target_url_masked,
                    payload_json_masked, sign_type, last_attempt_no, max_retry_count,
                    transaction_date_time, version
             FROM transaction_merchant_notification
@@ -81,7 +81,7 @@ public interface DataMerchantNotificationMapper {
     /** 查询与自动重试消息版本完全一致且已到期的通知任务。 */
     @Select("""
             SELECT id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
-                   notify_config_snapshot_json, target_url_hash, target_url_masked,
+                   callback_url, payload_json, target_url_hash, target_url_masked,
                    payload_json_masked, sign_type, last_attempt_no, max_retry_count,
                    transaction_date_time, version
             FROM transaction_merchant_notification
@@ -115,7 +115,7 @@ public interface DataMerchantNotificationMapper {
      */
     @Select("""
             SELECT id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
-                   notify_config_snapshot_json, target_url_hash, target_url_masked,
+                   callback_url, payload_json, target_url_hash, target_url_masked,
                    payload_json_masked, sign_type, last_attempt_no, max_retry_count,
                    transaction_date_time, version
             FROM transaction_merchant_notification

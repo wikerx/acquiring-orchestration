@@ -71,12 +71,6 @@ public class PaymentCheckoutProperties {
      */
     private String integrationType = "HOSTED_CHECKOUT";
 
-    /** 必须与 OpenAPI 侧同版本配置一致的 callback/redirect URL 解密密钥。 */
-    private String sensitiveFieldEncryptionKey = "dev-hosted-checkout-field-key-change-me";
-
-    /** callback/redirect URL 密钥版本，轮换期间随密文保存。 */
-    private String sensitiveFieldKeyVersion = "dev-v1";
-
     /** 浏览器卡数据加密、公钥轮换和 nonce 防重放配置。 */
     private CardEncryption cardEncryption = new CardEncryption();
 

@@ -3,14 +3,11 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.component.core.enums.ApiResultEnum;
-import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
-import com.scott.payment.component.security.crypto.SensitiveFieldCipher;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
-import com.scott.payment.payment.config.PaymentCheckoutProperties;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
@@ -176,6 +173,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(orderCapture.value.getOperationId()).isEqualTo("OP260714180001");
         assertThat(orderCapture.value.getRootTransactionId()).isEqualTo("TX260714180001");
         assertThat(orderCapture.value.getChannelOrderNo()).isEqualTo("CODX260714180001");
+        assertThat(orderCapture.value.getCallbackUrl()).isEqualTo("https://merchant.example.com/callback");
+        assertThat(orderCapture.value.getRedirectUrl()).isEqualTo("https://merchant.example.com/result");
         assertThat(orderCapture.value.getTransactionUtcTime()).isEqualTo(LocalDateTime.of(2026, 6, 30, 16, 30));
         assertThat(orderCapture.value.getAuthorizedAmount()).isEqualByComparingTo("12.34");
         assertThat(orderCapture.value.getAvailableCaptureAmount()).isEqualByComparingTo("12.34");
@@ -631,8 +630,7 @@ class DefaultTransactionRecordServiceTests {
         Captured<TransactionMerchantNotificationDO> notificationCapture = new Captured<>();
         LocalDateTime sourceTransactionDateTime = LocalDateTime.of(2026, 7, 1, 0, 30);
         TransactionMerchantNotificationDO sourceNotification = new TransactionMerchantNotificationDO();
-        sourceNotification.setNotifyConfigSnapshotJson(
-                "{\"callbackUrl\":\"https://merchant.example/refund-callback?source=qa\"}");
+        sourceNotification.setCallbackUrl("https://merchant.example/refund-callback?source=qa");
         when(operationMapper.countByOperationId(anyString(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(1);
         when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
@@ -669,7 +667,7 @@ class DefaultTransactionRecordServiceTests {
         recordService.recordFollowUpTransaction(recordDTO);
 
         assertThat(notificationCapture.value).isNotNull();
-        assertEncryptedCallbackSnapshot(
+        assertPlaintextCallbackTask(
                 notificationCapture.value, "https://merchant.example/refund-callback?source=qa");
         assertThat(notificationCapture.value.getTargetUrlMasked())
                 .isEqualTo("https://merchant.example/refund-callback?***");
@@ -678,17 +676,16 @@ class DefaultTransactionRecordServiceTests {
     }
 
     /**
-     * 源通知快照损坏时不得回滚已经落库的退款动作，也不得创建缺少有效地址的通知任务。
+     * 源通知地址为空时不得回滚已经落库的退款动作，也不得创建缺少有效地址的通知任务。
      */
     @Test
-    void shouldKeepRefundFactsWhenSourceNotificationConfigIsInvalid() {
+    void shouldKeepRefundFactsWhenSourceNotificationCallbackIsEmpty() {
         TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
         TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
         LocalDateTime sourceTransactionDateTime = LocalDateTime.of(2026, 7, 1, 0, 30);
         TransactionMerchantNotificationDO sourceNotification = new TransactionMerchantNotificationDO();
-        sourceNotification.setNotifyConfigSnapshotJson("{invalid-json");
         when(operationMapper.countByOperationId(anyString(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(1);
         when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
@@ -1619,7 +1616,7 @@ class DefaultTransactionRecordServiceTests {
         assertThat(merchantApiCapture.value.getResponsePlainJsonMasked()).doesNotContain("dccEnabled");
         assertThat(merchantApiCapture.value.getResponseCipherDigest()).isNull();
         assertThat(notificationCapture.value.getTargetUrlMasked()).isEqualTo("https://merchant.example/callback?***");
-        assertEncryptedCallbackSnapshot(
+        assertPlaintextCallbackTask(
                 notificationCapture.value, "https://merchant.example/callback?source=qa");
         assertThat(notificationCapture.value.getMaxRetryCount()).isEqualTo(10);
         assertNestedMerchantPayload(notificationCapture.value.getPayloadJsonMasked());
@@ -1704,6 +1701,8 @@ class DefaultTransactionRecordServiceTests {
         transactionInfoDTO.setCardBrand("MASTERCARD");
         transactionInfoDTO.setIssuerCountry("AE");
         transactionInfoDTO.setMerchantWebsite("https://merchant.example.com/checkout");
+        transactionInfoDTO.setCallbackUrl("https://merchant.example.com/callback");
+        transactionInfoDTO.setRedirectUrl("https://merchant.example.com/result");
         commandDTO.setTransactionInfo(transactionInfoDTO);
         PaymentCreateCommandDTO.CardInfoDTO cardInfoDTO = new PaymentCreateCommandDTO.CardInfoDTO();
         cardInfoDTO.setCardNo("5123456789010008");
@@ -1946,20 +1945,10 @@ class DefaultTransactionRecordServiceTests {
         return properties;
     }
 
-    private static void assertEncryptedCallbackSnapshot(TransactionMerchantNotificationDO notification,
-                                                        String expectedCallbackUrl) {
-        PaymentCheckoutProperties properties = new PaymentCheckoutProperties();
-        String snapshotJson = notification.getNotifyConfigSnapshotJson();
-        assertThat(snapshotJson).doesNotContain(expectedCallbackUrl);
-        Map<String, Object> snapshot = JsonUtils.parseObject(snapshotJson, Map.class);
-        assertThat(snapshot.get("callbackUrlEncryptionKeyVersion"))
-                .isEqualTo(properties.getSensitiveFieldKeyVersion());
-        assertThat(snapshot.get("callbackUrlCiphertext")).isInstanceOf(String.class);
-        String callbackUrl = SensitiveFieldCipher.decrypt(
-                (String) snapshot.get("callbackUrlCiphertext"),
-                properties.getSensitiveFieldEncryptionKey(),
-                notification.getMerchantId() + "|" + notification.getTransactionId() + "|callbackUrl");
-        assertThat(callbackUrl).isEqualTo(expectedCallbackUrl);
+    private static void assertPlaintextCallbackTask(TransactionMerchantNotificationDO notification,
+                                                    String expectedCallbackUrl) {
+        assertThat(notification.getCallbackUrl()).isEqualTo(expectedCallbackUrl);
+        assertThat(notification.getPayloadJson()).contains("transactionInfo", "transactionId");
     }
 
     private static class Captured<T> {

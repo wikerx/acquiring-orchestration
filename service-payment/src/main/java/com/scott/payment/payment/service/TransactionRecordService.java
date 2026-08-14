@@ -119,21 +119,6 @@ public interface TransactionRecordService {
      */
     TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId);
 
-    /**
-     * 解密生命周期主单保存的商户通知地址，仅供内部响应和通知编排使用。
-     *
-     * @param orderDO 生命周期主单
-     * @return 商户原始通知地址；未配置时返回 null
-     */
-    default String decryptCallbackUrl(TransactionOrderDO orderDO) {
-        return null;
-    }
-
-    /** 解密 Hosted Checkout 结果页返回地址，仅供查询响应和收银台结果页使用。 */
-    default String decryptRedirectUrl(TransactionOrderDO orderDO) {
-        return null;
-    }
-
     /** 按动作分片键读取可向商户返回的支付工具脱敏摘要。 */
     default TransactionPaymentMethodInfoDO findPaymentMethodInfo(
             String transactionId,

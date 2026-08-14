@@ -6,6 +6,7 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.job.enums.JobExecuteModeEnum;
 import com.scott.payment.component.job.enums.JobRunStatusEnum;
 import com.scott.payment.component.job.enums.JobSchedulerModeEnum;
+import com.scott.payment.component.job.enums.JobStatusEnum;
 import com.scott.payment.component.job.enums.JobTriggerTypeEnum;
 import com.scott.payment.component.job.executor.AsyncJobHandler;
 import com.scott.payment.component.job.executor.JobExecuteContext;
@@ -179,11 +180,17 @@ public class JobDispatchService {
      */
     public String triggerManual(Long taskId, JobManualTriggerRequest request) {
         SysJobTaskDO task = jobTaskService.getRequiredTask(taskId);
+        if (!JobStatusEnum.ENABLED.name().equals(task.getStatus())) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "job task is disabled");
+        }
         LocalDateTime triggerTime = LocalDateTime.now();
         boolean acquired = jobTaskService.tryAcquireLock(task, jobNodeContext.nodeId(), triggerTime);
         if (!acquired) {
-            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(),
-                    "job task is disabled or already running");
+            SysJobTaskDO latestTask = jobTaskService.getRequiredTask(taskId);
+            String message = JobStatusEnum.ENABLED.name().equals(latestTask.getStatus())
+                    ? "job task is already running"
+                    : "job task is disabled";
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), message);
         }
         String paramsJson = request.getParamsJson() == null || request.getParamsJson().isBlank()
                 ? task.getParams()
@@ -386,9 +393,10 @@ public class JobDispatchService {
                 : (result.getErrorMessage() == null || result.getErrorMessage().isBlank() ? result.getMessage() : result.getErrorMessage());
         jobRunLogService.finishAsFailed(runLog.getId(), durationMs, failureMessage);
         if (context.getRetryIndex() < task.getRetryCount()) {
-            scheduleRetry(task, context, context.getRetryIndex() + 1);
-            logJobEnd(context, durationMs, JobRunStatusEnum.FAILED.name(), failureMessage);
-            return;
+            if (scheduleRetry(task, context, context.getRetryIndex() + 1)) {
+                logJobEnd(context, durationMs, JobRunStatusEnum.FAILED.name(), failureMessage);
+                return;
+            }
         }
         finishTaskRun(task.getId(), JobRunStatusEnum.FAILED, context.getRunId());
         logJobEnd(context, durationMs, JobRunStatusEnum.FAILED.name(), failureMessage);
@@ -410,22 +418,37 @@ public class JobDispatchService {
      * @param task       任务定义
      * @param context    原始执行上下文
      * @param retryIndex 新重试序号
+     * @return true 表示延迟重试已成功提交，false 表示提交失败且应立即释放任务锁
      */
-    private void scheduleRetry(SysJobTaskDO task, JobExecuteContext context, int retryIndex) {
-        jobTaskService.extendLock(task.getId(), jobNodeContext.nodeId(), calculateLockUntil(task, LocalDateTime.now()));
-        runWithTrace(context, () -> log.info("event: JOB_RETRY_SCHEDULED traceId: {} jobId: {} handler: {} runId: {} retryIndex: {} nextRetryIndex: {} shardIndex: {} shardTotal: {}",
-                context.getTraceId(),
-                context.getJobId(),
-                context.getHandlerCode(),
-                context.getRunId(),
-                context.getRetryIndex(),
-                retryIndex,
-                context.getShardIndex(),
-                context.getShardTotal()));
-        jobDelayTaskScheduler.schedule(
-                () -> dispatch(task, JobTriggerTypeEnum.RETRY, context.getParamsJson(), context.getOperatorId(), context.getOperatorName(), retryIndex, context.getTraceId()),
-                Instant.now().plusSeconds(task.getRetryIntervalSeconds())
-        );
+    private boolean scheduleRetry(SysJobTaskDO task, JobExecuteContext context, int retryIndex) {
+        try {
+            jobTaskService.extendLock(task.getId(), jobNodeContext.nodeId(), calculateLockUntil(task, LocalDateTime.now()));
+            jobDelayTaskScheduler.schedule(
+                    () -> dispatch(task, JobTriggerTypeEnum.RETRY, context.getParamsJson(), context.getOperatorId(), context.getOperatorName(), retryIndex, context.getTraceId()),
+                    Instant.now().plusSeconds(task.getRetryIntervalSeconds())
+            );
+            runWithTrace(context, () -> log.info("event: JOB_RETRY_SCHEDULED traceId: {} jobId: {} handler: {} runId: {} retryIndex: {} nextRetryIndex: {} shardIndex: {} shardTotal: {}",
+                    context.getTraceId(),
+                    context.getJobId(),
+                    context.getHandlerCode(),
+                    context.getRunId(),
+                    context.getRetryIndex(),
+                    retryIndex,
+                    context.getShardIndex(),
+                    context.getShardTotal()));
+            return true;
+        } catch (RuntimeException exception) {
+            runWithTrace(context, () -> log.error("event: JOB_RETRY_SCHEDULE_FAILED traceId: {} jobId: {} handler: {} runId: {} retryIndex: {} nextRetryIndex: {} nodeId: {}",
+                    context.getTraceId(),
+                    context.getJobId(),
+                    context.getHandlerCode(),
+                    context.getRunId(),
+                    context.getRetryIndex(),
+                    retryIndex,
+                    jobNodeContext.nodeId(),
+                    exception));
+            return false;
+        }
     }
 
     /**

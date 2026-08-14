@@ -323,29 +323,11 @@ public class TransactionOrderDO implements Serializable {
      */
     private String merchantWebsite;
 
-    /**
-     * 商户通知地址 SHA-256。
-     */
-    private String callbackUrlHash;
+    /** 商户异步通知地址明文；只允许用于通知投递和商户查询回显，禁止完整写入日志。 */
+    private String callbackUrl;
 
-    /**
-     * 商户通知地址 AES-256-GCM 密文，禁止写入日志或管理端响应。
-     */
-    private String callbackUrlCiphertext;
-
-    /**
-     * 商户通知地址密文使用的密钥版本。
-     */
-    private String callbackUrlEncryptionKeyVersion;
-
-    /** Hosted Checkout 结果页返回地址 SHA-256。 */
-    private String redirectUrlHash;
-
-    /** Hosted Checkout 结果页返回地址 AES-256-GCM 密文。 */
-    private String redirectUrlCiphertext;
-
-    /** Hosted Checkout 结果页返回地址密钥版本。 */
-    private String redirectUrlEncryptionKeyVersion;
+    /** Hosted Checkout 交易完成后的商户页面返回地址明文。 */
+    private String redirectUrl;
 
     /** Hosted Checkout 创建会话时指定的显示语言。 */
     private String language;

@@ -6,10 +6,6 @@ acquiring:
     allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}
 
 openapi:
-  hosted-checkout:
-    # callback 和 redirect URL 的字段级加密密钥；必须与 service-payment 一致。
-    sensitive-field-encryption-key: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_ENCRYPTION_KEY:dev-hosted-checkout-field-key-change-me}
-    sensitive-field-key-version: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_KEY_VERSION:dev-v1}
   merchant:
     # JWT iat/exp 与服务器时间允许的最大偏差，单位秒。
     timestamp-tolerance-seconds: 300

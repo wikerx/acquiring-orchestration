@@ -74,11 +74,8 @@ public final class PaymentCheckoutClientDTOs {
         /** 付款页展示的商户 Logo 地址。 */
         private String merchantLogoUrl;
 
-        /** 商户通知 URL 摘要；内部请求不传递原始通知地址。 */
-        private String merchantNotifyUrlHash;
-
-        /** 商户通知 URL 的 AES-GCM 密文，仅供 payment 创建受保护通知快照。 */
-        private String merchantNotifyUrlCiphertext;
+        /** 商户通知 URL 明文；仅在内部签名链路传输，禁止完整写入日志。 */
+        private String merchantNotifyUrl;
 
         /** 子商户完整明文 JSON 快照。 */
         private String subMerchantInfoJson;
@@ -92,14 +89,8 @@ public final class PaymentCheckoutClientDTOs {
         /** 收货信息结构化 JSON；生成交易后拆分写入明文结构化快照表。 */
         private String shippingInfoJson;
 
-        /** 结果页返回地址 SHA-256 摘要。 */
-        private String redirectUrlHash;
-
-        /** 结果页返回地址 AES-GCM 密文。 */
-        private String redirectUrlCiphertext;
-
-        /** 结果页返回地址密钥版本。 */
-        private String redirectUrlEncryptionKeyVersion;
+        /** 交易完成后 Form POST 的商户结果页地址明文。 */
+        private String redirectUrl;
 
         /** ISO 3166-1 alpha-3 付款人国家/地区代码。 */
         private String payerCountry;

@@ -129,7 +129,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 "PENDING", matchResult, matchTime, nextMatchTime, failReason);
     }
 
-    /** 保存 PENDING 或 REVIEW_REQUIRED 勾兑摘要。 */
+    /** 保存 PENDING、MISMATCHED 或 FAILED 勾兑摘要。 */
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public boolean markPendingByQuery(TransactionOperationDO operationDO,
@@ -140,6 +140,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                                       LocalDateTime matchTime,
                                       LocalDateTime nextMatchTime,
                                       String failReason) {
+        LocalDateTime persistedNextMatchTime = "PENDING".equals(matchStatus) ? nextMatchTime : null;
         transactionRecordService.updateOriginalChannelRequestByQuery(
                 operationDO,
                 originalRequestDO,
@@ -152,7 +153,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 matchResult,
                 originalRequestDO == null ? null : originalRequestDO.getRequestId(),
                 matchTime,
-                nextMatchTime,
+                persistedNextMatchTime,
                 failReason);
     }
 }

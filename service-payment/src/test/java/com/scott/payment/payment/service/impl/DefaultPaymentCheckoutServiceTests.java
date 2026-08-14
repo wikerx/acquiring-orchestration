@@ -6,7 +6,6 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.security.crypto.SensitiveFieldCipher;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinCommandDTO;
@@ -126,8 +125,6 @@ class DefaultPaymentCheckoutServiceTests {
         properties = new PaymentCheckoutProperties();
         properties.setTokenPepper("unit-test-hosted-checkout-token-pepper");
         properties.setTokenKeyVersion("test-v1");
-        properties.setSensitiveFieldEncryptionKey("unit-test-hosted-checkout-field-key");
-        properties.setSensitiveFieldKeyVersion("test-v1");
         when(threeDsService.authenticate(any(), any(), any(), anyString(), any()))
                 .thenReturn(notRequiredThreeDsResult());
         when(paymentTransactionService.preparePayment(any()))
@@ -163,9 +160,7 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setPayerInfoJson("{\"ipAddress\":\"203.0.113.10\"}");
         commandDTO.setBillingInfoJson("{\"email\":\"billing@example.com\"}");
         commandDTO.setShippingInfoJson("{\"street\":\"200 Shipping Street\"}");
-        commandDTO.setRedirectUrlHash("redirect-hash");
-        commandDTO.setRedirectUrlCiphertext("encrypted-redirect");
-        commandDTO.setRedirectUrlEncryptionKeyVersion("test-v1");
+        commandDTO.setRedirectUrl("https://merchant.example/result");
         ArgumentCaptor<PaymentCheckoutSessionDO> sessionCaptor = ArgumentCaptor.forClass(PaymentCheckoutSessionDO.class);
         ArgumentCaptor<PaymentCheckoutTokenDO> tokenCaptor = ArgumentCaptor.forClass(PaymentCheckoutTokenDO.class);
 
@@ -184,7 +179,7 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(sessionDO.getPayerInfoJson()).contains("203.0.113.10");
         assertThat(sessionDO.getBillingInfoJson()).contains("billing@example.com");
         assertThat(sessionDO.getShippingInfoJson()).contains("200 Shipping Street");
-        assertThat(sessionDO.getRedirectUrlCiphertext()).isEqualTo("encrypted-redirect");
+        assertThat(sessionDO.getRedirectUrl()).isEqualTo("https://merchant.example/result");
         assertThat(tokenDO.getTokenHash()).hasSize(64);
         assertThat(tokenDO.getTokenHashAlg()).isEqualTo(PaymentCheckoutTokenSupport.TOKEN_HASH_ALG);
         assertThat(tokenDO.getTokenKeyVersion()).isEqualTo("test-v1");
@@ -449,10 +444,7 @@ class DefaultPaymentCheckoutServiceTests {
         LocalDateTime now = LocalDateTime.now();
         PaymentCheckoutSessionDO first = payableSession();
         first.setExpireTime(now.minusMinutes(5));
-        first.setMerchantNotifyUrlCiphertext(com.scott.payment.component.security.crypto.SensitiveFieldCipher.encrypt(
-                "https://merchant.example/notify?key=secret",
-                properties.getSensitiveFieldEncryptionKey(),
-                first.getMerchantId() + "|" + first.getMerchantOrderNo()));
+        first.setMerchantNotifyUrl("https://merchant.example/notify?key=secret");
         PaymentCheckoutSessionDO second = payableSession();
         second.setCheckoutSessionId("2607271200000000000099");
         second.setExpireTime(now.minusMinutes(1));
@@ -538,11 +530,7 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldReturnNineFieldPostActionOnlyForTerminalTransactionWithRedirectUrl() {
         PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
-        succeededSession.setRedirectUrlCiphertext(SensitiveFieldCipher.encrypt(
-                "https://merchant.example/result",
-                properties.getSensitiveFieldEncryptionKey(),
-                succeededSession.getMerchantId() + "|" + succeededSession.getMerchantOrderNo() + "|redirect"));
-        succeededSession.setRedirectUrlEncryptionKeyVersion("test-v1");
+        succeededSession.setRedirectUrl("https://merchant.example/result");
         PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(succeededSession,
                 PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
                 PaymentCheckoutProcessStageEnum.RESULT_RENDERED);

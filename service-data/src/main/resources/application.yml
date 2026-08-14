@@ -17,9 +17,6 @@ spring:
     allow-bean-definition-overriding: true
 
 data:
-  merchant-notification:
-    sensitive-field-encryption-key: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_ENCRYPTION_KEY:dev-hosted-checkout-field-key-change-me}
-    sensitive-field-key-version: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_KEY_VERSION:dev-v1}
   card-vault:
     # 默认关闭；开启后缺失传输私钥、HMAC pepper 或 KEK 会阻止服务启动。
     enabled: ${CHECKOUT_CARD_VAULT_CONSUME_ENABLED:false}

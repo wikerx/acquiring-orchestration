@@ -55,6 +55,7 @@ class TransactionShardingDataSourceConfigurationTest {
         HikariDataSource replica = h2DataSource("sharding_replica");
         createPhysicalTables(primary, TransactionShardingProperties.defaultLogicTables());
         createPhysicalTables(replica, TransactionShardingProperties.defaultLogicTables());
+        createSingleTables(primary);
         String ruleVersion = "2026.08.02-poc";
         String checksum = checksum(ruleVersion);
         Map<String, DataSource> resources = new LinkedHashMap<>();
@@ -92,6 +93,10 @@ class TransactionShardingDataSourceConfigurationTest {
                                     INSERT INTO transaction_order(id, transaction_date_time)
                                     VALUES (?, ?)
                                     """, 9L, LocalDateTime.of(2026, 11, 2, 1, 0));
+                            new JdbcTemplate(routing).update("""
+                                    INSERT INTO transaction_locator(id, transaction_id)
+                                    VALUES (?, ?)
+                                    """, 9L, "TX-ROLLBACK-009");
                             status.setRollbackOnly();
                         });
                     } finally {
@@ -100,6 +105,9 @@ class TransactionShardingDataSourceConfigurationTest {
 
                     assertThat(new JdbcTemplate(primary).queryForObject(
                             "SELECT COUNT(*) FROM transaction_order_202604 WHERE id = 9", Integer.class))
+                            .isZero();
+                    assertThat(new JdbcTemplate(primary).queryForObject(
+                            "SELECT COUNT(*) FROM transaction_locator WHERE id = 9", Integer.class))
                             .isZero();
                 });
 
@@ -197,6 +205,11 @@ class TransactionShardingDataSourceConfigurationTest {
                         + "id BIGINT AUTO_INCREMENT NOT NULL, transaction_date_time TIMESTAMP(3) NOT NULL)");
             }
         }
+    }
+
+    private void createSingleTables(DataSource dataSource) {
+        new JdbcTemplate(dataSource).execute("CREATE TABLE transaction_locator ("
+                + "id BIGINT AUTO_INCREMENT NOT NULL, transaction_id VARCHAR(64) NOT NULL)");
     }
 
 }

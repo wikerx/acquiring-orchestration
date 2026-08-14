@@ -9,7 +9,6 @@ import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
-import com.scott.payment.component.security.crypto.SensitiveFieldCipher;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.HostedCheckoutProperties;
@@ -323,18 +322,14 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         target.setMerchantDisplayName(resolveMerchantDisplayName(requestDTO));
         target.setMerchantLogoUrl(null);
         String callbackUrl = transactionInfo == null ? null : transactionInfo.getCallbackUrl();
-        target.setMerchantNotifyUrlHash(sha256Hex(callbackUrl));
-        target.setMerchantNotifyUrlCiphertext(encryptCheckoutText(callbackUrl, target, null));
+        target.setMerchantNotifyUrl(callbackUrl);
         target.setSubMerchantInfoJson(toJson(requestDTO.getMerchantInfo().getSubMerchantInfo()));
         target.setPayerInfoJson(toJson(requestDTO.getPayerInfo()));
         target.setBillingInfoJson(toJson(requestDTO.getBillingCardHolderInfo()));
         target.setShippingInfoJson(requestDTO.getShippingInfo() == null
                 ? null : JsonUtils.toJsonString(requestDTO.getShippingInfo()));
         String redirectUrl = transactionInfo == null ? null : transactionInfo.getRedirectUrl();
-        target.setRedirectUrlHash(sha256Hex(redirectUrl));
-        target.setRedirectUrlCiphertext(encryptCheckoutText(redirectUrl, target, "redirect"));
-        target.setRedirectUrlEncryptionKeyVersion(StringUtils.hasText(redirectUrl)
-                ? properties.getSensitiveFieldKeyVersion() : null);
+        target.setRedirectUrl(redirectUrl);
         target.setPayerCountry(requestDTO.getPayerInfo() == null ? null : requestDTO.getPayerInfo().getCountry());
         target.setPayerEmail(requestDTO.getPayerInfo() == null ? null : requestDTO.getPayerInfo().getEmail());
         target.setPayerEmailHash(requestDTO.getPayerInfo() == null ? null
@@ -347,28 +342,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return target;
     }
 
-    /** 将密文字段绑定到商户及订单，防止跨订单替换密文。 */
-    private String checkoutSensitiveFieldAad(String merchantId, String merchantOrderNo) {
-        return merchantId + "|" + merchantOrderNo;
-    }
-
     /** 将允许明文展示的收银台预填对象固化为 JSON。 */
     private String toJson(Object source) {
         return source == null ? null : JsonUtils.toJsonString(source);
-    }
-
-    /** 加密 callback 或 redirect URL；明文为空时不生成无意义密文。 */
-    private String encryptCheckoutText(String value,
-                                       PaymentCheckoutClientDTOs.SessionCreateRequest target,
-                                       String purpose) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        String aad = checkoutSensitiveFieldAad(target.getMerchantId(), target.getMerchantOrderNo());
-        if (StringUtils.hasText(purpose)) {
-            aad = aad + "|" + purpose;
-        }
-        return SensitiveFieldCipher.encrypt(value, properties.getSensitiveFieldEncryptionKey(), aad);
     }
 
     /** 原样转换浏览器卡数据密文信封，OpenAPI 不持有对应私钥。 */

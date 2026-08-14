@@ -98,13 +98,8 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getShippingInfoJson()).contains("2 Shipping St", "shipping@example.com");
         assertThat(captured.getPayerEmail()).isEqualTo("payer@example.com");
         assertThat(captured.getPayerEmailHash()).isNotBlank();
-        assertThat(captured.getMerchantNotifyUrlHash()).isNotBlank();
-        assertThat(captured.getMerchantNotifyUrlCiphertext()).isNotBlank()
-                .doesNotContain("https://merchant.example/notify");
-        assertThat(captured.getRedirectUrlHash()).isNotBlank();
-        assertThat(captured.getRedirectUrlCiphertext()).isNotBlank()
-                .doesNotContain("https://merchant.example/result");
-        assertThat(captured.getRedirectUrlEncryptionKeyVersion()).isEqualTo("test-v1");
+        assertThat(captured.getMerchantNotifyUrl()).isEqualTo("https://merchant.example/notify");
+        assertThat(captured.getRedirectUrl()).isEqualTo("https://merchant.example/result");
         assertThat(captured.getRequestFingerprint()).isNotBlank();
         assertThat(captured.getRequestSource()).contains("clientIpHash", "originHash");
     }
@@ -256,8 +251,6 @@ class HostedCheckoutServiceImplTests {
         properties.setDefaultMaxAttemptCount(3);
         properties.setDefaultExpireMinutes(30);
         properties.setMaxExpireMinutes(120);
-        properties.setSensitiveFieldEncryptionKey("unit-test-hosted-checkout-field-key");
-        properties.setSensitiveFieldKeyVersion("test-v1");
         return new HostedCheckoutServiceImpl(
                 paymentInternalClient,
                 properties,

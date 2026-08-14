@@ -284,7 +284,8 @@ public class PaymentTransactionLogicalMapperPocTest {
         result.setNotifyId(notifyId);
         result.setTransactionId(transactionId);
         result.setNotifyStatus("INIT");
-        result.setNotifyConfigSnapshotJson("{}");
+        result.setCallbackUrl("https://merchant.example/callback");
+        result.setPayloadJson("{}");
         result.setTransactionDateTime(transactionDateTime);
         result.setVersion(0);
         result.setDeleted(0);
@@ -347,7 +348,7 @@ public class PaymentTransactionLogicalMapperPocTest {
             direct.execute("CREATE TABLE transaction_merchant_notification_" + suffix + " ("
                     + "id BIGINT AUTO_INCREMENT NOT NULL, notify_id VARCHAR(64) NOT NULL, "
                     + "transaction_id VARCHAR(64) NOT NULL, notify_status VARCHAR(32) NOT NULL, "
-                    + "notify_config_snapshot_json VARCHAR(1024), "
+                    + "callback_url VARCHAR(512), payload_json VARCHAR(4096), "
                     + "payload_json_masked VARCHAR(512), next_retry_time TIMESTAMP(3), update_time TIMESTAMP(3), "
                     + "transaction_date_time TIMESTAMP(3) NOT NULL, version INT NOT NULL, deleted INT NOT NULL)");
             direct.execute("CREATE TABLE transaction_channel_request_" + suffix + " ("

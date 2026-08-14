@@ -30,7 +30,7 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             INSERT INTO transaction_merchant_notification
             (
               notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
-              notify_type, event_type, notify_status, notify_config_version, notify_config_snapshot_json,
+              notify_type, event_type, notify_status, notify_config_version, callback_url, payload_json,
               target_url_hash, target_url_masked, payload_json_masked, sign_type, last_attempt_no,
               max_retry_count, next_retry_time, success_time, fail_reason, transaction_date_time,
               transaction_utc_time, transaction_time_zone, version, deleted, create_time, update_time
@@ -40,7 +40,7 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
               #{notificationDO.notifyId}, #{notificationDO.transactionId}, #{notificationDO.operationId},
               #{notificationDO.merchantId}, #{notificationDO.merchantOrderNo}, #{notificationDO.notifyType},
               #{notificationDO.eventType}, #{notificationDO.notifyStatus}, #{notificationDO.notifyConfigVersion},
-              #{notificationDO.notifyConfigSnapshotJson}, #{notificationDO.targetUrlHash},
+              #{notificationDO.callbackUrl}, #{notificationDO.payloadJson}, #{notificationDO.targetUrlHash},
               #{notificationDO.targetUrlMasked}, #{notificationDO.payloadJsonMasked}, #{notificationDO.signType},
               #{notificationDO.lastAttemptNo}, #{notificationDO.maxRetryCount}, #{notificationDO.nextRetryTime},
               #{notificationDO.successTime}, #{notificationDO.failReason}, #{notificationDO.transactionDateTime},
@@ -56,7 +56,7 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
      * @param merchantId 商户号
      * @param transactionId 源平台交易 ID
      * @param transactionDateTime 源交易分片时间
-     * @return 最近一份含配置快照的通知任务，不存在时返回 null
+     * @return 最近一份含回调地址的通知任务，不存在时返回 null
      */
     @Select("""
             SELECT *
@@ -64,8 +64,8 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             WHERE merchant_id = #{merchantId}
               AND transaction_id = #{transactionId}
               AND transaction_date_time = #{transactionDateTime}
-              AND notify_config_snapshot_json IS NOT NULL
-              AND notify_config_snapshot_json != ''
+              AND callback_url IS NOT NULL
+              AND callback_url != ''
               AND deleted = 0
             ORDER BY create_time DESC, id DESC
             LIMIT 1
@@ -81,7 +81,7 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
      * @param transactionId 平台当前交易 ID
      * @param transactionDateTime 交易分片时间
      * @param expectedVersion 当前通知版本号
-     * @param callbackPayloadJson 商户正式终态回调载荷，只写受保护通知快照且禁止进入日志
+     * @param callbackPayloadJson 商户正式终态回调载荷明文，禁止写入日志
      * @param payloadJsonMasked 脱敏后的终态通知审计载荷
      * @param nextRetryTime 下一次通知时间
      * @param now 当前时间
@@ -89,11 +89,7 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
      */
     @Update("""
             UPDATE transaction_merchant_notification
-            SET notify_config_snapshot_json = JSON_SET(
-                    notify_config_snapshot_json,
-                    '$.payloadJson',
-                    #{callbackPayloadJson}
-                ),
+            SET payload_json = #{callbackPayloadJson},
                 payload_json_masked = #{payloadJsonMasked},
                 next_retry_time = #{nextRetryTime},
                 version = version + 1,

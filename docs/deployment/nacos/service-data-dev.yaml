@@ -10,9 +10,6 @@ data:
     kek-version: ${CHECKOUT_CARD_VAULT_KEK_VERSION:v1}
     kek-base64: ${CHECKOUT_CARD_VAULT_KEK_BASE64:}
   merchant-notification:
-    # 必须与 service-payment 的交易敏感字段密钥和版本一致；正式环境只允许由 Secret/KMS 注入。
-    sensitive-field-encryption-key: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_ENCRYPTION_KEY:dev-hosted-checkout-field-key-change-me}
-    sensitive-field-key-version: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_KEY_VERSION:dev-v1}
     mq:
       # 只有 service-data 注册商户通知消费者，service-payment 不再消费或发送回调。
       # 环境说明：环境变量：DATA_MERCHANT_NOTIFICATION_MQ_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。

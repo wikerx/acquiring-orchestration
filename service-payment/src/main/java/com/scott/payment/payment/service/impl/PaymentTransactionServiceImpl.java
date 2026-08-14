@@ -2153,9 +2153,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         target.setAuthCode(operationDO.getAuthCode());
         target.setArn(operationDO.getAcquirerReferenceNo());
         target.setDescription(operationDO.getDescription());
-        target.setCallbackUrl(transactionRecordService.decryptCallbackUrl(orderDO));
+        target.setCallbackUrl(orderDO.getCallbackUrl());
         target.setMerchantWebsite(orderDO.getMerchantWebsite());
-        target.setRedirectUrl(transactionRecordService.decryptRedirectUrl(orderDO));
+        target.setRedirectUrl(orderDO.getRedirectUrl());
         target.setLanguage(orderDO.getLanguage());
         return target;
     }

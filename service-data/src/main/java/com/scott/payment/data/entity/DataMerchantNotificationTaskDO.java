@@ -34,10 +34,11 @@ public class DataMerchantNotificationTaskDO {
     /** 商户订单号，允许为空，仅用于通知追踪。 */
     private String merchantOrderNo;
 
-    /**
-     * 通知执行快照 JSON，包含实际回调 URL 和正式商户载荷，只允许用于 HTTP 投递且禁止写入日志或 Redis。
-     */
-    private String notifyConfigSnapshotJson;
+    /** 商户回调地址明文，只允许用于 HTTP 投递且禁止完整写入日志或 Redis。 */
+    private String callbackUrl;
+
+    /** 正式商户回调业务载荷明文 JSON，发送前仍通过 OpenAPI 响应公钥加密。 */
+    private String payloadJson;
 
     /** 实际回调 URL 的 SHA-256 摘要，用于关联审计。 */
     private String targetUrlHash;

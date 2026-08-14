@@ -183,7 +183,7 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
         DefaultPaymentCheckoutThreeDsService service = new DefaultPaymentCheckoutThreeDsService(
                 new PaymentChannelExecutor(registry), command -> routeResult(), policyClient(true), configReadService);
         PaymentCheckoutSessionDO session = session();
-        session.setMerchantNotifyUrlCiphertext("merchant-notify-url-ciphertext");
+        session.setMerchantNotifyUrl("https://merchant.example/notify");
 
         service.authenticate(session, attempt(), submitCommand(),
                 "https://21872i5858.imdo.co/checkout/api/v1/3ds/bridge");

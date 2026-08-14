@@ -1,6 +1,5 @@
 package com.scott.payment.data.service.impl;
 
-import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -10,7 +9,6 @@ import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
-import com.scott.payment.component.security.crypto.SensitiveFieldCipher;
 import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.entity.DataMerchantNotificationLogDO;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
@@ -486,35 +484,9 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         }
     }
 
-    /** 从受保护配置快照解密实际回调 URL；解析失败不记录快照内容，并按普通通知失败处理。 */
+    /** 读取商户回调地址明文；调用方仍只允许记录脱敏摘要。 */
     private String resolveTargetUrl(DataMerchantNotificationTaskDO task) {
-        if (!StringUtils.hasText(task.getNotifyConfigSnapshotJson())) {
-            return null;
-        }
-        try {
-            JSONObject snapshot = JsonUtils.parseObject(task.getNotifyConfigSnapshotJson(), JSONObject.class);
-            if (snapshot == null || !StringUtils.hasText(snapshot.getString("callbackUrlCiphertext"))) {
-                return null;
-            }
-            if (!properties.getSensitiveFieldKeyVersion().equals(
-                    snapshot.getString("callbackUrlEncryptionKeyVersion"))) {
-                throw new IllegalStateException("callback URL encryption key version is unavailable");
-            }
-            return SensitiveFieldCipher.decrypt(
-                    snapshot.getString("callbackUrlCiphertext"),
-                    properties.getSensitiveFieldEncryptionKey(),
-                    callbackUrlAad(task.getMerchantId(), task.getTransactionId()));
-        } catch (RuntimeException exception) {
-            log.warn("event: DATA_MERCHANT_NOTIFY_CONFIG_INVALID traceId: {} notifyId: {} transactionId: {} exceptionType: {}",
-                    TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(),
-                    exception.getClass().getSimpleName());
-            return null;
-        }
-    }
-
-    /** callback URL 的 AES-GCM 附加认证数据，防止密文跨商户或跨交易替换。 */
-    private String callbackUrlAad(String merchantId, String transactionId) {
-        return merchantId + "|" + transactionId + "|callbackUrl";
+        return task == null ? null : task.getCallbackUrl();
     }
 
     /** 计算线性退避后的下一次通知时间。 */

@@ -71,10 +71,8 @@ public class PaymentCheckoutSessionCreateCommandDTO implements Serializable {
     private String merchantDisplayName;
     /** 付款页公开展示的商户 Logo 地址。 */
     private String merchantLogoUrl;
-    /** 商户通知地址摘要，不持久化完整地址。 */
-    private String merchantNotifyUrlHash;
-    /** 商户通知地址 AES-GCM 密文，不得进入日志或页面响应。 */
-    private String merchantNotifyUrlCiphertext;
+    /** 商户通知地址明文；内部调用和数据库允许明文，禁止完整写入日志。 */
+    private String merchantNotifyUrl;
     /** 子商户完整明文 JSON 快照。 */
     private String subMerchantInfoJson;
     /** 付款人预填信息明文 JSON 快照。 */
@@ -83,12 +81,8 @@ public class PaymentCheckoutSessionCreateCommandDTO implements Serializable {
     private String billingInfoJson;
     /** 收货信息结构化 JSON；创建核心交易时转换为结构化对象。 */
     private String shippingInfoJson;
-    /** 结果页返回地址 SHA-256 摘要。 */
-    private String redirectUrlHash;
-    /** 结果页返回地址 AES-GCM 密文。 */
-    private String redirectUrlCiphertext;
-    /** 结果页返回地址密钥版本。 */
-    private String redirectUrlEncryptionKeyVersion;
+    /** 交易完成后 Form POST 的商户结果页地址明文。 */
+    private String redirectUrl;
     /** 付款人 ISO 3166 国家或地区代码。 */
     private String payerCountry;
     /** 付款人邮箱明文。 */

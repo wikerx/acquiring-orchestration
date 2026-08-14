@@ -94,9 +94,8 @@ class MerchantCallbackRequestFactoryTests {
         task.setMerchantId("M1001");
         task.setNotifyId("NOTIFY-1");
         task.setTransactionId("TX-1");
-        task.setNotifyConfigSnapshotJson(JsonUtils.toJsonString(Map.of(
-                "callbackUrl", "https://merchant.example.com/callback",
-                "payloadJson", "{\"transactionId\":\"TX-1\",\"status\":\"SUCCESS\",\"email\":\"buyer@example.com\"}")));
+        task.setCallbackUrl("https://merchant.example.com/callback");
+        task.setPayloadJson("{\"transactionId\":\"TX-1\",\"status\":\"SUCCESS\",\"email\":\"buyer@example.com\"}");
         task.setPayloadJsonMasked("{\"transactionId\":\"TX-1\",\"status\":\"SUCCESS\",\"email\":\"b***@example.com\"}");
         return task;
     }

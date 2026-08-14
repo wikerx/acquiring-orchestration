@@ -37,9 +37,4 @@ public class DataMerchantNotificationProperties {
     /** 是否允许回环、私网和保留地址，仅限隔离开发环境显式开启。 */
     private boolean allowPrivateNetwork;
 
-    /** 与 service-payment 一致的交易敏感字段 AES-GCM 密钥，只能由 Secret/KMS 注入。 */
-    private String sensitiveFieldEncryptionKey = "dev-hosted-checkout-field-key-change-me";
-
-    /** 当前可解密的交易敏感字段密钥版本。 */
-    private String sensitiveFieldKeyVersion = "dev-v1";
 }
