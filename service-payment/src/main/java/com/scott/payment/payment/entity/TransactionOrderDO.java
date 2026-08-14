@@ -329,6 +329,28 @@ public class TransactionOrderDO implements Serializable {
     private String callbackUrlHash;
 
     /**
+     * 商户通知地址 AES-256-GCM 密文，禁止写入日志或管理端响应。
+     */
+    private String callbackUrlCiphertext;
+
+    /**
+     * 商户通知地址密文使用的密钥版本。
+     */
+    private String callbackUrlEncryptionKeyVersion;
+
+    /** Hosted Checkout 结果页返回地址 SHA-256。 */
+    private String redirectUrlHash;
+
+    /** Hosted Checkout 结果页返回地址 AES-256-GCM 密文。 */
+    private String redirectUrlCiphertext;
+
+    /** Hosted Checkout 结果页返回地址密钥版本。 */
+    private String redirectUrlEncryptionKeyVersion;
+
+    /** Hosted Checkout 创建会话时指定的显示语言。 */
+    private String language;
+
+    /**
      * 交易业务时间，所有交易分表统一字段，数据库类型必须为 DATETIME(3)。
      */
     private LocalDateTime transactionDateTime;

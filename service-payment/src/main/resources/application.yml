@@ -19,6 +19,8 @@ spring:
 
 payment:
   checkout:
+    sensitive-field-encryption-key: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_ENCRYPTION_KEY:dev-hosted-checkout-field-key-change-me}
+    sensitive-field-key-version: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_KEY_VERSION:dev-v1}
     card-vault:
       # 必须先完成分片表、Topic、消费组和 service-data 密钥发布；默认关闭。
       enabled: ${CHECKOUT_CARD_VAULT_PUBLISH_ENABLED:false}

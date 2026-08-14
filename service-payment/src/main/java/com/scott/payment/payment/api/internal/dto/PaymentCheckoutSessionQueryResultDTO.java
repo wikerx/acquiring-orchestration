@@ -62,6 +62,10 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
         private String city;
         private String street;
         private String postal;
+        private String ipAddress;
+        private String sessionId;
+        private java.util.Map<String, Object> browserInfo;
+        private String userAgent;
     }
 
     @Data

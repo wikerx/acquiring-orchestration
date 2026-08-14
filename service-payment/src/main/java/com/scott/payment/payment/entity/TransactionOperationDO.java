@@ -91,6 +91,11 @@ public class TransactionOperationDO implements Serializable {
     private String requestReason;
 
     /**
+     * 商户上送的当前交易动作描述，用于同步响应、查询和终态通知回显。
+     */
+    private String description;
+
+    /**
      * 申请主体类型，例如 API_CLIENT、MERCHANT、ADMIN 或 SYSTEM。
      */
     private String applicantType;

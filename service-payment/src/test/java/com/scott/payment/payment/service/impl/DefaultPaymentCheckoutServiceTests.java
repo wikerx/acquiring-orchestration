@@ -1,9 +1,12 @@
 package com.scott.payment.payment.service.impl;
 
+import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.channel.payment.enums.ChannelThreeDsPhase;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
+import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.security.crypto.SensitiveFieldCipher;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinCommandDTO;
@@ -52,6 +55,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -122,6 +126,8 @@ class DefaultPaymentCheckoutServiceTests {
         properties = new PaymentCheckoutProperties();
         properties.setTokenPepper("unit-test-hosted-checkout-token-pepper");
         properties.setTokenKeyVersion("test-v1");
+        properties.setSensitiveFieldEncryptionKey("unit-test-hosted-checkout-field-key");
+        properties.setSensitiveFieldKeyVersion("test-v1");
         when(threeDsService.authenticate(any(), any(), any(), anyString(), any()))
                 .thenReturn(notRequiredThreeDsResult());
         when(paymentTransactionService.preparePayment(any()))
@@ -153,6 +159,13 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldCreateSessionAndStoreOnlyTokenHash() {
         PaymentCheckoutSessionCreateCommandDTO commandDTO = createCommand();
+        commandDTO.setSubMerchantInfoJson("{\"subId\":\"SUB-1001\"}");
+        commandDTO.setPayerInfoJson("{\"ipAddress\":\"203.0.113.10\"}");
+        commandDTO.setBillingInfoJson("{\"email\":\"billing@example.com\"}");
+        commandDTO.setShippingInfoJson("{\"street\":\"200 Shipping Street\"}");
+        commandDTO.setRedirectUrlHash("redirect-hash");
+        commandDTO.setRedirectUrlCiphertext("encrypted-redirect");
+        commandDTO.setRedirectUrlEncryptionKeyVersion("test-v1");
         ArgumentCaptor<PaymentCheckoutSessionDO> sessionCaptor = ArgumentCaptor.forClass(PaymentCheckoutSessionDO.class);
         ArgumentCaptor<PaymentCheckoutTokenDO> tokenCaptor = ArgumentCaptor.forClass(PaymentCheckoutTokenDO.class);
 
@@ -166,6 +179,12 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(resultDTO.getIdempotentHit()).isFalse();
         assertThat(sessionDO.getCheckoutStatus()).isEqualTo(PaymentCheckoutSessionStatusEnum.PAYABLE.getCode());
         assertThat(sessionDO.getAllowedPaymentMethodsJson()).contains("\"paymentMethod\":\"BANK_CARD\"");
+        assertThat(sessionDO.getChannelCode()).isNull();
+        assertThat(sessionDO.getSubMerchantInfoJson()).contains("SUB-1001");
+        assertThat(sessionDO.getPayerInfoJson()).contains("203.0.113.10");
+        assertThat(sessionDO.getBillingInfoJson()).contains("billing@example.com");
+        assertThat(sessionDO.getShippingInfoJson()).contains("200 Shipping Street");
+        assertThat(sessionDO.getRedirectUrlCiphertext()).isEqualTo("encrypted-redirect");
         assertThat(tokenDO.getTokenHash()).hasSize(64);
         assertThat(tokenDO.getTokenHashAlg()).isEqualTo(PaymentCheckoutTokenSupport.TOKEN_HASH_ALG);
         assertThat(tokenDO.getTokenKeyVersion()).isEqualTo("test-v1");
@@ -176,28 +195,15 @@ class DefaultPaymentCheckoutServiceTests {
     }
 
     @Test
-    void shouldAcceptProviderNeutralChannelCodeInCheckoutSnapshot() {
+    void shouldResolvePlatformPaymentCapabilitiesWhenMerchantDoesNotChoosePaymentMethod() {
         PaymentCheckoutSessionCreateCommandDTO commandDTO = createCommand();
-        commandDTO.getAllowedPaymentMethods().get(0).setChannelCode("ALTERNATE_PROVIDER");
-        ArgumentCaptor<PaymentCheckoutSessionDO> sessionCaptor = ArgumentCaptor.forClass(PaymentCheckoutSessionDO.class);
-
-        service.createSession(commandDTO);
-
-        verify(sessionMapper).insert(sessionCaptor.capture());
-        assertThat(sessionCaptor.getValue().getChannelCode()).isEqualTo("ALTERNATE_PROVIDER");
-        assertThat(sessionCaptor.getValue().getAllowedPaymentMethodsJson()).contains("ALTERNATE_PROVIDER");
-    }
-
-    @Test
-    void shouldLeaveUnspecifiedCheckoutChannelForPaymentRouting() {
-        PaymentCheckoutSessionCreateCommandDTO commandDTO = createCommand();
-        commandDTO.getAllowedPaymentMethods().get(0).setChannelCode(null);
         ArgumentCaptor<PaymentCheckoutSessionDO> sessionCaptor = ArgumentCaptor.forClass(PaymentCheckoutSessionDO.class);
 
         service.createSession(commandDTO);
 
         verify(sessionMapper).insert(sessionCaptor.capture());
         assertThat(sessionCaptor.getValue().getChannelCode()).isNull();
+        assertThat(sessionCaptor.getValue().getAllowedPaymentMethodsJson()).contains("BANK_CARD");
         assertThat(sessionCaptor.getValue().getAllowedPaymentMethodsJson()).doesNotContain("MPGS");
     }
 
@@ -463,9 +469,13 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldSubmitNonThreeDsPaymentUsingThePolicyRouteIdentity() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
+        attachMerchantCheckoutSnapshots(sessionDO);
         PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
         PaymentCheckoutSessionDO processingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutSessionDO succeededSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        attachMerchantCheckoutSnapshots(payingSessionDO);
+        attachMerchantCheckoutSnapshots(processingSessionDO);
+        attachMerchantCheckoutSnapshots(succeededSessionDO);
         PaymentCheckoutAttemptDO channelSubmittedAttempt = attemptWithStatus(sessionDO,
                 PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
                 PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
@@ -511,6 +521,83 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(createCommandCaptor.getValue().getChannelIdentity().getChannelCode()).isEqualTo("MPGS");
         assertThat(createCommandCaptor.getValue().getChannelIdentity().getChannelId()).isEqualTo(101L);
         assertThat(createCommandCaptor.getValue().getChannelIdentity().getChannelMidConfigId()).isEqualTo(1001L);
+        assertThat(createCommandCaptor.getValue().getBillingCardHolderInfo().getEmail())
+                .isEqualTo("buyer@example.com");
+        assertThat(createCommandCaptor.getValue().getPayerInfo().getEmail())
+                .isEqualTo("merchant-payer@example.com");
+        assertThat(createCommandCaptor.getValue().getPayerIp()).isEqualTo("203.0.113.10");
+        assertThat(createCommandCaptor.getValue().getPayerInfo().getSessionId()).isEqualTo("SESSION-001");
+        assertThat(createCommandCaptor.getValue().getSubMerchantInfo().getSubId()).isEqualTo("SUB-1001");
+        assertThat(createCommandCaptor.getValue().getShippingInfo().getStreet())
+                .isEqualTo("200 Shipping Street");
+        assertThat(createCommandCaptor.getValue().getGoodsInfo()).singleElement()
+                .extracting(PaymentCreateCommandDTO.GoodsInfoDTO::getName)
+                .isEqualTo("Travel Booking");
+    }
+
+    @Test
+    void shouldReturnNineFieldPostActionOnlyForTerminalTransactionWithRedirectUrl() {
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        succeededSession.setRedirectUrlCiphertext(SensitiveFieldCipher.encrypt(
+                "https://merchant.example/result",
+                properties.getSensitiveFieldEncryptionKey(),
+                succeededSession.getMerchantId() + "|" + succeededSession.getMerchantOrderNo() + "|redirect"));
+        succeededSession.setRedirectUrlEncryptionKeyVersion("test-v1");
+        PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(succeededSession,
+                PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 8, 14, 15, 0, 0, 123_000_000);
+        succeededAttempt.setChannelStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        succeededAttempt.setChannelResponseCode("T200");
+        succeededAttempt.setChannelResponseMessage("Success");
+        succeededAttempt.setTransactionDateTime(transactionDateTime);
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(succeededSession));
+        when(sessionMapper.selectByCheckoutSessionId(succeededSession.getCheckoutSessionId()))
+                .thenReturn(succeededSession, succeededSession);
+        when(attemptMapper.selectByCheckoutAttemptId(succeededAttempt.getCheckoutAttemptId()))
+                .thenReturn(succeededAttempt);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.queryPaymentStatus(
+                paymentStatusCommand(succeededSession, succeededAttempt));
+
+        PaymentCheckoutPaymentResultDTO.ActionDTO action = resultDTO.getActions();
+        assertThat(action.getMethod()).isEqualTo("POST");
+        assertThat(action.getRedirectUrl()).isEqualTo("https://merchant.example/result");
+        assertThat(action.getDelaySeconds()).isEqualTo(5);
+        Map<String, Object> formFields = JsonUtils.parseObject(
+                JsonUtils.toJsonString(action.getFormFields()), new TypeReference<>() {
+                });
+        assertThat(formFields).containsOnlyKeys(
+                "merchantId", "orderNo", "orderId", "transactionId", "transactionType",
+                "transactionStatus", "transactionDateTime", "code", "message");
+        assertThat(formFields).containsEntry("merchantId", "200001")
+                .containsEntry("orderNo", "M202607270001")
+                .containsEntry("orderId", "REQ-001")
+                .containsEntry("transactionId", "2607271200000000000047")
+                .containsEntry("transactionType", "PAYMENT")
+                .containsEntry("transactionStatus", "SUCCESS")
+                .containsEntry("code", "T200")
+                .containsEntry("message", "Success");
+        assertThat(action.getFormFields().getTransactionDateTime()).isEqualTo(transactionDateTime);
+    }
+
+    @Test
+    void shouldStayOnResultPageWhenRedirectUrlWasNotProvided() {
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(succeededSession,
+                PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        succeededAttempt.setChannelStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(succeededSession));
+        when(sessionMapper.selectByCheckoutSessionId(succeededSession.getCheckoutSessionId()))
+                .thenReturn(succeededSession, succeededSession);
+        when(attemptMapper.selectByCheckoutAttemptId(succeededAttempt.getCheckoutAttemptId()))
+                .thenReturn(succeededAttempt);
+
+        PaymentCheckoutPaymentResultDTO resultDTO = service.queryPaymentStatus(
+                paymentStatusCommand(succeededSession, succeededAttempt));
+
+        assertThat(resultDTO.getActions()).isNull();
     }
 
     @Test
@@ -1204,13 +1291,7 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setOrderSubject("Demo Order");
         commandDTO.setRetryAllowed(1);
         commandDTO.setMaxAttemptCount(3);
-        PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO methodDTO =
-                new PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO();
-        methodDTO.setPaymentMethod("BANK_CARD");
-        methodDTO.setChannelCode("MPGS");
-        methodDTO.setBrands(List.of("VISA", "MASTERCARD"));
-        methodDTO.setThreeDsMode("AUTO");
-        commandDTO.setAllowedPaymentMethods(List.of(methodDTO));
+        commandDTO.setAllowedPaymentMethods(List.of());
         return commandDTO;
     }
 
@@ -1221,6 +1302,7 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setAttemptRequestId("ATTEMPT-001");
         commandDTO.setPaymentMethod("BANK_CARD");
         commandDTO.setRequestFingerprint("submit-fp");
+        commandDTO.setPayerIp("198.51.100.11");
         commandDTO.setBrowserInfoJson("{\"securityCode\":\"123\",\"cardNo\":\"5123456789010008\"}");
         PaymentCheckoutPaymentSubmitCommandDTO.CardInfoDTO cardInfoDTO = new PaymentCheckoutPaymentSubmitCommandDTO.CardInfoDTO();
         cardInfoDTO.setCardNo("5123456789010008");
@@ -1237,6 +1319,22 @@ class DefaultPaymentCheckoutServiceTests {
         billingDTO.setCountry("USA");
         commandDTO.setBillingCardHolderInfo(billingDTO);
         return commandDTO;
+    }
+
+    private void attachMerchantCheckoutSnapshots(PaymentCheckoutSessionDO sessionDO) {
+        sessionDO.setPayerInfoJson("""
+                {"payerId":"CUSTOMER-001","email":"merchant-payer@example.com","country":"USA",
+                 "ipAddress":"203.0.113.10","sessionId":"SESSION-001","userAgent":"Merchant Browser"}
+                """);
+        sessionDO.setSubMerchantInfoJson("""
+                {"subId":"SUB-1001","subCompanyName":"Travel Merchant"}
+                """);
+        sessionDO.setShippingInfoJson("""
+                {"firstName":"John","lastName":"Smith","street":"200 Shipping Street","country":"USA"}
+                """);
+        sessionDO.setOrderItemsJson("""
+                [{"name":"Travel Booking","quantity":1,"amount":49.97,"currency":"USD"}]
+                """);
     }
 
     private PaymentCheckoutPaymentStatusCommandDTO paymentStatusCommand(PaymentCheckoutSessionDO sessionDO,

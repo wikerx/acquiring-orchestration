@@ -774,15 +774,18 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         sessionDO.setChannelCode(resolveChannelCode(allowedMethods));
         sessionDO.setMerchantDisplayName(commandDTO.getMerchantDisplayName());
         sessionDO.setMerchantLogoUrl(commandDTO.getMerchantLogoUrl());
-        sessionDO.setMerchantReturnUrl(commandDTO.getMerchantReturnUrl());
-        sessionDO.setMerchantCancelUrl(commandDTO.getMerchantCancelUrl());
         sessionDO.setMerchantNotifyUrlHash(commandDTO.getMerchantNotifyUrlHash());
         sessionDO.setMerchantNotifyUrlCiphertext(commandDTO.getMerchantNotifyUrlCiphertext());
-        sessionDO.setPayerInfoCiphertext(commandDTO.getPayerInfoCiphertext());
-        sessionDO.setBillingInfoCiphertext(commandDTO.getBillingInfoCiphertext());
+        sessionDO.setSubMerchantInfoJson(commandDTO.getSubMerchantInfoJson());
+        sessionDO.setPayerInfoJson(commandDTO.getPayerInfoJson());
+        sessionDO.setBillingInfoJson(commandDTO.getBillingInfoJson());
+        sessionDO.setShippingInfoJson(commandDTO.getShippingInfoJson());
+        sessionDO.setRedirectUrlHash(commandDTO.getRedirectUrlHash());
+        sessionDO.setRedirectUrlCiphertext(commandDTO.getRedirectUrlCiphertext());
+        sessionDO.setRedirectUrlEncryptionKeyVersion(commandDTO.getRedirectUrlEncryptionKeyVersion());
         sessionDO.setLocale(defaultIfBlank(commandDTO.getLocale(), "en-US"));
         sessionDO.setPayerCountry(commandDTO.getPayerCountry());
-        sessionDO.setPayerEmailMasked(commandDTO.getPayerEmailMasked());
+        sessionDO.setPayerEmail(commandDTO.getPayerEmail());
         sessionDO.setPayerEmailHash(commandDTO.getPayerEmailHash());
         sessionDO.setRetryAllowed(commandDTO.getRetryAllowed() == null ? 1 : commandDTO.getRetryAllowed());
         sessionDO.setMaxAttemptCount(resolveMaxAttemptCount(commandDTO.getMaxAttemptCount()));
@@ -1266,13 +1269,25 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         createCommand.setRequestSource(REQUEST_SOURCE_HOSTED_CHECKOUT);
         createCommand.setCardInfo(toCoreCardInfo(commandDTO.getCardInfo()));
         createCommand.setBillingCardHolderInfo(toCoreBillingInfo(commandDTO.getBillingCardHolderInfo()));
+        PaymentCreateCommandDTO.PayerInfoDTO payerInfo = sessionDO == null ? null : parseCheckoutSnapshot(
+                sessionDO.getPayerInfoJson(), PaymentCreateCommandDTO.PayerInfoDTO.class);
+        createCommand.setPayerInfo(payerInfo);
+        createCommand.setSubMerchantInfo(sessionDO == null ? null : parseCheckoutSnapshot(
+                sessionDO.getSubMerchantInfoJson(),
+                PaymentCreateCommandDTO.SubMerchantInfoDTO.class));
+        createCommand.setShippingInfo(sessionDO == null || !StringUtils.hasText(sessionDO.getShippingInfoJson())
+                ? null : JsonUtils.parseObject(sessionDO.getShippingInfoJson(), PaymentCreateCommandDTO.ShippingInfoDTO.class));
+        createCommand.setGoodsInfo(sessionDO == null || !StringUtils.hasText(sessionDO.getOrderItemsJson())
+                ? List.of() : JsonUtils.parseObject(sessionDO.getOrderItemsJson(), new TypeReference<>() {
+                }));
         createCommand.setThreeDsInfo(toCoreThreeDsInfo(threeDsResult));
         createCommand.setThreeDsRequired(threeDsResult != null && !threeDsResult.notRequired());
         createCommand.setChannelIdentity(toCoreChannelIdentity(attemptDO, threeDsResult));
         createCommand.setTransactionInfo(toCoreTransactionInfo(sessionDO, attemptDO));
         createCommand.setCallbackUrl(sessionDO == null ? null : decryptMerchantNotifyUrl(sessionDO));
-        createCommand.setPayerIp(commandDTO.getClientIpHash());
-        createCommand.setUserAgent(commandDTO.getUserAgentHash());
+        createCommand.setPayerIp(payerInfo == null
+                ? commandDTO.getPayerIp() : firstText(payerInfo.getIpAddress(), commandDTO.getPayerIp()));
+        createCommand.setUserAgent(payerInfo == null ? null : payerInfo.getUserAgent());
         return createCommand;
     }
 
@@ -1284,6 +1299,21 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         return SensitiveFieldCipher.decrypt(sessionDO.getMerchantNotifyUrlCiphertext(),
                 properties.getSensitiveFieldEncryptionKey(),
                 sessionDO.getMerchantId() + "|" + sessionDO.getMerchantOrderNo());
+    }
+
+    /** 解密商户结果页地址，密钥版本不匹配时失败关闭。 */
+    private String decryptRedirectUrl(PaymentCheckoutSessionDO sessionDO) {
+        if (sessionDO == null || !StringUtils.hasText(sessionDO.getRedirectUrlCiphertext())) {
+            return null;
+        }
+        if (!Objects.equals(properties.getSensitiveFieldKeyVersion(),
+                sessionDO.getRedirectUrlEncryptionKeyVersion())) {
+            throw new IllegalStateException("checkout redirect URL encryption key version is unavailable");
+        }
+        return SensitiveFieldCipher.decrypt(
+                sessionDO.getRedirectUrlCiphertext(),
+                properties.getSensitiveFieldEncryptionKey(),
+                sessionDO.getMerchantId() + "|" + sessionDO.getMerchantOrderNo() + "|redirect");
     }
 
     /**
@@ -1382,10 +1412,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         checkoutDTO.setRemainingAttemptCount(Math.max(0, remainingAttempts(sessionDO)));
         checkoutDTO.setPollingIntervalSeconds(properties.getPollingIntervalSeconds());
         resultDTO.setCheckout(checkoutDTO);
-        resultDTO.setPayerInfo(decryptCheckoutSnapshot(sessionDO,
-                sessionDO.getPayerInfoCiphertext(), "payer", PaymentCheckoutSessionQueryResultDTO.PayerInfoDTO.class));
-        resultDTO.setBillingInfo(decryptCheckoutSnapshot(sessionDO,
-                sessionDO.getBillingInfoCiphertext(), "billing", PaymentCheckoutSessionQueryResultDTO.BillingInfoDTO.class));
+        resultDTO.setPayerInfo(parseCheckoutSnapshot(
+                sessionDO.getPayerInfoJson(), PaymentCheckoutSessionQueryResultDTO.PayerInfoDTO.class));
+        resultDTO.setBillingInfo(parseCheckoutSnapshot(
+                sessionDO.getBillingInfoJson(), PaymentCheckoutSessionQueryResultDTO.BillingInfoDTO.class));
         PaymentCheckoutAttemptDO latestAttempt = resolveAttempt(sessionDO, null);
         if (latestAttempt != null || !PaymentCheckoutSessionStatusEnum.PAYABLE.getCode().equals(sessionDO.getCheckoutStatus())) {
             resultDTO.setPaymentResult(paymentResult(sessionDO, latestAttempt));
@@ -1407,17 +1437,11 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         return retryState && Integer.valueOf(1).equals(sessionDO.getRetryAllowed()) && remainingAttempts(sessionDO) > 0;
     }
 
-    /** 解密付款页预填快照，密文通过 AAD 绑定到原商户订单及字段用途。 */
-    private <T> T decryptCheckoutSnapshot(PaymentCheckoutSessionDO sessionDO,
-                                          String ciphertext,
-                                          String purpose,
-                                          Class<T> targetType) {
-        if (!StringUtils.hasText(ciphertext)) {
+    /** 读取允许在运营和收银台展示的明文预填快照。 */
+    private <T> T parseCheckoutSnapshot(String json, Class<T> targetType) {
+        if (!StringUtils.hasText(json)) {
             return null;
         }
-        String json = SensitiveFieldCipher.decrypt(ciphertext,
-                properties.getSensitiveFieldEncryptionKey(),
-                sessionDO.getMerchantId() + "|" + sessionDO.getMerchantOrderNo() + "|" + purpose);
         return JsonUtils.parseObject(json, targetType);
     }
 
@@ -1432,7 +1456,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         resultDTO.setResult(paymentResultDetail(sessionDO, attemptDO));
         resultDTO.setFailure(failureDetail(sessionDO, attemptDO));
         resultDTO.setPolling(pollingDetail());
-        resultDTO.setActions(actionDetail(sessionDO));
+        resultDTO.setActions(actionDetail(sessionDO, attemptDO));
         if (attemptDO != null && PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED.getCode().equals(attemptDO.getAttemptStatus())) {
             resultDTO.setPageState(PaymentCheckoutPageStateEnum.THREE_DS_REQUIRED.getCode());
         } else if (attemptDO != null
@@ -1513,16 +1537,37 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         return pollingDTO;
     }
 
-    /**
-     * 返回付款人页面跳转地址；returnUrl 是浏览器回跳商户页面，不是异步通知地址。
-     */
-    private PaymentCheckoutPaymentResultDTO.ActionDTO actionDetail(PaymentCheckoutSessionDO sessionDO) {
-        if (sessionDO == null) {
+    /** 只为已形成 SUCCESS/FAILED 动作终态且配置 redirectUrl 的交易返回 Form POST。 */
+    private PaymentCheckoutPaymentResultDTO.ActionDTO actionDetail(PaymentCheckoutSessionDO sessionDO,
+                                                                    PaymentCheckoutAttemptDO attemptDO) {
+        if (sessionDO == null || attemptDO == null
+                || (!PaymentTransactionStatusEnum.SUCCESS.getCode().equals(attemptDO.getChannelStatus())
+                && !PaymentTransactionStatusEnum.FAILED.getCode().equals(attemptDO.getChannelStatus()))) {
+            return null;
+        }
+        String redirectUrl = decryptRedirectUrl(sessionDO);
+        if (!StringUtils.hasText(redirectUrl)) {
             return null;
         }
         PaymentCheckoutPaymentResultDTO.ActionDTO actionDTO = new PaymentCheckoutPaymentResultDTO.ActionDTO();
-        actionDTO.setReturnUrl(sessionDO.getMerchantReturnUrl());
-        actionDTO.setCancelUrl(sessionDO.getMerchantCancelUrl());
+        actionDTO.setMethod("POST");
+        actionDTO.setRedirectUrl(redirectUrl);
+        actionDTO.setDelaySeconds(5);
+        PaymentCheckoutPaymentResultDTO.FormFieldsDTO form = new PaymentCheckoutPaymentResultDTO.FormFieldsDTO();
+        form.setMerchantId(sessionDO.getMerchantId());
+        form.setOrderNo(sessionDO.getMerchantOrderNo());
+        form.setOrderId(sessionDO.getMerchantRequestId());
+        form.setTransactionId(attemptDO.getTransactionId());
+        form.setTransactionType(PaymentTransactionTypeEnum.PAYMENT.getCode());
+        form.setTransactionStatus(attemptDO.getChannelStatus());
+        form.setTransactionDateTime(attemptDO.getTransactionDateTime());
+        form.setCode(firstText(attemptDO.getChannelResponseCode(),
+                PaymentTransactionStatusEnum.SUCCESS.getCode().equals(attemptDO.getChannelStatus())
+                        ? ApiResultEnum.PAYMENT_SUCCESS.getCode() : ApiResultEnum.PAYMENT_REJECTED.getCode()));
+        form.setMessage(firstText(attemptDO.getChannelResponseMessage(),
+                PaymentTransactionStatusEnum.SUCCESS.getCode().equals(attemptDO.getChannelStatus())
+                        ? ApiResultEnum.PAYMENT_SUCCESS.getMessage() : ApiResultEnum.PAYMENT_REJECTED.getMessage()));
+        actionDTO.setFormFields(form);
         return actionDTO;
     }
 
@@ -1726,6 +1771,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         target.setTransactionId(attemptDO.getTransactionId());
         target.setCardBrand(attemptDO.getPaymentBrand());
         target.setDescription(sessionDO == null ? null : sessionDO.getOrderDescription());
+        target.setRedirectUrl(sessionDO == null ? null : decryptRedirectUrl(sessionDO));
+        target.setLanguage(sessionDO == null ? null : sessionDO.getLocale());
         return target;
     }
 
@@ -1933,7 +1980,11 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         notificationDO.setEventType("CHECKOUT_PAYMENT_TIMEOUT");
         notificationDO.setNotifyStatus("INIT");
         notificationDO.setNotifyConfigSnapshotJson(JsonUtils.toJsonString(Map.of(
-                "callbackUrl", callbackUrl,
+                "callbackUrlCiphertext", SensitiveFieldCipher.encrypt(
+                        callbackUrl,
+                        properties.getSensitiveFieldEncryptionKey(),
+                        callbackUrlAad(sessionDO.getMerchantId(), transactionId)),
+                "callbackUrlEncryptionKeyVersion", properties.getSensitiveFieldKeyVersion(),
                 "payloadJson", payloadJson)));
         notificationDO.setTargetUrlHash(sha256Hex(callbackUrl));
         notificationDO.setTargetUrlMasked(maskUrl(callbackUrl));
@@ -1950,6 +2001,11 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         notificationDO.setCreateTime(now);
         notificationDO.setUpdateTime(now);
         merchantNotificationMapper.insertLogical(notificationDO);
+    }
+
+    /** callback URL 的 AES-GCM 附加认证数据，必须与 service-data 解密规则一致。 */
+    private String callbackUrlAad(String merchantId, String transactionId) {
+        return merchantId + "|" + transactionId + "|callbackUrl";
     }
 
     /** 构造与交易回调同一层级结构的收银台超时载荷。 */

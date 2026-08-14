@@ -299,6 +299,7 @@ class TransactionPersistenceMapperContractTests {
             "transaction_payment_method_info",
             "transaction_payer_info",
             "transaction_billing_info",
+            "transaction_shipping_info",
             "transaction_additional_info",
             "transaction_authentication_info",
             "transaction_product_item",

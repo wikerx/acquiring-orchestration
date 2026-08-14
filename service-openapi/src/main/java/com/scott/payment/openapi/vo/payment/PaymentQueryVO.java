@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.vo.payment;
 
+import com.alibaba.fastjson2.annotation.JSONField;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -32,6 +33,21 @@ public class PaymentQueryVO implements Serializable {
      */
     private PaymentCreateVO.OrderInfoVO orderInfo;
 
+    /** 首次交易保存的商品或服务明细。 */
+    private List<PaymentCreateVO.GoodsInfoVO> goodsInfo = new ArrayList<>();
+
+    /** 首次交易保存的持卡人账单信息。 */
+    private PaymentCreateVO.BillingCardHolderInfoVO billingCardHolderInfo;
+
+    /** 首次交易保存的付款人信息。 */
+    private PaymentCreateVO.PayerInfoVO payerInfo;
+
+    /** 首次交易保存的收货人信息。 */
+    private PaymentCreateVO.ShippingInfoVO shippingInfo;
+
+    /** 查询目标动作可向商户返回的 3DS 安全字段子集。 */
+    private PaymentCreateVO.ThreeDsInfoVO threeDSInfo;
+
     /**
      * 同一商户订单下的交易动作列表。
      */
@@ -60,6 +76,9 @@ public class PaymentQueryVO implements Serializable {
          */
         private String sourceTransactionId;
 
+        /** 后续动作源交易发生时间；首次交易不返回。 */
+        private OffsetDateTime sourceTransactionDateTime;
+
         /**
          * 当前动作商户响应码。
          */
@@ -75,12 +94,16 @@ public class PaymentQueryVO implements Serializable {
          */
         private String transactionType;
 
+        /** 当前动作交易状态。 */
+        private String transactionStatus;
+
         /**
          * 交易发生时间，按交易业务时区展示。
          */
         private OffsetDateTime transactionDateTime;
 
-        /** 生命周期根主单时间，必须与后续动作请求一并回传。 */
+        /** 生命周期根主单时间仅供内部兼容，商户响应不输出。 */
+        @JSONField(serialize = false)
         private OffsetDateTime rootTransactionDateTime;
 
         /**
@@ -122,5 +145,11 @@ public class PaymentQueryVO implements Serializable {
          * 生命周期首次交易保存的商户网站原始 URL。
          */
         private String merchantWebsite;
+
+        /** Hosted Checkout 结果页返回地址。 */
+        private String redirectUrl;
+
+        /** Hosted Checkout 创建会话语言。 */
+        private String language;
     }
 }

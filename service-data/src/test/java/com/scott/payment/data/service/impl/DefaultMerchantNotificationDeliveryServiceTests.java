@@ -1,6 +1,7 @@
 package com.scott.payment.data.service.impl;
 
 import com.scott.payment.data.config.DataMerchantNotificationProperties;
+import com.scott.payment.component.security.crypto.SensitiveFieldCipher;
 import com.scott.payment.data.entity.DataMerchantNotificationLogDO;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
 import com.scott.payment.data.mapper.DataMerchantNotificationLogMapper;
@@ -444,7 +445,11 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         task.setMerchantId("200001");
         task.setMerchantOrderNo("M202608010001");
         task.setNotifyConfigSnapshotJson(
-                "{\"callbackUrl\":\"https://merchant.example/callback?token=secret-token\"}");
+                "{\"callbackUrlCiphertext\":\"" + SensitiveFieldCipher.encrypt(
+                        "https://merchant.example/callback?token=secret-token",
+                        "dev-hosted-checkout-field-key-change-me",
+                        "200001|TX202608011600000000001|callbackUrl")
+                        + "\",\"callbackUrlEncryptionKeyVersion\":\"dev-v1\"}");
         task.setTargetUrlMasked("https://merchant.example/callback?***");
         task.setTargetUrlHash("callback-url-sha256");
         task.setPayloadJsonMasked("{\"transactionId\":\"TX202608011600000000001\"}");

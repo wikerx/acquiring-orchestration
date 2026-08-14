@@ -74,29 +74,38 @@ public final class PaymentCheckoutClientDTOs {
         /** 付款页展示的商户 Logo 地址。 */
         private String merchantLogoUrl;
 
-        /** 支付完成后的商户返回地址。 */
-        private String merchantReturnUrl;
-
-        /** 付款取消后的商户返回地址。 */
-        private String merchantCancelUrl;
-
         /** 商户通知 URL 摘要；内部请求不传递原始通知地址。 */
         private String merchantNotifyUrlHash;
 
         /** 商户通知 URL 的 AES-GCM 密文，仅供 payment 创建受保护通知快照。 */
         private String merchantNotifyUrlCiphertext;
 
-        /** 付款人预填信息 AES-GCM 密文。 */
-        private String payerInfoCiphertext;
+        /** 子商户完整明文 JSON 快照。 */
+        private String subMerchantInfoJson;
 
-        /** 账单预填信息 AES-GCM 密文。 */
-        private String billingInfoCiphertext;
+        /** 付款人预填信息明文 JSON 快照。 */
+        private String payerInfoJson;
+
+        /** 持卡人账单预填信息明文 JSON 快照。 */
+        private String billingInfoJson;
+
+        /** 收货信息结构化 JSON；生成交易后拆分写入明文结构化快照表。 */
+        private String shippingInfoJson;
+
+        /** 结果页返回地址 SHA-256 摘要。 */
+        private String redirectUrlHash;
+
+        /** 结果页返回地址 AES-GCM 密文。 */
+        private String redirectUrlCiphertext;
+
+        /** 结果页返回地址密钥版本。 */
+        private String redirectUrlEncryptionKeyVersion;
 
         /** ISO 3166-1 alpha-3 付款人国家/地区代码。 */
         private String payerCountry;
 
-        /** 付款人邮箱脱敏展示值。 */
-        private String payerEmailMasked;
+        /** 付款人邮箱明文。 */
+        private String payerEmail;
 
         /** 付款人邮箱不可逆摘要，用于风控匹配。 */
         private String payerEmailHash;
@@ -257,6 +266,10 @@ public final class PaymentCheckoutClientDTOs {
         private String city;
         private String street;
         private String postal;
+        private String ipAddress;
+        private String sessionId;
+        private java.util.Map<String, Object> browserInfo;
+        private String userAgent;
     }
 
     @Data
@@ -832,22 +845,35 @@ public final class PaymentCheckoutClientDTOs {
         private Integer maxIntervalSeconds;
     }
 
-    /**
-     * 收银台完成后的商户跳转动作。
-     */
+    /** 收银台终态后通过浏览器表单返回商户的动作。 */
     @Data
     public static class Action implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /**
-         * 支付终态后跳转商户页面的 returnUrl，不是后端回调地址。
-         */
-        private String returnUrl;
+        /** 固定 POST，前端不得降级为 GET 跳转。 */
+        private String method;
+        /** 商户创建会话时提供的结果页地址。 */
+        private String redirectUrl;
+        /** 自动提交前的倒计时秒数。 */
+        private Integer delaySeconds;
+        /** 精确限定为文档 8.4 定义的九个表单字段。 */
+        private FormFields formFields;
+    }
 
-        /**
-         * 付款人取消时跳转商户页面的 cancelUrl。
-         */
-        private String cancelUrl;
+    /** 浏览器返回商户网站时提交的非权威交易摘要。 */
+    @Data
+    public static class FormFields implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String merchantId;
+        private String orderNo;
+        private String orderId;
+        private String transactionId;
+        private String transactionType;
+        private String transactionStatus;
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime transactionDateTime;
+        private String code;
+        private String message;
     }
 }

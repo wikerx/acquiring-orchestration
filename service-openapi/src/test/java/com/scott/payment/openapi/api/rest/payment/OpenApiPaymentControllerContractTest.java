@@ -93,9 +93,26 @@ class OpenApiPaymentControllerContractTest {
         assertThat(transactionInfo.isMerchantWebsiteValid()).isFalse();
     }
 
-    /** 创建类交易业务失败时，顶层响应码与加密 data 内的当前交易结果保持一致。 */
+    /** 首次交易请求必须接收文档声明的业务快照，商户请求不得承担分表路由时间。 */
     @Test
-    void shouldKeepFailedTransactionDataAndExposeF414AtEnvelopeLevel() {
+    void shouldExposeMerchantSnapshotsWithoutShardingTimes() {
+        List<String> requestFieldNames = Arrays.stream(ApiMerchantPaymentRequestDTO.class.getDeclaredFields())
+                .map(Field::getName)
+                .toList();
+        List<String> transactionFieldNames = Arrays.stream(ApiMerchantPaymentRequestDTO.TransactionInfoDTO.class.getDeclaredFields())
+                .map(Field::getName)
+                .toList();
+
+        assertThat(requestFieldNames)
+                .contains("goodsInfo", "payerInfo", "shippingInfo", "riskInfo")
+                .doesNotContain("riskContext");
+        assertThat(transactionFieldNames)
+                .doesNotContain("sourceTransactionDateTime", "rootTransactionDateTime");
+    }
+
+    /** 创建类交易已返回业务 data 时，外层表示 OpenAPI 处理成功，业务结果留在密文内层。 */
+    @Test
+    void shouldKeepFailedTransactionDataAndExposeT200AtEnvelopeLevel() {
         PaymentCreateVO response = new PaymentCreateVO();
         PaymentCreateVO.TransactionInfoVO transactionInfo = new PaymentCreateVO.TransactionInfoVO();
         transactionInfo.setCode("F414");
@@ -105,8 +122,8 @@ class OpenApiPaymentControllerContractTest {
 
         CommonResult<PaymentCreateVO> result = OpenApiPaymentResponseFactory.from(response);
 
-        assertThat(result.getCode()).isEqualTo("F414");
-        assertThat(result.getMessage()).isEqualTo("Original transaction rejected.");
+        assertThat(result.getCode()).isEqualTo("T200");
+        assertThat(result.getMessage()).isEqualTo("Success");
         assertThat(result.getData()).isSameAs(response);
     }
 

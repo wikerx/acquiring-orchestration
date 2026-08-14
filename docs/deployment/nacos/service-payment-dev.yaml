@@ -1,6 +1,9 @@
 # service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
 payment:
   checkout:
+    # callback 和 redirect URL 的字段级加密密钥；正式环境只允许由 Secret/KMS 注入。
+    sensitive-field-encryption-key: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_ENCRYPTION_KEY:dev-hosted-checkout-field-key-change-me}
+    sensitive-field-key-version: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_KEY_VERSION:dev-v1}
     card-vault:
       # 表、分片规则、Topic、消费组和 service-data 密钥全部完成发布后再开启。
       enabled: ${CHECKOUT_CARD_VAULT_PUBLISH_ENABLED:false}

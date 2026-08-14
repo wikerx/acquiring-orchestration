@@ -7,14 +7,17 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.net.URI;
-import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 
@@ -116,6 +119,10 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     @NotNull(message = "orderInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
     private OrderInfoDTO orderInfo;
 
+    /** 商户可选上送的商品或服务明细，仅首次交易保存为生命周期快照。 */
+    @Valid
+    private List<GoodsInfoDTO> goodsInfo;
+
     /**
      * 3D Secure 认证信息，商户使用 3DS 交易时传入，用于渠道风控和责任转移判断。
      * <p>
@@ -129,8 +136,16 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * 持卡人账单信息，用于卡组织风控、AVS 校验和交易补充数据。
      */
     @Valid
-    @NotNull(message = "billingCardHolderInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class})
     private BillingCardHolderInfoDTO billingCardHolderInfo;
+
+    /** 付款人信息；首次交易必须提供对象和真实付款人公网 IP。 */
+    @Valid
+    @NotNull(message = "payerInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class})
+    private PayerInfoDTO payerInfo;
+
+    /** 可选收货人及收货地址快照。 */
+    @Valid
+    private ShippingInfoDTO shippingInfo;
 
     /**
      * 卡信息，包含 PAN、有效期和安全码，是授权交易的核心敏感数据，日志中必须脱敏。
@@ -143,14 +158,27 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * 平台交易信息。首次类交易不要求商户传入；后续动作通过 sourceTransactionId 定位原平台交易，查询接口可传 transactionId 精确过滤。
      */
     @Valid
-    @NotNull(message = "transactionInfo", groups = {IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+    @NotNull(message = "transactionInfo", groups = {IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Reversal.class})
     private TransactionInfoDTO transactionInfo;
 
     /**
      * 商户可选上送的交易风控上下文，仅用于实时风控匹配，不作为交易结果回显。
      */
     @Valid
-    private RiskContextDTO riskContext;
+    @JSONField(name = "riskInfo", alternateNames = {"riskContext"})
+    private RiskInfoDTO riskInfo;
+
+    /**
+     * 撤销金额和币种由平台根据源交易计算，商户请求不得指定部分撤销金额。
+     *
+     * @return 非撤销校验或撤销请求未携带金额、币种时返回 true
+     */
+    @JSONField(serialize = false)
+    @AssertTrue(message = "orderInfo.amount and orderInfo.currency are not accepted for void",
+            groups = {AuthorizationCancel.class})
+    public boolean isAuthorizationCancelAmountAndCurrencyAbsent() {
+        return orderInfo == null || (orderInfo.getAmount() == null && !hasText(orderInfo.getCurrency()));
+    }
 
     /**
      * 商户可选上送的交易风控上下文。
@@ -160,7 +188,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      */
     @Data
     @NoArgsConstructor
-    public static class RiskContextDTO implements Serializable {
+    public static class RiskInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
@@ -200,6 +228,97 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String shippingCountry;
     }
 
+    /** 商品或服务明细，金额是商品行总金额而不是单价。 */
+    @Data
+    @NoArgsConstructor
+    public static class GoodsInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        @NotBlank(message = "goodsInfo.name", groups = {Payment.class, Authorization.class, PreAuthorization.class})
+        @Size(max = 128, message = "goodsInfo.name format does not match", groups = {Format.class})
+        private String name;
+
+        @NotNull(message = "goodsInfo.quantity", groups = {Payment.class, Authorization.class, PreAuthorization.class})
+        @Positive(message = "goodsInfo.quantity must be greater than 0", groups = {Format.class})
+        private Integer quantity;
+
+        @NotNull(message = "goodsInfo.amount", groups = {Payment.class, Authorization.class, PreAuthorization.class})
+        @DecimalMin(value = "0", inclusive = false, message = "goodsInfo.amount must be greater than 0", groups = {Format.class})
+        @Digits(integer = 12, fraction = 3, message = "goodsInfo.amount format does not match", groups = {Format.class})
+        private BigDecimal amount;
+
+        @NotBlank(message = "goodsInfo.currency", groups = {Payment.class, Authorization.class, PreAuthorization.class})
+        @Pattern(regexp = "^[A-Z]{3}$", message = "goodsInfo.currency format does not match", groups = {Format.class})
+        private String currency;
+    }
+
+    /** 付款人身份、联系方式、地址和浏览器上下文。 */
+    @Data
+    @NoArgsConstructor
+    public static class PayerInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        @Size(max = 64, message = "payerInfo.payerId format does not match", groups = {Format.class})
+        private String payerId;
+        @Size(max = 32, message = "payerInfo.firstName format does not match", groups = {Format.class})
+        private String firstName;
+        @Size(max = 32, message = "payerInfo.lastName format does not match", groups = {Format.class})
+        private String lastName;
+        @Size(max = 32, message = "payerInfo.phone format does not match", groups = {Format.class})
+        private String phone;
+        @Size(max = 64, message = "payerInfo.email format does not match", groups = {Format.class})
+        private String email;
+        @Pattern(regexp = "^$|^[A-Z]{3}$", message = "payerInfo.country format does not match", groups = {Format.class})
+        private String country;
+        @Size(max = 64, message = "payerInfo.state format does not match", groups = {Format.class})
+        private String state;
+        @Size(max = 64, message = "payerInfo.city format does not match", groups = {Format.class})
+        private String city;
+        @Size(max = 128, message = "payerInfo.street format does not match", groups = {Format.class})
+        private String street;
+        @Size(max = 32, message = "payerInfo.postal format does not match", groups = {Format.class})
+        private String postal;
+
+        @NotBlank(message = "payerInfo.ipAddress", groups = {Payment.class, Authorization.class, PreAuthorization.class})
+        @Size(max = 64, message = "payerInfo.ipAddress format does not match", groups = {Format.class})
+        private String ipAddress;
+
+        @Size(max = 128, message = "payerInfo.sessionId format does not match", groups = {Format.class})
+        private String sessionId;
+        private Map<String, Object> browserInfo;
+        @Size(max = 512, message = "payerInfo.userAgent format does not match", groups = {Format.class})
+        private String userAgent;
+    }
+
+    /** 可选收货人及收货地址。 */
+    @Data
+    @NoArgsConstructor
+    public static class ShippingInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        @Size(max = 32, message = "shippingInfo.firstName format does not match", groups = {Format.class})
+        private String firstName;
+        @Size(max = 32, message = "shippingInfo.lastName format does not match", groups = {Format.class})
+        private String lastName;
+        @Size(max = 32, message = "shippingInfo.phone format does not match", groups = {Format.class})
+        private String phone;
+        @Size(max = 64, message = "shippingInfo.email format does not match", groups = {Format.class})
+        private String email;
+        @Pattern(regexp = "^$|^[A-Z]{3}$", message = "shippingInfo.country format does not match", groups = {Format.class})
+        private String country;
+        @Size(max = 3, message = "shippingInfo.state format does not match", groups = {Format.class})
+        private String state;
+        @Size(max = 64, message = "shippingInfo.city format does not match", groups = {Format.class})
+        private String city;
+        @Size(max = 128, message = "shippingInfo.street format does not match", groups = {Format.class})
+        private String street;
+        @Size(max = 32, message = "shippingInfo.postal format does not match", groups = {Format.class})
+        private String postal;
+    }
+
     @Data
     @NoArgsConstructor
     /**
@@ -222,7 +341,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
          * 支付平台颁发的商户号，必须与 JWT 中的 merchantId 保持一致，避免商户冒用其他商户配置。
          */
         @NotBlank(message = "merchantInfo.merchantId", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
-        @Pattern(regexp = "^[2-9]\\d{5,16}$", message = "merchantInfo.merchantId format does not match", groups = {Format.class})
+        @Pattern(regexp = "^[2-9]\\d{5,15}$", message = "merchantInfo.merchantId format does not match", groups = {Format.class})
         private String merchantId;
 
         /**
@@ -253,34 +372,32 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 子商户个人名称，个人商户可传；与 subCompanyName 至少填写一个。
          */
-        @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,35}$", message = "merchantInfo.subMerchantInfo.subName format does not match", groups = {Format.class})
+        @Pattern(regexp = "^$|^.{1,128}$", message = "merchantInfo.subMerchantInfo.subName format does not match", groups = {Format.class})
         private String subName;
 
         /**
          * 子商户公司名称，企业商户可传；与 subName 至少填写一个。
          */
-        @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,35}$", message = "merchantInfo.subMerchantInfo.subCompanyName format does not match", groups = {Format.class})
+        @Pattern(regexp = "^$|^.{1,128}$", message = "merchantInfo.subMerchantInfo.subCompanyName format does not match", groups = {Format.class})
         private String subCompanyName;
 
         /**
          * 商户侧子商户编号，用于聚合平台或平台代理模式下识别实际经营主体。
          */
         @NotBlank(message = "merchantInfo.subMerchantInfo.subId", groups = {Payment.class, Authorization.class, PreAuthorization.class})
-        @Pattern(regexp = "^[\\x21-\\x7E\\s]{1,15}$", message = "merchantInfo.subMerchantInfo.subId format does not match", groups = {Format.class})
+        @Pattern(regexp = "^[\\x21-\\x7E\\s]{1,32}$", message = "merchantInfo.subMerchantInfo.subId format does not match", groups = {Format.class})
         private String subId;
 
         /**
          * 子商户街道地址，用于卡组织和渠道侧商户补充信息。
          */
-        @NotBlank(message = "merchantInfo.subMerchantInfo.subStreet", groups = {Payment.class, Authorization.class, PreAuthorization.class})
-        @Pattern(regexp = "^[\\x21-\\x7E\\s]{1,128}$", message = "merchantInfo.subMerchantInfo.subStreet format does not match", groups = {Format.class})
+        @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,128}$", message = "merchantInfo.subMerchantInfo.subStreet format does not match", groups = {Format.class})
         private String subStreet;
 
         /**
          * 子商户城市，建议传英文或渠道要求的标准城市名称。
          */
-        @NotBlank(message = "merchantInfo.subMerchantInfo.subCity", groups = {Payment.class, Authorization.class, PreAuthorization.class})
-        @Pattern(regexp = "^[\\x21-\\x7E\\s]{1,64}$", message = "merchantInfo.subMerchantInfo.subCity format does not match", groups = {Format.class})
+        @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,64}$", message = "merchantInfo.subMerchantInfo.subCity format does not match", groups = {Format.class})
         private String subCity;
 
         /**
@@ -292,8 +409,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 子商户国家三字码，使用 ISO 3166-1 alpha-3 格式，例如 USA、CAN、GBR。
          */
-        @NotBlank(message = "merchantInfo.subMerchantInfo.subCountryCode", groups = {Payment.class, Authorization.class, PreAuthorization.class})
-        @Pattern(regexp = "^[A-Z]{3}$", message = "merchantInfo.subMerchantInfo.subCountryCode format does not match", groups = {Format.class})
+        @Pattern(regexp = "^$|^[A-Z]{3}$", message = "merchantInfo.subMerchantInfo.subCountryCode format does not match", groups = {Format.class})
         private String subCountryCode;
 
         /**
@@ -323,8 +439,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 子商户 MCC 行业类别码，四位数字，用于卡组织行业识别和费率规则。
          */
-        @NotBlank(message = "merchantInfo.subMerchantInfo.merchantCategory", groups = {Payment.class, Authorization.class, PreAuthorization.class})
-        @Pattern(regexp = "^\\d{4}$", message = "merchantInfo.subMerchantInfo.merchantCategory format does not match", groups = {Format.class})
+        @Pattern(regexp = "^$|^\\d{4}$", message = "merchantInfo.subMerchantInfo.merchantCategory format does not match", groups = {Format.class})
         private String merchantCategory;
 
         /**
@@ -340,16 +455,36 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String chargeType;
 
         /**
-         * 校验个人名称和公司名称二选一。
+         * 校验已登记子商户引用或临时子商户完整资料。
          * <p>
-         * 卡组织规则要求至少存在一个真实经营主体名称，避免只传子商户号但缺少可识别主体信息。
+         * 只传 subId 时由平台读取已登记资料；只要附带任何资料字段，就必须提供完整经营主体资料。
          *
-         * @return true 表示子商户名称信息满足接口要求
+         * @return true 表示已登记引用或临时资料满足接口要求
          */
         @JSONField(serialize = false)
-        @AssertTrue(message = "Must fill in one of merchantInfo.subMerchantInfo.subName or merchantInfo.subMerchantInfo.subCompanyName", groups = {Payment.class, Authorization.class, PreAuthorization.class})
-        public boolean isSubNameOrCompanyNameValid() {
-            return hasText(subName) || hasText(subCompanyName);
+        @AssertTrue(message = "merchantInfo.subMerchantInfo must be a registered subId reference or complete temporary profile", groups = {Payment.class, Authorization.class, PreAuthorization.class})
+        public boolean isRegisteredReferenceOrCompleteProfile() {
+            boolean hasProfileData = hasText(subName)
+                    || hasText(subCompanyName)
+                    || hasText(subStreet)
+                    || hasText(subCity)
+                    || hasText(subState)
+                    || hasText(subCountryCode)
+                    || hasText(subEmail)
+                    || hasText(subPhone)
+                    || hasText(subPostal)
+                    || hasText(subTaxId)
+                    || hasText(merchantCategory)
+                    || hasText(intesCode)
+                    || hasText(chargeType);
+            if (!hasProfileData) {
+                return true;
+            }
+            return (hasText(subName) || hasText(subCompanyName))
+                    && hasText(subStreet)
+                    && hasText(subCity)
+                    && hasText(subCountryCode)
+                    && hasText(merchantCategory);
         }
     }
 
@@ -560,7 +695,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * ECI 电子商务指示符，用于说明 3DS 认证结果和交易责任归属。
          */
-        @Pattern(regexp = "^$|^\\d{3}$", message = "threeDsInfo.eci format does not match", groups = {Format.class})
+        @Pattern(regexp = "^$|^\\d{2}$", message = "threeDsInfo.eci format does not match", groups = {Format.class})
         private String eci;
 
         /**
@@ -608,18 +743,6 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String sourceTransactionId;
 
         /**
-         * 源交易动作发生时间，必须取自平台交易响应并保留偏移量，用于精确路由源动作单。
-         */
-        @NotNull(message = "transactionInfo.sourceTransactionDateTime", groups = {IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
-        private OffsetDateTime sourceTransactionDateTime;
-
-        /**
-         * 源交易所属生命周期主单时间，必须取自平台响应，用于精确路由 transaction_order。
-         */
-        @NotNull(message = "transactionInfo.rootTransactionDateTime", groups = {IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
-        private OffsetDateTime rootTransactionDateTime;
-
-        /**
          * 平台当前交易唯一标识。查询接口可选传入；传入时只返回该商户订单下命中的单笔交易动作。
          */
         @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,64}$", message = "transactionInfo.transactionId format does not match", groups = {Format.class})
@@ -634,7 +757,8 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 商户通知回调地址，交易状态变化后系统可按该地址推送异步通知。
          */
-        @Pattern(regexp = "^$|^(https?):\\/\\/[^\\s]{1,256}$", message = "transactionInfo.callbackUrl format does not match", groups = {Format.class})
+        @Size(max = 512, message = "transactionInfo.callbackUrl format does not match", groups = {Format.class})
+        @Pattern(regexp = "^$|^(?i:https?)://\\S+$", message = "transactionInfo.callbackUrl format does not match", groups = {Format.class})
         private String callbackUrl;
 
         /**

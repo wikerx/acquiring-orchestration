@@ -1,4 +1,4 @@
-package com.scott.payment.openapi.api.rest.reference.v1;
+package com.scott.payment.openapi.api.rest.ip.v1;
 
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.version.ApiVersion;

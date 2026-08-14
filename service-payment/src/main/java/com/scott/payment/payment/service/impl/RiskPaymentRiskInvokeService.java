@@ -213,6 +213,8 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setUserAgent(commandDTO.getUserAgent());
         fillSubMerchantInfo(commandDTO, requestDTO);
         fillBillingInfo(commandDTO, requestDTO);
+        fillPayerInfo(commandDTO, requestDTO);
+        fillShippingInfo(commandDTO, requestDTO);
         fillRiskContext(commandDTO, requestDTO);
         fillCardInfo(commandDTO, requestDTO);
         fillThreeDsInfo(commandDTO, requestDTO);
@@ -267,6 +269,46 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setBillingCity(billingInfoDTO.getCity());
     }
 
+    /** Copy payer identity and address independently from cardholder billing data. */
+    private void fillPayerInfo(PaymentCreateCommandDTO commandDTO,
+                               RiskPaymentEvaluateClientRequestDTO requestDTO) {
+        PaymentCreateCommandDTO.PayerInfoDTO payerInfo = commandDTO.getPayerInfo();
+        if (payerInfo == null) {
+            return;
+        }
+        requestDTO.setPayerId(payerInfo.getPayerId());
+        requestDTO.setPayerName(joinName(payerInfo.getFirstName(), payerInfo.getLastName()));
+        requestDTO.setPayerEmail(payerInfo.getEmail());
+        requestDTO.setPayerPhone(payerInfo.getPhone());
+        requestDTO.setPayerCountry(payerInfo.getCountry());
+        requestDTO.setPayerAddress(payerInfo.getStreet());
+        requestDTO.setPayerZip(payerInfo.getPostal());
+        requestDTO.setPayerRegion(payerInfo.getState());
+        requestDTO.setPayerCity(payerInfo.getCity());
+        requestDTO.setPayerSessionId(payerInfo.getSessionId());
+        requestDTO.setPayerIp(payerInfo.getIpAddress());
+        if (StringUtils.hasText(payerInfo.getUserAgent())) {
+            requestDTO.setUserAgent(payerInfo.getUserAgent());
+        }
+    }
+
+    /** Copy shipping identity and address independently from optional legacy riskInfo. */
+    private void fillShippingInfo(PaymentCreateCommandDTO commandDTO,
+                                  RiskPaymentEvaluateClientRequestDTO requestDTO) {
+        PaymentCreateCommandDTO.ShippingInfoDTO shippingInfo = commandDTO.getShippingInfo();
+        if (shippingInfo == null) {
+            return;
+        }
+        requestDTO.setShippingName(joinName(shippingInfo.getFirstName(), shippingInfo.getLastName()));
+        requestDTO.setShippingEmail(shippingInfo.getEmail());
+        requestDTO.setShippingPhone(shippingInfo.getPhone());
+        requestDTO.setShippingCountry(shippingInfo.getCountry());
+        requestDTO.setShippingRegion(shippingInfo.getState());
+        requestDTO.setShippingCity(shippingInfo.getCity());
+        requestDTO.setShippingAddress(shippingInfo.getStreet());
+        requestDTO.setShippingZip(shippingInfo.getPostal());
+    }
+
     /**
      * 复制商户可选风控上下文。
      *
@@ -281,9 +323,11 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         }
         requestDTO.setCustomerId(riskContextDTO.getCustomerId());
         requestDTO.setDeviceFingerprint(riskContextDTO.getDeviceFingerprint());
-        requestDTO.setShippingAddress(riskContextDTO.getShippingAddress());
-        requestDTO.setShippingZip(riskContextDTO.getShippingPostalCode());
-        requestDTO.setShippingCountry(riskContextDTO.getShippingCountry());
+        if (commandDTO.getShippingInfo() == null) {
+            requestDTO.setShippingAddress(riskContextDTO.getShippingAddress());
+            requestDTO.setShippingZip(riskContextDTO.getShippingPostalCode());
+            requestDTO.setShippingCountry(riskContextDTO.getShippingCountry());
+        }
     }
 
     /**

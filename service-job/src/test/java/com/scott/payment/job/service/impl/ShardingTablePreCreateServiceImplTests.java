@@ -94,7 +94,7 @@ class ShardingTablePreCreateServiceImplTests {
 
         assertThatThrownBy(() -> fixture.service.preCreate(nextQuarterRequest(true), null))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("exactly 24 formal tables");
+                .hasMessageContaining("exactly 25 formal tables");
 
         verify(fixture.ddlService, never()).createPhysicalTableIfAbsent(any(), any(), any());
     }

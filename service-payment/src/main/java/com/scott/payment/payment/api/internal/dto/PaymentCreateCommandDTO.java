@@ -9,6 +9,8 @@ import lombok.Data;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -212,6 +214,15 @@ public class PaymentCreateCommandDTO implements Serializable {
      * 持卡人账单信息，用于 AVS、风控和渠道请求。
      */
     private BillingCardHolderInfoDTO billingCardHolderInfo;
+
+    /** 首次交易商品或服务明细，用于生命周期快照和商户结果回显。 */
+    private List<GoodsInfoDTO> goodsInfo;
+
+    /** 商户上送的付款人信息，用于名单、AML、IP 和地域风控。 */
+    private PayerInfoDTO payerInfo;
+
+    /** 商户可选上送的收货人及收货地址，用于收货地址风险校验。 */
+    private ShippingInfoDTO shippingInfo;
 
     /**
      * 卡信息，仅允许在 Payment 到渠道调用的内存链路中使用。
@@ -521,6 +532,57 @@ public class PaymentCreateCommandDTO implements Serializable {
         private String postal;
     }
 
+    /** 商品或服务行信息，amount 表示该行总金额。 */
+    @Data
+    public static class GoodsInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String name;
+        private Integer quantity;
+        private BigDecimal amount;
+        private String currency;
+    }
+
+    /** 付款人身份、联系方式、地址和浏览器上下文。 */
+    @Data
+    public static class PayerInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String payerId;
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+        private String ipAddress;
+        private String sessionId;
+        private Map<String, Object> browserInfo;
+        private String userAgent;
+    }
+
+    /** 收货人及收货地址信息。 */
+    @Data
+    public static class ShippingInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+    }
+
     @Data
     /**
      * @author : scott
@@ -677,6 +739,9 @@ public class PaymentCreateCommandDTO implements Serializable {
          */
         private String sourceTransactionId;
 
+        /** 生命周期首笔平台交易 ID，由 transaction_locator 内部补齐，不接受商户上送。 */
+        private String rootTransactionId;
+
         /**
          * 原交易业务时间，用于按 transaction_date_time + transaction_id 精确定位交易主单所在物理分表。
          */
@@ -716,6 +781,12 @@ public class PaymentCreateCommandDTO implements Serializable {
          * 商户发起支付的网站原始 URL，用于来源网址限定、交易主单留存和商户响应回显。
          */
         private String merchantWebsite;
+
+        /** Hosted Checkout 结果页返回地址，仅允许加密持久化。 */
+        private String redirectUrl;
+
+        /** Hosted Checkout 创建会话时指定的显示语言。 */
+        private String language;
 
         /**
          * card Brand，用于保存 Transaction Info DTO 中与 cardbrand 相关的业务属性。

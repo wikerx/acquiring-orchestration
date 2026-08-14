@@ -23,7 +23,7 @@ public class TransactionShardingProperties {
     /** 所有交易逻辑表统一使用的分片键。 */
     public static final String REQUIRED_SHARDING_COLUMN = "transaction_date_time";
     /** 当前正式交易逻辑表数量。 */
-    public static final int FORMAL_LOGIC_TABLE_COUNT = 24;
+    public static final int FORMAL_LOGIC_TABLE_COUNT = 25;
     /** 仅在卡资料能力启用后才必须加入活动分片规则的逻辑表。 */
     public static final String CARD_VAULT_LOGIC_TABLE = "transaction_card_vault";
 
@@ -41,7 +41,7 @@ public class TransactionShardingProperties {
     private List<String> replicaDataSources = new ArrayList<>(List.of(DataSourceName.SLAVE_1, DataSourceName.SLAVE_2));
     /** 已建表且通过 schema、字符集和号段校验的季度后缀集合。 */
     private List<String> physicalNodes = new ArrayList<>();
-    /** 必须完整匹配包含卡资料表的 24 表正式拓扑。 */
+    /** 必须完整匹配包含卡资料表和收货快照表的 25 表正式拓扑。 */
     private List<String> logicTables = new ArrayList<>(defaultLogicTables());
     /** 允许直接选择 transaction 逻辑数据源的服务白名单。 */
     private List<String> directAccessServices = new ArrayList<>(List.of(
@@ -52,7 +52,7 @@ public class TransactionShardingProperties {
     /**
      * 返回必须被同一规则版本完整接管的交易表集合。
      *
-     * @return 不可变的 24 张逻辑表名
+     * @return 不可变的 25 张逻辑表名
      */
     public static List<String> defaultLogicTables() {
         return List.of(
@@ -62,6 +62,7 @@ public class TransactionShardingProperties {
                 "transaction_payment_method_info",
                 "transaction_payer_info",
                 "transaction_billing_info",
+                "transaction_shipping_info",
                 "transaction_additional_info",
                 "transaction_authentication_info",
                 "transaction_product_item",
@@ -83,7 +84,7 @@ public class TransactionShardingProperties {
     }
 
     /**
-     * 返回卡资料表上线前已发布的 23 张交易逻辑表基线。
+     * 返回卡资料表上线前的逻辑表集合。
      *
      * @return 不含卡资料表的不可变逻辑表集合
      */
@@ -116,7 +117,7 @@ public class TransactionShardingProperties {
             throw new IllegalStateException("transaction sharding physical nodes must be unique yyyyQQ suffixes");
         }
         if (!matchesPublishedLogicTableTopology()) {
-            throw new IllegalStateException("transaction sharding rules must contain exactly 24 formal logic tables");
+            throw new IllegalStateException("transaction sharding rules must contain exactly 25 formal logic tables");
         }
         validateQueryBudget();
         String calculated = TransactionShardingRuleChecksum.calculate(this);
@@ -200,7 +201,7 @@ public class TransactionShardingProperties {
         return logicTables;
     }
 
-    /** @param logicTables 包含卡资料表的 24 表正式拓扑 */
+    /** @param logicTables 包含卡资料表和收货快照表的 25 表正式拓扑 */
     public void setLogicTables(List<String> logicTables) {
         this.logicTables = logicTables == null ? new ArrayList<>() : new ArrayList<>(logicTables);
     }

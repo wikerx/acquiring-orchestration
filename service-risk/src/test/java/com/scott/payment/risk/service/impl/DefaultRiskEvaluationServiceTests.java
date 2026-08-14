@@ -879,7 +879,7 @@ class DefaultRiskEvaluationServiceTests {
 
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(publisher.messages).singleElement().satisfies(message -> {
-            int expectedEvaluationDimensions = RiskListFunction.values().length + 2;
+            int expectedEvaluationDimensions = RiskListFunction.values().length + 5;
             assertThat(message.getHitCount()).isZero();
             assertThat(message.getHits()).hasSize(expectedEvaluationDimensions);
             assertThat(message.getHits().stream()
@@ -909,10 +909,47 @@ class DefaultRiskEvaluationServiceTests {
                 .extracting(RiskAuditHitMessage::getHitElement, RiskAuditHitMessage::getHitValueMasked)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("issuerCountry", "CAN"),
-                        org.assertj.core.groups.Tuple.tuple("tradeCountry", "USA")
+                        org.assertj.core.groups.Tuple.tuple("billingCountry", "USA")
                 );
         assertThat(cachedRule.getHitElement()).isEqualTo("country");
         assertThat(cachedRule.getStageCode()).isNull();
+    }
+
+    @Test
+    void shouldEvaluateBillingPayerAndShippingAsIndependentRiskDimensions() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withAllActiveListRules()
+                .withIssuerCountry("CAN");
+        RecordingRiskAuditRecordPublisher publisher = new RecordingRiskAuditRecordPublisher();
+        DefaultRiskEvaluationService runtimeService = runtimeService(repository, publisher);
+        RiskPaymentEvaluateRequestDTO requestDTO = fullyPopulatedRequest();
+        requestDTO.setPayerId("PAYER-001");
+        requestDTO.setPayerName("Payer Alice");
+        requestDTO.setPayerEmail("payer@example.test");
+        requestDTO.setPayerPhone("+15550101");
+        requestDTO.setPayerCountry("GBR");
+        requestDTO.setPayerAddress("3 Payer Street");
+        requestDTO.setPayerZip("SW1A1AA");
+        requestDTO.setPayerRegion("London");
+        requestDTO.setPayerCity("London");
+        requestDTO.setShippingName("Receiver Bob");
+        requestDTO.setShippingEmail("receiver@example.test");
+        requestDTO.setShippingPhone("+15550102");
+        requestDTO.setShippingRegion("CA");
+        requestDTO.setShippingCity("Los Angeles");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+        assertThat(publisher.messages).singleElement().satisfies(message ->
+                assertThat(message.getHits())
+                        .extracting(RiskAuditHitMessage::getHitElement)
+                        .contains(
+                                "billingEmail", "payerEmail", "shippingEmail",
+                                "billingPhone", "payerPhone", "shippingPhone",
+                                "billingName", "payerName", "shippingName",
+                                "billingAddress", "payerAddress", "shippingAddress",
+                                "billingCountry", "payerCountry", "shippingCountry"));
     }
 
     private RiskPaymentEvaluateRequestDTO fullyPopulatedRequest() {

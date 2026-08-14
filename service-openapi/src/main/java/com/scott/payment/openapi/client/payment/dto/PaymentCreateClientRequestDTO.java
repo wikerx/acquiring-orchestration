@@ -6,6 +6,8 @@ import lombok.Data;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -113,6 +115,15 @@ public class PaymentCreateClientRequestDTO implements Serializable {
      * 持卡人账单信息，用于 AVS、风控和渠道请求。
      */
     private BillingCardHolderInfoDTO billingCardHolderInfo;
+
+    /** 首次交易的商品或服务明细快照。 */
+    private List<GoodsInfoDTO> goodsInfo;
+
+    /** 商户上送的付款人身份、地址和浏览器上下文。 */
+    private PayerInfoDTO payerInfo;
+
+    /** 商户可选上送的收货人及收货地址快照。 */
+    private ShippingInfoDTO shippingInfo;
 
     /**
      * 卡信息，仅允许在 OpenAPI 到 Payment 再到渠道调用的内存链路中使用。
@@ -411,6 +422,57 @@ public class PaymentCreateClientRequestDTO implements Serializable {
          * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        private String postal;
+    }
+
+    /** 商品或服务行信息，amount 为该行总金额。 */
+    @Data
+    public static class GoodsInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String name;
+        private Integer quantity;
+        private BigDecimal amount;
+        private String currency;
+    }
+
+    /** 付款人信息，属于敏感业务快照，普通日志必须脱敏。 */
+    @Data
+    public static class PayerInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String payerId;
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+        private String ipAddress;
+        private String sessionId;
+        private Map<String, Object> browserInfo;
+        private String userAgent;
+    }
+
+    /** 收货人及收货地址信息，普通日志必须脱敏。 */
+    @Data
+    public static class ShippingInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
         private String postal;
     }
 

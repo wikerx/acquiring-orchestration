@@ -35,6 +35,9 @@ public class HostedCheckoutProperties {
      */
     private int defaultMaxAttemptCount = 3;
 
-    /** UAT/生产必须通过配置中心覆盖的收银台敏感字段加密密钥。 */
+    /** UAT/生产必须通过配置中心覆盖的 callback/redirect URL 加密密钥。 */
     private String sensitiveFieldEncryptionKey = "dev-hosted-checkout-field-key-change-me";
+
+    /** callback/redirect URL 密钥版本，必须与 service-payment 同步轮换。 */
+    private String sensitiveFieldKeyVersion = "dev-v1";
 }

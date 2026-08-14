@@ -59,6 +59,7 @@ import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.VoidPreparationResultDTO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
+import com.scott.payment.payment.entity.TransactionPaymentMethodInfoDO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -651,7 +652,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setMerchantOrderId(commandDTO.getMerchantOrderId());
         fillQueryOrderSummary(resultDTO, sourceOrderDO);
         resultDTO.setTransactionInfo(operations.stream()
-                .map(operationDO -> toQueryTransactionInfo(operationDO, sourceOrderDO))
+                .map(operationDO -> toQueryTransactionInfo(operationDO, sourceOrderDO, operations))
                 .toList());
         return resultDTO;
     }
@@ -2128,24 +2129,66 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 商户查询交易明细
      */
     private PaymentQueryResultDTO.TransactionInfoDTO toQueryTransactionInfo(TransactionOperationDO operationDO,
-                                                                           TransactionOrderDO orderDO) {
+                                                                           TransactionOrderDO orderDO,
+                                                                           List<TransactionOperationDO> operations) {
         PaymentQueryResultDTO.TransactionInfoDTO target = new PaymentQueryResultDTO.TransactionInfoDTO();
         target.setTransactionId(operationDO.getTransactionId());
         target.setSourceTransactionId(operationDO.getSourceTransactionId());
+        target.setSourceTransactionDateTime(resolveSourceTransactionDateTime(operationDO, operations));
         target.setCode(resolveMerchantResponseCode(operationDO.getTransactionStatus()));
         target.setMessage(resolveMerchantResponseMessage(operationDO));
         target.setTransactionType(operationDO.getTransactionType());
+        target.setTransactionStatus(operationDO.getTransactionStatus());
         target.setTransactionDateTime(operationDO.getTransactionDateTime());
         target.setRootTransactionDateTime(orderDO.getTransactionDateTime());
-        target.setPaymentMethod(StringUtils.hasText(orderDO.getPaymentMethod()) ? orderDO.getPaymentMethod() : DEFAULT_PAYMENT_METHOD);
-        target.setCardBrand(orderDO.getPaymentBrand());
-        target.setCardBin(null);
+        TransactionPaymentMethodInfoDO paymentMethodInfo = transactionRecordService.findPaymentMethodInfo(
+                operationDO.getTransactionId(), operationDO.getTransactionDateTime());
+        target.setPaymentMethod(paymentMethodInfo == null || !StringUtils.hasText(paymentMethodInfo.getPaymentMethod())
+                ? firstText(orderDO.getPaymentMethod(), DEFAULT_PAYMENT_METHOD)
+                : paymentMethodInfo.getPaymentMethod());
+        target.setCardBrand(paymentMethodInfo == null || !StringUtils.hasText(paymentMethodInfo.getPaymentBrand())
+                ? orderDO.getPaymentBrand() : paymentMethodInfo.getPaymentBrand());
+        target.setCardBin(paymentMethodInfo == null
+                ? null : firstText(paymentMethodInfo.getCardNumberMasked(), maskedCardSummary(paymentMethodInfo)));
         target.setAuthCode(operationDO.getAuthCode());
         target.setArn(operationDO.getAcquirerReferenceNo());
-        target.setDescription(null);
-        target.setCallbackUrl(null);
+        target.setDescription(operationDO.getDescription());
+        target.setCallbackUrl(transactionRecordService.decryptCallbackUrl(orderDO));
         target.setMerchantWebsite(orderDO.getMerchantWebsite());
+        target.setRedirectUrl(transactionRecordService.decryptRedirectUrl(orderDO));
+        target.setLanguage(orderDO.getLanguage());
         return target;
+    }
+
+    /** 从本次查询动作集合或交易事实表恢复源动作时间，商户请求无需携带该字段。 */
+    private LocalDateTime resolveSourceTransactionDateTime(TransactionOperationDO operationDO,
+                                                           List<TransactionOperationDO> operations) {
+        if (operationDO == null || !StringUtils.hasText(operationDO.getSourceTransactionId())) {
+            return null;
+        }
+        if (operations != null) {
+            Optional<LocalDateTime> matched = operations.stream()
+                    .filter(item -> operationDO.getSourceTransactionId().equals(item.getTransactionId()))
+                    .map(TransactionOperationDO::getTransactionDateTime)
+                    .filter(Objects::nonNull)
+                    .findFirst();
+            if (matched.isPresent()) {
+                return matched.get();
+            }
+        }
+        TransactionOperationDO source = transactionRecordService.findSourceOperationByTransactionId(
+                operationDO.getSourceTransactionId());
+        return source == null ? null : source.getTransactionDateTime();
+    }
+
+    /** 由独立保存的 BIN 和尾号构造商户允许看到的脱敏卡摘要。 */
+    private String maskedCardSummary(TransactionPaymentMethodInfoDO paymentMethodInfo) {
+        if (paymentMethodInfo == null
+                || !StringUtils.hasText(paymentMethodInfo.getCardBin())
+                || !StringUtils.hasText(paymentMethodInfo.getCardLast4())) {
+            return null;
+        }
+        return paymentMethodInfo.getCardBin() + "****" + paymentMethodInfo.getCardLast4();
     }
 
     /**
@@ -2245,6 +2288,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setOperationId(sourceOrderDO.getOperationId());
         resultDTO.setTransactionId(transactionId);
         resultDTO.setSourceTransactionId(commandDTO.getTransactionInfo().getSourceTransactionId());
+        resultDTO.setSourceTransactionDateTime(commandDTO.getTransactionInfo().getSourceTransactionDateTime());
         resultDTO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
         resultDTO.setMerchantOrderId(commandDTO.getMerchantOrderId());
         resultDTO.setMerchantId(commandDTO.getMerchantId());
@@ -2304,6 +2348,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
         resultDTO.setMerchantWebsite(commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getMerchantWebsite());
+        resultDTO.setRedirectUrl(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getRedirectUrl());
+        resultDTO.setLanguage(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getLanguage());
         if (channelResponse != null) {
             resultDTO.setAuthCode(channelResponse.getAuthCode());
             resultDTO.setAcquirerReferenceNo(channelResponse.getAcquirerReferenceNo());

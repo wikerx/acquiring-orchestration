@@ -177,7 +177,7 @@ class MerchantSecurityDatabaseFlowTests {
                         result.getResponse().getStatus(),
                         keyMaterialFactory.fingerprint(result.getResponse().getContentAsString())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ApiResultEnum.PROCESSING.getCode()))
+                .andExpect(jsonPath("$.code").value(ApiResultEnum.SUCCESS.getCode()))
                 .andExpect(jsonPath("$.data").isString())
                 .andReturn();
 
@@ -399,6 +399,20 @@ class MerchantSecurityDatabaseFlowTests {
                     "street": "street name",
                     "postal": "03400"
                   },
+                  "payerInfo": {
+                    "payerId": "CUSTOMER-10001",
+                    "firstName": "John",
+                    "lastName": "tom",
+                    "phone": "+55-5058149876",
+                    "email": "username@liquido.com",
+                    "country": "USA",
+                    "state": "AL",
+                    "city": "city name",
+                    "street": "street name",
+                    "postal": "03400",
+                    "ipAddress": "203.0.113.10",
+                    "userAgent": "JUnit Merchant Client"
+                  },
                   "cardInfo": {
                     "cardNo": "5387380678556554",
                     "expirationMonth": "03",
@@ -406,7 +420,7 @@ class MerchantSecurityDatabaseFlowTests {
                     "securityCode": "123"
                   },
                   "threeDSInfo": {
-                    "eci": "212",
+                    "eci": "05",
                     "cavv": "kANiJlhEqL/yaEfVxr/BUoQBicnh",
                     "dsTransactionId": "b96c957d-daa1-4b7f-b8b4-373fb9dec47b",
                     "threeDsVersion": "2.2.0"

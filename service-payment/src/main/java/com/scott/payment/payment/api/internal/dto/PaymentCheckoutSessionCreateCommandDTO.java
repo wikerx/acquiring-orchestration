@@ -71,23 +71,29 @@ public class PaymentCheckoutSessionCreateCommandDTO implements Serializable {
     private String merchantDisplayName;
     /** 付款页公开展示的商户 Logo 地址。 */
     private String merchantLogoUrl;
-    /** 支付完成后允许返回的商户地址。 */
-    private String merchantReturnUrl;
-    /** 付款取消后允许返回的商户地址。 */
-    private String merchantCancelUrl;
     /** 商户通知地址摘要，不持久化完整地址。 */
     private String merchantNotifyUrlHash;
     /** 商户通知地址 AES-GCM 密文，不得进入日志或页面响应。 */
     private String merchantNotifyUrlCiphertext;
-    /** 付款人预填信息 AES-GCM 密文。 */
-    private String payerInfoCiphertext;
-    /** 账单预填信息 AES-GCM 密文。 */
-    private String billingInfoCiphertext;
+    /** 子商户完整明文 JSON 快照。 */
+    private String subMerchantInfoJson;
+    /** 付款人预填信息明文 JSON 快照。 */
+    private String payerInfoJson;
+    /** 持卡人账单预填信息明文 JSON 快照。 */
+    private String billingInfoJson;
+    /** 收货信息结构化 JSON；创建核心交易时转换为结构化对象。 */
+    private String shippingInfoJson;
+    /** 结果页返回地址 SHA-256 摘要。 */
+    private String redirectUrlHash;
+    /** 结果页返回地址 AES-GCM 密文。 */
+    private String redirectUrlCiphertext;
+    /** 结果页返回地址密钥版本。 */
+    private String redirectUrlEncryptionKeyVersion;
     /** 付款人 ISO 3166 国家或地区代码。 */
     private String payerCountry;
-    /** 已脱敏的付款人邮箱。 */
-    private String payerEmailMasked;
-    /** 付款人邮箱摘要，用于关联而不保存明文。 */
+    /** 付款人邮箱明文。 */
+    private String payerEmail;
+    /** 付款人邮箱摘要，用于关联和索引。 */
     private String payerEmailHash;
     /** 是否允许同一会话在失败后重试：0 否，1 是。 */
     private Integer retryAllowed;

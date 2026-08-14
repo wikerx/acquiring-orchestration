@@ -49,6 +49,9 @@ class SensitiveDataMaskUtilsTest {
                   "customerId":"CUSTOMER-0001",
                   "deviceFingerprint":"device-fingerprint-value",
                   "merchantWebsite":"https://shop.merchant.example/checkout?token=secret",
+                  "callbackUrl":"https://merchant.example/callback?token=secret",
+                  "redirectUrl":"http://localhost:5175/result?token=secret",
+                  "checkoutUrl":"https://pay.example/checkout/raw-opaque-token/cover",
                   "billingAddress":"1 Billing Street",
                   "shippingAddress":"2 Shipping Street",
                   "idCard":"110101199001011234",
@@ -86,6 +89,9 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).contains("\"customerId\":\"***\"");
         assertThat(masked).contains("\"deviceFingerprint\":\"***\"");
         assertThat(masked).contains("\"merchantWebsite\":\"***\"");
+        assertThat(masked).contains("\"callbackUrl\":\"***\"");
+        assertThat(masked).contains("\"redirectUrl\":\"***\"");
+        assertThat(masked).contains("\"checkoutUrl\":\"***\"");
         assertThat(masked).contains("\"billingAddress\":\"***\"");
         assertThat(masked).contains("\"shippingAddress\":\"***\"");
         assertThat(masked).contains("\"idCard\":\"***\"");
@@ -98,6 +104,9 @@ class SensitiveDataMaskUtilsTest {
                 "scott@example.com", "merchant@example.com", "John Smith", "John Smith MPGS", "203.0.113.9", "Jane Owner",
                 "Example Trading Limited", "CUSTOMER-0001", "device-fingerprint-value",
                 "https://shop.merchant.example/checkout?token=secret",
+                "https://merchant.example/callback?token=secret",
+                "http://localhost:5175/result?token=secret",
+                "https://pay.example/checkout/raw-opaque-token/cover",
                 "1 Billing Street", "2 Shipping Street");
     }
 

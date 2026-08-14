@@ -24,6 +24,10 @@ acquiring:
     allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}
 
 openapi:
+  hosted-checkout:
+    # 与 service-payment 使用同一字段级加密密钥和版本；正式环境只允许由 Secret/KMS 注入。
+    sensitive-field-encryption-key: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_ENCRYPTION_KEY:dev-hosted-checkout-field-key-change-me}
+    sensitive-field-key-version: ${PAYMENT_TRANSACTION_SENSITIVE_FIELD_KEY_VERSION:dev-v1}
   security:
     secret-cache:
       # 密钥正文只允许在 OpenAPI 单实例内短时驻留，Redis 仅保存非敏感 revision。

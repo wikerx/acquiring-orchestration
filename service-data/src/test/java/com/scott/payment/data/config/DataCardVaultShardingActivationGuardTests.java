@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 /** 验证卡资料消费开关与交易分片拓扑必须同步启用。 */
 class DataCardVaultShardingActivationGuardTests {
 
-    /** 23 表兼容基线可供普通交易启动，但不能承载卡资料消费。 */
+    /** 缺少卡资料表的兼容基线不能承载卡资料消费。 */
     @Test
     void shouldRejectCardVaultActivationOnPreviousTopology() {
         TransactionShardingProperties sharding = sharding(TransactionShardingProperties.previousLogicTables());
@@ -20,7 +20,7 @@ class DataCardVaultShardingActivationGuardTests {
                 () -> new DataCardVaultShardingActivationGuard(sharding).afterPropertiesSet());
     }
 
-    /** 包含卡资料表的完整目标拓扑允许消费服务激活。 */
+    /** 包含卡资料表和收货快照表的 25 表完整目标拓扑允许消费服务激活。 */
     @Test
     void shouldAllowCardVaultActivationOnTargetTopology() {
         TransactionShardingProperties sharding = sharding(TransactionShardingProperties.defaultLogicTables());

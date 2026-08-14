@@ -90,4 +90,17 @@ public interface TransactionAuthenticationInfoMapper extends BaseMapper<Transact
     TransactionAuthenticationInfoDO selectByAuthenticationInfoId(
             @Param("authenticationInfoId") String authenticationInfoId,
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /** 按平台交易号和真实分片时间读取最后一条 3DS 安全结果。 */
+    @Select("""
+            SELECT *
+            FROM transaction_authentication_info
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+            ORDER BY id DESC
+            LIMIT 1
+            """)
+    TransactionAuthenticationInfoDO selectLatestByTransaction(
+            @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
 }

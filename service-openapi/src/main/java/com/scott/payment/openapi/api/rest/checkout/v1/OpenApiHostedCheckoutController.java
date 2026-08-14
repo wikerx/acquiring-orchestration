@@ -51,7 +51,9 @@ public class OpenApiHostedCheckoutController {
             dataReceiver = HostedCheckoutSessionCreateRequestDTO.class,
             validationGroups = {
                     HostedCheckoutSessionCreateRequestDTO.Create.class,
-                    HostedCheckoutSessionCreateRequestDTO.Format.class
+                    HostedCheckoutSessionCreateRequestDTO.Format.class,
+                    com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO.Payment.class,
+                    com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO.Format.class
             }
     )
     @PostMapping("/session")

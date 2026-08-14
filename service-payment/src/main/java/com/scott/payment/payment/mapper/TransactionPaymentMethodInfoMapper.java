@@ -70,6 +70,19 @@ public interface TransactionPaymentMethodInfoMapper extends BaseMapper<Transacti
                                @Param("indicator") String indicator,
                                @Param("now") LocalDateTime now);
 
+    /** 按平台交易号和真实分片时间读取单笔支付工具安全摘要。 */
+    @Select("""
+            SELECT *
+            FROM transaction_payment_method_info
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+            ORDER BY id DESC
+            LIMIT 1
+            """)
+    TransactionPaymentMethodInfoDO selectByTransactionId(
+            @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
     /**
      * 按生命周期和半开时间范围查询支付工具摘要。
      *

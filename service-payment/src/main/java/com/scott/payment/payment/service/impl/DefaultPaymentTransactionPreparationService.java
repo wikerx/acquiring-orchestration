@@ -985,6 +985,10 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
         resultDTO.setMerchantWebsite(commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getMerchantWebsite());
+        resultDTO.setRedirectUrl(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getRedirectUrl());
+        resultDTO.setLanguage(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getLanguage());
         enrichMerchantResponse(resultDTO, channelResponse);
         if (PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {
             resultDTO.setFailReasonMessage(merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));

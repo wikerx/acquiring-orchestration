@@ -101,9 +101,9 @@ public final class SensitiveDataMaskUtils {
             Pattern.CASE_INSENSITIVE
     );
 
-    /** 商户网站可能携带路径或查询参数，日志和审计明文摘要中不保留原值。 */
+    /** 商户网站、通知和结果页 URL 可能携带路径或查询参数，普通日志中不保留原值。 */
     private static final Pattern MERCHANT_WEBSITE_FIELD_PATTERN = Pattern.compile(
-            "(\"merchantWebsite\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:merchantWebsite|callbackUrl|redirectUrl|checkoutUrl)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 

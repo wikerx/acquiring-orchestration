@@ -183,8 +183,6 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
         DefaultPaymentCheckoutThreeDsService service = new DefaultPaymentCheckoutThreeDsService(
                 new PaymentChannelExecutor(registry), command -> routeResult(), policyClient(true), configReadService);
         PaymentCheckoutSessionDO session = session();
-        session.setMerchantReturnUrl("https://merchant.example.com/checkout/return");
-        session.setMerchantCancelUrl("https://merchant.example.com/checkout/cancel");
         session.setMerchantNotifyUrlCiphertext("merchant-notify-url-ciphertext");
 
         service.authenticate(session, attempt(), submitCommand(),
