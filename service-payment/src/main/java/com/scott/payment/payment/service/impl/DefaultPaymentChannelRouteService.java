@@ -225,6 +225,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setRoutedCurrency(candidate.routedCurrency());
         resultDTO.setEdcRequired(candidate.edcRequired());
         resultDTO.setCapabilityId(candidate.capability().getId());
+        resultDTO.setThreeDsSupported(Integer.valueOf(ENABLED).equals(candidate.capability().getSupport3ds()));
         resultDTO.setSupportedCurrencies(candidate.supportedCurrencies());
         resultDTO.setRouteReason("MERCHANT_MID_BINDING");
         log.info("event: PAYMENT_ROUTE_END stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelId: {} midConfigId: {} midNo: {} capabilityId: {} supportedCurrencies: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} endpointHost: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} routeReason: {} durationMs: {}",
@@ -478,6 +479,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     row.put("midNo", maskMidNo(candidate.midConfig().getChannelMid()));
                     row.put("capabilityId", candidate.capability().getId());
                     row.put("capabilityTransactionType", candidate.capability().getTransactionType());
+                    row.put("threeDsSupported", Integer.valueOf(ENABLED).equals(candidate.capability().getSupport3ds()));
                     row.put("supportedCurrencies", candidate.supportedCurrencies());
                     row.put("routedCurrency", candidate.routedCurrency());
                     row.put("edcRequired", candidate.edcRequired());

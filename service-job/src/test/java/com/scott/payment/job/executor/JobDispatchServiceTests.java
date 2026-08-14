@@ -1,6 +1,7 @@
 package com.scott.payment.job.executor;
 
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.job.enums.JobRunStatusEnum;
 import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.component.job.executor.JobHandler;
 import com.scott.payment.component.job.executor.JobHandlerDescriptor;
@@ -26,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -51,15 +53,28 @@ class JobDispatchServiceTests {
     }
 
     @Test
-    void manualTriggerShouldRejectWhenTaskLockCannotBeAcquired() {
+    void manualTriggerShouldRejectWhenTaskIsAlreadyRunning() {
         Fixture fixture = fixture(successfulHandler());
         when(fixture.jobTaskService().tryAcquireLock(eq(fixture.task()), eq("job-node"), any()))
                 .thenReturn(false);
 
         assertThatThrownBy(() -> fixture.service().triggerManual(14L, new JobManualTriggerRequest()))
                 .isInstanceOf(ServiceException.class)
-                .hasMessage("job task is disabled or already running");
+                .hasMessage("job task is already running");
 
+        verifyNoInteractions(fixture.jobRunLogService());
+    }
+
+    @Test
+    void manualTriggerShouldRejectDisabledTaskBeforeAcquiringLock() {
+        Fixture fixture = fixture(successfulHandler());
+        fixture.task().setStatus("DISABLED");
+
+        assertThatThrownBy(() -> fixture.service().triggerManual(14L, new JobManualTriggerRequest()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("job task is disabled");
+
+        verify(fixture.jobTaskService(), never()).tryAcquireLock(any(), any(), any());
         verifyNoInteractions(fixture.jobRunLogService());
     }
 
@@ -104,6 +119,23 @@ class JobDispatchServiceTests {
                 .finishTaskRun(eq(14L), any(), eq("job-node"));
     }
 
+    @Test
+    void rejectedRetryScheduleShouldReleaseTaskLock() {
+        Fixture fixture = fixture(failingHandler());
+        fixture.task().setRetryCount(1);
+        delayScheduler.shutdown();
+        when(fixture.jobTaskService().tryAcquireLock(eq(fixture.task()), eq("job-node"), any()))
+                .thenReturn(true);
+
+        String runId = fixture.service().triggerManual(14L, new JobManualTriggerRequest());
+
+        assertThat(runId).isNotBlank();
+        verify(fixture.jobRunLogService(), timeout(2_000))
+                .finishAsFailed(eq(99L), any(Long.class), eq("failed"));
+        verify(fixture.jobTaskService(), timeout(2_000))
+                .finishTaskRun(eq(14L), eq(JobRunStatusEnum.FAILED), eq("job-node"));
+    }
+
     private Fixture fixture(JobHandler handler) {
         JobTaskService taskService = mock(JobTaskService.class);
         JobRunLogService runLogService = mock(JobRunLogService.class);
@@ -144,6 +176,20 @@ class JobDispatchServiceTests {
             @Override
             public JobExecuteResult execute(JobExecuteContext context) {
                 return JobExecuteResult.success("done");
+            }
+
+            @Override
+            public JobHandlerDescriptor descriptor() {
+                return JobHandlerDescriptor.sync("merchantNotificationRetry", "retry", "transaction", "retry");
+            }
+        };
+    }
+
+    private JobHandler failingHandler() {
+        return new JobHandler() {
+            @Override
+            public JobExecuteResult execute(JobExecuteContext context) {
+                return JobExecuteResult.failed("F500", "failed");
             }
 
             @Override

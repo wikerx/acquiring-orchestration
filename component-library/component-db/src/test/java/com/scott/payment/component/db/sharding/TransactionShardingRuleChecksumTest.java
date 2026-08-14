@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class TransactionShardingRuleChecksumTest {
 
-    /** 迁移完成后旧 23 表拓扑必须拒绝激活，避免服务启动后治理任务才暴露缺表。 */
+    /** 当前 25 表规则缺少任一正式表时必须拒绝激活，避免服务启动后才暴露缺表。 */
     @Test
     void shouldRejectPreviousTwentyThreeTableBaselineAfterMigration() {
         TransactionShardingProperties properties = validProperties();
@@ -32,7 +32,7 @@ class TransactionShardingRuleChecksumTest {
         assertThrows(IllegalStateException.class, properties::validateForActivation);
     }
 
-    /** 兼容窗口只接受完整历史集合，不能把任意 23 张表误判为旧基线。 */
+    /** 兼容集合也不能把未知表误判为正式拓扑。 */
     @Test
     void shouldRejectUnknownTableInsideTwentyThreeTableTopology() {
         TransactionShardingProperties properties = validProperties();

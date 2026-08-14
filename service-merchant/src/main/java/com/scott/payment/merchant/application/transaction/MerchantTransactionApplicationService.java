@@ -21,6 +21,7 @@ import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.Transa
 import com.scott.payment.merchant.service.MerchantTransactionQueryService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
@@ -284,6 +285,7 @@ public class MerchantTransactionApplicationService {
      * @param response   HTTP 响应
      */
     public void exportOrders(String merchantId, TransactionPageQuery query, String operator, HttpServletResponse response) {
+        Locale locale = LocaleContextHolder.getLocale();
         runExport(merchantId, operator, () -> {
             String fileName = "merchant_transaction_operations_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()) + ".csv";
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
@@ -293,38 +295,40 @@ public class MerchantTransactionApplicationService {
                     + URLEncoder.encode(fileName, StandardCharsets.UTF_8));
             try (PrintWriter writer = response.getWriter()) {
                 writer.write(UTF8_BOM);
-                writer.println("操作人," + csv(operator));
-                writer.println("导出时间," + csv(LocalDateTime.now()));
+                writer.println(csvLabel(locale, "操作人", "Operator") + "," + csv(operator));
+                writer.println(csvLabel(locale, "导出时间", "Export Time") + "," + csv(LocalDateTime.now()));
                 writer.println();
                 writer.println(String.join(",",
-                    "系统订单号",
-                    "原系统订单号",
-                    "商户订单号",
-                    "请求号",
-                    "标签金额",
-                    "标签币种",
-                    "交易金额",
-                    "交易币种",
-                    "交易汇率",
-                    "交易类型",
-                    "交易状态",
-                    "支付方式",
-                    "支付品牌",
-                    "卡BIN",
-                    "授权码",
+                    csvLabel(locale, "系统订单号", "System Order No."),
+                    csvLabel(locale, "原系统订单号", "Source System Order No."),
+                    csvLabel(locale, "商户订单号", "Merchant Order No."),
+                    csvLabel(locale, "请求号", "Request No."),
+                    csvLabel(locale, "标签金额", "Label Amount"),
+                    csvLabel(locale, "标签币种", "Label Currency"),
+                    csvLabel(locale, "交易金额", "Transaction Amount"),
+                    csvLabel(locale, "交易币种", "Transaction Currency"),
+                    csvLabel(locale, "交易汇率", "Transaction Rate"),
+                    csvLabel(locale, "交易类型", "Transaction Type"),
+                    csvLabel(locale, "交易状态", "Transaction Status"),
+                    csvLabel(locale, "支付方式", "Payment Method"),
+                    csvLabel(locale, "支付品牌", "Payment Brand"),
+                    "3DS",
+                    "DCC",
+                    "EDC",
+                    csvLabel(locale, "卡BIN", "Card BIN"),
+                    csvLabel(locale, "授权码", "Auth Code"),
                     "ARN",
-                    "商户响应码",
-                    "商户响应描述",
-                    "渠道编码",
-                    "渠道订单号",
-                    "渠道交易ID",
-                    "勾兑状态",
-                    "结算状态",
-                    "对账状态",
-                    "动作时间",
-                    "交易时间"
+                    csvLabel(locale, "商户响应码", "Merchant Response Code"),
+                    csvLabel(locale, "商户响应描述", "Merchant Response Message"),
+                    csvLabel(locale, "渠道编码", "Channel Code"),
+                    csvLabel(locale, "渠道订单号", "Channel Order No."),
+                    csvLabel(locale, "渠道交易ID", "Channel Transaction ID"),
+                    csvLabel(locale, "结算状态", "Settlement Status"),
+                    csvLabel(locale, "对账状态", "Reconciliation Status"),
+                    csvLabel(locale, "动作时间", "Operation Time"),
+                    csvLabel(locale, "交易时间", "Transaction Time")
                 ));
-                writeOperationPages(writer, merchantId, query);
+                writeOperationPages(writer, merchantId, query, locale);
             } catch (IOException exception) {
                 throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR, "export merchant transactions failed");
             }
@@ -354,7 +358,8 @@ public class MerchantTransactionApplicationService {
     /** 按页读取当前商户交易并直接写入响应流，不在内存中聚合全部导出数据。 */
     private void writeOperationPages(PrintWriter writer,
                                      String merchantId,
-                                     TransactionPageQuery sourceQuery) {
+                                     TransactionPageQuery sourceQuery,
+                                     Locale locale) {
         for (int pageNo = 1; ; pageNo++) {
             TransactionPageQuery query = merchantScopedQuery(merchantId, sourceQuery);
             query.setPageNo(pageNo);
@@ -364,7 +369,7 @@ public class MerchantTransactionApplicationService {
             if (rows.isEmpty()) {
                 break;
             }
-            rows.forEach(row -> writer.println(toOperationCsvLine(row)));
+            rows.forEach(row -> writer.println(toOperationCsvLine(row, locale)));
             if (rows.size() < EXPORT_PAGE_SIZE) {
                 break;
             }
@@ -420,7 +425,6 @@ public class MerchantTransactionApplicationService {
         copy.setPaymentBrand(query.getPaymentBrand());
         copy.setChannelOrderNo(query.getChannelOrderNo());
         copy.setMerchantResponseCode(query.getMerchantResponseCode());
-        copy.setChannelMatchStatus(query.getChannelMatchStatus());
         copy.setReconciliationStatus(query.getReconciliationStatus());
         copy.setSettlementStatus(query.getSettlementStatus());
         copy.setBeginTime(query.getBeginTime());
@@ -654,7 +658,7 @@ public class MerchantTransactionApplicationService {
      * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
      * @return 构造、转换或解析后的业务值
      */
-    private String toOperationCsvLine(TransactionOperationResponse row) {
+    private String toOperationCsvLine(TransactionOperationResponse row, Locale locale) {
         return String.join(",",
                 csv(row.getTransactionId()),
                 csv(row.getSourceTransactionId()),
@@ -669,6 +673,9 @@ public class MerchantTransactionApplicationService {
                 csv(row.getTransactionStatus()),
                 csv(row.getPaymentMethod()),
                 csv(row.getPaymentBrand()),
+                csv(binaryLabel(row.getThreeDsEnabled(), locale, "是", "否", "Yes", "No")),
+                csv(binaryLabel(row.getDccEnabled(), locale, "启用", "未启用", "Enabled", "Disabled")),
+                csv(binaryLabel(row.getEdcEnabled(), locale, "启用", "未启用", "Enabled", "Disabled")),
                 csv(row.getCardBin()),
                 csv(row.getAuthCode()),
                 csv(row.getAcquirerReferenceNo()),
@@ -677,12 +684,26 @@ public class MerchantTransactionApplicationService {
                 csv(row.getChannelCode()),
                 csv(row.getChannelOrderNo()),
                 csv(row.getChannelTransactionId()),
-                csv(row.getChannelMatchStatus()),
                 csv(row.getSettlementStatus()),
                 csv(row.getReconciliationStatus()),
                 csv(row.getOperationTime()),
                 csv(row.getTransactionDateTime())
         );
+    }
+
+    private String binaryLabel(Integer value,
+                               Locale locale,
+                               String zhEnabled,
+                               String zhDisabled,
+                               String enEnabled,
+                               String enDisabled) {
+        boolean enabled = Integer.valueOf(1).equals(value);
+        return csvLabel(locale, enabled ? zhEnabled : zhDisabled, enabled ? enEnabled : enDisabled);
+    }
+
+    private String csvLabel(Locale locale, String zhText, String enText) {
+        return locale != null && Locale.CHINESE.getLanguage().equalsIgnoreCase(locale.getLanguage())
+                ? zhText : enText;
     }
 
     /**

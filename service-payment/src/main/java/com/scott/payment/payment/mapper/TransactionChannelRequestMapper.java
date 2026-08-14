@@ -74,6 +74,38 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
                                                   @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
     /**
+     * 外部资金请求发起前抢占 INIT 记录，保证并发和重放只有一个调用方可以访问 PSP。
+     */
+    @Update("""
+            UPDATE transaction_channel_request
+            SET request_status = 'SENT',
+                version = version + 1,
+                update_time = #{now}
+            WHERE request_id = #{requestId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND request_status = 'INIT'
+              AND deleted = 0
+            """)
+    int claimSubmissionLogical(@Param("requestId") String requestId,
+                               @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                               @Param("now") LocalDateTime now);
+
+    /** 认证前失败只允许从 INIT 抢占，不能覆盖可能已到达 PSP 的 SENT 请求。 */
+    @Update("""
+            UPDATE transaction_channel_request
+            SET request_status = 'FAILED',
+                version = version + 1,
+                update_time = #{now}
+            WHERE request_id = #{requestId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND request_status = 'INIT'
+              AND deleted = 0
+            """)
+    int claimPreChannelFailureLogical(@Param("requestId") String requestId,
+                                      @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                      @Param("now") LocalDateTime now);
+
+    /**
      * 在受控半开时间范围内按渠道身份恢复请求。
      *
      * @param channelCode 渠道编码

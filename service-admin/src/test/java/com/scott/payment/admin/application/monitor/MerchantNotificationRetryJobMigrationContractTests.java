@@ -24,7 +24,7 @@ class MerchantNotificationRetryJobMigrationContractTests {
                 "'merchantNotificationRetry'",
                 "'0 */5 * * * ?'",
                 "'DISTRIBUTED', 'CRON', 'SYNC', 'LOCAL', 'FIRE_ONCE'",
-                "300, 1, 60, 0, JSON_OBJECT('limit', 5, 'mode', 'MQ'), 'ENABLED'",
+                "300, 0, 60, 0, JSON_OBJECT('limit', 5, 'mode', 'MQ'), 'ENABLED'",
                 "DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 5 MINUTE)",
                 "ON DUPLICATE KEY UPDATE",
                 "next_trigger_time = CASE",

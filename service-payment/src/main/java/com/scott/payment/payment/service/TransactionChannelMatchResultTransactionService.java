@@ -59,7 +59,7 @@ public interface TransactionChannelMatchResultTransactionService {
      *
      * <p>默认实现兼容既有测试桩；生产实现应使用传入的受控状态更新动作单。</p>
      *
-     * @param matchStatus PENDING 或 REVIEW_REQUIRED
+     * @param matchStatus PENDING、MISMATCHED 或 FAILED
      * @return true 表示 CAS 更新成功
      */
     default boolean markPendingByQuery(TransactionOperationDO operationDO,

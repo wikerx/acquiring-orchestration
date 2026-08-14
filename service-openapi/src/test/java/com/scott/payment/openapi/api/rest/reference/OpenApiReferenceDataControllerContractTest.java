@@ -2,8 +2,8 @@ package com.scott.payment.openapi.api.rest.reference;
 
 import com.scott.payment.component.web.version.ApiVersion;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
-import com.scott.payment.openapi.api.rest.reference.v1.OpenApiCardBinLookupController;
-import com.scott.payment.openapi.api.rest.reference.v1.OpenApiIpLookupController;
+import com.scott.payment.openapi.api.rest.cardbin.v1.OpenApiCardBinLookupController;
+import com.scott.payment.openapi.api.rest.ip.v1.OpenApiIpLookupController;
 import com.scott.payment.openapi.application.reference.OpenApiReferenceDataApplicationService;
 import com.scott.payment.openapi.dto.body.reference.CardBinLookupRequestDTO;
 import com.scott.payment.openapi.dto.body.reference.IpLookupRequestDTO;

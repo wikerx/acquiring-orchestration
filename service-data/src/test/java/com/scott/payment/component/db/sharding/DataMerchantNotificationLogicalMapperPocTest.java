@@ -203,7 +203,7 @@ class DataMerchantNotificationLogicalMapperPocTest {
             direct.execute("CREATE TABLE transaction_merchant_notification_" + suffix + " ("
                     + "id BIGINT AUTO_INCREMENT NOT NULL, notify_id VARCHAR(64) NOT NULL, "
                     + "transaction_id VARCHAR(64) NOT NULL, operation_id VARCHAR(64), merchant_id VARCHAR(64), "
-                    + "merchant_order_no VARCHAR(128), notify_config_snapshot_json VARCHAR(1024), "
+                    + "merchant_order_no VARCHAR(128), callback_url VARCHAR(512), payload_json VARCHAR(4096), "
                     + "target_url_hash VARCHAR(128), target_url_masked VARCHAR(512), payload_json_masked VARCHAR(1024), "
                     + "sign_type VARCHAR(32), notify_status VARCHAR(32) NOT NULL, last_attempt_no INT NOT NULL, "
                     + "max_retry_count INT NOT NULL, next_retry_time TIMESTAMP(3), success_time TIMESTAMP(3), "

@@ -102,7 +102,7 @@ public interface PaymentCheckoutAttemptMapper extends BaseMapper<PaymentCheckout
                 version = version + 1,
                 update_time = #{now}
             WHERE checkout_attempt_id = #{checkoutAttemptId}
-              AND attempt_status = 'CARD_SUBMITTED'
+              AND attempt_status IN ('CARD_SUBMITTED', 'THREE_DS_PASSED')
               AND version = #{version}
               AND deleted = 0
             """)
@@ -111,6 +111,42 @@ public interface PaymentCheckoutAttemptMapper extends BaseMapper<PaymentCheckout
                                 @Param("nextProcessStage") String nextProcessStage,
                                 @Param("version") Integer version,
                                 @Param("now") LocalDateTime now);
+
+    /**
+     * 核心交易准备事务提交后，把权威交易、路由和渠道请求身份回写到收银台尝试。
+     */
+    @Update("""
+            UPDATE payment_checkout_attempt
+            SET operation_id = #{operationId},
+                transaction_id = #{transactionId},
+                transaction_date_time = #{transactionDateTime},
+                channel_code = #{channelCode},
+                channel_mid_config_id = #{channelMidConfigId},
+                channel_order_no = #{channelOrderNo},
+                channel_transaction_id = #{channelTransactionId},
+                channel_request_id = #{channelRequestId},
+                channel_request_currency = #{channelRequestCurrency},
+                channel_request_amount = #{channelRequestAmount},
+                version = version + 1,
+                update_time = #{now}
+            WHERE checkout_attempt_id = #{checkoutAttemptId}
+              AND attempt_status = 'CARD_SUBMITTED'
+              AND version = #{version}
+              AND deleted = 0
+            """)
+    int markCorePreparedCas(@Param("checkoutAttemptId") String checkoutAttemptId,
+                            @Param("operationId") String operationId,
+                            @Param("transactionId") String transactionId,
+                            @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                            @Param("channelCode") String channelCode,
+                            @Param("channelMidConfigId") Long channelMidConfigId,
+                            @Param("channelOrderNo") String channelOrderNo,
+                            @Param("channelTransactionId") String channelTransactionId,
+                            @Param("channelRequestId") String channelRequestId,
+                            @Param("channelRequestCurrency") String channelRequestCurrency,
+                            @Param("channelRequestAmount") java.math.BigDecimal channelRequestAmount,
+                            @Param("version") Integer version,
+                            @Param("now") LocalDateTime now);
 
     /**
      * 将卡数据已提交的尝试 CAS 推进为需要 3DS 挑战。
@@ -155,10 +191,9 @@ public interface PaymentCheckoutAttemptMapper extends BaseMapper<PaymentCheckout
             UPDATE payment_checkout_attempt
             SET attempt_status = #{nextStatus},
                 process_stage = #{nextProcessStage},
+                channel_code = #{channelCode},
                 channel_mid_config_id = #{channelMidConfigId},
                 channel_order_no = #{channelOrderNo},
-                channel_transaction_id = #{channelTransactionId},
-                channel_request_id = #{channelRequestId},
                 three_ds_required = #{threeDsRequired},
                 three_ds_status = #{threeDsStatus},
                 three_ds_version = #{threeDsVersion},
@@ -179,10 +214,9 @@ public interface PaymentCheckoutAttemptMapper extends BaseMapper<PaymentCheckout
     int markAuthenticationResultCas(@Param("checkoutAttemptId") String checkoutAttemptId,
                                     @Param("nextStatus") String nextStatus,
                                     @Param("nextProcessStage") String nextProcessStage,
+                                    @Param("channelCode") String channelCode,
                                     @Param("channelMidConfigId") Long channelMidConfigId,
                                     @Param("channelOrderNo") String channelOrderNo,
-                                    @Param("channelTransactionId") String channelTransactionId,
-                                    @Param("channelRequestId") String channelRequestId,
                                     @Param("threeDsRequired") Integer threeDsRequired,
                                     @Param("threeDsStatus") String threeDsStatus,
                                     @Param("threeDsVersion") String threeDsVersion,
@@ -236,6 +270,48 @@ public interface PaymentCheckoutAttemptMapper extends BaseMapper<PaymentCheckout
                       @Param("completeTime") LocalDateTime completeTime);
 
     /**
+     * 将超过服务端截止时间且尚未提交资金交易的 3DS 尝试原子收敛为失败。
+     *
+     * <p>截止时间和允许状态同时进入 SQL 条件，避免并发轮询覆盖已通过认证、已提交渠道或终态记录。</p>
+     *
+     * @return 更新行数，0 表示尝试未超时、状态已推进或版本冲突
+     */
+    @Update("""
+            UPDATE payment_checkout_attempt
+            SET attempt_status = 'FAILED',
+                process_stage = 'RESULT_RENDERED',
+                three_ds_status = 'FAILED',
+                channel_status = 'FAILED',
+                channel_response_code = #{channelResponseCode},
+                channel_response_message = #{channelResponseMessage},
+                failure_reason_code = #{failureReasonCode},
+                failure_reason_message = #{failureReasonMessage},
+                payer_visible_message = #{payerVisibleMessage},
+                authentication_complete_time = #{now},
+                complete_time = #{now},
+                result_snapshot = #{resultSnapshot},
+                version = version + 1,
+                update_time = #{now}
+            WHERE checkout_attempt_id = #{checkoutAttemptId}
+              AND three_ds_required = 1
+              AND attempt_status IN ('THREE_DS_INITIATED', 'THREE_DS_REQUIRED', 'THREE_DS_RETURNED', 'PROCESSING')
+              AND channel_submit_time IS NULL
+              AND COALESCE(authentication_start_time, submit_time, create_time) <= #{deadline}
+              AND version = #{version}
+              AND deleted = 0
+            """)
+    int markThreeDsTimedOutCas(@Param("checkoutAttemptId") String checkoutAttemptId,
+                               @Param("channelResponseCode") String channelResponseCode,
+                               @Param("channelResponseMessage") String channelResponseMessage,
+                               @Param("failureReasonCode") String failureReasonCode,
+                               @Param("failureReasonMessage") String failureReasonMessage,
+                               @Param("payerVisibleMessage") String payerVisibleMessage,
+                               @Param("resultSnapshot") String resultSnapshot,
+                               @Param("deadline") LocalDateTime deadline,
+                               @Param("version") Integer version,
+                               @Param("now") LocalDateTime now);
+
+    /**
      * 标记 3DS 浏览器回跳已到达，只把尝试推进到等待渠道结果。
      *
      * @param checkoutAttemptId 收银台付款尝试号
@@ -246,7 +322,7 @@ public interface PaymentCheckoutAttemptMapper extends BaseMapper<PaymentCheckout
      */
     @Update("""
             UPDATE payment_checkout_attempt
-            SET attempt_status = 'PROCESSING',
+            SET attempt_status = 'THREE_DS_RETURNED',
                 process_stage = #{nextProcessStage},
                 version = version + 1,
                 update_time = #{now}

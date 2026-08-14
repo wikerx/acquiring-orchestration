@@ -176,7 +176,7 @@ public class AdminTransactionApplicationService {
             exportPagedExcel(
                     "excel.transaction.order.title",
                     TransactionOrderExportRow.class,
-                    pageNo -> loadOrderExportPage(query, pageNo),
+                    pageNo -> loadOrderExportPage(query, pageNo, locale),
                     querySummary(query, locale), operator, locale, response);
         });
     }
@@ -204,7 +204,7 @@ public class AdminTransactionApplicationService {
             exportPagedExcel(
                     "excel.transaction.operation.title",
                     TransactionOperationExportRow.class,
-                    pageNo -> loadOperationExportPage(query, pageNo),
+                    pageNo -> loadOperationExportPage(query, pageNo, locale),
                     querySummary(query, locale), operator, locale, response);
         });
     }
@@ -418,12 +418,14 @@ public class AdminTransactionApplicationService {
      * @param sourceQuery 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private List<TransactionOrderExportRow> loadOrderExportPage(TransactionPageQuery sourceQuery, int pageNo) {
+    private List<TransactionOrderExportRow> loadOrderExportPage(TransactionPageQuery sourceQuery,
+                                                                int pageNo,
+                                                                Locale locale) {
         TransactionPageQuery query = copyTransactionQuery(sourceQuery);
         query.setPageNo(pageNo);
         query.setPageSize(EXPORT_PAGE_SIZE);
         return transactionQueryService.pageOrders(query).getRecords().stream()
-                .map(this::toOrderExportRow)
+                .map(row -> toOrderExportRow(row, locale))
                 .toList();
     }
 
@@ -437,12 +439,14 @@ public class AdminTransactionApplicationService {
      * @param sourceQuery 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private List<TransactionOperationExportRow> loadOperationExportPage(TransactionPageQuery sourceQuery, int pageNo) {
+    private List<TransactionOperationExportRow> loadOperationExportPage(TransactionPageQuery sourceQuery,
+                                                                        int pageNo,
+                                                                        Locale locale) {
         TransactionPageQuery query = copyTransactionQuery(sourceQuery);
         query.setPageNo(pageNo);
         query.setPageSize(EXPORT_PAGE_SIZE);
         return transactionQueryService.pageOperations(query).getRecords().stream()
-                .map(this::toOperationExportRow)
+                .map(row -> toOperationExportRow(row, locale))
                 .toList();
     }
 
@@ -527,7 +531,7 @@ public class AdminTransactionApplicationService {
      * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
      * @return 构造、转换或解析后的业务值
      */
-    private TransactionOrderExportRow toOrderExportRow(TransactionOrderResponse source) {
+    private TransactionOrderExportRow toOrderExportRow(TransactionOrderResponse source, Locale locale) {
         TransactionOrderExportRow row = new TransactionOrderExportRow();
         row.setRootTransactionId(source.getRootTransactionId());
         row.setLatestTransactionId(source.getLatestTransactionId());
@@ -548,6 +552,9 @@ public class AdminTransactionApplicationService {
         row.setMerchantResponseCode(source.getMerchantResponseCode());
         row.setMerchantResponseMessage(source.getMerchantResponseMessage());
         row.setChannelMatchStatus(source.getChannelMatchStatus());
+        row.setThreeDs(binaryLabel(source.getThreeDsEnabled(), "excel.common.yes", "excel.common.no", locale));
+        row.setDcc(binaryLabel(source.getDccEnabled(), "excel.transaction.common.capabilityEnabled", "excel.transaction.common.capabilityDisabled", locale));
+        row.setEdc(binaryLabel(source.getEdcEnabled(), "excel.transaction.common.capabilityEnabled", "excel.transaction.common.capabilityDisabled", locale));
         row.setReconciliationStatus(source.getReconciliationStatus());
         row.setSettlementStatus(source.getSettlementStatus());
         row.setTransactionDateTime(source.getTransactionDateTime());
@@ -564,7 +571,7 @@ public class AdminTransactionApplicationService {
      * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
      * @return 构造、转换或解析后的业务值
      */
-    private TransactionOperationExportRow toOperationExportRow(TransactionOperationResponse source) {
+    private TransactionOperationExportRow toOperationExportRow(TransactionOperationResponse source, Locale locale) {
         TransactionOperationExportRow row = new TransactionOperationExportRow();
         row.setTransactionId(source.getTransactionId());
         row.setSourceTransactionId(source.getSourceTransactionId());
@@ -591,11 +598,19 @@ public class AdminTransactionApplicationService {
         row.setAuthCode(source.getAuthCode());
         row.setAcquirerReferenceNo(source.getAcquirerReferenceNo());
         row.setChannelMatchStatus(source.getChannelMatchStatus());
+        row.setThreeDs(binaryLabel(source.getThreeDsEnabled(), "excel.common.yes", "excel.common.no", locale));
+        row.setDcc(binaryLabel(source.getDccEnabled(), "excel.transaction.common.capabilityEnabled", "excel.transaction.common.capabilityDisabled", locale));
+        row.setEdc(binaryLabel(source.getEdcEnabled(), "excel.transaction.common.capabilityEnabled", "excel.transaction.common.capabilityDisabled", locale));
         row.setReconciliationStatus(source.getReconciliationStatus());
         row.setSettlementStatus(source.getSettlementStatus());
         row.setTransactionDateTime(source.getTransactionDateTime());
         row.setOperationTime(source.getOperationTime());
         return row;
+    }
+
+    /** 将数据库 0/1 标志转换为当前 Excel 语言下的可读状态。 */
+    private String binaryLabel(Integer value, String enabledKey, String disabledKey, Locale locale) {
+        return excelI18nMessageResolver.resolve(Integer.valueOf(1).equals(value) ? enabledKey : disabledKey, locale);
     }
 
     /**

@@ -1020,6 +1020,98 @@ class DefaultRiskListRuntimeRepositoryTests {
     }
 
     @Test
+    void shouldMatchMpgsThreeDsRuleAboveInclusiveUsdThreshold() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        RiskRuleSnapshotRow rule = new RiskRuleSnapshotRow();
+        rule.setRuleId(30L);
+        rule.setChannelCode("MPGS");
+        rule.setPaymentMethod("BANK_CARD");
+        rule.setCardBrand("ALL");
+        rule.setAmountMatchType("GE");
+        rule.setAmountMin(new BigDecimal("30.00"));
+        rule.setCurrency("USD");
+        rule.setRiskCondition("ANY");
+        rule.setTriggerAction("FORCE_3DS");
+        rule.setDecisionAction("REQUIRE_3DS");
+        when(mapper.selectActiveThreeDsSnapshotRows(
+                eq("M202607290001"), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(rule));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+
+        assertThat(repository.findThreeDsRule(
+                "M202607290001",
+                "MPGS",
+                "BANK_CARD",
+                "VISA",
+                new BigDecimal("31.00"),
+                "USD",
+                "LOW"))
+                .containsSame(rule);
+    }
+
+    @Test
+    void shouldMatchMpgsThreeDsRuleAtInclusiveUsdThreshold() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        RiskRuleSnapshotRow rule = mpgsThreeDsRule();
+        when(mapper.selectActiveThreeDsSnapshotRows(
+                eq("M202607290001"), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(rule));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+
+        assertThat(repository.findThreeDsRule(
+                "M202607290001",
+                "MPGS",
+                "BANK_CARD",
+                "VISA",
+                new BigDecimal("30.00"),
+                "USD",
+                "LOW"))
+                .containsSame(rule);
+    }
+
+    @Test
+    void shouldNotMatchMpgsThreeDsRuleBelowUsdThreshold() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        when(mapper.selectActiveThreeDsSnapshotRows(
+                eq("M202607290001"), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(mpgsThreeDsRule()));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+
+        assertThat(repository.findThreeDsRule(
+                "M202607290001",
+                "MPGS",
+                "BANK_CARD",
+                "VISA",
+                new BigDecimal("19.00"),
+                "USD",
+                "LOW"))
+                .isEmpty();
+    }
+
+    @Test
+    void shouldNotMatchMpgsThreeDsRuleForAnotherRoutedChannel() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        when(mapper.selectActiveThreeDsSnapshotRows(
+                eq("M202607290001"), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(mpgsThreeDsRule()));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+
+        assertThat(repository.findThreeDsRule(
+                "M202607290001",
+                "WPGJSON",
+                "BANK_CARD",
+                "VISA",
+                new BigDecimal("31.00"),
+                "USD",
+                "LOW"))
+                .isEmpty();
+    }
+
+    @Test
     void shouldRejectFrequencyRuleAboveConfiguredWindowCapBeforeRedisMutation() {
         log.info("测试频率规则窗口上限，关键输入: 86401 秒规则超过默认 86400 秒");
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -1152,6 +1244,21 @@ class DefaultRiskListRuntimeRepositoryTests {
         row.setSourceHost(sourceHost);
         row.setRuntimeAllowed(runtimeAllowed);
         return row;
+    }
+
+    private RiskRuleSnapshotRow mpgsThreeDsRule() {
+        RiskRuleSnapshotRow rule = new RiskRuleSnapshotRow();
+        rule.setRuleId(30L);
+        rule.setChannelCode("MPGS");
+        rule.setPaymentMethod("BANK_CARD");
+        rule.setCardBrand("ALL");
+        rule.setAmountMatchType("GE");
+        rule.setAmountMin(new BigDecimal("30.00"));
+        rule.setCurrency("USD");
+        rule.setRiskCondition("ANY");
+        rule.setTriggerAction("FORCE_3DS");
+        rule.setDecisionAction("REQUIRE_3DS");
+        return rule;
     }
 
     private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,

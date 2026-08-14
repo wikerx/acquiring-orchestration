@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,6 +45,33 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class JdbcAdminTransactionQueryServiceTest {
+
+    /** 3DS 展示应优先读取支付方式快照，并用 Hosted Checkout 尝试补齐历史记录。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void threeDsEnrichmentShouldUseSnapshotAndCheckoutFallbackInBatches() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class), eq(String.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0, String.class)
+                        .contains("transaction_payment_method_info")
+                        ? List.of("operation-snapshot")
+                        : List.of("operation-checkout"));
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+
+        Set<String> operationIds = (Set<String>) ReflectionTestUtils.invokeMethod(
+                service,
+                "findThreeDsOperationIds",
+                List.of("operation-snapshot", "operation-checkout"));
+
+        assertThat(operationIds).containsExactlyInAnyOrder("operation-snapshot", "operation-checkout");
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeast(2)).queryForList(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), eq(String.class));
+        assertThat(sqlCaptor.getAllValues()).anySatisfy(sql -> assertThat(sql)
+                .contains("three_ds_indicator", "transaction_date_time >= :registeredNodeBegin"));
+        assertThat(sqlCaptor.getAllValues()).anySatisfy(sql -> assertThat(sql)
+                .contains("payment_checkout_attempt", "three_ds_required = 1"));
+    }
 
     @Test
     void pageOrdersShouldClampRequestedRangeToRegisteredNodesAndCurrentTime() {

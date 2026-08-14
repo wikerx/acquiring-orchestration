@@ -124,15 +124,11 @@ public class TransactionMerchantNotificationDO implements Serializable {
      */
     private String notifyConfigVersion;
 
-    /**
-     * 通知配置快照 JSON，包含实际商户回调 URL，仅供 service-data 执行 HTTP 投递。
-     * <p>
-     * 单位：无；格式：JSON 字符串；有回调任务时不允许为空；敏感配置字段。
-     * 取值范围：只允许保存投递所需最小配置；数据来源：交易请求中经校验的 callbackUrl。
-     * 字段关系：不得进入 Redis、业务日志或管理端响应，展示使用 targetUrlMasked，关联审计使用 targetUrlHash。
-     * </p>
-     */
-    private String notifyConfigSnapshotJson;
+    /** 商户回调地址明文；只允许用于通知投递，日志和管理页面继续使用脱敏摘要。 */
+    private String callbackUrl;
+
+    /** 与同步 OpenAPI 响应字段口径一致的商户通知业务载荷明文 JSON。 */
+    private String payloadJson;
 
     /**
      * target URL Hash，表示回调、通知、来源站点或远程接口地址。

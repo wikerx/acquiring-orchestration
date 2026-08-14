@@ -41,6 +41,10 @@ public interface OpenApiRequestConverter {
     @Mapping(target = "transactionInfo", ignore = true)
     @Mapping(target = "merchantInfo", ignore = true)
     @Mapping(target = "billingCardHolderInfo", ignore = true)
+    @Mapping(target = "goodsInfo", ignore = true)
+    @Mapping(target = "payerInfo", ignore = true)
+    @Mapping(target = "shippingInfo", ignore = true)
+    @Mapping(target = "threeDSInfo", ignore = true)
     @Mapping(target = "billingInfo", ignore = true)
     @Mapping(target = "status", ignore = true)
     PaymentCreateVO toPaymentCreateVO(PaymentCreateRequestDTO requestDTO);
@@ -57,6 +61,11 @@ public interface OpenApiRequestConverter {
             return vo;
         }
         vo.setMerchantInfo(toMerchantInfoVO(responseDTO));
+        vo.setGoodsInfo(toGoodsInfoVO(responseDTO.getGoodsInfo()));
+        vo.setBillingCardHolderInfo(toBillingCardHolderInfoVO(responseDTO.getBillingCardHolderInfo()));
+        vo.setPayerInfo(toPayerInfoVO(responseDTO.getPayerInfo()));
+        vo.setShippingInfo(toShippingInfoVO(responseDTO.getShippingInfo()));
+        vo.setThreeDSInfo(toThreeDsInfoVO(responseDTO.getThreeDSInfo()));
 
         PaymentCreateVO.OrderInfoVO orderInfoVO = new PaymentCreateVO.OrderInfoVO();
         orderInfoVO.setOrderNo(responseDTO.getMerchantOrderNo());
@@ -75,6 +84,8 @@ public interface OpenApiRequestConverter {
         transactionInfoVO.setMessage(responseDTO.getMerchantResponseMessage());
         transactionInfoVO.setTransactionId(responseDTO.getTransactionId());
         transactionInfoVO.setSourceTransactionId(responseDTO.getSourceTransactionId());
+        transactionInfoVO.setSourceTransactionDateTime(toOffsetDateTime(
+                responseDTO.getSourceTransactionDateTime(), responseDTO.getTransactionTimeZone()));
         transactionInfoVO.setTransactionType(responseDTO.getTransactionType());
         transactionInfoVO.setTransactionStatus(responseDTO.getStatus());
         transactionInfoVO.setProcessStage(responseDTO.getProcessStage());
@@ -89,6 +100,8 @@ public interface OpenApiRequestConverter {
         transactionInfoVO.setDescription(responseDTO.getDescription());
         transactionInfoVO.setCallbackUrl(responseDTO.getCallbackUrl());
         transactionInfoVO.setMerchantWebsite(responseDTO.getMerchantWebsite());
+        transactionInfoVO.setRedirectUrl(responseDTO.getRedirectUrl());
+        transactionInfoVO.setLanguage(responseDTO.getLanguage());
         transactionInfoVO.setFailReasonCode(responseDTO.getFailReasonCode());
         transactionInfoVO.setFailReasonMessage(responseDTO.getFailReasonMessage());
         transactionInfoVO.setPendingReasonCode(responseDTO.getPendingReasonCode());
@@ -120,7 +133,9 @@ public interface OpenApiRequestConverter {
             return vo;
         }
         vo.setMerchantInfo(toMerchantInfoVO(requestDTO.getMerchantInfo()));
-        vo.setBillingCardHolderInfo(toBillingCardHolderInfoVO(requestDTO.getBillingCardHolderInfo()));
+        if (vo.getBillingCardHolderInfo() == null) {
+            vo.setBillingCardHolderInfo(toBillingCardHolderInfoVO(requestDTO.getBillingCardHolderInfo()));
+        }
         if (requestDTO.getOrderInfo() != null) {
             PaymentCreateVO.OrderInfoVO orderInfoVO = vo.getOrderInfo() == null ? new PaymentCreateVO.OrderInfoVO() : vo.getOrderInfo();
             orderInfoVO.setOrderNo(requestDTO.getOrderInfo().getOrderNo());
@@ -180,7 +195,9 @@ public interface OpenApiRequestConverter {
     default PaymentQueryVO toPaymentQueryVO(ApiMerchantPaymentRequestDTO requestDTO,
                                             PaymentQueryClientResponseDTO responseDTO) {
         PaymentQueryVO vo = new PaymentQueryVO();
-        vo.setMerchantInfo(requestDTO == null ? null : toMerchantInfoVO(requestDTO.getMerchantInfo()));
+        vo.setMerchantInfo(responseDTO == null
+                ? requestDTO == null ? null : toMerchantInfoVO(requestDTO.getMerchantInfo())
+                : toMerchantInfoVO(responseDTO));
         PaymentCreateVO.OrderInfoVO orderInfoVO = new PaymentCreateVO.OrderInfoVO();
         if (requestDTO != null && requestDTO.getOrderInfo() != null) {
             orderInfoVO.setOrderNo(requestDTO.getOrderInfo().getOrderNo());
@@ -195,6 +212,11 @@ public interface OpenApiRequestConverter {
             orderInfoVO.setTotalAuthorizedCancelAmount(responseDTO.getTotalAuthorizedCancelAmount());
             orderInfoVO.setTotalRefuseAmount(responseDTO.getTotalRefuseAmount());
             vo.setBillingInfo(toBillingInfoVO(responseDTO));
+            vo.setGoodsInfo(toGoodsInfoVO(responseDTO.getGoodsInfo()));
+            vo.setBillingCardHolderInfo(toBillingCardHolderInfoVO(responseDTO.getBillingCardHolderInfo()));
+            vo.setPayerInfo(toPayerInfoVO(responseDTO.getPayerInfo()));
+            vo.setShippingInfo(toShippingInfoVO(responseDTO.getShippingInfo()));
+            vo.setThreeDSInfo(toThreeDsInfoVO(responseDTO.getThreeDSInfo()));
             vo.setTransactionInfo((responseDTO.getTransactionInfo() == null ? List.<PaymentQueryClientResponseDTO.TransactionInfoDTO>of()
                     : responseDTO.getTransactionInfo()).stream()
                     .map(item -> toQueryTransactionInfoVO(item, responseDTO.getTransactionTimeZone()))
@@ -202,6 +224,17 @@ public interface OpenApiRequestConverter {
         }
         vo.setOrderInfo(orderInfoVO);
         return vo;
+    }
+
+    /** 组装查询响应商户信息，子商户必须来自首次交易冻结快照。 */
+    private PaymentCreateVO.MerchantInfoVO toMerchantInfoVO(PaymentQueryClientResponseDTO source) {
+        if (source == null || (!StringUtils.hasText(source.getMerchantId()) && source.getSubMerchantInfo() == null)) {
+            return null;
+        }
+        PaymentCreateVO.MerchantInfoVO target = new PaymentCreateVO.MerchantInfoVO();
+        target.setMerchantId(source.getMerchantId());
+        target.setSubMerchantInfo(toSubMerchantInfoVO(source.getSubMerchantInfo()));
+        return target;
     }
 
     /**
@@ -308,6 +341,30 @@ public interface OpenApiRequestConverter {
         return target;
     }
 
+    /** 将 payment 查询响应中的子商户快照转换为商户响应。 */
+    private PaymentCreateVO.SubMerchantInfoVO toSubMerchantInfoVO(
+            PaymentCreateClientRequestDTO.SubMerchantInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCreateVO.SubMerchantInfoVO target = new PaymentCreateVO.SubMerchantInfoVO();
+        target.setSubId(source.getSubId());
+        target.setSubName(source.getSubName());
+        target.setSubCompanyName(source.getSubCompanyName());
+        target.setSubCountryCode(source.getSubCountryCode());
+        target.setSubState(source.getSubState());
+        target.setSubCity(source.getSubCity());
+        target.setSubStreet(source.getSubStreet());
+        target.setSubPostal(source.getSubPostal());
+        target.setSubEmail(source.getSubEmail());
+        target.setSubPhone(source.getSubPhone());
+        target.setSubTaxId(source.getSubTaxId());
+        target.setMerchantCategory(source.getMerchantCategory());
+        target.setIntesCode(source.getIntesCode());
+        target.setChargeType(source.getChargeType());
+        return target;
+    }
+
     /**
      * 构造billingcardholderinfovo对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
@@ -323,6 +380,82 @@ public interface OpenApiRequestConverter {
             return null;
         }
         PaymentCreateVO.BillingCardHolderInfoVO target = new PaymentCreateVO.BillingCardHolderInfoVO();
+        target.setFirstName(source.getFirstName());
+        target.setLastName(source.getLastName());
+        target.setPhone(source.getPhone());
+        target.setEmail(source.getEmail());
+        target.setCountry(source.getCountry());
+        target.setState(source.getState());
+        target.setCity(source.getCity());
+        target.setStreet(source.getStreet());
+        target.setPostal(source.getPostal());
+        return target;
+    }
+
+    /** Convert the payment-service billing snapshot to the merchant response model. */
+    private PaymentCreateVO.BillingCardHolderInfoVO toBillingCardHolderInfoVO(
+            PaymentCreateClientRequestDTO.BillingCardHolderInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCreateVO.BillingCardHolderInfoVO target = new PaymentCreateVO.BillingCardHolderInfoVO();
+        target.setFirstName(source.getFirstName());
+        target.setLastName(source.getLastName());
+        target.setPhone(source.getPhone());
+        target.setEmail(source.getEmail());
+        target.setCountry(source.getCountry());
+        target.setState(source.getState());
+        target.setCity(source.getCity());
+        target.setStreet(source.getStreet());
+        target.setPostal(source.getPostal());
+        return target;
+    }
+
+    /** Convert product snapshot rows in their original order. */
+    private List<PaymentCreateVO.GoodsInfoVO> toGoodsInfoVO(
+            List<PaymentCreateClientRequestDTO.GoodsInfoDTO> source) {
+        if (source == null) {
+            return List.of();
+        }
+        return source.stream().map(item -> {
+            PaymentCreateVO.GoodsInfoVO target = new PaymentCreateVO.GoodsInfoVO();
+            target.setName(item.getName());
+            target.setQuantity(item.getQuantity());
+            target.setAmount(item.getAmount());
+            target.setCurrency(item.getCurrency());
+            return target;
+        }).toList();
+    }
+
+    /** Convert the decrypted payer snapshot to the merchant response model. */
+    private PaymentCreateVO.PayerInfoVO toPayerInfoVO(PaymentCreateClientRequestDTO.PayerInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCreateVO.PayerInfoVO target = new PaymentCreateVO.PayerInfoVO();
+        target.setPayerId(source.getPayerId());
+        target.setFirstName(source.getFirstName());
+        target.setLastName(source.getLastName());
+        target.setPhone(source.getPhone());
+        target.setEmail(source.getEmail());
+        target.setCountry(source.getCountry());
+        target.setState(source.getState());
+        target.setCity(source.getCity());
+        target.setStreet(source.getStreet());
+        target.setPostal(source.getPostal());
+        target.setIpAddress(source.getIpAddress());
+        target.setSessionId(source.getSessionId());
+        target.setBrowserInfo(source.getBrowserInfo());
+        target.setUserAgent(source.getUserAgent());
+        return target;
+    }
+
+    /** Convert the shipping snapshot to the merchant response model. */
+    private PaymentCreateVO.ShippingInfoVO toShippingInfoVO(PaymentCreateClientRequestDTO.ShippingInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCreateVO.ShippingInfoVO target = new PaymentCreateVO.ShippingInfoVO();
         target.setFirstName(source.getFirstName());
         target.setLastName(source.getLastName());
         target.setPhone(source.getPhone());
@@ -472,8 +605,11 @@ public interface OpenApiRequestConverter {
                 && responseDTO.getTransactionRate() == null
                 && !StringUtils.hasText(responseDTO.getRateSource())
                 && responseDTO.getRateTime() == null
+                && responseDTO.getSettlementRate() == null
                 && responseDTO.getSettlementAmount() == null
-                && !StringUtils.hasText(responseDTO.getSettlementCurrency())) {
+                && !StringUtils.hasText(responseDTO.getSettlementCurrency())
+                && responseDTO.getSettlementFeeAmount() == null
+                && (responseDTO.getFeeItems() == null || responseDTO.getFeeItems().isEmpty())) {
             return null;
         }
         PaymentCreateVO.BillingInfoVO billingInfoVO = new PaymentCreateVO.BillingInfoVO();
@@ -484,8 +620,11 @@ public interface OpenApiRequestConverter {
         billingInfoVO.setTransactionRate(normalizeRate(responseDTO.getTransactionRate()));
         billingInfoVO.setRateSource(responseDTO.getRateSource());
         billingInfoVO.setRateTime(toOffsetDateTime(responseDTO.getRateTime(), responseDTO.getTransactionTimeZone()));
+        billingInfoVO.setSettlementRate(normalizeRate(responseDTO.getSettlementRate()));
         billingInfoVO.setSettlementAmount(responseDTO.getSettlementAmount());
         billingInfoVO.setSettlementCurrency(responseDTO.getSettlementCurrency());
+        billingInfoVO.setSettlementFeeAmount(responseDTO.getSettlementFeeAmount());
+        billingInfoVO.setFeeItems(toFeeItemVO(responseDTO.getFeeItems()));
         return billingInfoVO;
     }
 
@@ -508,8 +647,11 @@ public interface OpenApiRequestConverter {
                 && responseDTO.getTransactionRate() == null
                 && !StringUtils.hasText(responseDTO.getRateSource())
                 && responseDTO.getRateTime() == null
+                && responseDTO.getSettlementRate() == null
                 && responseDTO.getSettlementAmount() == null
-                && !StringUtils.hasText(responseDTO.getSettlementCurrency()))) {
+                && !StringUtils.hasText(responseDTO.getSettlementCurrency())
+                && responseDTO.getSettlementFeeAmount() == null
+                && (responseDTO.getFeeItems() == null || responseDTO.getFeeItems().isEmpty()))) {
             return null;
         }
         PaymentCreateVO.BillingInfoVO billingInfoVO = new PaymentCreateVO.BillingInfoVO();
@@ -520,9 +662,43 @@ public interface OpenApiRequestConverter {
         billingInfoVO.setTransactionRate(normalizeRate(responseDTO.getTransactionRate()));
         billingInfoVO.setRateSource(responseDTO.getRateSource());
         billingInfoVO.setRateTime(toOffsetDateTime(responseDTO.getRateTime(), responseDTO.getTransactionTimeZone()));
+        billingInfoVO.setSettlementRate(normalizeRate(responseDTO.getSettlementRate()));
         billingInfoVO.setSettlementAmount(responseDTO.getSettlementAmount());
         billingInfoVO.setSettlementCurrency(responseDTO.getSettlementCurrency());
+        billingInfoVO.setSettlementFeeAmount(responseDTO.getSettlementFeeAmount());
+        billingInfoVO.setFeeItems(toFeeItemVO(responseDTO.getFeeItems()));
         return billingInfoVO;
+    }
+
+    /** 转换商户可见的 3DS 安全字段白名单。 */
+    private PaymentCreateVO.ThreeDsInfoVO toThreeDsInfoVO(
+            PaymentCreateClientResponseDTO.ThreeDsInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCreateVO.ThreeDsInfoVO target = new PaymentCreateVO.ThreeDsInfoVO();
+        target.setEci(source.getEci());
+        target.setDsTransactionId(source.getDsTransactionId());
+        target.setThreeDsVersion(source.getThreeDsVersion());
+        target.setStatus(source.getStatus());
+        target.setLiabilityShifted(source.getLiabilityShifted());
+        return target;
+    }
+
+    /** 转换已形成的费用明细，不在 OpenAPI 层重新计算金额或汇率。 */
+    private List<PaymentCreateVO.FeeItemVO> toFeeItemVO(
+            List<PaymentCreateClientResponseDTO.FeeItemDTO> source) {
+        if (source == null || source.isEmpty()) {
+            return null;
+        }
+        return source.stream().map(item -> {
+            PaymentCreateVO.FeeItemVO target = new PaymentCreateVO.FeeItemVO();
+            target.setCategories(item.getCategories());
+            target.setAmount(item.getAmount());
+            target.setCurrency(item.getCurrency());
+            target.setRate(normalizeRate(item.getRate()));
+            return target;
+        }).toList();
     }
 
 /**
@@ -544,9 +720,11 @@ public interface OpenApiRequestConverter {
         }
         target.setTransactionId(source.getTransactionId());
         target.setSourceTransactionId(source.getSourceTransactionId());
+        target.setSourceTransactionDateTime(toOffsetDateTime(source.getSourceTransactionDateTime(), timeZone));
         target.setCode(source.getCode());
         target.setMessage(source.getMessage());
         target.setTransactionType(source.getTransactionType());
+        target.setTransactionStatus(source.getTransactionStatus());
         target.setTransactionDateTime(toOffsetDateTime(source.getTransactionDateTime(), timeZone));
         target.setRootTransactionDateTime(toOffsetDateTime(source.getRootTransactionDateTime(), timeZone));
         target.setPaymentMethod(source.getPaymentMethod());
@@ -557,6 +735,8 @@ public interface OpenApiRequestConverter {
         target.setDescription(source.getDescription());
         target.setCallbackUrl(source.getCallbackUrl());
         target.setMerchantWebsite(source.getMerchantWebsite());
+        target.setRedirectUrl(source.getRedirectUrl());
+        target.setLanguage(source.getLanguage());
         return target;
     }
 
@@ -609,6 +789,15 @@ public interface OpenApiRequestConverter {
      */
     PaymentCreateClientRequestDTO.BillingCardHolderInfoDTO toPaymentClientBillingCardHolderInfo(ApiMerchantPaymentRequestDTO.BillingCardHolderInfoDTO source);
 
+    /** 转换首次交易商品明细。 */
+    List<PaymentCreateClientRequestDTO.GoodsInfoDTO> toPaymentClientGoodsInfo(List<ApiMerchantPaymentRequestDTO.GoodsInfoDTO> source);
+
+    /** 转换付款人身份和浏览器上下文。 */
+    PaymentCreateClientRequestDTO.PayerInfoDTO toPaymentClientPayerInfo(ApiMerchantPaymentRequestDTO.PayerInfoDTO source);
+
+    /** 转换收货人及收货地址。 */
+    PaymentCreateClientRequestDTO.ShippingInfoDTO toPaymentClientShippingInfo(ApiMerchantPaymentRequestDTO.ShippingInfoDTO source);
+
     /**
      * 转换卡信息。
      * <p>
@@ -634,6 +823,8 @@ public interface OpenApiRequestConverter {
      * @return 支付内部调用交易扩展信息
      */
     @Mapping(target = "cardBrand", ignore = true)
+    @Mapping(target = "sourceTransactionDateTime", ignore = true)
+    @Mapping(target = "rootTransactionDateTime", ignore = true)
     PaymentCreateClientRequestDTO.TransactionInfoDTO toPaymentClientTransactionInfo(ApiMerchantPaymentRequestDTO.TransactionInfoDTO source);
 
     /**
@@ -652,5 +843,5 @@ public interface OpenApiRequestConverter {
      * @param source 商户请求中的风控上下文
      * @return payment 内部请求风控上下文
      */
-    PaymentCreateClientRequestDTO.RiskContextDTO toPaymentClientRiskContext(ApiMerchantPaymentRequestDTO.RiskContextDTO source);
+    PaymentCreateClientRequestDTO.RiskContextDTO toPaymentClientRiskContext(ApiMerchantPaymentRequestDTO.RiskInfoDTO source);
 }

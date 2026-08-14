@@ -5,6 +5,7 @@ import com.scott.payment.payment.entity.TransactionPaymentMethodInfoDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -49,6 +50,38 @@ public interface TransactionPaymentMethodInfoMapper extends BaseMapper<Transacti
             )
             """)
     int insertLogical(@Param("infoDO") TransactionPaymentMethodInfoDO infoDO);
+
+    /**
+     * 写入交易级 3DS 标识。REQUIRED 可在策略命中时写入，认证成功后的 ECI 可以覆盖 REQUIRED。
+     */
+    @Update("""
+            UPDATE transaction_payment_method_info
+            SET three_ds_indicator = #{indicator},
+                update_time = #{now}
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND (three_ds_indicator IS NULL
+                   OR three_ds_indicator = ''
+                   OR three_ds_indicator = 'REQUIRED'
+                   OR three_ds_indicator = #{indicator})
+            """)
+    int updateThreeDsIndicator(@Param("transactionId") String transactionId,
+                               @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                               @Param("indicator") String indicator,
+                               @Param("now") LocalDateTime now);
+
+    /** 按平台交易号和真实分片时间读取单笔支付工具安全摘要。 */
+    @Select("""
+            SELECT *
+            FROM transaction_payment_method_info
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+            ORDER BY id DESC
+            LIMIT 1
+            """)
+    TransactionPaymentMethodInfoDO selectByTransactionId(
+            @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
     /**
      * 按生命周期和半开时间范围查询支付工具摘要。

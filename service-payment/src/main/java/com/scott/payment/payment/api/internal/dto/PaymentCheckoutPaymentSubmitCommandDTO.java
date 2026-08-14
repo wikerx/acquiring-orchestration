@@ -41,6 +41,8 @@ public class PaymentCheckoutPaymentSubmitCommandDTO implements Serializable {
     private String traceId;
     /** 客户端 IP 摘要。 */
     private String clientIpHash;
+    /** 3DS 渠道调用需要的真实 IP，仅允许在当前请求调用栈使用。 */
+    private String payerIp;
     /** User-Agent 摘要。 */
     private String userAgentHash;
     /** Origin 摘要。 */

@@ -71,9 +71,6 @@ public class PaymentCheckoutProperties {
      */
     private String integrationType = "HOSTED_CHECKOUT";
 
-    /** 必须与 OpenAPI 侧同版本配置一致的收银台敏感字段解密密钥。 */
-    private String sensitiveFieldEncryptionKey = "dev-hosted-checkout-field-key-change-me";
-
     /** 浏览器卡数据加密、公钥轮换和 nonce 防重放配置。 */
     private CardEncryption cardEncryption = new CardEncryption();
 

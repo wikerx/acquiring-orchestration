@@ -202,6 +202,20 @@ public final class MerchantOpenApiTestSupport {
                     "street": "street name",
                     "postal": "03400"
                   },
+                  "payerInfo": {
+                    "payerId": "CUSTOMER-10001",
+                    "firstName": "John",
+                    "lastName": "Tom",
+                    "phone": "+55-5058149876",
+                    "email": "username@example.com",
+                    "country": "USA",
+                    "state": "AL",
+                    "city": "city name",
+                    "street": "street name",
+                    "postal": "03400",
+                    "ipAddress": "203.0.113.10",
+                    "userAgent": "JUnit Merchant Client"
+                  },
                   "cardInfo": {
                     "cardNo": "5387380678556554",
                     "expirationMonth": "03",
@@ -209,7 +223,7 @@ public final class MerchantOpenApiTestSupport {
                     "securityCode": "123"
                   },
                   "threeDSInfo": {
-                    "eci": "212",
+                    "eci": "05",
                     "cavv": "kANiJlhEqL/yaEfVxr/BUoQBicnh",
                     "dsTransactionId": "b96c957d-daa1-4b7f-b8b4-373fb9dec47b",
                     "threeDsVersion": "2.2.0"

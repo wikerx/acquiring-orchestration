@@ -3,7 +3,6 @@ package com.scott.payment.data.service.impl;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.MerchantCallbackJwtSigner;
-import com.alibaba.fastjson2.JSONObject;
 import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
 import com.scott.payment.data.model.MerchantCallbackHttpRequest;
@@ -139,17 +138,13 @@ public class MerchantCallbackRequestFactory {
     }
 
     /**
-     * 从受保护的通知执行快照读取正式协议载荷；日志脱敏列不得作为商户业务报文来源。
+     * 读取正式协议载荷明文；日志脱敏列不得作为商户业务报文来源。
      *
      * @param task 商户通知任务
      * @return 与同步 API 响应字段口径一致的商户回调 JSON
      */
     private String callbackPayloadJson(DataMerchantNotificationTaskDO task) {
-        if (task == null || !StringUtils.hasText(task.getNotifyConfigSnapshotJson())) {
-            throw new IllegalStateException("merchant callback execution snapshot is required");
-        }
-        JSONObject snapshot = JsonUtils.parseObject(task.getNotifyConfigSnapshotJson(), JSONObject.class);
-        String payloadJson = snapshot == null ? null : snapshot.getString("payloadJson");
+        String payloadJson = task == null ? null : task.getPayloadJson();
         if (!StringUtils.hasText(payloadJson)) {
             throw new IllegalStateException("merchant callback payload is required");
         }

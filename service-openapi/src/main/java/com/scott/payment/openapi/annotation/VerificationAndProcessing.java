@@ -68,11 +68,12 @@ public @interface VerificationAndProcessing {
     /**
      * 当前接口必须存在的请求头名称。
      * <p>
-     * 默认只强制 authorization，后续如要增加租户、渠道或幂等头，可以在方法注解上覆盖。
+     * 默认强制 authorization 和 JSON Content-Type，后续如要增加租户、渠道或幂等头，可以在方法注解上覆盖。
      *
      * @return 请求头名称数组
      */
     String[] requiredHeaders() default {
-            "authorization"
+            "authorization",
+            "content-type"
     };
 }

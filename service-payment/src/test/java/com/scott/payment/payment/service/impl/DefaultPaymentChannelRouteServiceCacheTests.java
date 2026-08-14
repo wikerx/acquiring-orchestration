@@ -59,6 +59,7 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         assertThat(result.getChannelCode()).isEqualTo("MPGS");
         assertThat(result.getMidConfigId()).isEqualTo(10L);
         assertThat(result.getRoutedCurrency()).isEqualTo("USD");
+        assertThat(result.isThreeDsSupported()).isTrue();
         assertThat(result.getMetadataValues()).containsEntry("merchantPassword", "local-only");
         verify(profileCache).findRouteProfile("200045");
         verify(metadataCache).getMetadataJson(10L, modifiedTime);
@@ -203,6 +204,7 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         option.setCapabilityPaymentMethod("BANK_CARD");
         option.setCapabilityTransactionType("PAYMENT");
         option.setCapabilitySupportedCardBrands(new ArrayList<>(List.of("VISA", "MASTERCARD")));
+        option.setCapabilitySupport3ds(1);
         option.setCapabilityStatus(1);
         option.setCapabilitySortOrder(1);
         option.setSupportedCurrencies(new ArrayList<>(List.of("USD")));

@@ -136,6 +136,57 @@ class TransactionPersistenceMapperContractTests {
     }
 
     @Test
+    void callbackUrlsShouldUsePlaintextColumnsAcrossRuntimeAndShardTemplates() throws IOException {
+        String schema = readProjectFile("docs/sql/payment_acquiring_表结构.sql");
+        String migration = readProjectFile("service-admin/src/main/resources/sql/callback-url-plaintext-migration.sql");
+
+        assertThat(tableDefinition(schema, "transaction_order"))
+                .contains("`callback_url` varchar(512)", "`redirect_url` varchar(512)", "`language` varchar(20)")
+                .doesNotContain("callback_url_ciphertext", "callback_url_encryption_key_version", "callback_url_hash",
+                        "redirect_url_ciphertext", "redirect_url_encryption_key_version", "redirect_url_hash");
+        assertThat(tableDefinition(schema, "payment_checkout_session"))
+                .contains("`merchant_notify_url` varchar(512)", "`redirect_url` varchar(512)")
+                .doesNotContain("merchant_notify_url_ciphertext", "merchant_notify_url_hash",
+                        "redirect_url_ciphertext", "redirect_url_encryption_key_version", "redirect_url_hash");
+        assertThat(tableDefinition(schema, "transaction_merchant_notification"))
+                .contains("`callback_url` varchar(512)", "`payload_json` mediumtext")
+                .doesNotContain("notify_config_snapshot_json");
+        assertThat(migration)
+                .contains("transaction_order", "transaction_order_202603", "transaction_order_202604",
+                        "payment_checkout_session", "transaction_merchant_notification",
+                        "transaction_merchant_notification_202603", "transaction_merchant_notification_202604")
+                .contains("callback_url", "redirect_url", "merchant_notify_url", "payload_json");
+    }
+
+    @Test
+    void operationDescriptionShouldExistInTemplateAndEveryPublishedShardMigration() throws IOException {
+        String schema = readProjectFile("docs/sql/payment_acquiring_表结构.sql");
+        String migration = readProjectFile(
+                "service-admin/src/main/resources/sql/transaction-operation-description-migration.sql");
+
+        assertThat(tableDefinition(schema, "transaction_operation"))
+                .contains("`description` varchar(128)");
+        assertThat(migration)
+                .contains("transaction_operation", "transaction_operation_202603", "transaction_operation_202604")
+                .contains("`description` varchar(128)");
+    }
+
+    @Test
+    void transactionLocatorShouldHaveAnExecutableFixedTableMigration() throws IOException {
+        String schema = readProjectFile("docs/sql/payment_acquiring_表结构.sql");
+        String migration = readProjectFile(
+                "service-admin/src/main/resources/sql/transaction-locator-migration.sql");
+
+        assertThat(tableDefinition(schema, "transaction_locator"))
+                .contains("`transaction_id` varchar(64)", "`transaction_date_time` datetime(3)",
+                        "UNIQUE KEY `uk_transaction_id`", "KEY `idx_merchant_order_root`");
+        assertThat(migration)
+                .contains("CREATE TABLE IF NOT EXISTS `transaction_locator`", "`root_transaction_id` varchar(64)",
+                        "`root_transaction_date_time` datetime(3)", "UNIQUE KEY `uk_transaction_id`")
+                .doesNotContain("transaction_locator_202603", "transaction_locator_202604");
+    }
+
+    @Test
     void transactionalPaymentCoordinatorsShouldSelectLogicalDataSourceBeforeTransactionBegins() {
         List<Class<?>> transactionTypes = List.of(
                 DefaultPaymentTransactionPreparationService.class,
@@ -168,6 +219,7 @@ class TransactionPersistenceMapperContractTests {
                 TransactionChannelCallbackMapper.class,
                 TransactionChannelInteractionLogMapper.class,
                 TransactionChannelRequestMapper.class,
+                TransactionAuthenticationInfoMapper.class,
                 TransactionEventOutboxMapper.class,
                 TransactionFlowEventMapper.class,
                 TransactionMerchantApiInteractionLogMapper.class,
@@ -213,6 +265,27 @@ class TransactionPersistenceMapperContractTests {
                                 .doesNotContain("${");
                     }
                 });
+    }
+
+    @Test
+    void authenticationMapperShouldUseLogicalTableAndNeverPersistCavv() {
+        String upsertSql = annotationValue(methodNamed(
+                TransactionAuthenticationInfoMapper.class, "upsertPhase"), Insert.class);
+        String selectSql = annotationValue(methodNamed(
+                TransactionAuthenticationInfoMapper.class, "selectByAuthenticationInfoId"), Select.class);
+
+        assertThat(upsertSql)
+                .contains("INSERT INTO transaction_authentication_info")
+                .contains("ON DUPLICATE KEY UPDATE")
+                .contains("cavv = NULL")
+                .contains("authentication_status IN ('AUTHENTICATED', 'FAILED')")
+                .contains("#{row.transactionDateTime}")
+                .doesNotContain("#{row.cavv}")
+                .doesNotContain("${");
+        assertThat(selectSql)
+                .contains("authentication_info_id = #{authenticationInfoId}")
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .doesNotContain("${");
     }
 
     @Test
@@ -277,6 +350,7 @@ class TransactionPersistenceMapperContractTests {
             "transaction_payment_method_info",
             "transaction_payer_info",
             "transaction_billing_info",
+            "transaction_shipping_info",
             "transaction_additional_info",
             "transaction_authentication_info",
             "transaction_product_item",
@@ -349,6 +423,23 @@ class TransactionPersistenceMapperContractTests {
     }
 
     /**
+     * 3DS 认证结果只能写入认证专用字段，不能覆盖支付或授权已准备好的渠道交易号。
+     */
+    @Test
+    void checkoutAuthenticationResultShouldNotOverwriteFundsTransactionIdentity() {
+        Method method = methodNamed(PaymentCheckoutAttemptMapper.class, "markAuthenticationResultCas");
+        String sql = annotationValue(method, Update.class);
+
+        assertThat(sql)
+                .contains("three_ds_transaction_id = #{threeDsTransactionId}")
+                .doesNotContain("channel_transaction_id = #{channelTransactionId}")
+                .doesNotContain("channel_request_id = #{channelRequestId}");
+        assertThat(Arrays.stream(method.getParameters())
+                .map(java.lang.reflect.Parameter::getName))
+                .doesNotContain("channelTransactionId", "channelRequestId");
+    }
+
+    /**
      * 渠道交互结果只能回填本地准备阶段已经创建的空结果行，重复或迟到结果不得覆盖首个审计事实。
      */
     @Test
@@ -397,18 +488,30 @@ class TransactionPersistenceMapperContractTests {
     }
 
     @Test
-    void operationMapperShouldLetServiceHandleMissingQueryIdentityAndProtectTerminalUpdates() throws NoSuchMethodException {
+    void operationMapperShouldReturnInitCandidatesForServiceGracePeriodCheckAndProtectTerminalUpdates()
+            throws NoSuchMethodException {
         String selectSql = annotationValue(methodNamed(
                 TransactionOperationMapper.class, "selectPendingChannelMatch"), Select.class);
         String updateSql = annotationValue(methodNamed(
                 TransactionOperationMapper.class, "updateChannelMatch"), Update.class);
+        String orderUpdateSql = annotationValue(methodNamed(
+                TransactionOrderMapper.class, "updateLatestChannelMatch"), Update.class);
 
         assertThat(selectSql).contains("channel_code IS NOT NULL");
+        assertThat(selectSql).doesNotContain("NOT EXISTS");
+        assertThat(selectSql).doesNotContain("request_status = 'INIT'");
         assertThat(selectSql).doesNotContain("channel_order_no IS NOT NULL");
         assertThat(selectSql).doesNotContain("channel_transaction_id IS NOT NULL");
         assertThat(updateSql).contains("version = #{expectedVersion}");
         assertThat(updateSql).contains("transaction_date_time = #{transactionDateTime}");
+        assertThat(updateSql).contains(
+                "channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')");
         assertThat(updateSql).contains("transaction_status NOT IN ('SUCCESS', 'FAILED')");
+        assertThat(orderUpdateSql).contains("latest_transaction_id = #{latestTransactionId}");
+        assertThat(orderUpdateSql).contains(
+                "channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')");
+        assertThat(orderUpdateSql).contains("channel_match_status = #{matchStatus}");
+        assertThat(orderUpdateSql).doesNotContain("transaction_status =");
     }
 
     private static <A extends java.lang.annotation.Annotation> String annotationValue(Method method,
@@ -476,6 +579,15 @@ class TransactionPersistenceMapperContractTests {
         Object child = parent.get(key);
         assertThat(child).as("YAML list '%s'", key).isInstanceOf(List.class);
         return (List<String>) child;
+    }
+
+    private static String tableDefinition(String schema, String tableName) {
+        String marker = "CREATE TABLE `" + tableName + "`";
+        int begin = schema.indexOf(marker);
+        assertThat(begin).as("schema table %s", tableName).isGreaterThanOrEqualTo(0);
+        int end = schema.indexOf(";", begin);
+        assertThat(end).as("schema terminator for %s", tableName).isGreaterThan(begin);
+        return schema.substring(begin, end);
     }
 
     private static String readProjectFile(String relativePath) throws IOException {

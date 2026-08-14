@@ -308,6 +308,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         List<TransactionOrderResponse> rows = offset < total
                 ? selectOrders(TRANSACTION_ORDER_TABLE, safeQuery, offset, limit)
                 : List.of();
+        enrichOrderThreeDs(rows);
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
 
@@ -400,6 +401,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             operations.add(sourceOperation);
         }
         enrichOperationLifecycles(operations);
+        enrichOrderThreeDs(List.of(order));
         TransactionDetailResponse detail = new TransactionDetailResponse();
         detail.setOrder(order);
         detail.setOperations(operations);
@@ -857,6 +859,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             return;
         }
         enrichAccessTypes(rows);
+        enrichOperationThreeDs(rows);
         List<String> operationIds = rows.stream()
                 .map(TransactionOperationResponse::getOperationId)
                 .filter(StringUtils::hasText)
@@ -894,6 +897,61 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setAvailableCaptureAmount(order.getAvailableCaptureAmount());
             row.setAvailableRefundAmount(order.getAvailableRefundAmount());
         }
+    }
+
+    /** 按生命周期操作号批量补齐主单 3DS 标识。 */
+    private void enrichOrderThreeDs(List<TransactionOrderResponse> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        Set<String> threeDsOperationIds = findThreeDsOperationIds(rows.stream()
+                .map(TransactionOrderResponse::getOperationId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList());
+        rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
+    }
+
+    /** 按生命周期操作号批量补齐动作单 3DS 标识。 */
+    private void enrichOperationThreeDs(List<TransactionOperationResponse> rows) {
+        Set<String> threeDsOperationIds = findThreeDsOperationIds(rows.stream()
+                .map(TransactionOperationResponse::getOperationId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList());
+        rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
+    }
+
+    /**
+     * 优先读取平台支付方式 3DS 快照，并回退 Hosted Checkout 尝试记录。
+     * 查询以当前页操作号和已登记分片范围为界，不逐条查询交易。
+     */
+    private Set<String> findThreeDsOperationIds(List<String> operationIds) {
+        if (operationIds == null || operationIds.isEmpty()) {
+            return Set.of();
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("operationIds", operationIds)
+                .addValue("registeredNodeBegin", registeredNodeBegin)
+                .addValue("registeredNodeEnd", exclusiveEnd(LocalDateTime.now()));
+        Set<String> result = new HashSet<>(jdbcTemplate.queryForList("""
+                SELECT DISTINCT p.operation_id
+                FROM transaction_payment_method_info p
+                WHERE p.operation_id IN (:operationIds)
+                  AND p.transaction_date_time >= :registeredNodeBegin
+                  AND p.transaction_date_time < :registeredNodeEnd
+                  AND NULLIF(TRIM(p.three_ds_indicator), '') IS NOT NULL
+                """, params, String.class));
+        if (result.size() < operationIds.size()) {
+            result.addAll(jdbcTemplate.queryForList("""
+                    SELECT DISTINCT operation_id
+                    FROM payment_checkout_attempt
+                    WHERE operation_id IN (:operationIds)
+                      AND three_ds_required = 1
+                      AND deleted = 0
+                    """, new MapSqlParameterSource("operationIds", operationIds), String.class));
+        }
+        return result;
     }
 
     /** 批量识别历史收银台交易，避免为每条动作单单独查询。 */
@@ -1522,6 +1580,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setCurrentCurrency(rs.getString("transaction_currency"));
             row.setCurrencyExponent(nullableInt(rs, "currency_exponent"));
             row.setTransactionRate(defaultRate(rs.getBigDecimal("transaction_rate")));
+            row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
             row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
@@ -1573,6 +1632,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setTransactionAmount(rs.getBigDecimal("transaction_amount"));
             row.setCurrencyExponent(nullableInt(rs, "currency_exponent"));
             row.setTransactionRate(defaultRate(rs.getBigDecimal("transaction_rate")));
+            row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
             row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));

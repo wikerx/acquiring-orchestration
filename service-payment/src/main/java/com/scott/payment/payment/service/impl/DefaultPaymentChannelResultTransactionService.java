@@ -94,4 +94,55 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
                     commandDTO.getTransactionDateTime());
         }
     }
+
+    /** 在独立事务中抢占 INIT 渠道请求。 */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public boolean claimInitialChannelSubmission(String requestId, java.time.LocalDateTime transactionDateTime) {
+        return transactionRecordService.claimInitialChannelSubmission(requestId, transactionDateTime);
+    }
+
+    /**
+     * 记录渠道调用前失败。复用已准备的渠道请求身份，但不会伪造 PSP 响应或渠道交互。
+     */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public boolean recordInitialPreChannelFailure(PaymentCreateCommandDTO commandDTO,
+                                                  PaymentRouteResultDTO routeResultDTO,
+                                                  PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                  PaymentCreateResultDTO resultDTO,
+                                                  PaymentRiskDecisionEnum riskDecisionEnum,
+                                                  int currencyExponent) {
+        if (!transactionRecordService.claimInitialPreChannelFailure(
+                invokeResultDTO.getRequestId(), commandDTO.getTransactionDateTime())) {
+            return false;
+        }
+        boolean statusChanged = transactionRecordService.completeInitialChannelResultAndReport(
+                commandDTO,
+                routeResultDTO,
+                invokeResultDTO,
+                resultDTO,
+                riskDecisionEnum,
+                currencyExponent);
+        if (statusChanged) {
+            lifecycleEventService.saveStatusChanged(
+                    resultDTO.getTransactionId(),
+                    resultDTO.getOperationId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    resultDTO.getTransactionType(),
+                    resultDTO.getStatus(),
+                    commandDTO.getTransactionDateTime());
+        }
+        return statusChanged;
+    }
+
+    /** 在独立事务中写入通用交易级 3DS 标识。 */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void markThreeDsIndicator(String transactionId,
+                                     java.time.LocalDateTime transactionDateTime,
+                                     String indicator) {
+        transactionRecordService.markThreeDsIndicator(transactionId, transactionDateTime, indicator);
+    }
 }

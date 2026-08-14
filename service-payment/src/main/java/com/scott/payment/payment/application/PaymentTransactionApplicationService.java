@@ -12,6 +12,11 @@ import com.scott.payment.payment.service.TransactionCallbackService;
 import com.scott.payment.payment.service.TransactionChannelMatchService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.PaymentTransactionService;
+import com.scott.payment.payment.service.TransactionLocatorService;
+import com.scott.payment.payment.service.MerchantTransactionSnapshotService;
+import com.scott.payment.payment.service.MerchantTransactionResultDetailService;
+import com.scott.payment.payment.service.dto.MerchantTransactionResultDetailDTO;
+import com.scott.payment.payment.service.dto.MerchantTransactionSnapshotDTO;
 import org.springframework.stereotype.Service;
 
 /**
@@ -46,6 +51,15 @@ public class PaymentTransactionApplicationService {
      */
     private final TransactionRecordService transactionRecordService;
 
+    /** 交易固定表定位服务，用于补齐商户无需感知的分片路由字段。 */
+    private final TransactionLocatorService transactionLocatorService;
+
+    /** 商户可见交易快照服务，用于同步响应和查询统一回显首次请求资料。 */
+    private final MerchantTransactionSnapshotService merchantTransactionSnapshotService;
+
+    /** 平台生成的 3DS 与财务结果读取服务。 */
+    private final MerchantTransactionResultDetailService merchantTransactionResultDetailService;
+
     /**
      * 创建收单交易应用服务。
      *
@@ -53,15 +67,23 @@ public class PaymentTransactionApplicationService {
      * @param transactionCallbackService 交易渠道回调服务
      * @param transactionChannelMatchService 渠道交易查询勾兑服务
      * @param transactionRecordService 交易事实记录服务
+     * @param transactionLocatorService 交易固定表定位服务
+     * @param merchantTransactionSnapshotService 商户可见交易快照服务
      */
     public PaymentTransactionApplicationService(PaymentTransactionService paymentTransactionService,
                                                 TransactionCallbackService transactionCallbackService,
                                                 TransactionChannelMatchService transactionChannelMatchService,
-                                                TransactionRecordService transactionRecordService) {
+                                                TransactionRecordService transactionRecordService,
+                                                TransactionLocatorService transactionLocatorService,
+                                                MerchantTransactionSnapshotService merchantTransactionSnapshotService,
+                                                MerchantTransactionResultDetailService merchantTransactionResultDetailService) {
         this.paymentTransactionService = paymentTransactionService;
         this.transactionCallbackService = transactionCallbackService;
         this.transactionChannelMatchService = transactionChannelMatchService;
         this.transactionRecordService = transactionRecordService;
+        this.transactionLocatorService = transactionLocatorService;
+        this.merchantTransactionSnapshotService = merchantTransactionSnapshotService;
+        this.merchantTransactionResultDetailService = merchantTransactionResultDetailService;
     }
 
     /**
@@ -71,7 +93,7 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createPayment(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.createPayment(commandDTO);
+        return enrichInitialResult(commandDTO, paymentTransactionService.createPayment(commandDTO));
     }
 
     /**
@@ -81,7 +103,7 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createAuthorization(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.createAuthorization(commandDTO);
+        return enrichInitialResult(commandDTO, paymentTransactionService.createAuthorization(commandDTO));
     }
 
     /**
@@ -91,7 +113,7 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createPreAuthorization(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.createPreAuthorization(commandDTO);
+        return enrichInitialResult(commandDTO, paymentTransactionService.createPreAuthorization(commandDTO));
     }
 
     /**
@@ -101,7 +123,8 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createIncrementalAuthorization(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.createIncrementalAuthorization(commandDTO);
+        transactionLocatorService.enrichFollowUpRoute(commandDTO);
+        return enrichFollowUpResult(commandDTO, paymentTransactionService.createIncrementalAuthorization(commandDTO));
     }
 
     /**
@@ -111,7 +134,8 @@ public class PaymentTransactionApplicationService {
      * @return 请款结果
      */
     public PaymentCreateResultDTO capture(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.capture(commandDTO);
+        transactionLocatorService.enrichFollowUpRoute(commandDTO);
+        return enrichFollowUpResult(commandDTO, paymentTransactionService.capture(commandDTO));
     }
 
     /**
@@ -121,7 +145,8 @@ public class PaymentTransactionApplicationService {
      * @return 预授权完成结果
      */
     public PaymentCreateResultDTO preAuthCompletion(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.preAuthCompletion(commandDTO);
+        transactionLocatorService.enrichFollowUpRoute(commandDTO);
+        return enrichFollowUpResult(commandDTO, paymentTransactionService.preAuthCompletion(commandDTO));
     }
 
     /**
@@ -131,7 +156,8 @@ public class PaymentTransactionApplicationService {
      * @return 退款结果
      */
     public PaymentCreateResultDTO refund(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.refund(commandDTO);
+        transactionLocatorService.enrichFollowUpRoute(commandDTO);
+        return enrichFollowUpResult(commandDTO, paymentTransactionService.refund(commandDTO));
     }
 
     /**
@@ -141,7 +167,8 @@ public class PaymentTransactionApplicationService {
      * @return 撤销结果
      */
     public PaymentCreateResultDTO voidPayment(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.voidPayment(commandDTO);
+        transactionLocatorService.enrichFollowUpRoute(commandDTO);
+        return enrichFollowUpResult(commandDTO, paymentTransactionService.voidPayment(commandDTO));
     }
 
     /**
@@ -151,7 +178,157 @@ public class PaymentTransactionApplicationService {
      * @return 查询结果
      */
     public PaymentQueryResultDTO query(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.query(commandDTO);
+        transactionLocatorService.enrichQueryRoute(commandDTO);
+        PaymentQueryResultDTO resultDTO = paymentTransactionService.query(commandDTO);
+        MerchantTransactionSnapshotDTO snapshot = loadSnapshot(commandDTO,
+                commandDTO.getTransactionInfo().getRootTransactionId());
+        resultDTO.setSubMerchantInfo(snapshot.getSubMerchantInfo());
+        resultDTO.setGoodsInfo(snapshot.getGoodsInfo());
+        resultDTO.setBillingCardHolderInfo(snapshot.getBillingCardHolderInfo());
+        resultDTO.setPayerInfo(snapshot.getPayerInfo());
+        resultDTO.setShippingInfo(snapshot.getShippingInfo());
+        enrichQueryResultDetail(commandDTO, resultDTO);
+        return resultDTO;
+    }
+
+    private PaymentCreateResultDTO enrichInitialResult(PaymentCreateCommandDTO commandDTO,
+                                                       PaymentCreateResultDTO resultDTO) {
+        return enrichResult(resultDTO, loadSnapshot(commandDTO, resultDTO.getTransactionId()));
+    }
+
+    private PaymentCreateResultDTO enrichFollowUpResult(PaymentCreateCommandDTO commandDTO,
+                                                        PaymentCreateResultDTO resultDTO) {
+        return enrichResult(resultDTO, loadSnapshot(
+                commandDTO, commandDTO.getTransactionInfo().getRootTransactionId()));
+    }
+
+    private MerchantTransactionSnapshotDTO loadSnapshot(PaymentCreateCommandDTO commandDTO,
+                                                         String rootTransactionId) {
+        return merchantTransactionSnapshotService.loadSnapshots(
+                commandDTO.getMerchantId(), rootTransactionId,
+                commandDTO.getTransactionInfo() == null
+                        ? commandDTO.getTransactionDateTime()
+                        : commandDTO.getTransactionInfo().getRootTransactionDateTime() == null
+                        ? commandDTO.getTransactionDateTime()
+                        : commandDTO.getTransactionInfo().getRootTransactionDateTime());
+    }
+
+    private PaymentCreateResultDTO enrichResult(PaymentCreateResultDTO resultDTO,
+                                                MerchantTransactionSnapshotDTO snapshot) {
+        resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(snapshot.getSubMerchantInfo()));
+        resultDTO.setGoodsInfo(snapshot.getGoodsInfo());
+        resultDTO.setBillingCardHolderInfo(snapshot.getBillingCardHolderInfo());
+        resultDTO.setPayerInfo(snapshot.getPayerInfo());
+        resultDTO.setShippingInfo(snapshot.getShippingInfo());
+        MerchantTransactionResultDetailDTO detail = merchantTransactionResultDetailService.load(
+                resultDTO.getTransactionId(), resultDTO.getTransactionDateTime());
+        applyResultDetail(resultDTO, detail);
+        return resultDTO;
+    }
+
+    /** 查询按精确筛选动作或动作列表最后一笔读取平台生成详情。 */
+    private void enrichQueryResultDetail(PaymentCreateCommandDTO commandDTO,
+                                         PaymentQueryResultDTO resultDTO) {
+        if (resultDTO == null || resultDTO.getTransactionInfo() == null
+                || resultDTO.getTransactionInfo().isEmpty()) {
+            return;
+        }
+        String requestedTransactionId = commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getTransactionId();
+        PaymentQueryResultDTO.TransactionInfoDTO target = resultDTO.getTransactionInfo().stream()
+                .filter(item -> requestedTransactionId != null
+                        && requestedTransactionId.equals(item.getTransactionId()))
+                .findFirst()
+                .orElse(resultDTO.getTransactionInfo().get(resultDTO.getTransactionInfo().size() - 1));
+        MerchantTransactionResultDetailDTO detail = merchantTransactionResultDetailService.load(
+                target.getTransactionId(), target.getTransactionDateTime());
+        resultDTO.setThreeDSInfo(toQueryThreeDsInfo(detail.getThreeDsInfo()));
+        resultDTO.setSettlementRate(detail.getSettlementRate());
+        if (detail.getSettlementAmount() != null) {
+            resultDTO.setSettlementAmount(detail.getSettlementAmount());
+            resultDTO.setSettlementCurrency(detail.getSettlementCurrency());
+        }
+        resultDTO.setSettlementFeeAmount(detail.getSettlementFeeAmount());
+        resultDTO.setFeeItems(toQueryFeeItems(detail.getFeeItems()));
+    }
+
+    /** 将平台生成详情应用到创建或后续动作响应，不伪造缺失的结算事实。 */
+    private void applyResultDetail(PaymentCreateResultDTO resultDTO,
+                                   MerchantTransactionResultDetailDTO detail) {
+        if (detail == null) {
+            return;
+        }
+        resultDTO.setThreeDSInfo(toResultThreeDsInfo(detail.getThreeDsInfo()));
+        resultDTO.setSettlementRate(detail.getSettlementRate());
+        if (detail.getSettlementAmount() != null) {
+            resultDTO.setSettlementAmount(detail.getSettlementAmount());
+            resultDTO.setSettlementCurrency(detail.getSettlementCurrency());
+        }
+        resultDTO.setSettlementFeeAmount(detail.getSettlementFeeAmount());
+        resultDTO.setFeeItems(toResultFeeItems(detail.getFeeItems()));
+    }
+
+    private PaymentCreateResultDTO.ThreeDsInfoDTO toResultThreeDsInfo(
+            MerchantTransactionResultDetailDTO.ThreeDsInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCreateResultDTO.ThreeDsInfoDTO target = new PaymentCreateResultDTO.ThreeDsInfoDTO();
+        target.setEci(source.getEci());
+        target.setDsTransactionId(source.getDsTransactionId());
+        target.setThreeDsVersion(source.getThreeDsVersion());
+        target.setStatus(source.getStatus());
+        target.setLiabilityShifted(source.getLiabilityShifted());
+        return target;
+    }
+
+    private PaymentCreateResultDTO.ThreeDsInfoDTO toQueryThreeDsInfo(
+            MerchantTransactionResultDetailDTO.ThreeDsInfoDTO source) {
+        return toResultThreeDsInfo(source);
+    }
+
+    private java.util.List<PaymentCreateResultDTO.FeeItemDTO> toResultFeeItems(
+            java.util.List<MerchantTransactionResultDetailDTO.FeeItemDTO> source) {
+        if (source == null || source.isEmpty()) {
+            return java.util.List.of();
+        }
+        return source.stream().map(item -> {
+            PaymentCreateResultDTO.FeeItemDTO target = new PaymentCreateResultDTO.FeeItemDTO();
+            target.setCategories(item.getCategories());
+            target.setAmount(item.getAmount());
+            target.setCurrency(item.getCurrency());
+            target.setRate(item.getRate());
+            return target;
+        }).toList();
+    }
+
+    private java.util.List<PaymentCreateResultDTO.FeeItemDTO> toQueryFeeItems(
+            java.util.List<MerchantTransactionResultDetailDTO.FeeItemDTO> source) {
+        return toResultFeeItems(source);
+    }
+
+    /** 将冻结的内部子商户快照转换为当前动作的商户响应模型。 */
+    private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(
+            PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCreateResultDTO.SubMerchantInfoDTO target = new PaymentCreateResultDTO.SubMerchantInfoDTO();
+        target.setSubId(source.getSubId());
+        target.setSubName(source.getSubName());
+        target.setSubCompanyName(source.getSubCompanyName());
+        target.setSubCountryCode(source.getSubCountryCode());
+        target.setSubState(source.getSubState());
+        target.setSubCity(source.getSubCity());
+        target.setSubStreet(source.getSubStreet());
+        target.setSubPostal(source.getSubPostal());
+        target.setSubEmail(source.getSubEmail());
+        target.setSubPhone(source.getSubPhone());
+        target.setSubTaxId(source.getSubTaxId());
+        target.setMerchantCategory(source.getMerchantCategory());
+        target.setIntesCode(source.getIntesCode());
+        target.setChargeType(source.getChargeType());
+        return target;
     }
 
     /**

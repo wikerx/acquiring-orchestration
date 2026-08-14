@@ -451,10 +451,10 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 ? requestDTO.getCardBin()
                 : requestDTO.getCardNo());
         RiskRuntimeLookupValue ipLookup = valueNormalizer.ip(requestDTO.getPayerIp());
-        RiskRuntimeLookupValue emailLookup = valueNormalizer.email(requestDTO.getBillingEmail());
-        RiskRuntimeLookupValue emailDomainLookup = valueNormalizer.emailDomain(requestDTO.getBillingEmail());
-        RiskRuntimeLookupValue emailUsernameLookup = valueNormalizer.emailUsername(requestDTO.getBillingEmail());
-        RiskRuntimeLookupValue phoneLookup = valueNormalizer.phone(requestDTO.getBillingPhone());
+        RiskRuntimeLookupValue billingEmailLookup = valueNormalizer.email(requestDTO.getBillingEmail());
+        RiskRuntimeLookupValue billingEmailDomainLookup = valueNormalizer.emailDomain(requestDTO.getBillingEmail());
+        RiskRuntimeLookupValue billingEmailUsernameLookup = valueNormalizer.emailUsername(requestDTO.getBillingEmail());
+        RiskRuntimeLookupValue billingPhoneLookup = valueNormalizer.phone(requestDTO.getBillingPhone());
         RiskRuntimeLookupValue tradeCountryLookup = valueNormalizer.country(primaryCountry(requestDTO));
         RiskRuntimeLookupValue billingCountryLookup = valueNormalizer.country(requestDTO.getBillingCountry());
         RiskRuntimeLookupValue issuerCountryLookup = resolveIssuerCountry(cardBinLookup);
@@ -470,17 +470,64 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 requestDTO.getBillingCountry(),
                 requestDTO.getBillingRegion(),
                 requestDTO.getBillingCity());
+        RiskRuntimeLookupValue payerEmailLookup = hasText(requestDTO.getPayerEmail())
+                ? valueNormalizer.email(requestDTO.getPayerEmail()) : null;
+        RiskRuntimeLookupValue payerEmailDomainLookup = hasText(requestDTO.getPayerEmail())
+                ? valueNormalizer.emailDomain(requestDTO.getPayerEmail()) : null;
+        RiskRuntimeLookupValue payerEmailUsernameLookup = hasText(requestDTO.getPayerEmail())
+                ? valueNormalizer.emailUsername(requestDTO.getPayerEmail()) : null;
+        RiskRuntimeLookupValue payerPhoneLookup = hasText(requestDTO.getPayerPhone())
+                ? valueNormalizer.phone(requestDTO.getPayerPhone()) : null;
+        RiskRuntimeLookupValue payerCountryLookup = hasText(requestDTO.getPayerCountry())
+                ? valueNormalizer.country(requestDTO.getPayerCountry()) : null;
+        RiskRuntimeLookupValue payerNameLookup = hasText(requestDTO.getPayerName())
+                ? valueNormalizer.text(requestDTO.getPayerName(), true) : null;
+        RiskRuntimeLookupValue payerAddressLookup = hasText(requestDTO.getPayerAddress())
+                ? valueNormalizer.text(requestDTO.getPayerAddress(), true) : null;
+        RiskRuntimeLookupValue payerZipLookup = hasText(requestDTO.getPayerZip())
+                ? valueNormalizer.postalCode(requestDTO.getPayerZip()) : null;
+        RiskRuntimeLookupValue payerRegionLookup = hasAnyText(
+                requestDTO.getPayerCountry(), requestDTO.getPayerRegion(), requestDTO.getPayerCity())
+                ? valueNormalizer.region(
+                        requestDTO.getPayerCountry(),
+                        requestDTO.getPayerRegion(),
+                        requestDTO.getPayerCity())
+                : null;
+        RiskRuntimeLookupValue payerIdLookup = hasText(requestDTO.getPayerId())
+                ? valueNormalizer.text(requestDTO.getPayerId(), true) : null;
         RiskRuntimeLookupValue shippingAddressLookup = valueNormalizer.text(requestDTO.getShippingAddress(), true);
         RiskRuntimeLookupValue shippingZipLookup = valueNormalizer.postalCode(requestDTO.getShippingZip());
         RiskRuntimeLookupValue shippingCountryLookup = valueNormalizer.country(requestDTO.getShippingCountry());
+        RiskRuntimeLookupValue shippingNameLookup = hasText(requestDTO.getShippingName())
+                ? valueNormalizer.text(requestDTO.getShippingName(), true) : null;
+        RiskRuntimeLookupValue shippingEmailLookup = hasText(requestDTO.getShippingEmail())
+                ? valueNormalizer.email(requestDTO.getShippingEmail()) : null;
+        RiskRuntimeLookupValue shippingEmailDomainLookup = hasText(requestDTO.getShippingEmail())
+                ? valueNormalizer.emailDomain(requestDTO.getShippingEmail()) : null;
+        RiskRuntimeLookupValue shippingEmailUsernameLookup = hasText(requestDTO.getShippingEmail())
+                ? valueNormalizer.emailUsername(requestDTO.getShippingEmail()) : null;
+        RiskRuntimeLookupValue shippingPhoneLookup = hasText(requestDTO.getShippingPhone())
+                ? valueNormalizer.phone(requestDTO.getShippingPhone()) : null;
+        RiskRuntimeLookupValue shippingRegionLookup = hasAnyText(
+                requestDTO.getShippingCountry(), requestDTO.getShippingRegion(), requestDTO.getShippingCity())
+                ? valueNormalizer.region(
+                        requestDTO.getShippingCountry(),
+                        requestDTO.getShippingRegion(),
+                        requestDTO.getShippingCity())
+                : null;
         RiskRuntimeLookupValue customerIdLookup = valueNormalizer.text(requestDTO.getCustomerId(), true);
         RiskRuntimeLookupValue deviceFingerprintLookup = valueNormalizer.text(
                 requestDTO.getDeviceFingerprint(), true);
-        return new LookupContext(cardNoLookup, cardFingerprintLookup, cardBinLookup, ipLookup, emailLookup,
-                emailDomainLookup, emailUsernameLookup, phoneLookup, tradeCountryLookup, billingCountryLookup,
+        return new LookupContext(cardNoLookup, cardFingerprintLookup, cardBinLookup, ipLookup, billingEmailLookup,
+                billingEmailDomainLookup, billingEmailUsernameLookup, billingPhoneLookup,
+                tradeCountryLookup, billingCountryLookup,
                 issuerCountryLookup, sourceHostLookup, cardholderNameLookup, legalPersonLookup, enterpriseLookup,
                 merchantBillingAddressLookup, billingAddressLookup, billingZipLookup, billingRegionLookup,
-                shippingAddressLookup, shippingZipLookup, shippingCountryLookup, customerIdLookup,
+                payerEmailLookup, payerEmailDomainLookup, payerEmailUsernameLookup, payerPhoneLookup,
+                payerCountryLookup, payerNameLookup, payerAddressLookup, payerZipLookup, payerRegionLookup,
+                payerIdLookup, shippingAddressLookup, shippingZipLookup, shippingCountryLookup,
+                shippingNameLookup, shippingEmailLookup, shippingEmailDomainLookup,
+                shippingEmailUsernameLookup, shippingPhoneLookup, shippingRegionLookup, customerIdLookup,
                 deviceFingerprintLookup);
     }
 
@@ -540,13 +587,23 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 new ListCheck(RiskListFunction.WHITE_CARD_NO, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.WHITE_CARD_FINGERPRINT, context.cardFingerprintLookup()),
                 new ListCheck(RiskListFunction.WHITE_CARD_BIN, context.cardBinLookup()),
-                new ListCheck(RiskListFunction.WHITE_TRADE_COUNTRY, context.tradeCountryLookup()),
+                new ListCheck(RiskListFunction.WHITE_TRADE_COUNTRY, context.tradeCountryLookup(),
+                        tradeCountryAuditElement(requestDTO)),
                 new ListCheck(RiskListFunction.WHITE_ISSUER_COUNTRY, context.issuerCountryLookup()),
-                new ListCheck(RiskListFunction.WHITE_IP, context.ipLookup()),
-                new ListCheck(RiskListFunction.WHITE_EMAIL, context.emailLookup()),
-                new ListCheck(RiskListFunction.WHITE_EMAIL_DOMAIN, context.emailDomainLookup()),
-                new ListCheck(RiskListFunction.WHITE_PHONE, context.phoneLookup()),
-                new ListCheck(RiskListFunction.WHITE_CUSTOMER_ID, context.customerIdLookup()),
+                new ListCheck(RiskListFunction.WHITE_IP, context.ipLookup(), "payerIp"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL, context.billingEmailLookup(), "billingEmail"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL_DOMAIN, context.billingEmailDomainLookup(), "billingEmailDomain"),
+                new ListCheck(RiskListFunction.WHITE_PHONE, context.billingPhoneLookup(), "billingPhone"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL, context.payerEmailLookup(), "payerEmail"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL_DOMAIN, context.payerEmailDomainLookup(), "payerEmailDomain"),
+                new ListCheck(RiskListFunction.WHITE_PHONE, context.payerPhoneLookup(), "payerPhone"),
+                new ListCheck(RiskListFunction.WHITE_TRADE_COUNTRY, context.payerCountryLookup(), "payerCountry"),
+                new ListCheck(RiskListFunction.WHITE_CUSTOMER_ID, context.payerIdLookup(), "payerId"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL, context.shippingEmailLookup(), "shippingEmail"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL_DOMAIN, context.shippingEmailDomainLookup(), "shippingEmailDomain"),
+                new ListCheck(RiskListFunction.WHITE_PHONE, context.shippingPhoneLookup(), "shippingPhone"),
+                new ListCheck(RiskListFunction.WHITE_TRADE_COUNTRY, context.shippingCountryLookup(), "shippingCountry"),
+                new ListCheck(RiskListFunction.WHITE_CUSTOMER_ID, context.customerIdLookup(), "customerId"),
                 new ListCheck(RiskListFunction.WHITE_DEVICE_FINGERPRINT, context.deviceFingerprintLookup())
         ));
     }
@@ -561,20 +618,35 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         return evaluateListChecks(requestDTO.getMerchantId(), STAGE_BLACK_WHITE, List.of(
                 new ListCheck(RiskListFunction.BLACK_CARD_NO, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.BLACK_CARD_FINGERPRINT, context.cardFingerprintLookup()),
-                new ListCheck(RiskListFunction.BLACK_IP, context.ipLookup()),
+                new ListCheck(RiskListFunction.BLACK_IP, context.ipLookup(), "payerIp"),
                 new ListCheck(RiskListFunction.BLACK_CARD_BIN, context.cardBinLookup()),
-                new ListCheck(RiskListFunction.BLACK_CARDHOLDER_NAME, context.cardholderNameLookup()),
-                new ListCheck(RiskListFunction.BLACK_EMAIL, context.emailLookup()),
-                new ListCheck(RiskListFunction.BLACK_EMAIL_DOMAIN, context.emailDomainLookup()),
-                new ListCheck(RiskListFunction.BLACK_EMAIL_USERNAME, context.emailUsernameLookup()),
-                new ListCheck(RiskListFunction.BLACK_PHONE, context.phoneLookup()),
-                new ListCheck(RiskListFunction.BLACK_REGION, context.billingRegionLookup()),
-                new ListCheck(RiskListFunction.BLACK_BILLING_ADDRESS, context.billingAddressLookup()),
-                new ListCheck(RiskListFunction.BLACK_BILLING_ZIP, context.billingZipLookup()),
-                new ListCheck(RiskListFunction.BLACK_BILLING_COUNTRY, context.billingCountryLookup()),
-                new ListCheck(RiskListFunction.BLACK_SHIPPING_ADDRESS, context.shippingAddressLookup()),
-                new ListCheck(RiskListFunction.BLACK_SHIPPING_ZIP, context.shippingZipLookup()),
-                new ListCheck(RiskListFunction.BLACK_SHIPPING_COUNTRY, context.shippingCountryLookup()),
+                new ListCheck(RiskListFunction.BLACK_CARDHOLDER_NAME, context.cardholderNameLookup(), "billingName"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL, context.billingEmailLookup(), "billingEmail"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_DOMAIN, context.billingEmailDomainLookup(), "billingEmailDomain"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_USERNAME, context.billingEmailUsernameLookup(), "billingEmailUsername"),
+                new ListCheck(RiskListFunction.BLACK_PHONE, context.billingPhoneLookup(), "billingPhone"),
+                new ListCheck(RiskListFunction.BLACK_REGION, context.billingRegionLookup(), "billingRegion"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_ADDRESS, context.billingAddressLookup(), "billingAddress"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_ZIP, context.billingZipLookup(), "billingZip"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_COUNTRY, context.billingCountryLookup(), "billingCountry"),
+                new ListCheck(RiskListFunction.BLACK_CARDHOLDER_NAME, context.payerNameLookup(), "payerName"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL, context.payerEmailLookup(), "payerEmail"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_DOMAIN, context.payerEmailDomainLookup(), "payerEmailDomain"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_USERNAME, context.payerEmailUsernameLookup(), "payerEmailUsername"),
+                new ListCheck(RiskListFunction.BLACK_PHONE, context.payerPhoneLookup(), "payerPhone"),
+                new ListCheck(RiskListFunction.BLACK_REGION, context.payerRegionLookup(), "payerRegion"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_ADDRESS, context.payerAddressLookup(), "payerAddress"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_ZIP, context.payerZipLookup(), "payerZip"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_COUNTRY, context.payerCountryLookup(), "payerCountry"),
+                new ListCheck(RiskListFunction.BLACK_CARDHOLDER_NAME, context.shippingNameLookup(), "shippingName"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL, context.shippingEmailLookup(), "shippingEmail"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_DOMAIN, context.shippingEmailDomainLookup(), "shippingEmailDomain"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_USERNAME, context.shippingEmailUsernameLookup(), "shippingEmailUsername"),
+                new ListCheck(RiskListFunction.BLACK_PHONE, context.shippingPhoneLookup(), "shippingPhone"),
+                new ListCheck(RiskListFunction.BLACK_REGION, context.shippingRegionLookup(), "shippingRegion"),
+                new ListCheck(RiskListFunction.BLACK_SHIPPING_ADDRESS, context.shippingAddressLookup(), "shippingAddress"),
+                new ListCheck(RiskListFunction.BLACK_SHIPPING_ZIP, context.shippingZipLookup(), "shippingZip"),
+                new ListCheck(RiskListFunction.BLACK_SHIPPING_COUNTRY, context.shippingCountryLookup(), "shippingCountry"),
                 new ListCheck(RiskListFunction.BLACK_ISSUER_COUNTRY, context.issuerCountryLookup()),
                 new ListCheck(RiskListFunction.BLACK_DEVICE_FINGERPRINT, context.deviceFingerprintLookup())
         ));
@@ -650,12 +722,23 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 new ListCheck(RiskListFunction.AML_CARD, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.AML_CARD_BIN, context.cardBinLookup()),
                 new ListCheck(RiskListFunction.AML_COUNTRY, context.issuerCountryLookup(), "issuerCountry"),
-                new ListCheck(RiskListFunction.AML_IP, context.ipLookup()),
-                new ListCheck(RiskListFunction.AML_COUNTRY, context.tradeCountryLookup(), "tradeCountry"),
-                new ListCheck(RiskListFunction.AML_EMAIL, context.emailLookup(), "email"),
-                new ListCheck(RiskListFunction.AML_EMAIL, context.emailDomainLookup(), "emailDomain"),
-                new ListCheck(RiskListFunction.AML_PHONE, context.phoneLookup()),
-                new ListCheck(RiskListFunction.AML_CARDHOLDER_NAME, context.cardholderNameLookup()),
+                new ListCheck(RiskListFunction.AML_IP, context.ipLookup(), "payerIp"),
+                new ListCheck(RiskListFunction.AML_COUNTRY, context.tradeCountryLookup(),
+                        tradeCountryAuditElement(requestDTO)),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.billingEmailLookup(), "billingEmail"),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.billingEmailDomainLookup(), "billingEmailDomain"),
+                new ListCheck(RiskListFunction.AML_PHONE, context.billingPhoneLookup(), "billingPhone"),
+                new ListCheck(RiskListFunction.AML_CARDHOLDER_NAME, context.cardholderNameLookup(), "billingName"),
+                new ListCheck(RiskListFunction.AML_COUNTRY, context.payerCountryLookup(), "payerCountry"),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.payerEmailLookup(), "payerEmail"),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.payerEmailDomainLookup(), "payerEmailDomain"),
+                new ListCheck(RiskListFunction.AML_PHONE, context.payerPhoneLookup(), "payerPhone"),
+                new ListCheck(RiskListFunction.AML_CARDHOLDER_NAME, context.payerNameLookup(), "payerName"),
+                new ListCheck(RiskListFunction.AML_COUNTRY, context.shippingCountryLookup(), "shippingCountry"),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.shippingEmailLookup(), "shippingEmail"),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.shippingEmailDomainLookup(), "shippingEmailDomain"),
+                new ListCheck(RiskListFunction.AML_PHONE, context.shippingPhoneLookup(), "shippingPhone"),
+                new ListCheck(RiskListFunction.AML_CARDHOLDER_NAME, context.shippingNameLookup(), "shippingName"),
                 new ListCheck(RiskListFunction.AML_LEGAL_PERSON, context.legalPersonLookup()),
                 new ListCheck(RiskListFunction.AML_ENTERPRISE, context.enterpriseLookup()),
                 new ListCheck(RiskListFunction.AML_MERCHANT_BILLING_ADDRESS,
@@ -840,6 +923,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         }
         return riskListRuntimeRepository.findThreeDsRule(
                 requestDTO.getMerchantId(),
+                requestDTO.getChannelCode(),
                 requestDTO.getPaymentMethod(),
                 requestDTO.getCardBrand(),
                 requestDTO.getAmount(),
@@ -863,8 +947,8 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 context.cardNoLookup(),
                 context.cardFingerprintLookup(),
                 context.ipLookup(),
-                context.emailLookup(),
-                context.phoneLookup(),
+                context.billingEmailLookup(),
+                context.billingPhoneLookup(),
                 context.customerIdLookup(),
                 context.deviceFingerprintLookup()
         );
@@ -900,6 +984,9 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                                    List<ListCheck> checks) {
         List<RiskListMatch> details = new ArrayList<>();
         for (ListCheck check : checks) {
+            if (check.lookupValue() == null) {
+                continue;
+            }
             Optional<RiskListMatch> matched = findMatch(check.function(), merchantId, check.lookupValue());
             if (matched.isPresent()) {
                 RiskListMatch detail = copyMatch(matched.get());
@@ -1268,6 +1355,29 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         return requestDTO.getSubMerchantCountryCode();
     }
 
+    /** Return an audit label that preserves whether the transaction country came from billing or sub-merchant data. */
+    private String tradeCountryAuditElement(RiskPaymentEvaluateRequestDTO requestDTO) {
+        return hasText(requestDTO.getBillingCountry()) ? "billingCountry" : "tradeCountry";
+    }
+
+    /** Check one optional risk input without converting missing personal data into an EMPTY lookup. */
+    private boolean hasText(String value) {
+        return StringUtils.hasText(value);
+    }
+
+    /** Check whether a composite address dimension has at least one merchant-provided component. */
+    private boolean hasAnyText(String... values) {
+        if (values == null) {
+            return false;
+        }
+        for (String value : values) {
+            if (hasText(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 计算已执行节点中的最高风险等级，供后续 3DS 规则判断。
      */
@@ -1500,10 +1610,10 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                  RiskRuntimeLookupValue cardFingerprintLookup,
                                  RiskRuntimeLookupValue cardBinLookup,
                                  RiskRuntimeLookupValue ipLookup,
-                                 RiskRuntimeLookupValue emailLookup,
-                                 RiskRuntimeLookupValue emailDomainLookup,
-                                 RiskRuntimeLookupValue emailUsernameLookup,
-                                 RiskRuntimeLookupValue phoneLookup,
+                                 RiskRuntimeLookupValue billingEmailLookup,
+                                 RiskRuntimeLookupValue billingEmailDomainLookup,
+                                 RiskRuntimeLookupValue billingEmailUsernameLookup,
+                                 RiskRuntimeLookupValue billingPhoneLookup,
                                  RiskRuntimeLookupValue tradeCountryLookup,
                                  RiskRuntimeLookupValue billingCountryLookup,
                                  RiskRuntimeLookupValue issuerCountryLookup,
@@ -1515,9 +1625,25 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                  RiskRuntimeLookupValue billingAddressLookup,
                                  RiskRuntimeLookupValue billingZipLookup,
                                  RiskRuntimeLookupValue billingRegionLookup,
+                                 RiskRuntimeLookupValue payerEmailLookup,
+                                 RiskRuntimeLookupValue payerEmailDomainLookup,
+                                 RiskRuntimeLookupValue payerEmailUsernameLookup,
+                                 RiskRuntimeLookupValue payerPhoneLookup,
+                                 RiskRuntimeLookupValue payerCountryLookup,
+                                 RiskRuntimeLookupValue payerNameLookup,
+                                 RiskRuntimeLookupValue payerAddressLookup,
+                                 RiskRuntimeLookupValue payerZipLookup,
+                                 RiskRuntimeLookupValue payerRegionLookup,
+                                 RiskRuntimeLookupValue payerIdLookup,
                                  RiskRuntimeLookupValue shippingAddressLookup,
                                  RiskRuntimeLookupValue shippingZipLookup,
                                  RiskRuntimeLookupValue shippingCountryLookup,
+                                 RiskRuntimeLookupValue shippingNameLookup,
+                                 RiskRuntimeLookupValue shippingEmailLookup,
+                                 RiskRuntimeLookupValue shippingEmailDomainLookup,
+                                 RiskRuntimeLookupValue shippingEmailUsernameLookup,
+                                 RiskRuntimeLookupValue shippingPhoneLookup,
+                                 RiskRuntimeLookupValue shippingRegionLookup,
                                  RiskRuntimeLookupValue customerIdLookup,
                                  RiskRuntimeLookupValue deviceFingerprintLookup) {
     }

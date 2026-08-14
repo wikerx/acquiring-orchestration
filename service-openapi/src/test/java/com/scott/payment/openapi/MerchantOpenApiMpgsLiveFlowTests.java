@@ -17,6 +17,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.sql.Connection;
@@ -32,6 +35,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+
+import static java.nio.file.attribute.PosixFilePermission.OWNER_READ;
+import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -58,6 +65,22 @@ class MerchantOpenApiMpgsLiveFlowTests {
     private static final String RISK_BLOCK_ENABLED_PROPERTY = "openapi.live.risk-block.enabled";
 
     /**
+     * 启用 Hosted Checkout 3DS 浏览器验收会话创建的系统属性名称。
+     */
+    private static final String CHECKOUT_ENABLED_PROPERTY = "openapi.live.checkout.enabled";
+
+    /**
+     * 写入一次性收银台 URL 的临时文件属性；必须显式提供且不得指向项目目录。
+     */
+    private static final String CHECKOUT_URL_FILE_PROPERTY = "openapi.live.checkout-url-file";
+
+    /**
+     * 本次浏览器验收期望使用的收银台前端基础地址，默认保持本地开发地址。
+     */
+    private static final String CHECKOUT_FRONTEND_BASE_URL = System.getProperty(
+            "openapi.live.checkout-frontend-base-url", "http://127.0.0.1:5175");
+
+    /**
      * 本地 OpenAPI 基础地址，默认指向 service-openapi 的开发端口。
      */
     private static final String OPENAPI_BASE_URL = System.getProperty("openapi.live.base-url", "http://127.0.0.1:8004");
@@ -81,7 +104,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
     private static final String JDBC_PASSWORD = propertyOrEnvironment(
             "openapi.live.jdbc-password",
             "OPENAPI_LIVE_JDBC_PASSWORD",
-            "scott123456"
+            null
     );
 
     /**
@@ -448,6 +471,67 @@ class MerchantOpenApiMpgsLiveFlowTests {
     }
 
     /**
+     * 为真实浏览器验收创建 29.99 USD 非 3DS 与 30.00 USD 强制 3DS 两个收银台会话。
+     *
+     * <p>该用例只创建会话，不提交卡数据或渠道交易。完整收银台 URL 仅写入显式指定的
+     * 仓库外临时文件，文件权限收敛为当前用户读写，日志只输出金额、会话数和文件名。</p>
+     *
+     * @throws Exception OpenAPI 调用、响应解密或临时文件写入异常
+     */
+    @Test
+    @EnabledIfSystemProperty(named = CHECKOUT_ENABLED_PROPERTY, matches = "true")
+    void shouldCreateHostedCheckoutSessionsForThreeDsBoundaryBrowserValidation() throws Exception {
+        Path outputFile = checkoutUrlOutputFile();
+        MerchantLiveSecurityMaterial material = loadMerchantMaterial();
+        PublicKey platformPublicKey = payloadCrypto.readPublicKey(material.platformPublicKeyX509Base64());
+        PrivateKey merchantResponsePrivateKey = payloadCrypto.readPrivateKey(
+                material.merchantResponsePrivateKeyPkcs8Base64());
+        String batchPrefix = "C20HC" + DateTimeFormatter.ofPattern("yyMMddHHmmss").format(LocalDateTime.now());
+
+        List<Map<String, Object>> sessions = new java.util.ArrayList<>();
+        for (String amount : List.of("29.99", "30.00")) {
+            String orderNo = batchPrefix + amount.replace(".", "");
+            OpenApiLiveResponse response = submitOnly(
+                    "/api/rest/checkout/v1/session",
+                    hostedCheckoutPlainText(orderNo, amount),
+                    material,
+                    platformPublicKey
+            );
+            assertThat(response.code()).isEqualTo("T200");
+            String plainResponse = payloadCrypto.decrypt(response.encryptedData(), merchantResponsePrivateKey);
+            Map<String, Object> payload = JsonUtils.parseObject(plainResponse, new TypeReference<>() {
+            });
+            @SuppressWarnings("unchecked")
+            Map<String, Object> checkoutInfo = (Map<String, Object>) payload.get("checkoutInfo");
+            assertThat(checkoutInfo).as(amount + " checkoutInfo").isNotNull();
+            String checkoutUrl = Objects.toString(checkoutInfo.get("checkoutUrl"), "");
+            assertThat(checkoutUrl).as(amount + " checkoutUrl")
+                    .startsWith(CHECKOUT_FRONTEND_BASE_URL + "/");
+            sessions.add(Map.of(
+                    "amount", amount,
+                    "orderNo", orderNo,
+                    "checkoutUrl", checkoutUrl
+            ));
+        }
+
+        Files.writeString(outputFile, JsonUtils.toJsonString(sessions),
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        try {
+            Files.setPosixFilePermissions(outputFile, Set.of(OWNER_READ, OWNER_WRITE));
+        } catch (UnsupportedOperationException ignored) {
+            outputFile.toFile().setReadable(false, false);
+            outputFile.toFile().setWritable(false, false);
+            outputFile.toFile().setReadable(true, true);
+            outputFile.toFile().setWritable(true, true);
+        }
+        log.info("Hosted Checkout 3DS边界验收会话已创建，summary: {}", JsonUtils.toJsonString(Map.of(
+                "amounts", List.of("29.99", "30.00"),
+                "sessionCount", sessions.size(),
+                "outputFileName", outputFile.getFileName().toString()
+        )));
+    }
+
+    /**
      * 提交一笔商户 OpenAPI 交易并等待交易动作落库。
      *
      * @param path              OpenAPI 路径
@@ -666,6 +750,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
      * @throws SQLException 数据库连接异常
      */
     private Connection openConnection() throws SQLException {
+        assertThat(JDBC_PASSWORD).as("OpenAPI live-test JDBC password").isNotBlank();
         return DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD);
     }
 
@@ -825,6 +910,55 @@ class MerchantOpenApiMpgsLiveFlowTests {
         ));
         payload.put("transactionInfo", transactionInfo);
         return payload;
+    }
+
+    /** 构造 MPGS Hosted Checkout 浏览器验收会话请求，不包含任何卡数据。 */
+    private String hostedCheckoutPlainText(String orderNo, String amount) {
+        Map<String, Object> paymentMethod = new LinkedHashMap<>();
+        paymentMethod.put("paymentMethod", "BANK_CARD");
+        paymentMethod.put("channelCode", "MPGS");
+        paymentMethod.put("brands", List.of("VISA", "MASTERCARD", "JCB"));
+        paymentMethod.put("threeDsMode", "AUTO");
+
+        Map<String, Object> checkoutInfo = new LinkedHashMap<>();
+        checkoutInfo.put("locale", "zh-CN");
+        checkoutInfo.put("expireMinutes", 60);
+        checkoutInfo.put("allowedPaymentMethods", List.of(paymentMethod));
+        checkoutInfo.put("retryAllowed", true);
+        checkoutInfo.put("maxAttemptCount", 3);
+        checkoutInfo.put("returnUrl", "https://merchant.example.com/checkout/return");
+        checkoutInfo.put("cancelUrl", "https://merchant.example.com/checkout/cancel");
+        checkoutInfo.put("notifyUrl", "https://merchant.example.com/opgs/callback");
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("merchantInfo", merchantInfo());
+        payload.put("orderInfo", Map.of(
+                "orderNo", orderNo,
+                "orderId", orderNo + "REQ",
+                "amount", new BigDecimal(amount),
+                "currency", "USD",
+                "subject", "MPGS 3DS boundary validation",
+                "description", "hosted checkout browser validation"
+        ));
+        payload.put("checkoutInfo", checkoutInfo);
+        payload.put("payerInfo", Map.of(
+                "payerId", "CODEX-3DS-TEST",
+                "email", "codex@example.com",
+                "country", "USA"
+        ));
+        return JsonUtils.toJsonString(payload);
+    }
+
+    /** 校验一次性收银台 URL 输出文件必须位于系统临时目录。 */
+    private Path checkoutUrlOutputFile() {
+        String configured = System.getProperty(CHECKOUT_URL_FILE_PROPERTY, "").trim();
+        assertThat(configured).as(CHECKOUT_URL_FILE_PROPERTY).isNotBlank();
+        Path outputFile = Path.of(configured).toAbsolutePath().normalize();
+        Path temporaryDirectory = Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize();
+        assertThat(outputFile).as("checkout URL output file must be under java.io.tmpdir")
+                .startsWith(temporaryDirectory);
+        assertThat(outputFile.getParent()).isNotNull();
+        return outputFile;
     }
 
     /**

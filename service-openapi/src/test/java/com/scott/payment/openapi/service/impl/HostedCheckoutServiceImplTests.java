@@ -28,6 +28,7 @@ import com.scott.payment.openapi.support.OpenApiRequestContext;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionCreateVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
+import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -36,8 +37,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -69,9 +70,18 @@ class HostedCheckoutServiceImplTests {
                 checkoutService.createSession("encrypted-request-body", buildCreateRequest("200001"));
 
         PaymentCheckoutClientDTOs.SessionCreateRequest captured = paymentInternalClient.sessionCreateRequest;
-        assertThat(responseVO.getCheckoutInfo().getCheckoutUrl()).isEqualTo("https://pay.example.com/checkout/token/cover");
-        assertThat(responseVO.getCheckoutInfo().getExpireTime().getOffset()).isEqualTo(ZoneOffset.ofHours(8));
+        assertThat(responseVO.getCheckoutUrl()).isEqualTo("https://pay.example.com/checkout/token/cover");
+        assertThat(responseVO.getMerchantInfo().getSubMerchantInfo().getSubCompanyName())
+                .isEqualTo("Demo Sub Merchant");
         assertThat(responseVO.getOrderInfo().getCurrency()).isEqualTo("USD");
+        assertThat(responseVO.getGoodsInfo()).singleElement()
+                .extracting(PaymentCreateVO.GoodsInfoVO::getName)
+                .isEqualTo("Test item");
+        assertThat(responseVO.getBillingCardHolderInfo().getEmail()).isEqualTo("billing@example.com");
+        assertThat(responseVO.getPayerInfo().getIpAddress()).isEqualTo("203.0.113.9");
+        assertThat(responseVO.getShippingInfo().getStreet()).isEqualTo("2 Shipping St");
+        assertThat(responseVO.getTransactionInfo().getRedirectUrl())
+                .isEqualTo("https://merchant.example/result");
         assertThat(captured.getMerchantId()).isEqualTo("200001");
         assertThat(captured.getMerchantOrderNo()).isEqualTo("M202607270001");
         assertThat(captured.getMerchantRequestId()).isEqualTo("REQ202607270001");
@@ -81,27 +91,31 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getRetryAllowed()).isEqualTo(1);
         assertThat(captured.getMaxAttemptCount()).isEqualTo(3);
         assertThat(captured.getMerchantDisplayName()).isEqualTo("Demo Sub Merchant");
-        assertThat(captured.getAllowedPaymentMethods()).hasSize(1);
-        assertThat(captured.getAllowedPaymentMethods().get(0).getPaymentMethod()).isEqualTo("BANK_CARD");
-        assertThat(captured.getAllowedPaymentMethods().get(0).getChannelCode()).isEqualTo("MPGS");
-        assertThat(captured.getPayerEmailMasked()).isEqualTo("p***@example.com");
+        assertThat(captured.getAllowedPaymentMethods()).isEmpty();
+        assertThat(captured.getSubMerchantInfoJson()).contains("Demo Sub Merchant");
+        assertThat(captured.getPayerInfoJson()).contains("203.0.113.9");
+        assertThat(captured.getBillingInfoJson()).contains("billing@example.com");
+        assertThat(captured.getShippingInfoJson()).contains("2 Shipping St", "shipping@example.com");
+        assertThat(captured.getPayerEmail()).isEqualTo("payer@example.com");
         assertThat(captured.getPayerEmailHash()).isNotBlank();
-        assertThat(captured.getMerchantNotifyUrlHash()).isNotBlank();
+        assertThat(captured.getMerchantNotifyUrl()).isEqualTo("https://merchant.example/notify");
+        assertThat(captured.getRedirectUrl()).isEqualTo("https://merchant.example/result");
         assertThat(captured.getRequestFingerprint()).isNotBlank();
         assertThat(captured.getRequestSource()).contains("clientIpHash", "originHash");
     }
 
     @Test
-    void shouldUsePlatformConfigWhenMerchantProvidesCheckoutDomain() {
+    void shouldLeavePaymentMethodSelectionToPlatformConfiguration() {
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
         bindRequestContext("200001");
-        HostedCheckoutSessionCreateRequestDTO requestDTO = buildCreateRequest("200001");
-        requestDTO.getCheckoutInfo().setCheckoutDomain("https://merchant-controlled.example");
 
-        checkoutService.createSession("encrypted-request-body", requestDTO);
+        checkoutService.createSession("encrypted-request-body", buildCreateRequest("200001"));
 
+        assertThat(paymentInternalClient.sessionCreateRequest.getAllowedPaymentMethods()).isEmpty();
         assertThat(paymentInternalClient.sessionCreateRequest.getCheckoutDomain()).isEqualTo("https://pay.example.com");
+        assertThat(paymentInternalClient.sessionCreateRequest.getRetryAllowed()).isEqualTo(1);
+        assertThat(paymentInternalClient.sessionCreateRequest.getMaxAttemptCount()).isEqualTo(3);
     }
 
     @Test
@@ -114,6 +128,21 @@ class HostedCheckoutServiceImplTests {
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
                 .isEqualTo(ApiResultEnum.MERCHANT_INVALID.getCode());
+        assertThat(paymentInternalClient.sessionCreateRequest).isNull();
+    }
+
+    @Test
+    void shouldRejectInvalidMerchantPayerIpBeforeCreatingSession() {
+        CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
+        HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
+        bindRequestContext("200001");
+        HostedCheckoutSessionCreateRequestDTO requestDTO = buildCreateRequest("200001");
+        requestDTO.getPayerInfo().setIpAddress("203.0.113.9, 10.0.0.1");
+
+        assertThatThrownBy(() -> checkoutService.createSession("encrypted-request-body", requestDTO))
+                .isInstanceOf(ApiException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
         assertThat(paymentInternalClient.sessionCreateRequest).isNull();
     }
 
@@ -159,13 +188,61 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getCardDataEnvelope().getKeyId()).isEqualTo("checkout-card-v1");
         assertThat(captured.getCardDataEnvelope().getEncryptedKey()).startsWith("encryptedKey");
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
+        assertThat(captured.getPayerIp()).isEqualTo("203.0.113.9");
         assertThat(captured.getRequestFingerprint()).isNotBlank();
         assertThat(captured.getBrowserInfoJson()).doesNotContain(RAW_OPAQUE_TOKEN);
+        assertThat(captured.getBrowserInfoJson())
+                .contains("\"userAgent\":\"JUnit\"")
+                .contains("\"acceptHeaders\":\"text/html,application/xhtml+xml\"")
+                .contains("\"challengeWindowSize\":\"FULL_SCREEN\"")
+                .contains("\"colorDepth\":24")
+                .contains("\"javaScriptEnabled\":true")
+                .contains("\"screenHeight\":900")
+                .contains("\"screenWidth\":1440");
         assertThat(captured.toString()).doesNotContain("cardNo", "securityCode", RAW_OPAQUE_TOKEN);
 
         String maskedJson = SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(captured));
         assertThat(maskedJson).doesNotContain("encryptedKeyValue", "ciphertextValue", RAW_OPAQUE_TOKEN);
         assertThat(maskedJson).contains("\"encryptedKey\":\"***\"", "\"ciphertext\":\"***\"");
+    }
+
+    @Test
+    void shouldRejectMalformedPayerIpBeforeCallingPaymentService() {
+        CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
+        HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
+        String malformedIp = "203.0.113.9 injected-value";
+        bindRequestContext("200001", malformedIp);
+
+        assertThatThrownBy(() -> checkoutService.submitPayment(buildSubmitRequest()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("payer IP address is invalid")
+                .hasMessageNotContaining(malformedIp);
+        assertThat(paymentInternalClient.paymentSubmitRequest).isNull();
+    }
+
+    @Test
+    void shouldForwardThreeDsReturnSafelyAndExposeFreshCardEncryptionMetadata() {
+        CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
+        HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
+        bindRequestContext("200001");
+        HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest requestDTO = buildThreeDsReturnRequest();
+
+        HostedCheckoutPaymentResultVO responseVO = checkoutService.handleThreeDsReturn(requestDTO);
+
+        PaymentCheckoutClientDTOs.ThreeDsReturnRequest captured = paymentInternalClient.threeDsReturnRequest;
+        assertThat(responseVO.getPageState()).isEqualTo("THREE_DS_REQUIRED");
+        assertThat(responseVO.getThreeDsAction().getPhase()).isEqualTo("AUTHENTICATE");
+        assertThat(responseVO.getThreeDsAction().getCardEncryption().getAlgorithm())
+                .isEqualTo("RSA-OAEP-256+A256GCM");
+        assertThat(responseVO.getThreeDsAction().getCardEncryption().getNonce()).isEqualTo("fresh-3ds-nonce");
+        assertThat(captured.getThreeDsReturnTokenHash())
+                .isEqualTo(HostedCheckoutTokenSupport.hmacSha256Hex("raw-3ds-return-token", TOKEN_PEPPER));
+        assertThat(captured.getAuthenticationDataJsonMasked()).contains("\"cres\":\"***\"", "\"cavv\":\"***\"");
+        assertThat(captured.getAuthenticationDataJsonMasked()).doesNotContain("raw-cres-value", "raw-cavv-value");
+        assertThat(captured.getCardDataEnvelope().getEncryptedKey()).startsWith("encryptedKey");
+        assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
+        assertThat(captured.getPayerIp()).isEqualTo("203.0.113.9");
+        assertThat(captured.getBrowserInfoJson()).contains("\"language\":\"en-US\"");
     }
 
     private HostedCheckoutServiceImpl newCheckoutService(CapturingCheckoutClient paymentInternalClient) {
@@ -185,13 +262,18 @@ class HostedCheckoutServiceImplTests {
     }
 
     private void bindRequestContext(String merchantId) {
+        bindRequestContext(merchantId, "203.0.113.9, 10.0.0.1");
+    }
+
+    private void bindRequestContext(String merchantId, String forwardedFor) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/rest/checkout/v1/session");
         request.setRemoteAddr("198.51.100.11");
-        request.addHeader("X-Forwarded-For", "203.0.113.9, 10.0.0.1");
+        request.addHeader("X-Forwarded-For", forwardedFor);
         request.addHeader("Origin", "https://merchant.example");
         request.addHeader("Referer", "https://merchant.example/order");
         request.addHeader("User-Agent", "JUnit");
+        request.addHeader("Accept", "text/html,application/xhtml+xml");
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setMerchantId(merchantId);
         request.setAttribute(OpenApiRequestAttributes.REQUEST_HEADER, headerDTO);
@@ -214,33 +296,57 @@ class HostedCheckoutServiceImplTests {
         orderInfo.setOrderId("REQ202607270001");
         orderInfo.setAmount(new BigDecimal("49.97"));
         orderInfo.setCurrency("USD");
-        orderInfo.setSubject("Checkout Unit Test");
-        orderInfo.setDescription("Hosted Checkout test order");
-        HostedCheckoutSessionCreateRequestDTO.OrderItemDTO itemDTO = new HostedCheckoutSessionCreateRequestDTO.OrderItemDTO();
+        requestDTO.setOrderInfo(orderInfo);
+
+        ApiMerchantPaymentRequestDTO.GoodsInfoDTO itemDTO = new ApiMerchantPaymentRequestDTO.GoodsInfoDTO();
         itemDTO.setName("Test item");
         itemDTO.setQuantity(1);
         itemDTO.setAmount(new BigDecimal("49.97"));
         itemDTO.setCurrency("USD");
-        orderInfo.setItems(List.of(itemDTO));
-        requestDTO.setOrderInfo(orderInfo);
+        requestDTO.setGoodsInfo(List.of(itemDTO));
 
-        HostedCheckoutSessionCreateRequestDTO.CheckoutInfoDTO checkoutInfo = new HostedCheckoutSessionCreateRequestDTO.CheckoutInfoDTO();
-        HostedCheckoutSessionCreateRequestDTO.AllowedPaymentMethodDTO methodDTO = new HostedCheckoutSessionCreateRequestDTO.AllowedPaymentMethodDTO();
-        methodDTO.setPaymentMethod("bank_card");
-        methodDTO.setChannelCode("mpgs");
-        methodDTO.setBrands(List.of("VISA", "MASTERCARD"));
-        methodDTO.setThreeDsMode("AUTO");
-        checkoutInfo.setAllowedPaymentMethods(List.of(methodDTO));
-        checkoutInfo.setLocale("en-US");
-        checkoutInfo.setReturnUrl("https://merchant.example/return");
-        checkoutInfo.setCancelUrl("https://merchant.example/cancel");
-        checkoutInfo.setNotifyUrl("https://merchant.example/notify");
-        requestDTO.setCheckoutInfo(checkoutInfo);
+        ApiMerchantPaymentRequestDTO.BillingCardHolderInfoDTO billingInfo =
+                new ApiMerchantPaymentRequestDTO.BillingCardHolderInfoDTO();
+        billingInfo.setFirstName("Billing");
+        billingInfo.setLastName("Example");
+        billingInfo.setEmail("billing@example.com");
+        billingInfo.setCountry("USA");
+        billingInfo.setState("CA");
+        billingInfo.setCity("San Francisco");
+        billingInfo.setStreet("1 Billing St");
+        billingInfo.setPostal("94105");
+        requestDTO.setBillingCardHolderInfo(billingInfo);
 
-        HostedCheckoutSessionCreateRequestDTO.PayerInfoDTO payerInfo = new HostedCheckoutSessionCreateRequestDTO.PayerInfoDTO();
+        ApiMerchantPaymentRequestDTO.PayerInfoDTO payerInfo = new ApiMerchantPaymentRequestDTO.PayerInfoDTO();
+        payerInfo.setFirstName("Payer");
+        payerInfo.setLastName("Example");
         payerInfo.setEmail("payer@example.com");
         payerInfo.setCountry("USA");
+        payerInfo.setIpAddress("203.0.113.9");
+        payerInfo.setSessionId("SESSION-001");
+        payerInfo.setBrowserInfo(Map.of("browser", Map.of("name", "Chrome", "version", "128")));
+        payerInfo.setUserAgent("JUnit Merchant Client");
         requestDTO.setPayerInfo(payerInfo);
+
+        ApiMerchantPaymentRequestDTO.ShippingInfoDTO shippingInfo =
+                new ApiMerchantPaymentRequestDTO.ShippingInfoDTO();
+        shippingInfo.setFirstName("Shipping");
+        shippingInfo.setLastName("Example");
+        shippingInfo.setEmail("shipping@example.com");
+        shippingInfo.setCountry("USA");
+        shippingInfo.setState("CA");
+        shippingInfo.setCity("San Francisco");
+        shippingInfo.setStreet("2 Shipping St");
+        shippingInfo.setPostal("94105");
+        requestDTO.setShippingInfo(shippingInfo);
+
+        HostedCheckoutSessionCreateRequestDTO.TransactionInfoDTO transactionInfo =
+                new HostedCheckoutSessionCreateRequestDTO.TransactionInfoDTO();
+        transactionInfo.setDescription("Hosted Checkout test order");
+        transactionInfo.setCallbackUrl("https://merchant.example/notify");
+        transactionInfo.setRedirectUrl("https://merchant.example/result");
+        transactionInfo.setLanguage("en-US");
+        requestDTO.setTransactionInfo(transactionInfo);
         return requestDTO;
     }
 
@@ -275,12 +381,32 @@ class HostedCheckoutServiceImplTests {
         return requestDTO;
     }
 
+    private HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest buildThreeDsReturnRequest() {
+        HostedCheckoutBrowserRequestDTOs.PaymentSubmitRequest submitRequest = buildSubmitRequest();
+        HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest requestDTO =
+                new HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest();
+        requestDTO.setThreeDsReturnToken("raw-3ds-return-token");
+        requestDTO.setCheckoutSessionId(submitRequest.getCheckoutSessionId());
+        requestDTO.setCheckoutAttemptId("CA202607270001");
+        requestDTO.setAuthenticationData("{\"cres\":\"raw-cres-value\",\"cavv\":\"raw-cavv-value\"}");
+        requestDTO.setCardDataEnvelope(submitRequest.getCardDataEnvelope());
+        requestDTO.setBillingCardHolderInfo(submitRequest.getBillingCardHolderInfo());
+        requestDTO.setClientContext(submitRequest.getClientContext());
+        return requestDTO;
+    }
+
     private HostedCheckoutBrowserRequestDTOs.ClientContextDTO clientContext() {
         HostedCheckoutBrowserRequestDTOs.ClientContextDTO contextDTO = new HostedCheckoutBrowserRequestDTOs.ClientContextDTO();
         contextDTO.setDeviceId("browser-device-id");
         contextDTO.setLanguage("en-US");
         contextDTO.setScreen("1440x900");
         contextDTO.setTimezoneOffset("-480");
+        contextDTO.setChallengeWindowSize("FULL_SCREEN");
+        contextDTO.setColorDepth(24);
+        contextDTO.setJavaEnabled(false);
+        contextDTO.setJavaScriptEnabled(true);
+        contextDTO.setScreenHeight(900);
+        contextDTO.setScreenWidth(1440);
         return contextDTO;
     }
 
@@ -368,6 +494,9 @@ class HostedCheckoutServiceImplTests {
 
         /** 捕获的支付提交请求，用于断言卡数据和 3DS 参数的最小传递范围。 */
         private PaymentCheckoutClientDTOs.PaymentSubmitRequest paymentSubmitRequest;
+
+        /** 捕获的 3DS 回跳请求，用于断言令牌摘要、敏感载荷脱敏和卡密文续传。 */
+        private PaymentCheckoutClientDTOs.ThreeDsReturnRequest threeDsReturnRequest;
 
         /** 本测试桩不覆盖授权交易，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
@@ -502,11 +631,29 @@ class HostedCheckoutServiceImplTests {
             throw new UnsupportedOperationException();
         }
 
-        /** 当前测试不覆盖 3DS 返回分支，调用即表示用例准备不完整。 */
+        /** 捕获 3DS 回跳请求并返回下一阶段动作，验证新 nonce 能透传到浏览器。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
                 PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {
-            throw new UnsupportedOperationException();
+            this.threeDsReturnRequest = requestDTO;
+            PaymentCheckoutClientDTOs.PaymentResultResponse responseDTO = new PaymentCheckoutClientDTOs.PaymentResultResponse();
+            responseDTO.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
+            responseDTO.setCheckoutAttemptId(requestDTO.getCheckoutAttemptId());
+            responseDTO.setPageState("THREE_DS_REQUIRED");
+            PaymentCheckoutClientDTOs.ThreeDsAction action = new PaymentCheckoutClientDTOs.ThreeDsAction();
+            action.setActionType("HTML_CHALLENGE");
+            action.setPhase("AUTHENTICATE");
+            action.setHtml("<form action=\"https://acs.example.test/challenge\"></form>");
+            action.setReturnUrl("https://api.example.test/checkout/api/v1/3ds/bridge");
+            action.setTimeoutSeconds(300);
+            PaymentCheckoutClientDTOs.CardEncryption cardEncryption = new PaymentCheckoutClientDTOs.CardEncryption();
+            cardEncryption.setAlgorithm("RSA-OAEP-256+A256GCM");
+            cardEncryption.setKeyId("checkout-card-v1");
+            cardEncryption.setPublicKey("public-key-base64");
+            cardEncryption.setNonce("fresh-3ds-nonce");
+            action.setCardEncryption(cardEncryption);
+            responseDTO.setThreeDsAction(action);
+            return responseDTO;
         }
 
         /** 当前测试不覆盖卡 BIN 解析，调用即表示用例准备不完整。 */

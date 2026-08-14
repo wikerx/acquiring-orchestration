@@ -11,6 +11,7 @@ import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.MerchantKeyProvider;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -38,6 +39,9 @@ public class OpenApiRequestHeaderExtractor {
      * 开放 API 授权请求头名称，商户 JWT 默认从该请求头读取。
      */
     private static final String HEADER_AUTHORIZATION = "authorization";
+
+    /** 商户 OpenAPI 请求体媒体类型请求头。 */
+    private static final String HEADER_CONTENT_TYPE = "content-type";
 
     /**
      * Authorization 请求头可选 Bearer 前缀，兼容标准网关和商户直连两种写法。
@@ -303,12 +307,30 @@ public class OpenApiRequestHeaderExtractor {
             return;
         }
         for (String header : requiredHeaders) {
-            if (!StringUtils.hasText(request.getHeader(header))) {
+            String headerValue = request.getHeader(header);
+            if (!StringUtils.hasText(headerValue)) {
                 if (HEADER_AUTHORIZATION.equalsIgnoreCase(header)) {
                     throw new ApiException(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
                 }
                 throw new ApiException(ApiResultEnum.PARAM_MISSING, "header." + header);
             }
+            if (HEADER_CONTENT_TYPE.equalsIgnoreCase(header) && !isJsonContentType(headerValue)) {
+                throw new ApiException(ApiResultEnum.PARAM_INVALID, "header." + header);
+            }
+        }
+    }
+
+    /**
+     * 判断 Content-Type 是否为 JSON 媒体类型，兼容 charset 等合法参数。
+     *
+     * @param contentType 请求头原始值
+     * @return application/json 兼容类型返回 true
+     */
+    private boolean isJsonContentType(String contentType) {
+        try {
+            return MediaType.APPLICATION_JSON.isCompatibleWith(MediaType.parseMediaType(contentType));
+        } catch (IllegalArgumentException exception) {
+            return false;
         }
     }
 

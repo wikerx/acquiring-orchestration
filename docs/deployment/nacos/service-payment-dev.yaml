@@ -19,6 +19,9 @@ payment:
       execution-recovery-batch-size: ${PAYMENT_REFUND_EXECUTION_RECOVERY_BATCH_SIZE:100}
       execution-recovery-stale-seconds: ${PAYMENT_REFUND_EXECUTION_RECOVERY_STALE_SECONDS:300}
   channel-match:
+    recovery:
+      # INIT 原资金请求仍可能在途，超过该秒数且已保存渠道查询身份后才允许主动勾兑。
+      init-request-grace-seconds: ${PAYMENT_CHANNEL_MATCH_INIT_REQUEST_GRACE_SECONDS:300}
     abnormal:
       # dev 完成异常表迁移和 Admin 权限后开启；test/uat/prod 不继承该默认值。
       enabled: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_ENABLED:true}

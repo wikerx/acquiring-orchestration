@@ -1,6 +1,7 @@
 package com.scott.payment.merchant.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -20,6 +21,7 @@ import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,6 +38,38 @@ import static org.mockito.Mockito.when;
  * 商户交易查询展示规则测试。
  */
 class JdbcMerchantTransactionQueryServiceTests {
+
+    /** 商户 3DS 富化必须批量回退，并在两类查询中绑定当前商户。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void threeDsEnrichmentShouldKeepMerchantBoundaryAndCheckoutFallback() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class), eq(String.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0, String.class)
+                        .contains("transaction_payment_method_info")
+                        ? List.of("operation-snapshot")
+                        : List.of("operation-checkout"));
+        JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(jdbcTemplate);
+
+        Set<String> operationIds = (Set<String>) ReflectionTestUtils.invokeMethod(
+                service,
+                "findThreeDsOperationIds",
+                List.of("operation-snapshot", "operation-checkout"),
+                "merchant-a");
+
+        assertThat(operationIds).containsExactlyInAnyOrder("operation-snapshot", "operation-checkout");
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate, atLeast(2)).queryForList(
+                sqlCaptor.capture(), paramsCaptor.capture(), eq(String.class));
+        for (int index = 0; index < sqlCaptor.getAllValues().size(); index++) {
+            assertThat(paramsCaptor.getAllValues().get(index).getValue("merchantId")).isEqualTo("merchant-a");
+        }
+        assertThat(sqlCaptor.getAllValues()).anySatisfy(sql -> assertThat(sql)
+                .contains("EXISTS", "o.merchant_id = :merchantId", "three_ds_indicator"));
+        assertThat(sqlCaptor.getAllValues()).anySatisfy(sql -> assertThat(sql)
+                .contains("payment_checkout_attempt", "merchant_id = :merchantId", "three_ds_required = 1"));
+    }
 
     @Test
     void pageOrdersShouldClampRequestedRangeToRegisteredNodesAndCurrentTime() {
@@ -298,6 +332,16 @@ class JdbcMerchantTransactionQueryServiceTests {
         );
 
         assertThat(message).isEqualTo("Risk blocked");
+    }
+
+    @Test
+    void shouldReplaceInternalChannelFailureTokenWithCanonicalDeclineMessage() {
+        String message = JdbcMerchantTransactionQueryService.resolveMerchantResponseMessage(
+                "FAILED",
+                "CHANNEL_REQUEST_FAILED"
+        );
+
+        assertThat(message).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
     }
 
     private TransactionOperationResponse operation(String operationId,

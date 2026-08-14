@@ -138,8 +138,8 @@ docs/deployment/nacos/transaction-sharding-governance-dev-draft.yaml
 发布约束：
 
 - `physical-nodes` 只登记已经存在且当前规则声明的全部正式表通过 schema、`DATETIME(3)`、字符集和号段校验的季度。
-- 卡资料迁移完成后只接受包含 `transaction_card_vault` 的完整 24 表正式拓扑；任意缺表、未知表、重复表均拒绝启动。
-- `data.card-vault.enabled` 默认关闭；开启前必须先创建各季度 `transaction_card_vault` 物理表并发布 24 表规则，否则 `service-data` 拒绝启动。
+- 当前只接受同时包含 `transaction_card_vault` 与 `transaction_shipping_info` 的完整 25 表正式拓扑；任意缺表、未知表、重复表均拒绝启动。
+- `data.card-vault.enabled` 默认关闭；开启前必须先创建各季度 `transaction_card_vault` 物理表并发布包含该表的完整规则，否则 `service-data` 拒绝启动。
 - Job 先 Dry Run，再建表并校验，最后只生成候选 `rule-version` 和 SHA-256 checksum；应用不会自动发布 Nacos。
 - 五个直接访问服务必须加载相同版本后才能开放新季度。
 - `/actuator/info` 的 `transactionSharding` 节点必须显示五个服务一致的 `ruleVersion` 和
@@ -150,6 +150,10 @@ docs/deployment/nacos/transaction-sharding-governance-dev-draft.yaml
 旧 23 表规则；再预建并验证卡资料物理表；随后发布 24 表规则及对应 checksum；最后才允许开启
 `service-payment` 生产消息和 `service-data` 消费开关。回滚时先关闭卡资料生产/消费，再回退到完整
 23 表规则，禁止在已有卡资料写入期间直接移除逻辑表。
+
+第 25 张 `transaction_shipping_info` 的发布必须先部署识别 25 表拓扑的代码，再创建并核对模板表及
+所有已发布季度物理表，随后发布 `2026.08.14-001` 规则和对应 checksum。任一季度缺表时不得把该
+季度加入 `physical-nodes`，也不得先开启收货快照写入。
 
 完整的候选规则生成、五服务滚动加载、单写验收、季度边界和回滚门禁见
 [`ShardingSphere 发布、验收与回滚手册`](../shardingsphere-rollout-rollback-runbook.md)。该手册是

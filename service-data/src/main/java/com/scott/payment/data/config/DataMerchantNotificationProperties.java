@@ -36,4 +36,5 @@ public class DataMerchantNotificationProperties {
 
     /** 是否允许回环、私网和保留地址，仅限隔离开发环境显式开启。 */
     private boolean allowPrivateNetwork;
+
 }

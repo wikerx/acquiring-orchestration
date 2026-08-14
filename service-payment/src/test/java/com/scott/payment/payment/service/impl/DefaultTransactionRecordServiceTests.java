@@ -20,6 +20,7 @@ import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionChannelInteractionLogDO;
 import com.scott.payment.payment.entity.TransactionMerchantApiInteractionLogDO;
 import com.scott.payment.payment.entity.TransactionMerchantNotificationDO;
+import com.scott.payment.payment.entity.TransactionLocatorDO;
 import com.scott.payment.payment.entity.TransactionPaymentMethodInfoDO;
 import com.scott.payment.payment.entity.TransactionStatusHistoryDO;
 import com.scott.payment.payment.entity.TransactionFlowEventDO;
@@ -32,6 +33,7 @@ import com.scott.payment.payment.mapper.TransactionFlowEventMapper;
 import com.scott.payment.payment.mapper.TransactionAmountChangeLogMapper;
 import com.scott.payment.payment.mapper.TransactionMerchantApiInteractionLogMapper;
 import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
+import com.scott.payment.payment.mapper.TransactionLocatorMapper;
 import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
@@ -124,10 +126,12 @@ class DefaultTransactionRecordServiceTests {
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         TransactionPaymentMethodInfoMapper paymentMethodInfoMapper = mock(TransactionPaymentMethodInfoMapper.class);
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        TransactionLocatorMapper locatorMapper = mock(TransactionLocatorMapper.class);
         Captured<TransactionOrderDO> orderCapture = new Captured<>();
         Captured<TransactionOperationDO> operationCapture = new Captured<>();
         Captured<TransactionStatusHistoryDO> historyCapture = new Captured<>();
         Captured<TransactionPaymentMethodInfoDO> paymentInfoCapture = new Captured<>();
+        Captured<TransactionLocatorDO> locatorCapture = new Captured<>();
         when(orderMapper.insert(any(TransactionOrderDO.class))).thenAnswer(invocation -> {
             orderCapture.value = invocation.getArgument(0);
             return 1;
@@ -144,6 +148,10 @@ class DefaultTransactionRecordServiceTests {
             paymentInfoCapture.value = invocation.getArgument(0);
             return 1;
         });
+        when(locatorMapper.insert(any(TransactionLocatorDO.class))).thenAnswer(invocation -> {
+            locatorCapture.value = invocation.getArgument(0);
+            return 1;
+        });
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
                 operationMapper,
@@ -155,6 +163,7 @@ class DefaultTransactionRecordServiceTests {
                 mock(TransactionMerchantNotificationMapper.class),
                 mock(TransactionMerchantApiInteractionLogMapper.class),
                 paymentMethodInfoMapper,
+                locatorMapper,
                 new TransactionShardingKeyParser(),
                 logicalShardingProperties());
 
@@ -164,6 +173,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(orderCapture.value.getOperationId()).isEqualTo("OP260714180001");
         assertThat(orderCapture.value.getRootTransactionId()).isEqualTo("TX260714180001");
         assertThat(orderCapture.value.getChannelOrderNo()).isEqualTo("CODX260714180001");
+        assertThat(orderCapture.value.getCallbackUrl()).isEqualTo("https://merchant.example.com/callback");
+        assertThat(orderCapture.value.getRedirectUrl()).isEqualTo("https://merchant.example.com/result");
         assertThat(orderCapture.value.getTransactionUtcTime()).isEqualTo(LocalDateTime.of(2026, 6, 30, 16, 30));
         assertThat(orderCapture.value.getAuthorizedAmount()).isEqualByComparingTo("12.34");
         assertThat(orderCapture.value.getAvailableCaptureAmount()).isEqualByComparingTo("12.34");
@@ -177,6 +188,14 @@ class DefaultTransactionRecordServiceTests {
         assertThat(operationCapture.value.getApprovedAmount()).isEqualByComparingTo("12.34");
         assertThat(operationCapture.value.getMerchantOperationNo()).isEqualTo("M202607140001");
         assertThat(operationCapture.value.getRequestSource()).isEqualTo("HOSTED_CHECKOUT");
+        assertThat(locatorCapture.value.getTransactionId()).isEqualTo("TX260714180001");
+        assertThat(locatorCapture.value.getRootTransactionId()).isEqualTo("TX260714180001");
+        assertThat(locatorCapture.value.getMerchantId()).isEqualTo("200001");
+        assertThat(locatorCapture.value.getMerchantOrderNo()).isEqualTo("M202607140001");
+        assertThat(locatorCapture.value.getTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 30));
+        assertThat(locatorCapture.value.getRootTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 30));
         assertThat(paymentInfoCapture.value.getPaymentMethod()).isEqualTo("BANK_CARD");
         assertThat(paymentInfoCapture.value.getPaymentBrand()).isEqualTo("MASTERCARD");
         assertThat(paymentInfoCapture.value.getIssuerCountry()).isEqualTo("AE");
@@ -359,14 +378,20 @@ class DefaultTransactionRecordServiceTests {
      */
     @Test
     void shouldMarkChannelFlowEventFailedWhenChannelBusinessResultFailed() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        Captured<TransactionOrderDO> orderCapture = new Captured<>();
+        when(orderMapper.insert(any(TransactionOrderDO.class))).thenAnswer(invocation -> {
+            orderCapture.value = invocation.getArgument(0);
+            return 1;
+        });
         CapturedList<TransactionFlowEventDO> flowEventCapture = new CapturedList<>();
         when(flowEventMapper.insertLogical(any(TransactionFlowEventDO.class))).thenAnswer(invocation -> {
             flowEventCapture.values.add(invocation.getArgument(0));
             return 1;
         });
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
-                mock(TransactionOrderMapper.class),
+                orderMapper,
                 mock(TransactionOperationMapper.class),
                 mock(TransactionStatusHistoryMapper.class),
                 mock(TransactionChannelRequestMapper.class),
@@ -408,6 +433,8 @@ class DefaultTransactionRecordServiceTests {
                 .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode() + "：" + ApiResultEnum.PAYMENT_REJECTED.getMessage());
         assertThat(statusEvent.getErrorCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
         assertThat(statusEvent.getErrorCode()).isNotEqualTo(resultDTO.getFailReasonCode());
+        assertThat(orderCapture.value.getMerchantVisibleMessage())
+                .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
     }
 
     /**
@@ -603,8 +630,7 @@ class DefaultTransactionRecordServiceTests {
         Captured<TransactionMerchantNotificationDO> notificationCapture = new Captured<>();
         LocalDateTime sourceTransactionDateTime = LocalDateTime.of(2026, 7, 1, 0, 30);
         TransactionMerchantNotificationDO sourceNotification = new TransactionMerchantNotificationDO();
-        sourceNotification.setNotifyConfigSnapshotJson(
-                "{\"callbackUrl\":\"https://merchant.example/refund-callback?source=qa\"}");
+        sourceNotification.setCallbackUrl("https://merchant.example/refund-callback?source=qa");
         when(operationMapper.countByOperationId(anyString(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(1);
         when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
@@ -641,8 +667,8 @@ class DefaultTransactionRecordServiceTests {
         recordService.recordFollowUpTransaction(recordDTO);
 
         assertThat(notificationCapture.value).isNotNull();
-        assertThat(notificationCapture.value.getNotifyConfigSnapshotJson())
-                .contains("https://merchant.example/refund-callback?source=qa");
+        assertPlaintextCallbackTask(
+                notificationCapture.value, "https://merchant.example/refund-callback?source=qa");
         assertThat(notificationCapture.value.getTargetUrlMasked())
                 .isEqualTo("https://merchant.example/refund-callback?***");
         verify(notificationMapper).selectLatestConfigByTransactionId(
@@ -650,17 +676,16 @@ class DefaultTransactionRecordServiceTests {
     }
 
     /**
-     * 源通知快照损坏时不得回滚已经落库的退款动作，也不得创建缺少有效地址的通知任务。
+     * 源通知地址为空时不得回滚已经落库的退款动作，也不得创建缺少有效地址的通知任务。
      */
     @Test
-    void shouldKeepRefundFactsWhenSourceNotificationConfigIsInvalid() {
+    void shouldKeepRefundFactsWhenSourceNotificationCallbackIsEmpty() {
         TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
         TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
         LocalDateTime sourceTransactionDateTime = LocalDateTime.of(2026, 7, 1, 0, 30);
         TransactionMerchantNotificationDO sourceNotification = new TransactionMerchantNotificationDO();
-        sourceNotification.setNotifyConfigSnapshotJson("{invalid-json");
         when(operationMapper.countByOperationId(anyString(), any(LocalDateTime.class), any(LocalDateTime.class)))
                 .thenReturn(1);
         when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
@@ -1591,8 +1616,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(merchantApiCapture.value.getResponsePlainJsonMasked()).doesNotContain("dccEnabled");
         assertThat(merchantApiCapture.value.getResponseCipherDigest()).isNull();
         assertThat(notificationCapture.value.getTargetUrlMasked()).isEqualTo("https://merchant.example/callback?***");
-        assertThat(notificationCapture.value.getNotifyConfigSnapshotJson())
-                .contains("https://merchant.example/callback?source=qa");
+        assertPlaintextCallbackTask(
+                notificationCapture.value, "https://merchant.example/callback?source=qa");
         assertThat(notificationCapture.value.getMaxRetryCount()).isEqualTo(10);
         assertNestedMerchantPayload(notificationCapture.value.getPayloadJsonMasked());
     }
@@ -1676,6 +1701,8 @@ class DefaultTransactionRecordServiceTests {
         transactionInfoDTO.setCardBrand("MASTERCARD");
         transactionInfoDTO.setIssuerCountry("AE");
         transactionInfoDTO.setMerchantWebsite("https://merchant.example.com/checkout");
+        transactionInfoDTO.setCallbackUrl("https://merchant.example.com/callback");
+        transactionInfoDTO.setRedirectUrl("https://merchant.example.com/result");
         commandDTO.setTransactionInfo(transactionInfoDTO);
         PaymentCreateCommandDTO.CardInfoDTO cardInfoDTO = new PaymentCreateCommandDTO.CardInfoDTO();
         cardInfoDTO.setCardNo("5123456789010008");
@@ -1916,6 +1943,12 @@ class DefaultTransactionRecordServiceTests {
         TransactionShardingProperties properties = new TransactionShardingProperties();
         properties.setPhysicalNodes(List.of("202603", "202604"));
         return properties;
+    }
+
+    private static void assertPlaintextCallbackTask(TransactionMerchantNotificationDO notification,
+                                                    String expectedCallbackUrl) {
+        assertThat(notification.getCallbackUrl()).isEqualTo(expectedCallbackUrl);
+        assertThat(notification.getPayloadJson()).contains("transactionInfo", "transactionId");
     }
 
     private static class Captured<T> {

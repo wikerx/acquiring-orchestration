@@ -2,8 +2,8 @@
 # 真实 Dry Run 已通过；仍须经 Nacos 发布审批和五服务滚动加载验收后才能生效。
 transaction-sharding:
   # 第一版直接启用 ShardingSphere 单写，不配置 LEGACY/COMPARE 服务级迁移 mode。
-  rule-version: "2026.08.08-001"
-  rule-checksum: "sha256:b1db8acacbe4ff66fcf95c7dd8232e0a2260dba2cf76b8af2806ff1ece7b67d4"
+  rule-version: "2026.08.14-001"
+  rule-checksum: "sha256:1558bdaa3834f1b93035d6fba3e7027f941f179323f18e60279b9c1c87c04331"
   database-zone-id: Asia/Shanghai
   sharding-column: transaction_date_time
   primary-data-source: master
@@ -11,7 +11,7 @@ transaction-sharding:
     - slave_1
     - slave_2
 
-  # actualDataNodes 只包含 24 张正式表全部通过真实 Dry Run 的季度。
+  # actualDataNodes 只包含 25 张正式表全部通过真实 Dry Run 的季度。
   physical-nodes:
     - "202603"
     - "202604"
@@ -23,6 +23,7 @@ transaction-sharding:
     - transaction_payment_method_info
     - transaction_payer_info
     - transaction_billing_info
+    - transaction_shipping_info
     - transaction_additional_info
     - transaction_authentication_info
     - transaction_product_item

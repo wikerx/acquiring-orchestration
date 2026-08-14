@@ -131,6 +131,39 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                          @Param("now") LocalDateTime now);
 
     /**
+     * 核心准备完成后，用当前尝试绑定的预生成标识 CAS 替换为核心权威标识。
+     *
+     * <p>该更新不推进会话状态和乐观锁版本，避免影响紧随其后的 3DS 状态 CAS；
+     * 旧交易标识和 last_attempt_id 共同防止覆盖其他并发尝试。</p>
+     */
+    @Update("""
+            UPDATE payment_checkout_session
+            SET latest_transaction_id = #{latestTransactionId},
+                operation_id = #{operationId},
+                transaction_date_time = #{transactionDateTime},
+                channel_code = #{channelCode},
+                channel_mid_config_id = #{channelMidConfigId},
+                update_time = #{now}
+            WHERE checkout_session_id = #{checkoutSessionId}
+              AND last_attempt_id = #{lastAttemptId}
+              AND latest_transaction_id = #{expectedTransactionId}
+              AND operation_id = #{expectedOperationId}
+              AND checkout_status IN ('PAYING', 'AUTHENTICATING', 'PROCESSING')
+              AND success_attempt_id IS NULL
+              AND deleted = 0
+            """)
+    int syncPreparedIdentityCas(@Param("checkoutSessionId") String checkoutSessionId,
+                                @Param("lastAttemptId") String lastAttemptId,
+                                @Param("expectedTransactionId") String expectedTransactionId,
+                                @Param("expectedOperationId") String expectedOperationId,
+                                @Param("latestTransactionId") String latestTransactionId,
+                                @Param("operationId") String operationId,
+                                @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                @Param("channelCode") String channelCode,
+                                @Param("channelMidConfigId") Long channelMidConfigId,
+                                @Param("now") LocalDateTime now);
+
+    /**
      * 将会话 CAS 推进为支付成功终态。
      *
      * <p>仅允许从支付中间态更新，并要求尚无成功尝试，防止回调或轮询覆盖既有成功归属。</p>

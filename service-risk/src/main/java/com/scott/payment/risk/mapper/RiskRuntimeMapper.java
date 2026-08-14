@@ -1088,6 +1088,7 @@ public interface RiskRuntimeMapper {
                     merchant_scope = 'GLOBAL'
                     OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
                   )
+              AND (channel_code = 'ALL' OR channel_code = #{channelCode})
               AND (payment_method = 'ALL' OR payment_method = #{paymentMethod})
               AND (card_brand = 'ALL' OR card_brand = #{cardBrand})
               AND currency = #{currency}
@@ -1112,6 +1113,7 @@ public interface RiskRuntimeMapper {
             </script>
             """)
     RiskListMatch selectThreeDsRule(@Param("merchantId") String merchantId,
+                                    @Param("channelCode") String channelCode,
                                     @Param("paymentMethod") String paymentMethod,
                                     @Param("cardBrand") String cardBrand,
                                     @Param("amount") BigDecimal amount,
@@ -1141,6 +1143,7 @@ public interface RiskRuntimeMapper {
                    COALESCE(remark, rule_name) AS decisionReason,
                    merchant_scope AS merchantScope,
                    merchant_id AS merchantId,
+                   channel_code AS channelCode,
                    payment_method AS paymentMethod,
                    card_brand AS cardBrand,
                    amount_match_type AS amountMatchType,

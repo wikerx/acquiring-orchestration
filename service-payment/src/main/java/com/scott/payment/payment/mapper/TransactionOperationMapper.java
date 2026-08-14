@@ -243,19 +243,19 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      */
     @Select("""
             <script>
-            SELECT *
-            FROM transaction_operation
-            WHERE deleted = 0
-              AND transaction_date_time &gt;= #{beginTime}
-              AND transaction_date_time &lt; #{endTimeExclusive}
-              AND channel_match_status = 'PENDING'
-              AND transaction_status NOT IN ('SUCCESS', 'FAILED')
-              AND channel_code IS NOT NULL
-              AND (next_channel_match_time IS NULL OR next_channel_match_time &lt;= #{now})
+            SELECT o.*
+            FROM transaction_operation o
+            WHERE o.deleted = 0
+              AND o.transaction_date_time &gt;= #{beginTime}
+              AND o.transaction_date_time &lt; #{endTimeExclusive}
+              AND o.channel_match_status = 'PENDING'
+              AND o.transaction_status NOT IN ('SUCCESS', 'FAILED')
+              AND o.channel_code IS NOT NULL
+              AND (o.next_channel_match_time IS NULL OR o.next_channel_match_time &lt;= #{now})
               <if test="channelCode != null and channelCode != ''">
-                AND channel_code = #{channelCode}
+                AND o.channel_code = #{channelCode}
               </if>
-            ORDER BY COALESCE(next_channel_match_time, transaction_date_time) ASC, id ASC
+            ORDER BY COALESCE(o.next_channel_match_time, o.transaction_date_time) ASC, o.id ASC
             LIMIT #{limit}
             </script>
             """)
@@ -285,7 +285,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             WHERE id = #{id}
               AND transaction_date_time = #{transactionDateTime}
               AND version = #{expectedVersion}
-              AND channel_match_status IN ('PENDING', 'REVIEW_REQUIRED')
+              AND channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')
               AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND deleted = 0
             """)

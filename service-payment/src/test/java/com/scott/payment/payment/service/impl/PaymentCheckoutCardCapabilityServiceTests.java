@@ -72,6 +72,8 @@ class PaymentCheckoutCardCapabilityServiceTests {
         assertThat(service.resolveCardBrand("5555555555554444")).isEqualTo("MASTERCARD");
         assertThat(service.resolveCardBrand("371449635398431")).isEqualTo("AMEX");
         assertThat(service.resolveCardBrand("3530111333300000")).isEqualTo("JCB");
+        assertThat(service.resolveCardBrand("3528000000000007")).isEqualTo("JCB");
+        assertThat(service.resolveCardBrand("2223000000000023")).isEqualTo("MASTERCARD");
         assertThat(service.resolveCardBrand("30569309025904")).isEqualTo("DINERS_CLUB");
         assertThat(service.resolveCardBrand("6011111111111117")).isEqualTo("DISCOVER");
         assertThat(service.resolveCardBrand("6212345678901234")).isEqualTo("UNIONPAY");

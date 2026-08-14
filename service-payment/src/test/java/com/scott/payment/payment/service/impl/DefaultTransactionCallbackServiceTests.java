@@ -5,9 +5,9 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
+import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.channel.payment.executor.PaymentChannelCallbackExecutor;
-import com.scott.payment.channel.payment.mpgs.MpgsPaymentChannelCallbackHandler;
 import com.scott.payment.channel.payment.registry.PaymentChannelCallbackRegistry;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
@@ -79,7 +79,7 @@ class DefaultTransactionCallbackServiceTests {
                 new CapturingEventOutboxService(),
                 new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
-                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))),
+                        Optional.of(List.of(new FixedMpgsCallbackHandler()))))),
                 new DefaultChannelTransactionStatusResolver());
 
         TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(callbackCommand());
@@ -128,7 +128,7 @@ class DefaultTransactionCallbackServiceTests {
                 new CapturingEventOutboxService(),
                 new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
-                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))),
+                        Optional.of(List.of(new FixedMpgsCallbackHandler()))))),
                 new DefaultChannelTransactionStatusResolver());
 
         TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(callbackCommand());
@@ -169,7 +169,7 @@ class DefaultTransactionCallbackServiceTests {
                 new CapturingEventOutboxService(),
                 new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
-                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))),
+                        Optional.of(List.of(new FixedMpgsCallbackHandler()))))),
                 new DefaultChannelTransactionStatusResolver());
 
         assertThatThrownBy(() -> callbackService.recordChannelCallback(callbackCommand()))
@@ -205,7 +205,7 @@ class DefaultTransactionCallbackServiceTests {
                 eventOutboxService,
                 new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
-                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))));
+                        Optional.of(List.of(new FixedMpgsCallbackHandler()))))));
 
         TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(callbackCommand());
 
@@ -292,7 +292,7 @@ class DefaultTransactionCallbackServiceTests {
                 eventOutboxService,
                 new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
-                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))));
+                        Optional.of(List.of(new FixedMpgsCallbackHandler()))))));
         TransactionChannelCallbackCommandDTO commandDTO = callbackCommand();
         commandDTO.setSignatureValid(false);
 
@@ -306,11 +306,37 @@ class DefaultTransactionCallbackServiceTests {
         assertThat(eventOutboxService.eventDO).isNull();
     }
 
+    @Test
+    void shouldRecordUnresolvedCallbackWhenOperationIsMissing() {
+        TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), any(), any(), any())).thenReturn(1);
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                callbackLogMapper,
+                callbackMapper,
+                recordService,
+                new CapturingEventOutboxService(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new FixedMpgsCallbackHandler()))))));
+
+        TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(callbackCommand());
+
+        assertThat(resultDTO.getCallbackStatus()).isEqualTo("FAILED");
+        assertThat(resultDTO.getFailReason()).isEqualTo("transaction_id can not be resolved from callback");
+        verify(recordService, never()).completeByChannelCallback(any(), any(), anyString(),
+                anyString(), any(), any(), any(), any(), any());
+    }
+
     /**
-     * MPGS 3DS Method callback 只是认证前置通知，不得推进支付终态或发送商户通知事件。
+     * 3DS Method callback 只是认证前置通知，不得推进支付终态或发送商户通知事件。
      */
     @Test
-    void shouldRecordMpgsThreeDsCallbackWithoutChangingTransactionStatus() {
+    void shouldRecordThreeDsCallbackWithoutChangingTransactionStatus() {
         TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
         TransactionRecordService recordService = mock(TransactionRecordService.class);
         when(callbackMapper.insertLogical(any(TransactionChannelCallbackDO.class))).thenReturn(1);
@@ -329,10 +355,10 @@ class DefaultTransactionCallbackServiceTests {
                 eventOutboxService,
                 new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
-                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))));
+                        Optional.of(List.of(new FixedMpgsCallbackHandler()))))));
         TransactionChannelCallbackCommandDTO commandDTO = callbackCommand();
-        commandDTO.setCallbackType("MPGS_3DS_CALLBACK");
-        commandDTO.setChannelEventType("THREE_DS_METHOD_COMPLETION");
+        commandDTO.setCallbackType("THREE_DS_AUTHENTICATION_CALLBACK");
+        commandDTO.setChannelEventType("THREE_DS_CALLBACK");
         commandDTO.setRequestUri("/channel/v1/callbacks/MPGS/3ds");
         commandDTO.setRequestBody("threeDSServerTransID=7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8"
                 + "&threeDSSessionData=encrypted-session-data"
@@ -344,7 +370,52 @@ class DefaultTransactionCallbackServiceTests {
         assertThat(resultDTO.getProcessResult()).isEqualTo("PENDING_STATE_MAPPING");
         verify(recordService, never()).completeByChannelCallback(any(), any(), anyString(),
                 anyString(), any(), any(), any(), any(), any());
+        verify(callbackMapper).updateProcessResultLogical(anyString(), any(), any(), any(),
+                eq("RECEIVED"), any(), any(), any(), eq("PENDING_STATE_MAPPING"),
+                eq("3ds authentication callback waits payer authentication or payment result confirmation"), any());
         assertThat(eventOutboxService.eventDO).isNull();
+    }
+
+    /**
+     * MPGS order.notificationUrl 会把后续资金通知投递到原 /3ds URL；Provider 已识别为资金事件时，
+     * 支付核心必须忽略入口的旧 3DS 标签并正常推进交易终态。
+     */
+    @Test
+    void shouldProcessFinancialWebhookDeliveredToThreeDsNotificationUrl() {
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        when(callbackMapper.insertLogical(any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any())).thenReturn(1);
+        when(recordService.findOperationByChannelTransaction(
+                "202607141000000000001", "CH202607141000000000001")).thenReturn(operation());
+        when(recordService.findOrder(LocalDateTime.of(2026, 7, 14, 10, 0), "OP202607141000000000001"))
+                .thenReturn(order());
+        when(recordService.completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("AUTHORIZED"), eq("00"), eq("Approved"))).thenReturn(true);
+        CapturingEventOutboxService eventOutboxService = new CapturingEventOutboxService();
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                mock(TransactionChannelCallbackLogMapper.class),
+                callbackMapper,
+                recordService,
+                eventOutboxService,
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new FixedMpgsCallbackHandler()))))));
+        TransactionChannelCallbackCommandDTO commandDTO = callbackCommand();
+        commandDTO.setCallbackType("THREE_DS_AUTHENTICATION_CALLBACK");
+        commandDTO.setChannelEventType("THREE_DS_CALLBACK");
+        commandDTO.setRequestUri("/channel/v1/callbacks/MPGS/3ds");
+
+        TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(commandDTO);
+
+        assertThat(resultDTO.getCallbackStatus()).isEqualTo("PROCESSED");
+        assertThat(resultDTO.getProcessResult()).isEqualTo("STATUS_CHANGED");
+        verify(recordService).completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("AUTHORIZED"), eq("00"), eq("Approved"));
+        assertThat(eventOutboxService.eventDO).isNotNull();
     }
 
     private TransactionChannelCallbackCommandDTO callbackCommand() {
@@ -462,6 +533,50 @@ class DefaultTransactionCallbackServiceTests {
         }
     }
 
+    /** Provider-neutral SPI fixture; protocol parsing itself is covered by payment-channel-mpgs tests. */
+    private static class FixedMpgsCallbackHandler implements PaymentChannelCallbackHandler {
+
+        @Override
+        public String channelCode() {
+            return "MPGS";
+        }
+
+        @Override
+        public ChannelCallbackResult handle(ChannelCallbackRequest request) {
+            if (request.getRequestUri() != null && request.getRequestUri().endsWith("/3ds")
+                    && (request.getBody() == null || !request.getBody().contains("\"type\": \"AUTHORIZATION\""))) {
+                return threeDsResult();
+            }
+            ChannelCallbackResult result = new ChannelCallbackResult();
+            result.setChannelCode("MPGS");
+            result.setCallbackKind(ChannelCallbackKind.FINANCIAL_TRANSACTION);
+            result.setCallbackEventId("CH202607141000000000001");
+            result.setChannelOrderNo("202607141000000000001");
+            result.setChannelTransactionId("CH202607141000000000001");
+            result.setRawChannelStatus("AUTHORIZED");
+            result.setChannelTradeStatus(ChannelTradeStatus.AUTHORIZED.getCode());
+            result.setSignatureValid(true);
+            result.setChannelResponseCode("00");
+            result.setChannelResponseMessage("Approved");
+            return result;
+        }
+
+        private ChannelCallbackResult threeDsResult() {
+            ChannelCallbackResult result = new ChannelCallbackResult();
+            result.setChannelCode("MPGS");
+            result.setCallbackKind(ChannelCallbackKind.THREE_DS_AUTHENTICATION);
+            result.setCallbackEventId("7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8");
+            result.setChannelOrderNo("202607141000000000001");
+            result.setChannelTransactionId("7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8");
+            result.setRawChannelStatus("3DS_METHOD_COMPLETED");
+            result.setChannelTradeStatus(ChannelTradeStatus.PENDING.getCode());
+            result.setSignatureValid(true);
+            result.setChannelResponseCode("3DS_METHOD_COMPLETED");
+            result.setChannelResponseMessage("3DS method completion callback received");
+            return result;
+        }
+    }
+
     private static class FixedWorldPayCallbackHandler implements PaymentChannelCallbackHandler {
 
         /**
@@ -482,7 +597,9 @@ class DefaultTransactionCallbackServiceTests {
             result.setChannelOrderNo("202607141000000000001");
             result.setChannelTransactionId("CH202607141000000000001");
             result.setRawChannelStatus(request.getBody());
-            result.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
+            result.setChannelTradeStatus("CAPTURED".equals(request.getBody())
+                    ? ChannelTradeStatus.CAPTURED.getCode()
+                    : ChannelTradeStatus.AUTHORIZED.getCode());
             result.setChannelResponseCode(request.getBody());
             result.setChannelResponseMessage(request.getBody());
             return result;

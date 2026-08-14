@@ -443,8 +443,8 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         task.setOperationId("OP202608011600000000001");
         task.setMerchantId("200001");
         task.setMerchantOrderNo("M202608010001");
-        task.setNotifyConfigSnapshotJson(
-                "{\"callbackUrl\":\"https://merchant.example/callback?token=secret-token\"}");
+        task.setCallbackUrl("https://merchant.example/callback?token=secret-token");
+        task.setPayloadJson("{}");
         task.setTargetUrlMasked("https://merchant.example/callback?***");
         task.setTargetUrlHash("callback-url-sha256");
         task.setPayloadJsonMasked("{\"transactionId\":\"TX202608011600000000001\"}");

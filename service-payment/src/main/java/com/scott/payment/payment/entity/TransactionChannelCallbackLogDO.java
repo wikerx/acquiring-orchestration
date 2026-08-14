@@ -65,7 +65,7 @@ public class TransactionChannelCallbackLogDO implements Serializable {
     private String operationId;
 
     /**
-     * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
+     * 渠道编码，用于定位统一 SPI 下的 provider 实现和路由配置。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。

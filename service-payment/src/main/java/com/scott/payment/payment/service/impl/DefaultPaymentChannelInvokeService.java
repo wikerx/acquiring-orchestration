@@ -292,6 +292,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             request.setExpirationMonth(commandDTO.getCardInfo().getExpirationMonth());
             request.setExpirationYear(commandDTO.getCardInfo().getExpirationYear());
             request.setSecurityCode(commandDTO.getCardInfo().getSecurityCode());
+            request.setCardholderName(commandDTO.getCardInfo().getCardholderName());
         }
         if (commandDTO.getTransactionInfo() != null) {
             request.setCardBrand(commandDTO.getTransactionInfo().getCardBrand());
@@ -601,7 +602,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
     /**
      * 从统一 ISO 币种定义解析交易币种辅币位并透传给渠道库。
      * <p>
-     * 渠道库不直接访问 payment 数据库；这里把支付核心已经使用的币种规则下沉到渠道请求，避免 Worldpay 最小单位金额默认按两位小数换算。
+     * 渠道库不直接访问 payment 数据库；这里把支付核心已经使用的币种规则下沉到渠道请求，避免渠道最小单位金额默认按两位小数换算。
      * </p>
      * @param currency 交易币种
      * @return 辅币位字符串；无法解析时返回空字符串，由渠道库再次按 ISO resolver 校验

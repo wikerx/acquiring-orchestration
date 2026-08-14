@@ -58,6 +58,23 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>payment-channel-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>payment-channel-mpgs</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>payment-channel-worldpay</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
         </dependency>

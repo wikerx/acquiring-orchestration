@@ -1,8 +1,8 @@
 # ShardingSphere-JDBC 交易逻辑路由与物理表治理的 dev 已发布非秘密配置。
 # actualDataNodes 只包含已建表且通过治理校验的季度；变更后必须重新计算并校验规则 checksum。
 transaction-sharding:
-  rule-version: "2026.08.08-001"
-  rule-checksum: "sha256:b1db8acacbe4ff66fcf95c7dd8232e0a2260dba2cf76b8af2806ff1ece7b67d4"
+  rule-version: "2026.08.14-001"
+  rule-checksum: "sha256:1558bdaa3834f1b93035d6fba3e7027f941f179323f18e60279b9c1c87c04331"
   database-zone-id: Asia/Shanghai
   sharding-column: transaction_date_time
   primary-data-source: master
@@ -19,6 +19,7 @@ transaction-sharding:
     - transaction_payment_method_info
     - transaction_payer_info
     - transaction_billing_info
+    - transaction_shipping_info
     - transaction_additional_info
     - transaction_authentication_info
     - transaction_product_item
@@ -219,7 +220,7 @@ transaction-sharding:
         # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
         # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
-        description: 保存付款人身份、联系方式、IP、设备摘要，用于风控、审计和后台展示。
+        description: 保存商户上送的付款人身份、联系方式、IP 和浏览器信息明文快照，供风控、审计和商户查询回显使用。
       transaction-billing-info:
         # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
@@ -245,6 +246,31 @@ transaction-sharding:
         actual-data-source: master
         # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存交易维度账单地址和邮编等信息，供卡组织、渠道、风控、争议场景使用。
+      transaction-shipping-info:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
+        enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
+        logical-table: transaction_shipping_info
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
+        template-table: transaction_shipping_info
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
+        id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
+        sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
+        start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
+        start-quarter: 3
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
+        end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
+        table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
+        actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
+        description: 保存商户上送的收货人身份、联系方式和收货地址明文快照，供风控、渠道透传和商户查询回显使用。
       transaction-additional-info:
         # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true

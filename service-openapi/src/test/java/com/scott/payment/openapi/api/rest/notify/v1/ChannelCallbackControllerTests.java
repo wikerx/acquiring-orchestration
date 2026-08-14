@@ -25,6 +25,7 @@ import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.C
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_SIGNATURE_HEADER;
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_TIMESTAMP_HEADER;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -33,16 +34,16 @@ import static org.mockito.Mockito.mock;
 class ChannelCallbackControllerTests {
 
     /** 用于构造签名范围和回调路由的测试渠道编码。 */
-    private static final String CHANNEL_CODE = "MPGS";
+    private static final String CHANNEL_CODE = "EVENT_PROVIDER";
 
     /** 仅用于单元测试签名计算的渠道共享密钥，禁止用于任何运行环境。 */
     private static final String SECRET = "test-channel-callback-secret";
 
     /**
-     * MPGS 3DS callback must use a dedicated callback type and stay under channel callback security.
+     * 3DS callback must use a provider-neutral callback type and stay under channel callback security.
      */
     @Test
-    void shouldReceiveMpgsThreeDsCallbackThroughDedicatedEndpoint() {
+    void shouldReceiveThreeDsCallbackThroughDedicatedEndpoint() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         ChannelCallbackController controller = new ChannelCallbackController(
                 new OpenApiCallbackSecuritySupport(properties(), mock(SecurityInterceptEventRecorder.class)),
@@ -50,18 +51,33 @@ class ChannelCallbackControllerTests {
         String rawBody = "threeDSServerTransID=7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8"
                 + "&threeDSSessionData=encrypted-session-data"
                 + "&orderId=TX202607141000000000001";
-        MockHttpServletRequest request = signedRequest(rawBody, "/channel/v1/callbacks/MPGS/3ds");
+        MockHttpServletRequest request = signedRequest(rawBody, "/channel/v1/callbacks/EVENT_PROVIDER/3ds");
 
         controller.receiveThreeDs(CHANNEL_CODE, request, rawBody);
 
         TransactionChannelCallbackClientRequestDTO captured = paymentInternalClient.callbackRequestDTO;
         assertThat(captured.getChannelCode()).isEqualTo(CHANNEL_CODE);
-        assertThat(captured.getCallbackType()).isEqualTo("MPGS_3DS_CALLBACK");
+        assertThat(captured.getCallbackType()).isEqualTo("THREE_DS_AUTHENTICATION_CALLBACK");
         assertThat(captured.getChannelEventType()).isEqualTo("THREE_DS_CALLBACK");
-        assertThat(captured.getRequestUri()).isEqualTo("/channel/v1/callbacks/MPGS/3ds");
+        assertThat(captured.getRequestUri()).isEqualTo("/channel/v1/callbacks/EVENT_PROVIDER/3ds");
         assertThat(captured.getRequestBody()).isEqualTo(rawBody);
         assertThat(captured.getSignatureValid()).isTrue();
         assertThat(captured.getIpAllowed()).isTrue();
+    }
+
+    /** 验签失败时不得把回调转发到支付核心，避免伪造通知推进交易状态。 */
+    @Test
+    void shouldNotCallPaymentCoreWhenSignatureVerificationFails() {
+        CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
+        ChannelCallbackController controller = new ChannelCallbackController(
+                new OpenApiCallbackSecuritySupport(properties(), mock(SecurityInterceptEventRecorder.class)),
+                paymentInternalClient);
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "POST", "/channel/v1/callbacks/EVENT_PROVIDER");
+
+        assertThatThrownBy(() -> controller.receive(CHANNEL_CODE, request, "{}"))
+                .isInstanceOf(com.scott.payment.component.core.exception.ApiException.class);
+        assertThat(paymentInternalClient.callbackRequestDTO).isNull();
     }
 
     private OpenApiCallbackProperties properties() {

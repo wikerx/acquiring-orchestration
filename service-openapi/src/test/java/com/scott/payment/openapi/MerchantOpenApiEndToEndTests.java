@@ -161,7 +161,7 @@ class MerchantOpenApiEndToEndTests {
                         result.getResponse().getStatus(),
                         MerchantOpenApiTestSupport.safeSecretSummary(result.getResponse().getContentAsString(), keyMaterialFactory)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ApiResultEnum.PROCESSING.getCode()))
+                .andExpect(jsonPath("$.code").value(ApiResultEnum.SUCCESS.getCode()))
                 .andExpect(jsonPath("$.data").isString())
                 .andReturn();
 

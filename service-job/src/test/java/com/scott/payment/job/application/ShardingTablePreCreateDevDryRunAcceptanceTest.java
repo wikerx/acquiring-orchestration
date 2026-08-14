@@ -60,7 +60,7 @@ class ShardingTablePreCreateDevDryRunAcceptanceTest {
     private final ShardingTablePreCreateApplicationService applicationService;
     /** 按治理时区解析当前和下一季度。 */
     private final ShardingQuarterResolver quarterResolver;
-    /** 从 dev Nacos 绑定的 24 表物理治理规则。 */
+    /** 从 dev Nacos 绑定的 25 表物理治理规则。 */
     private final TransactionShardingGovernanceProperties governanceProperties;
     /** 从 dev Nacos 绑定的已发布 ShardingSphere 逻辑节点。 */
     private final TransactionShardingProperties transactionShardingProperties;

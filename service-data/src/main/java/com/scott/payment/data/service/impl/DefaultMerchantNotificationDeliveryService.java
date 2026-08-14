@@ -1,6 +1,5 @@
 package com.scott.payment.data.service.impl;
 
-import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -485,22 +484,9 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         }
     }
 
-    /**
-     * 从数据库配置快照读取实际回调 URL；解析失败不记录快照内容，并按普通通知失败处理。
-     */
+    /** 读取商户回调地址明文；调用方仍只允许记录脱敏摘要。 */
     private String resolveTargetUrl(DataMerchantNotificationTaskDO task) {
-        if (!StringUtils.hasText(task.getNotifyConfigSnapshotJson())) {
-            return null;
-        }
-        try {
-            JSONObject snapshot = JsonUtils.parseObject(task.getNotifyConfigSnapshotJson(), JSONObject.class);
-            return snapshot == null ? null : snapshot.getString("callbackUrl");
-        } catch (RuntimeException exception) {
-            log.warn("event: DATA_MERCHANT_NOTIFY_CONFIG_INVALID traceId: {} notifyId: {} transactionId: {} exceptionType: {}",
-                    TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(),
-                    exception.getClass().getSimpleName());
-            return null;
-        }
+        return task == null ? null : task.getCallbackUrl();
     }
 
     /** 计算线性退避后的下一次通知时间。 */

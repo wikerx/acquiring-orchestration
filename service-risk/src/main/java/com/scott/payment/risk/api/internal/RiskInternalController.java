@@ -5,8 +5,11 @@ import com.scott.payment.risk.api.internal.dto.MerchantLimitReservationCommandDT
 import com.scott.payment.risk.api.internal.dto.MerchantLimitReservationCommandResultDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
+import com.scott.payment.risk.api.internal.dto.RiskThreeDsPolicyRequestDTO;
+import com.scott.payment.risk.api.internal.dto.RiskThreeDsPolicyResultDTO;
 import com.scott.payment.risk.application.MerchantLimitReservationApplicationService;
 import com.scott.payment.risk.application.RiskEvaluationApplicationService;
+import com.scott.payment.risk.application.RiskThreeDsPolicyApplicationService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,6 +39,9 @@ public class RiskInternalController {
     /** 累计限额预占确认、取消和对账应用服务。 */
     private final MerchantLimitReservationApplicationService reservationApplicationService;
 
+    /** 路由后 3DS 策略只读应用服务。 */
+    private final RiskThreeDsPolicyApplicationService threeDsPolicyApplicationService;
+
     /**
      * 创建风控内部服务接口。
      *
@@ -43,9 +49,11 @@ public class RiskInternalController {
      */
     public RiskInternalController(
             RiskEvaluationApplicationService riskEvaluationApplicationService,
-            MerchantLimitReservationApplicationService reservationApplicationService) {
+            MerchantLimitReservationApplicationService reservationApplicationService,
+            RiskThreeDsPolicyApplicationService threeDsPolicyApplicationService) {
         this.riskEvaluationApplicationService = riskEvaluationApplicationService;
         this.reservationApplicationService = reservationApplicationService;
+        this.threeDsPolicyApplicationService = threeDsPolicyApplicationService;
     }
 
     /**
@@ -57,6 +65,18 @@ public class RiskInternalController {
     @PostMapping("/evaluate/payment")
     public CommonResult<RiskPaymentEvaluateResultDTO> evaluatePayment(@Valid @RequestBody RiskPaymentEvaluateRequestDTO requestDTO) {
         return success(riskEvaluationApplicationService.evaluatePayment(requestDTO));
+    }
+
+    /**
+     * 在渠道路由完成后只读评估 3DS 策略，不执行累计限额或频控预占。
+     *
+     * @param requestDTO 已路由交易维度
+     * @return 3DS 强制、跳过或未配置结果
+     */
+    @PostMapping("/three-ds/policy/evaluate")
+    public CommonResult<RiskThreeDsPolicyResultDTO> evaluateThreeDsPolicy(
+            @Valid @RequestBody RiskThreeDsPolicyRequestDTO requestDTO) {
+        return success(threeDsPolicyApplicationService.evaluate(requestDTO));
     }
 
     /**

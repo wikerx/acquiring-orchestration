@@ -38,6 +38,24 @@ public class PaymentQueryResultDTO implements Serializable {
      */
     private String merchantOrderId;
 
+    /** 首次交易保存的子商户快照；不存在子商户时为空。 */
+    private PaymentCreateCommandDTO.SubMerchantInfoDTO subMerchantInfo;
+
+    /** 首次交易保存的商品或服务明细；未上送时为空列表。 */
+    private List<PaymentCreateCommandDTO.GoodsInfoDTO> goodsInfo = new ArrayList<>();
+
+    /** 首次交易保存的持卡人账单信息。 */
+    private PaymentCreateCommandDTO.BillingCardHolderInfoDTO billingCardHolderInfo;
+
+    /** 首次交易保存的付款人信息。 */
+    private PaymentCreateCommandDTO.PayerInfoDTO payerInfo;
+
+    /** 首次交易保存的收货人信息。 */
+    private PaymentCreateCommandDTO.ShippingInfoDTO shippingInfo;
+
+    /** 查询目标动作可向商户返回的 3DS 安全字段子集。 */
+    private PaymentCreateResultDTO.ThreeDsInfoDTO threeDSInfo;
+
     /**
      * 商户上送订单金额或生命周期标签金额。
      */
@@ -118,6 +136,15 @@ public class PaymentQueryResultDTO implements Serializable {
      */
     private String settlementCurrency;
 
+    /** 已形成的结算换汇汇率；没有真实财务记录时为空。 */
+    private BigDecimal settlementRate;
+
+    /** 已形成的结算费用金额；没有真实财务记录时为空。 */
+    private BigDecimal settlementFeeAmount;
+
+    /** 已形成的费用明细；没有真实财务记录时为空列表。 */
+    private List<PaymentCreateResultDTO.FeeItemDTO> feeItems = new ArrayList<>();
+
     /**
      * 交易发生时区。
      */
@@ -146,6 +173,10 @@ public class PaymentQueryResultDTO implements Serializable {
          */
         private String sourceTransactionId;
 
+        /** 后续动作源交易发生时间；首次交易为空。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime sourceTransactionDateTime;
+
         /**
          * 当前动作商户响应码，例如 T200、T202、T203、F210。
          */
@@ -160,6 +191,9 @@ public class PaymentQueryResultDTO implements Serializable {
          * 交易类型，对齐字典 transaction_type。
          */
         private String transactionType;
+
+        /** 当前动作交易状态。 */
+        private String transactionStatus;
 
         /**
          * 交易发生时间。
@@ -210,5 +244,11 @@ public class PaymentQueryResultDTO implements Serializable {
          * 生命周期首次交易保存的商户网站原始 URL。
          */
         private String merchantWebsite;
+
+        /** Hosted Checkout 结果页返回地址。 */
+        private String redirectUrl;
+
+        /** Hosted Checkout 创建会话语言。 */
+        private String language;
     }
 }
