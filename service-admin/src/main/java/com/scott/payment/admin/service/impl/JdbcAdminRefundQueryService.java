@@ -29,9 +29,11 @@ import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * @author : scott
@@ -47,6 +49,8 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
 
     /** 交易数据统一以 Asia/Shanghai 解释并路由季度分片。 */
     private static final String STORAGE_TIME_ZONE = TransactionShardingProperties.REQUIRED_ZONE_ID;
+    /** 商户通知任务逻辑表，由 ShardingSphere 按交易时间路由。 */
+    private static final String TRANSACTION_MERCHANT_NOTIFICATION_TABLE = "transaction_merchant_notification";
 
     /** 退款列表固定查询的逻辑表关联，表名不接受外部输入。 */
     private static final String REFUND_FROM_SQL = """
@@ -70,7 +74,7 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
             o.transaction_currency, o.transaction_amount, o.currency_exponent,
             p.payment_method, p.payment_brand, o.channel_code, o.channel_order_no,
             o.channel_transaction_id, o.channel_response_code, o.acquirer_reference_no,
-            o.channel_match_status, NULL AS merchant_notification_status,
+            o.channel_match_status,
             o.transaction_date_time, o.complete_time,
             a.approval_id,
             CASE WHEN o.transaction_type = 'VOID' THEN 'NOT_APPLICABLE'
@@ -180,6 +184,7 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
                                 .addValue("limit", pageSize),
                         refundRecordMapper())
                 : List.of();
+        enrichMerchantNotificationStatuses(records);
         enrichRootTransactions(records);
 
         RefundSearchResponse response = new RefundSearchResponse();
@@ -208,6 +213,7 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         RefundRecord refund = records.get(0);
+        enrichMerchantNotificationStatuses(records);
         enrichRootTransactions(records);
         RefundDetailResponse response = new RefundDetailResponse();
         response.setRefund(refund);
@@ -218,6 +224,49 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
                     JsonUtils.toJsonString(transactionDetail), Map.class));
         }
         return response;
+    }
+
+    /**
+     * 批量补齐退款和撤销动作对应的商户通知任务当前状态。
+     *
+     * <p>通知重试只推进任务状态，因此直接读取通知任务表；交易时间范围用于限制季度分片，
+     * 按更新时间和主键顺序覆盖可兼容同一交易存在多个通知事件的历史数据。</p>
+     */
+    private void enrichMerchantNotificationStatuses(List<RefundRecord> records) {
+        List<String> transactionIds = records.stream()
+                .map(RefundRecord::getRefundTransactionId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        List<LocalDateTime> transactionTimes = records.stream()
+                .map(RefundRecord::getTransactionDateTime)
+                .filter(Objects::nonNull)
+                .toList();
+        if (transactionIds.isEmpty() || transactionTimes.isEmpty()) {
+            return;
+        }
+        LocalDateTime beginTime = Collections.min(transactionTimes);
+        LocalDateTime endTime = Collections.max(transactionTimes);
+        Map<String, String> statusByTransactionId = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT transaction_id, notify_status
+                FROM %s
+                WHERE deleted = 0
+                  AND transaction_id IN (:transactionIds)
+                  AND transaction_date_time >= :notificationBeginTime
+                  AND transaction_date_time < :notificationEndTime
+                ORDER BY update_time ASC, id ASC
+                """.formatted(TRANSACTION_MERCHANT_NOTIFICATION_TABLE),
+                new MapSqlParameterSource()
+                        .addValue("transactionIds", transactionIds)
+                        .addValue("notificationBeginTime", beginTime)
+                        .addValue("notificationEndTime", exclusiveEnd(endTime)),
+                (resultSet, rowNumber) -> Map.entry(
+                        resultSet.getString("transaction_id"),
+                        resultSet.getString("notify_status")))
+                .forEach(entry -> statusByTransactionId.put(entry.getKey(), entry.getValue()));
+        records.forEach(record -> record.setMerchantNotificationStatus(
+                statusByTransactionId.get(record.getRefundTransactionId())));
     }
 
     /** 读取列表统计和分币种金额，确保统计使用与分页完全相同的筛选条件。 */

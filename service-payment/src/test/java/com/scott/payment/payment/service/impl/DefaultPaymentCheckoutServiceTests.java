@@ -421,6 +421,29 @@ class DefaultPaymentCheckoutServiceTests {
     }
 
     @Test
+    void shouldIssueNewCardEncryptionMetadataAfterPreviousAttemptLimitWasReached() {
+        PaymentCheckoutSessionDO sessionDO = sessionWithStatus(
+                PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+        sessionDO.setAttemptCount(3);
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(sessionDO));
+        when(sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId())).thenReturn(sessionDO);
+        PaymentCheckoutCardEnvelopeService envelopeService = mock(PaymentCheckoutCardEnvelopeService.class);
+        PaymentCheckoutSessionQueryResultDTO.CardEncryptionDTO encryptionDTO =
+                new PaymentCheckoutSessionQueryResultDTO.CardEncryptionDTO();
+        encryptionDTO.setNonce("retry-nonce");
+        when(envelopeService.issue(sessionDO.getCheckoutSessionId())).thenReturn(encryptionDTO);
+        ReflectionTestUtils.setField(service, "cardEnvelopeService", envelopeService);
+        PaymentCheckoutSessionQueryCommandDTO commandDTO = new PaymentCheckoutSessionQueryCommandDTO();
+        commandDTO.setTokenHash("token-hash");
+
+        PaymentCheckoutSessionQueryResultDTO resultDTO = service.querySession(commandDTO);
+
+        assertThat(resultDTO.getCardEncryption()).isSameAs(encryptionDTO);
+        assertThat(JsonUtils.toJsonString(resultDTO)).doesNotContain("remainingAttemptCount");
+        verify(envelopeService).issue(sessionDO.getCheckoutSessionId());
+    }
+
+    @Test
     void shouldRenderFullOrderAfterPaymentDeadlineExpires() {
         PaymentCheckoutSessionDO sessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.EXPIRED);
         sessionDO.setExpireTime(LocalDateTime.now().minusMinutes(1));
@@ -436,7 +459,9 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.EXPIRED.getCode());
         assertThat(resultDTO.getMerchant().getDisplayName()).isEqualTo("Scott Demo Store");
         assertThat(resultDTO.getOrder().getOrderNo()).isEqualTo("M202607270001");
-        assertThat(resultDTO.getCheckout().getRetryAllowed()).isTrue();
+        assertThat(resultDTO.getCheckout().getRetryAllowed()).isFalse();
+        assertThat(resultDTO.getPaymentResult().getFailure().getRetryAllowed()).isFalse();
+        assertThat(resultDTO.getCardEncryption()).isNull();
     }
 
     @Test
@@ -592,6 +617,7 @@ class DefaultPaymentCheckoutServiceTests {
     void shouldFailRetryablyWhenRouteFailsBeforeChannelSubmission() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
         PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        payingSessionDO.setAttemptCount(3);
         PaymentCheckoutSessionDO retryableSessionDO = sessionWithStatus(
                 PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
         PaymentCheckoutAttemptDO failedAttempt = attemptWithStatus(sessionDO,
@@ -753,8 +779,9 @@ class DefaultPaymentCheckoutServiceTests {
     }
 
     @Test
-    void shouldCreateNewTransactionWhenRetryingFailedPayment() {
+    void shouldCreateNewTransactionAfterPreviousAttemptLimitWasReached() {
         PaymentCheckoutSessionDO failedSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+        failedSessionDO.setAttemptCount(3);
         PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
         PaymentCheckoutSessionDO processingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutAttemptDO channelSubmittedAttempt = newRetryAttempt(failedSessionDO,
@@ -768,7 +795,7 @@ class DefaultPaymentCheckoutServiceTests {
         when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(failedSessionDO));
         when(sessionMapper.selectByCheckoutSessionId(failedSessionDO.getCheckoutSessionId()))
                 .thenReturn(failedSessionDO, payingSessionDO, processingSessionDO, processingSessionDO);
-        when(attemptMapper.selectMaxAttemptNo(failedSessionDO.getCheckoutSessionId())).thenReturn(1);
+        when(attemptMapper.selectMaxAttemptNo(failedSessionDO.getCheckoutSessionId())).thenReturn(3);
         when(sessionMapper.markSubmittedCas(anyString(), anyString(), anyString(), anyString(), any(), any(), any(), eq(0), any()))
                 .thenReturn(1);
         when(attemptMapper.markChannelSubmittedCas(anyString(), anyString(), anyString(), eq(0), any())).thenReturn(1);
@@ -785,55 +812,26 @@ class DefaultPaymentCheckoutServiceTests {
 
         verify(attemptMapper).insert(attemptCaptor.capture());
         assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.PROCESSING.getCode());
-        assertThat(attemptCaptor.getValue().getAttemptNo()).isEqualTo(2);
+        assertThat(attemptCaptor.getValue().getAttemptNo()).isEqualTo(4);
         assertThat(attemptCaptor.getValue().getTransactionId())
                 .isEqualTo(channelSubmittedAttempt.getTransactionId())
                 .isNotEqualTo(failedSessionDO.getLatestTransactionId());
     }
 
     @Test
-    void shouldReopenExpiredSessionAndCreateNewTransaction() {
+    void shouldRejectNewPaymentAttemptAfterSessionExpires() {
         PaymentCheckoutSessionDO expiredSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.EXPIRED);
         expiredSessionDO.setExpireTime(LocalDateTime.now().minusMinutes(1));
-        PaymentCheckoutSessionDO reopenedSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYABLE);
-        reopenedSessionDO.setExpireTime(LocalDateTime.now().plusHours(24));
-        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
-        PaymentCheckoutSessionDO processingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
-        PaymentCheckoutAttemptDO channelSubmittedAttempt = newRetryAttempt(reopenedSessionDO,
-                PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
-                PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL,
-                "ATTEMPT-EXPIRED-002");
-        PaymentCheckoutAttemptDO processingAttempt = newRetryAttempt(reopenedSessionDO,
-                PaymentCheckoutAttemptStatusEnum.PROCESSING,
-                PaymentCheckoutProcessStageEnum.WAITING_CHANNEL,
-                "ATTEMPT-EXPIRED-002");
         when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(expiredSessionDO));
         when(sessionMapper.selectByCheckoutSessionId(expiredSessionDO.getCheckoutSessionId()))
-                .thenReturn(expiredSessionDO, reopenedSessionDO, payingSessionDO, processingSessionDO, processingSessionDO);
-        when(sessionMapper.reopenExpiredForRetryCas(eq(expiredSessionDO.getCheckoutSessionId()), any(), eq(0), any()))
-                .thenReturn(1);
-        when(attemptMapper.selectMaxAttemptNo(expiredSessionDO.getCheckoutSessionId())).thenReturn(1);
-        when(sessionMapper.markSubmittedCas(anyString(), anyString(), anyString(), anyString(), any(), any(), any(), eq(0), any()))
-                .thenReturn(1);
-        when(attemptMapper.markChannelSubmittedCas(anyString(), anyString(), anyString(), eq(0), any())).thenReturn(1);
-        when(attemptMapper.markResultCas(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), eq(0), any()))
-                .thenReturn(1);
-        when(attemptMapper.selectByCheckoutAttemptId(anyString())).thenReturn(channelSubmittedAttempt, processingAttempt);
-        when(sessionMapper.markProcessingCas(anyString(), anyString(), eq(0), any())).thenReturn(1);
-        when(paymentTransactionService.submitPreparedTransaction(any())).thenReturn(processingPaymentResult());
-        PaymentCheckoutPaymentSubmitCommandDTO commandDTO = submitCommand();
-        commandDTO.setAttemptRequestId("ATTEMPT-EXPIRED-002");
-        ArgumentCaptor<PaymentCheckoutAttemptDO> attemptCaptor = ArgumentCaptor.forClass(PaymentCheckoutAttemptDO.class);
+                .thenReturn(expiredSessionDO);
 
-        PaymentCheckoutPaymentResultDTO resultDTO = service.submitPayment(commandDTO);
-
-        verify(sessionMapper).reopenExpiredForRetryCas(eq(expiredSessionDO.getCheckoutSessionId()), any(), eq(0), any());
-        verify(attemptMapper).insert(attemptCaptor.capture());
-        assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.PROCESSING.getCode());
-        assertThat(attemptCaptor.getValue().getAttemptNo()).isEqualTo(2);
-        assertThat(attemptCaptor.getValue().getTransactionId())
-                .isEqualTo(channelSubmittedAttempt.getTransactionId())
-                .isNotEqualTo(expiredSessionDO.getLatestTransactionId());
+        assertThatThrownBy(() -> service.submitPayment(submitCommand()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("checkout session expired");
+        verify(attemptMapper, never()).insert(any(PaymentCheckoutAttemptDO.class));
+        verify(sessionMapper, never()).markSubmittedCas(anyString(), anyString(), anyString(), anyString(),
+                any(), any(), any(), any(), any());
     }
 
     @Test
@@ -1278,7 +1276,6 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setMerchantDisplayName("Scott Demo Store");
         commandDTO.setOrderSubject("Demo Order");
         commandDTO.setRetryAllowed(1);
-        commandDTO.setMaxAttemptCount(3);
         commandDTO.setAllowedPaymentMethods(List.of());
         return commandDTO;
     }

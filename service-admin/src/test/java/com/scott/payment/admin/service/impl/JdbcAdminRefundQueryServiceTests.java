@@ -1,6 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
+import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundRecord;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSummary;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
@@ -15,6 +16,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -136,6 +138,64 @@ class JdbcAdminRefundQueryServiceTests {
                 .isEqualTo(transactionTime);
         verify(readExecutor).read(any());
         log.info("结果：退款详情使用精确毫秒分片时间且未执行范围扫描");
+    }
+
+    /** 退款和撤销列表必须返回对应商户通知任务的当前状态。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchShouldExposeCurrentMerchantNotificationStatus() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        TransactionLogicalReadExecutor readExecutor = executingReadExecutor();
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 17, 11, 51, 32, 567_000_000);
+        RefundRecord refund = new RefundRecord();
+        refund.setRefundTransactionId("transaction-a");
+        refund.setOperationId("operation-a");
+        refund.setTransactionDateTime(transactionTime);
+        ResultSet notificationResultSet = mock(ResultSet.class);
+        when(notificationResultSet.getString("transaction_id")).thenReturn("transaction-a");
+        when(notificationResultSet.getString("notify_status")).thenReturn("SUCCESS");
+        ResultSet summaryResultSet = mock(ResultSet.class);
+        when(summaryResultSet.getLong(anyString())).thenReturn(0L);
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(1L);
+        when(jdbcTemplate.queryForObject(
+                anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> invocation.<RowMapper<RefundSummary>>getArgument(2)
+                        .mapRow(summaryResultSet, 0));
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    if (sql.contains("o.transaction_id AS refund_transaction_id")) {
+                        return List.of(refund);
+                    }
+                    if (sql.contains("FROM transaction_merchant_notification")) {
+                        RowMapper<?> mapper = invocation.getArgument(2, RowMapper.class);
+                        return List.of(mapper.mapRow(notificationResultSet, 0));
+                    }
+                    return Collections.emptyList();
+                });
+        JdbcAdminRefundQueryService service = new JdbcAdminRefundQueryService(
+                jdbcTemplate, readExecutor, mock(AdminTransactionQueryService.class),
+                new TransactionShardingProperties());
+
+        RefundRecord result = service.search(query()).getPage().getRecords().get(0);
+
+        assertThat(result.getMerchantNotificationStatus()).isEqualTo("SUCCESS");
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate, org.mockito.Mockito.atLeast(3)).query(
+                sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
+        int notificationQueryIndex = java.util.stream.IntStream.range(0, sqlCaptor.getAllValues().size())
+                .filter(index -> sqlCaptor.getAllValues().get(index).contains("FROM transaction_merchant_notification"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(sqlCaptor.getAllValues().get(notificationQueryIndex))
+                .contains("transaction_id IN (:transactionIds)")
+                .contains("transaction_date_time >= :notificationBeginTime")
+                .contains("transaction_date_time < :notificationEndTime")
+                .doesNotContain("transaction_merchant_notification_2026");
+        assertThat(paramsCaptor.getAllValues().get(notificationQueryIndex).getValue("transactionIds"))
+                .isEqualTo(List.of("transaction-a"));
     }
 
     private TransactionLogicalReadExecutor executingReadExecutor() {

@@ -925,7 +925,6 @@ class MerchantOpenApiMpgsLiveFlowTests {
         checkoutInfo.put("expireMinutes", 60);
         checkoutInfo.put("allowedPaymentMethods", List.of(paymentMethod));
         checkoutInfo.put("retryAllowed", true);
-        checkoutInfo.put("maxAttemptCount", 3);
         checkoutInfo.put("returnUrl", "https://merchant.example.com/checkout/return");
         checkoutInfo.put("cancelUrl", "https://merchant.example.com/checkout/cancel");
         checkoutInfo.put("notifyUrl", "https://merchant.example.com/opgs/callback");

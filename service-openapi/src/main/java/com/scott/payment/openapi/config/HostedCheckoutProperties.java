@@ -30,9 +30,4 @@ public class HostedCheckoutProperties {
      */
     private int maxExpireMinutes = 1440;
 
-    /**
-     * 默认最大支付尝试次数。
-     */
-    private int defaultMaxAttemptCount = 3;
-
 }

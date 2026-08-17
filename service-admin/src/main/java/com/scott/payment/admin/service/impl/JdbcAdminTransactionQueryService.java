@@ -1,9 +1,11 @@
 package com.scott.payment.admin.service.impl;
 
+import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelLogQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountSummaryResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionContactInfoResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
@@ -11,10 +13,12 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionO
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPaymentMethodSummaryResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPayerInfoResponse;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
@@ -87,6 +91,10 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * </p>
      */
     private static final String TRANSACTION_PAYMENT_METHOD_INFO_TABLE = "transaction_payment_method_info";
+    /** 付款人、账单和收货信息均按交易时间路由到季度分片。 */
+    private static final String TRANSACTION_PAYER_INFO_TABLE = "transaction_payer_info";
+    private static final String TRANSACTION_BILLING_INFO_TABLE = "transaction_billing_info";
+    private static final String TRANSACTION_SHIPPING_INFO_TABLE = "transaction_shipping_info";
     private static final String ACCESS_TYPE_DIRECT_API = "DIRECT_API";
     private static final String ACCESS_TYPE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
     /**
@@ -405,6 +413,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         TransactionDetailResponse detail = new TransactionDetailResponse();
         detail.setOrder(order);
         detail.setOperations(operations);
+        detail.setBillingCardHolderInfo(selectBillingCardHolderInfo(
+                sourceOperation.getTransactionId(), sourceOperation.getTransactionDateTime()));
+        detail.setPayerInfo(selectPayerInfo(
+                sourceOperation.getTransactionId(), sourceOperation.getTransactionDateTime()));
+        detail.setShippingInfo(selectShippingInfo(
+                sourceOperation.getTransactionId(), sourceOperation.getTransactionDateTime()));
         detail.setStatusHistory(selectMapsByOperationId(TRANSACTION_STATUS_HISTORY_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setFlowEvents(selectMapsByOperationId(TRANSACTION_FLOW_EVENT_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setRiskEvents(riskTimelineQueryService.findRiskEvents(sourceOperation.getTransactionId()));
@@ -418,6 +432,101 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         detail.setMerchantApiInteractionLogs(selectMapsByOperationId(
                 TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, beginTime, endTime, order.getOperationId()));
         return detail;
+    }
+
+    /** 按交易号和精确分片时间读取持卡人账单信息，不返回表主键、哈希和审计字段。 */
+    private TransactionContactInfoResponse selectBillingCardHolderInfo(String transactionId,
+                                                                        LocalDateTime transactionDateTime) {
+        List<TransactionContactInfoResponse> rows = jdbcTemplate.query("""
+                SELECT first_name, last_name, phone, email,
+                       billing_country AS country, billing_state AS state, billing_city AS city,
+                       street, billing_postal_code AS postal
+                FROM %s
+                WHERE transaction_id = :transactionId
+                  AND transaction_date_time = :transactionDateTime
+                LIMIT 1
+                """.formatted(TRANSACTION_BILLING_INFO_TABLE),
+                partyInfoParams(transactionId, transactionDateTime), contactInfoMapper());
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /** 按交易号和精确分片时间读取付款人信息，不返回检索哈希和内部标识。 */
+    private TransactionPayerInfoResponse selectPayerInfo(String transactionId,
+                                                          LocalDateTime transactionDateTime) {
+        List<TransactionPayerInfoResponse> rows = jdbcTemplate.query("""
+                SELECT payer_id, first_name, last_name, phone, email, country, state, city, street, postal,
+                       ip_address, session_id, browser_info_json, user_agent
+                FROM %s
+                WHERE transaction_id = :transactionId
+                  AND transaction_date_time = :transactionDateTime
+                LIMIT 1
+                """.formatted(TRANSACTION_PAYER_INFO_TABLE),
+                partyInfoParams(transactionId, transactionDateTime), payerInfoMapper());
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /** 按交易号和精确分片时间读取收货信息，不返回表主键和审计字段。 */
+    private TransactionContactInfoResponse selectShippingInfo(String transactionId,
+                                                               LocalDateTime transactionDateTime) {
+        List<TransactionContactInfoResponse> rows = jdbcTemplate.query("""
+                SELECT first_name, last_name, phone, email, country, state, city, street, postal
+                FROM %s
+                WHERE transaction_id = :transactionId
+                  AND transaction_date_time = :transactionDateTime
+                LIMIT 1
+                """.formatted(TRANSACTION_SHIPPING_INFO_TABLE),
+                partyInfoParams(transactionId, transactionDateTime), contactInfoMapper());
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    /** 构造交易附属信息精确分片查询参数。 */
+    private MapSqlParameterSource partyInfoParams(String transactionId,
+                                                  LocalDateTime transactionDateTime) {
+        return new MapSqlParameterSource()
+                .addValue("transactionId", transactionId)
+                .addValue("transactionDateTime", transactionDateTime);
+    }
+
+    /** 映射账单和收货联系人业务字段。 */
+    private RowMapper<TransactionContactInfoResponse> contactInfoMapper() {
+        return (resultSet, rowNumber) -> {
+            TransactionContactInfoResponse response = new TransactionContactInfoResponse();
+            fillContactInfo(response, resultSet);
+            return response;
+        };
+    }
+
+    /** 映射付款人业务字段及浏览器上下文。 */
+    private RowMapper<TransactionPayerInfoResponse> payerInfoMapper() {
+        return (resultSet, rowNumber) -> {
+            TransactionPayerInfoResponse response = new TransactionPayerInfoResponse();
+            fillContactInfo(response, resultSet);
+            response.setPayerId(resultSet.getString("payer_id"));
+            response.setIpAddress(resultSet.getString("ip_address"));
+            response.setSessionId(resultSet.getString("session_id"));
+            String browserInfoJson = resultSet.getString("browser_info_json");
+            if (StringUtils.hasText(browserInfoJson)) {
+                response.setBrowserInfo(JsonUtils.parseObject(
+                        browserInfoJson, new TypeReference<Map<String, Object>>() {
+                        }));
+            }
+            response.setUserAgent(resultSet.getString("user_agent"));
+            return response;
+        };
+    }
+
+    /** 填充账单、付款人和收货信息共享的身份、联系方式及地址字段。 */
+    private void fillContactInfo(TransactionContactInfoResponse response,
+                                 ResultSet resultSet) throws SQLException {
+        response.setFirstName(resultSet.getString("first_name"));
+        response.setLastName(resultSet.getString("last_name"));
+        response.setPhone(resultSet.getString("phone"));
+        response.setEmail(resultSet.getString("email"));
+        response.setCountry(resultSet.getString("country"));
+        response.setState(resultSet.getString("state"));
+        response.setCity(resultSet.getString("city"));
+        response.setStreet(resultSet.getString("street"));
+        response.setPostal(resultSet.getString("postal"));
     }
 
     /**
@@ -858,6 +967,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         if (rows == null || rows.isEmpty()) {
             return;
         }
+        enrichMerchantNotificationStatuses(rows);
         enrichAccessTypes(rows);
         enrichOperationThreeDs(rows);
         List<String> operationIds = rows.stream()
@@ -897,6 +1007,48 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setAvailableCaptureAmount(order.getAvailableCaptureAmount());
             row.setAvailableRefundAmount(order.getAvailableRefundAmount());
         }
+    }
+
+    /**
+     * 批量补齐当前页交易对应的商户通知任务状态。
+     *
+     * <p>通知重试更新同一任务，按更新时间和主键顺序覆盖后得到当前状态；
+     * 查询同时携带交易号和交易时间范围，使 ShardingSphere 只路由相关季度分片。</p>
+     */
+    private void enrichMerchantNotificationStatuses(List<TransactionOperationResponse> rows) {
+        List<String> transactionIds = rows.stream()
+                .map(TransactionOperationResponse::getTransactionId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        List<LocalDateTime> transactionTimes = rows.stream()
+                .map(TransactionOperationResponse::getTransactionDateTime)
+                .filter(Objects::nonNull)
+                .toList();
+        if (transactionIds.isEmpty() || transactionTimes.isEmpty()) {
+            return;
+        }
+        LocalDateTime beginTime = Collections.min(transactionTimes);
+        LocalDateTime endTime = Collections.max(transactionTimes);
+        Map<String, String> statusByTransactionId = new LinkedHashMap<>();
+        jdbcTemplate.query("""
+                SELECT transaction_id, notify_status
+                FROM transaction_merchant_notification
+                WHERE deleted = 0
+                  AND transaction_id IN (:transactionIds)
+                  AND transaction_date_time >= :notificationBeginTime
+                  AND transaction_date_time < :notificationEndTime
+                ORDER BY update_time ASC, id ASC
+                """, new MapSqlParameterSource()
+                .addValue("transactionIds", transactionIds)
+                .addValue("notificationBeginTime", beginTime)
+                .addValue("notificationEndTime", exclusiveEnd(endTime)),
+                (resultSet, rowNumber) -> Map.entry(
+                        resultSet.getString("transaction_id"),
+                        resultSet.getString("notify_status")))
+                .forEach(entry -> statusByTransactionId.put(entry.getKey(), entry.getValue()));
+        rows.forEach(row -> row.setMerchantNotificationStatus(
+                statusByTransactionId.get(row.getTransactionId())));
     }
 
     /** 按生命周期操作号批量补齐主单 3DS 标识。 */

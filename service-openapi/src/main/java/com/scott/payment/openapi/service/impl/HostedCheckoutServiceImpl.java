@@ -100,7 +100,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private final PaymentInternalClient paymentInternalClient;
 
     /**
-     * Hosted Checkout 会话有效期、重试和轮询等运行参数。
+     * Hosted Checkout 会话有效期等运行参数。
      */
     private final HostedCheckoutProperties properties;
 
@@ -335,7 +335,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         target.setPayerEmailHash(requestDTO.getPayerInfo() == null ? null
                 : sha256Hex(requestDTO.getPayerInfo().getEmail()));
         target.setRetryAllowed(1);
-        target.setMaxAttemptCount(properties.getDefaultMaxAttemptCount());
         target.setExpireTime(LocalDateTime.now().plusMinutes(properties.getDefaultExpireMinutes()));
         target.setRequestSource(requestSourceSummary());
         target.setTraceId(TraceContext.getTraceId());
@@ -543,7 +542,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     }
 
     /**
-     * 转换收银台会话控制信息，包括过期时间、重试次数和轮询间隔。
+     * 转换收银台会话控制信息，包括过期时间、重试开关和轮询间隔。
      */
     private HostedCheckoutSessionVO.CheckoutVO toCheckoutVO(PaymentCheckoutClientDTOs.Checkout source) {
         if (source == null) {
@@ -552,7 +551,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         HostedCheckoutSessionVO.CheckoutVO target = new HostedCheckoutSessionVO.CheckoutVO();
         target.setExpireTime(toOffsetDateTime(source.getExpireTime()));
         target.setRetryAllowed(source.getRetryAllowed());
-        target.setRemainingAttemptCount(source.getRemainingAttemptCount());
         target.setPollingIntervalSeconds(source.getPollingIntervalSeconds());
         return target;
     }
@@ -605,7 +603,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         target.setReasonCode(source.getReasonCode());
         target.setMessage(source.getMessage());
         target.setRetryAllowed(source.getRetryAllowed());
-        target.setRemainingAttemptCount(source.getRemainingAttemptCount());
         return target;
     }
 
@@ -745,16 +742,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
                 .map(IsoCurrencyInfo::defaultFractionDigits)
                 .filter(exponent -> exponent >= 0)
                 .orElse(2);
-    }
-
-    /**
-     * 解析最大付款尝试次数，避免商户传空或非正数造成无限重试。
-     */
-    private int resolveMaxAttemptCount(Integer input) {
-        if (input == null || input <= 0) {
-            return properties.getDefaultMaxAttemptCount();
-        }
-        return input;
     }
 
     /**

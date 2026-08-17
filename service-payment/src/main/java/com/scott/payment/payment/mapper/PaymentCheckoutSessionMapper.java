@@ -315,25 +315,4 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                        @Param("version") Integer version,
                        @Param("now") LocalDateTime now);
 
-    /** 付款人明确重试过期失败订单时，开启新的受控付款期限。 */
-    @Update("""
-            UPDATE payment_checkout_session
-            SET checkout_status = 'PAYABLE_FAILED_RETRYABLE',
-                process_stage = 'WAITING_PAYER',
-                expire_time = #{newExpireTime},
-                last_status_time = #{now},
-                version = version + 1,
-                update_time = #{now}
-            WHERE checkout_session_id = #{checkoutSessionId}
-              AND checkout_status = 'EXPIRED'
-              AND retry_allowed = 1
-              AND attempt_count < max_attempt_count
-              AND success_attempt_id IS NULL
-              AND version = #{version}
-              AND deleted = 0
-            """)
-    int reopenExpiredForRetryCas(@Param("checkoutSessionId") String checkoutSessionId,
-                                 @Param("newExpireTime") LocalDateTime newExpireTime,
-                                 @Param("version") Integer version,
-                                 @Param("now") LocalDateTime now);
 }

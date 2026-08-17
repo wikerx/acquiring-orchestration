@@ -213,7 +213,7 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
     }
 
     @Test
-    void shouldRejectUnsafeConfiguredPlatformGatewayOrigins() {
+    void shouldIgnoreUnsafeOptionalNotificationOriginsWithoutBlockingThreeDs() {
         for (String configured : List.of(
                 "http://gateway.example.test",
                 "https://user:password@gateway.example.test",
@@ -228,11 +228,12 @@ class DefaultPaymentCheckoutThreeDsServiceTests {
             DefaultPaymentCheckoutThreeDsService service = new DefaultPaymentCheckoutThreeDsService(
                     new PaymentChannelExecutor(registry), command -> routeResult(), policyClient(true), configReadService);
 
-            assertThatThrownBy(() -> service.authenticate(
-                    session(), attempt(), submitCommand(), "https://checkout.example.test/3ds/return"))
-                    .isInstanceOf(ChannelRequestException.class)
-                    .hasMessageContaining("platform gateway base URL");
-            assertThat(channelClient.request).isNull();
+            PaymentCheckoutThreeDsResultDTO result = service.authenticate(
+                    session(), attempt(), submitCommand(), "https://checkout.example.test/3ds/return");
+
+            assertThat(result.getStatus()).isEqualTo("METHOD_REQUIRED");
+            assertThat(channelClient.request).isNotNull();
+            assertThat(channelClient.request.getNotificationUrl()).isNull();
         }
     }
 

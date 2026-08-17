@@ -163,9 +163,6 @@ public class HostedCheckoutSessionVO implements Serializable {
         /** 当前会话是否允许支付失败后重试。 */
         private Boolean retryAllowed;
 
-        /** 当前会话剩余支付尝试次数。 */
-        private Integer remainingAttemptCount;
-
         /** 状态轮询建议间隔，单位秒。 */
         private Integer pollingIntervalSeconds;
     }

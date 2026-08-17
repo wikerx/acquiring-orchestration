@@ -1,6 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
@@ -10,6 +11,8 @@ import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -189,6 +192,131 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(paramsCaptor.getValue().hasValue("transactionDateTimeEnd")).isFalse();
     }
 
+    /** 交易详情应按当前交易号和精确分片时间返回已有的账单、付款人和收货信息。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void detailShouldReturnPersistedPartyInformationFromExactShard() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 17, 14, 8, 30, 123_000_000);
+        TransactionOperationResponse operation = operation("operation-a", "transaction-a", transactionTime);
+        TransactionOrderResponse order = order("operation-a", transactionTime);
+        ResultSet billingResultSet = mock(ResultSet.class);
+        when(billingResultSet.getString("first_name")).thenReturn("John");
+        when(billingResultSet.getString("last_name")).thenReturn("Smith");
+        when(billingResultSet.getString("email")).thenReturn("john.smith@example.com");
+        when(billingResultSet.getString("phone")).thenReturn("+12025550124");
+        when(billingResultSet.getString("country")).thenReturn("USA");
+        when(billingResultSet.getString("state")).thenReturn("NY");
+        when(billingResultSet.getString("city")).thenReturn("New York");
+        when(billingResultSet.getString("street")).thenReturn("100 Main Street");
+        when(billingResultSet.getString("postal")).thenReturn("10001");
+        ResultSet payerResultSet = mock(ResultSet.class);
+        when(payerResultSet.getString("payer_id")).thenReturn("CUSTOMER-10002");
+        when(payerResultSet.getString("first_name")).thenReturn("John");
+        when(payerResultSet.getString("last_name")).thenReturn("Smith");
+        when(payerResultSet.getString("ip_address")).thenReturn("203.0.113.10");
+        when(payerResultSet.getString("session_id")).thenReturn("SESSION-10002");
+        when(payerResultSet.getString("browser_info_json"))
+                .thenReturn("{\"browser\":{\"name\":\"Chrome\",\"version\":\"128.0.0.0\"}}");
+        when(payerResultSet.getString("user_agent")).thenReturn("Mozilla/5.0");
+        ResultSet shippingResultSet = mock(ResultSet.class);
+        when(shippingResultSet.getString("first_name")).thenReturn("Jane");
+        when(shippingResultSet.getString("last_name")).thenReturn("Smith");
+        when(shippingResultSet.getString("country")).thenReturn("USA");
+        when(shippingResultSet.getString("street")).thenReturn("200 Shipping Street");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    RowMapper<?> mapper = invocation.getArgument(2, RowMapper.class);
+                    if (sql.contains("FROM transaction_operation")
+                            && sql.contains("transaction_id = :transactionId")) {
+                        return List.of(operation);
+                    }
+                    if (sql.contains("FROM transaction_order")) {
+                        return List.of(order);
+                    }
+                    if (sql.contains("FROM transaction_operation")) {
+                        return List.of(operation);
+                    }
+                    if (sql.contains("FROM transaction_billing_info")) {
+                        return List.of(mapper.mapRow(billingResultSet, 0));
+                    }
+                    if (sql.contains("FROM transaction_payer_info")) {
+                        return List.of(mapper.mapRow(payerResultSet, 0));
+                    }
+                    if (sql.contains("FROM transaction_shipping_info")) {
+                        return List.of(mapper.mapRow(shippingResultSet, 0));
+                    }
+                    return Collections.emptyList();
+                });
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class)))
+                .thenReturn(Collections.emptyList());
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class), eq(String.class)))
+                .thenReturn(Collections.emptyList());
+        AdminRiskTimelineQueryService riskTimelineQueryService = mock(AdminRiskTimelineQueryService.class);
+        when(riskTimelineQueryService.findRiskEvents(anyString())).thenReturn(Collections.emptyList());
+        JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
+                jdbcTemplate, riskTimelineQueryService);
+
+        TransactionDetailResponse detail = service.detail(
+                "transaction-a", transactionTime, transactionTime);
+
+        assertThat(detail.getBillingCardHolderInfo().getFirstName()).isEqualTo("John");
+        assertThat(detail.getBillingCardHolderInfo().getCountry()).isEqualTo("USA");
+        assertThat(detail.getPayerInfo().getPayerId()).isEqualTo("CUSTOMER-10002");
+        assertThat(detail.getPayerInfo().getIpAddress()).isEqualTo("203.0.113.10");
+        assertThat(detail.getPayerInfo().getBrowserInfo())
+                .extractingByKey("browser")
+                .isEqualTo(Map.of("name", "Chrome", "version", "128.0.0.0"));
+        assertThat(detail.getShippingInfo().getFirstName()).isEqualTo("Jane");
+        assertThat(detail.getShippingInfo().getStreet()).isEqualTo("200 Shipping Street");
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate, atLeast(3)).query(
+                sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
+        List<Integer> partyQueryIndexes = java.util.stream.IntStream
+                .range(0, sqlCaptor.getAllValues().size())
+                .filter(index -> sqlCaptor.getAllValues().get(index).contains("transaction_billing_info")
+                        || sqlCaptor.getAllValues().get(index).contains("transaction_payer_info")
+                        || sqlCaptor.getAllValues().get(index).contains("transaction_shipping_info"))
+                .boxed()
+                .toList();
+        assertThat(partyQueryIndexes).hasSize(3);
+        partyQueryIndexes.forEach(index -> {
+            assertThat(sqlCaptor.getAllValues().get(index))
+                    .contains("transaction_id = :transactionId")
+                    .contains("transaction_date_time = :transactionDateTime")
+                    .doesNotContain("transaction_billing_info_2026")
+                    .doesNotContain("transaction_payer_info_2026")
+                    .doesNotContain("transaction_shipping_info_2026");
+            assertThat(paramsCaptor.getAllValues().get(index).getValue("transactionId"))
+                    .isEqualTo("transaction-a");
+            assertThat(paramsCaptor.getAllValues().get(index).getValue("transactionDateTime"))
+                    .isEqualTo(transactionTime);
+        });
+    }
+
+    /** 当前交易没有附属快照时，详情字段应保持为空且不伪造占位对象。 */
+    @Test
+    void partyInformationQueriesShouldReturnNullWhenSnapshotsDoNotExist() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.emptyList());
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 17, 14, 8, 30, 123_000_000);
+
+        Object billingInfo = ReflectionTestUtils.invokeMethod(
+                service, "selectBillingCardHolderInfo", "transaction-a", transactionTime);
+        Object payerInfo = ReflectionTestUtils.invokeMethod(
+                service, "selectPayerInfo", "transaction-a", transactionTime);
+        Object shippingInfo = ReflectionTestUtils.invokeMethod(
+                service, "selectShippingInfo", "transaction-a", transactionTime);
+
+        assertThat(billingInfo).isNull();
+        assertThat(payerInfo).isNull();
+        assertThat(shippingInfo).isNull();
+    }
+
     /** 人工重发资格查询必须同时限定真实分片时间、交易终态和通知可重发状态。 */
     @Test
     void callbackRetryEligibilityShouldUseExactShardAndTerminalStatus() {
@@ -231,6 +359,7 @@ class JdbcAdminTransactionQueryServiceTest {
         Map<String, Object> secondAttempt = new LinkedHashMap<>();
         secondAttempt.put("attemptNo", 2);
         secondAttempt.put("create_time", secondResponseTime);
+        secondAttempt.put("response_body_json_masked", "succeed");
         when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0, String.class)
                         .contains("transaction_merchant_notification_log")
@@ -247,6 +376,10 @@ class JdbcAdminTransactionQueryServiceTest {
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(1, "POST", firstResponseTime),
                         org.assertj.core.groups.Tuple.tuple(2, "POST", secondResponseTime));
+        assertThat((List<Map<String, Object>>) detail.get("deliveryLogs"))
+                .last()
+                .satisfies(row -> assertThat(row)
+                        .containsEntry("responseBodyJsonMasked", "succeed"));
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(jdbcTemplate, org.mockito.Mockito.times(2))
@@ -347,6 +480,8 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(rows)
                 .extracting(TransactionOperationResponse::getAccessType)
                 .containsExactly("HOSTED_CHECKOUT", "DIRECT_API");
+        assertThat(rows).allSatisfy(row ->
+                assertThat(row.getMerchantNotificationStatus()).isNull());
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate, atLeast(2)).query(
                 sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
@@ -358,6 +493,70 @@ class JdbcAdminTransactionQueryServiceTest {
                     assertThat(sql).contains("transaction_date_time >= :registeredNodeBegin");
                     assertThat(sql).contains("transaction_date_time < :registeredNodeEnd");
                 });
+    }
+
+    /** 操作单列表必须按当前页交易号和分片时间批量返回商户通知任务的最新状态。 */
+    @ParameterizedTest
+    @ValueSource(strings = {"SUCCESS", "FAILED", "CLOSED"})
+    @SuppressWarnings("unchecked")
+    void operationPageShouldExposeCurrentMerchantNotificationStatus(String currentStatus) throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 17, 11, 51, 32, 567_000_000);
+        TransactionOperationResponse operation = operation("operation-a", "transaction-a", transactionTime);
+        TransactionOrderResponse order = order("operation-a", transactionTime);
+        ResultSet previousNotificationResultSet = mock(ResultSet.class);
+        when(previousNotificationResultSet.getString("transaction_id")).thenReturn("transaction-a");
+        when(previousNotificationResultSet.getString("notify_status")).thenReturn("PROCESSING");
+        ResultSet currentNotificationResultSet = mock(ResultSet.class);
+        when(currentNotificationResultSet.getString("transaction_id")).thenReturn("transaction-a");
+        when(currentNotificationResultSet.getString("notify_status")).thenReturn(currentStatus);
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(1L);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    if (sql.contains("SELECT o.*") && sql.contains("FROM transaction_operation o")) {
+                        return List.of(operation);
+                    }
+                    if (sql.contains("FROM transaction_merchant_notification")) {
+                        RowMapper<?> mapper = invocation.getArgument(2, RowMapper.class);
+                        return List.of(
+                                mapper.mapRow(previousNotificationResultSet, 0),
+                                mapper.mapRow(currentNotificationResultSet, 1));
+                    }
+                    if (sql.contains("FROM transaction_order")) {
+                        return List.of(order);
+                    }
+                    return Collections.emptyList();
+                });
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class), eq(String.class)))
+                .thenReturn(Collections.emptyList());
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setBeginTime(LocalDateTime.of(2026, 8, 17, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 8, 17, 23, 59, 59));
+
+        List<TransactionOperationResponse> rows = service.pageOperations(query).getRecords();
+
+        assertThat(rows)
+                .extracting(TransactionOperationResponse::getMerchantNotificationStatus)
+                .containsExactly(currentStatus);
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate, atLeast(2)).query(
+                sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
+        int notificationQueryIndex = java.util.stream.IntStream.range(0, sqlCaptor.getAllValues().size())
+                .filter(index -> sqlCaptor.getAllValues().get(index).contains("FROM transaction_merchant_notification"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(sqlCaptor.getAllValues().get(notificationQueryIndex))
+                .contains("transaction_id IN (:transactionIds)")
+                .contains("transaction_date_time >= :notificationBeginTime")
+                .contains("transaction_date_time < :notificationEndTime")
+                .contains("ORDER BY update_time ASC, id ASC")
+                .doesNotContain("transaction_merchant_notification_2026");
+        assertThat(paramsCaptor.getAllValues().get(notificationQueryIndex).getValue("transactionIds"))
+                .isEqualTo(List.of("transaction-a"));
     }
 
     /** 新收银台交易已落库来源时，应直接映射为 Hosted Checkout。 */
