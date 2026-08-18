@@ -3,6 +3,7 @@ package com.scott.payment.openapi.service.impl;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
@@ -39,6 +40,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -78,17 +80,41 @@ class PaymentServiceImplTests {
         assertThat(captured.getCardInfo().getCardNo()).isEqualTo("5387380678556554");
         assertThat(captured.getCardInfo().getSecurityCode()).isEqualTo("123");
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("user@example.com");
+        assertThat(captured.getGoodsInfo()).singleElement()
+                .satisfies(goods -> {
+                    assertThat(goods.getName()).isEqualTo("Travel Booking");
+                    assertThat(goods.getAmount()).isEqualByComparingTo("12.34");
+                });
+        assertThat(captured.getPayerInfo().getPayerId()).isEqualTo("CUSTOMER-001");
+        assertThat(captured.getShippingInfo().getStreet()).isEqualTo("2 Shipping St");
         assertThat(captured.getThreeDsInfo().getDsTransactionId()).isEqualTo("b96c957d-daa1-4b7f-b8b4-373fb9dec47b");
-        assertThat(captured.getTransactionInfo().getCardBrand()).isEqualTo("MASTERCARD");
+        assertThat(captured.getTransactionInfo().getCardBrand()).isNull();
+        assertThat(captured.getTransactionInfo().getMerchantWebsite())
+                .isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
         assertThat(captured.getCallbackUrl()).isEqualTo("https://merchant.example/callback");
-        assertThat(captured.getSourceUrl()).isEqualTo("https://checkout.example");
-        assertThat(captured.getPayerIp()).isEqualTo("198.51.100.10");
-        assertThat(captured.getUserAgent()).isEqualTo("JUnit");
+        assertThat(captured.getSourceUrl()).isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
+        assertThat(captured.getPayerIp()).isEqualTo("203.0.113.10");
+        assertThat(captured.getUserAgent()).isEqualTo("Mozilla/5.0");
         assertThat(captured.getRiskContext().getCustomerId()).isEqualTo("CUSTOMER-001");
         assertThat(captured.getRiskContext().getDeviceFingerprint()).isEqualTo("DEVICE-FP-001");
         assertThat(captured.getRiskContext().getShippingAddress()).isEqualTo("2 Shipping St");
         assertThat(captured.getRiskContext().getShippingPostalCode()).isEqualTo("10003");
         assertThat(captured.getRiskContext().getShippingCountry()).isEqualTo("USA");
+    }
+
+    @Test
+    void shouldUsePaymentResultAsMerchantWebsiteResponseSource() {
+        OpenApiRequestConverter converter = Mappers.getMapper(OpenApiRequestConverter.class);
+        ApiMerchantPaymentRequestDTO requestDTO = buildRequest();
+        PaymentCreateClientResponseDTO responseDTO = new PaymentCreateClientResponseDTO();
+
+        assertThat(converter.toPaymentCreateVO(requestDTO, responseDTO, null)
+                .getTransactionInfo().getMerchantWebsite()).isNull();
+
+        responseDTO.setMerchantWebsite("https://stored-merchant.example/original");
+        assertThat(converter.toPaymentCreateVO(requestDTO, responseDTO, null)
+                .getTransactionInfo().getMerchantWebsite())
+                .isEqualTo("https://stored-merchant.example/original");
     }
 
     @Test
@@ -140,6 +166,7 @@ class PaymentServiceImplTests {
         PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);
         ApiMerchantPaymentRequestDTO requestDTO = buildRequest();
         requestDTO.getTransactionInfo().setSourceTransactionId(null);
+        requestDTO.getTransactionInfo().setMerchantWebsite(null);
         requestDTO.getTransactionInfo().setTransactionId("202607120001000001");
         bindRequestContext();
 
@@ -152,8 +179,14 @@ class PaymentServiceImplTests {
         assertThat(paymentInternalClient.requestDTO.getRequestId()).isEqualTo("REQ202607120001");
         assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionId()).isNull();
         assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getTransactionId()).isEqualTo("202607120001000001");
+        assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionDateTime()).isNull();
+        assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getRootTransactionDateTime()).isNull();
         assertThat(responseVO.getTransactionInfo()).hasSize(1);
         assertThat(responseVO.getTransactionInfo().get(0).getTransactionId()).isEqualTo("202607120001000001");
+        assertThat(responseVO.getTransactionInfo().get(0).getRootTransactionDateTime()).isNull();
+        assertThat(responseVO.getTransactionInfo().get(0).getTransactionStatus()).isEqualTo("PROCESSING");
+        assertThat(responseVO.getTransactionInfo().get(0).getMerchantWebsite())
+                .isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
     }
 
     @Test
@@ -176,11 +209,14 @@ class PaymentServiceImplTests {
         assertThat(responseJson).contains("\"totalAuthorizedAmount\":12.34");
         assertThat(responseJson).contains("\"totalCapturedAmount\":12.34");
         assertThat(responseJson).doesNotContain("\"status\":\"PROCESSING\"");
-        assertThat(responseJson).doesNotContain("\"transactionStatus\"");
+        assertThat(responseJson).contains("\"transactionStatus\":\"SUCCESS\"");
         assertThat(responseJson).doesNotContain("\"processStage\"");
         assertThat(responseJson).doesNotContain("\"cardInfo\"");
         assertThat(responseJson).contains("\"subEmail\":\"merchant@example.com\"");
         assertThat(responseJson).contains("\"phone\":\"+1-555-0100\"");
+        assertThat(responseJson).contains("\"name\":\"Travel Booking\"");
+        assertThat(responseJson).contains("\"payerId\":\"CUSTOMER-001\"");
+        assertThat(responseJson).contains("\"street\":\"2 Shipping St\"");
         assertThat(responseJson).doesNotContain("operationId");
         assertThat(responseJson).doesNotContain("channelTransactionId");
         assertThat(responseJson).doesNotContain("dccEnabled");
@@ -189,7 +225,10 @@ class PaymentServiceImplTests {
         assertThat(responseJson).doesNotContain("failReasonMessage");
         assertThat(responseJson).doesNotContain("null");
         assertThat(responseJson).contains("\"cardBrand\":\"MASTERCARD\"");
-        assertThat(responseMap).containsOnlyKeys("merchantInfo", "orderInfo", "billingCardHolderInfo", "transactionInfo", "billingInfo");
+        assertThat(responseJson).contains("\"merchantWebsite\":\"https://merchant-shop.example/checkout?cart=ABC123\"");
+        assertThat(responseMap).containsOnlyKeys(
+                "merchantInfo", "orderInfo", "goodsInfo", "billingCardHolderInfo", "payerInfo", "shippingInfo",
+                "transactionInfo", "billingInfo");
         assertThat(responseMap).doesNotContainKeys("merchantId", "orderNo", "orderId", "transactionId", "status", "currency", "amount");
     }
 
@@ -266,9 +305,11 @@ class PaymentServiceImplTests {
         assertThat(responseJson).contains("\"callbackUrl\":\"https://merchant.example/callback\"");
         assertThat(responseJson).contains("\"settlementCurrency\":\"HKD\"");
         assertThat(responseJson).doesNotContain("\"cardInfo\"");
-        assertThat(responseJson).doesNotContain("\"transactionStatus\"");
+        assertThat(responseJson).contains("\"transactionStatus\":\"SUCCESS\"");
         assertThat(responseJson).doesNotContain("\"processStage\"");
-        assertThat(responseMap).containsOnlyKeys("merchantInfo", "orderInfo", "billingCardHolderInfo", "transactionInfo", "billingInfo");
+        assertThat(responseMap).containsOnlyKeys(
+                "merchantInfo", "orderInfo", "goodsInfo", "billingCardHolderInfo", "payerInfo", "shippingInfo",
+                "transactionInfo", "billingInfo");
     }
 
     @Test
@@ -345,6 +386,8 @@ class PaymentServiceImplTests {
         assertThat(paymentInternalClient.requestDTO.getMerchantOrderNo()).isNull();
         assertThat(paymentInternalClient.requestDTO.getCurrency()).isNull();
         assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionId()).isEqualTo("source-001");
+        assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionDateTime()).isNull();
+        assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getRootTransactionDateTime()).isNull();
         assertThat(responseJson).contains("\"merchantInfo\":{\"merchantId\":\"200001\"");
         assertThat(responseJson).contains("\"orderId\":\"REQ202607120001\"");
         assertThat(responseJson).contains("\"amount\":12.34");
@@ -354,7 +397,28 @@ class PaymentServiceImplTests {
         assertThat(responseJson).doesNotContain("cardInfo");
     }
 
+    @Test
+    void shouldRejectNonZeroThirdFractionDigitEvenWhenCurrencySupportsThreeDigits() {
+        CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
+        IsoDictionaryService isoDictionaryService = mock(IsoDictionaryService.class);
+        when(isoDictionaryService.isCurrencyFractionValid(new BigDecimal("12.345"), "KWD")).thenReturn(true);
+        PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient, isoDictionaryService);
+        ApiMerchantPaymentRequestDTO requestDTO = buildRequest();
+        requestDTO.getOrderInfo().setAmount(new BigDecimal("12.345"));
+        requestDTO.getOrderInfo().setCurrency("KWD");
+        bindRequestContext();
+
+        assertThatThrownBy(() -> paymentService.createPayment("encrypted-body", requestDTO))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("amount fraction digits exceed supported precision");
+    }
+
     private PaymentServiceImpl newPaymentService(CapturingPaymentInternalClient paymentInternalClient) {
+        return newPaymentService(paymentInternalClient, isoDictionaryService());
+    }
+
+    private PaymentServiceImpl newPaymentService(CapturingPaymentInternalClient paymentInternalClient,
+                                                 IsoDictionaryService isoDictionaryService) {
         PaymentClientProperties properties = new PaymentClientProperties();
         properties.setRemoteEnabled(true);
         return new PaymentServiceImpl(
@@ -363,7 +427,7 @@ class PaymentServiceImplTests {
                 properties,
                 new OpenApiKeyMaterialFactory(),
                 new OpenApiRequestContext(),
-                isoDictionaryService(),
+                isoDictionaryService,
                 merchantRuntimeProfileCacheService()
         );
     }
@@ -381,7 +445,7 @@ class PaymentServiceImplTests {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("X-Gateway-Client-Ip", "198.51.100.10");
         request.addHeader("X-Forwarded-For", "203.0.113.1, 10.0.0.1");
-        request.addHeader("Origin", "https://checkout.example");
+        request.addHeader("Origin", "https://untrusted-header.example");
         request.addHeader("User-Agent", "JUnit");
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setMerchantId("200001");
@@ -433,8 +497,42 @@ class PaymentServiceImplTests {
         billing.setPostal("10001");
         requestDTO.setBillingCardHolderInfo(billing);
 
+        ApiMerchantPaymentRequestDTO.GoodsInfoDTO goods = new ApiMerchantPaymentRequestDTO.GoodsInfoDTO();
+        goods.setName("Travel Booking");
+        goods.setQuantity(1);
+        goods.setAmount(new BigDecimal("12.34"));
+        goods.setCurrency("USD");
+        requestDTO.setGoodsInfo(List.of(goods));
+
+        ApiMerchantPaymentRequestDTO.PayerInfoDTO payer = new ApiMerchantPaymentRequestDTO.PayerInfoDTO();
+        payer.setPayerId("CUSTOMER-001");
+        payer.setFirstName("John");
+        payer.setLastName("Tom");
+        payer.setEmail("user@example.com");
+        payer.setPhone("+1-555-0100");
+        payer.setCountry("USA");
+        payer.setCity("New York");
+        payer.setStreet("1 Main St");
+        payer.setPostal("10001");
+        payer.setIpAddress("203.0.113.10");
+        payer.setSessionId("SESSION-001");
+        payer.setBrowserInfo(Map.of("browser", Map.of("name", "Chrome", "version", "128.0")));
+        payer.setUserAgent("Mozilla/5.0");
+        requestDTO.setPayerInfo(payer);
+
+        ApiMerchantPaymentRequestDTO.ShippingInfoDTO shipping = new ApiMerchantPaymentRequestDTO.ShippingInfoDTO();
+        shipping.setFirstName("John");
+        shipping.setLastName("Tom");
+        shipping.setEmail("user@example.com");
+        shipping.setPhone("+1-555-0100");
+        shipping.setCountry("USA");
+        shipping.setCity("New York");
+        shipping.setStreet("2 Shipping St");
+        shipping.setPostal("10003");
+        requestDTO.setShippingInfo(shipping);
+
         ApiMerchantPaymentRequestDTO.ThreeDsInfoDTO threeDsInfo = new ApiMerchantPaymentRequestDTO.ThreeDsInfoDTO();
-        threeDsInfo.setEci("212");
+        threeDsInfo.setEci("05");
         threeDsInfo.setCavv("abcdefghijklmnopqrstuvwx1234");
         threeDsInfo.setDsTransactionId("b96c957d-daa1-4b7f-b8b4-373fb9dec47b");
         threeDsInfo.setThreeDsVersion("2.2.0");
@@ -443,16 +541,16 @@ class PaymentServiceImplTests {
         ApiMerchantPaymentRequestDTO.TransactionInfoDTO transactionInfo = new ApiMerchantPaymentRequestDTO.TransactionInfoDTO();
         transactionInfo.setSourceTransactionId("source-001");
         transactionInfo.setCallbackUrl("https://merchant.example/callback");
-        transactionInfo.setCardBrand("MASTERCARD");
+        transactionInfo.setMerchantWebsite("https://merchant-shop.example/checkout?cart=ABC123");
         requestDTO.setTransactionInfo(transactionInfo);
 
-        ApiMerchantPaymentRequestDTO.RiskContextDTO riskContext = new ApiMerchantPaymentRequestDTO.RiskContextDTO();
-        riskContext.setCustomerId("CUSTOMER-001");
-        riskContext.setDeviceFingerprint("DEVICE-FP-001");
-        riskContext.setShippingAddress("2 Shipping St");
-        riskContext.setShippingPostalCode("10003");
-        riskContext.setShippingCountry("USA");
-        requestDTO.setRiskContext(riskContext);
+        ApiMerchantPaymentRequestDTO.RiskInfoDTO riskInfo = new ApiMerchantPaymentRequestDTO.RiskInfoDTO();
+        riskInfo.setCustomerId("CUSTOMER-001");
+        riskInfo.setDeviceFingerprint("DEVICE-FP-001");
+        riskInfo.setShippingAddress("2 Shipping St");
+        riskInfo.setShippingPostalCode("10003");
+        riskInfo.setShippingCountry("USA");
+        requestDTO.setRiskInfo(riskInfo);
         return requestDTO;
     }
 
@@ -656,6 +754,10 @@ class PaymentServiceImplTests {
             responseDTO.setTransactionCurrency(createResponseDTO.getTransactionCurrency());
             responseDTO.setTransactionRate(createResponseDTO.getTransactionRate());
             responseDTO.setTransactionTimeZone(createResponseDTO.getTransactionTimeZone());
+            responseDTO.setGoodsInfo(createResponseDTO.getGoodsInfo());
+            responseDTO.setBillingCardHolderInfo(createResponseDTO.getBillingCardHolderInfo());
+            responseDTO.setPayerInfo(createResponseDTO.getPayerInfo());
+            responseDTO.setShippingInfo(createResponseDTO.getShippingInfo());
             PaymentQueryClientResponseDTO.TransactionInfoDTO transactionInfoDTO = new PaymentQueryClientResponseDTO.TransactionInfoDTO();
             transactionInfoDTO.setTransactionId(requestDTO.getTransactionInfo() == null
                     ? createResponseDTO.getTransactionId()
@@ -664,10 +766,13 @@ class PaymentServiceImplTests {
             transactionInfoDTO.setCode(createResponseDTO.getMerchantResponseCode());
             transactionInfoDTO.setMessage(createResponseDTO.getMerchantResponseMessage());
             transactionInfoDTO.setTransactionType(createResponseDTO.getTransactionType());
+            transactionInfoDTO.setTransactionStatus(createResponseDTO.getStatus());
             transactionInfoDTO.setTransactionDateTime(createResponseDTO.getTransactionDateTime());
+            transactionInfoDTO.setRootTransactionDateTime(requestDTO.getTransactionInfo().getRootTransactionDateTime());
             transactionInfoDTO.setPaymentMethod(createResponseDTO.getPaymentMethod());
             transactionInfoDTO.setCardBrand(createResponseDTO.getPaymentBrand());
             transactionInfoDTO.setCardBin(createResponseDTO.getCardBin());
+            transactionInfoDTO.setMerchantWebsite("https://merchant-shop.example/checkout?cart=ABC123");
             responseDTO.getTransactionInfo().add(transactionInfoDTO);
             return responseDTO;
         }
@@ -747,6 +852,17 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
+        /** 返回固定支持结果，供共享客户端契约编译；普通支付测试不会调用该分支。 */
+        @Override
+        public PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
+                PaymentCheckoutClientDTOs.CardBinRequest requestDTO) {
+            PaymentCheckoutClientDTOs.CardBinResponse responseDTO = new PaymentCheckoutClientDTOs.CardBinResponse();
+            responseDTO.setCardBrand("MASTERCARD");
+            responseDTO.setRecognized(true);
+            responseDTO.setSupported(true);
+            return responseDTO;
+        }
+
         private PaymentCreateClientResponseDTO captureRequest(PaymentCreateClientRequestDTO requestDTO,
                                                               OpenApiPaymentOperationEnum operation) {
             this.requestDTO = requestDTO;
@@ -758,6 +874,10 @@ class PaymentServiceImplTests {
             responseDTO.setMerchantOrderNo(requestDTO.getMerchantOrderNo());
             responseDTO.setMerchantOrderId(requestDTO.getMerchantOrderId());
             responseDTO.setSubMerchantInfo(toResponseSubMerchantInfo(requestDTO.getSubMerchantInfo()));
+            responseDTO.setGoodsInfo(requestDTO.getGoodsInfo());
+            responseDTO.setBillingCardHolderInfo(requestDTO.getBillingCardHolderInfo());
+            responseDTO.setPayerInfo(requestDTO.getPayerInfo());
+            responseDTO.setShippingInfo(requestDTO.getShippingInfo());
             responseDTO.setStatus("PROCESSING");
             if (OpenApiPaymentOperationEnum.PAYMENT == operation) {
                 responseDTO.setStatus(nextPaymentStatus);
@@ -787,12 +907,17 @@ class PaymentServiceImplTests {
             responseDTO.setTransactionCurrency(requestDTO.getCurrency());
             responseDTO.setTransactionRate(new BigDecimal("1.00000000"));
             responseDTO.setTransactionDateTime(requestDTO.getTransactionDateTime());
+            responseDTO.setRootTransactionDateTime(requestDTO.getTransactionInfo() == null
+                    ? requestDTO.getTransactionDateTime()
+                    : requestDTO.getTransactionInfo().getRootTransactionDateTime());
             responseDTO.setTransactionTimeZone("Asia/Shanghai");
             responseDTO.setPaymentMethod(requestDTO.getPaymentMethod());
             responseDTO.setPaymentBrand("MASTERCARD");
             responseDTO.setCardBin("538738****6554");
             responseDTO.setDescription(requestDTO.getTransactionInfo() == null ? null : requestDTO.getTransactionInfo().getDescription());
             responseDTO.setCallbackUrl(requestDTO.getTransactionInfo() == null ? null : requestDTO.getTransactionInfo().getCallbackUrl());
+            responseDTO.setMerchantWebsite(requestDTO.getTransactionInfo() == null
+                    ? null : requestDTO.getTransactionInfo().getMerchantWebsite());
             return responseDTO;
         }
 

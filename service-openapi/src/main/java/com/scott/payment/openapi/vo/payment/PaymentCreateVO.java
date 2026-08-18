@@ -6,6 +6,7 @@ import lombok.Data;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 
 @Data
@@ -35,10 +36,22 @@ public class PaymentCreateVO implements Serializable {
      */
     private OrderInfoVO orderInfo;
 
+    /** 首次交易保存的商品或服务明细。 */
+    private List<GoodsInfoVO> goodsInfo;
+
     /**
      * 账单持卡人信息，支付接口按商户请求 billingCardHolderInfo 原样回显，不包含卡号和 CVV。
      */
     private BillingCardHolderInfoVO billingCardHolderInfo;
+
+    /** 首次交易保存的付款人信息。 */
+    private PayerInfoVO payerInfo;
+
+    /** 首次交易保存的收货人信息。 */
+    private ShippingInfoVO shippingInfo;
+
+    /** 当前动作可向商户返回的 3DS 安全字段子集。 */
+    private ThreeDsInfoVO threeDSInfo;
 
     /**
      * 平台交易响应信息，包含平台当前交易 ID、原交易 ID 和交易状态。
@@ -331,6 +344,9 @@ public class PaymentCreateVO implements Serializable {
          */
         private String sourceTransactionId;
 
+        /** 后续动作源交易发生时间；首次交易不返回。 */
+        private OffsetDateTime sourceTransactionDateTime;
+
         /**
          * 当前动作商户响应码，例如 T200、T202、T203、F210。
          */
@@ -349,7 +365,6 @@ public class PaymentCreateVO implements Serializable {
         /**
          * 交易状态，对齐系统字典 transaction_status。
          */
-        @JSONField(serialize = false)
         private String transactionStatus;
 
         /**
@@ -362,6 +377,10 @@ public class PaymentCreateVO implements Serializable {
          * 交易发生时间，按交易业务时区展示。
          */
         private OffsetDateTime transactionDateTime;
+
+        /** 生命周期根主单时间仅供内部兼容，商户响应不输出。 */
+        @JSONField(serialize = false)
+        private OffsetDateTime rootTransactionDateTime;
 
         /**
          * 支付方式，如 BANK_CARD。
@@ -399,6 +418,17 @@ public class PaymentCreateVO implements Serializable {
         private String callbackUrl;
 
         /**
+         * 商户发起支付的网站原始 URL，按首次请求保存值原样返回。
+         */
+        private String merchantWebsite;
+
+        /** Hosted Checkout 结果页返回地址。 */
+        private String redirectUrl;
+
+        /** Hosted Checkout 创建会话语言。 */
+        private String language;
+
+        /**
          * 内部失败原因码，仅用于后台和测试链路兼容，不返回商户。
          */
         @JSONField(serialize = false)
@@ -414,6 +444,72 @@ public class PaymentCreateVO implements Serializable {
          * 挂起原因码，PENDING 状态时返回。
          */
         private String pendingReasonCode;
+    }
+
+    /** 商品或服务明细响应。 */
+    @Data
+    public static class GoodsInfoVO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String name;
+        private Integer quantity;
+        private BigDecimal amount;
+        private String currency;
+    }
+
+    /** 付款人信息响应。 */
+    @Data
+    public static class PayerInfoVO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String payerId;
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+        private String ipAddress;
+        private String sessionId;
+        private java.util.Map<String, Object> browserInfo;
+        private String userAgent;
+    }
+
+    /** 收货人信息响应。 */
+    @Data
+    public static class ShippingInfoVO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+    }
+
+    /** 允许商户接收的 3DS 安全结果，不包含 CAVV 和协议原文。 */
+    @Data
+    public static class ThreeDsInfoVO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String eci;
+        private String dsTransactionId;
+        private String threeDsVersion;
+        private String status;
+        private Boolean liabilityShifted;
+    }
+
+    /** 已形成的费用明细。 */
+    @Data
+    public static class FeeItemVO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String categories;
+        private BigDecimal amount;
+        private String currency;
+        private BigDecimal rate;
     }
 
     @Data
@@ -468,6 +564,9 @@ public class PaymentCreateVO implements Serializable {
          */
         private OffsetDateTime rateTime;
 
+        /** 已形成的结算换汇汇率。 */
+        private BigDecimal settlementRate;
+
         /**
          * 预计或最终结算金额。
          */
@@ -477,5 +576,11 @@ public class PaymentCreateVO implements Serializable {
          * 预计或最终结算币种。
          */
         private String settlementCurrency;
+
+        /** 已形成的结算费用金额。 */
+        private BigDecimal settlementFeeAmount;
+
+        /** 已形成的费用明细。 */
+        private List<FeeItemVO> feeItems;
     }
 }

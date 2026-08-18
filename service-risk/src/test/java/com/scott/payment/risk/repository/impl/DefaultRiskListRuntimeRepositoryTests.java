@@ -1,9 +1,6 @@
 package com.scott.payment.risk.repository.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationState;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
@@ -11,25 +8,28 @@ import com.scott.payment.component.redis.string.RedisStringService;
 import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.config.RiskBaselineMode;
-import com.scott.payment.risk.config.RiskCounterMode;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
-import com.scott.payment.risk.config.RiskFrequencyMode;
+import com.scott.payment.risk.config.RiskRuleCacheMode;
 import com.scott.payment.risk.domain.MerchantLimitEvaluation;
+import com.scott.payment.risk.domain.FrequencySuccessReservationResult;
 import com.scott.payment.risk.domain.state.MerchantLimitReservationStatus;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 import com.scott.payment.risk.domain.RiskListFunction;
 import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeCacheEntry;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
+import com.scott.payment.risk.domain.RiskRuleSnapshotRow;
 import com.scott.payment.risk.mapper.RiskRuntimeMapper;
 import com.scott.payment.risk.observability.RiskShadowComparisonMonitor;
 import com.scott.payment.risk.service.MerchantLimitReservationStateService;
+import com.scott.payment.risk.service.FrequencySuccessReservationService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -38,7 +38,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.inOrder;
@@ -115,7 +117,7 @@ class DefaultRiskListRuntimeRepositoryTests {
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         verify(redis).get(keyCaptor.capture());
         assertThat(keyCaptor.getValue())
-                .startsWith("acquiring:test:service-risk:risk:runtime-rule:v1:g-20260730:")
+                .startsWith("acquiring:test:risk:runtime-rule:g-20260730:")
                 .contains(":match:BLACK:cardFingerprint:M202607290001:")
                 .doesNotContain("card-fingerprint-digest");
     }
@@ -135,7 +137,7 @@ class DefaultRiskListRuntimeRepositoryTests {
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         verify(redis).get(keyCaptor.capture());
         assertThat(keyCaptor.getValue())
-                .startsWith("acquiring:test:service-risk:risk:runtime-rule:v1:g-test:"
+                .startsWith("acquiring:test:risk:runtime-rule:g-test:"
                         + "rule:source-url:miss:M202607290001:")
                 .doesNotContain("checkout.merchant.example");
         verify(mapper, never()).countActiveSourceUrlRules(anyString());
@@ -162,91 +164,6 @@ class DefaultRiskListRuntimeRepositoryTests {
         assertThat(entry.getMatch()).isNull();
         assertThat(valueCaptor.getValue()).doesNotContain("__MISS__").isNotEqualTo("1");
         assertThat(ttlCaptor.getValue()).isEqualTo(Duration.ofSeconds(60));
-    }
-
-    /**
-     * 精简单写历史回读阶段应先查精简 Key，命中历史 Key 后回填精简 Key 且不访问数据库。
-     */
-    @Test
-    void shouldBackfillCompactRuleCacheFromLegacyFallback() {
-        log.info("测试运行时规则缓存迁移回填，关键输入: compact 未命中、legacy 已缓存未配置");
-        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
-        RedisStringService redis = mock(RedisStringService.class);
-        when(redis.get(anyString())).thenAnswer(invocation -> {
-            String cacheKey = invocation.getArgument(0);
-            return cacheKey.startsWith("acquiring:test:risk:runtime-rule:")
-                    ? null
-                    : JsonUtils.toJsonString(RiskRuntimeCacheEntry.match(null));
-        });
-        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
-        when(generationStore.current("risk-runtime-rule"))
-                .thenReturn(RedisCacheGenerationState.active("g-migrate"));
-        DefaultRiskListRuntimeRepository repository = repository(
-                mapper,
-                redis,
-                generationStore,
-                PaymentRedisProperties.KeyMigrationMode.COMPACT_WRITE_LEGACY_READ
-        );
-        RiskRuntimeLookupValue lookupValue = new RiskRuntimeLookupValue();
-        lookupValue.setSourceHost("checkout.merchant.example");
-
-        assertThat(repository.findSourceUrlRestrictionMiss("M202607290001", lookupValue)).isEmpty();
-
-        ArgumentCaptor<String> readKeyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(redis, org.mockito.Mockito.times(2)).get(readKeyCaptor.capture());
-        assertThat(readKeyCaptor.getAllValues().get(0))
-                .startsWith("acquiring:test:risk:runtime-rule:g-migrate:")
-                .doesNotContain("service-risk", ":v1:");
-        assertThat(readKeyCaptor.getAllValues().get(1))
-                .startsWith("acquiring:test:service-risk:risk:runtime-rule:v1:g-migrate:");
-        ArgumentCaptor<String> writeKeyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(redis).set(
-                writeKeyCaptor.capture(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.eq(Duration.ofSeconds(60))
-        );
-        assertThat(writeKeyCaptor.getValue())
-                .startsWith("acquiring:test:risk:runtime-rule:g-migrate:");
-        verify(mapper, never()).countActiveSourceUrlRules(anyString());
-        log.info("运行时规则缓存迁移回填测试完成，结果: legacy 结果仅回填 compact Key");
-    }
-
-    /**
-     * 双写阶段数据库回源结果必须写入历史和精简 Key，并保持相同未命中 TTL。
-     */
-    @Test
-    void shouldWriteBothRuleCacheFamiliesDuringDualMigration() {
-        log.info("测试运行时规则缓存双写，关键输入: 新旧 Key 均未命中、数据库确认未配置");
-        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
-        RedisStringService redis = mock(RedisStringService.class);
-        when(redis.get(anyString())).thenReturn(null);
-        when(mapper.countActiveSourceUrlRules("M202607290001")).thenReturn(0L);
-        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
-        when(generationStore.current("risk-runtime-rule"))
-                .thenReturn(RedisCacheGenerationState.active("g-dual"));
-        DefaultRiskListRuntimeRepository repository = repository(
-                mapper,
-                redis,
-                generationStore,
-                PaymentRedisProperties.KeyMigrationMode.DUAL_LEGACY_FIRST
-        );
-        RiskRuntimeLookupValue lookupValue = new RiskRuntimeLookupValue();
-        lookupValue.setSourceHost("checkout.merchant.example");
-
-        assertThat(repository.findSourceUrlRestrictionMiss("M202607290001", lookupValue)).isEmpty();
-
-        ArgumentCaptor<String> writeKeyCaptor = ArgumentCaptor.forClass(String.class);
-        verify(redis, org.mockito.Mockito.times(2)).set(
-                writeKeyCaptor.capture(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.eq(Duration.ofSeconds(60))
-        );
-        assertThat(writeKeyCaptor.getAllValues())
-                .anySatisfy(key -> assertThat(key)
-                        .startsWith("acquiring:test:service-risk:risk:runtime-rule:v1:g-dual:"))
-                .anySatisfy(key -> assertThat(key)
-                        .startsWith("acquiring:test:risk:runtime-rule:g-dual:"));
-        log.info("运行时规则缓存双写测试完成，结果: legacy 与 compact Key 均写入相同结果");
     }
 
     @Test
@@ -336,7 +253,7 @@ class DefaultRiskListRuntimeRepositoryTests {
         verify(redis, org.mockito.Mockito.times(2)).get(keyCaptor.capture());
         assertThat(keyCaptor.getAllValues())
                 .allSatisfy(key -> assertThat(key)
-                        .startsWith("acquiring:test:service-risk:risk:runtime-rule:v1:g-test:"))
+                        .startsWith("acquiring:test:risk:runtime-rule:g-test:"))
                 .anySatisfy(key -> assertThat(key).contains(":list:active:BLACK_CARD_FINGERPRINT:"))
                 .anySatisfy(key -> assertThat(key).contains(":rule:frequency:active:"));
     }
@@ -416,6 +333,43 @@ class DefaultRiskListRuntimeRepositoryTests {
     }
 
     @Test
+    void shouldRejectPendingSourceUrlWhileAllowingApprovedAndLegacySnapshotHosts() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        when(redis.get(anyString())).thenReturn(null);
+        RiskRuleSnapshotRow pending = sourceUrlSnapshotRow(42L, "pending.merchant.example", false);
+        RiskRuleSnapshotRow approved = sourceUrlSnapshotRow(43L, "approved.merchant.example", true);
+        RiskRuleSnapshotRow legacy = sourceUrlSnapshotRow(44L, "legacy.merchant.example", null);
+        when(mapper.selectActiveSourceUrlSnapshotRows(eq("M202607290001"), any(Integer.class)))
+                .thenReturn(List.of(pending, approved, legacy));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+
+        RiskRuntimeLookupValue pendingLookup = new RiskRuntimeLookupValue();
+        pendingLookup.setSourceHost("pending.merchant.example");
+        pendingLookup.setMatchValueHash("pending-source-digest");
+        assertThat(repository.findSourceUrlRule("M202607290001", pendingLookup)).isEmpty();
+        assertThat(repository.findSourceUrlRestrictionMiss("M202607290001", pendingLookup))
+                .get()
+                .satisfies(match -> assertThat(match.getDecisionAction()).isEqualTo("REJECT"));
+
+        RiskRuntimeLookupValue approvedLookup = new RiskRuntimeLookupValue();
+        approvedLookup.setSourceHost("approved.merchant.example");
+        approvedLookup.setMatchValueHash("approved-source-digest");
+        assertThat(repository.findSourceUrlRule("M202607290001", approvedLookup))
+                .get()
+                .satisfies(match -> assertThat(match.getDecisionAction()).isEqualTo("PASS"));
+
+        RiskRuntimeLookupValue legacyLookup = new RiskRuntimeLookupValue();
+        legacyLookup.setSourceHost("legacy.merchant.example");
+        legacyLookup.setMatchValueHash("legacy-source-digest");
+        assertThat(repository.findSourceUrlRule("M202607290001", legacyLookup))
+                .get()
+                .satisfies(match -> assertThat(match.getDecisionAction()).isEqualTo("PASS"));
+        assertThat(repository.findSourceUrlRestrictionMiss("M202607290001", approvedLookup)).isEmpty();
+        assertThat(repository.findSourceUrlRestrictionMiss("M202607290001", legacyLookup)).isEmpty();
+    }
+
+    @Test
     void shouldEnforceConfiguredMerchantIpWhitelistEvenWhenLegacySwitchIsOff() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         RedisStringService redis = mock(RedisStringService.class);
@@ -453,23 +407,62 @@ class DefaultRiskListRuntimeRepositoryTests {
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         verify(redis, org.mockito.Mockito.times(2)).get(keyCaptor.capture());
         assertThat(keyCaptor.getAllValues()).allSatisfy(key -> {
-            assertThat(key).startsWith("acquiring:test:service-risk:risk:runtime-rule:v1:g-test:");
+            assertThat(key).startsWith("acquiring:test:risk:runtime-rule:g-test:");
             assertThat(key).doesNotContain("198.51.100.24").doesNotContain("654321");
         });
     }
 
     @Test
-    void shouldReserveCumulativeMerchantLimitFromMasterDatabaseBaseline() {
+    void shouldCacheIssuerCountryPointLookupInsteadOfLoadingOversizedSnapshot() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        RiskListMatch expected = new RiskListMatch();
+        expected.setRuleId(81L);
+        expected.setHitValueMasked("USA");
+        when(generationStore.current("risk-runtime-rule"))
+                .thenReturn(RedisCacheGenerationState.active("g-test"));
+        when(redis.get(anyString())).thenReturn(
+                null,
+                JsonUtils.toJsonString(RiskRuntimeCacheEntry.match(expected))
+        );
+        when(mapper.selectIssuerCountryByCardBin(new BigDecimal("411111")))
+                .thenReturn(expected);
+        RiskEvaluationProperties properties = new RiskEvaluationProperties();
+        properties.setRuleCacheMode(RiskRuleCacheMode.SNAPSHOT);
+        properties.setCacheHitTtlSeconds(300);
+        properties.setCacheMissTtlSeconds(60);
+        PaymentRedisProperties redisProperties = new PaymentRedisProperties();
+        redisProperties.setKeyPrefix("acquiring:test");
+        DefaultRiskListRuntimeRepository repository = new DefaultRiskListRuntimeRepository(
+                provider(mapper),
+                provider(redis),
+                provider(generationStore),
+                provider(redisTemplate),
+                provider(null),
+                provider(null),
+                properties,
+                redisProperties
+        );
+        RiskRuntimeLookupValue cardBinLookup = new RiskRuntimeLookupValue();
+        cardBinLookup.setNumericValue(new BigDecimal("411111"));
+
+        assertThat(repository.findIssuerCountryByCardBin(cardBinLookup)).contains("USA");
+        assertThat(repository.findIssuerCountryByCardBin(cardBinLookup)).contains("USA");
+
+        verify(mapper).selectIssuerCountryByCardBin(new BigDecimal("411111"));
+        verifyNoInteractions(redisTemplate);
+    }
+
+    @Test
+    void shouldReserveCumulativeMerchantLimitFromLogicalTransactionTable() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         RiskListMatch dailyRule = cumulativeRule(11L, "DAILY", "200.000000");
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(dailyRule));
-        when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of("transaction_order_202603"));
         when(mapper.sumRiskApprovedTransactionAmount(
-                org.mockito.ArgumentMatchers.anyList(),
                 org.mockito.ArgumentMatchers.eq("M202607290001"),
                 org.mockito.ArgumentMatchers.eq("USD"),
                 org.mockito.ArgumentMatchers.any(),
@@ -486,7 +479,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(110_000_000L);
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper, mock(RedisStringService.class), redisTemplate, shardingDataTemplate);
+                mapper, mock(RedisStringService.class), redisTemplate, null);
 
         MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
                 cumulativeRequest("TXN-001", "10.000000"));
@@ -498,17 +491,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                     assertThat(detail.getAmountLimit()).isEqualByComparingTo("200.000000");
                 });
         assertThat(evaluation.reservations()).hasSize(1);
-        ArgumentCaptor<ShardingRangeTableContext> contextCaptor =
-                ArgumentCaptor.forClass(ShardingRangeTableContext.class);
-        verify(shardingDataTemplate).resolvePhysicalTables(contextCaptor.capture());
-        assertThat(contextCaptor.getValue()).satisfies(context -> {
-            assertThat(context.logicalTable()).isEqualTo("transaction_order");
-            assertThat(context.beginTime()).isEqualTo(LocalDateTime.of(2026, 7, 29, 0, 0));
-            assertThat(context.endTime()).isEqualTo(LocalDateTime.of(2026, 7, 30, 0, 0));
-            assertThat(context.dataSource()).isEqualTo(DataSourceName.MASTER);
-        });
         verify(mapper).sumRiskApprovedTransactionAmount(
-                List.of("transaction_order_202603"),
                 "M202607290001",
                 "USD",
                 LocalDateTime.of(2026, 7, 29, 0, 0),
@@ -522,14 +505,11 @@ class DefaultRiskListRuntimeRepositoryTests {
         log.info("测试累计基线 shadow，关键输入: 历史基线 100 USD、生命周期基线 90 USD");
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         RiskShadowComparisonMonitor monitor = mock(RiskShadowComparisonMonitor.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(cumulativeRule(41L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(any()))
-                .thenReturn(List.of("transaction_order_202607"));
         when(mapper.sumRiskApprovedTransactionAmount(
-                any(), anyString(), anyString(), any(), any(), anyString()))
+                anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(new BigDecimal("100.000000"));
         when(mapper.sumLifecycleReservationAmountUnits(
                 "M202607290001", 41L, "USD", "20260729", "TXN-BASELINE-SHADOW"))
@@ -538,13 +518,10 @@ class DefaultRiskListRuntimeRepositoryTests {
                 any(), org.mockito.ArgumentMatchers.anyList(),
                 any(), any(), any(), any(), any()))
                 .thenReturn(110_000_000L);
-        RiskEvaluationProperties properties = cumulativeProperties(
-                RiskCounterMode.LEGACY,
-                RiskBaselineMode.SHADOW);
+        RiskEvaluationProperties properties = cumulativeProperties(RiskBaselineMode.SHADOW);
         DefaultRiskListRuntimeRepository repository = repository(
                 mapper,
                 redisTemplate,
-                shardingDataTemplate,
                 properties,
                 monitor);
 
@@ -573,13 +550,10 @@ class DefaultRiskListRuntimeRepositoryTests {
         log.info("测试累计计数重建，关键输入: 已确认 LIFECYCLE 基线 75 USD、同槽计数模式");
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(cumulativeRule(42L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(any()))
-                .thenReturn(List.of("transaction_order_202607"));
         when(mapper.sumRiskApprovedTransactionAmount(
-                any(), anyString(), anyString(), any(), any(), anyString()))
+                anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(new BigDecimal("100.000000"));
         when(mapper.sumLifecycleReservationAmountUnits(
                 "M202607290001", 42L, "USD", "20260729", "TXN-LIFECYCLE-REBUILD"))
@@ -588,13 +562,10 @@ class DefaultRiskListRuntimeRepositoryTests {
                 any(), org.mockito.ArgumentMatchers.anyList(),
                 any(), any(), any(), any(), any()))
                 .thenReturn(85_000_000L);
-        RiskEvaluationProperties properties = cumulativeProperties(
-                RiskCounterMode.CLUSTER_SAFE,
-                RiskBaselineMode.LIFECYCLE);
+        RiskEvaluationProperties properties = cumulativeProperties(RiskBaselineMode.LIFECYCLE);
         DefaultRiskListRuntimeRepository repository = repository(
                 mapper,
                 redisTemplate,
-                shardingDataTemplate,
                 properties,
                 null);
 
@@ -627,17 +598,14 @@ class DefaultRiskListRuntimeRepositoryTests {
         log.info("测试累计周期边界，关键输入: 2028-02-29 23:59:59 的日、周、月规则");
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(
                         cumulativeRule(51L, "DAILY", "100.000000"),
                         cumulativeRule(52L, "WEEKLY", "200.000000"),
                         cumulativeRule(53L, "MONTHLY", "300.000000")
                 ));
-        when(shardingDataTemplate.resolvePhysicalTables(any()))
-                .thenReturn(List.of("transaction_order_202802"));
         when(mapper.sumRiskApprovedTransactionAmount(
-                any(), anyString(), anyString(), any(), any(), anyString()))
+                anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(BigDecimal.ZERO);
         when(redisTemplate.execute(
                 any(), org.mockito.ArgumentMatchers.anyList(),
@@ -647,7 +615,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 mapper,
                 mock(RedisStringService.class),
                 redisTemplate,
-                shardingDataTemplate);
+                null);
         RiskPaymentEvaluateRequestDTO request =
                 cumulativeRequest("TXN-LEAP-BOUNDARY", "1.000000");
         request.setTransactionDateTime(LocalDateTime.of(2028, 2, 29, 23, 59, 59));
@@ -655,25 +623,21 @@ class DefaultRiskListRuntimeRepositoryTests {
         MerchantLimitEvaluation evaluation =
                 repository.reserveCumulativeMerchantLimits(request);
 
-        ArgumentCaptor<ShardingRangeTableContext> contextCaptor =
-                ArgumentCaptor.forClass(ShardingRangeTableContext.class);
-        verify(shardingDataTemplate, org.mockito.Mockito.times(3))
-                .resolvePhysicalTables(contextCaptor.capture());
-        assertThat(contextCaptor.getAllValues())
-                .extracting(
-                        ShardingRangeTableContext::beginTime,
-                        ShardingRangeTableContext::endTime)
-                .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple(
-                                LocalDateTime.of(2028, 2, 29, 0, 0),
-                                LocalDateTime.of(2028, 3, 1, 0, 0)),
-                        org.assertj.core.groups.Tuple.tuple(
-                                LocalDateTime.of(2028, 2, 28, 0, 0),
-                                LocalDateTime.of(2028, 3, 6, 0, 0)),
-                        org.assertj.core.groups.Tuple.tuple(
-                                LocalDateTime.of(2028, 2, 1, 0, 0),
-                                LocalDateTime.of(2028, 3, 1, 0, 0))
-                );
+        verify(mapper).sumRiskApprovedTransactionAmount(
+                "M202607290001", "USD",
+                LocalDateTime.of(2028, 2, 29, 0, 0),
+                LocalDateTime.of(2028, 3, 1, 0, 0),
+                "TXN-LEAP-BOUNDARY");
+        verify(mapper).sumRiskApprovedTransactionAmount(
+                "M202607290001", "USD",
+                LocalDateTime.of(2028, 2, 28, 0, 0),
+                LocalDateTime.of(2028, 3, 6, 0, 0),
+                "TXN-LEAP-BOUNDARY");
+        verify(mapper).sumRiskApprovedTransactionAmount(
+                "M202607290001", "USD",
+                LocalDateTime.of(2028, 2, 1, 0, 0),
+                LocalDateTime.of(2028, 3, 1, 0, 0),
+                "TXN-LEAP-BOUNDARY");
         assertThat(evaluation.details()).hasSize(3);
         log.info("累计周期边界验证完成，结果: 闰日日/周/月区间均为左闭右开");
     }
@@ -682,15 +646,12 @@ class DefaultRiskListRuntimeRepositoryTests {
     void shouldPersistPreparingBeforeRedisMutationAndMarkReservedAfterSuccess() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         MerchantLimitReservationStateService stateService =
                 mock(MerchantLimitReservationStateService.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(cumulativeRule(11L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(any()))
-                .thenReturn(List.of("transaction_order_202603"));
         when(mapper.sumRiskApprovedTransactionAmount(
-                any(), anyString(), anyString(), any(), any(), anyString()))
+                anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(new BigDecimal("100.000000"));
         when(stateService.prepare(any())).thenAnswer(invocation -> {
             MerchantLimitReservationDO reservation = invocation.getArgument(0);
@@ -709,8 +670,6 @@ class DefaultRiskListRuntimeRepositoryTests {
                 mapper,
                 mock(RedisStringService.class),
                 redisTemplate,
-                shardingDataTemplate,
-                RiskCounterMode.LEGACY,
                 stateService);
 
         MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
@@ -727,7 +686,7 @@ class DefaultRiskListRuntimeRepositoryTests {
             assertThat(candidate.getTransactionId()).isEqualTo("TXN-LIFECYCLE-001");
             assertThat(candidate.getRiskRecordNo()).isEqualTo("RK-LIFECYCLE-001");
             assertThat(candidate.getAmountUnits()).isEqualTo(10_000_000L);
-            assertThat(candidate.getCounterMode()).isEqualTo(RiskCounterMode.LEGACY.name());
+            assertThat(candidate.getCounterMode()).isEqualTo("CLUSTER_SAFE");
         });
         InOrder order = inOrder(stateService, redisTemplate);
         order.verify(stateService).prepare(any());
@@ -742,13 +701,9 @@ class DefaultRiskListRuntimeRepositoryTests {
     void shouldUseConciseCoLocatedKeysForClusterSafeCumulativeCounter() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(cumulativeRule(11L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of("transaction_order_202603"));
         when(mapper.sumRiskApprovedTransactionAmount(
-                org.mockito.ArgumentMatchers.anyList(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any(),
@@ -768,8 +723,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 mapper,
                 mock(RedisStringService.class),
                 redisTemplate,
-                shardingDataTemplate,
-                RiskCounterMode.CLUSTER_SAFE
+                null
         );
 
         MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
@@ -790,113 +744,12 @@ class DefaultRiskListRuntimeRepositoryTests {
     }
 
     @Test
-    void shouldWriteClusterSafeCumulativeInShadowWhileUsingLegacyDecision() {
-        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
-        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
-        when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
-                .thenReturn(List.of(cumulativeRule(11L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmount(
-                org.mockito.ArgumentMatchers.anyList(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyString()))
-                .thenReturn(new BigDecimal("100.000000"));
-        when(redisTemplate.execute(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()))
-                .thenReturn(110_000_000L, 105_000_000L);
-        DefaultRiskListRuntimeRepository repository = repository(
-                mapper,
-                mock(RedisStringService.class),
-                redisTemplate,
-                shardingDataTemplate,
-                RiskCounterMode.SHADOW
-        );
-
-        MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
-                cumulativeRequest("TXN-SHADOW-001", "10.000000"));
-
-        assertThat(evaluation.details()).singleElement()
-                .satisfies(detail ->
-                        assertThat(detail.getCurrentAmount()).isEqualByComparingTo("110.000000"));
-        assertThat(evaluation.reservations()).hasSize(2);
-        assertThat(evaluation.reservations().get(0).aggregateKey())
-                .startsWith("acquiring:test:risk:runtime:merchant-limit:")
-                .doesNotContain("{");
-        assertThat(evaluation.reservations().get(1).aggregateKey())
-                .startsWith("acquiring:test:risk:merchant-limit:{")
-                .endsWith("}:total");
-    }
-
-    @Test
-    void shouldKeepLegacyCumulativeDecisionWhenShadowWriteFails() {
-        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
-        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
-        when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
-                .thenReturn(List.of(cumulativeRule(11L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmount(
-                org.mockito.ArgumentMatchers.anyList(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyString()))
-                .thenReturn(new BigDecimal("100.000000"));
-        when(redisTemplate.execute(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()))
-                .thenReturn(110_000_000L)
-                .thenThrow(new IllegalStateException("shadow unavailable"));
-        DefaultRiskListRuntimeRepository repository = repository(
-                mapper,
-                mock(RedisStringService.class),
-                redisTemplate,
-                shardingDataTemplate,
-                RiskCounterMode.SHADOW
-        );
-
-        MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
-                cumulativeRequest("TXN-SHADOW-FAILED-001", "10.000000"));
-
-        assertThat(evaluation.details()).singleElement().satisfies(detail -> {
-            assertThat(detail.getMatchResult()).isEqualTo("PASS");
-            assertThat(detail.getCurrentAmount()).isEqualByComparingTo("110.000000");
-        });
-        assertThat(evaluation.reservations()).singleElement()
-                .satisfies(reservation ->
-                        assertThat(reservation.aggregateKey())
-                                .startsWith("acquiring:test:risk:runtime:merchant-limit:"));
-    }
-
-    @Test
     void shouldRejectCumulativeMerchantLimitWithoutPersistingReservation() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(cumulativeRule(12L, "MONTHLY", "105.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of("transaction_order_202603"));
         when(mapper.sumRiskApprovedTransactionAmount(
-                org.mockito.ArgumentMatchers.anyList(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any(),
@@ -913,7 +766,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(-110_000_000L);
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper, mock(RedisStringService.class), redisTemplate, shardingDataTemplate);
+                mapper, mock(RedisStringService.class), redisTemplate, null);
 
         MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
                 cumulativeRequest("TXN-002", "10.000000"));
@@ -930,17 +783,13 @@ class DefaultRiskListRuntimeRepositoryTests {
     void shouldAuditAllCumulativeRulesBeforeReturningBlockedDecision() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(
                         cumulativeRule(31L, "DAILY", "100.000000"),
                         cumulativeRule(32L, "WEEKLY", "200.000000"),
                         cumulativeRule(33L, "MONTHLY", "300.000000")
                 ));
-        when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of("transaction_order_202603"));
         when(mapper.sumRiskApprovedTransactionAmount(
-                org.mockito.ArgumentMatchers.anyList(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any(),
@@ -957,7 +806,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(-510_000_000L);
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper, mock(RedisStringService.class), redisTemplate, shardingDataTemplate);
+                mapper, mock(RedisStringService.class), redisTemplate, null);
 
         MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
                 cumulativeRequest("TXN-003", "10.000000"));
@@ -1000,7 +849,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(1L);
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper, redis, redisTemplate, mock(ShardingDataTemplate.class));
+                mapper, redis, redisTemplate, null);
         RiskPaymentEvaluateRequestDTO requestDTO = cumulativeRequest("TXN-FREQUENCY-001", "10.000000");
         RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
         ipLookup.setMatchValueHash("ip-hash");
@@ -1018,259 +867,248 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.eq("3600"));
         assertThat(keysCaptor.getAllValues()).allSatisfy(keys -> {
             assertThat(keys).hasSize(2);
+            assertThat(String.valueOf(keys.get(0)))
+                    .startsWith("acquiring:test:risk:frequency:{")
+                    .endsWith("}:counter");
             assertThat(String.valueOf(keys.get(1)))
                     .contains(":transaction:")
                     .doesNotContain("TXN-FREQUENCY-001");
+            assertThat(hashTag(String.valueOf(keys.get(0))))
+                    .isEqualTo(hashTag(String.valueOf(keys.get(1))));
         });
         assertThat(keysCaptor.getAllValues().get(0).get(1))
                 .isEqualTo(keysCaptor.getAllValues().get(1).get(1));
     }
 
     @Test
-    void shouldUseConciseSingleZSetKeyForSlidingWindowFrequency() {
-        log.info("测试频率滑动窗口 Key，关键输入: 单 IP、1 小时窗口和已确认切换");
+    void shouldReserveConfiguredFrequencySuccessSlotBeforeAllowingTransaction() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         RedisStringService redis = mock(RedisStringService.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        RiskListMatch frequencyRule = new RiskListMatch();
-        frequencyRule.setRuleId(21L);
-        frequencyRule.setThresholdCount(5);
-        frequencyRule.setTimeWindowSeconds(3600);
-        frequencyRule.setElementsJson("""
-                {"elements":["ip"],"statisticDimension":"ELEMENT_COMBINATION","allowedCount":5}
-                """);
-        when(redis.get(anyString())).thenReturn(null);
-        when(mapper.selectActiveFrequencyRules("M202607290001")).thenReturn(List.of(frequencyRule));
-        when(redisTemplate.execute(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()))
-                .thenReturn(1L);
-        DefaultRiskListRuntimeRepository repository = repository(
-                mapper,
-                redis,
-                redisTemplate,
-                mock(ShardingDataTemplate.class),
-                RiskFrequencyMode.SLIDING_WINDOW
-        );
-        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
-        ipLookup.setMatchValueHash("ip-hash");
-
-        assertThat(repository.findFrequencyRuleHit(
-                "M202607290001",
-                cumulativeRequest("TXN-FREQUENCY-CLUSTER-001", "10.000000"),
-                null,
-                null,
-                ipLookup,
-                null,
-                null,
-                null,
-                null
-        )).isEmpty();
-
-        @SuppressWarnings("rawtypes")
-        ArgumentCaptor<List> keysCaptor = ArgumentCaptor.forClass(List.class);
-        ArgumentCaptor<String> transactionDigestCaptor =
-                ArgumentCaptor.forClass(String.class);
-        verify(redisTemplate).execute(
-                org.mockito.ArgumentMatchers.any(),
-                keysCaptor.capture(),
-                org.mockito.ArgumentMatchers.eq("3600000"),
-                transactionDigestCaptor.capture(),
-                org.mockito.ArgumentMatchers.eq("2000"));
-        assertThat(keysCaptor.getValue()).singleElement().satisfies(key ->
-                assertThat(String.valueOf(key))
-                        .startsWith("acquiring:test:risk:frequency-window:")
-                        .doesNotContain("service-risk", ":v1:", "{", "}",
-                                "TXN-FREQUENCY-CLUSTER-001"));
-        assertThat(transactionDigestCaptor.getValue())
-                .isEqualTo(RedisKeyDigest.sha256("TXN-FREQUENCY-CLUSTER-001"));
-        log.info("频率滑动窗口 Key 验证完成，结果: 单 ZSet Key 和交易摘要均符合精简规范");
-    }
-
-    @Test
-    void shouldWriteSlidingWindowInShadowWhileUsingLegacyDecision() {
-        log.info("测试频率窗口 shadow，关键输入: 固定窗口计数 6、滑动窗口计数 1");
-        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
-        RedisStringService redis = mock(RedisStringService.class);
-        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        RiskListMatch frequencyRule = new RiskListMatch();
-        frequencyRule.setRuleId(23L);
-        frequencyRule.setThresholdCount(5);
-        frequencyRule.setTimeWindowSeconds(3600);
-        frequencyRule.setDecisionAction("REJECT");
-        frequencyRule.setElementsJson("""
-                {"elements":["ip"],"statisticDimension":"ELEMENT_COMBINATION","allowedCount":5}
-                """);
-        when(redis.get(anyString())).thenReturn(null);
-        when(mapper.selectActiveFrequencyRules("M202607290001")).thenReturn(List.of(frequencyRule));
-        when(redisTemplate.execute(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList(),
-                org.mockito.ArgumentMatchers.any()))
-                .thenReturn(6L);
-        when(redisTemplate.execute(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()))
-                .thenReturn(1L);
-        DefaultRiskListRuntimeRepository repository = repository(
-                mapper,
-                redis,
-                redisTemplate,
-                mock(ShardingDataTemplate.class),
-                RiskFrequencyMode.SHADOW
-        );
-        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
-        ipLookup.setMatchValueHash("ip-hash");
-
-        assertThat(repository.findFrequencyRuleHit(
-                "M202607290001",
-                cumulativeRequest("TXN-FREQUENCY-SHADOW-001", "10.000000"),
-                null,
-                null,
-                ipLookup,
-                null,
-                null,
-                null,
-                null
-        )).hasValueSatisfying(detail -> {
-            assertThat(detail.getMatchResult()).isEqualTo("HIT");
-            assertThat(detail.getCurrentCount()).isEqualTo(6L);
-        });
-
-        @SuppressWarnings("rawtypes")
-        ArgumentCaptor<List> keysCaptor = ArgumentCaptor.forClass(List.class);
-        verify(redisTemplate).execute(
-                org.mockito.ArgumentMatchers.any(),
-                keysCaptor.capture(),
-                org.mockito.ArgumentMatchers.eq("3600"));
-        assertThat(String.valueOf(keysCaptor.getValue().get(0)))
-                .startsWith("acquiring:test:risk:runtime:frequency:")
-                .doesNotContain("{");
-        verify(redisTemplate).execute(
-                org.mockito.ArgumentMatchers.any(),
-                keysCaptor.capture(),
-                org.mockito.ArgumentMatchers.eq("3600000"),
-                org.mockito.ArgumentMatchers.eq(
-                        RedisKeyDigest.sha256("TXN-FREQUENCY-SHADOW-001")),
-                org.mockito.ArgumentMatchers.eq("2000"));
-        assertThat(String.valueOf(keysCaptor.getValue().get(0)))
-                .startsWith("acquiring:test:risk:frequency-window:")
-                .doesNotContain("{", "}");
-        log.info("频率窗口 shadow 验证完成，结果: 真实决策保持固定窗口计数 6");
-    }
-
-    @Test
-    void shouldKeepLegacyFrequencyDecisionWhenShadowWriteFails() {
-        log.info("测试频率 shadow 故障，关键输入: 固定窗口成功、滑动窗口异常");
-        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
-        RedisStringService redis = mock(RedisStringService.class);
-        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        RiskListMatch frequencyRule = new RiskListMatch();
-        frequencyRule.setRuleId(24L);
-        frequencyRule.setThresholdCount(5);
-        frequencyRule.setTimeWindowSeconds(3600);
-        frequencyRule.setDecisionAction("REJECT");
-        frequencyRule.setElementsJson("""
-                {"elements":["ip"],"statisticDimension":"ELEMENT_COMBINATION","allowedCount":5}
-                """);
-        when(redis.get(anyString())).thenReturn(null);
-        when(mapper.selectActiveFrequencyRules("M202607290001")).thenReturn(List.of(frequencyRule));
-        when(redisTemplate.execute(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList(),
-                org.mockito.ArgumentMatchers.any()))
-                .thenReturn(1L);
-        when(redisTemplate.execute(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()))
-                .thenThrow(new IllegalStateException("shadow unavailable"));
-        DefaultRiskListRuntimeRepository repository = repository(
-                mapper,
-                redis,
-                redisTemplate,
-                mock(ShardingDataTemplate.class),
-                RiskFrequencyMode.SHADOW
-        );
-        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
-        ipLookup.setMatchValueHash("ip-hash");
-
-        assertThat(repository.evaluateFrequencyRules(
-                "M202607290001",
-                cumulativeRequest("TXN-FREQUENCY-SHADOW-FAILED-001", "10.000000"),
-                null,
-                null,
-                ipLookup,
-                null,
-                null,
-                null,
-                null
-        )).singleElement().satisfies(detail -> {
-            assertThat(detail.getMatchResult()).isEqualTo("PASS");
-            assertThat(detail.getCurrentCount()).isEqualTo(1L);
-        });
-        log.info("频率 shadow 故障验证完成，结果: 保持固定窗口 PASS 决策");
-    }
-
-    @Test
-    void shouldReturnReviewWhenSlidingWindowReachesMemberCapacity() {
-        log.info("测试频率 ZSet 容量保护，关键输入: Lua 返回成员上限结果码 -1");
-        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
-        RedisStringService redis = mock(RedisStringService.class);
-        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        RiskListMatch frequencyRule = new RiskListMatch();
-        frequencyRule.setRuleId(25L);
-        frequencyRule.setThresholdCount(5);
-        frequencyRule.setTimeWindowSeconds(3_600);
-        frequencyRule.setElementsJson("""
-                {"elements":["ip"],"statisticDimension":"ELEMENT_COMBINATION","allowedCount":5}
-                """);
+        FrequencySuccessReservationService successReservationService =
+                mock(FrequencySuccessReservationService.class);
+        RiskListMatch frequencyRule = frequencyRule(23L, 5, 2);
         when(redis.get(anyString())).thenReturn(null);
         when(mapper.selectActiveFrequencyRules("M202607290001"))
                 .thenReturn(List.of(frequencyRule));
-        when(redisTemplate.execute(
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyList(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()))
-                .thenReturn(-1L);
+        when(redisTemplate.execute(any(), anyList(), anyString())).thenReturn(1L);
+        when(successReservationService.reserve(
+                "M202607290001",
+                "TXN-FREQUENCY-SUCCESS-001",
+                23L,
+                RedisKeyDigest.sha256("ip=ip-hash"),
+                2,
+                3600))
+                .thenReturn(new FrequencySuccessReservationResult(
+                        FrequencySuccessReservationResult.Outcome.RESERVED,
+                        1L));
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper,
-                redis,
-                redisTemplate,
-                mock(ShardingDataTemplate.class),
-                RiskFrequencyMode.SLIDING_WINDOW
-        );
+                mapper, redis, redisTemplate, null, successReservationService);
         RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
         ipLookup.setMatchValueHash("ip-hash");
 
         List<RiskListMatch> details = repository.evaluateFrequencyRules(
                 "M202607290001",
-                cumulativeRequest("TXN-FREQUENCY-CAPACITY-001", "10.000000"),
-                null,
-                null,
-                ipLookup,
-                null,
-                null,
-                null,
-                null
-        );
+                cumulativeRequest("TXN-FREQUENCY-SUCCESS-001", "10.000000"),
+                null, null, ipLookup, null, null, null, null);
+
+        assertThat(details).singleElement().satisfies(detail -> {
+            assertThat(detail.getMatchResult()).isEqualTo("PASS");
+            assertThat(detail.getCurrentCount()).isEqualTo(1L);
+        });
+        verify(successReservationService).reserve(
+                "M202607290001",
+                "TXN-FREQUENCY-SUCCESS-001",
+                23L,
+                RedisKeyDigest.sha256("ip=ip-hash"),
+                2,
+                3600);
+    }
+
+    @Test
+    void shouldBlockProjectedSuccessWhenFrequencySuccessLimitIsFull() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        FrequencySuccessReservationService successReservationService =
+                mock(FrequencySuccessReservationService.class);
+        RiskListMatch frequencyRule = frequencyRule(24L, 5, 1);
+        when(redis.get(anyString())).thenReturn(null);
+        when(mapper.selectActiveFrequencyRules("M202607290001"))
+                .thenReturn(List.of(frequencyRule));
+        when(redisTemplate.execute(any(), anyList(), anyString())).thenReturn(2L);
+        when(successReservationService.reserve(
+                anyString(), anyString(), eq(24L), anyString(), eq(1), eq(3600)))
+                .thenReturn(new FrequencySuccessReservationResult(
+                        FrequencySuccessReservationResult.Outcome.LIMIT_EXCEEDED,
+                        1L));
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper, redis, redisTemplate, null, successReservationService);
+        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
+        ipLookup.setMatchValueHash("ip-hash");
+
+        List<RiskListMatch> details = repository.evaluateFrequencyRules(
+                "M202607290001",
+                cumulativeRequest("TXN-FREQUENCY-SUCCESS-002", "10.000000"),
+                null, null, ipLookup, null, null, null, null);
+
+        assertThat(details).singleElement().satisfies(detail -> {
+            assertThat(detail.getMatchResult()).isEqualTo("HIT");
+            assertThat(detail.getHitElement()).isEqualTo("frequencySuccess");
+            assertThat(detail.getThresholdCount()).isEqualTo(1);
+            assertThat(detail.getCurrentCount()).isEqualTo(2L);
+            assertThat(detail.getDecisionReason()).contains("successful transaction frequency limit");
+        });
+    }
+
+    @Test
+    void shouldReviewInsteadOfAllowingWhenFrequencySuccessReservationIsUnavailable() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        FrequencySuccessReservationService successReservationService =
+                mock(FrequencySuccessReservationService.class);
+        RiskListMatch frequencyRule = frequencyRule(25L, 5, 2);
+        when(redis.get(anyString())).thenReturn(null);
+        when(mapper.selectActiveFrequencyRules("M202607290001"))
+                .thenReturn(List.of(frequencyRule));
+        when(redisTemplate.execute(any(), anyList(), anyString())).thenReturn(1L);
+        when(successReservationService.reserve(
+                anyString(), anyString(), eq(25L), anyString(), eq(2), eq(3600)))
+                .thenReturn(FrequencySuccessReservationResult.unavailable());
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper, redis, redisTemplate, null, successReservationService);
+        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
+        ipLookup.setMatchValueHash("ip-hash");
+
+        List<RiskListMatch> details = repository.evaluateFrequencyRules(
+                "M202607290001",
+                cumulativeRequest("TXN-FREQUENCY-SUCCESS-003", "10.000000"),
+                null, null, ipLookup, null, null, null, null);
 
         assertThat(details).singleElement().satisfies(detail -> {
             assertThat(detail.getMatchResult()).isEqualTo("ERROR");
             assertThat(detail.getDecisionAction()).isEqualTo("REVIEW");
-            assertThat(detail.getHitValueMasked()).isEqualTo("COUNTER_UNAVAILABLE");
+            assertThat(detail.getDecisionReason()).contains("success reservation is unavailable");
         });
-        log.info("频率 ZSet 容量保护验证完成，结果: 进入 REVIEW 且未静默放行");
+    }
+
+    @Test
+    void shouldNotReserveFrequencySuccessSlotWhenSuccessCountIsZero() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        FrequencySuccessReservationService successReservationService =
+                mock(FrequencySuccessReservationService.class);
+        RiskListMatch frequencyRule = frequencyRule(26L, 5, 0);
+        when(redis.get(anyString())).thenReturn(null);
+        when(mapper.selectActiveFrequencyRules("M202607290001"))
+                .thenReturn(List.of(frequencyRule));
+        when(redisTemplate.execute(any(), anyList(), anyString())).thenReturn(1L);
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper, redis, redisTemplate, null, successReservationService);
+        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
+        ipLookup.setMatchValueHash("ip-hash");
+
+        assertThat(repository.evaluateFrequencyRules(
+                "M202607290001",
+                cumulativeRequest("TXN-FREQUENCY-SUCCESS-004", "10.000000"),
+                null, null, ipLookup, null, null, null, null))
+                .singleElement()
+                .satisfies(detail -> assertThat(detail.getMatchResult()).isEqualTo("PASS"));
+        verifyNoInteractions(successReservationService);
+    }
+
+    @Test
+    void shouldMatchMpgsThreeDsRuleAboveInclusiveUsdThreshold() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        RiskRuleSnapshotRow rule = new RiskRuleSnapshotRow();
+        rule.setRuleId(30L);
+        rule.setChannelCode("MPGS");
+        rule.setPaymentMethod("BANK_CARD");
+        rule.setCardBrand("ALL");
+        rule.setAmountMatchType("GE");
+        rule.setAmountMin(new BigDecimal("30.00"));
+        rule.setCurrency("USD");
+        rule.setRiskCondition("ANY");
+        rule.setTriggerAction("FORCE_3DS");
+        rule.setDecisionAction("REQUIRE_3DS");
+        when(mapper.selectActiveThreeDsSnapshotRows(
+                eq("M202607290001"), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(rule));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+
+        assertThat(repository.findThreeDsRule(
+                "M202607290001",
+                "MPGS",
+                "BANK_CARD",
+                "VISA",
+                new BigDecimal("31.00"),
+                "USD",
+                "LOW"))
+                .containsSame(rule);
+    }
+
+    @Test
+    void shouldMatchMpgsThreeDsRuleAtInclusiveUsdThreshold() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        RiskRuleSnapshotRow rule = mpgsThreeDsRule();
+        when(mapper.selectActiveThreeDsSnapshotRows(
+                eq("M202607290001"), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(rule));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+
+        assertThat(repository.findThreeDsRule(
+                "M202607290001",
+                "MPGS",
+                "BANK_CARD",
+                "VISA",
+                new BigDecimal("30.00"),
+                "USD",
+                "LOW"))
+                .containsSame(rule);
+    }
+
+    @Test
+    void shouldNotMatchMpgsThreeDsRuleBelowUsdThreshold() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        when(mapper.selectActiveThreeDsSnapshotRows(
+                eq("M202607290001"), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(mpgsThreeDsRule()));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+
+        assertThat(repository.findThreeDsRule(
+                "M202607290001",
+                "MPGS",
+                "BANK_CARD",
+                "VISA",
+                new BigDecimal("19.00"),
+                "USD",
+                "LOW"))
+                .isEmpty();
+    }
+
+    @Test
+    void shouldNotMatchMpgsThreeDsRuleForAnotherRoutedChannel() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        when(mapper.selectActiveThreeDsSnapshotRows(
+                eq("M202607290001"), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(List.of(mpgsThreeDsRule()));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+
+        assertThat(repository.findThreeDsRule(
+                "M202607290001",
+                "WPGJSON",
+                "BANK_CARD",
+                "VISA",
+                new BigDecimal("31.00"),
+                "USD",
+                "LOW"))
+                .isEmpty();
     }
 
     @Test
@@ -1293,8 +1131,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 mapper,
                 redis,
                 redisTemplate,
-                mock(ShardingDataTemplate.class),
-                RiskFrequencyMode.SLIDING_WINDOW
+                null
         );
         RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
         ipLookup.setMatchValueHash("ip-hash");
@@ -1341,7 +1178,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(1L);
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper, redis, redisTemplate, mock(ShardingDataTemplate.class));
+                mapper, redis, redisTemplate, null);
         RiskPaymentEvaluateRequestDTO requestDTO = cumulativeRequest("TXN-FREQUENCY-002", "10.000000");
         requestDTO.setSubMerchantId("WRONG-CUSTOMER-ID");
         requestDTO.setRequestFingerprint("WRONG-DEVICE-FINGERPRINT");
@@ -1363,15 +1200,11 @@ class DefaultRiskListRuntimeRepositoryTests {
         List<String> counterKeys = keysCaptor.getAllValues().stream()
                 .map(keys -> String.valueOf(keys.get(0)))
                 .toList();
-        assertThat(counterKeys)
-                .containsExactlyInAnyOrder(
-                        "acquiring:test:risk:runtime:frequency:22:M202607290001:"
-                                + RedisKeyDigest.sha256("customerId=customer-hash"),
-                        "acquiring:test:risk:runtime:frequency:22:M202607290001:"
-                                + RedisKeyDigest.sha256("deviceFingerprint=device-hash")
-                )
-                .allSatisfy(key -> assertThat(key)
-                        .doesNotContain("WRONG-CUSTOMER-ID", "WRONG-DEVICE-FINGERPRINT"));
+        assertThat(counterKeys).allSatisfy(key -> assertThat(key)
+                .startsWith("acquiring:test:risk:frequency:{")
+                .endsWith("}:counter")
+                .doesNotContain("WRONG-CUSTOMER-ID", "WRONG-DEVICE-FINGERPRINT"));
+        assertThat(hashTag(counterKeys.get(0))).isNotEqualTo(hashTag(counterKeys.get(1)));
     }
 
     private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
@@ -1382,42 +1215,64 @@ class DefaultRiskListRuntimeRepositoryTests {
         return repository(mapper, redis, generationStore);
     }
 
+    private DefaultRiskListRuntimeRepository snapshotRepository(RiskRuntimeMapper mapper,
+                                                                RedisStringService redis) {
+        RiskEvaluationProperties properties = new RiskEvaluationProperties();
+        properties.setRuntimeEnabled(true);
+        properties.setRuleCacheMode(RiskRuleCacheMode.SNAPSHOT);
+        PaymentRedisProperties redisProperties = new PaymentRedisProperties();
+        redisProperties.setKeyPrefix("acquiring:test");
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(generationStore.current("risk-runtime-rule"))
+                .thenReturn(RedisCacheGenerationState.active("g-test"));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(anyString())).thenReturn(null);
+        return new DefaultRiskListRuntimeRepository(
+                provider(mapper), provider(redis), provider(generationStore), provider(redisTemplate),
+                provider(null), provider(null), properties, redisProperties);
+    }
+
+    private RiskRuleSnapshotRow sourceUrlSnapshotRow(long ruleId, String sourceHost, Boolean runtimeAllowed) {
+        RiskRuleSnapshotRow row = new RiskRuleSnapshotRow();
+        row.setRuleId(ruleId);
+        row.setFunctionCode("sourceUrl");
+        row.setFunctionName("商户来源网址限定");
+        row.setHitElement("sourceUrl");
+        row.setSourceHost(sourceHost);
+        row.setRuntimeAllowed(runtimeAllowed);
+        return row;
+    }
+
+    private RiskRuleSnapshotRow mpgsThreeDsRule() {
+        RiskRuleSnapshotRow rule = new RiskRuleSnapshotRow();
+        rule.setRuleId(30L);
+        rule.setChannelCode("MPGS");
+        rule.setPaymentMethod("BANK_CARD");
+        rule.setCardBrand("ALL");
+        rule.setAmountMatchType("GE");
+        rule.setAmountMin(new BigDecimal("30.00"));
+        rule.setCurrency("USD");
+        rule.setRiskCondition("ANY");
+        rule.setTriggerAction("FORCE_3DS");
+        rule.setDecisionAction("REQUIRE_3DS");
+        return rule;
+    }
+
     private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
                                                         RedisStringService redis,
                                                         RedisCacheGenerationStore generationStore) {
-        return repository(
-                mapper,
-                redis,
-                generationStore,
-                PaymentRedisProperties.KeyMigrationMode.LEGACY_ONLY
-        );
-    }
-
-    /**
-     * 构造指定 Redis Key 迁移模式的运行时规则仓储。
-     *
-     * @param mapper 风控运行时数据库 Mapper
-     * @param redis Redis String 服务
-     * @param generationStore 缓存代际存储
-     * @param migrationMode Redis Key 迁移模式
-     * @return 可执行规则缓存测试的仓储
-     */
-    private DefaultRiskListRuntimeRepository repository(
-            RiskRuntimeMapper mapper,
-            RedisStringService redis,
-            RedisCacheGenerationStore generationStore,
-            PaymentRedisProperties.KeyMigrationMode migrationMode) {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
         properties.setCacheHitTtlSeconds(300);
         properties.setCacheMissTtlSeconds(60);
         PaymentRedisProperties redisProperties = new PaymentRedisProperties();
         redisProperties.setKeyPrefix("acquiring:test");
-        redisProperties.setKeyMigrationMode(migrationMode);
         return new DefaultRiskListRuntimeRepository(
                 provider(mapper),
                 provider(redis),
                 provider(generationStore),
-                provider(null),
                 provider(null),
                 provider(null),
                 provider(null),
@@ -1428,80 +1283,20 @@ class DefaultRiskListRuntimeRepositoryTests {
     private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
                                                         RedisStringService redis,
                                                         StringRedisTemplate redisTemplate,
-                                                        ShardingDataTemplate shardingDataTemplate) {
-        return repository(
-                mapper,
-                redis,
-                redisTemplate,
-                shardingDataTemplate,
-                RiskCounterMode.LEGACY
-        );
+                                                        MerchantLimitReservationStateService stateService) {
+        return repository(mapper, redis, redisTemplate, stateService, null);
     }
 
-    private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
-                                                        RedisStringService redis,
-                                                        StringRedisTemplate redisTemplate,
-                                                        ShardingDataTemplate shardingDataTemplate,
-                                                        RiskCounterMode counterMode) {
-        return repository(
-                mapper,
-                redis,
-                redisTemplate,
-                shardingDataTemplate,
-                counterMode,
-                null);
-    }
-
-    /**
-     * 创建指定独立频率窗口迁移模式的仓储测试实例，累计计数保持默认 LEGACY。
-     *
-     * @param mapper               风控主库 Mapper
-     * @param redis                规则缓存服务
-     * @param redisTemplate        Redis 脚本执行器
-     * @param shardingDataTemplate 分片表解析器
-     * @param frequencyMode        频率窗口迁移模式
-     * @return 风控运行时仓储
-     */
     private DefaultRiskListRuntimeRepository repository(
             RiskRuntimeMapper mapper,
             RedisStringService redis,
             StringRedisTemplate redisTemplate,
-            ShardingDataTemplate shardingDataTemplate,
-            RiskFrequencyMode frequencyMode) {
-        RiskEvaluationProperties properties = new RiskEvaluationProperties();
-        properties.setRuntimeEnabled(true);
-        properties.setFrequencyMode(frequencyMode);
-        properties.setFrequencyCutoverConfirmed(
-                frequencyMode == RiskFrequencyMode.SLIDING_WINDOW);
-        PaymentRedisProperties redisProperties = new PaymentRedisProperties();
-        redisProperties.setKeyPrefix("acquiring:test");
-        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
-        when(generationStore.current("risk-runtime-rule"))
-                .thenReturn(RedisCacheGenerationState.active("g-test"));
-        return new DefaultRiskListRuntimeRepository(
-                provider(mapper),
-                provider(redis),
-                provider(generationStore),
-                provider(redisTemplate),
-                provider(shardingDataTemplate),
-                provider(null),
-                provider(null),
-                properties,
-                redisProperties);
-    }
-
-    private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
-                                                        RedisStringService redis,
-                                                        StringRedisTemplate redisTemplate,
-                                                        ShardingDataTemplate shardingDataTemplate,
-                                                        RiskCounterMode counterMode,
-                                                        MerchantLimitReservationStateService stateService) {
+            MerchantLimitReservationStateService stateService,
+            FrequencySuccessReservationService frequencySuccessReservationService) {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
         properties.setRuntimeEnabled(true);
         properties.setCacheHitTtlSeconds(300);
         properties.setCacheMissTtlSeconds(60);
-        properties.setCounterMode(counterMode);
-        properties.setCounterCutoverConfirmed(counterMode == RiskCounterMode.CLUSTER_SAFE);
         PaymentRedisProperties redisProperties = new PaymentRedisProperties();
         redisProperties.setKeyPrefix("acquiring:test");
         RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
@@ -1512,26 +1307,35 @@ class DefaultRiskListRuntimeRepositoryTests {
                 provider(redis),
                 provider(generationStore),
                 provider(redisTemplate),
-                provider(shardingDataTemplate),
                 provider(stateService),
+                provider(frequencySuccessReservationService),
                 provider(null),
                 properties,
                 redisProperties);
     }
 
+    private RiskListMatch frequencyRule(long ruleId, int allowedCount, int successCount) {
+        RiskListMatch rule = new RiskListMatch();
+        rule.setRuleId(ruleId);
+        rule.setThresholdCount(allowedCount);
+        rule.setTimeWindowSeconds(3600);
+        rule.setDecisionAction("REJECT");
+        rule.setElementsJson("{\"elements\":[\"ip\"],"
+                + "\"statisticDimension\":\"ELEMENT_COMBINATION\","
+                + "\"allowedCount\":" + allowedCount + ","
+                + "\"successCount\":" + successCount + "}");
+        return rule;
+    }
+
     /**
-     * 创建指定累计计数和基线迁移模式的测试配置，并同步打开对应生产切换门禁。
+     * 创建指定数据库基线模式的测试配置，并同步打开对应生产切换门禁。
      *
-     * @param counterMode  Redis 累计计数迁移模式
      * @param baselineMode 数据库累计基线迁移模式
      * @return 可用于仓储测试的风控配置
      */
-    private RiskEvaluationProperties cumulativeProperties(RiskCounterMode counterMode,
-                                                          RiskBaselineMode baselineMode) {
+    private RiskEvaluationProperties cumulativeProperties(RiskBaselineMode baselineMode) {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
         properties.setRuntimeEnabled(true);
-        properties.setCounterMode(counterMode);
-        properties.setCounterCutoverConfirmed(counterMode == RiskCounterMode.CLUSTER_SAFE);
         properties.setBaselineMode(baselineMode);
         properties.setBaselineCutoverConfirmed(baselineMode == RiskBaselineMode.LIFECYCLE);
         return properties;
@@ -1542,7 +1346,6 @@ class DefaultRiskListRuntimeRepositoryTests {
      *
      * @param mapper                风控主库 Mapper
      * @param redisTemplate         Redis 脚本执行器
-     * @param shardingDataTemplate  分片物理表解析器
      * @param properties            风控迁移配置
      * @param monitor               shadow 汇总监控器，允许为空
      * @return 风控运行时仓储
@@ -1550,7 +1353,6 @@ class DefaultRiskListRuntimeRepositoryTests {
     private DefaultRiskListRuntimeRepository repository(
             RiskRuntimeMapper mapper,
             StringRedisTemplate redisTemplate,
-            ShardingDataTemplate shardingDataTemplate,
             RiskEvaluationProperties properties,
             RiskShadowComparisonMonitor monitor) {
         PaymentRedisProperties redisProperties = new PaymentRedisProperties();
@@ -1563,7 +1365,6 @@ class DefaultRiskListRuntimeRepositoryTests {
                 provider(mock(RedisStringService.class)),
                 provider(generationStore),
                 provider(redisTemplate),
-                provider(shardingDataTemplate),
                 provider(null),
                 provider(monitor),
                 properties,

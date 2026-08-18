@@ -35,7 +35,7 @@ public class HostedCheckoutPaymentResultVO implements Serializable {
     /** 支付处理中建议的轮询配置。 */
     private PollingVO polling;
 
-    /** 商户返回和取消动作地址。 */
+    /** 终态时可用的浏览器 Form POST 动作；未配置 redirectUrl 时为空。 */
     private ActionVO actions;
 
     /**
@@ -85,6 +85,9 @@ public class HostedCheckoutPaymentResultVO implements Serializable {
         /** 3DS 动作类型，例如 HTML 桥接或外部跳转。 */
         private String actionType;
 
+        /** 当前 HTML 所属 3DS 阶段，供收银台选择 Method 或 Challenge 编排。 */
+        private String phase;
+
         /** 受控 3DS HTML 内容，前端必须按专用桥接页面处理，禁止拼接脚本。 */
         private String html;
 
@@ -93,6 +96,9 @@ public class HostedCheckoutPaymentResultVO implements Serializable {
 
         /** 3DS 动作超时时间，单位秒。 */
         private Integer timeoutSeconds;
+
+        /** 下一浏览器阶段重新加密卡数据所需的新公钥元数据和 nonce。 */
+        private HostedCheckoutSessionVO.CardEncryptionVO cardEncryption;
     }
 
     /**
@@ -111,9 +117,6 @@ public class HostedCheckoutPaymentResultVO implements Serializable {
 
         /** 当前失败是否允许在同一会话内重试。 */
         private Boolean retryAllowed;
-
-        /** 当前会话剩余支付尝试次数。 */
-        private Integer remainingAttemptCount;
     }
 
     /**
@@ -134,18 +137,34 @@ public class HostedCheckoutPaymentResultVO implements Serializable {
         private Integer maxIntervalSeconds;
     }
 
-    /**
-     * 支付结束后允许付款人执行的商户页面动作。
-     */
+    /** 支付终态后允许付款人执行的商户页面动作。 */
     @Data
     public static class ActionVO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 支付完成后返回商户页面的地址。 */
-        private String returnUrl;
+        /** 固定 POST，自动返回和按钮返回必须使用同一方法。 */
+        private String method;
+        /** 商户创建会话时提供的结果页地址。 */
+        private String redirectUrl;
+        /** 自动提交前的倒计时秒数。 */
+        private Integer delaySeconds;
+        /** 文档 8.4 定义的九个表单字段。 */
+        private FormFieldsVO formFields;
+    }
 
-        /** 付款取消后返回商户页面的地址。 */
-        private String cancelUrl;
+    /** 浏览器 Form POST 的非权威交易摘要。 */
+    @Data
+    public static class FormFieldsVO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String merchantId;
+        private String orderNo;
+        private String orderId;
+        private String transactionId;
+        private String transactionType;
+        private String transactionStatus;
+        private OffsetDateTime transactionDateTime;
+        private String code;
+        private String message;
     }
 }

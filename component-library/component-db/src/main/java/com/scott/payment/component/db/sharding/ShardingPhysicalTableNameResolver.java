@@ -27,7 +27,7 @@ public class ShardingPhysicalTableNameResolver {
      * @param quarter 目标季度
      * @return 安全物理表名
      */
-    public String physicalTableName(PaymentQuarterShardingProperties.TableRule rule, ShardingQuarter quarter) {
+    public String physicalTableName(TransactionShardingGovernanceProperties.TableRule rule, ShardingQuarter quarter) {
         if (rule == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding table rule is required");
         }
@@ -49,7 +49,7 @@ public class ShardingPhysicalTableNameResolver {
      * @param rule 单表分表规则
      * @return 安全模板表名
      */
-    public String templateTableName(PaymentQuarterShardingProperties.TableRule rule) {
+    public String templateTableName(TransactionShardingGovernanceProperties.TableRule rule) {
         if (rule == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding table rule is required");
         }
@@ -66,7 +66,7 @@ public class ShardingPhysicalTableNameResolver {
      * @param rule 单表分表规则
      * @return 安全字段名
      */
-    public String idColumnName(PaymentQuarterShardingProperties.TableRule rule) {
+    public String idColumnName(TransactionShardingGovernanceProperties.TableRule rule) {
         String idColumn = rule == null ? null : rule.getIdColumn();
         if (idColumn == null || idColumn.isBlank()) {
             idColumn = "id";

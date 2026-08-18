@@ -33,6 +33,56 @@ public class HostedCheckoutSessionVO implements Serializable {
     /** 会话有效期、重试次数和轮询配置。 */
     private CheckoutVO checkout;
 
+    /** 商户上送的付款人预填信息。 */
+    private PayerInfoVO payerInfo;
+
+    /** 商户上送的账单预填信息。 */
+    private BillingInfoVO billingInfo;
+
+    /** 最近一次支付尝试结果。 */
+    private HostedCheckoutPaymentResultVO paymentResult;
+
+    /** 卡数据加密公钥元数据和一次性 nonce，仅可支付状态返回。 */
+    private CardEncryptionVO cardEncryption;
+
+    @Data
+    public static class CardEncryptionVO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String algorithm;
+        private String keyId;
+        private String publicKey;
+        private String nonce;
+    }
+
+    @Data
+    public static class PayerInfoVO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String payerId;
+        private String email;
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+    }
+
+    @Data
+    public static class BillingInfoVO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String firstName;
+        private String lastName;
+        private String email;
+        private String phone;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+    }
+
     /**
      * 付款页公开展示的商户资料。
      */
@@ -112,9 +162,6 @@ public class HostedCheckoutSessionVO implements Serializable {
 
         /** 当前会话是否允许支付失败后重试。 */
         private Boolean retryAllowed;
-
-        /** 当前会话剩余支付尝试次数。 */
-        private Integer remainingAttemptCount;
 
         /** 状态轮询建议间隔，单位秒。 */
         private Integer pollingIntervalSeconds;

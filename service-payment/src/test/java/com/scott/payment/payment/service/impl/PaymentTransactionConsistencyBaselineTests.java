@@ -3,6 +3,8 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
@@ -149,10 +151,10 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     /**
-     * T-P0-03：相同 merchantOrderNo 和相同业务参数顺序重复请求，不应再次调用 Payment。
+     * T-P0-03：相同 orderInfo.orderId 重复请求必须返回原交易，不应再次调用 Payment。
      */
     @Test
-    void shouldReturnOriginalTransactionForSequentialDuplicateSameOrderAndSameParams() {
+    void shouldReturnOriginalTransactionForSequentialDuplicateSameOrderId() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
         CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
@@ -162,18 +164,196 @@ class PaymentTransactionConsistencyBaselineTests {
 
         PaymentCreateResultDTO first = service.createPayment(baseCommand());
         PaymentCreateCommandDTO duplicate = baseCommand();
-        duplicate.setMerchantOrderId("REQ202607230002");
         PaymentCreateResultDTO second = service.createPayment(duplicate);
 
         assertThat(second.getTransactionId())
-                .as("T-P0-03 duplicate merchantOrderNo must return original transaction")
+                .as("T-P0-03 duplicate orderInfo.orderId must return original transaction")
                 .isEqualTo(first.getTransactionId());
         assertThat(channelService.paymentInvokeCount())
-                .as("T-P0-03 duplicate merchantOrderNo must not call MPGS Payment again")
+                .as("T-P0-03 duplicate orderInfo.orderId must not call MPGS Payment again")
                 .isEqualTo(1);
         assertThat(recordService.initialRecordCount)
-                .as("T-P0-03 duplicate merchantOrderNo must not create second initial transaction fact")
+                .as("T-P0-03 duplicate orderInfo.orderId must not create second initial transaction fact")
                 .isEqualTo(1);
+    }
+
+    /**
+     * T-P0-03B：同一商户订单上一笔明确失败后，新的 orderInfo.orderId 可以创建新的支付尝试。
+     */
+    @Test
+    void shouldAllowNewOrderIdAfterPreviousMerchantOrderAttemptFailed() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.FAILED));
+        PaymentTransactionServiceImpl service = newService(idempotencyService, recordService, outboxService, channelService);
+
+        PaymentCreateResultDTO first = service.createPayment(baseCommand());
+        PaymentCreateCommandDTO retry = baseCommand();
+        retry.setMerchantOrderId("REQ202607230002");
+        PaymentCreateResultDTO second = service.createPayment(retry);
+
+        assertThat(first.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(second.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(second.getTransactionId())
+                .as("T-P0-03B a new orderInfo.orderId after FAILED must create a new platform transaction")
+                .isNotEqualTo(first.getTransactionId());
+        assertThat(channelService.paymentInvokeCount())
+                .as("T-P0-03B the new attempt must reach the payment channel once")
+                .isEqualTo(2);
+        assertThat(recordService.initialRecordCount)
+                .as("T-P0-03B both failed attempts must remain independently auditable")
+                .isEqualTo(2);
+    }
+
+    /**
+     * T-P0-03C：上一笔仍在处理中时，不同 orderInfo.orderId 不得创建第二条活跃支付流。
+     */
+    @Test
+    void shouldRejectNewOrderIdWhileMerchantOrderFlowIsProcessing() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(idempotencyService, recordService, outboxService, channelService);
+
+        service.createPayment(baseCommand());
+        PaymentCreateCommandDTO retry = baseCommand();
+        retry.setMerchantOrderId("REQ202607230002");
+
+        assertThatThrownBy(() -> service.createPayment(retry))
+                .as("T-P0-03C a different orderInfo.orderId must not bypass an active merchant order flow")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.initialRecordCount).isEqualTo(1);
+    }
+
+    /**
+     * T-P0-03D：同一商户订单的不同 orderInfo.orderId 并发竞争时，只允许一条支付流进入渠道。
+     */
+    @Test
+    void shouldAllowOnlyOneActiveFlowForConcurrentDifferentOrderIds() throws InterruptedException {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.PROCESSING));
+        channelService.blockFirstPayment = true;
+        PaymentTransactionServiceImpl service = newService(idempotencyService, recordService, outboxService, channelService);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<Throwable> firstError = new AtomicReference<>();
+        AtomicReference<Throwable> secondError = new AtomicReference<>();
+
+        Thread firstThread = new Thread(
+                () -> runAfterStart(ready, start, () -> service.createPayment(baseCommand()), firstError),
+                "merchant-order-flow-first");
+        Thread secondThread = new Thread(() -> runAfterStart(ready, start, () -> {
+            PaymentCreateCommandDTO competing = baseCommand();
+            competing.setMerchantOrderId("REQ202607230002");
+            service.createPayment(competing);
+        }, secondError), "merchant-order-flow-second");
+        firstThread.start();
+        secondThread.start();
+        assertThat(ready.await(2, TimeUnit.SECONDS)).isTrue();
+        start.countDown();
+        firstThread.join(3000);
+        secondThread.join(3000);
+
+        int successfulRequests = (firstError.get() == null ? 1 : 0) + (secondError.get() == null ? 1 : 0);
+        assertThat(successfulRequests).as("only one distinct request may acquire the merchant order flow").isEqualTo(1);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.initialRecordCount).isEqualTo(1);
+    }
+
+    /** SUCCESS 已占用同一 merchantId + merchantOrderNo 时，新 orderInfo.orderId 必须被拒绝。 */
+    @Test
+    void shouldRejectNewOrderIdAfterMerchantOrderFlowSucceeded() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, new CapturingTransactionEventOutboxService(), channelService);
+
+        service.createPayment(baseCommand());
+        PaymentCreateCommandDTO retry = baseCommand();
+        retry.setMerchantOrderId("REQ202607230002");
+
+        assertThatThrownBy(() -> service.createPayment(retry))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.initialRecordCount).isEqualTo(1);
+    }
+
+    /** Payment、Authorization、Pre-Authorization 必须共用同一商户订单支付流守卫。 */
+    @Test
+    void shouldShareMerchantOrderFlowAcrossInitialTransactionTypes() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, new CapturingTransactionEventOutboxService(), channelService);
+
+        service.createPayment(baseCommand());
+        PaymentCreateCommandDTO authorization = baseCommand();
+        authorization.setMerchantOrderId("AUTH-REQUEST-2");
+        PaymentCreateCommandDTO preAuthorization = baseCommand();
+        preAuthorization.setMerchantOrderId("PREAUTH-REQUEST-3");
+
+        assertThatThrownBy(() -> service.createAuthorization(authorization))
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> service.createPreAuthorization(preAuthorization))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.initialRecordCount).isEqualTo(1);
+    }
+
+    /** 渠道异步确认 FAILED 后，新 orderInfo.orderId 可以重新占用同一商户订单支付流。 */
+    @Test
+    void shouldAllowNewOrderIdAfterAsynchronousFailure() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, new CapturingTransactionEventOutboxService(), channelService);
+
+        PaymentCreateResultDTO first = service.createPayment(baseCommand());
+        assertThat(idempotencyService.synchronizeInitialTransactionStatus(
+                first.getTransactionId(), PaymentTransactionStatusEnum.FAILED.getCode())).isEqualTo(2);
+        PaymentCreateCommandDTO retry = baseCommand();
+        retry.setMerchantOrderId("REQ202607230002");
+        PaymentCreateResultDTO second = service.createPayment(retry);
+
+        assertThat(second.getTransactionId()).isNotEqualTo(first.getTransactionId());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(2);
+        assertThat(recordService.initialRecordCount).isEqualTo(2);
+    }
+
+    /** 渠道异步确认 SUCCESS 后，同一商户订单不得再创建新的首次交易。 */
+    @Test
+    void shouldRejectNewOrderIdAfterAsynchronousSuccess() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, new CapturingTransactionEventOutboxService(), channelService);
+
+        PaymentCreateResultDTO first = service.createPayment(baseCommand());
+        assertThat(idempotencyService.synchronizeInitialTransactionStatus(
+                first.getTransactionId(), PaymentTransactionStatusEnum.SUCCESS.getCode())).isEqualTo(2);
+        PaymentCreateCommandDTO retry = baseCommand();
+        retry.setMerchantOrderId("REQ202607230002");
+
+        assertThatThrownBy(() -> service.createPayment(retry))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.initialRecordCount).isEqualTo(1);
     }
 
     /**
@@ -198,9 +378,7 @@ class PaymentTransactionConsistencyBaselineTests {
         Thread firstThread = new Thread(() -> runAfterStart(ready, start, () -> first.set(service.createPayment(baseCommand())), firstError),
                 "baseline-payment-first");
         Thread secondThread = new Thread(() -> runAfterStart(ready, start, () -> {
-            PaymentCreateCommandDTO duplicate = baseCommand();
-            duplicate.setMerchantOrderId("REQ202607230005");
-            second.set(service.createPayment(duplicate));
+            second.set(service.createPayment(baseCommand()));
         }, secondError), "baseline-payment-second");
         firstThread.start();
         secondThread.start();
@@ -261,7 +439,6 @@ class PaymentTransactionConsistencyBaselineTests {
 
         PaymentCreateResultDTO first = service.createPayment(baseCommand());
         PaymentCreateCommandDTO duplicate = baseCommand();
-        duplicate.setMerchantOrderId("REQ202607230004");
         PaymentCreateResultDTO second = service.createPayment(duplicate);
 
         assertThat(first.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
@@ -282,9 +459,14 @@ class PaymentTransactionConsistencyBaselineTests {
         RecoverableTransactionRecordService recordService = new RecoverableTransactionRecordService(PaymentTransactionStatusEnum.SUCCESS.getCode());
         CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
         QueryOnlyPaymentChannelInvokeService channelService = new QueryOnlyPaymentChannelInvokeService(ChannelTradeStatus.SUCCESS);
+        DefaultTransactionChannelMatchResultTransactionService resultTransactionService =
+                new DefaultTransactionChannelMatchResultTransactionService(
+                        recordService,
+                        new DefaultTransactionLifecycleEventService(outboxService));
         TransactionChannelMatchService matchService = new DefaultTransactionChannelMatchService(
                 recordService,
                 channelService,
+                resultTransactionService,
                 restoreRouteService(),
                 new DefaultChannelTransactionStatusResolver());
 
@@ -314,10 +496,16 @@ class PaymentTransactionConsistencyBaselineTests {
     @Test
     void shouldRecoverTimeoutPaymentAsFailedByQueryingOriginalChannelRequest() {
         RecoverableTransactionRecordService recordService = new RecoverableTransactionRecordService(PaymentTransactionStatusEnum.FAILED.getCode());
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
         QueryOnlyPaymentChannelInvokeService channelService = new QueryOnlyPaymentChannelInvokeService(ChannelTradeStatus.FAILED);
+        DefaultTransactionChannelMatchResultTransactionService resultTransactionService =
+                new DefaultTransactionChannelMatchResultTransactionService(
+                        recordService,
+                        new DefaultTransactionLifecycleEventService(outboxService));
         TransactionChannelMatchService matchService = new DefaultTransactionChannelMatchService(
                 recordService,
                 channelService,
+                resultTransactionService,
                 restoreRouteService(),
                 new DefaultChannelTransactionStatusResolver());
 
@@ -344,7 +532,6 @@ class PaymentTransactionConsistencyBaselineTests {
 
         PaymentCreateResultDTO first = service.createPayment(baseCommand());
         PaymentCreateCommandDTO duplicate = baseCommand();
-        duplicate.setMerchantOrderId("REQ202607230006");
         PaymentCreateResultDTO second = service.createPayment(duplicate);
 
         assertThat(first.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PENDING.getCode());
@@ -601,6 +788,112 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
     }
 
+    /** Capture 和 PreAuth Completion 必须复用原交易渠道及 MID，禁止按当前绑定重新选路。 */
+    @Test
+    void shouldRestoreOriginalChannelMidForCaptureWithoutRerouting() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        AtomicInteger restoreCount = new AtomicInteger();
+        PaymentChannelRouteService sourceRouteService = new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                throw new AssertionError("capture must not reroute by current merchant binding");
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                restoreCount.incrementAndGet();
+                assertThat(channelCode).isEqualTo("MPGS");
+                assertThat(channelId).isEqualTo(101L);
+                assertThat(midConfigId).isEqualTo(1001L);
+                assertThat(fallbackMidNo).isEqualTo("TEST-MID");
+                PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed(channelCode);
+                routeResultDTO.setChannelId(channelId);
+                routeResultDTO.setMidConfigId(midConfigId);
+                routeResultDTO.setMidNo(fallbackMidNo);
+                return routeResultDTO;
+            }
+        };
+        DefaultCaptureTransactionPreparationService preparationService =
+                new DefaultCaptureTransactionPreparationService(
+                        isoDictionaryService(),
+                        sourceRouteService,
+                        idempotencyService,
+                        new CapturingTransactionEventOutboxService(),
+                        recordService,
+                        new DefaultTransactionStateMachineService());
+
+        CapturePreparationResultDTO resultDTO = preparationService.prepareCapture(
+                followUpCommand("CAPTURE-ORIGINAL-MID", new BigDecimal("5.00")),
+                "200001:TX202607230001:CAPTURE-ORIGINAL-MID:CAPTURE",
+                PaymentTransactionTypeEnum.CAPTURE);
+
+        assertThat(restoreCount).hasValue(1);
+        assertThat(resultDTO.getRouteResultDTO().getChannelCode()).isEqualTo("MPGS");
+        assertThat(resultDTO.getRouteResultDTO().getMidConfigId()).isEqualTo(1001L);
+    }
+
+    /** 原 MID 不可用时仍须落失败动作和幂等快照，重复请求不得再次尝试渠道恢复。 */
+    @Test
+    void shouldPersistF414CaptureRejectionWithoutCallingChannel() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        AtomicInteger restoreCount = new AtomicInteger();
+        PaymentChannelRouteService unavailableRouteService = new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                throw new AssertionError("capture rejection must not reroute");
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                restoreCount.incrementAndGet();
+                throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
+            }
+        };
+        DefaultCaptureTransactionPreparationService preparationService =
+                new DefaultCaptureTransactionPreparationService(
+                        isoDictionaryService(),
+                        unavailableRouteService,
+                        idempotencyService,
+                        new CapturingTransactionEventOutboxService(),
+                        recordService,
+                        new DefaultTransactionStateMachineService());
+        PaymentCreateCommandDTO command = followUpCommand("CAPTURE-F414", new BigDecimal("5.00"));
+        String idempotencyKey = "200001:TX202607230001:CAPTURE-F414:CAPTURE";
+
+        CapturePreparationResultDTO rejected = preparationService.prepareCapture(
+                command, idempotencyKey, PaymentTransactionTypeEnum.CAPTURE);
+        CapturePreparationResultDTO duplicate = preparationService.prepareCapture(
+                followUpCommand("CAPTURE-F414", new BigDecimal("5.00")),
+                idempotencyKey,
+                PaymentTransactionTypeEnum.CAPTURE);
+
+        assertThat(rejected.isCallChannel()).isFalse();
+        assertThat(rejected.getResultDTO().getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(rejected.getResultDTO().getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(rejected.getResultDTO().getMerchantResponseCode()).isEqualTo("F414");
+        assertThat(rejected.getResultDTO().getMerchantResponseMessage()).isEqualTo("Original transaction rejected.");
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(recordService.channelRequestCount).isZero();
+        assertThat(idempotencyService.completedCount).isEqualTo(1);
+        assertThat(duplicate.isDuplicate()).isTrue();
+        assertThat(duplicate.getResultDTO().getTransactionId()).isEqualTo(rejected.getResultDTO().getTransactionId());
+        assertThat(restoreCount).hasValue(1);
+    }
+
     /**
      * 05C-CAP-02：Capture 渠道成功后结果事务失败，重复同动作号只能返回已提交的 PROCESSING 事实，不能重新发起 Capture。
      */
@@ -794,6 +1087,56 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
         assertThat(recordService.lastFollowUpOperation.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.REFUND.getCode());
         assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
+    }
+
+    /** 退款必须复用原成功交易的渠道和 MID，禁止按 REFUND 能力重新执行商户路由。 */
+    @Test
+    void shouldRestoreOriginalChannelMidForRefundWithoutRerouting() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        AtomicInteger restoreCount = new AtomicInteger();
+        PaymentChannelRouteService sourceRouteService = new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                throw new AssertionError("refund must not reroute by REFUND capability");
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                restoreCount.incrementAndGet();
+                assertThat(channelCode).isEqualTo("MPGS");
+                assertThat(channelId).isEqualTo(101L);
+                assertThat(midConfigId).isEqualTo(1001L);
+                assertThat(fallbackMidNo).isEqualTo("TEST-MID");
+                PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed(channelCode);
+                routeResultDTO.setChannelId(channelId);
+                routeResultDTO.setMidConfigId(midConfigId);
+                routeResultDTO.setMidNo(fallbackMidNo);
+                return routeResultDTO;
+            }
+        };
+        DefaultRefundTransactionPreparationService preparationService =
+                new DefaultRefundTransactionPreparationService(
+                        isoDictionaryService(),
+                        sourceRouteService,
+                        idempotencyService,
+                        new CapturingTransactionEventOutboxService(),
+                        recordService,
+                        new DefaultTransactionStateMachineService());
+
+        RefundPreparationResultDTO resultDTO = preparationService.prepareRefund(
+                followUpCommand("REFUND-ORIGINAL-MID", new BigDecimal("5.00")),
+                "200001:TX202607230001:REFUND-ORIGINAL-MID:REFUND");
+
+        assertThat(restoreCount).hasValue(1);
+        assertThat(resultDTO.getRouteResultDTO().getChannelCode()).isEqualTo("MPGS");
+        assertThat(resultDTO.getRouteResultDTO().getMidConfigId()).isEqualTo(1001L);
     }
 
     /**
@@ -1704,6 +2047,8 @@ class PaymentTransactionConsistencyBaselineTests {
         commandDTO.setAmount(amount);
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
         transactionInfoDTO.setSourceTransactionId("TX202607230001");
+        transactionInfoDTO.setSourceTransactionDateTime(TRANSACTION_TIME);
+        transactionInfoDTO.setRootTransactionDateTime(TRANSACTION_TIME);
         commandDTO.setTransactionInfo(transactionInfoDTO);
         return commandDTO;
     }
@@ -1750,7 +2095,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 outboxService,
                 recordService,
                 new DefaultTransactionStateMachineService(),
-                List.of());
+                new AlwaysAvailableDistributedLockService());
     }
 
     private PaymentTransactionServiceImpl newService(InMemoryTransactionIdempotencyService idempotencyService,
@@ -1882,7 +2227,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 recordService,
                 new DefaultTransactionStateMachineService(),
                 new DefaultChannelTransactionStatusResolver(),
-                List.of(),
+                new AlwaysAvailableDistributedLockService(),
                 new PaymentRedisProperties());
     }
 
@@ -1992,14 +2337,29 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     private PaymentChannelRouteService routeService() {
-        return commandDTO -> {
-            PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
-            routeResultDTO.setChannelId(101L);
-            routeResultDTO.setMidConfigId(1001L);
-            routeResultDTO.setMidNo("TEST-MID");
-            routeResultDTO.setRequestedCurrency(commandDTO.getCurrency());
-            routeResultDTO.setRoutedCurrency(commandDTO.getCurrency());
-            return routeResultDTO;
+        return new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
+                routeResultDTO.setChannelId(101L);
+                routeResultDTO.setMidConfigId(1001L);
+                routeResultDTO.setMidNo("TEST-MID");
+                routeResultDTO.setRequestedCurrency(commandDTO.getCurrency());
+                routeResultDTO.setRoutedCurrency(commandDTO.getCurrency());
+                return routeResultDTO;
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed(channelCode);
+                routeResultDTO.setChannelId(channelId);
+                routeResultDTO.setMidConfigId(midConfigId);
+                routeResultDTO.setMidNo(fallbackMidNo);
+                return routeResultDTO;
+            }
         };
     }
 
@@ -2139,14 +2499,6 @@ class PaymentTransactionConsistencyBaselineTests {
         }
 
         /**
-         * 组合商户与商户订单号生成初始交易键，用于验证首次交易去重。
-         */
-        @Override
-        public String buildInitialTransactionKey(String merchantId, String merchantOrderNo) {
-            return String.join(":", merchantId, merchantOrderNo, "INITIAL");
-        }
-
-        /**
          * 从内存记录表读取幂等事实，模拟数据库按作用域和业务键查询。
          */
         @Override
@@ -2185,6 +2537,37 @@ class PaymentTransactionConsistencyBaselineTests {
             }
             records.put(storageKey, record);
             return true;
+        }
+
+        /** 以同步临界区模拟 FAILED + version CAS 重新占用商户订单流。 */
+        @Override
+        public synchronized boolean tryRestartFailedFlow(TransactionIdempotencyDO existingRecord,
+                                                         TransactionIdempotencyDO replacement) {
+            String storageKey = existingRecord.getIdempotencyScope() + ":" + existingRecord.getIdempotencyKey();
+            TransactionIdempotencyDO current = records.get(storageKey);
+            if (current != existingRecord
+                    || !PaymentTransactionStatusEnum.FAILED.getCode().equals(current.getTransactionStatus())) {
+                return false;
+            }
+            replacement.setId(existingRecord.getId());
+            replacement.setVersion(existingRecord.getVersion() == null ? 1 : existingRecord.getVersion() + 1);
+            records.put(storageKey, replacement);
+            return true;
+        }
+
+        /** 模拟渠道回调/主动查询把请求幂等记录和商户订单流守卫同时推进到终态。 */
+        @Override
+        public synchronized int synchronizeInitialTransactionStatus(String transactionId, String transactionStatus) {
+            int updated = 0;
+            for (TransactionIdempotencyDO record : records.values()) {
+                if (transactionId.equals(record.getTransactionId())
+                        && !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(record.getTransactionStatus())
+                        && !PaymentTransactionStatusEnum.FAILED.getCode().equals(record.getTransactionStatus())) {
+                    record.setTransactionStatus(transactionStatus);
+                    updated++;
+                }
+            }
+            return updated;
         }
 
         /**
@@ -2627,6 +3010,9 @@ class PaymentTransactionConsistencyBaselineTests {
             operationDO.setTransactionAmount(new BigDecimal("12.34"));
             operationDO.setTransactionCurrency("USD");
             operationDO.setChannelCode("MPGS");
+            operationDO.setChannelId(101L);
+            operationDO.setChannelMidConfigId(1001L);
+            operationDO.setChannelTerminalId("TEST-MID");
             operationDO.setChannelOrderNo(sourceTransactionId);
             operationDO.setChannelTransactionId("CH-" + sourceTransactionId);
             operationDO.setTransactionDateTime(TRANSACTION_TIME);
@@ -2639,7 +3025,9 @@ class PaymentTransactionConsistencyBaselineTests {
         @Override
         public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
                                                                           String merchantOrderNo,
-                                                                          String transactionId) {
+                                                                          String transactionId,
+                                                                          LocalDateTime transactionDateTime,
+                                                                          LocalDateTime rootTransactionDateTime) {
             if (lastInitialOperation == null
                     || !lastInitialOperation.getMerchantId().equals(merchantId)
                     || !lastInitialOperation.getMerchantOrderNo().equals(merchantOrderNo)) {
@@ -3102,6 +3490,30 @@ class PaymentTransactionConsistencyBaselineTests {
                     resultDTO,
                     riskDecisionEnum,
                     currencyExponent);
+        }
+
+        @Override
+        public boolean claimInitialChannelSubmission(String requestId, LocalDateTime transactionDateTime) {
+            return true;
+        }
+
+        @Override
+        public boolean recordInitialPreChannelFailure(PaymentCreateCommandDTO commandDTO,
+                                                      PaymentRouteResultDTO routeResultDTO,
+                                                      PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                      PaymentCreateResultDTO resultDTO,
+                                                      PaymentRiskDecisionEnum riskDecisionEnum,
+                                                      int currencyExponent) {
+            recordInitialChannelResult(commandDTO, routeResultDTO, invokeResultDTO, resultDTO,
+                    riskDecisionEnum, currencyExponent);
+            return true;
+        }
+
+        @Override
+        public void markThreeDsIndicator(String transactionId,
+                                         LocalDateTime transactionDateTime,
+                                         String indicator) {
+            // This baseline fixture does not persist payment-method capability metadata.
         }
     }
 
@@ -3649,7 +4061,11 @@ class PaymentTransactionConsistencyBaselineTests {
          * 返回唯一预置动作单，模拟商户订单维度查询命中。
          */
         @Override
-        public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId, String merchantOrderNo, String transactionId) {
+        public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
+                                                                          String merchantOrderNo,
+                                                                          String transactionId,
+                                                                          LocalDateTime transactionDateTime,
+                                                                          LocalDateTime rootTransactionDateTime) {
             return List.of(operation);
         }
 

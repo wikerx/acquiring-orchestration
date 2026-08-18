@@ -59,8 +59,17 @@ flowchart TD
     OpenApi --> Payout["service-payout"]
     Admin --> Job["service-job"]
 
-    Payment -. 当前仅接口与模型骨架 .-> PaymentChannel["payment-channel-library"]
-    Payout -. 当前仅接口与模型骨架 .-> PayoutChannel["payout-channel-library"]
+    Payment --> PaymentApi["payment-channel-api"]
+    Payment --> PaymentCore["payment-channel-core"]
+    Payment -. 运行时 Provider .-> Mpgs["payment-channel-mpgs"]
+    Payment -. 运行时 Provider .-> Worldpay["payment-channel-worldpay"]
+    PaymentCore --> PaymentApi
+    Mpgs --> PaymentApi
+    Worldpay --> PaymentApi
+
+    Payout --> PayoutApi["payout-channel-api"]
+    Payout --> PayoutCore["payout-channel-core"]
+    PayoutCore --> PayoutApi
 
     Admin --> Component["component-library"]
     Merchant --> Component

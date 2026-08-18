@@ -7,6 +7,7 @@ import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
+import com.scott.payment.payment.entity.TransactionPaymentMethodInfoDO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
@@ -20,7 +21,7 @@ import java.util.List;
  * @classname : TransactionRecordService
  * @date : 2026-07-14 17:45
  * @email : scott_x@163.com
- * @description : 交易事实记录服务，位于 service-payment 服务层，负责把交易主单、动作单和状态历史写入 transaction_date_time 对应物理分表。
+ * @description : 交易事实记录服务，位于 service-payment 服务层，负责冻结 transaction_date_time 并通过交易逻辑表持久化主单、动作单和状态历史。
  * @status : create
  */
 public interface TransactionRecordService {
@@ -87,6 +88,29 @@ public interface TransactionRecordService {
     }
 
     /**
+     * 将首次交易的 INIT 渠道请求 CAS 推进为 SENT，作为外部资金调用的数据库最终抢占。
+     */
+    default boolean claimInitialChannelSubmission(String requestId, LocalDateTime transactionDateTime) {
+        return false;
+    }
+
+    /**
+     * 在资金请求尚为 INIT 时抢占认证前失败收敛，防止与外部渠道提交并发执行。
+     */
+    default boolean claimInitialPreChannelFailure(String requestId, LocalDateTime transactionDateTime) {
+        return false;
+    }
+
+    /**
+     * 标记本笔交易实际启用了 3DS；不依赖 Hosted Checkout 过程表，Direct API 也可复用。
+     */
+    default int markThreeDsIndicator(String transactionId,
+                                     LocalDateTime transactionDateTime,
+                                     String indicator) {
+        return 0;
+    }
+
+    /**
      * 按原交易业务时间和内部 operation_id 定位交易生命周期主单。
      *
      * @param transactionDateTime 原交易业务时间，对应 transaction_date_time 分表字段
@@ -95,16 +119,36 @@ public interface TransactionRecordService {
      */
     TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId);
 
+    /** 按动作分片键读取可向商户返回的支付工具脱敏摘要。 */
+    default TransactionPaymentMethodInfoDO findPaymentMethodInfo(
+            String transactionId,
+            LocalDateTime transactionDateTime) {
+        return null;
+    }
+
     /**
-     * 按平台当前交易 ID 定位所属生命周期主单。
+     * 为不携带业务时间的外部渠道回调受控恢复生命周期主单。
      * <p>
-     * 商户后续动作只需要传 sourceTransactionId；支付核心先用平台交易号中的业务时间定位动作分表，
-     * 再通过动作单的 operation_id 读取生命周期主单。
+     * 商户同步查询、SDK 后续动作和管理端页面不得调用该方法，必须使用同时携带动作时间和根主单时间的重载。
      *
-     * @param sourceTransactionId 原平台交易 ID
+     * @param sourceTransactionId 渠道回调中可验证的平台交易 ID
      * @return 原交易生命周期主单
      */
     TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId);
+
+    /**
+     * 使用动作分片时间和根主单分片时间定位交易生命周期。
+     *
+     * @param sourceTransactionId       源平台交易 ID
+     * @param sourceTransactionDateTime 源动作单分片时间
+     * @param rootTransactionDateTime   生命周期根主单分片时间
+     * @return 原交易生命周期主单
+     */
+    default TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId,
+                                                              LocalDateTime sourceTransactionDateTime,
+                                                              LocalDateTime rootTransactionDateTime) {
+        return findSourceOrderByTransactionId(sourceTransactionId);
+    }
 
     /**
      * 按原交易业务时间和 operation_id 锁定生命周期主单。
@@ -118,27 +162,45 @@ public interface TransactionRecordService {
     TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId);
 
     /**
-     * 按平台当前交易 ID 定位原交易动作单。
+     * 为不携带业务时间的外部渠道回调受控恢复原交易动作单。
      * <p>
-     * 后续动作需要原动作的渠道交易 ID，例如 MPGS VOID 的 targetTransactionId 必须使用原动作的 channel_transaction_id。
+     * 同步业务调用必须使用携带 {@code sourceTransactionDateTime} 的重载，避免依赖业务编号编码规则。
      *
-     * @param sourceTransactionId 原平台交易 ID
+     * @param sourceTransactionId 渠道回调中可验证的平台交易 ID
      * @return 原交易动作单
      */
     TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId);
 
     /**
+     * 按调用链传递的原始交易时间定位动作单，避免从交易号恢复时间时丢失数据库时间精度。
+     *
+     * @param sourceTransactionId       平台交易 ID
+     * @param sourceTransactionDateTime 原始交易分片时间
+     * @return 原交易动作单
+     */
+    default TransactionOperationDO findSourceOperationByTransactionId(
+            String sourceTransactionId,
+            LocalDateTime sourceTransactionDateTime) {
+        return findSourceOperationByTransactionId(sourceTransactionId);
+    }
+
+    /**
      * 按商户订单号查询同一订单下的交易动作。
      * <p>
-     * 商户查询接口不要求传原交易时间；支付核心按分表规则从最小可查表扫描到当前表，并通过 merchantId + merchantOrderNo
-     * 控制数据归属，transactionId 仅作为可选精确过滤条件。
+     * 查询必须携带动作时间和根主单时间。指定 transactionId 时只路由动作所在季度；未指定时从根主单季度扫描到当前季度。
      *
      * @param merchantId      平台商户号
      * @param merchantOrderNo 商户订单号
      * @param transactionId   平台交易 ID，可为空
+     * @param transactionDateTime 目标动作分片时间
+     * @param rootTransactionDateTime 生命周期根主单分片时间
      * @return 交易动作列表
      */
-    List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId, String merchantOrderNo, String transactionId);
+    List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
+                                                               String merchantOrderNo,
+                                                               String transactionId,
+                                                               LocalDateTime transactionDateTime,
+                                                               LocalDateTime rootTransactionDateTime);
 
     /**
      * 按商户订单号查询同一订单下的首次起点交易动作。
@@ -241,7 +303,7 @@ public interface TransactionRecordService {
     /**
      * 查询待渠道查询确认的动作单。
      *
-     * @param transactionDateTime 交易业务时间，用于定位物理分表
+     * @param transactionDateTime 交易业务时间，用于 ShardingSphere 精确定位季度
      * @param channelCode 渠道编码，可为空
      * @param now 当前时间
      * @param limit 最大查询数量
@@ -318,6 +380,33 @@ public interface TransactionRecordService {
                                                 PaymentChannelInvokeResultDTO invokeResultDTO,
                                                 PaymentCreateResultDTO resultDTO,
                                                 int currencyExponent) {
+        return false;
+    }
+
+    /**
+     * 在渠道请求发出前终结被拒绝或过期的退款动作。
+     * <p>
+     * 该操作只让非终态退款动作退出隐式额度占用，不回加原主单可退金额；同时复用既有通知任务和
+     * 商户可见载荷激活逻辑，确保回调协议保持不变。
+     *
+     * @param operationDO 待终结退款动作
+     * @param reasonCode 平台失败原因码
+     * @param reasonMessage 商户可见原因摘要
+     * @param triggerType 状态流转触发类型
+     * @param triggerId 审批单号
+     * @param operatorType 操作主体类型
+     * @param operatorId 操作主体稳定标识
+     * @param now 当前业务时间
+     * @return true 表示本次实际推进到 FAILED
+     */
+    default boolean terminateRefundBeforeChannel(TransactionOperationDO operationDO,
+                                                 String reasonCode,
+                                                 String reasonMessage,
+                                                 String triggerType,
+                                                 String triggerId,
+                                                 String operatorType,
+                                                 String operatorId,
+                                                 LocalDateTime now) {
         return false;
     }
 

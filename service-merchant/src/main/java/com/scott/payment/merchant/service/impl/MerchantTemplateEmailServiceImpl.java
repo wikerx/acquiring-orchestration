@@ -7,6 +7,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.mq.email.EmailPayloadCrypto;
+import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
+import com.scott.payment.component.mq.properties.EmailDeliveryProperties;
 import com.scott.payment.merchant.entity.email.MerchantEmailEntities.MerchantEmailAccountDO;
 import com.scott.payment.merchant.entity.email.MerchantEmailEntities.MerchantEmailSendRecordDO;
 import com.scott.payment.merchant.entity.email.MerchantEmailEntities.MerchantEmailTemplateDO;
@@ -14,26 +17,17 @@ import com.scott.payment.merchant.mapper.MerchantEmailAccountMapper;
 import com.scott.payment.merchant.mapper.MerchantEmailSendRecordMapper;
 import com.scott.payment.merchant.mapper.MerchantEmailTemplateMapper;
 import com.scott.payment.merchant.service.MerchantTemplateEmailService;
-import jakarta.mail.internet.MimeMessage;
-import org.springframework.mail.javamail.JavaMailSenderImpl;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import javax.crypto.Cipher;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -68,17 +62,12 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     /**
      * 发送中。
      */
-    private static final int SEND_SENDING = 1;
-
-    /**
-     * 发送成功。
-     */
-    private static final int SEND_SUCCESS = 2;
+    private static final int SEND_PENDING = EmailDeliveryStatus.PENDING.getCode();
 
     /**
      * 发送失败。
      */
-    private static final int SEND_FAILED = 3;
+    private static final int SEND_FAILED = EmailDeliveryStatus.CLOSED.getCode();
 
     /**
      * 系统默认发件账户范围。
@@ -155,6 +144,12 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
      * </p>
      */
     private final ObjectMapper objectMapper;
+    /** 邮件真实正文加密组件。 */
+    private final EmailPayloadCrypto payloadCrypto;
+    /** Merchant 邮件异步投递编排。 */
+    private final MerchantEmailDeliveryService deliveryService;
+    /** 邮件默认重试配置。 */
+    private final EmailDeliveryProperties deliveryProperties;
 
     /**
      * 创建商户模板邮件服务。
@@ -167,11 +162,17 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     public MerchantTemplateEmailServiceImpl(MerchantEmailAccountMapper emailAccountMapper,
                                             MerchantEmailTemplateMapper emailTemplateMapper,
                                             MerchantEmailSendRecordMapper emailSendRecordMapper,
-                                            ObjectMapper objectMapper) {
+                                            ObjectMapper objectMapper,
+                                            EmailPayloadCrypto payloadCrypto,
+                                            MerchantEmailDeliveryService deliveryService,
+                                            EmailDeliveryProperties deliveryProperties) {
         this.emailAccountMapper = emailAccountMapper;
         this.emailTemplateMapper = emailTemplateMapper;
         this.emailSendRecordMapper = emailSendRecordMapper;
         this.objectMapper = objectMapper;
+        this.payloadCrypto = payloadCrypto;
+        this.deliveryService = deliveryService;
+        this.deliveryProperties = deliveryProperties;
     }
 
     /**
@@ -180,6 +181,7 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
      * @param request 邮件发送请求
      */
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void sendByTemplate(MerchantEmailSendCommand request) {
         MerchantEmailTemplateDO template = requireEnabledTemplate(request.templateCode(), defaultIfBlank(request.locale(), DEFAULT_LOCALE));
         MerchantEmailAccountDO account = selectAccount(request.appCode(), request.merchantId(), defaultIfBlank(request.sceneCode(), template.getSceneCode()));
@@ -200,8 +202,10 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         record.setSubject(render(template.getSubjectTemplate(), variables));
         record.setContentSnapshot(maskSensitiveContent(template.getContentTemplate(), variables, parseStringList(template.getSensitiveVariableNames())));
         record.setVariablesSnapshot(toJson(maskVariables(variables, parseStringList(template.getSensitiveVariableNames()))));
+        record.setDeliveryContentCipher(payloadCrypto.encrypt(content));
+        record.setContentType(defaultIfBlank(trimUpper(template.getContentType()), CONTENT_HTML));
         emailSendRecordMapper.insert(record);
-        doSend(record, account, content, CONTENT_HTML.equalsIgnoreCase(template.getContentType()));
+        deliveryService.enqueue(record);
     }
 
     /**
@@ -334,9 +338,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         record.setBccEmails(toJson(List.of()));
         record.setBizType(trimUpper(request.bizType()));
         record.setBizNo(trim(request.bizNo()));
-        record.setSendStatus(SEND_SENDING);
+        record.setSendStatus(SEND_PENDING);
         record.setRetryCount(0);
-        record.setMaxRetryCount(0);
+        record.setMaxRetryCount(Math.max(deliveryProperties.getDefaultMaxRetryCount(), 0));
         fillOperator(record);
         record.setCreateBy(currentOperatorName());
         record.setUpdateBy(currentOperatorName());
@@ -344,88 +348,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         record.setUpdateTime(now);
         record.setDeleted(NOT_DELETED);
         return record;
-    }
-
-/**
- * 整理邮件发送动作，返回当前业务步骤需要的规范化结果。
- * <p>
- * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
- * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param record record 输入值，参与 记录 的查询、校验、转换、写入或日志摘要
- * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
- * @param content content 输入值，参与 content 的查询、校验、转换、写入或日志摘要
- * @param html html 输入值，参与 html 的查询、校验、转换、写入或日志摘要
- */
-    private void doSend(MerchantEmailSendRecordDO record,
-                        MerchantEmailAccountDO account,
-                        String content,
-                        boolean html) {
-        LocalDateTime start = LocalDateTime.now();
-        record.setSendStartTime(start);
-        record.setSendStatus(SEND_SENDING);
-        emailSendRecordMapper.updateById(record);
-        try {
-            JavaMailSenderImpl sender = buildMailSender(account);
-            MimeMessage message = sender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(account.getFromEmail(), account.getFromName());
-            if (StringUtils.hasText(account.getReplyToEmail())) {
-                helper.setReplyTo(account.getReplyToEmail());
-            }
-            helper.setTo(parseEmailArray(record.getToEmails()));
-            helper.setSubject(record.getSubject());
-            helper.setText(content, html);
-            sender.send(message);
-            record.setSendStatus(SEND_SUCCESS);
-            record.setSendEndTime(LocalDateTime.now());
-            record.setSendSuccessTime(record.getSendEndTime());
-            record.setCostMs(Duration.between(start, record.getSendEndTime()).toMillis());
-            record.setErrorCode(null);
-            record.setErrorMessage(null);
-        } catch (Exception exception) {
-            record.setSendStatus(SEND_FAILED);
-            record.setSendEndTime(LocalDateTime.now());
-            record.setCostMs(Duration.between(start, record.getSendEndTime()).toMillis());
-            record.setErrorCode("EMAIL_SEND_FAILED");
-            record.setErrorMessage(truncate(exception.getMessage(), 1800));
-        }
-        record.setUpdateBy(currentOperatorName());
-        record.setUpdateTime(LocalDateTime.now());
-        emailSendRecordMapper.updateById(record);
-    }
-
-    /**
-     * 构造mailsender对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
-    private JavaMailSenderImpl buildMailSender(MerchantEmailAccountDO account) {
-        JavaMailSenderImpl sender = new JavaMailSenderImpl();
-        sender.setHost(account.getSmtpHost());
-        sender.setPort(account.getSmtpPort());
-        sender.setUsername(account.getSmtpUsername());
-        if (account.getSmtpAuthRequired() == YES) {
-            sender.setPassword(decryptSecret(account.getSmtpPasswordCipher()));
-        }
-        Properties properties = sender.getJavaMailProperties();
-        properties.put("mail.smtp.auth", String.valueOf(account.getSmtpAuthRequired() == YES));
-        properties.put("mail.smtp.connectiontimeout", String.valueOf(account.getConnectTimeoutMs()));
-        properties.put("mail.smtp.timeout", String.valueOf(account.getReadTimeoutMs()));
-        properties.put("mail.smtp.writetimeout", String.valueOf(account.getReadTimeoutMs()));
-        if ("SSL".equals(account.getEncryptionType()) || "TLS".equals(account.getEncryptionType())) {
-            properties.put("mail.smtp.ssl.enable", "true");
-        } else if ("STARTTLS".equals(account.getEncryptionType())) {
-            properties.put("mail.smtp.starttls.enable", "true");
-            properties.put("mail.smtp.starttls.required", "true");
-        }
-        return sender;
     }
 
     /**
@@ -635,43 +557,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
             return account.getLoginAccount();
         }
         return "system";
-    }
-
-    /**
-     * 规范化secret，返回调用链后续步骤可直接使用的业务值。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param cipherText cipher Text 输入值，参与 密文文本 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private String decryptSecret(String cipherText) {
-        try {
-            String[] parts = cipherText.split("\\.", 2);
-            byte[] iv = Base64.getDecoder().decode(parts[0]);
-            byte[] encrypted = Base64.getDecoder().decode(parts[1]);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(secretKey(), "AES"), new GCMParameterSpec(128, iv));
-            return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
-        } catch (Exception exception) {
-            throw new IllegalStateException("smtp password decrypt failed", exception);
-        }
-    }
-
-    /**
-     * 整理密钥材料，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private byte[] secretKey() throws Exception {
-        String seed = System.getProperty("payment.email.secret", System.getenv().getOrDefault("PAYMENT_EMAIL_SECRET", "local-email-secret-change-me"));
-        return MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

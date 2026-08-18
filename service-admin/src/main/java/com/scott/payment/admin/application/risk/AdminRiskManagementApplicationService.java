@@ -1,8 +1,12 @@
 package com.scott.payment.admin.application.risk;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.risk.RiskDTOs;
 import com.scott.payment.admin.mapper.RiskManagementMapper;
+import com.scott.payment.admin.service.MerchantAccessApprovalNotificationService;
+import com.scott.payment.admin.support.approval.MerchantAccessApprovalStatus;
+import com.scott.payment.admin.support.approval.MerchantAccessSubmitSource;
 import com.scott.payment.admin.support.risk.RiskFunctionDefinition;
 import com.scott.payment.admin.support.risk.RiskListValueNormalizer;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
@@ -16,6 +20,8 @@ import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelDynamicColumnDefinition;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
+import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
+import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -41,7 +47,9 @@ import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -66,6 +74,9 @@ import java.util.stream.Stream;
  */
 @Service
 public class AdminRiskManagementApplicationService {
+
+    /** 风险工作台的“今日”边界统一按平台数据库业务时区计算。 */
+    private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     /**
      * DEFAULT SCOPE，用于保存 Admin Risk Management Application Service 中与 defaultscope 相关的业务属性。
@@ -682,6 +693,12 @@ public class AdminRiskManagementApplicationService {
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
+    /** 商户基础资料 Mapper，用于审批通知收件人与语言读取。 */
+    private final BaseMerchantInfoMapper merchantInfoMapper;
+
+    /** 商户访问配置审批邮件通知服务。 */
+    private final MerchantAccessApprovalNotificationService approvalNotificationService;
+
     /**
      * 创建风控管理应用服务。
      *
@@ -692,6 +709,8 @@ public class AdminRiskManagementApplicationService {
      * @param excelExportService       Excel 导出服务
      * @param excelI18nMessageResolver Excel 国际化解析器
      * @param excelLocaleResolver      Excel 语言环境解析器
+     * @param merchantInfoMapper       商户资料查询接口，用于获取审批通知收件信息
+     * @param approvalNotificationService 审批结果通知服务，在事务提交后发送邮件
      */
     public AdminRiskManagementApplicationService(RiskManagementMapper riskManagementMapper,
                                                  RiskListValueNormalizer riskListValueNormalizer,
@@ -699,7 +718,9 @@ public class AdminRiskManagementApplicationService {
                                                  RiskRuleCacheInvalidationCoordinator cacheInvalidationCoordinator,
                                                  ExcelExportService excelExportService,
                                                  ExcelI18nMessageResolver excelI18nMessageResolver,
-                                                 ExcelLocaleResolver excelLocaleResolver) {
+                                                 ExcelLocaleResolver excelLocaleResolver,
+                                                 BaseMerchantInfoMapper merchantInfoMapper,
+                                                 MerchantAccessApprovalNotificationService approvalNotificationService) {
         this.riskManagementMapper = riskManagementMapper;
         this.riskListValueNormalizer = riskListValueNormalizer;
         this.importLogService = importLogService;
@@ -707,6 +728,8 @@ public class AdminRiskManagementApplicationService {
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
+        this.merchantInfoMapper = merchantInfoMapper;
+        this.approvalNotificationService = approvalNotificationService;
     }
 
     /**
@@ -1009,6 +1032,10 @@ public class AdminRiskManagementApplicationService {
         }
         cacheInvalidationCoordinator.prepare();
         Map<String, Object> before = requireRecord(definition.getTableName(), id);
+        if (isSourceUrlRule(definition)
+                && !Integer.valueOf(MerchantAccessApprovalStatus.APPROVED.code()).equals(asInteger(before.get("approval_status")))) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "仅审核通过的来源网址允许修改交易状态");
+        }
         int rows = riskManagementMapper.updateStatus(definition.getTableName(), id, status, currentOperatorName());
         if (rows != 1) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "风控配置记录不存在");
@@ -1030,12 +1057,16 @@ public class AdminRiskManagementApplicationService {
         RiskDTOs.RiskRuleQueryRequest query = request == null ? new RiskDTOs.RiskRuleQueryRequest() : request;
         if (isSourceUrlRule(definition)) {
             String sourceHost = normalizeSourceHostQuery(defaultIfBlank(query.getSourceHost(), query.getMatchValue()));
-            long total = riskManagementMapper.countSourceUrlRules(query.getMerchantId(), trim(query.getSourceUrl()), sourceHost, query.getStatus());
+            long total = riskManagementMapper.countSourceUrlRules(
+                    query.getMerchantId(), trim(query.getSourceUrl()), sourceHost, query.getStatus(),
+                    query.getApprovalStatus(), upper(query.getSubmitSource()));
             List<RiskDTOs.RiskRecordResponse> rows = riskManagementMapper.selectSourceUrlRulePage(
                     query.getMerchantId(),
                     trim(query.getSourceUrl()),
                     sourceHost,
                     query.getStatus(),
+                    query.getApprovalStatus(),
+                    upper(query.getSubmitSource()),
                     offset(query.safePageNo(), query.safePageSize()),
                     query.safePageSize()
             ).stream().map(this::toRecordResponse).toList();
@@ -1253,6 +1284,9 @@ public class AdminRiskManagementApplicationService {
         Map<String, Object> before = requireRecord(definition.getTableName(), id);
         if (isSourceUrlRule(definition)) {
             Map<String, Object> data = sourceUrlData(request);
+            if (!Integer.valueOf(MerchantAccessApprovalStatus.APPROVED.code()).equals(asInteger(before.get("approval_status")))) {
+                data.put("status", 0);
+            }
             ensureSourceUrlNotDuplicated(id, data);
             int rows = riskManagementMapper.updateSourceUrlRule(id, data, currentOperatorName());
             if (rows != 1) {
@@ -1306,6 +1340,126 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
+     * 审批商户提交的来源网址，只允许待审核记录执行一次终态审批。
+     *
+     * @param id      来源网址记录 ID
+     * @param request 审批请求
+     * @return 审批后的来源网址记录
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public RiskDTOs.RiskRecordResponse approveSourceUrl(Long id, RiskDTOs.MerchantAccessApprovalRequest request) {
+        RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_RULE, FUNCTION_SOURCE_URL);
+        ensureFunctionPermission(definition, "status");
+        if (request == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "审批请求不能为空");
+        }
+        MerchantAccessApprovalStatus approvalStatus;
+        try {
+            approvalStatus = MerchantAccessApprovalStatus.fromCode(request.getApprovalStatus());
+        } catch (IllegalArgumentException exception) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), exception.getMessage());
+        }
+        if (approvalStatus == MerchantAccessApprovalStatus.PENDING) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "审批结果只能是审核通过或审核拒绝");
+        }
+        String approvalRemark = trim(request.getApprovalRemark());
+        if (approvalStatus == MerchantAccessApprovalStatus.REJECTED && !StringUtils.hasText(approvalRemark)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "审核拒绝时必须填写拒绝原因");
+        }
+        Map<String, Object> before = requireRecord(definition.getTableName(), id);
+        if (!Integer.valueOf(MerchantAccessApprovalStatus.PENDING.code()).equals(asInteger(before.get("approval_status")))) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "仅待审核记录允许审批");
+        }
+        int transactionStatus;
+        try {
+            transactionStatus = approvalStatus.transactionStatus(request.getStatus());
+        } catch (IllegalArgumentException exception) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), exception.getMessage());
+        }
+        String operator = currentOperatorName();
+        LocalDateTime reviewTime = LocalDateTime.now();
+        cacheInvalidationCoordinator.prepare();
+        int rows = riskManagementMapper.approveSourceUrlRule(
+                id, approvalStatus.code(), approvalRemark, transactionStatus, operator, reviewTime);
+        if (rows != 1) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "记录已被其他操作员审批，请刷新后重试");
+        }
+        String merchantId = asString(before.get("merchant_id"));
+        BaseMerchantInfoDO merchant = merchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
+                .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
+                .eq(BaseMerchantInfoDO::getDeleted, 0)
+                .last("LIMIT 1"));
+        approvalNotificationService.sendAfterCommit(
+                merchant,
+                MerchantAccessApprovalNotificationService.TYPE_SOURCE_URL,
+                asString(before.get("source_url")),
+                approvalStatus,
+                transactionStatus,
+                approvalRemark,
+                reviewTime
+        );
+        Map<String, Object> after = requireRecord(definition.getTableName(), id);
+        writeChange(definition, id, "APPROVAL", before, after);
+        return toRecordResponse(after);
+    }
+
+    /**
+     * 查询指定商户自己的全部来源网址记录。
+     *
+     * @param merchantId 已认证商户号
+     * @return 该商户未删除来源网址列表
+     */
+    public List<RiskDTOs.RiskRecordResponse> listMerchantSourceUrls(String merchantId) {
+        String normalizedMerchantId = trim(merchantId);
+        if (!StringUtils.hasText(normalizedMerchantId)) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "merchant context missing");
+        }
+        return riskManagementMapper.selectSourceUrlRulePage(
+                        normalizedMerchantId, null, null, null, null, null, 0, 1000)
+                .stream()
+                .map(this::toRecordResponse)
+                .toList();
+    }
+
+    /**
+     * 新增商户提交的待审核来源网址，交易状态固定为禁止。
+     *
+     * @param merchantId 已认证商户号
+     * @param request    来源网址列表和说明
+     * @return 新增的待审核记录
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public List<RiskDTOs.RiskRecordResponse> submitMerchantSourceUrls(
+            String merchantId, RiskDTOs.MerchantSourceUrlSubmissionRequest request) {
+        if (request == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "来源网址请求不能为空");
+        }
+        RiskDTOs.RiskSourceUrlBatchSaveRequest batch = new RiskDTOs.RiskSourceUrlBatchSaveRequest();
+        batch.setMerchantId(merchantId);
+        batch.setSourceUrls(request.getSourceUrls());
+        batch.setStatus(0);
+        batch.setRemark(request.getRemark());
+        List<Map<String, Object>> dataList = sourceUrlBatchData(batch);
+        cacheInvalidationCoordinator.prepare();
+        String operator = MerchantAccessSubmitSource.MERCHANT.name() + ":" + trim(merchantId);
+        List<RiskDTOs.RiskRecordResponse> records = new ArrayList<>();
+        for (Map<String, Object> data : dataList) {
+            data.put("status", 0);
+            data.put("approvalStatus", MerchantAccessApprovalStatus.PENDING.code());
+            data.put("approvalRemark", null);
+            data.put("submitSource", MerchantAccessSubmitSource.MERCHANT.name());
+            data.put("reviewBy", null);
+            data.put("reviewTime", null);
+            ensureSourceUrlNotDuplicated(null, data);
+            if (riskManagementMapper.insertSourceUrlRule(data, operator) != 1) {
+                throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "提交来源网址失败");
+            }
+            records.add(latestSourceUrlRecord(data));
+        }
+        return records;
+    }
+
+    /**
      * 查询风控工作台概览。
      *
      * @return 各功能配置数量、启用数量和最近配置变更
@@ -1346,15 +1500,6 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 查询今日风险事件，供风险工作台独立页面展示。
-     *
-     * @return 当日风控评估记录，按决策时间倒序
-     */
-    public List<Map<String, Object>> todayRiskEvents() {
-        return riskManagementMapper.selectTodayRiskEvents(100);
-    }
-
-    /**
      * 查询高风险商户排行，供风险工作台独立页面展示。
      *
      * @return 近 30 天商户风险统计，按高风险命中数倒序
@@ -1377,19 +1522,52 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
+     * 分页查询风险工作台事件；未传时间时限定为平台时区当天，禁止单边无界时间条件。
+     *
+     * @param request 商户、订单、风险等级、决策结果、时间范围和分页条件
+     * @return 风控评估记录分页数据
+     */
+    public PageResult<Map<String, Object>> pageTodayRiskEvents(RiskDTOs.EvaluationQueryRequest request) {
+        RiskDTOs.EvaluationQueryRequest query = request == null
+                ? new RiskDTOs.EvaluationQueryRequest()
+                : request;
+        boolean startMissing = query.getEvaluationStartTime() == null;
+        boolean endMissing = query.getEvaluationEndTimeExclusive() == null;
+        if (startMissing && endMissing) {
+            LocalDate platformDate = LocalDate.now(PLATFORM_ZONE_ID);
+            query.setEvaluationStartTime(platformDate.atStartOfDay());
+            query.setEvaluationEndTimeExclusive(platformDate.plusDays(1).atStartOfDay());
+        } else if (startMissing || endMissing) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "评估时间范围必须同时包含开始和结束时间");
+        }
+        return pageEvaluations(query);
+    }
+
+    /**
      * 分页查询风控评估记录。
      *
-     * @param request 查询条件，允许按商户号、商户订单号、平台订单号和决策结果过滤
+     * @param request 查询条件，允许按交易标识、风险等级、决策结果和评估时间范围过滤
      * @return 风控评估记录分页数据
      */
     public PageResult<Map<String, Object>> pageEvaluations(RiskDTOs.EvaluationQueryRequest request) {
         RiskDTOs.EvaluationQueryRequest query = request == null ? new RiskDTOs.EvaluationQueryRequest() : request;
-        long total = riskManagementMapper.countEvaluations(query.getMerchantId(), query.getMerchantOrderNo(), query.getPaymentOrderNo(), query.getDecisionResult());
+        validateEvaluationTimeRange(query);
+        long total = riskManagementMapper.countEvaluations(
+                query.getMerchantId(),
+                query.getMerchantOrderNo(),
+                query.getPaymentOrderNo(),
+                query.getDecisionResult(),
+                query.getRiskLevel(),
+                query.getEvaluationStartTime(),
+                query.getEvaluationEndTimeExclusive());
         List<Map<String, Object>> rows = riskManagementMapper.selectEvaluations(
                 query.getMerchantId(),
                 query.getMerchantOrderNo(),
                 query.getPaymentOrderNo(),
                 query.getDecisionResult(),
+                query.getRiskLevel(),
+                query.getEvaluationStartTime(),
+                query.getEvaluationEndTimeExclusive(),
                 offset(query.safePageNo(), query.safePageSize()),
                 query.safePageSize()
         );
@@ -1397,6 +1575,15 @@ public class AdminRiskManagementApplicationService {
                 .map(this::normalizeEvaluationSummary)
                 .toList();
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), normalizedRows);
+    }
+
+    /** 拒绝空区间和反向区间，防止页面误传时间后触发无意义的大范围扫描。 */
+    private void validateEvaluationTimeRange(RiskDTOs.EvaluationQueryRequest query) {
+        if (query.getEvaluationStartTime() != null
+                && query.getEvaluationEndTimeExclusive() != null
+                && !query.getEvaluationStartTime().isBefore(query.getEvaluationEndTimeExclusive())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "评估结束时间必须晚于开始时间");
+        }
     }
 
     /**
@@ -1555,7 +1742,9 @@ public class AdminRiskManagementApplicationService {
         List<Map<String, Object>> rows;
         if (isSourceUrlRule(definition)) {
             String sourceHost = normalizeSourceHostQuery(defaultIfBlank(query.getSourceHost(), query.getMatchValue()));
-            rows = riskManagementMapper.selectSourceUrlRulePage(query.getMerchantId(), trim(query.getSourceUrl()), sourceHost, query.getStatus(), 0, 5000);
+            rows = riskManagementMapper.selectSourceUrlRulePage(
+                    query.getMerchantId(), trim(query.getSourceUrl()), sourceHost, query.getStatus(),
+                    query.getApprovalStatus(), upper(query.getSubmitSource()), 0, 5000);
         } else if (isMerchantLimitRule(definition)) {
             String matchValue = normalizeRuleQueryMatchValue(definition, query.getMatchValue());
             rows = riskManagementMapper.selectMerchantLimitRulePage(query.getMerchantScope(), query.getMerchantId(), query.getRuleName(), matchValue, query.getLimitType(), query.getStatus(), 0, 5000);
@@ -2037,6 +2226,11 @@ public class AdminRiskManagementApplicationService {
         data.put("effectiveTime", effectiveTime);
         data.put("expireTime", expireTime);
         data.put("status", defaultStatus(status));
+        data.put("approvalStatus", MerchantAccessApprovalStatus.APPROVED.code());
+        data.put("approvalRemark", null);
+        data.put("submitSource", MerchantAccessSubmitSource.ADMIN.name());
+        data.put("reviewBy", currentOperatorName());
+        data.put("reviewTime", LocalDateTime.now());
         data.put("remark", trim(remark));
         return data;
     }
@@ -2204,7 +2398,9 @@ public class AdminRiskManagementApplicationService {
     private RiskDTOs.RiskRecordResponse latestListRecord(RiskFunctionDefinition definition, Map<String, Object> data) {
         List<Map<String, Object>> rows;
         if (isSourceUrlRule(definition)) {
-            rows = riskManagementMapper.selectSourceUrlRulePage((String) data.get("merchantId"), null, (String) data.get("sourceHost"), (Integer) data.get("status"), 0, 1);
+            rows = riskManagementMapper.selectSourceUrlRulePage(
+                    (String) data.get("merchantId"), null, (String) data.get("sourceHost"),
+                    (Integer) data.get("status"), null, null, 0, 1);
         } else if (isMerchantLimitRule(definition)) {
             rows = riskManagementMapper.selectMerchantLimitRulePage((String) data.get("merchantScope"), (String) data.get("merchantId"), (String) data.get("ruleName"), (String) data.get("matchValue"), (String) data.get("limitType"), (Integer) data.get("status"), 0, 1);
         } else if (isThreeDsRule(definition)) {
@@ -2504,6 +2700,11 @@ public class AdminRiskManagementApplicationService {
         response.setValidityDays(asInteger(row.get("validity_days")));
         response.setSourceType(asString(row.get("source_type")));
         response.setStatus(asInteger(row.get("status")));
+        response.setApprovalStatus(asInteger(row.get("approval_status")));
+        response.setApprovalRemark(asString(row.get("approval_remark")));
+        response.setSubmitSource(asString(row.get("submit_source")));
+        response.setReviewBy(asString(row.get("review_by")));
+        response.setReviewTime(asLocalDateTime(row.get("review_time")));
         response.setRemark(asString(row.get("remark")));
         response.setCreateBy(asString(row.get("create_by")));
         response.setUpdateBy(asString(row.get("update_by")));

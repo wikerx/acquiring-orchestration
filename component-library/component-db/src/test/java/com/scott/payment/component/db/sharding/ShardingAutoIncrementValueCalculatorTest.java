@@ -25,7 +25,7 @@ class ShardingAutoIncrementValueCalculatorTest {
     void shouldCalculateAutoIncrementRange() {
         ShardingAutoIncrementValueCalculator calculator = new ShardingAutoIncrementValueCalculator();
 
-        ShardingAutoIncrementRange range = calculator.calculate(new PaymentQuarterShardingProperties(), new ShardingQuarter(2026, 2));
+        ShardingAutoIncrementRange range = calculator.calculate(new TransactionShardingGovernanceProperties(), new ShardingQuarter(2026, 2));
 
         assertThat(range.prefix()).isEqualTo(202602L);
         assertThat(range.startValue()).isEqualTo(202602000000000001L);
@@ -38,7 +38,7 @@ class ShardingAutoIncrementValueCalculatorTest {
     @Test
     void shouldRejectMaxSequenceOutsideWidth() {
         ShardingAutoIncrementValueCalculator calculator = new ShardingAutoIncrementValueCalculator();
-        PaymentQuarterShardingProperties properties = new PaymentQuarterShardingProperties();
+        TransactionShardingGovernanceProperties properties = new TransactionShardingGovernanceProperties();
         properties.getIdGenerator().setSequenceWidth(2);
         properties.getIdGenerator().setMaxSequence(100L);
 

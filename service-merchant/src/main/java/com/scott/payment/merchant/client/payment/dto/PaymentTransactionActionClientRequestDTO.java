@@ -1,5 +1,6 @@
 package com.scott.payment.merchant.client.payment.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -63,12 +64,25 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
     /**
      * 动作请求时间，对应交易分表时间。
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
 
     /**
      * 请求追踪号，当前与 merchantOrderId 保持一致。
      */
     private String requestId;
+
+    /** 内部动作来源，商户后台固定为 MERCHANT_PORTAL。 */
+    private String requestSource;
+
+    /** 当前认证商户账号 ID。 */
+    private String applicantId;
+
+    /** 当前认证商户账号显示名快照。 */
+    private String applicantName;
+
+    /** 商户填写的退款或撤销原因。 */
+    private String requestReason;
 
     /**
      * 交易扩展信息。
@@ -87,6 +101,14 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
          * 原平台交易 ID，支付核心据此定位原交易。
          */
         private String sourceTransactionId;
+
+        /** 源动作真实分片时间。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime sourceTransactionDateTime;
+
+        /** 生命周期根主单真实分片时间。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * 商户后台操作说明，进入交易描述和审计上下文。

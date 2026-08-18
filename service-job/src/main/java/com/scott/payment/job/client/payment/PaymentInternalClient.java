@@ -1,6 +1,5 @@
 package com.scott.payment.job.client.payment;
 
-import com.scott.payment.job.client.payment.dto.PaymentMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.client.payment.dto.PaymentChannelMatchClientRequestDTO;
 import com.scott.payment.job.client.payment.dto.PaymentChannelMatchClientResultDTO;
 
@@ -14,14 +13,6 @@ import com.scott.payment.job.client.payment.dto.PaymentChannelMatchClientResultD
  * @status : create
  */
 public interface PaymentInternalClient {
-
-    /**
-     * 触发指定交易时间分表中的到期商户通知补偿。
-     *
-     * @param requestDTO 补偿请求
-     * @return 成功通知数量
-     */
-    Integer notifyDueMerchantNotifications(PaymentMerchantNotificationNotifyDueClientRequestDTO requestDTO);
 
     /**
      * 触发指定交易时间分表中的渠道交易查询勾兑。

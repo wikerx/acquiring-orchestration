@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.system;
 
+import com.scott.payment.admin.dto.AdminUserProfileDTO;
 import com.scott.payment.admin.dto.SysUserAccountCreateRequest;
 import com.scott.payment.admin.dto.SysUserAccountDTO;
 import com.scott.payment.admin.dto.SysUserAccountQueryRequest;
@@ -86,6 +87,16 @@ public class AdminUserApplicationService {
      */
     public PageResult<SysUserAccountDTO> pageUsers(SysUserAccountQueryRequest request) {
         return adminUserService.pageUsers(request);
+    }
+
+    /**
+     * 按账号主键查询后台用户维护资料。
+     *
+     * @param accountId 后台账号主键
+     * @return 用户维护资料
+     */
+    public AdminUserProfileDTO getUserProfile(Long accountId) {
+        return adminUserService.getUserProfile(accountId);
     }
 
     /**

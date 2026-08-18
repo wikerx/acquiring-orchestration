@@ -31,6 +31,11 @@ public final class DataSourceName {
      */
     public static final String SLAVE_2 = "slave_2";
 
+    /**
+     * 交易逻辑数据源名称。外层 dynamic-datasource 只选择该复合数据源，内部季度路由和读写分离由 ShardingSphere 负责。
+     */
+    public static final String TRANSACTION = "transaction";
+
     private DataSourceName() {
     }
 }

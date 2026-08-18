@@ -173,7 +173,7 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
         long startNanos = System.nanoTime();
         try {
             Long released = redisTemplate.execute(
-                    PaymentRedisScripts.lockReleaseV1(),
+                    PaymentRedisScripts.tokenLeaseReleaseV1(),
                     List.of(pendingKey(lease.cacheName(), requireBusinessKey(lease.businessKey()))),
                     lease.token()
             );
@@ -193,7 +193,7 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
                     startNanos
             );
             metrics.recordLuaFailure(
-                    RedisBusinessMetrics.Script.LOCK_RELEASE,
+                    RedisBusinessMetrics.Script.TOKEN_LEASE_RELEASE,
                     metrics.classifyFailure(exception)
             );
             throw exception;
@@ -224,8 +224,11 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
      * 门禁紧邻对应永久缓存命名空间，便于按业务域识别，同时不会与 Spring Cache 的实际
      * 业务 Key 冲突。物理格式分别为：
      * {@code acquiring:{environment}:merchant:info:pending:{merchantId}}、
-     * {@code acquiring:{environment}:merchant:openapi:pending:{merchantId}} 和
-     * {@code acquiring:{environment}:config:public:pending:{configKey}}。
+     * {@code acquiring:{environment}:merchant:openapi:pending:{merchantId}}、
+     * {@code acquiring:{environment}:merchant:keyMeta:pending:{merchantId}}、
+     * {@code acquiring:{environment}:merchant:route:pending:{merchantId}} 和
+     * {@code acquiring:{environment}:system:configPending:{configKeyDigest}}、
+     * {@code acquiring:{environment}:admin:user:profile:pending:{accountId}}。
      * </p>
      *
      * @param cacheName   Spring Cache 名称
@@ -238,8 +241,18 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
                     redisProperties.businessKey("merchant", "info", "pending", businessKey);
             case PaymentCacheNames.MERCHANT_OPENAPI_ACCESS ->
                     redisProperties.businessKey("merchant", "openapi", "pending", businessKey);
-            case PaymentCacheNames.PLATFORM_CONFIG ->
-                    redisProperties.businessKey("config", "public", "pending", businessKey);
+            case PaymentCacheNames.MERCHANT_KEY_METADATA ->
+                    redisProperties.businessKey("merchant", "keyMeta", "pending", businessKey);
+            case PaymentCacheNames.MERCHANT_ROUTE ->
+                    redisProperties.businessKey("merchant", "route", "pending", businessKey);
+            case PaymentCacheNames.SYSTEM_CONFIG ->
+                    redisProperties.businessKey(
+                            "system",
+                            "configPending",
+                            com.scott.payment.component.redis.support.RedisKeyDigest.sha256(businessKey)
+                    );
+            case PaymentCacheNames.ADMIN_USER_PROFILE ->
+                    redisProperties.businessKey("admin", "user", "profile", "pending", businessKey);
             default -> throw new IllegalArgumentException(
                     "Cache invalidation guard does not allow cache name: " + cacheName
             );

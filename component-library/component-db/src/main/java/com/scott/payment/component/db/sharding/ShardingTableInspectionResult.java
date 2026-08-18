@@ -44,6 +44,12 @@ public class ShardingTableInspectionResult {
      */
     private boolean shardingColumnExists;
 
+    /** 分片时间字段是否为 DATETIME(3)。 */
+    private boolean shardingColumnPrecisionMatched;
+
+    /** 表字符集是否为 utf8mb4。 */
+    private boolean charsetMatched;
+
     /**
      * 与模板表结构是否一致。
      */

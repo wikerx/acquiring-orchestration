@@ -35,4 +35,24 @@ public interface PaymentChannelResultTransactionService {
                                     PaymentCreateResultDTO resultDTO,
                                     PaymentRiskDecisionEnum riskDecisionEnum,
                                     int currencyExponent);
+
+    /**
+     * 原子抢占已经提交的 INIT 渠道请求。只有抢占成功的调用方可以请求外部 PSP。
+     */
+    boolean claimInitialChannelSubmission(String requestId, java.time.LocalDateTime transactionDateTime);
+
+    /**
+     * 在独立事务中记录资金渠道调用前的终态失败，例如 3DS 拒绝或超时。
+     */
+    boolean recordInitialPreChannelFailure(PaymentCreateCommandDTO commandDTO,
+                                           PaymentRouteResultDTO routeResultDTO,
+                                           PaymentChannelInvokeResultDTO invokeResultDTO,
+                                           PaymentCreateResultDTO resultDTO,
+                                           PaymentRiskDecisionEnum riskDecisionEnum,
+                                           int currencyExponent);
+
+    /** 在独立事务中写入本笔交易的 3DS 使用标识。 */
+    void markThreeDsIndicator(String transactionId,
+                              java.time.LocalDateTime transactionDateTime,
+                              String indicator);
 }

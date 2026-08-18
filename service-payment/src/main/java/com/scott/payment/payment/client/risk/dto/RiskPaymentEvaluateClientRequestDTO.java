@@ -51,6 +51,11 @@ public class RiskPaymentEvaluateClientRequestDTO implements Serializable {
     private String requestId;
 
     /**
+     * 支付核心确认的可信请求来源，例如 OPENAPI 或 HOSTED_CHECKOUT。
+     */
+    private String requestSource;
+
+    /**
      * 交易金额，主币种单位。
      */
     private BigDecimal amount;
@@ -175,6 +180,27 @@ public class RiskPaymentEvaluateClientRequestDTO implements Serializable {
      */
     private String billingCity;
 
+    /** 商户体系内付款人 ID。 */
+    private String payerId;
+    /** 付款人姓名，属于个人信息，禁止日志明文输出。 */
+    private String payerName;
+    /** 付款人邮箱，属于个人信息，禁止日志明文输出。 */
+    private String payerEmail;
+    /** 付款人手机号，属于个人信息，禁止日志明文输出。 */
+    private String payerPhone;
+    /** 付款人国家或地区代码。 */
+    private String payerCountry;
+    /** 付款人街道地址。 */
+    private String payerAddress;
+    /** 付款人邮编。 */
+    private String payerZip;
+    /** 付款人州、省或区域。 */
+    private String payerRegion;
+    /** 付款人城市。 */
+    private String payerCity;
+    /** 付款会话 ID，仅用于当前风控调用，不写日志。 */
+    private String payerSessionId;
+
     /**
      * 商户体系内客户标识。
      */
@@ -199,6 +225,17 @@ public class RiskPaymentEvaluateClientRequestDTO implements Serializable {
      * 收货国家或地区三字码。
      */
     private String shippingCountry;
+
+    /** 收货人姓名。 */
+    private String shippingName;
+    /** 收货人邮箱。 */
+    private String shippingEmail;
+    /** 收货人手机号。 */
+    private String shippingPhone;
+    /** 收货州、省或区域。 */
+    private String shippingRegion;
+    /** 收货城市。 */
+    private String shippingCity;
 
     /**
      * 3DS ECI 值。

@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.client.payment.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -51,6 +52,24 @@ public class PaymentQueryClientResponseDTO implements Serializable {
      * </p>
      */
     private String merchantOrderId;
+
+    /** 首次交易保存的子商户快照。 */
+    private PaymentCreateClientRequestDTO.SubMerchantInfoDTO subMerchantInfo;
+
+    /** 首次交易保存的商品或服务明细。 */
+    private List<PaymentCreateClientRequestDTO.GoodsInfoDTO> goodsInfo = new ArrayList<>();
+
+    /** 首次交易保存的持卡人账单信息。 */
+    private PaymentCreateClientRequestDTO.BillingCardHolderInfoDTO billingCardHolderInfo;
+
+    /** 首次交易保存的付款人信息。 */
+    private PaymentCreateClientRequestDTO.PayerInfoDTO payerInfo;
+
+    /** 首次交易保存的收货人信息。 */
+    private PaymentCreateClientRequestDTO.ShippingInfoDTO shippingInfo;
+
+    /** 查询目标动作可向商户返回的 3DS 安全字段子集。 */
+    private PaymentCreateClientResponseDTO.ThreeDsInfoDTO threeDSInfo;
 
     /**
      * order Amount，表示当前交易、费用、限额或统计口径下的金额值。
@@ -212,6 +231,15 @@ public class PaymentQueryClientResponseDTO implements Serializable {
      */
     private String settlementCurrency;
 
+    /** 已形成的结算换汇汇率。 */
+    private BigDecimal settlementRate;
+
+    /** 已形成的结算费用金额。 */
+    private BigDecimal settlementFeeAmount;
+
+    /** 已形成的费用明细。 */
+    private List<PaymentCreateClientResponseDTO.FeeItemDTO> feeItems = new ArrayList<>();
+
     /**
      * transaction Time Zone，用于保存 Payment Query Client Response DTO 中与 交易timezone 相关的业务属性。
      * <p>
@@ -260,6 +288,10 @@ public class PaymentQueryClientResponseDTO implements Serializable {
          */
         private String sourceTransactionId;
 
+        /** 后续动作源交易发生时间；首次交易为空。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime sourceTransactionDateTime;
+
         /**
          * code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
@@ -290,6 +322,9 @@ public class PaymentQueryClientResponseDTO implements Serializable {
          */
         private String transactionType;
 
+        /** 当前动作交易状态。 */
+        private String transactionStatus;
+
         /**
          * transaction Date Time，用于保存 Transaction Info DTO 中与 交易datetime 相关的业务属性。
          * <p>
@@ -298,7 +333,12 @@ public class PaymentQueryClientResponseDTO implements Serializable {
          * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
+
+        /** 生命周期根主单的分片时间，供商户从查询结果继续发起动作。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * payment Method，表示支付方式、通知方式或调用方式。
@@ -369,5 +409,16 @@ public class PaymentQueryClientResponseDTO implements Serializable {
          * </p>
          */
         private String callbackUrl;
+
+        /**
+         * 生命周期首次交易保存的商户网站原始 URL。
+         */
+        private String merchantWebsite;
+
+        /** Hosted Checkout 结果页返回地址。 */
+        private String redirectUrl;
+
+        /** Hosted Checkout 创建会话语言。 */
+        private String language;
     }
 }

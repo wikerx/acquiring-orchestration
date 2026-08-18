@@ -1,19 +1,35 @@
 # 本地基础配置：只保留服务端口、服务名、激活环境和 Spring Boot 基础开关。
 # Redis、MQ、数据库、分表、Seata、XXL-JOB 等配置统一从 Nacos yaml DataId 读取。
 server:
+  # 参数说明：配置服务监听端口，有效范围 1-65535；同一主机上的服务端口不得冲突。
   port: 8004
+  # 参数说明：配置 Spring Boot 停机方式；graceful 会等待在途请求完成后退出。
   shutdown: graceful
 
 spring:
   application:
+    # 参数说明：指定当前微服务在 Nacos、日志和监控中的稳定服务名；不同环境保持同名并通过 namespace 隔离。
     name: service-openapi
   profiles:
+    # 参数说明：指定 Maven 过滤后激活的 Spring Profile，必须与部署环境名称一致。
     active: @profiles.active@
   main:
+    # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
     allow-bean-definition-overriding: true
+
+acquiring:
+  gateway-ingress:
+    # 只接受 service-gateway 签发的收银台请求；密钥必须由 Secret 或 Nacos 环境占位符注入。
+    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:}
+    allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}
 
 openapi:
   security:
+    secret-cache:
+      # 密钥正文只允许在 OpenAPI 单实例内短时驻留，Redis 仅保存非敏感 revision。
+      ttl: PT2M
+      # 参数说明：配置本地密钥缓存最大条目数，超限后按缓存策略淘汰。
+      max-entries: 2048
     replay:
       # 本地默认不强制 Redis 防重放成功，避免未启动 Redis 时影响本地启动；生产环境必须在 application-prod.yml 开启。
       required: false

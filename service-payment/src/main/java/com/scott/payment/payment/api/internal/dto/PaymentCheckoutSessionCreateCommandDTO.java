@@ -71,22 +71,26 @@ public class PaymentCheckoutSessionCreateCommandDTO implements Serializable {
     private String merchantDisplayName;
     /** 付款页公开展示的商户 Logo 地址。 */
     private String merchantLogoUrl;
-    /** 支付完成后允许返回的商户地址。 */
-    private String merchantReturnUrl;
-    /** 付款取消后允许返回的商户地址。 */
-    private String merchantCancelUrl;
-    /** 商户通知地址摘要，不持久化完整地址。 */
-    private String merchantNotifyUrlHash;
+    /** 商户通知地址明文；内部调用和数据库允许明文，禁止完整写入日志。 */
+    private String merchantNotifyUrl;
+    /** 子商户完整明文 JSON 快照。 */
+    private String subMerchantInfoJson;
+    /** 付款人预填信息明文 JSON 快照。 */
+    private String payerInfoJson;
+    /** 持卡人账单预填信息明文 JSON 快照。 */
+    private String billingInfoJson;
+    /** 收货信息结构化 JSON；创建核心交易时转换为结构化对象。 */
+    private String shippingInfoJson;
+    /** 交易完成后 Form POST 的商户结果页地址明文。 */
+    private String redirectUrl;
     /** 付款人 ISO 3166 国家或地区代码。 */
     private String payerCountry;
-    /** 已脱敏的付款人邮箱。 */
-    private String payerEmailMasked;
-    /** 付款人邮箱摘要，用于关联而不保存明文。 */
+    /** 付款人邮箱明文。 */
+    private String payerEmail;
+    /** 付款人邮箱摘要，用于关联和索引。 */
     private String payerEmailHash;
     /** 是否允许同一会话在失败后重试：0 否，1 是。 */
     private Integer retryAllowed;
-    /** 同一会话允许创建的最大支付尝试次数。 */
-    private Integer maxAttemptCount;
     /** 会话失效时间。 */
     private LocalDateTime expireTime;
     /** 已脱敏的会话创建来源摘要。 */

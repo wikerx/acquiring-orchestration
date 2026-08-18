@@ -24,7 +24,7 @@ class ShardingPhysicalTableNameResolverTest {
     @Test
     void shouldResolvePhysicalTableName() {
         ShardingPhysicalTableNameResolver resolver = new ShardingPhysicalTableNameResolver();
-        PaymentQuarterShardingProperties.TableRule rule = new PaymentQuarterShardingProperties.TableRule();
+        TransactionShardingGovernanceProperties.TableRule rule = new TransactionShardingGovernanceProperties.TableRule();
         rule.setLogicalTable("test_transaction");
 
         String physicalTableName = resolver.physicalTableName(rule, new ShardingQuarter(2026, 2));

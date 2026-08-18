@@ -26,6 +26,9 @@ public class MerchantNotificationRetryRequest implements Serializable {
      */
     private LocalDateTime transactionDateTime;
 
+    /** 可选平台交易号；传入时只补偿这一笔，并强制同时传入 transactionDateTime。 */
+    private String transactionId;
+
     /**
      * 多个交易时间点，用于手动补偿跨分表任务。
      */
@@ -35,4 +38,7 @@ public class MerchantNotificationRetryRequest implements Serializable {
      * 单个分表本次最多处理数量。
      */
     private Integer limit;
+
+    /** 自动补偿模式：MQ 为默认主链路，JOB 为紧急直接回调模式。 */
+    private String mode;
 }

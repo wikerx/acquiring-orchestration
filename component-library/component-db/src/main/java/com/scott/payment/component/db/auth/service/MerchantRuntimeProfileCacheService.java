@@ -8,18 +8,36 @@ import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
  * @classname : MerchantRuntimeProfileCacheService
  * @date : 2026-07-30 21:35
  * @email : scott_x@163.com
- * @description : 商户运行时最小资料缓存契约，为鉴权与交易入口提供受失效门禁保护的主库事实读取，并暴露正负缓存协同失效能力
+ * @description : 完整商户资料共享缓存契约，统一管理跨服务查询、写后刷新和删除失效行为
  * @status : create
  */
 public interface MerchantRuntimeProfileCacheService {
 
     /**
-     * 按商户号查询未删除的最小运行时资料。
+     * 按商户号查询未删除的完整商户资料。
      *
      * @param merchantId 商户号
      * @return 商户运行时资料；不存在时返回 null
      */
     MerchantRuntimeProfile findRuntimeProfile(String merchantId);
+
+    /**
+     * 使用主库最新记录重建指定商户缓存。
+     *
+     * <p>管理端或商户端完成写事务后调用该方法，确保缓存内容不受只读库复制延迟影响。</p>
+     *
+     * @param merchantId 商户号
+     * @return 主库最新商户资料；商户不存在时返回 null
+     */
+    MerchantRuntimeProfile refreshRuntimeProfile(String merchantId);
+
+    /**
+     * 将已经由主库写事务确认的商户资料写入共享缓存。
+     *
+     * @param profile 完整商户资料
+     * @return 写入缓存的商户资料
+     */
+    MerchantRuntimeProfile putRuntimeProfile(MerchantRuntimeProfile profile);
 
     /**
      * 删除商户运行时正缓存与独立 miss marker。

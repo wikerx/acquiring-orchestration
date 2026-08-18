@@ -1,7 +1,9 @@
 # 本地基础配置：只保留网关启动入口配置。
 # 网关不直接连接数据库、分表、MQ、Seata、XXL-JOB；需要动态调整的网关规则放到 service-gateway-{env}.yaml。
 server:
+  # 参数说明：配置服务监听端口，有效范围 1-65535；同一主机上的服务端口不得冲突。
   port: 8000
+  # 参数说明：配置 Spring Boot 停机方式；graceful 会等待在途请求完成后退出。
   shutdown: graceful
 
 acquiring:
@@ -9,13 +11,19 @@ acquiring:
     client-ip:
       # 默认不信任外部 X-Forwarded-For，部署在可信负载均衡之后再按环境开启。
       trust-forwarded-header: false
+  gateway-ingress:
+    # 与 service-openapi、service-checkout 使用同一独立密钥；少于 32 字符时收银台入口失败关闭。
+    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:}
 
 spring:
   application:
+    # 参数说明：指定当前微服务在 Nacos、日志和监控中的稳定服务名；不同环境保持同名并通过 namespace 隔离。
     name: service-gateway
   profiles:
+    # 参数说明：指定 Maven 过滤后激活的 Spring Profile，必须与部署环境名称一致。
     active: @profiles.active@
   main:
+    # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
     allow-bean-definition-overriding: true
   cloud:
     gateway:
@@ -24,8 +32,8 @@ spring:
           httpclient:
             # 连接下游微服务的超时时间，单位毫秒。
             connect-timeout: 3000
-            # 下游接口整体响应超时，避免网关线程长时间堆积。
-            response-timeout: 10s
+            # 下游整体响应预算需覆盖最长 30 秒渠道调用，并给解密、风控和响应加密预留时间。
+            response-timeout: 40s
           default-filters:
             # 保留原始 Host，方便下游根据域名做审计或多租户判断。
             - PreserveHostHeader
@@ -38,91 +46,154 @@ spring:
             # 安全响应头可由部署层覆盖；网关先提供安全默认值。
             - name: AddResponseHeader
               args:
+                # 参数说明：指定网关写入的 HTTP 响应头名称；必须使用标准安全响应头并避免重复。
                 name: Strict-Transport-Security
+                # 参数说明：配置网关响应头的值；调整前需验证浏览器兼容性和安全策略。
                 value: "max-age=31536000; includeSubDomains"
+            # 参数说明：指定要创建的 Spring Cloud Gateway 过滤器工厂；当前值用于添加安全响应头。
             - name: AddResponseHeader
               args:
+                # 参数说明：指定网关写入的 HTTP 响应头名称；必须使用标准安全响应头并避免重复。
                 name: X-Content-Type-Options
+                # 参数说明：配置网关响应头的值；调整前需验证浏览器兼容性和安全策略。
                 value: nosniff
+            # 参数说明：指定要创建的 Spring Cloud Gateway 过滤器工厂；当前值用于添加安全响应头。
             - name: AddResponseHeader
               args:
+                # 参数说明：指定网关写入的 HTTP 响应头名称；必须使用标准安全响应头并避免重复。
                 name: X-Frame-Options
+                # 参数说明：配置网关响应头的值；调整前需验证浏览器兼容性和安全策略。
                 value: SAMEORIGIN
+            # 参数说明：指定要创建的 Spring Cloud Gateway 过滤器工厂；当前值用于添加安全响应头。
             - name: AddResponseHeader
               args:
+                # 参数说明：指定网关写入的 HTTP 响应头名称；必须使用标准安全响应头并避免重复。
                 name: Referrer-Policy
+                # 参数说明：配置网关响应头的值；调整前需验证浏览器兼容性和安全策略。
                 value: strict-origin-when-cross-origin
+            # 参数说明：指定要创建的 Spring Cloud Gateway 过滤器工厂；当前值用于添加安全响应头。
             - name: AddResponseHeader
               args:
+                # 参数说明：指定网关写入的 HTTP 响应头名称；必须使用标准安全响应头并避免重复。
                 name: Permissions-Policy
+                # 参数说明：配置网关响应头的值；调整前需验证浏览器兼容性和安全策略。
                 value: "camera=(), microphone=(), geolocation=()"
+            # 参数说明：指定要创建的 Spring Cloud Gateway 过滤器工厂；当前值用于添加安全响应头。
             - name: AddResponseHeader
               args:
+                # 参数说明：指定网关写入的 HTTP 响应头名称；必须使用标准安全响应头并避免重复。
                 name: Content-Security-Policy
+                # 参数说明：配置网关响应头的值；调整前需验证浏览器兼容性和安全策略。
                 value: "default-src 'self'; frame-ancestors 'self'"
           globalcors:
             cors-configurations:
               "[/api/rest/**]":
                 allowed-origin-patterns:
+                  # 参数说明：声明 CORS 允许的来源模式；UAT/生产必须使用明确 HTTPS 域名，禁止 localhost 和宽泛通配。
                   - "http://localhost:*"
+                  # 参数说明：声明 CORS 允许的来源模式；UAT/生产必须使用明确 HTTPS 域名，禁止 localhost 和宽泛通配。
                   - "http://127.0.0.1:*"
                 allowed-methods:
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - GET
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - POST
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - OPTIONS
+                # 参数说明：配置 CORS 允许的请求头；生产应按实际前端请求收敛范围。
                 allowed-headers: "*"
                 exposed-headers:
+                  # 参数说明：声明允许浏览器读取的响应头，避免暴露无关内部头。
                   - X-Trace-Id
+                # 参数说明：控制跨域请求是否允许携带 Cookie/Authorization 等凭据；与通配 Origin 不可同时开启。
                 allow-credentials: false
+                # 参数说明：配置浏览器缓存 CORS 预检结果的时长，单位秒。
                 max-age: 1800
               "[/channel/**]":
                 allowed-origin-patterns:
+                  # 参数说明：声明 CORS 允许的来源模式；UAT/生产必须使用明确 HTTPS 域名，禁止 localhost 和宽泛通配。
                   - "http://localhost:*"
+                  # 参数说明：声明 CORS 允许的来源模式；UAT/生产必须使用明确 HTTPS 域名，禁止 localhost 和宽泛通配。
                   - "http://127.0.0.1:*"
                 allowed-methods:
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - POST
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - OPTIONS
+                # 参数说明：配置 CORS 允许的请求头；生产应按实际前端请求收敛范围。
                 allowed-headers: "*"
+                # 参数说明：控制跨域请求是否允许携带 Cookie/Authorization 等凭据；与通配 Origin 不可同时开启。
                 allow-credentials: false
+                # 参数说明：配置浏览器缓存 CORS 预检结果的时长，单位秒。
                 max-age: 1800
               "[/openapi/**]":
                 allowed-origin-patterns:
+                  # 参数说明：声明 CORS 允许的来源模式；UAT/生产必须使用明确 HTTPS 域名，禁止 localhost 和宽泛通配。
                   - "http://localhost:*"
+                  # 参数说明：声明 CORS 允许的来源模式；UAT/生产必须使用明确 HTTPS 域名，禁止 localhost 和宽泛通配。
                   - "http://127.0.0.1:*"
                 allowed-methods:
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - GET
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - POST
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - OPTIONS
+                # 参数说明：配置 CORS 允许的请求头；生产应按实际前端请求收敛范围。
                 allowed-headers: "*"
+                # 参数说明：控制跨域请求是否允许携带 Cookie/Authorization 等凭据；与通配 Origin 不可同时开启。
                 allow-credentials: false
+                # 参数说明：配置浏览器缓存 CORS 预检结果的时长，单位秒。
                 max-age: 1800
               "[/admin/**]":
                 allowed-origin-patterns:
+                  # 参数说明：声明 CORS 允许的来源模式；UAT/生产必须使用明确 HTTPS 域名，禁止 localhost 和宽泛通配。
                   - "http://localhost:*"
+                  # 参数说明：声明 CORS 允许的来源模式；UAT/生产必须使用明确 HTTPS 域名，禁止 localhost 和宽泛通配。
                   - "http://127.0.0.1:*"
                 allowed-methods:
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - GET
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - POST
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - PUT
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - DELETE
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - OPTIONS
+                # 参数说明：配置 CORS 允许的请求头；生产应按实际前端请求收敛范围。
                 allowed-headers: "*"
                 exposed-headers:
+                  # 参数说明：声明允许浏览器读取的响应头，避免暴露无关内部头。
                   - X-Trace-Id
+                # 参数说明：控制跨域请求是否允许携带 Cookie/Authorization 等凭据；与通配 Origin 不可同时开启。
                 allow-credentials: false
+                # 参数说明：配置浏览器缓存 CORS 预检结果的时长，单位秒。
                 max-age: 1800
               "[/merchant/**]":
                 allowed-origin-patterns:
+                  # 参数说明：声明 CORS 允许的来源模式；UAT/生产必须使用明确 HTTPS 域名，禁止 localhost 和宽泛通配。
                   - "http://localhost:*"
+                  # 参数说明：声明 CORS 允许的来源模式；UAT/生产必须使用明确 HTTPS 域名，禁止 localhost 和宽泛通配。
                   - "http://127.0.0.1:*"
                 allowed-methods:
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - GET
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - POST
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - PUT
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - DELETE
+                  # 参数说明：声明该路由允许的 HTTP 方法，遵循最小开放原则。
                   - OPTIONS
+                # 参数说明：配置 CORS 允许的请求头；生产应按实际前端请求收敛范围。
                 allowed-headers: "*"
                 exposed-headers:
+                  # 参数说明：声明允许浏览器读取的响应头，避免暴露无关内部头。
                   - X-Trace-Id
+                # 参数说明：控制跨域请求是否允许携带 Cookie/Authorization 等凭据；与通配 Origin 不可同时开启。
                 allow-credentials: false
+                # 参数说明：配置浏览器缓存 CORS 预检结果的时长，单位秒。
                 max-age: 1800

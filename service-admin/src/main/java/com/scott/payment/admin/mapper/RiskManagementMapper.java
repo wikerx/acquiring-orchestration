@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -966,12 +967,16 @@ public interface RiskManagementMapper {
             <if test="sourceUrl != null and sourceUrl != ''">AND source_url LIKE CONCAT('%', #{sourceUrl}, '%')</if>
             <if test="sourceHost != null and sourceHost != ''">AND source_host LIKE CONCAT('%', #{sourceHost}, '%')</if>
             <if test="status != null">AND status = #{status}</if>
+            <if test="approvalStatus != null">AND approval_status = #{approvalStatus}</if>
+            <if test="submitSource != null and submitSource != ''">AND submit_source = #{submitSource}</if>
             </script>
             """)
     long countSourceUrlRules(@Param("merchantId") String merchantId,
                              @Param("sourceUrl") String sourceUrl,
                              @Param("sourceHost") String sourceHost,
-                             @Param("status") Integer status);
+                             @Param("status") Integer status,
+                             @Param("approvalStatus") Integer approvalStatus,
+                             @Param("submitSource") String submitSource);
 
     /**
      * 分页查询商户来源网址限定。
@@ -993,6 +998,8 @@ public interface RiskManagementMapper {
             <if test="sourceUrl != null and sourceUrl != ''">AND source_url LIKE CONCAT('%', #{sourceUrl}, '%')</if>
             <if test="sourceHost != null and sourceHost != ''">AND source_host LIKE CONCAT('%', #{sourceHost}, '%')</if>
             <if test="status != null">AND status = #{status}</if>
+            <if test="approvalStatus != null">AND approval_status = #{approvalStatus}</if>
+            <if test="submitSource != null and submitSource != ''">AND submit_source = #{submitSource}</if>
             ORDER BY update_time DESC, id DESC
             LIMIT #{offset}, #{pageSize}
             </script>
@@ -1001,6 +1008,8 @@ public interface RiskManagementMapper {
                                                       @Param("sourceUrl") String sourceUrl,
                                                       @Param("sourceHost") String sourceHost,
                                                       @Param("status") Integer status,
+                                                      @Param("approvalStatus") Integer approvalStatus,
+                                                      @Param("submitSource") String submitSource,
                                                       @Param("offset") long offset,
                                                       @Param("pageSize") long pageSize);
 
@@ -1079,10 +1088,12 @@ public interface RiskManagementMapper {
     @Insert("""
             INSERT INTO risk_rule_source_url (
                 merchant_id, source_url, source_host, risk_level, decision_action,
-                effective_time, expire_time, status, remark, create_by, update_by, deleted
+                effective_time, expire_time, status, approval_status, approval_remark, submit_source,
+                review_by, review_time, remark, create_by, update_by, deleted
             ) VALUES (
                 #{data.merchantId}, #{data.sourceUrl}, #{data.sourceHost}, #{data.riskLevel}, #{data.decisionAction},
-                #{data.effectiveTime}, #{data.expireTime}, #{data.status}, #{data.remark}, #{operator}, #{operator}, 0
+                #{data.effectiveTime}, #{data.expireTime}, #{data.status}, #{data.approvalStatus}, #{data.approvalRemark}, #{data.submitSource},
+                #{data.reviewBy}, #{data.reviewTime}, #{data.remark}, #{operator}, #{operator}, 0
             )
             """)
     int insertSourceUrlRule(@Param("data") Map<String, Object> data,
@@ -1218,6 +1229,31 @@ public interface RiskManagementMapper {
                             @Param("operator") String operator);
 
     /**
+     * CAS 审批商户来源网址，仅允许待审核记录写入审批终态。
+     *
+     * @return 影响行数，0 表示记录已被审批或不存在
+     */
+    @Update("""
+            UPDATE risk_rule_source_url
+            SET approval_status = #{approvalStatus},
+                approval_remark = #{approvalRemark},
+                status = #{status},
+                review_by = #{operator},
+                review_time = #{reviewTime},
+                update_by = #{operator},
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE id = #{id}
+              AND approval_status = 0
+              AND deleted = 0
+            """)
+    int approveSourceUrlRule(@Param("id") Long id,
+                             @Param("approvalStatus") Integer approvalStatus,
+                             @Param("approvalRemark") String approvalRemark,
+                             @Param("status") Integer status,
+                             @Param("operator") String operator,
+                             @Param("reviewTime") LocalDateTime reviewTime);
+
+    /**
      * 写入配置变更日志。
      *
      * @param moduleType     模块类型
@@ -1270,33 +1306,6 @@ public interface RiskManagementMapper {
      */
     @Select("SELECT COUNT(1) FROM risk_config_change_log")
     long countChangeLogs();
-
-    /**
-     * 查询今日风险事件。
-     *
-     * @param limit 返回数量上限
-     * @return 当日风控评估记录
-     */
-    @Select("""
-            SELECT risk_record_no,
-                   merchant_id,
-                   merchant_name,
-                   merchant_order_no,
-                   payment_order_no,
-                   transaction_amount,
-                   transaction_currency,
-                   risk_level,
-                   decision_result,
-                   decision_reason,
-                   hit_count,
-                   evaluation_time
-            FROM risk_evaluation_record
-            WHERE evaluation_time >= CURRENT_DATE()
-              AND evaluation_time < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
-            ORDER BY evaluation_time DESC, id DESC
-            LIMIT #{limit}
-            """)
-    List<Map<String, Object>> selectTodayRiskEvents(@Param("limit") int limit);
 
     /**
      * 查询近 30 天高风险商户排行。
@@ -1471,6 +1480,9 @@ public interface RiskManagementMapper {
      * @param merchantOrderNo 商户订单号，允许为空
      * @param paymentOrderNo  平台支付订单号，允许为空
      * @param decisionResult  决策结果，允许为空
+     * @param riskLevel 风险等级，允许为空
+     * @param evaluationStartTime 评估时间起点（包含），允许为空
+     * @param evaluationEndTimeExclusive 评估时间终点（不包含），允许为空
      * @return 风控评估记录数量
      */
     @Select("""
@@ -1482,12 +1494,18 @@ public interface RiskManagementMapper {
             <if test="merchantOrderNo != null and merchantOrderNo != ''">AND merchant_order_no = #{merchantOrderNo}</if>
             <if test="paymentOrderNo != null and paymentOrderNo != ''">AND payment_order_no = #{paymentOrderNo}</if>
             <if test="decisionResult != null and decisionResult != ''">AND decision_result = #{decisionResult}</if>
+            <if test="riskLevel != null and riskLevel != ''">AND risk_level = #{riskLevel}</if>
+            <if test="evaluationStartTime != null">AND evaluation_time &gt;= #{evaluationStartTime}</if>
+            <if test="evaluationEndTimeExclusive != null">AND evaluation_time &lt; #{evaluationEndTimeExclusive}</if>
             </script>
             """)
     long countEvaluations(@Param("merchantId") String merchantId,
                           @Param("merchantOrderNo") String merchantOrderNo,
                           @Param("paymentOrderNo") String paymentOrderNo,
-                          @Param("decisionResult") String decisionResult);
+                          @Param("decisionResult") String decisionResult,
+                          @Param("riskLevel") String riskLevel,
+                          @Param("evaluationStartTime") LocalDateTime evaluationStartTime,
+                          @Param("evaluationEndTimeExclusive") LocalDateTime evaluationEndTimeExclusive);
 
     /**
      * 分页查询风控评估记录。
@@ -1496,19 +1514,37 @@ public interface RiskManagementMapper {
      * @param merchantOrderNo 商户订单号，允许为空
      * @param paymentOrderNo  平台支付订单号，允许为空
      * @param decisionResult  决策结果，允许为空
+     * @param riskLevel       风险等级，允许为空
+     * @param evaluationStartTime 评估时间起点（包含），允许为空
+     * @param evaluationEndTimeExclusive 评估时间终点（不包含），允许为空
      * @param offset          分页偏移量
      * @param pageSize        每页记录数
      * @return 风控评估记录列表
      */
     @Select("""
             <script>
-            SELECT *
+            SELECT id,
+                   risk_record_no,
+                   merchant_id,
+                   merchant_name,
+                   merchant_order_no,
+                   payment_order_no,
+                   transaction_amount,
+                   transaction_currency,
+                   risk_level,
+                   decision_result,
+                   decision_reason,
+                   hit_count,
+                   evaluation_time
             FROM risk_evaluation_record
             WHERE 1 = 1
             <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
             <if test="merchantOrderNo != null and merchantOrderNo != ''">AND merchant_order_no = #{merchantOrderNo}</if>
             <if test="paymentOrderNo != null and paymentOrderNo != ''">AND payment_order_no = #{paymentOrderNo}</if>
             <if test="decisionResult != null and decisionResult != ''">AND decision_result = #{decisionResult}</if>
+            <if test="riskLevel != null and riskLevel != ''">AND risk_level = #{riskLevel}</if>
+            <if test="evaluationStartTime != null">AND evaluation_time &gt;= #{evaluationStartTime}</if>
+            <if test="evaluationEndTimeExclusive != null">AND evaluation_time &lt; #{evaluationEndTimeExclusive}</if>
             ORDER BY evaluation_time DESC, id DESC
             LIMIT #{offset}, #{pageSize}
             </script>
@@ -1517,6 +1553,9 @@ public interface RiskManagementMapper {
                                                 @Param("merchantOrderNo") String merchantOrderNo,
                                                 @Param("paymentOrderNo") String paymentOrderNo,
                                                 @Param("decisionResult") String decisionResult,
+                                                @Param("riskLevel") String riskLevel,
+                                                @Param("evaluationStartTime") LocalDateTime evaluationStartTime,
+                                                @Param("evaluationEndTimeExclusive") LocalDateTime evaluationEndTimeExclusive,
                                                 @Param("offset") long offset,
                                                 @Param("pageSize") long pageSize);
 

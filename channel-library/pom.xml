@@ -14,7 +14,11 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>payment-channel-library</module>
-        <module>payout-channel-library</module>
+        <module>payment-channel-api</module>
+        <module>payment-channel-core</module>
+        <module>payment-channel-mpgs</module>
+        <module>payment-channel-worldpay</module>
+        <module>payout-channel-api</module>
+        <module>payout-channel-core</module>
     </modules>
 </project>

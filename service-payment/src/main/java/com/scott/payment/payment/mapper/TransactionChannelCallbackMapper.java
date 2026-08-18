@@ -16,20 +16,19 @@ import java.util.List;
  * @classname : TransactionChannelCallbackMapper
  * @date : 2026-07-14 22:26
  * @email : scott_x@163.com
- * @description : 渠道回调业务 Mapper，位于 service-payment 数据访问层，仅负责回调幂等记录和处理结果的物理分表访问。
+ * @description : 渠道回调业务 Mapper，位于 service-payment 数据访问层，仅通过 transaction_channel_callback 逻辑表保存幂等记录并执行 CAS。
  * @status : create
  */
 public interface TransactionChannelCallbackMapper extends BaseMapper<TransactionChannelCallbackDO> {
 
     /**
-     * 写入渠道回调业务记录物理分表。
+     * 写入渠道回调业务记录逻辑表。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
      * @param callbackDO 渠道回调业务记录
      * @return 影响行数
      */
     @Insert("""
-            INSERT INTO ${physicalTableName}
+            INSERT INTO transaction_channel_callback
             (
               callback_id, callback_log_id, transaction_id, operation_id, channel_code,
               channel_order_no, channel_transaction_id, callback_type, channel_event_type,
@@ -53,169 +52,38 @@ public interface TransactionChannelCallbackMapper extends BaseMapper<Transaction
               #{callbackDO.createTime}, #{callbackDO.updateTime}
             )
             """)
-    int insertPhysical(@Param("physicalTableName") String physicalTableName,
-                       @Param("callbackDO") TransactionChannelCallbackDO callbackDO);
+    int insertLogical(@Param("callbackDO") TransactionChannelCallbackDO callbackDO);
 
     /**
-     * 按平台交易 ID 查询渠道回调业务记录。
+     * 按渠道幂等键和精确分片时间查询回调记录。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param transactionId 平台当前交易 ID
-     * @return 回调业务记录列表
-     */
-    @Select("""
-            SELECT *
-            FROM ${physicalTableName}
-            WHERE transaction_id = #{transactionId}
-              AND deleted = 0
-            ORDER BY callback_received_time DESC
-            LIMIT 100
-            """)
-    List<TransactionChannelCallbackDO> selectByTransactionIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                     @Param("transactionId") String transactionId);
-
-    /**
-     * 按 operation_id 查询同一生命周期的渠道回调业务记录。
-     *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param operationId       平台内部生命周期关联标识
-     * @return 渠道回调业务记录列表
-     */
-    @Select("""
-            SELECT *
-            FROM ${physicalTableName}
-            WHERE operation_id = #{operationId}
-              AND deleted = 0
-            ORDER BY callback_received_time DESC
-            LIMIT 200
-            """)
-    List<TransactionChannelCallbackDO> selectByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                   @Param("operationId") String operationId);
-
-    /**
-     * 按渠道回调幂等键查询业务记录。
-     *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
      * @param channelCode 渠道编码
      * @param idempotencyKey 渠道回调幂等键
-     * @return 已存在的业务回调记录
+     * @param transactionDateTime 交易分片时间
+     * @return 已存在的回调记录
      */
     @Select("""
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_channel_callback
             WHERE channel_code = #{channelCode}
               AND idempotency_key = #{idempotencyKey}
+              AND transaction_date_time = #{transactionDateTime}
               AND deleted = 0
             LIMIT 1
             """)
-    TransactionChannelCallbackDO selectByIdempotencyPhysical(@Param("physicalTableName") String physicalTableName,
-                                                             @Param("channelCode") String channelCode,
-                                                             @Param("idempotencyKey") String idempotencyKey);
+    TransactionChannelCallbackDO selectByIdempotency(
+            @Param("channelCode") String channelCode,
+            @Param("idempotencyKey") String idempotencyKey,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
     /**
-     * 按交易时间范围分页查询渠道回调业务记录。
+     * 使用分片时间、版本和当前状态 CAS 更新回调处理结果。
      *
-     * @param physicalTableName    经分表规则解析器校验后的物理表名
-     * @param channelCode          渠道编码，可为空
-     * @param transactionId        平台交易 ID，可为空
-     * @param channelOrderNo       渠道订单号，可为空
-     * @param channelTransactionId 渠道交易 ID，可为空
-     * @param callbackStatus       回调处理状态，可为空
-     * @param beginTime            查询开始交易时间
-     * @param endTime              查询结束交易时间
-     * @param offset               分页偏移
-     * @param limit                分页大小
-     * @return 渠道回调业务记录列表
-     */
-    @Select("""
-            <script>
-            SELECT *
-            FROM ${physicalTableName}
-            WHERE deleted = 0
-              AND transaction_date_time &gt;= #{beginTime}
-              AND transaction_date_time &lt;= #{endTime}
-              <if test="channelCode != null and channelCode != ''">
-                AND channel_code = #{channelCode}
-              </if>
-              <if test="transactionId != null and transactionId != ''">
-                AND transaction_id = #{transactionId}
-              </if>
-              <if test="channelOrderNo != null and channelOrderNo != ''">
-                AND channel_order_no = #{channelOrderNo}
-              </if>
-              <if test="channelTransactionId != null and channelTransactionId != ''">
-                AND channel_transaction_id = #{channelTransactionId}
-              </if>
-              <if test="callbackStatus != null and callbackStatus != ''">
-                AND callback_status = #{callbackStatus}
-              </if>
-            ORDER BY callback_received_time DESC, id DESC
-            LIMIT #{offset}, #{limit}
-            </script>
-            """)
-    List<TransactionChannelCallbackDO> selectPagePhysical(@Param("physicalTableName") String physicalTableName,
-                                                          @Param("channelCode") String channelCode,
-                                                          @Param("transactionId") String transactionId,
-                                                          @Param("channelOrderNo") String channelOrderNo,
-                                                          @Param("channelTransactionId") String channelTransactionId,
-                                                          @Param("callbackStatus") String callbackStatus,
-                                                          @Param("beginTime") LocalDateTime beginTime,
-                                                          @Param("endTime") LocalDateTime endTime,
-                                                          @Param("offset") long offset,
-                                                          @Param("limit") long limit);
-
-    /**
-     * 统计交易时间范围内的渠道回调业务记录数量。
-     *
-     * @param physicalTableName    经分表规则解析器校验后的物理表名
-     * @param channelCode          渠道编码，可为空
-     * @param transactionId        平台交易 ID，可为空
-     * @param channelOrderNo       渠道订单号，可为空
-     * @param channelTransactionId 渠道交易 ID，可为空
-     * @param callbackStatus       回调处理状态，可为空
-     * @param beginTime            查询开始交易时间
-     * @param endTime              查询结束交易时间
-     * @return 命中记录数
-     */
-    @Select("""
-            <script>
-            SELECT COUNT(1)
-            FROM ${physicalTableName}
-            WHERE deleted = 0
-              AND transaction_date_time &gt;= #{beginTime}
-              AND transaction_date_time &lt;= #{endTime}
-              <if test="channelCode != null and channelCode != ''">
-                AND channel_code = #{channelCode}
-              </if>
-              <if test="transactionId != null and transactionId != ''">
-                AND transaction_id = #{transactionId}
-              </if>
-              <if test="channelOrderNo != null and channelOrderNo != ''">
-                AND channel_order_no = #{channelOrderNo}
-              </if>
-              <if test="channelTransactionId != null and channelTransactionId != ''">
-                AND channel_transaction_id = #{channelTransactionId}
-              </if>
-              <if test="callbackStatus != null and callbackStatus != ''">
-                AND callback_status = #{callbackStatus}
-              </if>
-            </script>
-            """)
-    long countPagePhysical(@Param("physicalTableName") String physicalTableName,
-                           @Param("channelCode") String channelCode,
-                           @Param("transactionId") String transactionId,
-                           @Param("channelOrderNo") String channelOrderNo,
-                           @Param("channelTransactionId") String channelTransactionId,
-                           @Param("callbackStatus") String callbackStatus,
-                           @Param("beginTime") LocalDateTime beginTime,
-                           @Param("endTime") LocalDateTime endTime);
-
-    /**
-     * 更新回调业务处理结果。
-     *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
      * @param callbackId 回调业务 ID
-     * @param callbackStatus 回调处理状态
+     * @param transactionDateTime 交易分片时间
+     * @param expectedVersion 当前版本号
+     * @param expectedStatuses 允许更新的当前回调状态
+     * @param callbackStatus 目标回调状态
      * @param parsedTransactionStatus 解析出的平台状态
      * @param previousTransactionStatus 推进前平台动作状态
      * @param targetTransactionStatus 目标平台状态
@@ -225,7 +93,8 @@ public interface TransactionChannelCallbackMapper extends BaseMapper<Transaction
      * @return 影响行数
      */
     @Update("""
-            UPDATE ${physicalTableName}
+            <script>
+            UPDATE transaction_channel_callback
             SET callback_status = #{callbackStatus},
                 parsed_transaction_status = #{parsedTransactionStatus},
                 previous_transaction_status = #{previousTransactionStatus},
@@ -236,15 +105,24 @@ public interface TransactionChannelCallbackMapper extends BaseMapper<Transaction
                 version = version + 1,
                 update_time = #{processedTime}
             WHERE callback_id = #{callbackId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND callback_status IN
+              <foreach collection="expectedStatuses" item="expectedStatus" open="(" separator="," close=")">
+                #{expectedStatus}
+              </foreach>
               AND deleted = 0
+            </script>
             """)
-    int updateProcessResultPhysical(@Param("physicalTableName") String physicalTableName,
-                                    @Param("callbackId") String callbackId,
-                                    @Param("callbackStatus") String callbackStatus,
-                                    @Param("parsedTransactionStatus") String parsedTransactionStatus,
-                                    @Param("previousTransactionStatus") String previousTransactionStatus,
-                                    @Param("targetTransactionStatus") String targetTransactionStatus,
-                                    @Param("processResult") String processResult,
-                                    @Param("failReason") String failReason,
-                                    @Param("processedTime") LocalDateTime processedTime);
+    int updateProcessResultLogical(@Param("callbackId") String callbackId,
+                                   @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                   @Param("expectedVersion") Integer expectedVersion,
+                                   @Param("expectedStatuses") List<String> expectedStatuses,
+                                   @Param("callbackStatus") String callbackStatus,
+                                   @Param("parsedTransactionStatus") String parsedTransactionStatus,
+                                   @Param("previousTransactionStatus") String previousTransactionStatus,
+                                   @Param("targetTransactionStatus") String targetTransactionStatus,
+                                   @Param("processResult") String processResult,
+                                   @Param("failReason") String failReason,
+                                   @Param("processedTime") LocalDateTime processedTime);
 }

@@ -4,6 +4,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.exception.BizException;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
 import com.scott.payment.component.core.model.CommonResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -43,7 +44,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ApiException.class)
     public CommonResult<Void> handleApiException(ApiException exception) {
         log.warn("Open API exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
-        return CommonResult.error(exception);
+        return errorResult(exception.getCode(), exception.getMessage());
     }
 
     /**
@@ -55,7 +56,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ServiceException.class)
     public CommonResult<Void> handleServiceException(ServiceException exception) {
         log.warn("Service exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
-        return CommonResult.error(exception);
+        return errorResult(exception.getCode(), exception.getMessage());
     }
 
     /**
@@ -67,7 +68,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BizException.class)
     public CommonResult<Void> handleBizException(BizException exception) {
         log.warn("Business exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
-        return CommonResult.error(exception);
+        return errorResult(exception.getCode(), exception.getMessage());
     }
 
     /**
@@ -143,8 +144,50 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public CommonResult<Void> handleException(Exception exception) {
+        TransactionDataUnavailableException unavailable = findTransactionDataUnavailable(exception);
+        if (unavailable != null) {
+            log.warn("event: TRANSACTION_DATA_UNAVAILABLE logicalTable: {} quarter: {} ruleVersion: {} wrapperType: {}",
+                    unavailable.getLogicalTable(), unavailable.getQuarter(), unavailable.getRuleVersion(),
+                    exception.getClass().getSimpleName());
+            return CommonResult.error(ApiResultEnum.TRANSACTION_DATA_UNAVAILABLE);
+        }
         log.error("System exception", exception);
         return CommonResult.error(ApiResultEnum.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * 对外隐藏 F500 内部详情，其他业务错误保持原始响应。
+     *
+     * @param code    业务错误码
+     * @param message 原始错误说明
+     * @return 统一错误响应
+     */
+    private CommonResult<Void> errorResult(String code, String message) {
+        if (ApiResultEnum.INTERNAL_SERVER_ERROR.getCode().equals(code)) {
+            return CommonResult.error(ApiResultEnum.INTERNAL_SERVER_ERROR);
+        }
+        return CommonResult.error(code, message);
+    }
+
+    /**
+     * 沿 JDBC 和 ShardingSphere 的异常包装链查找结构化季度节点错误。
+     *
+     * @param exception Web 层捕获的顶层异常
+     * @return 节点不可用异常；不存在时返回 null
+     */
+    private TransactionDataUnavailableException findTransactionDataUnavailable(Throwable exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof TransactionDataUnavailableException unavailable) {
+                return unavailable;
+            }
+            Throwable cause = current.getCause();
+            if (cause == current) {
+                break;
+            }
+            current = cause;
+        }
+        return null;
     }
 
     /**

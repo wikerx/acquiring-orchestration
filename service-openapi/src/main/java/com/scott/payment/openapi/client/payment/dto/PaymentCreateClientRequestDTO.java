@@ -1,10 +1,13 @@
 package com.scott.payment.openapi.client.payment.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -53,6 +56,15 @@ public class PaymentCreateClientRequestDTO implements Serializable {
      */
     private String requestId;
 
+    /** 支付核心内部使用的来源标识，不改变商户 OpenAPI 报文。 */
+    private String requestSource;
+
+    /** OpenAPI 申请主体稳定标识，当前使用已认证商户号。 */
+    private String applicantId;
+
+    /** 商户上送的退款原因摘要，仅在退款动作中使用。 */
+    private String requestReason;
+
     /**
      * 订单金额，主币种单位。
      */
@@ -66,6 +78,7 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     /**
      * 交易业务时间，数据库与分表均按 UTC+8 处理。
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
 
     /**
@@ -102,6 +115,15 @@ public class PaymentCreateClientRequestDTO implements Serializable {
      * 持卡人账单信息，用于 AVS、风控和渠道请求。
      */
     private BillingCardHolderInfoDTO billingCardHolderInfo;
+
+    /** 首次交易的商品或服务明细快照。 */
+    private List<GoodsInfoDTO> goodsInfo;
+
+    /** 商户上送的付款人身份、地址和浏览器上下文。 */
+    private PayerInfoDTO payerInfo;
+
+    /** 商户可选上送的收货人及收货地址快照。 */
+    private ShippingInfoDTO shippingInfo;
 
     /**
      * 卡信息，仅允许在 OpenAPI 到 Payment 再到渠道调用的内存链路中使用。
@@ -403,6 +425,57 @@ public class PaymentCreateClientRequestDTO implements Serializable {
         private String postal;
     }
 
+    /** 商品或服务行信息，amount 为该行总金额。 */
+    @Data
+    public static class GoodsInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String name;
+        private Integer quantity;
+        private BigDecimal amount;
+        private String currency;
+    }
+
+    /** 付款人信息，属于敏感业务快照，普通日志必须脱敏。 */
+    @Data
+    public static class PayerInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String payerId;
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+        private String ipAddress;
+        private String sessionId;
+        private Map<String, Object> browserInfo;
+        private String userAgent;
+    }
+
+    /** 收货人及收货地址信息，普通日志必须脱敏。 */
+    @Data
+    public static class ShippingInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+    }
+
     @Data
     /**
      * @author : scott
@@ -530,9 +603,14 @@ public class PaymentCreateClientRequestDTO implements Serializable {
         /**
          * 原交易业务时间，用于 service-payment 按 transaction_date_time + transaction_id 定位原交易分表。
          * <p>
-         * 商户 OpenAPI 不要求上送该字段；内部调用方如已知原交易时间可传入，否则支付核心会先按 transaction_id 解析原交易时间。
+         * 后续动作和查询必须直接透传平台响应中的真实时间，不允许由支付核心从交易号解析。
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime sourceTransactionDateTime;
+
+        /** 生命周期根主单的 transaction_date_time，用于 service-payment 精确路由 transaction_order。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * description，用于保存人工备注、交易说明或配置补充说明。
@@ -553,6 +631,9 @@ public class PaymentCreateClientRequestDTO implements Serializable {
          * </p>
          */
         private String callbackUrl;
+
+        /** 商户发起支付的网站原始 URL，用于来源网址限定和响应回显。 */
+        private String merchantWebsite;
 
         /**
          * card Brand，用于保存 Transaction Info DTO 中与 cardbrand 相关的业务属性。

@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -8,6 +9,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
@@ -18,7 +20,6 @@ import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.entity.TransactionIdempotencyDO;
-import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
@@ -27,6 +28,7 @@ import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.PaymentTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
@@ -35,6 +37,7 @@ import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -49,7 +52,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -64,6 +66,7 @@ import java.util.Objects;
  */
 @Service
 @Slf4j
+@DS(DataSourceName.TRANSACTION)
 public class DefaultPaymentTransactionPreparationService implements PaymentTransactionPreparationService {
 
     /**
@@ -85,6 +88,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      * 交易动作幂等范围。
      */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
+
+    /** 商户订单支付流守卫范围。 */
+    private static final String MERCHANT_ORDER_FLOW_SCOPE = "MERCHANT_ORDER_FLOW";
 
     /**
      * 默认交易业务时区。
@@ -146,6 +152,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      */
     private final PaymentChannelRouteService paymentChannelRouteService;
 
+    /** 服务端卡品牌解析器；BIN 数据库优先，公开 IIN 规则兜底。 */
+    private final PaymentCheckoutCardCapabilityService cardCapabilityService;
+
     /**
      * payment Exchange Rate Service 依赖，用于 Default Payment Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -175,6 +184,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      * </p>
      */
     private final TransactionEventOutboxService transactionEventOutboxService;
+
+    /** 无渠道短路已进入终态时，与交易事实同事务写入状态变更 Outbox。 */
+    private final TransactionLifecycleEventService lifecycleEventService;
 
     /**
      * transaction Record Service 依赖，用于 Default Payment Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
@@ -209,12 +221,34 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                                                        TransactionIdempotencyService transactionIdempotencyService,
                                                        TransactionEventOutboxService transactionEventOutboxService,
                                                        TransactionRecordService transactionRecordService) {
+        this(isoDictionaryService,
+                paymentRiskInvokeService,
+                paymentChannelRouteService,
+                paymentExchangeRateService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                null);
+    }
+
+    /** Spring 生产构造器，注入统一卡品牌解析能力。 */
+    @Autowired
+    public DefaultPaymentTransactionPreparationService(IsoDictionaryService isoDictionaryService,
+                                                       PaymentRiskInvokeService paymentRiskInvokeService,
+                                                       PaymentChannelRouteService paymentChannelRouteService,
+                                                       PaymentExchangeRateService paymentExchangeRateService,
+                                                       TransactionIdempotencyService transactionIdempotencyService,
+                                                       TransactionEventOutboxService transactionEventOutboxService,
+                                                       TransactionRecordService transactionRecordService,
+                                                       PaymentCheckoutCardCapabilityService cardCapabilityService) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentRiskInvokeService = paymentRiskInvokeService;
         this.paymentChannelRouteService = paymentChannelRouteService;
+        this.cardCapabilityService = cardCapabilityService;
         this.paymentExchangeRateService = paymentExchangeRateService;
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
+        this.lifecycleEventService = new DefaultTransactionLifecycleEventService(transactionEventOutboxService);
         this.transactionRecordService = transactionRecordService;
         this.riskReservationCompensation =
                 new PaymentRiskReservationCompensation(paymentRiskInvokeService);
@@ -231,7 +265,12 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
     @Transactional(rollbackFor = Exception.class)
     public PaymentInitialPreparationResultDTO prepareInitialTransaction(PaymentCreateCommandDTO commandDTO, String transactionType) {
         long startNanos = System.nanoTime();
-        String idempotencyKey = transactionIdempotencyService.buildInitialTransactionKey(
+        if (cardCapabilityService != null) {
+            cardCapabilityService.enrichCardBrand(commandDTO);
+        }
+        String idempotencyKey = transactionIdempotencyService.buildTransactionOperationKey(
+                commandDTO.getMerchantId(), commandDTO.getMerchantOrderId(), transactionType);
+        String merchantOrderFlowKey = transactionIdempotencyService.buildMerchantOrderFlowKey(
                 commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
         commandDTO.setRequestFingerprint(canonicalRequestFingerprint(commandDTO, transactionType));
         LocalDateTime now = LocalDateTime.now();
@@ -267,13 +306,13 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                     commandDTO.getRequestFingerprint());
             return resolveDuplicate(commandDTO, idempotencyKey);
         }
+        acquireMerchantOrderFlow(commandDTO, transactionType, merchantOrderFlowKey, now);
         log.info("event: PAYMENT_IDEMPOTENCY_BEGIN_OK stage=IDEMPOTENCY_BEGIN traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 transactionType,
                 idempotencyKey);
-        validateExistingInitialFlow(commandDTO);
         String operationId = PaymentOrderNoGenerator.nextOrderNo(OPERATION_ID_PREFIX, commandDTO.getTransactionDateTime());
         String transactionId = StringUtils.hasText(commandDTO.getTransactionId())
                 ? commandDTO.getTransactionId()
@@ -337,7 +376,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                     commandDTO.getPaymentMethod(),
                     commandDTO.getCurrency(),
                     commandDTO.getAmount());
-            routeResultDTO = paymentChannelRouteService.route(commandDTO);
+            routeResultDTO = resolveInitialRoute(commandDTO);
             log.info("event: PAYMENT_ROUTE_EVALUATE_END stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} channelMidId: {} midNo: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} durationMs: {}",
                     TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
@@ -402,12 +441,20 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 resultDTO,
                 riskDecisionEnum,
                 currencyExponent);
-        if (isTerminal(resultDTO)) {
-            saveTransactionCreatedEvent(commandDTO, resultDTO);
-        } else if (callChannel) {
+        if (isTerminal(resultDTO) || callChannel) {
             saveTransactionCreatedEvent(commandDTO, resultDTO);
         }
-        completeIdempotency(idempotencyKey, commandDTO, resultDTO);
+        if (isTerminal(resultDTO)) {
+            lifecycleEventService.saveStatusChanged(
+                    resultDTO.getTransactionId(),
+                    resultDTO.getOperationId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    resultDTO.getTransactionType(),
+                    resultDTO.getStatus(),
+                    commandDTO.getTransactionDateTime());
+        }
+        completeIdempotency(idempotencyKey, merchantOrderFlowKey, commandDTO, resultDTO);
         log.info("event: PAYMENT_LOCAL_PREPARE_END stage=LOCAL_PREPARE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} platformStatus: {} riskDecision: {} callChannel: {} channelCode: {} channelMidId: {} durationMs: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
@@ -437,28 +484,49 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return target;
     }
 
+    /** 已有渠道身份表示上游完成过路由，准备阶段必须恢复同一 MID。 */
+    private PaymentRouteResultDTO resolveInitialRoute(PaymentCreateCommandDTO commandDTO) {
+        PaymentCreateCommandDTO.ChannelIdentityDTO identity = commandDTO.getChannelIdentity();
+        if (identity == null) {
+            return paymentChannelRouteService.route(commandDTO);
+        }
+        if (!StringUtils.hasText(identity.getChannelCode()) || identity.getChannelMidConfigId() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "fixed channel identity is incomplete");
+        }
+        return paymentChannelRouteService.restore(identity.getChannelCode(), identity.getChannelId(),
+                identity.getChannelMidConfigId(), null);
+    }
+
     /**
-     * 校验同一商户订单下是否已有有效初始支付流程。
-     * <p>
-     * 前置条件：调用方已完成商户号和商户订单号必填校验。
-     * 该方法按 merchantId + merchantOrderNo 查询历史初始动作单，FAILED 记录允许重新发起，其它状态视为仍占用商户订单号；
-     * 命中有效流程时抛出幂等冲突异常，避免同一商户订单生成多条活跃支付链路。
-     * </p>
-     * @param commandDTO 支付创建命令，提供商户号和商户订单号
+     * 占用商户订单支付流。首次插入依赖 scope/key 唯一索引，失败重试依赖 FAILED + version CAS。
      */
-    private void validateExistingInitialFlow(PaymentCreateCommandDTO commandDTO) {
-        if (transactionRecordService == null) {
+    private void acquireMerchantOrderFlow(PaymentCreateCommandDTO commandDTO,
+                                          String transactionType,
+                                          String merchantOrderFlowKey,
+                                          LocalDateTime now) {
+        TransactionIdempotencyDO flowRecord = transactionIdempotencyService.newProcessingRecord(
+                MERCHANT_ORDER_FLOW_SCOPE,
+                merchantOrderFlowKey,
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                commandDTO.getMerchantOrderId(),
+                transactionType,
+                commandDTO.getTransactionDateTime(),
+                DEFAULT_TIME_ZONE,
+                commandDTO.getRequestFingerprint(),
+                now);
+        if (transactionIdempotencyService.tryBegin(flowRecord)) {
             return;
         }
-        List<TransactionOperationDO> operations = transactionRecordService.findInitialOperationsByMerchantOrder(
-                commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
-        for (TransactionOperationDO operationDO : operations) {
-            if (operationDO == null || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus())) {
-                continue;
-            }
-            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
-                    "merchant order number already has an active payment flow");
+        TransactionIdempotencyDO existing = transactionIdempotencyService
+                .find(MERCHANT_ORDER_FLOW_SCOPE, merchantOrderFlowKey)
+                .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS));
+        if (PaymentTransactionStatusEnum.FAILED.getCode().equals(existing.getTransactionStatus())
+                && transactionIdempotencyService.tryRestartFailedFlow(existing, flowRecord)) {
+            return;
         }
+        throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                "merchant order number already has an active or successful payment flow");
     }
 
     /**
@@ -908,12 +976,19 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         resultDTO.setRateSource(commandDTO.getRateSource());
         resultDTO.setRateTime(commandDTO.getRateTime());
         resultDTO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        resultDTO.setRootTransactionDateTime(commandDTO.getTransactionDateTime());
         resultDTO.setTransactionTimeZone(DEFAULT_TIME_ZONE);
         resultDTO.setPaymentMethod(commandDTO.getPaymentMethod());
         resultDTO.setPaymentBrand(resolvePaymentBrand(commandDTO));
         resultDTO.setCardBin(resolveCardBin(commandDTO));
         resultDTO.setDescription(commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getDescription());
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
+        resultDTO.setMerchantWebsite(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getMerchantWebsite());
+        resultDTO.setRedirectUrl(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getRedirectUrl());
+        resultDTO.setLanguage(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getLanguage());
         enrichMerchantResponse(resultDTO, channelResponse);
         if (PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {
             resultDTO.setFailReasonMessage(merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));
@@ -932,10 +1007,22 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      */
-    private void completeIdempotency(String idempotencyKey, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
+    private void completeIdempotency(String idempotencyKey,
+                                     String merchantOrderFlowKey,
+                                     PaymentCreateCommandDTO commandDTO,
+                                     PaymentCreateResultDTO resultDTO) {
         transactionIdempotencyService.complete(
                 TRANSACTION_OPERATION_SCOPE,
                 idempotencyKey,
+                resultDTO.getOperationId(),
+                resultDTO.getTransactionId(),
+                resultDTO.getStatus(),
+                commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount(),
+                resultDTO.getCurrency(),
+                JsonUtils.toJsonString(resultDTO));
+        transactionIdempotencyService.complete(
+                MERCHANT_ORDER_FLOW_SCOPE,
+                merchantOrderFlowKey,
                 resultDTO.getOperationId(),
                 resultDTO.getTransactionId(),
                 resultDTO.getStatus(),
@@ -1010,6 +1097,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
             if (resultDTO != null) {
+                applyLatestIdempotencyStatus(resultDTO, record.getTransactionStatus());
                 return resultDTO;
             }
         }
@@ -1025,6 +1113,23 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 : toMinorAmount(record.getTransactionAmount(), record.getTransactionCurrency()));
         resultDTO.setCurrency(record.getTransactionCurrency());
         return resultDTO;
+    }
+
+    /** 以幂等事实中的最新终态覆盖可能仍为 PROCESSING 的历史响应快照。 */
+    private void applyLatestIdempotencyStatus(PaymentCreateResultDTO resultDTO, String transactionStatus) {
+        if (!StringUtils.hasText(transactionStatus)) {
+            return;
+        }
+        resultDTO.setStatus(transactionStatus);
+        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
+            resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+            resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+            resultDTO.setMerchantResponseMessage(ApiResultEnum.PAYMENT_SUCCESS.getMessage());
+        } else if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
+            resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+            resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_REJECTED.getCode());
+            resultDTO.setMerchantResponseMessage(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        }
     }
 
 /**
@@ -1182,23 +1287,8 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         if (commandDTO.getCardInfo() == null || !StringUtils.hasText(commandDTO.getCardInfo().getCardNo())) {
             return null;
         }
-        String cardNo = commandDTO.getCardInfo().getCardNo().trim();
-        if (cardNo.startsWith("4")) {
-            return "VISA";
-        }
-        if (cardNo.startsWith("34") || cardNo.startsWith("37")) {
-            return "AMEX";
-        }
-        if (cardNo.startsWith("35")) {
-            return "JCB";
-        }
-        if (cardNo.startsWith("62")) {
-            return "UNIONPAY";
-        }
-        if (cardNo.startsWith("5") || cardNo.startsWith("22")) {
-            return "MASTERCARD";
-        }
-        return null;
+        String digits = commandDTO.getCardInfo().getCardNo().replaceAll("\\D", "");
+        return PaymentCardBrandRuleMatcher.resolve(digits);
     }
 
     /**

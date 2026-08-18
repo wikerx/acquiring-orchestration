@@ -43,7 +43,7 @@ public class OpenApiCallbackProperties {
     /**
      * 渠道编码到事件签名 keyId 和 HMAC-SHA256 共享密钥的映射。
      * <p>
-     * 用于 Worldpay Event-Signature 这类携带 keyId 的回调签名；未配置时会回退读取 channelSecrets。
+     * 用于携带 keyId 的渠道 Event-Signature；未配置时会回退读取 channelSecrets。
      * </p>
      */
     private Map<String, Map<String, String>> channelEventSecrets = new HashMap<>();

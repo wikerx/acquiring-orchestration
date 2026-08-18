@@ -1,7 +1,6 @@
 package com.scott.payment.risk.repository.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationState;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
@@ -22,6 +21,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,6 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -146,25 +147,144 @@ class DefaultRiskRuleSnapshotRepositoryTests {
     }
 
     /**
+     * 超容量快照必须在短 TTL 内直接旁路到精确查询，不能为每个请求重复加载上限加一行。
+     */
+    @Test
+    void shouldBypassRepeatedSnapshotLoadAfterCapacityExceeded() {
+        log.info("测试超容量快照旁路，关键输入: 快照上限 1、数据库返回 2 行、连续查询两次");
+        Fixture fixture = fixture(1, activeGeneration("g-snapshot"));
+        String snapshotKey = "acquiring:test:risk:black:ip:M202607290001";
+        String bypassKey = snapshotKey + ":capacity-bypass";
+        when(fixture.valueOperations().get(snapshotKey)).thenReturn(null);
+        when(fixture.valueOperations().get(bypassKey)).thenReturn(null, "g-snapshot");
+        List<RiskRuleSnapshotRow> oversizedRows = List.of(listRow(101L, null), listRow(102L, null));
+        when(fixture.mapper().selectActiveIpRangeSnapshotRows(
+                "risk_black_ip", "BLACK", "ip", "IP地址/区间黑名单", "ip",
+                "M202607290001", 2
+        )).thenReturn(oversizedRows);
+        RiskRuleSnapshotRow exactMatch = listRow(103L, null);
+        when(fixture.mapper().selectIpRangeMatch(
+                "risk_black_ip", "BLACK", "ip", "IP地址/区间黑名单", "ip",
+                "M202607290001", "IPV4", new BigDecimal("167772161")
+        )).thenReturn(exactMatch);
+        RiskRuntimeLookupValue lookupValue = ipLookupValue();
+
+        assertThat(fixture.repository().findListMatch(
+                RiskListFunction.BLACK_IP, "M202607290001", lookupValue
+        )).get().extracting(match -> match.getRuleId()).isEqualTo(103L);
+        assertThat(fixture.repository().findListMatch(
+                RiskListFunction.BLACK_IP, "M202607290001", lookupValue
+        )).get().extracting(match -> match.getRuleId()).isEqualTo(103L);
+
+        verify(fixture.mapper(), times(1)).selectActiveIpRangeSnapshotRows(
+                "risk_black_ip", "BLACK", "ip", "IP地址/区间黑名单", "ip",
+                "M202607290001", 2
+        );
+        verify(fixture.mapper(), times(2)).selectIpRangeMatch(
+                "risk_black_ip", "BLACK", "ip", "IP地址/区间黑名单", "ip",
+                "M202607290001", "IPV4", new BigDecimal("167772161")
+        );
+        verify(fixture.valueOperations()).set(bypassKey, "g-snapshot", Duration.ofSeconds(30));
+        verify(fixture.valueOperations(), never()).set(
+                org.mockito.ArgumentMatchers.eq(snapshotKey), anyString());
+        log.info("超容量快照旁路测试完成，结果: 完整集合只加载一次且每次均执行精确回源");
+    }
+
+    /**
+     * 容量旁路只对创建它的 generation 有效，规则发布后必须重新探测完整快照容量。
+     */
+    @Test
+    void shouldInvalidateCapacityBypassWhenGenerationChanges() {
+        log.info("测试超容量旁路代际失效，关键输入: 旁路 g-old、当前 g-new");
+        Fixture fixture = fixture(1, activeGeneration("g-new"));
+        String snapshotKey = "acquiring:test:risk:black:ip:M202607290001";
+        String bypassKey = snapshotKey + ":capacity-bypass";
+        when(fixture.valueOperations().get(snapshotKey)).thenReturn(null);
+        when(fixture.valueOperations().get(bypassKey)).thenReturn("g-old");
+        when(fixture.mapper().selectActiveIpRangeSnapshotRows(
+                "risk_black_ip", "BLACK", "ip", "IP地址/区间黑名单", "ip",
+                "M202607290001", 2
+        )).thenReturn(List.of(listRow(111L, null), listRow(112L, null)));
+
+        fixture.repository().findListMatch(
+                RiskListFunction.BLACK_IP, "M202607290001", ipLookupValue()
+        );
+
+        verify(fixture.mapper()).selectActiveIpRangeSnapshotRows(
+                "risk_black_ip", "BLACK", "ip", "IP地址/区间黑名单", "ip",
+                "M202607290001", 2
+        );
+        verify(fixture.valueOperations()).set(bypassKey, "g-new", Duration.ofSeconds(30));
+        log.info("超容量旁路代际失效测试完成，结果: 新代际重新探测并刷新旁路标记");
+    }
+
+    /**
+     * Redis 无法读取旁路标记时必须重新加载容量并执行精确 SQL，不能将缓存故障解释为未命中。
+     */
+    @Test
+    void shouldUseExactDatabaseQueryWhenCapacityBypassRedisReadFails() {
+        log.info("测试超容量旁路 Redis 异常，关键输入: 旁路 Key 读取抛出运行时异常");
+        Fixture fixture = fixture(1, activeGeneration("g-snapshot"));
+        String snapshotKey = "acquiring:test:risk:black:ip:M202607290001";
+        String bypassKey = snapshotKey + ":capacity-bypass";
+        when(fixture.valueOperations().get(snapshotKey)).thenReturn(null);
+        when(fixture.valueOperations().get(bypassKey)).thenThrow(new IllegalStateException("redis unavailable"));
+        when(fixture.mapper().selectActiveIpRangeSnapshotRows(
+                "risk_black_ip", "BLACK", "ip", "IP地址/区间黑名单", "ip",
+                "M202607290001", 2
+        )).thenReturn(List.of(listRow(121L, null), listRow(122L, null)));
+        RiskRuleSnapshotRow exactMatch = listRow(123L, null);
+        when(fixture.mapper().selectIpRangeMatch(
+                "risk_black_ip", "BLACK", "ip", "IP地址/区间黑名单", "ip",
+                "M202607290001", "IPV4", new BigDecimal("167772161")
+        )).thenReturn(exactMatch);
+
+        assertThat(fixture.repository().findListMatch(
+                RiskListFunction.BLACK_IP, "M202607290001", ipLookupValue()
+        )).get().extracting(match -> match.getRuleId()).isEqualTo(123L);
+
+        verify(fixture.mapper()).selectActiveIpRangeSnapshotRows(
+                "risk_black_ip", "BLACK", "ip", "IP地址/区间黑名单", "ip",
+                "M202607290001", 2
+        );
+        verify(fixture.mapper()).selectIpRangeMatch(
+                "risk_black_ip", "BLACK", "ip", "IP地址/区间黑名单", "ip",
+                "M202607290001", "IPV4", new BigDecimal("167772161")
+        );
+        verify(fixture.valueOperations(), never()).set(
+                org.mockito.ArgumentMatchers.eq(snapshotKey), anyString());
+        log.info("超容量旁路 Redis 异常测试完成，结果: 风控判断保持数据库精确回源语义");
+    }
+
+    /**
      * 创建 SNAPSHOT 模式测试夹具，所有 Redis 操作均使用字符串序列化接口。
      *
      * @return Mapper、Redis 操作接口和仓储
      */
     @SuppressWarnings("unchecked")
     private Fixture fixture() {
+        return fixture(5000, activeGeneration("g-snapshot"));
+    }
+
+    /**
+     * 创建指定容量和 generation 的 SNAPSHOT 模式测试夹具。
+     *
+     * @param maxRows        单快照最大行数
+     * @param generationStore 当前规则代际存储
+     * @return Mapper、Redis 操作接口和仓储
+     */
+    @SuppressWarnings("unchecked")
+    private Fixture fixture(int maxRows, RedisCacheGenerationStore generationStore) {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         RedisStringService legacyRedis = mock(RedisStringService.class);
-        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
         HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
-        when(generationStore.current("risk-runtime-rule"))
-                .thenReturn(RedisCacheGenerationState.active("g-snapshot"));
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(redisTemplate.opsForHash()).thenReturn(hashOperations);
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
         properties.setRuleCacheMode(RiskRuleCacheMode.SNAPSHOT);
-        properties.setRuleSnapshotMaxRows(5000);
+        properties.setRuleSnapshotMaxRows(maxRows);
         properties.setRuleSnapshotMaxCharacters(5 * 1024 * 1024);
         PaymentRedisProperties redisProperties = new PaymentRedisProperties();
         redisProperties.setKeyPrefix("acquiring:test");
@@ -173,13 +293,37 @@ class DefaultRiskRuleSnapshotRepositoryTests {
                 provider(legacyRedis),
                 provider(generationStore),
                 provider(redisTemplate),
-                provider(mock(ShardingDataTemplate.class)),
                 provider(null),
                 provider(null),
                 properties,
                 redisProperties
         );
         return new Fixture(mapper, valueOperations, hashOperations, repository);
+    }
+
+    /**
+     * 创建始终返回指定活跃 generation 的缓存代际存储。
+     *
+     * @param generation 当前规则代际
+     * @return generation 存储 mock
+     */
+    private RedisCacheGenerationStore activeGeneration(String generation) {
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        when(generationStore.current("risk-runtime-rule"))
+                .thenReturn(RedisCacheGenerationState.active(generation));
+        return generationStore;
+    }
+
+    /**
+     * 构造命中测试网段的 IPv4 查询值。
+     *
+     * @return 规范化 IP 区间查询值
+     */
+    private RiskRuntimeLookupValue ipLookupValue() {
+        RiskRuntimeLookupValue lookupValue = new RiskRuntimeLookupValue();
+        lookupValue.setIpVersion("IPV4");
+        lookupValue.setNumericValue(new BigDecimal("167772161"));
+        return lookupValue;
     }
 
     /**

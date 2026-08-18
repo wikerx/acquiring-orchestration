@@ -18,7 +18,12 @@ CREATE TABLE IF NOT EXISTS merchant_ip_whitelist (
     merchant_id VARCHAR(32) NOT NULL COMMENT '商户号，对应 base_merchant_info.merchant_id',
     ip_type VARCHAR(8) NOT NULL COMMENT 'IP类型：IPv4/IPv6',
     ip_value VARCHAR(45) NOT NULL COMMENT '规范化后的精确 IP 地址',
-    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1启用，0停用',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '交易状态：1允许交易，0禁止交易',
+    approval_status TINYINT NOT NULL DEFAULT 1 COMMENT '审核状态：0待审核，1审核通过，2审核拒绝',
+    approval_remark VARCHAR(500) NULL COMMENT '审批说明，审核拒绝时必填',
+    submit_source VARCHAR(16) NOT NULL DEFAULT 'ADMIN' COMMENT '提交来源：ADMIN、MERCHANT',
+    review_by VARCHAR(64) NULL COMMENT '审核人账号或姓名',
+    review_time DATETIME(3) NULL COMMENT '审核时间',
     remark VARCHAR(512) NULL COMMENT '备注',
     create_by VARCHAR(64) NULL COMMENT '创建人',
     update_by VARCHAR(64) NULL COMMENT '更新人',
@@ -27,8 +32,9 @@ CREATE TABLE IF NOT EXISTS merchant_ip_whitelist (
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，删除时写入主键ID',
     PRIMARY KEY (id),
     UNIQUE KEY uk_merchant_ip_whitelist_merchant_ip_deleted (merchant_id, ip_value, deleted),
-    KEY idx_merchant_ip_whitelist_lookup (merchant_id, ip_value, status, deleted),
-    KEY idx_merchant_ip_whitelist_merchant_time (merchant_id, gmt_modified, id)
+    KEY idx_merchant_ip_whitelist_lookup (merchant_id, ip_value, approval_status, status, deleted),
+    KEY idx_merchant_ip_whitelist_merchant_time (merchant_id, gmt_modified, id),
+    KEY idx_merchant_ip_whitelist_approval (approval_status, submit_source, gmt_create, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商户 OpenAPI IP 白名单';
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
@@ -51,6 +57,7 @@ JOIN (
     UNION ALL SELECT 'merchant_ip_whitelist_status_v1', '商户IP白名单启停', 'merchant:ip-whitelist:status', 6
     UNION ALL SELECT 'merchant_ip_whitelist_config_v1', '商户IP白名单开关', 'merchant:ip-whitelist:config', 7
     UNION ALL SELECT 'merchant_ip_whitelist_export_v1', '商户IP白名单导出', 'merchant:ip-whitelist:export', 8
+    UNION ALL SELECT 'merchant_ip_whitelist_approve_v1', '商户IP白名单审批', 'merchant:ip-whitelist:approve', 9
 ) item ON 1 = 1
 WHERE parent.app_id = 1
   AND parent.menu_code = 'merchant_ip_whitelist_manage_v1'
@@ -69,6 +76,7 @@ JOIN (
     UNION ALL SELECT 'merchant_ip_whitelist_status_v1', 'merchant:ip-whitelist:status', '商户IP白名单启停', 'PUT', '/admin/merchant/ip-whitelist/*/status'
     UNION ALL SELECT 'merchant_ip_whitelist_config_v1', 'merchant:ip-whitelist:config', '商户IP白名单开关', 'PUT', '/admin/merchant/ip-whitelist/config'
     UNION ALL SELECT 'merchant_ip_whitelist_export_v1', 'merchant:ip-whitelist:export', '商户IP白名单导出', 'POST', '/admin/merchant/ip-whitelist/export'
+    UNION ALL SELECT 'merchant_ip_whitelist_approve_v1', 'merchant:ip-whitelist:approve', '商户IP白名单审批', 'PUT', '/admin/merchant/ip-whitelist/*/approval'
 ) item ON item.menu_code = menu.menu_code
 WHERE menu.app_id = 1
   AND menu.deleted = 0
@@ -90,7 +98,8 @@ WHERE role.app_id = 1
       'merchant_ip_whitelist_remove_v1',
       'merchant_ip_whitelist_status_v1',
       'merchant_ip_whitelist_config_v1',
-      'merchant_ip_whitelist_export_v1'
+      'merchant_ip_whitelist_export_v1',
+      'merchant_ip_whitelist_approve_v1'
   )
   AND menu.deleted = 0;
 
@@ -109,6 +118,7 @@ WHERE role.app_id = 1
       'merchant:ip-whitelist:remove',
       'merchant:ip-whitelist:status',
       'merchant:ip-whitelist:config',
-      'merchant:ip-whitelist:export'
+      'merchant:ip-whitelist:export',
+      'merchant:ip-whitelist:approve'
   )
   AND permission.deleted = 0;

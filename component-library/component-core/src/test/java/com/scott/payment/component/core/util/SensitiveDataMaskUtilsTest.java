@@ -3,7 +3,6 @@ package com.scott.payment.component.core.util;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mockStatic;
 
 
 /**
@@ -34,6 +33,7 @@ class SensitiveDataMaskUtilsTest {
                   "authenticationToken":"three-ds-token",
                   "privateKey":"pem",
                   "cardNo":"4111111111111111",
+                  "ipAddress":"2001:4860:4860::8888",
                   "cardBin":"65432198765",
                   "pan":"5555555555554444",
                   "cvv":"123",
@@ -42,14 +42,21 @@ class SensitiveDataMaskUtilsTest {
                   "email":"scott@example.com",
                   "subEmail":"merchant@example.com",
                   "cardholderName":"John Smith",
+                  "nameOnCard":"John Smith MPGS",
+                  "payerIp":"203.0.113.9",
                   "legalPerson":"Jane Owner",
                   "enterprise":"Example Trading Limited",
                   "customerId":"CUSTOMER-0001",
                   "deviceFingerprint":"device-fingerprint-value",
+                  "merchantWebsite":"https://shop.merchant.example/checkout?token=secret",
+                  "callbackUrl":"https://merchant.example/callback?token=secret",
+                  "redirectUrl":"http://localhost:5175/result?token=secret",
+                  "checkoutUrl":"https://pay.example/checkout/raw-opaque-token/cover",
                   "billingAddress":"1 Billing Street",
                   "shippingAddress":"2 Shipping Street",
                   "idCard":"110101199001011234",
                   "bankAccount":"6222021234567890123",
+                  "receiverAccountNo":"6222021234567890123",
                   "iban":"GB82WEST12345698765432"
                 }
                 """;
@@ -66,7 +73,8 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).contains("\"authenticationToken\":\"***\"");
         assertThat(masked).contains("\"privateKey\":\"***\"");
         assertThat(masked).contains("\"cardNo\":\"411111******1111\"");
-        assertThat(masked).contains("\"cardBin\":\"654321*****\"");
+        assertThat(masked).contains("\"ipAddress\":\"***\"");
+        assertThat(masked).contains("\"cardBin\":\"***\"");
         assertThat(masked).contains("\"pan\":\"555555******4444\"");
         assertThat(masked).contains("\"cvv\":\"***\"");
         assertThat(masked).contains("\"mobile\":\"138****5678\"");
@@ -74,21 +82,44 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).contains("\"email\":\"s***@example.com\"");
         assertThat(masked).contains("\"subEmail\":\"m***@example.com\"");
         assertThat(masked).contains("\"cardholderName\":\"***\"");
+        assertThat(masked).contains("\"nameOnCard\":\"***\"");
+        assertThat(masked).contains("\"payerIp\":\"***\"");
         assertThat(masked).contains("\"legalPerson\":\"***\"");
         assertThat(masked).contains("\"enterprise\":\"***\"");
         assertThat(masked).contains("\"customerId\":\"***\"");
         assertThat(masked).contains("\"deviceFingerprint\":\"***\"");
+        assertThat(masked).contains("\"merchantWebsite\":\"***\"");
+        assertThat(masked).contains("\"callbackUrl\":\"***\"");
+        assertThat(masked).contains("\"redirectUrl\":\"***\"");
+        assertThat(masked).contains("\"checkoutUrl\":\"***\"");
         assertThat(masked).contains("\"billingAddress\":\"***\"");
         assertThat(masked).contains("\"shippingAddress\":\"***\"");
         assertThat(masked).contains("\"idCard\":\"***\"");
         assertThat(masked).contains("\"bankAccount\":\"6222******0123\"");
+        assertThat(masked).contains("\"receiverAccountNo\":\"6222******0123\"");
         assertThat(masked).contains("\"iban\":\"GB82******5432\"");
         assertThat(masked).doesNotContain("plain", "Bearer abc.def", "mpgs-password",
                 "mid-password", "mid-password-alias", "merchant-key", "three-ds-token", "pem", "1234567890123",
-                "65432198765",
-                "scott@example.com", "merchant@example.com", "John Smith", "Jane Owner",
+                "2001:4860:4860::8888", "65432198765",
+                "scott@example.com", "merchant@example.com", "John Smith", "John Smith MPGS", "203.0.113.9", "Jane Owner",
                 "Example Trading Limited", "CUSTOMER-0001", "device-fingerprint-value",
+                "https://shop.merchant.example/checkout?token=secret",
+                "https://merchant.example/callback?token=secret",
+                "http://localhost:5175/result?token=secret",
+                "https://pay.example/checkout/raw-opaque-token/cover",
                 "1 Billing Street", "2 Shipping Street");
+    }
+
+    /**
+     * 六位 BIN 也必须脱敏，避免最短合法查询值完整进入诊断日志。
+     */
+    @Test
+    void shouldMaskSixDigitCardBin() {
+        String masked = SensitiveDataMaskUtils.maskJson("{\"cardBin\":\"411111\"}");
+
+        assertThat(masked)
+                .isEqualTo("{\"cardBin\":\"***\"}")
+                .doesNotContain("411111");
     }
 
     /**
@@ -116,16 +147,59 @@ class SensitiveDataMaskUtilsTest {
     void shouldMaskJsonSafelyWithoutLeakingOriginalTextWhenMaskingFails() {
         String rawJson = "{\"cardNo\":\"4111111111111111\",\"securityCode\":\"123\"}";
 
-        try (var mocked = mockStatic(SensitiveDataMaskUtils.class, invocation -> {
-            if ("maskJson".equals(invocation.getMethod().getName())) {
-                throw new IllegalStateException("mask failed");
-            }
-            return invocation.callRealMethod();
-        })) {
-            String masked = SensitiveDataMaskUtils.maskJsonSafely(rawJson);
+        String masked = SensitiveDataMaskUtils.maskJsonSafely(rawJson, value -> {
+            throw new IllegalStateException("mask failed");
+        });
 
-            assertThat(masked).isEqualTo("***MASK_FAILED***");
-            assertThat(masked).doesNotContain("4111111111111111", "123");
-        }
+        assertThat(masked).isEqualTo("***MASK_FAILED***");
+        assertThat(masked).doesNotContain("4111111111111111", "123");
+    }
+
+    @Test
+    void shouldOnlyMaskPaymentDataAndCredentialsForTransactionInteractionJson() {
+        String json = """
+                {
+                  "Authorization":"Bearer abc.def",
+                  "merchantKey":"merchant-key",
+                  "cardNo":"4111111111111111",
+                  "pan":"5555555555554444",
+                  "expirationMonth":"12",
+                  "expirationYear":"2030",
+                  "expiryDate":"12/30",
+                  "securityCode":"123",
+                  "cvv":"456",
+                  "cavv":"AAABBIIFmAAAAAAAAAAAAAAAAAA=",
+                  "threeDSSessionData":"session-data",
+                  "merchantWebsite":"https://shop.merchant.example/checkout",
+                  "cardholderName":"John Smith",
+                  "billingAddress":"1 Billing Street",
+                  "email":"scott@example.com",
+                  "phone":"+8613812345678",
+                  "orderNo":"M202608100001"
+                }
+                """;
+
+        String masked = SensitiveDataMaskUtils.maskTransactionInteractionJson(json);
+
+        assertThat(masked).contains("\"Authorization\":\"***\"");
+        assertThat(masked).contains("\"merchantKey\":\"***\"");
+        assertThat(masked).contains("\"cardNo\":\"411111******1111\"");
+        assertThat(masked).contains("\"pan\":\"555555******4444\"");
+        assertThat(masked).contains("\"expirationMonth\":\"***\"");
+        assertThat(masked).contains("\"expirationYear\":\"***\"");
+        assertThat(masked).contains("\"expiryDate\":\"***\"");
+        assertThat(masked).contains("\"securityCode\":\"***\"");
+        assertThat(masked).contains("\"cvv\":\"***\"");
+        assertThat(masked).contains("\"cavv\":\"***\"");
+        assertThat(masked).contains("\"threeDSSessionData\":\"***\"");
+        assertThat(masked).contains("\"merchantWebsite\":\"https://shop.merchant.example/checkout\"");
+        assertThat(masked).contains("\"cardholderName\":\"John Smith\"");
+        assertThat(masked).contains("\"billingAddress\":\"1 Billing Street\"");
+        assertThat(masked).contains("\"email\":\"scott@example.com\"");
+        assertThat(masked).contains("\"phone\":\"+8613812345678\"");
+        assertThat(masked).contains("\"orderNo\":\"M202608100001\"");
+        assertThat(masked).doesNotContain("Bearer abc.def", "merchant-key", "4111111111111111",
+                "5555555555554444", "\"securityCode\":\"123\"", "\"cvv\":\"456\"",
+                "AAABBIIFmAAAAAAAAAAAAAAAAAA=", "session-data");
     }
 }

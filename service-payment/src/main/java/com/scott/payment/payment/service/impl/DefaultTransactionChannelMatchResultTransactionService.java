@@ -1,5 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
@@ -9,7 +11,6 @@ import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.ChannelTransactionStatusResolution;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ import java.time.LocalDateTime;
  * @status : create
  */
 @Service
+@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionChannelMatchResultTransactionService implements TransactionChannelMatchResultTransactionService {
 
     /**
@@ -43,21 +45,11 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
     private final TransactionLifecycleEventService lifecycleEventService;
 
     /**
-     * 创建主动渠道查询结果事务默认实现。
-     *
-     * @param transactionRecordService 交易事实记录服务
-     */
-    public DefaultTransactionChannelMatchResultTransactionService(TransactionRecordService transactionRecordService) {
-        this(transactionRecordService, null);
-    }
-
-    /**
      * 创建带终态 Outbox 能力的渠道补匹配结果事务服务。
      *
      * @param transactionRecordService 交易事实记录服务
      * @param lifecycleEventService    交易状态变更 Outbox 服务
      */
-    @Autowired
     public DefaultTransactionChannelMatchResultTransactionService(
             TransactionRecordService transactionRecordService,
             TransactionLifecycleEventService lifecycleEventService) {
@@ -99,7 +91,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 resolution == null ? null : resolution.getChannelStatus(),
                 resolution == null ? null : resolution.getChannelResponseCode(),
                 resolution == null ? null : resolution.getChannelResponseMessage());
-        if (statusChanged && lifecycleEventService != null && resolution != null) {
+        if (statusChanged && resolution != null) {
             lifecycleEventService.saveStatusChanged(
                     operationDO.getTransactionId(),
                     operationDO.getOperationId(),
@@ -133,6 +125,22 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                                       LocalDateTime matchTime,
                                       LocalDateTime nextMatchTime,
                                       String failReason) {
+        return markPendingByQuery(operationDO, originalRequestDO, invokeResultDTO,
+                "PENDING", matchResult, matchTime, nextMatchTime, failReason);
+    }
+
+    /** 保存 PENDING、MISMATCHED 或 FAILED 勾兑摘要。 */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public boolean markPendingByQuery(TransactionOperationDO operationDO,
+                                      TransactionChannelRequestDO originalRequestDO,
+                                      PaymentChannelInvokeResultDTO invokeResultDTO,
+                                      String matchStatus,
+                                      String matchResult,
+                                      LocalDateTime matchTime,
+                                      LocalDateTime nextMatchTime,
+                                      String failReason) {
+        LocalDateTime persistedNextMatchTime = "PENDING".equals(matchStatus) ? nextMatchTime : null;
         transactionRecordService.updateOriginalChannelRequestByQuery(
                 operationDO,
                 originalRequestDO,
@@ -141,11 +149,11 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 failReason);
         return transactionRecordService.updateChannelMatch(
                 operationDO,
-                "PENDING",
+                matchStatus,
                 matchResult,
                 originalRequestDO == null ? null : originalRequestDO.getRequestId(),
                 matchTime,
-                nextMatchTime,
+                persistedNextMatchTime,
                 failReason);
     }
 }

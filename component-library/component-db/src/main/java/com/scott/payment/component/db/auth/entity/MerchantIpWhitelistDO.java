@@ -42,9 +42,34 @@ public class MerchantIpWhitelistDO {
     private String ipValue;
 
     /**
-     * 启停状态，1 启用，0 停用。
+     * 交易状态，1 允许交易，0 禁止交易。
      */
     private Integer status;
+
+    /**
+     * 审核状态：0 待审核，1 审核通过，2 审核拒绝。
+     */
+    private Integer approvalStatus;
+
+    /**
+     * 审批说明；审核拒绝时必须记录拒绝原因。
+     */
+    private String approvalRemark;
+
+    /**
+     * 提交来源：ADMIN 管理端直接新增，MERCHANT 商户端提交。
+     */
+    private String submitSource;
+
+    /**
+     * 审核人账号或姓名。
+     */
+    private String reviewBy;
+
+    /**
+     * 审核完成时间，保留毫秒精度。
+     */
+    private LocalDateTime reviewTime;
 
     /**
      * 备注，记录商户提供的用途或来源说明。

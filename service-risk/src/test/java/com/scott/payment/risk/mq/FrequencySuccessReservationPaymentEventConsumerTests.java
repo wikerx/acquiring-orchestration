@@ -1,0 +1,49 @@
+package com.scott.payment.risk.mq;
+
+import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.risk.domain.FrequencySuccessReservationTransitionSummary;
+import com.scott.payment.risk.mq.message.RiskPaymentTransactionEventMessage;
+import com.scott.payment.risk.service.FrequencySuccessReservationService;
+import org.junit.jupiter.api.Test;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
+/**
+ * 支付终态驱动频控成功名额确认和释放的消费者测试。
+ */
+class FrequencySuccessReservationPaymentEventConsumerTests {
+
+    @Test
+    void shouldConfirmSuccessReleaseFailureAndIgnorePending() {
+        FrequencySuccessReservationService service = mock(FrequencySuccessReservationService.class);
+        when(service.confirm("M001", "TX001"))
+                .thenReturn(FrequencySuccessReservationTransitionSummary.empty());
+        when(service.release("M001", "TX001"))
+                .thenReturn(FrequencySuccessReservationTransitionSummary.empty());
+        FrequencySuccessReservationPaymentEventConsumer consumer =
+                new FrequencySuccessReservationPaymentEventConsumer(service);
+
+        consumer.onMessage(payload("SUCCESS"));
+        consumer.onMessage(payload("FAILED"));
+        consumer.onMessage(payload("PENDING"));
+
+        verify(service).confirm("M001", "TX001");
+        verify(service).release("M001", "TX001");
+        verify(service, never()).confirm("M001", "TX-PENDING");
+        verifyNoMoreInteractions(service);
+    }
+
+    private String payload(String status) {
+        RiskPaymentTransactionEventMessage message = new RiskPaymentTransactionEventMessage();
+        message.setMessageId("EV-" + status);
+        message.setMerchantId("M001");
+        message.setTransactionId("TX001");
+        message.setTransactionStatus(status);
+        message.setEventType(RiskMqConstants.PAYMENT_TRANSACTION_STATUS_CHANGED_TAG);
+        return JsonUtils.toJsonString(message);
+    }
+}

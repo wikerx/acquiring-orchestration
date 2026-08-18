@@ -6,8 +6,7 @@ import com.baomidou.dynamic.datasource.ds.GroupDataSource;
 import com.scott.payment.admin.config.MonitorDynamicDataSourceProperties;
 import com.scott.payment.admin.dto.export.DataSourceMonitorExportRow;
 import com.scott.payment.admin.dto.monitor.DataSourceMonitorResponse;
-import com.scott.payment.component.db.sharding.PaymentOrderShardingAlgorithm;
-import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
+import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementRange;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalculator;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
@@ -70,7 +69,7 @@ public class AdminMonitorDatasourceApplicationService {
     /**
      * 分表配置快照。
      */
-    private final PaymentQuarterShardingProperties paymentQuarterShardingProperties;
+    private final TransactionShardingGovernanceProperties paymentQuarterShardingProperties;
 
     /**
      * Spring 环境信息，用于读取当前激活 profile。
@@ -91,11 +90,6 @@ public class AdminMonitorDatasourceApplicationService {
      * Excel 语言解析器。
      */
     private final ExcelLocaleResolver excelLocaleResolver;
-
-    /**
-     * 季度分表算法，用于推导物理表范围。
-     */
-    private final PaymentOrderShardingAlgorithm paymentOrderShardingAlgorithm = new PaymentOrderShardingAlgorithm();
 
     /**
      * sharding Quarter Resolver，用于保存 Admin Monitor Datasource Application Service 中与 shardingquarterresolver 相关的业务属性。
@@ -141,7 +135,7 @@ public class AdminMonitorDatasourceApplicationService {
     public AdminMonitorDatasourceApplicationService(
             ObjectProvider<DynamicRoutingDataSource> dynamicRoutingDataSourceProvider,
             MonitorDynamicDataSourceProperties monitorDynamicDataSourceProperties,
-            PaymentQuarterShardingProperties paymentQuarterShardingProperties,
+            TransactionShardingGovernanceProperties paymentQuarterShardingProperties,
             Environment environment,
             ExcelExportService excelExportService,
             ExcelI18nMessageResolver excelI18nMessageResolver,
@@ -359,8 +353,8 @@ public class AdminMonitorDatasourceApplicationService {
         ShardingAutoIncrementRange currentRange = shardingAutoIncrementValueCalculator.calculate(paymentQuarterShardingProperties, currentQuarter);
 
         List<DataSourceMonitorResponse.ShardingRuleItem> tableRules = new ArrayList<>();
-        for (Map.Entry<String, PaymentQuarterShardingProperties.TableRule> entry : paymentQuarterShardingProperties.getTables().entrySet()) {
-            PaymentQuarterShardingProperties.TableRule rule = entry.getValue();
+        for (Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> entry : paymentQuarterShardingProperties.getTables().entrySet()) {
+            TransactionShardingGovernanceProperties.TableRule rule = entry.getValue();
             DataSourceMonitorResponse.ShardingRuleItem item = new DataSourceMonitorResponse.ShardingRuleItem();
             item.setRuleKey(entry.getKey());
             item.setLogicalTable(rule.getLogicalTable());
@@ -382,7 +376,7 @@ public class AdminMonitorDatasourceApplicationService {
             item.setActualTargetType(resolveActualTargetType(rule.getActualDataSource(), runtimeDataSources, groupMembers));
             item.setActualTargetMembers(resolveActualTargetMembers(rule.getActualDataSource(), groupMembers));
 
-            List<String> physicalTables = paymentOrderShardingAlgorithm.physicalTables(paymentQuarterShardingProperties, entry.getKey());
+            List<String> physicalTables = plannedPhysicalTables(rule);
             item.setPhysicalTables(physicalTables);
             item.setPhysicalTableCount(physicalTables.size());
             item.setFirstPhysicalTable(physicalTables.isEmpty() ? null : physicalTables.get(0));
@@ -391,6 +385,20 @@ public class AdminMonitorDatasourceApplicationService {
         }
         snapshot.setTables(tableRules);
         return snapshot;
+    }
+
+    /** 只展开当前季度起的有限治理窗口，长期支持上限不等于待建物理表清单。 */
+    private List<String> plannedPhysicalTables(TransactionShardingGovernanceProperties.TableRule rule) {
+        ShardingQuarter cursor = shardingQuarterResolver.currentQuarter(paymentQuarterShardingProperties);
+        int horizon = Math.max(paymentQuarterShardingProperties.getPlanningHorizonQuarters(), 1);
+        List<String> physicalTables = new ArrayList<>(horizon);
+        for (int index = 0; index < horizon; index++) {
+            if (shardingQuarterResolver.inRange(rule, cursor)) {
+                physicalTables.add(shardingPhysicalTableNameResolver.physicalTableName(rule, cursor));
+            }
+            cursor = cursor.next();
+        }
+        return physicalTables;
     }
 
     /**
@@ -404,7 +412,7 @@ public class AdminMonitorDatasourceApplicationService {
      * @param quarter quarter 输入值，参与 quarter 的查询、校验、转换、写入或日志摘要
      * @return 构造、转换或解析后的业务值
      */
-    private String resolvePhysicalTableName(PaymentQuarterShardingProperties.TableRule rule, ShardingQuarter quarter) {
+    private String resolvePhysicalTableName(TransactionShardingGovernanceProperties.TableRule rule, ShardingQuarter quarter) {
         if (!shardingQuarterResolver.inRange(rule, quarter)) {
             return null;
         }
@@ -462,7 +470,7 @@ public class AdminMonitorDatasourceApplicationService {
                                                      Map<String, List<String>> groupMembers) {
         Set<String> dataSourceKeys = runtimeDataSources.keySet();
         Set<String> groupNames = groupMembers.keySet();
-        for (Map.Entry<String, PaymentQuarterShardingProperties.TableRule> entry : paymentQuarterShardingProperties.getTables().entrySet()) {
+        for (Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> entry : paymentQuarterShardingProperties.getTables().entrySet()) {
             String actualDataSource = entry.getValue().getActualDataSource();
             if (actualDataSource == null) {
                 warnings.add("分表规则 " + entry.getKey() + " 未配置 actual-data-source，页面无法判断物理路由归属。");
@@ -539,8 +547,8 @@ public class AdminMonitorDatasourceApplicationService {
      */
     private Map<String, List<String>> buildShardingTableBindings(Map<String, List<String>> groupMembers) {
         Map<String, List<String>> bindings = new LinkedHashMap<>();
-        for (Map.Entry<String, PaymentQuarterShardingProperties.TableRule> entry : paymentQuarterShardingProperties.getTables().entrySet()) {
-            PaymentQuarterShardingProperties.TableRule rule = entry.getValue();
+        for (Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> entry : paymentQuarterShardingProperties.getTables().entrySet()) {
+            TransactionShardingGovernanceProperties.TableRule rule = entry.getValue();
             if (!Boolean.TRUE.equals(rule.getEnabled()) || rule.getActualDataSource() == null) {
                 continue;
             }

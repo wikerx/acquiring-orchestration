@@ -1,4 +1,9 @@
 # service-gateway 专属配置：网关只保留接入层规则，不引入数据库、Redis、MQ、Seata、分表等业务基础设施。
+acquiring:
+  gateway-ingress:
+    # dev 默认值可直接联调；环境变量优先覆盖，test/uat/prod 必须使用各自 Secret。
+    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:2acee5d27b34b556d0a9b0123e2277870558d57f39968820a0b00edc1d3b7a12}
+
 gateway:
   route:
     # 商户收单 OpenAPI 入口，路由到 service-openapi。

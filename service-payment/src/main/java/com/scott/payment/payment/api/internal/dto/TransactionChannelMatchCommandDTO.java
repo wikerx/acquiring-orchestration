@@ -25,7 +25,7 @@ public class TransactionChannelMatchCommandDTO implements Serializable {
     private LocalDateTime transactionDateTime;
 
     /**
-     * 渠道编码，可为空；为空时扫描全部待勾兑渠道，WPGXML/WPGJSON 会作为两个独立渠道编码过滤。
+     * 渠道编码，可为空；为空时扫描全部待勾兑渠道，每个 provider 编码独立过滤。
      */
     private String channelCode;
 

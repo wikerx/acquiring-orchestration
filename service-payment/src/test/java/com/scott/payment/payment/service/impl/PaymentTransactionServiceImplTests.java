@@ -5,13 +5,16 @@ import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
-import com.scott.payment.component.redis.lock.RedisLockService;
+import com.scott.payment.component.redis.lock.DistributedLockBusyException;
+import com.scott.payment.component.redis.lock.DistributedLockExecution;
+import com.scott.payment.component.redis.lock.DistributedLockService;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
+import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.entity.TransactionIdempotencyDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
@@ -34,6 +37,7 @@ import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
+import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
@@ -42,11 +46,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -62,6 +69,35 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 @Slf4j
 class PaymentTransactionServiceImplTests {
+
+    /**
+     * 分片时间必须在任何持久化、渠道调用和结果回写之前统一到 MySQL DATETIME(3) 精度。
+     */
+    @Test
+    void shouldNormalizeInitialTransactionTimeToDatabasePrecisionBeforeProcessing() {
+        CapturingPaymentChannelInvokeService channelInvokeService =
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                List.of(),
+                channelInvokeService);
+        PaymentCreateCommandDTO commandDTO = new PaymentCreateCommandDTO();
+        commandDTO.setMerchantId("200001");
+        commandDTO.setMerchantOrderNo("M202608020001");
+        commandDTO.setMerchantOrderId("PAY202608020001");
+        commandDTO.setAmount(new BigDecimal("12.34"));
+        commandDTO.setCurrency("USD");
+        commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 8, 2, 12, 31, 25, 233_622_000));
+
+        service.createPayment(commandDTO);
+
+        assertThat(commandDTO.getTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 8, 2, 12, 31, 25, 233_000_000));
+        assertThat(channelInvokeService.commandDTO.getTransactionDateTime())
+                .isEqualTo(commandDTO.getTransactionDateTime());
+    }
 
     /**
      * 测试用原平台交易 ID，时间片段为 2026-07-12 10:30:00.000。
@@ -118,10 +154,147 @@ class PaymentTransactionServiceImplTests {
         assertThat(eventOutboxService.eventDO.getMessageKey()).isEqualTo(resultDTO.getTransactionId());
         assertThat(eventOutboxService.eventDO.getEventStatus()).isEqualTo("INIT");
         assertThat(eventOutboxService.eventDO.getEventType()).isEqualTo("TRANSACTION_CREATED");
-        assertThat(idempotencyService.find("TRANSACTION_OPERATION", "200001:M202607120001:INITIAL"))
+        assertThat(idempotencyService.find("TRANSACTION_OPERATION", "200001:AUTH202607120001:AUTHORIZATION"))
                 .get()
                 .extracting(TransactionIdempotencyDO::getTransactionId)
                 .isEqualTo(resultDTO.getTransactionId());
+        assertThat(idempotencyService.find("MERCHANT_ORDER_FLOW", "200001:M202607120001"))
+                .get()
+                .extracting(TransactionIdempotencyDO::getTransactionId)
+                .isEqualTo(resultDTO.getTransactionId());
+    }
+
+    @Test
+    void shouldRestoreFixedCheckoutRouteInsteadOfRoutingAgain() {
+        CapturingPaymentChannelInvokeService channelInvokeService =
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.PROCESSING));
+        CapturingFixedRouteService routeService = new CapturingFixedRouteService();
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                new CapturingTransactionRecordService(),
+                List.of(),
+                channelInvokeService,
+                routeService,
+                exchangeRateService());
+        PaymentCreateCommandDTO commandDTO = baseCommand();
+        PaymentCreateCommandDTO.ChannelIdentityDTO identity = new PaymentCreateCommandDTO.ChannelIdentityDTO();
+        identity.setChannelCode("MPGS");
+        identity.setChannelId(101L);
+        identity.setChannelMidConfigId(1001L);
+        commandDTO.setChannelIdentity(identity);
+
+        service.createPayment(commandDTO);
+
+        assertThat(routeService.routeCalls).isZero();
+        assertThat(routeService.restoreCalls).isEqualTo(1);
+        assertThat(channelInvokeService.routeResultDTO.getMidConfigId()).isEqualTo(1001L);
+    }
+
+    @Test
+    void shouldRejectRequiredThreeDsPaymentWithoutServerConfirmedPass() {
+        CapturingPaymentChannelInvokeService channelInvokeService =
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                List.of(),
+                channelInvokeService);
+        PaymentCreateCommandDTO commandDTO = baseCommand();
+        commandDTO.setThreeDsRequired(true);
+
+        assertThatThrownBy(() -> service.createPayment(commandDTO))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("3DS authentication has not passed");
+        assertThat(channelInvokeService.commandDTO).isNull();
+    }
+
+    @Test
+    void shouldSubmitSameRequestPreparationWithoutRestoringChannelRequestFromDatabase() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        CapturingPaymentChannelInvokeService channelInvokeService =
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+
+        PaymentInitialPreparationResultDTO preparation = service.preparePayment(baseCommand());
+        PaymentPreparedChannelRequestDTO preparedRequest = preparation.getPreparedChannelRequestDTO();
+
+        PaymentCreateResultDTO resultDTO = service.submitPreparedTransaction(preparation);
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(transactionRecordService.originalChannelRequestLookups).isZero();
+        assertThat(channelInvokeService.requestId).isEqualTo(preparedRequest.getRequestId());
+        assertThat(channelInvokeService.channelOrderNo).isEqualTo(preparedRequest.getChannelOrderNo());
+        assertThat(channelInvokeService.channelTransactionId).isEqualTo(preparedRequest.getChannelTransactionId());
+        assertThat(channelInvokeService.transactionId).isEqualTo(preparation.getResultDTO().getTransactionId());
+    }
+
+    @Test
+    void shouldNotSubmitPreparedFundsWhenAnotherRequestAlreadyClaimedTheChannelCall() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        transactionRecordService.submissionClaimAllowed = false;
+        CapturingPaymentChannelInvokeService channelInvokeService =
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+        PaymentInitialPreparationResultDTO preparation = service.preparePayment(baseCommand());
+
+        PaymentCreateResultDTO resultDTO = service.submitPreparedTransaction(preparation);
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        assertThat(transactionRecordService.submissionClaimCount).isEqualTo(1);
+        assertThat(channelInvokeService.commandDTO).isNull();
+    }
+
+    @Test
+    void shouldResumeThreeDsPaymentWithSamePreparedTransactionAndChannelRequest() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        CapturingPaymentChannelInvokeService channelInvokeService =
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+        PaymentInitialPreparationResultDTO preparation = service.preparePayment(baseCommand());
+        PaymentPreparedChannelRequestDTO preparedRequest = preparation.getPreparedChannelRequestDTO();
+        String preparedTransactionId = preparation.getResultDTO().getTransactionId();
+
+        PaymentCreateCommandDTO resumeCommand = new PaymentCreateCommandDTO();
+        resumeCommand.setTransactionId(preparedTransactionId);
+        resumeCommand.setTransactionDateTime(preparation.getCommandDTO().getTransactionDateTime());
+        resumeCommand.setThreeDsRequired(true);
+        PaymentCreateCommandDTO.ThreeDsInfoDTO threeDsInfo = new PaymentCreateCommandDTO.ThreeDsInfoDTO();
+        threeDsInfo.setAuthenticationStatus("PASSED");
+        threeDsInfo.setAuthenticationTransactionId("3DS-TEST-001");
+        resumeCommand.setThreeDsInfo(threeDsInfo);
+
+        PaymentCreateResultDTO resultDTO = service.resumePreparedTransaction(resumeCommand);
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(resultDTO.getTransactionId()).isEqualTo(preparedTransactionId);
+        assertThat(transactionRecordService.originalChannelRequestLookups).isEqualTo(1);
+        assertThat(channelInvokeService.requestId).isEqualTo(preparedRequest.getRequestId());
+        assertThat(channelInvokeService.channelOrderNo).isEqualTo(preparedRequest.getChannelOrderNo());
+        assertThat(channelInvokeService.channelTransactionId).isEqualTo(preparedRequest.getChannelTransactionId());
+        assertThat(channelInvokeService.transactionId).isEqualTo(preparedTransactionId);
+        assertThat(channelInvokeService.commandDTO.getThreeDsInfo().getAuthenticationTransactionId())
+                .isEqualTo("3DS-TEST-001");
     }
 
     /**
@@ -356,7 +529,10 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
         assertThat(channelInvokeService.commandDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
-        assertThat(idempotencyService.records).containsKey("TRANSACTION_OPERATION:200001:M202607120001:INITIAL");
+        assertThat(idempotencyService.records)
+                .containsKeys(
+                        "TRANSACTION_OPERATION:200001:AUTH202607120001:PAYMENT",
+                        "MERCHANT_ORDER_FLOW:200001:M202607120001");
     }
 
     /**
@@ -364,14 +540,17 @@ class PaymentTransactionServiceImplTests {
      */
     @Test
     void shouldRejectAuthorizationWhenMerchantOrderAlreadyHasPaymentFlow() {
-        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
-        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.PAYMENT, PaymentTransactionStatusEnum.SUCCESS));
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        idempotencyService.seedMerchantOrderFlow(
+                PaymentTransactionTypeEnum.PAYMENT,
+                PaymentTransactionStatusEnum.SUCCESS,
+                "PAYMENT-ATTEMPT-001");
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
-                new InMemoryTransactionIdempotencyService(),
+                idempotencyService,
                 new CapturingTransactionEventOutboxService(),
-                transactionRecordService,
+                new CapturingTransactionRecordService(),
                 List.of(),
                 channelInvokeService);
 
@@ -387,14 +566,17 @@ class PaymentTransactionServiceImplTests {
      */
     @Test
     void shouldRejectPaymentWhenMerchantOrderAlreadyHasAuthorizationFlow() {
-        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
-        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.AUTHORIZATION, PaymentTransactionStatusEnum.PROCESSING));
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        idempotencyService.seedMerchantOrderFlow(
+                PaymentTransactionTypeEnum.AUTHORIZATION,
+                PaymentTransactionStatusEnum.PROCESSING,
+                "AUTHORIZATION-ATTEMPT-001");
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
-                new InMemoryTransactionIdempotencyService(),
+                idempotencyService,
                 new CapturingTransactionEventOutboxService(),
-                transactionRecordService,
+                new CapturingTransactionRecordService(),
                 List.of(),
                 channelInvokeService);
 
@@ -410,14 +592,17 @@ class PaymentTransactionServiceImplTests {
      */
     @Test
     void shouldRejectDuplicateAuthorizationWhenMerchantOrderAlreadyHasAuthorizationFlow() {
-        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
-        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.AUTHORIZATION, PaymentTransactionStatusEnum.SUCCESS));
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        idempotencyService.seedMerchantOrderFlow(
+                PaymentTransactionTypeEnum.AUTHORIZATION,
+                PaymentTransactionStatusEnum.SUCCESS,
+                "AUTHORIZATION-ATTEMPT-001");
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
-                new InMemoryTransactionIdempotencyService(),
+                idempotencyService,
                 new CapturingTransactionEventOutboxService(),
-                transactionRecordService,
+                new CapturingTransactionRecordService(),
                 List.of(),
                 channelInvokeService);
 
@@ -433,14 +618,17 @@ class PaymentTransactionServiceImplTests {
      */
     @Test
     void shouldAllowRetryWhenExistingInitialFlowFailed() {
-        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
-        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.PAYMENT, PaymentTransactionStatusEnum.FAILED));
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        idempotencyService.seedMerchantOrderFlow(
+                PaymentTransactionTypeEnum.PAYMENT,
+                PaymentTransactionStatusEnum.FAILED,
+                "FAILED-ATTEMPT-001");
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
-                new InMemoryTransactionIdempotencyService(),
+                idempotencyService,
                 new CapturingTransactionEventOutboxService(),
-                transactionRecordService,
+                new CapturingTransactionRecordService(),
                 List.of(),
                 channelInvokeService);
 
@@ -448,6 +636,10 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
         assertThat(channelInvokeService.commandDTO).isNotNull();
+        assertThat(idempotencyService.find("MERCHANT_ORDER_FLOW", "200001:M202607120001"))
+                .get()
+                .extracting(TransactionIdempotencyDO::getMerchantOrderId)
+                .isEqualTo("AUTH202607120001");
     }
 
     /**
@@ -696,7 +888,11 @@ class PaymentTransactionServiceImplTests {
         PaymentCreateCommandDTO commandDTO = baseCommand();
         commandDTO.setAmount(null);
         commandDTO.setCurrency(null);
-        commandDTO.setTransactionInfo(new PaymentCreateCommandDTO.TransactionInfoDTO());
+        PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
+        transactionInfoDTO.setTransactionId(SOURCE_TRANSACTION_ID);
+        transactionInfoDTO.setSourceTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
+        transactionInfoDTO.setRootTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
+        commandDTO.setTransactionInfo(transactionInfoDTO);
 
         PaymentQueryResultDTO resultDTO = service.query(commandDTO);
 
@@ -705,38 +901,41 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getTransactionInfo()).hasSize(1);
         assertThat(resultDTO.getTransactionInfo().get(0).getTransactionId()).isEqualTo(SOURCE_TRANSACTION_ID);
         assertThat(resultDTO.getTransactionInfo().get(0).getCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(resultDTO.getTransactionInfo().get(0).getMerchantWebsite())
+                .isEqualTo("https://merchant.example.com/checkout");
+        assertThat(resultDTO.getTransactionInfo().get(0).getRootTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 30));
     }
 
-    /**
-     * 商户后续动作不需要上送原交易时间；系统应从平台交易号时间片定位原动作分表，再统一后续动作分表时间。
-     */
+    /** 后续动作必须使用调用链传入的动作时间和根主单时间，禁止从平台交易号解析分片。 */
     @Test
-    void shouldResolveSourceTransactionDateTimeFromTransactionIdWhenMerchantDoesNotPassIt() {
+    void shouldLocateSourceOrderWithExplicitActionAndRootShardingTimes() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
                 new InMemoryTransactionIdempotencyService(),
                 new CapturingTransactionEventOutboxService(),
-                new CapturingTransactionRecordService(),
+                transactionRecordService,
                 List.of(),
                 channelInvokeService);
         PaymentCreateCommandDTO commandDTO = followUpCommand(PaymentTransactionTypeEnum.CAPTURE, new BigDecimal("5.00"));
-        commandDTO.getTransactionInfo().setSourceTransactionDateTime(null);
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 14, 16, 16));
 
         PaymentCreateResultDTO resultDTO = service.capture(commandDTO);
 
         assertThat(resultDTO.getOperationId()).isEqualTo(SOURCE_OPERATION_ID);
-        assertThat(commandDTO.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 7, 14, 16, 16));
-        assertThat(commandDTO.getTransactionInfo().getSourceTransactionDateTime()).isNull();
+        assertThat(transactionRecordService.sourceLookupTransactionId).isEqualTo(SOURCE_TRANSACTION_ID);
+        assertThat(transactionRecordService.sourceLookupDateTime)
+                .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 30));
+        assertThat(transactionRecordService.rootLookupDateTime)
+                .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 30));
         assertThat(channelInvokeService.commandDTO).isSameAs(commandDTO);
     }
 
-    /**
-     * 后续动作不依赖幂等记录定位原交易；即使没有首次幂等记录，也应从标准平台 transaction_id 推导原交易分表时间。
-     */
+    /** 缺少显式源交易分片时间时必须拒绝，不能退回交易号解析。 */
     @Test
-    void shouldResolveSourceTransactionDateTimeFromTransactionIdWhenIdempotencyMissed() {
+    void shouldRejectFollowUpWhenSourceTransactionDateTimeIsMissing() {
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
                 new EmptyInitialTransactionIdempotencyService(),
@@ -748,11 +947,9 @@ class PaymentTransactionServiceImplTests {
         commandDTO.getTransactionInfo().setSourceTransactionDateTime(null);
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 14, 16, 17));
 
-        PaymentCreateResultDTO resultDTO = service.capture(commandDTO);
-
-        assertThat(resultDTO.getOperationId()).isEqualTo(SOURCE_OPERATION_ID);
-        assertThat(commandDTO.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 7, 14, 16, 17));
-        assertThat(commandDTO.getTransactionInfo().getSourceTransactionDateTime()).isNull();
+        assertThatThrownBy(() -> service.capture(commandDTO))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("sourceTransactionDateTime");
     }
 
     /**
@@ -773,6 +970,12 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
         assertThat(eventOutboxService.eventDO).isNotNull();
         assertThat(eventOutboxService.eventDO.getTransactionId()).isEqualTo(resultDTO.getTransactionId());
+        assertThat(eventOutboxService.events)
+                .extracting(TransactionEventOutboxDO::getEventType)
+                .containsExactly("TRANSACTION_CREATED", "TRANSACTION_STATUS_CHANGED");
+        assertThat(eventOutboxService.events)
+                .extracting(TransactionEventOutboxDO::getTransactionDateTime)
+                .containsOnly(commandDTO.getTransactionDateTime());
     }
 
     /**
@@ -848,7 +1051,11 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(repeatedResult.getTransactionId()).isEqualTo(firstResult.getTransactionId());
         assertThat(repeatedResult.getOperationId()).isEqualTo(firstResult.getOperationId());
-        assertThat(idempotencyService.records).hasSize(1);
+        assertThat(idempotencyService.records)
+                .hasSize(2)
+                .containsKeys(
+                        "TRANSACTION_OPERATION:200001:AUTH202607120001:AUTHORIZATION",
+                        "MERCHANT_ORDER_FLOW:200001:M202607120001");
     }
 
     /**
@@ -887,8 +1094,8 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(lockService.lockTtlByKey).hasSize(2);
         assertThat(lockService.lockTtlByKey.keySet())
-                .anyMatch(key -> key.matches("acquiring:local:payment:lock:operation:[0-9a-f]{64}"))
-                .anyMatch(key -> key.matches("acquiring:local:payment:lock:merchant-order-flow:[0-9a-f]{64}"))
+                .anyMatch(key -> key.matches("acquiring:local:lock:payment:\\{[0-9a-f]{64}}:operation"))
+                .anyMatch(key -> key.matches("acquiring:local:lock:payment:\\{[0-9a-f]{64}}:merchant-order-flow"))
                 .allSatisfy(key -> assertThat(key)
                         .doesNotContain("200001", "M202607120001", "transaction:", "service-payment", ":v1:"));
         assertThat(lockService.lockTtlByKey.values()).containsOnly(30L);
@@ -917,7 +1124,7 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(lockService.lockTtlByKey).hasSize(1);
         assertThat(lockService.lockTtlByKey.keySet())
-                .allMatch(key -> key.matches("acquiring:local:payment:lock:operation:[0-9a-f]{64}"))
+                .allMatch(key -> key.matches("acquiring:local:lock:payment:\\{[0-9a-f]{64}}:operation"))
                 .allSatisfy(key -> assertThat(key)
                         .doesNotContain("200001", SOURCE_TRANSACTION_ID, "CAPTURE202607120001",
                                 "transaction:", "service-payment", ":v1:"));
@@ -967,16 +1174,16 @@ class PaymentTransactionServiceImplTests {
     }
 
     /**
-     * WorldPay 一步支付同步 AUTHORISED 仅表示授权成功，必须等待 captured 回调或查询勾兑后才能标记付款成功。
+     * 一步支付同步 AUTHORIZED 仅表示授权成功，必须等待 CAPTURED 回调或查询勾兑后才能标记付款成功。
      */
     @Test
-    void shouldKeepWorldPayPaymentPendingWhenSyncAuthorised() {
+    void shouldKeepPaymentPendingWhenSyncAuthorized() {
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
                 new InMemoryTransactionIdempotencyService(),
                 new CapturingTransactionEventOutboxService(),
                 List.of(),
-                new CapturingPaymentChannelInvokeService(worldPayResponse("WPGXML", "AUTHORISED")));
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.AUTHORIZED)));
 
         PaymentCreateResultDTO resultDTO = service.createPayment(baseCommand());
 
@@ -986,16 +1193,16 @@ class PaymentTransactionServiceImplTests {
     }
 
     /**
-     * WorldPay 一步支付收到 CAPTURED 才代表资金动作成功，可映射为平台成功终态。
+     * 一步支付收到统一 CAPTURED 才代表资金动作成功，可映射为平台成功终态。
      */
     @Test
-    void shouldMarkWorldPayPaymentSuccessWhenCaptured() {
+    void shouldMarkPaymentSuccessWhenCaptured() {
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
                 new InMemoryTransactionIdempotencyService(),
                 new CapturingTransactionEventOutboxService(),
                 List.of(),
-                new CapturingPaymentChannelInvokeService(worldPayResponse("WPGXML", "CAPTURED")));
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.CAPTURED)));
 
         PaymentCreateResultDTO resultDTO = service.createPayment(baseCommand());
 
@@ -1085,6 +1292,8 @@ class PaymentTransactionServiceImplTests {
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 13, 11, 30));
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
         transactionInfoDTO.setSourceTransactionId(SOURCE_TRANSACTION_ID);
+        transactionInfoDTO.setSourceTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
+        transactionInfoDTO.setRootTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
         commandDTO.setTransactionInfo(transactionInfoDTO);
         return commandDTO;
     }
@@ -1101,7 +1310,7 @@ class PaymentTransactionServiceImplTests {
     private PaymentTransactionServiceImpl newService(PaymentRiskInvokeService riskInvokeService,
                                                      InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionEventOutboxService eventOutboxService,
-                                                     List<RedisLockService> redisLockServices) {
+                                                     List<DistributedLockService> redisLockServices) {
         return newService(riskInvokeService, idempotencyService, eventOutboxService, new CapturingTransactionRecordService(), redisLockServices,
                 new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.PROCESSING)));
     }
@@ -1109,7 +1318,7 @@ class PaymentTransactionServiceImplTests {
     private PaymentTransactionServiceImpl newService(PaymentRiskInvokeService riskInvokeService,
                                                      InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionEventOutboxService eventOutboxService,
-                                                     List<RedisLockService> redisLockServices,
+                                                     List<DistributedLockService> redisLockServices,
                                                      PaymentChannelInvokeService channelInvokeService) {
         return newService(riskInvokeService, idempotencyService, eventOutboxService, new CapturingTransactionRecordService(), redisLockServices, channelInvokeService);
     }
@@ -1118,7 +1327,7 @@ class PaymentTransactionServiceImplTests {
                                                      InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionEventOutboxService eventOutboxService,
                                                      CapturingTransactionRecordService transactionRecordService,
-                                                     List<RedisLockService> redisLockServices,
+                                                     List<DistributedLockService> redisLockServices,
                                                      PaymentChannelInvokeService channelInvokeService) {
         return newService(riskInvokeService, idempotencyService, eventOutboxService, transactionRecordService,
                 redisLockServices, channelInvokeService, routeService(), exchangeRateService());
@@ -1128,7 +1337,7 @@ class PaymentTransactionServiceImplTests {
                                                      InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionEventOutboxService eventOutboxService,
                                                      CapturingTransactionRecordService transactionRecordService,
-                                                     List<RedisLockService> redisLockServices,
+                                                     List<DistributedLockService> redisLockServices,
                                                      PaymentChannelInvokeService channelInvokeService,
                                                      PaymentChannelRouteService routeService,
                                                      PaymentExchangeRateService exchangeRateService) {
@@ -1142,19 +1351,63 @@ class PaymentTransactionServiceImplTests {
                 eventOutboxService,
                 transactionRecordService,
                 new DefaultTransactionStateMachineService(),
-                redisLockServices);
+                redisLockServices.isEmpty()
+                        ? new AlwaysAvailableDistributedLockService()
+                        : redisLockServices.get(0));
     }
 
     private PaymentChannelRouteService routeService() {
-        return commandDTO -> {
-            PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
-            routeResultDTO.setChannelId(101L);
-            routeResultDTO.setMidConfigId(1001L);
-            routeResultDTO.setMidNo("TESTDEVMER031");
-            routeResultDTO.setRequestedCurrency(commandDTO.getCurrency());
-            routeResultDTO.setRoutedCurrency(commandDTO.getCurrency());
-            return routeResultDTO;
+        return new PaymentChannelRouteService() {
+            @Override
+            public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+                return routeResult(commandDTO.getCurrency(), "TESTDEVMER031");
+            }
+
+            @Override
+            public PaymentRouteResultDTO restore(String channelCode,
+                                                 Long channelId,
+                                                 Long midConfigId,
+                                                 String fallbackMidNo) {
+                PaymentRouteResultDTO routeResultDTO = routeResult(null, fallbackMidNo);
+                routeResultDTO.setChannelCode(channelCode);
+                routeResultDTO.setChannelId(channelId);
+                routeResultDTO.setMidConfigId(midConfigId);
+                return routeResultDTO;
+            }
         };
+    }
+
+    private static class CapturingFixedRouteService implements PaymentChannelRouteService {
+
+        private int routeCalls;
+        private int restoreCalls;
+
+        @Override
+        public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
+            routeCalls++;
+            throw new AssertionError("fixed checkout route must not be recalculated");
+        }
+
+        @Override
+        public PaymentRouteResultDTO restore(String channelCode, Long channelId, Long midConfigId, String fallbackMidNo) {
+            restoreCalls++;
+            PaymentRouteResultDTO result = PaymentRouteResultDTO.routed(channelCode);
+            result.setChannelId(channelId);
+            result.setMidConfigId(midConfigId);
+            result.setRequestedCurrency("USD");
+            result.setRoutedCurrency("USD");
+            return result;
+        }
+    }
+
+    private PaymentRouteResultDTO routeResult(String currency, String midNo) {
+        PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
+        routeResultDTO.setChannelId(101L);
+        routeResultDTO.setMidConfigId(1001L);
+        routeResultDTO.setMidNo(midNo);
+        routeResultDTO.setRequestedCurrency(currency);
+        routeResultDTO.setRoutedCurrency(currency);
+        return routeResultDTO;
     }
 
     private PaymentExchangeRateService exchangeRateService() {
@@ -1176,44 +1429,13 @@ class PaymentTransactionServiceImplTests {
         ChannelPaymentResponse response = new ChannelPaymentResponse();
         response.setChannelCode("MPGS");
         response.setChannelTradeStatus(tradeStatus.getCode());
-        response.setChannelResponseCode(ChannelTradeStatus.SUCCESS == tradeStatus ? "00" : "05");
-        response.setChannelResponseMessage(ChannelTradeStatus.SUCCESS == tradeStatus ? "Approved" : "Declined");
-        response.setAuthCode(ChannelTradeStatus.SUCCESS == tradeStatus ? "123456" : null);
-        response.setRrn(ChannelTradeStatus.SUCCESS == tradeStatus ? "RCPT001" : null);
-        response.setAcquirerReferenceNo(ChannelTradeStatus.SUCCESS == tradeStatus ? "REF001" : null);
+        boolean approved = ChannelTradeStatus.FAILED != tradeStatus;
+        response.setChannelResponseCode(approved ? "00" : "05");
+        response.setChannelResponseMessage(approved ? "Approved" : "Declined");
+        response.setAuthCode(approved ? "123456" : null);
+        response.setRrn(approved ? "RCPT001" : null);
+        response.setAcquirerReferenceNo(approved ? "REF001" : null);
         return response;
-    }
-
-    private ChannelPaymentResponse worldPayResponse(String channelCode, String rawStatus) {
-        ChannelPaymentResponse response = new ChannelPaymentResponse();
-        response.setChannelCode(channelCode);
-        response.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
-        response.setRawChannelStatus(rawStatus);
-        response.setChannelResponseCode(rawStatus);
-        response.setChannelResponseMessage(rawStatus);
-        return response;
-    }
-
-    /**
-     * 构造商户订单号起点动作，用于验证支付流和授权流互斥规则。
-     *
-     * @param typeEnum   起点交易类型
-     * @param statusEnum 起点交易状态
-     * @return 测试动作单
-     */
-    private TransactionOperationDO initialOperation(PaymentTransactionTypeEnum typeEnum,
-                                                    PaymentTransactionStatusEnum statusEnum) {
-        TransactionOperationDO operationDO = new TransactionOperationDO();
-        operationDO.setOperationId(SOURCE_OPERATION_ID);
-        operationDO.setTransactionId(SOURCE_TRANSACTION_ID);
-        operationDO.setMerchantId("200001");
-        operationDO.setMerchantOrderNo("M202607120001");
-        operationDO.setMerchantOrderId("AUTH202607120001");
-        operationDO.setTransactionType(typeEnum.getCode());
-        operationDO.setTransactionStatus(statusEnum.getCode());
-        operationDO.setTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
-        operationDO.setOperationTime(LocalDateTime.of(2026, 7, 12, 10, 30));
-        return operationDO;
     }
 
     private IsoDictionaryService isoDictionaryService() {
@@ -1362,6 +1584,18 @@ class PaymentTransactionServiceImplTests {
          * </p>
          */
         private PaymentCreateResultDTO resultDTO;
+        /** 恢复已准备交易时读取原资金渠道请求的次数。 */
+        private int originalChannelRequestLookups;
+        /** 最近一次源交易查询收到的平台交易号。 */
+        private String sourceLookupTransactionId;
+        /** 最近一次源交易查询收到的动作真实分片时间。 */
+        private LocalDateTime sourceLookupDateTime;
+        /** 最近一次源交易查询收到的生命周期主单真实分片时间。 */
+        private LocalDateTime rootLookupDateTime;
+        /** 模拟数据库 INIT -> SENT 抢占结果。 */
+        private boolean submissionClaimAllowed = true;
+        /** 渠道提交抢占次数。 */
+        private int submissionClaimCount;
 
         /**
          * risk Decision Enum，用于保存 Capturing Transaction Record Service 中与 riskdecisionenum 相关的业务属性。
@@ -1444,16 +1678,6 @@ class PaymentTransactionServiceImplTests {
         private BigDecimal sourceAvailableRefundAmount = new BigDecimal("5.00");
 
         /**
-         * initial Operations，用于保存 Capturing Transaction Record Service 中与 initial动作 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
-        private List<TransactionOperationDO> initialOperations = List.of();
-
-        /**
          * 捕获渠道调用前落库的初始交易参数，供用例核对准备阶段的交易事实。
          */
         @Override
@@ -1470,6 +1694,13 @@ class PaymentTransactionServiceImplTests {
             this.resultDTO = resultDTO;
             this.riskDecisionEnum = riskDecisionEnum;
             this.currencyExponent = currencyExponent;
+        }
+
+        /** 模拟 INIT 渠道请求的数据库 CAS 抢占成功，允许当前调用方执行一次 PSP 请求。 */
+        @Override
+        public boolean claimInitialChannelSubmission(String requestId, LocalDateTime transactionDateTime) {
+            submissionClaimCount++;
+            return submissionClaimAllowed && StringUtils.hasText(requestId) && transactionDateTime != null;
         }
 
         /**
@@ -1505,6 +1736,7 @@ class PaymentTransactionServiceImplTests {
                 orderDO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
                 orderDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
                 orderDO.setTransactionType(resultDTO.getTransactionType());
+                orderDO.setPaymentMethod(commandDTO.getPaymentMethod());
                 orderDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
                 orderDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
                 orderDO.setTransactionCurrency(commandDTO.getTransactionCurrency());
@@ -1518,6 +1750,11 @@ class PaymentTransactionServiceImplTests {
                 orderDO.setTransactionDateTime(transactionDateTime);
                 orderDO.setTransactionUtcTime(transactionDateTime);
                 orderDO.setTransactionTimeZone("Asia/Shanghai");
+                orderDO.setInternalRiskDecision(riskDecisionEnum.getCode());
+                orderDO.setChannelId(routeResultDTO.getChannelId());
+                orderDO.setChannelCode(routeResultDTO.getChannelCode());
+                orderDO.setChannelMidConfigId(routeResultDTO.getMidConfigId());
+                orderDO.setChannelMerchantId(routeResultDTO.getMidNo());
                 orderDO.setVersion(0);
                 return orderDO;
             }
@@ -1532,6 +1769,7 @@ class PaymentTransactionServiceImplTests {
             orderDO.setMerchantId("200001");
             orderDO.setMerchantOrderNo("M202607120001");
             orderDO.setMerchantOrderId("AUTH202607120001");
+            orderDO.setMerchantWebsite("https://merchant.example.com/checkout");
             orderDO.setTransactionType(sourceTransactionType);
             orderDO.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
             orderDO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
@@ -1546,6 +1784,10 @@ class PaymentTransactionServiceImplTests {
             orderDO.setTransactionDateTime(transactionDateTime);
             orderDO.setTransactionUtcTime(LocalDateTime.of(2026, 7, 12, 2, 30));
             orderDO.setTransactionTimeZone("Asia/Shanghai");
+            orderDO.setChannelId(101L);
+            orderDO.setChannelCode("MPGS");
+            orderDO.setChannelMidConfigId(1001L);
+            orderDO.setChannelMerchantId("TESTDEVMER031");
             orderDO.setVersion(0);
             return orderDO;
         }
@@ -1559,6 +1801,19 @@ class PaymentTransactionServiceImplTests {
                 return null;
             }
             return findOrder(LocalDateTime.of(2026, 7, 12, 10, 30), SOURCE_OPERATION_ID);
+        }
+
+        /**
+         * 记录后续动作显式传入的源交易和根交易分片时间，再复用固定测试主单。
+         */
+        @Override
+        public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId,
+                                                                 LocalDateTime sourceTransactionDateTime,
+                                                                 LocalDateTime rootTransactionDateTime) {
+            this.sourceLookupTransactionId = sourceTransactionId;
+            this.sourceLookupDateTime = sourceTransactionDateTime;
+            this.rootLookupDateTime = rootTransactionDateTime;
+            return findSourceOrderByTransactionId(sourceTransactionId);
         }
 
         /**
@@ -1585,8 +1840,18 @@ class PaymentTransactionServiceImplTests {
                 operationDO.setTransactionType(resultDTO.getTransactionType());
                 operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
                 operationDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
+                operationDO.setLabelAmount(commandDTO.getLabelAmount());
+                operationDO.setLabelCurrency(commandDTO.getLabelCurrency());
                 operationDO.setTransactionAmount(commandDTO.getTransactionAmount());
                 operationDO.setTransactionCurrency(commandDTO.getTransactionCurrency());
+                operationDO.setTransactionRate(commandDTO.getTransactionRate());
+                operationDO.setDccEnabled(commandDTO.getDccEnabled());
+                operationDO.setEdcEnabled(commandDTO.getEdcEnabled());
+                operationDO.setChannelCode(routeResultDTO.getChannelCode());
+                operationDO.setChannelId(routeResultDTO.getChannelId());
+                operationDO.setChannelMidConfigId(routeResultDTO.getMidConfigId());
+                operationDO.setChannelTerminalId(routeResultDTO.getMidNo());
+                operationDO.setCurrencyExponent(currencyExponent);
                 PaymentChannelInvokeResultDTO invokeResultDTO = resultChannelInvokeResultDTO == null
                         ? channelInvokeResultDTO : resultChannelInvokeResultDTO;
                 if (invokeResultDTO != null && invokeResultDTO.getChannelRequest() != null) {
@@ -1603,6 +1868,10 @@ class PaymentTransactionServiceImplTests {
             TransactionOperationDO operationDO = new TransactionOperationDO();
             operationDO.setOperationId(SOURCE_OPERATION_ID);
             operationDO.setTransactionId(sourceTransactionId);
+            operationDO.setChannelCode("MPGS");
+            operationDO.setChannelId(101L);
+            operationDO.setChannelMidConfigId(1001L);
+            operationDO.setChannelTerminalId("TESTDEVMER031");
             operationDO.setChannelOrderNo(SOURCE_TRANSACTION_ID);
             operationDO.setChannelTransactionId(SOURCE_TRANSACTION_ID.equals(sourceTransactionId)
                     ? SOURCE_CHANNEL_TRANSACTION_ID
@@ -1611,6 +1880,29 @@ class PaymentTransactionServiceImplTests {
                     ? LocalDateTime.of(2026, 7, 12, 10, 30)
                     : LocalDateTime.of(2026, 7, 14, 16, 15));
             return operationDO;
+        }
+
+        @Override
+        public TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
+            originalChannelRequestLookups++;
+            if (operationDO == null || resultDTO == null
+                    || !resultDTO.getTransactionId().equals(operationDO.getTransactionId())
+                    || channelInvokeResultDTO == null
+                    || channelInvokeResultDTO.getChannelRequest() == null) {
+                return null;
+            }
+            TransactionChannelRequestDO requestDO = new TransactionChannelRequestDO();
+            requestDO.setRequestId(channelInvokeResultDTO.getRequestId());
+            requestDO.setTransactionId(operationDO.getTransactionId());
+            requestDO.setOperationId(operationDO.getOperationId());
+            requestDO.setChannelId(routeResultDTO.getChannelId());
+            requestDO.setChannelCode(routeResultDTO.getChannelCode());
+            requestDO.setChannelMidConfigId(routeResultDTO.getMidConfigId());
+            requestDO.setChannelOrderNo(channelInvokeResultDTO.getChannelRequest().getChannelOrderNo());
+            requestDO.setChannelTransactionId(channelInvokeResultDTO.getChannelRequest().getChannelTransactionId());
+            requestDO.setTransactionDateTime(operationDO.getTransactionDateTime());
+            requestDO.setRequestStatus("INIT");
+            return requestDO;
         }
 
         private boolean isRecordedInitialOperation(LocalDateTime transactionDateTime, String operationId) {
@@ -1636,7 +1928,9 @@ class PaymentTransactionServiceImplTests {
         @Override
         public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
                                                                           String merchantOrderNo,
-                                                                          String transactionId) {
+                                                                          String transactionId,
+                                                                          LocalDateTime transactionDateTime,
+                                                                          LocalDateTime rootTransactionDateTime) {
             if (!"200001".equals(merchantId) || !"M202607120001".equals(merchantOrderNo)) {
                 return List.of();
             }
@@ -1661,10 +1955,7 @@ class PaymentTransactionServiceImplTests {
          */
         @Override
         public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
-            if (!"200001".equals(merchantId) || !"M202607120001".equals(merchantOrderNo)) {
-                return List.of();
-            }
-            return initialOperations;
+            return List.of();
         }
 
         /**
@@ -1750,6 +2041,9 @@ class PaymentTransactionServiceImplTests {
 
     private static class CapturingTransactionEventOutboxService implements TransactionEventOutboxService {
 
+        /** 按事务写入顺序捕获全部事件，验证创建事件和终态事件的先后关系。 */
+        private final List<TransactionEventOutboxDO> events = new ArrayList<>();
+
         /**
          * event DO，用于保存 Capturing Transaction Event Outbox Service 中与 eventdo 相关的业务属性。
          * <p>
@@ -1765,7 +2059,10 @@ class PaymentTransactionServiceImplTests {
          */
         @Override
         public void save(TransactionEventOutboxDO eventDO) {
-            this.eventDO = eventDO;
+            if (this.eventDO == null) {
+                this.eventDO = eventDO;
+            }
+            this.events.add(eventDO);
         }
 
         /**
@@ -1773,7 +2070,7 @@ class PaymentTransactionServiceImplTests {
          */
         @Override
         public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
-            return eventDO == null ? List.of() : List.of(eventDO);
+            return List.copyOf(events);
         }
 
         /**
@@ -1853,6 +2150,9 @@ class PaymentTransactionServiceImplTests {
          */
         private String transactionId;
 
+        /** 准备阶段持久化并用于本次 PSP 调用的渠道请求 ID。 */
+        private String requestId;
+
         /**
          * channel Order No，用于保存 Capturing Payment Channel Invoke Service 中与 渠道订单no 相关的业务属性。
          * <p>
@@ -1862,6 +2162,9 @@ class PaymentTransactionServiceImplTests {
          * </p>
          */
         private String channelOrderNo;
+
+        /** 准备阶段持久化并用于本次 PSP 调用的渠道交易 ID。 */
+        private String channelTransactionId;
 
         /**
          * 渠道调用前观察钩子，用于断言本地准备阶段锁已经释放。
@@ -1908,7 +2211,9 @@ class PaymentTransactionServiceImplTests {
             this.routeResultDTO = routeResult;
             this.operationId = operationId;
             this.transactionId = transactionId;
+            this.requestId = preparedChannelRequest == null ? null : preparedChannelRequest.getRequestId();
             this.channelOrderNo = preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo();
+            this.channelTransactionId = preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId();
             PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
             resultDTO.setRequestId(preparedChannelRequest == null ? null : preparedChannelRequest.getRequestId());
             resultDTO.setChannelRequest(new com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest());
@@ -2039,6 +2344,46 @@ class PaymentTransactionServiceImplTests {
         }
 
         /**
+         * 预置商户订单支付流守卫，模拟数据库中已存在的 PROCESSING、SUCCESS 或 FAILED 记录。
+         */
+        private void seedMerchantOrderFlow(PaymentTransactionTypeEnum transactionType,
+                                           PaymentTransactionStatusEnum transactionStatus,
+                                           String merchantOrderId) {
+            String key = buildMerchantOrderFlowKey("200001", "M202607120001");
+            TransactionIdempotencyDO record = newProcessingRecord(
+                    "MERCHANT_ORDER_FLOW",
+                    key,
+                    "200001",
+                    "M202607120001",
+                    merchantOrderId,
+                    transactionType.getCode(),
+                    LocalDateTime.of(2026, 7, 12, 10, 30),
+                    "Asia/Shanghai",
+                    "seed-fingerprint",
+                    LocalDateTime.of(2026, 7, 12, 10, 30));
+            record.setOperationId(SOURCE_OPERATION_ID);
+            record.setTransactionId(SOURCE_TRANSACTION_ID);
+            record.setTransactionStatus(transactionStatus.getCode());
+            records.put("MERCHANT_ORDER_FLOW:" + key, record);
+        }
+
+        /**
+         * 仅允许测试内存记录从 FAILED 原子替换为新的 PROCESSING 流守卫。
+         */
+        @Override
+        public boolean tryRestartFailedFlow(TransactionIdempotencyDO existingRecord,
+                                            TransactionIdempotencyDO replacement) {
+            String storageKey = "MERCHANT_ORDER_FLOW:" + existingRecord.getIdempotencyKey();
+            TransactionIdempotencyDO current = records.get(storageKey);
+            if (current != existingRecord
+                    || !PaymentTransactionStatusEnum.FAILED.getCode().equals(current.getTransactionStatus())) {
+                return false;
+            }
+            records.put(storageKey, replacement);
+            return true;
+        }
+
+        /**
          * 将交易结果写回已占位的内存幂等记录，模拟同一数据库事务内完成快照。
          */
         @Override
@@ -2100,13 +2445,13 @@ class PaymentTransactionServiceImplTests {
         }
     }
 
-    private static class RejectingRedisLockService implements RedisLockService {
+    private static class RejectingRedisLockService extends TestDistributedLockService {
 
         /**
          * 固定拒绝获取锁，用于验证并发请求不能进入本地交易准备阶段。
          */
         @Override
-        public boolean tryLock(String key, String value, long ttlSeconds) {
+        public boolean tryLock(String key, Duration waitTime, Duration leaseTime) {
             return false;
         }
 
@@ -2114,11 +2459,11 @@ class PaymentTransactionServiceImplTests {
          * 空实现；拒绝获取锁后不应存在需要释放的锁状态。
          */
         @Override
-        public void unlock(String key, String value) {
+        public void unlock(String key) {
         }
     }
 
-    private static class TrackingRedisLockService implements RedisLockService {
+    private static class TrackingRedisLockService extends TestDistributedLockService {
 
         /**
          * 记录每个测试锁 Key 使用的租约秒数，供用例核对锁时长边界。
@@ -2128,15 +2473,15 @@ class PaymentTransactionServiceImplTests {
         /**
          * 保存当前仍持有的锁及其 token，用于断言渠道调用前准备锁已释放。
          */
-        private final Map<String, String> activeLocks = new LinkedHashMap<>();
+        private final Map<String, Boolean> activeLocks = new LinkedHashMap<>();
 
         /**
          * 记录租约和锁 token，并固定模拟成功获取锁。
          */
         @Override
-        public boolean tryLock(String key, String value, long ttlSeconds) {
-            lockTtlByKey.put(key, ttlSeconds);
-            activeLocks.put(key, value);
+        public boolean tryLock(String key, Duration waitTime, Duration leaseTime) {
+            lockTtlByKey.put(key, leaseTime.toSeconds());
+            activeLocks.put(key, Boolean.TRUE);
             return true;
         }
 
@@ -2144,8 +2489,8 @@ class PaymentTransactionServiceImplTests {
          * 仅当锁 Key 与 token 同时匹配时移除活动锁，模拟所有权校验释放。
          */
         @Override
-        public void unlock(String key, String value) {
-            activeLocks.remove(key, value);
+        public void unlock(String key) {
+            activeLocks.remove(key);
         }
 
         private boolean hasActiveLocks() {
@@ -2153,7 +2498,7 @@ class PaymentTransactionServiceImplTests {
         }
     }
 
-    private static class FailingUnlockRedisLockService implements RedisLockService {
+    private static class FailingUnlockRedisLockService extends TestDistributedLockService {
 
         /**
          * 解锁调用次数，用于确认首次交易的两把准备锁都执行了释放尝试。
@@ -2164,12 +2509,12 @@ class PaymentTransactionServiceImplTests {
          * 模拟成功获取 Redis 锁。
          *
          * @param key 锁 Key
-         * @param value 锁 token
-         * @param ttlSeconds 锁租约秒数
+         * @param waitTime 最大等待时间
+         * @param leaseTime 锁租约
          * @return 固定返回 true
          */
         @Override
-        public boolean tryLock(String key, String value, long ttlSeconds) {
+        public boolean tryLock(String key, Duration waitTime, Duration leaseTime) {
             return true;
         }
 
@@ -2177,12 +2522,66 @@ class PaymentTransactionServiceImplTests {
          * 模拟 Redis 在 compare-delete 阶段不可用。
          *
          * @param key 锁 Key
-         * @param value 锁 token
          */
         @Override
-        public void unlock(String key, String value) {
+        public void unlock(String key) {
             unlockAttempts++;
             throw new IllegalStateException("redis unavailable");
+        }
+    }
+
+    private abstract static class TestDistributedLockService implements DistributedLockService {
+
+        /**
+         * 将测试看门狗锁统一映射为 30 秒固定租约锁，复用子类竞争行为。
+         *
+         * @param key 测试锁 Key
+         * @param waitTime 测试等待时间
+         * @return 子类固定租约锁的获取结果
+         */
+        @Override
+        public boolean tryLockWithWatchdog(String key, Duration waitTime) {
+            return tryLock(key, waitTime, Duration.ofSeconds(30));
+        }
+
+        /**
+         * 获取测试固定租约锁，竞争失败时保留真实接口的异常契约。
+         *
+         * @param key 测试锁 Key
+         * @param waitTime 测试等待时间
+         * @param leaseTime 测试固定租约
+         */
+        @Override
+        public void lock(String key, Duration waitTime, Duration leaseTime) {
+            if (!tryLock(key, waitTime, leaseTime)) {
+                throw new DistributedLockBusyException("test lock is busy");
+            }
+        }
+
+        /**
+         * 测试替身不维护线程所有权，统一视为当前线程持锁。
+         *
+         * @param key 测试锁 Key
+         * @return 固定返回 true
+         */
+        @Override
+        public boolean isHeldByCurrentThread(String key) {
+            return true;
+        }
+
+        @Override
+        public <T> DistributedLockExecution<T> execute(String key,
+                                                       Duration waitTime,
+                                                       Duration leaseTime,
+                                                       Supplier<T> action) {
+            if (!tryLock(key, waitTime, leaseTime)) {
+                return DistributedLockExecution.contended();
+            }
+            try {
+                return DistributedLockExecution.acquired(action.get());
+            } finally {
+                unlock(key);
+            }
         }
     }
 

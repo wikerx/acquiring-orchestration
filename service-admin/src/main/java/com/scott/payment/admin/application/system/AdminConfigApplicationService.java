@@ -101,11 +101,15 @@ public class AdminConfigApplicationService {
     /**
      * 保存系统配置。
      *
+     * <p>领域服务返回时数据库事务和提交后缓存失效已经完成，再经统一读取入口加载最新快照，
+     * 使新增或更新后的配置立即进入跨服务永久缓存。</p>
+     *
      * @param request 保存请求
      * @return 配置详情
      */
     public SysConfigDTO saveConfig(SysConfigSaveRequest request) {
-        return adminConfigService.saveConfig(request);
+        SysConfigDTO saved = adminConfigService.saveConfig(request);
+        return adminConfigService.getConfigByKey(saved.getConfigKey());
     }
 
     /**

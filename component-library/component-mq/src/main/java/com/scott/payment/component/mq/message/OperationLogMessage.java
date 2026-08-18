@@ -21,6 +21,9 @@ import java.time.LocalDateTime;
 @EqualsAndHashCode(callSuper = true)
 public class OperationLogMessage extends BaseMqMessage {
 
+    /** 错误摘要最大字符数，与 sys_oper_log.error_msg 的 VARCHAR(1000) 契约一致。 */
+    public static final int ERROR_MESSAGE_MAX_LENGTH = 1000;
+
     /**
      * 消费幂等键。
      */

@@ -27,6 +27,60 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
     private List<PaymentMethodDTO> paymentMethods;
     /** 会话有效期、重试次数和轮询配置。 */
     private CheckoutDTO checkout;
+    /** 商户上送的付款人预填信息。 */
+    private PayerInfoDTO payerInfo;
+    /** 商户上送的账单预填信息。 */
+    private BillingInfoDTO billingInfo;
+    /** 最近一次支付尝试结果，用于同一链接再次打开时直接回显。 */
+    private PaymentCheckoutPaymentResultDTO paymentResult;
+    /** 仅可支付状态下发的卡数据加密公钥元数据和一次性 nonce。 */
+    private CardEncryptionDTO cardEncryption;
+
+    @Data
+    public static class CardEncryptionDTO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        /** 固定为 RSA-OAEP-256+A256GCM，禁止算法降级。 */
+        private String algorithm;
+        /** 当前服务端卡数据密钥版本。 */
+        private String keyId;
+        /** X.509 DER Base64 RSA 公钥。 */
+        private String publicKey;
+        /** 与会话绑定且只允许消费一次的随机值。 */
+        private String nonce;
+    }
+
+    @Data
+    public static class PayerInfoDTO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String payerId;
+        private String email;
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+        private String ipAddress;
+        private String sessionId;
+        private java.util.Map<String, Object> browserInfo;
+        private String userAgent;
+    }
+
+    @Data
+    public static class BillingInfoDTO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String firstName;
+        private String lastName;
+        private String email;
+        private String phone;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+    }
 
     /**
      * 付款页允许公开展示的商户资料。
@@ -96,8 +150,6 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
         private LocalDateTime expireTime;
         /** 当前会话是否允许失败后重试。 */
         private Boolean retryAllowed;
-        /** 当前会话剩余支付尝试次数。 */
-        private Integer remainingAttemptCount;
         /** 建议状态轮询间隔，单位秒。 */
         private Integer pollingIntervalSeconds;
     }

@@ -27,7 +27,6 @@ import com.scott.payment.component.db.auth.entity.SysAccountMfaLogDO;
 import com.scott.payment.component.db.auth.entity.SysAccountMfaTokenDO;
 import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
-import com.scott.payment.component.db.auth.entity.SysLoginLogDO;
 import com.scott.payment.component.db.auth.entity.SysLoginSessionDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantMenuGrantDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantPermissionGrantDO;
@@ -47,7 +46,7 @@ import com.scott.payment.component.db.auth.mapper.SysAccountMfaTokenMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
-import com.scott.payment.component.db.auth.mapper.SysLoginLogMapper;
+import com.scott.payment.component.db.auth.event.LoginAuditEvent;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantMenuGrantMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantPermissionGrantMapper;
@@ -67,6 +66,7 @@ import com.scott.payment.component.db.auth.support.MfaSecretCrypto;
 import com.scott.payment.component.db.auth.support.TotpUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.jdbc.BadSqlGrammarException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.AntPathMatcher;
@@ -92,6 +92,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -377,15 +378,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     private final SysMerchantUserRoleMapper sysMerchantUserRoleMapper;
     /**
-     * sys Login Log Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final SysLoginLogMapper sysLoginLogMapper;
-    /**
      * sys Login Session Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -429,6 +421,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
     /**
+     * Spring 领域事件发布器，用于把登录审计移出可能回滚的认证事务。
+     */
+    private final ApplicationEventPublisher applicationEventPublisher;
+    /**
      * 创建系统登录权限服务。
      *
      * @param sysAppMapper            系统应用 Mapper
@@ -444,7 +440,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param sysMerchantPermissionGrantMapper 商户权限授权 Mapper
      * @param sysMerchantUserMapper   商户端登录用户 Mapper
      * @param sysMerchantUserRoleMapper 商户端用户角色 Mapper
-     * @param sysLoginLogMapper       登录日志 Mapper
      * @param sysLoginSessionMapper   登录会话 Mapper
      * @param sysVerifyCodeMapper     动态验证码 Mapper
      * @param sysAccountMfaMapper     MFA 配置 Mapper
@@ -452,6 +447,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param sysAccountMfaLogMapper  MFA 日志 Mapper
      * @param baseMerchantInfoMapper       商户基础信息 Mapper
      * @param merchantRuntimeProfileCacheService 商户运行时资料缓存服务
+     * @param applicationEventPublisher 登录审计事件发布器
      */
     public SystemAuthServiceImpl(SysAppMapper sysAppMapper,
                                  SysUserMapper sysUserMapper,
@@ -466,14 +462,14 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                  SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper,
                                  SysMerchantUserMapper sysMerchantUserMapper,
                                  SysMerchantUserRoleMapper sysMerchantUserRoleMapper,
-                                 SysLoginLogMapper sysLoginLogMapper,
                                  SysLoginSessionMapper sysLoginSessionMapper,
                                  SysVerifyCodeMapper sysVerifyCodeMapper,
                                  SysAccountMfaMapper sysAccountMfaMapper,
                                  SysAccountMfaTokenMapper sysAccountMfaTokenMapper,
                                  SysAccountMfaLogMapper sysAccountMfaLogMapper,
                                  BaseMerchantInfoMapper baseMerchantInfoMapper,
-                                 MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService) {
+                                 MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
+                                 ApplicationEventPublisher applicationEventPublisher) {
         this.sysAppMapper = sysAppMapper;
         this.sysUserMapper = sysUserMapper;
         this.sysAccountMapper = sysAccountMapper;
@@ -487,7 +483,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         this.sysMerchantPermissionGrantMapper = sysMerchantPermissionGrantMapper;
         this.sysMerchantUserMapper = sysMerchantUserMapper;
         this.sysMerchantUserRoleMapper = sysMerchantUserRoleMapper;
-        this.sysLoginLogMapper = sysLoginLogMapper;
         this.sysLoginSessionMapper = sysLoginSessionMapper;
         this.sysVerifyCodeMapper = sysVerifyCodeMapper;
         this.sysAccountMfaMapper = sysAccountMfaMapper;
@@ -495,6 +490,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         this.sysAccountMfaLogMapper = sysAccountMfaLogMapper;
         this.baseMerchantInfoMapper = baseMerchantInfoMapper;
         this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     /**
@@ -881,6 +877,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         SysAppDO app = getEnabledApp(appCode);
         SysLoginSessionDO session = getActiveSession(app.getId(), authorization);
         SysAccountDO account = getEnabledAccount(session.getAccountId());
+        validateMerchantAvailability(app.getAppCode(), account.getMerchantId());
         SysUserDO user = getEnabledUser(session.getUserId());
         List<String> roleCodes = queryRoleCodes(app, account);
         List<String> permissionCodes = queryPermissionCodes(app, account);
@@ -1291,6 +1288,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param merchantId 商户号
      */
     private void validateMerchantLogin(String appCode, String merchantId) {
+        validateMerchantAvailability(appCode, merchantId);
+    }
+
+    private void validateMerchantAvailability(String appCode, String merchantId) {
         if (!AuthConstants.APP_MERCHANT.equals(appCode)) {
             return;
         }
@@ -1300,6 +1301,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         MerchantRuntimeProfile merchantInfo = merchantRuntimeProfileCacheService.findRuntimeProfile(merchantId);
         if (merchantInfo == null) {
             throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
+        }
+        if (Objects.equals(merchantInfo.getMerchantStatus(), 2)) {
+            throw new ServiceException(ApiResultEnum.MERCHANT_FROZEN);
         }
         if (!Objects.equals(merchantInfo.getMerchantStatus(), AuthConstants.ENABLED)) {
             throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
@@ -2107,19 +2111,33 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                 String userAgent,
                                 int status,
                                 String failReason) {
-        SysLoginLogDO loginLog = new SysLoginLogDO();
-        loginLog.setAppId(app.getId());
-        loginLog.setAccountId(account == null ? null : account.getId());
-        loginLog.setUserId(account == null ? null : account.getUserId());
-        loginLog.setMerchantId(account == null ? null : account.getMerchantId());
-        loginLog.setLoginAccount(loginAccount);
-        loginLog.setLoginIp(clientIp);
-        loginLog.setUserAgent(userAgent);
-        loginLog.setLoginStatus(status);
-        loginLog.setFailReason(failReason);
-        loginLog.setLoginAt(LocalDateTime.now());
-        loginLog.setCreatedAt(LocalDateTime.now());
-        sysLoginLogMapper.insert(loginLog);
+        LocalDateTime loginAt = LocalDateTime.now();
+        applicationEventPublisher.publishEvent(new LoginAuditEvent(
+                UUID.randomUUID().toString(),
+                app.getId(),
+                account == null ? null : account.getId(),
+                account == null ? null : account.getUserId(),
+                account == null ? null : account.getMerchantId(),
+                limitAuditText(loginAccount, 100),
+                limitAuditText(clientIp, 64),
+                limitAuditText(userAgent, 500),
+                status,
+                limitAuditText(failReason, 500),
+                loginAt));
+    }
+
+    /**
+     * 限制登录审计字段长度，避免客户端可控文本放大 Outbox 消息或突破数据库字段约束。
+     *
+     * @param value 原始审计文本
+     * @param maxLength 最大允许字符数
+     * @return 保留业务含义的受控文本
+     */
+    private String limitAuditText(String value, int maxLength) {
+        if (!StringUtils.hasText(value) || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 
     /**

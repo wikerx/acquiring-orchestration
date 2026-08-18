@@ -21,7 +21,7 @@
 
 1. `service-payment` 已开始落地收单交易骨架，包括独立内部交易入口、幂等服务、交易主单/动作单/状态历史写入、渠道交互日志、MPGS 回调解析、后续动作状态机校验和商户通知任务骨架，但仍未形成完整生产交易闭环。
 2. `service-payout` 仍是代付模拟实现。
-3. 渠道请求流水、渠道交互日志、渠道回调处理和商户通知已有基础落库与状态推进能力；通知配置同步、MQ 消费幂等、重试调度、对账、清分、结算、拒付等能力仍需继续落地。
+3. 渠道请求流水、渠道交互日志、渠道回调处理和商户通知已有基础落库与状态推进能力；商户通知由 `service-data` 消费交易事件并执行 HTTP 投递，`service-job` 负责到期任务扫描；对账、清分、结算、拒付等能力仍需继续落地。
 4. 已定义一步支付、授权、预授权、增量授权、请款、退款、撤销、查询入口，但仍需逐步补齐更多渠道差异、异常补偿和生产级调度。
 5. Hosted Checkout 尚未接入真实 checkout session、支付提交和结果查询链路。
 
@@ -97,7 +97,24 @@
 1. 不要继续在 `PayoutTransactionServiceImpl` 模拟实现中堆正式代付逻辑。
 2. 代付审核、渠道状态和账务状态必须分层设计。
 
-### 4.4 `component-library`
+### 4.4 `service-data`
+
+目标职责：
+
+1. 独占消费 Admin、Merchant Portal 操作日志并持久化。
+2. 独占消费风控评估审计和 OpenAPI 安全拦截审计并持久化。
+3. 独占消费交易终态事件并执行商户 HTTP 通知。
+4. 接收 `service-job` 的带 HMAC 内部补偿请求，按交易业务时间扫描到期通知任务。
+5. 通过数据库唯一约束、任务状态和版本 CAS 吸收重复 MQ、重复调度和多实例竞争。
+
+边界约束：
+
+1. `service-data` 不创建支付、退款、交易主单、状态历史、渠道请求、通知任务或交易 Outbox。
+2. 商户通知任务和每次投递日志是 MySQL 事实，不使用 Redis 作为消息备份或恢复依据。
+3. 商户通知是至少一次语义，固定 `notifyId` 是商户侧幂等键；未定义签名协议前不得自行发明签名字段。
+4. 回调 URL 快照只存 MySQL，日志和管理页面只能使用掩码或摘要，禁止输出查询参数中的令牌。
+
+### 4.5 `component-library`
 
 只放跨服务基础能力：
 
@@ -115,7 +132,7 @@
 3. 某个后台页面的私有规则。
 4. 商户侧个性化交易逻辑。
 
-### 4.5 `channel-library`
+### 4.6 `channel-library`
 
 只放渠道适配抽象和通用渠道模型。
 
@@ -331,7 +348,7 @@ openapi.security.replay.required=true
 7. 状态机合法流转校验。
 8. 异常回调告警。
 
-当前 MPGS 回调解析通过 `payment-channel-library` 的 `PaymentChannelCallbackHandler` 完成，平台侧只负责验签、脱敏落库、幂等和状态推进。MPGS 的 `order.id` 对应平台原始 `transaction_id`，`transaction.id` 对应平台生成并落库的 `channel_transaction_id`；交易成功判断仍以 `result=SUCCESS` 且 `response.acquirerCode=00` 为核心。
+当前渠道回调契约由 `payment-channel-api` 的 `PaymentChannelCallbackHandler` 定义，回调实现发现与注册由 `payment-channel-core` 负责，MPGS 协议解析位于 `payment-channel-mpgs`。平台侧只负责安全校验、脱敏落库、幂等和状态推进。MPGS 的 `order.id` 对应平台原始 `transaction_id`，`transaction.id` 对应平台生成并落库的 `channel_transaction_id`；交易成功判断仍以 `result=SUCCESS` 且 `response.acquirerCode=00` 为核心。
 
 ## 11. 内部接口约束
 
@@ -365,7 +382,14 @@ openapi.security.replay.required=true
 3. 消费端以 `messageId + consumerGroup` 幂等。
 4. 终态保护必须在数据库状态机层兜底。
 
-交易侧 `transaction_event_outbox` 按 `transaction_date_time` 分表，当前已支持本地事务内写入、relay 投递和 CAS 更新。商户通知消费者必须通过 `payment.transaction.merchant-notification.mq.enabled=true` 显式开启，避免未配置 RocketMQ 的环境误注册消费者。
+交易侧 `transaction_event_outbox` 按 `transaction_date_time` 分表，当前已支持本地事务内写入、relay 投递和 CAS 更新。商户通知消费者只允许在 `service-data` 注册，并通过 `data.merchant-notification.mq.enabled=true` 显式开启；`service-payment` 不再注册通知消费者或执行商户 HTTP 回调。
+
+异步化边界固定如下：
+
+1. Admin、Merchant Portal 操作日志，风控评估审计和 OpenAPI 安全拦截审计可以通过 MQ 交由 `service-data` 持久化；消息只能携带完成该审计所需的脱敏最小字段。
+2. 支付/退款主单、交易状态、金额、渠道请求恢复事实、渠道回调 inbox、风险预占、商户通知任务和 `transaction_event_outbox` 必须在原业务事务中同步落库。
+3. Redis 只能承担临时消费去重、读模型和门禁，不能保存待消费 MQ 原文，也不能作为数据库或 RocketMQ 的双保险备份。
+4. 消费端最终幂等必须由数据库唯一键、状态条件或版本 CAS 兜底；Redis 去重失败时不能绕过数据库保护。
 
 ## 13. 前端约束
 

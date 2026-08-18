@@ -17,7 +17,7 @@ import org.springframework.core.Ordered;
  * @status : create
  */
 @Configuration
-@EnableConfigurationProperties(GatewayClientIpProperties.class)
+@EnableConfigurationProperties({GatewayClientIpProperties.class, GatewayIngressProperties.class})
 public class GatewayRouteConfig {
 
     /**

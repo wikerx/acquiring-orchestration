@@ -8,6 +8,10 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateRe
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutThreeDsReturnCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinResultDTO;
+
+import java.time.LocalDateTime;
 
 /**
  * Hosted Checkout 内部服务。
@@ -53,4 +57,10 @@ public interface PaymentCheckoutService {
      * @return 回跳后的处理中或拦截结果
      */
     PaymentCheckoutPaymentResultDTO handleThreeDsReturn(PaymentCheckoutThreeDsReturnCommandDTO commandDTO);
+
+    /** 扫描并关闭超过付款期限、尚未进入渠道处理的收银台订单。 */
+    int expireDue(LocalDateTime now, int limit);
+
+    /** 按会话 MID 能力解析并校验卡 BIN 品牌。 */
+    PaymentCheckoutCardBinResultDTO resolveCardBin(PaymentCheckoutCardBinCommandDTO commandDTO);
 }

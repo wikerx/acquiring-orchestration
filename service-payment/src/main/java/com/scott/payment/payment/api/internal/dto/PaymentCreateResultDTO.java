@@ -1,10 +1,12 @@
 package com.scott.payment.payment.api.internal.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * @author : scott
@@ -34,6 +36,12 @@ public class PaymentCreateResultDTO implements Serializable {
     private String sourceTransactionId;
 
     /**
+     * 源交易发生时间，由支付核心按 sourceTransactionId 自动定位；仅用于后续动作响应。
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+    private LocalDateTime sourceTransactionDateTime;
+
+    /**
      * 平台内部生命周期关联标识，对应 transaction_order.operation_id；不返回商户、不直接上送渠道。
      */
     private String operationId;
@@ -52,6 +60,18 @@ public class PaymentCreateResultDTO implements Serializable {
      * 支付平台颁发的商户号。
      */
     private String merchantId;
+
+    /** 首次交易保存的商品或服务明细；未上送时为空列表。 */
+    private List<PaymentCreateCommandDTO.GoodsInfoDTO> goodsInfo;
+
+    /** 首次交易保存的持卡人账单信息；未上送时为空。 */
+    private PaymentCreateCommandDTO.BillingCardHolderInfoDTO billingCardHolderInfo;
+
+    /** 首次交易保存的付款人信息，返回商户前由支付核心从密文快照恢复。 */
+    private PaymentCreateCommandDTO.PayerInfoDTO payerInfo;
+
+    /** 首次交易保存的收货人信息；未上送时为空。 */
+    private PaymentCreateCommandDTO.ShippingInfoDTO shippingInfo;
 
     /**
      * 商户侧子商户信息，用于 OpenAPI 响应回显允许展示的子商户摘要。
@@ -188,10 +208,29 @@ public class PaymentCreateResultDTO implements Serializable {
      */
     private String settlementCurrency;
 
+    /** 已形成的结算换汇汇率；没有真实财务记录时为空。 */
+    private BigDecimal settlementRate;
+
+    /** 已形成的结算费用金额；没有真实财务记录时为空。 */
+    private BigDecimal settlementFeeAmount;
+
+    /** 已形成的费用明细；没有真实财务记录时为空列表。 */
+    private List<FeeItemDTO> feeItems;
+
+    /** 当前动作可向商户返回的 3DS 安全字段子集。 */
+    private ThreeDsInfoDTO threeDSInfo;
+
     /**
      * 交易发生时间。
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
+
+    /**
+     * 生命周期根主单的分片时间。首次交易与 transactionDateTime 相同，后续动作沿用原主单时间。
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+    private LocalDateTime rootTransactionDateTime;
 
     /**
      * 交易发生时区。
@@ -262,6 +301,38 @@ public class PaymentCreateResultDTO implements Serializable {
      * 商户通知回调地址，商户上送或配置存在时返回。
      */
     private String callbackUrl;
+
+    /**
+     * 首次交易保存的商户网站原始 URL，创建和幂等响应必须返回同一值。
+     */
+    private String merchantWebsite;
+
+    /** Hosted Checkout 交易结果页返回地址；按生命周期恢复。 */
+    private String redirectUrl;
+
+    /** Hosted Checkout 创建会话时选择的语言；按生命周期恢复。 */
+    private String language;
+
+    /** 允许商户接收的 3DS 安全结果，不包含 CAVV 和协议原文。 */
+    @Data
+    public static class ThreeDsInfoDTO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String eci;
+        private String dsTransactionId;
+        private String threeDsVersion;
+        private String status;
+        private Boolean liabilityShifted;
+    }
+
+    /** 已形成的费用明细。 */
+    @Data
+    public static class FeeItemDTO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String categories;
+        private BigDecimal amount;
+        private String currency;
+        private BigDecimal rate;
+    }
 
     @Data
     /**

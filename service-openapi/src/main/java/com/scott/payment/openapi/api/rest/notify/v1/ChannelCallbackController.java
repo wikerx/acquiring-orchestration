@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.api.rest.notify.v1;
 
+import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.model.ApiResult;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
@@ -9,6 +10,9 @@ import com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -47,12 +51,12 @@ public class ChannelCallbackController {
     private static final String CHANNEL_CALLBACK_TYPE = "CHANNEL_CALLBACK";
 
     /**
-     * MPGS 3DS 专用通知的内部回调分类。
+     * 3DS 认证通知的统一内部回调分类。
      */
-    private static final String MPGS_3DS_CALLBACK_TYPE = "MPGS_3DS_CALLBACK";
+    private static final String THREE_DS_CALLBACK_TYPE = "THREE_DS_AUTHENTICATION_CALLBACK";
 
     /**
-     * MPGS 3DS 回调写入支付核心时使用的渠道事件类型。
+     * 3DS 回调写入支付核心时使用的统一渠道事件类型。
      */
     private static final String THREE_DS_EVENT_TYPE = "THREE_DS_CALLBACK";
 
@@ -115,11 +119,11 @@ public class ChannelCallbackController {
     }
 
     /**
-     * 接收 MPGS 3DS 专用回调通知。
+     * 接收渠道 3DS 认证回调通知。
      *
      * @param channelCode 渠道编码
      * @param request HTTP 请求上下文
-     * @param rawBody MPGS 3DS 回调原文
+     * @param rawBody 渠道 3DS 回调原文
      * @return 回调受理结果
      */
     @PostMapping("/{channelCode}/3ds")
@@ -139,7 +143,7 @@ public class ChannelCallbackController {
                 safeLength(SensitiveDataMaskUtils.maskJsonSafely(rawBody), 1200));
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
                 callbackSecuritySupport.verifyChannelCallback(channelCode, request, rawBody);
-        paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, MPGS_3DS_CALLBACK_TYPE,
+        paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, THREE_DS_CALLBACK_TYPE,
                 THREE_DS_EVENT_TYPE, request, rawBody, securityResult));
         log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_END stage=CALLBACK_RECEIVE traceId: {} channelCode: {} signatureValid: {} ipAllowed: {} durationMs: {}",
                 TraceContext.getTraceId(),
@@ -148,6 +152,21 @@ public class ChannelCallbackController {
                 securityResult.ipAllowed(),
                 elapsedMillis(startNanos));
         return success(channelCode + " 3ds accepted");
+    }
+
+    /**
+     * Webhook providers determine delivery from HTTP status, so callback failures must not be wrapped in HTTP 200.
+     */
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<ApiResult<Void>> handleCallbackApiException(ApiException exception) {
+        HttpStatus status = switch (exception.getCode()) {
+            case "F401" -> HttpStatus.UNAUTHORIZED;
+            case "F502" -> HttpStatus.BAD_GATEWAY;
+            case "F500" -> HttpStatus.INTERNAL_SERVER_ERROR;
+            default -> exception.getCode() != null && exception.getCode().startsWith("F4")
+                    ? HttpStatus.BAD_REQUEST : HttpStatus.SERVICE_UNAVAILABLE;
+        };
+        return ResponseEntity.status(status).body(ApiResult.fail(exception.getCode(), exception.getMessage()));
     }
 
     /**
@@ -243,7 +262,8 @@ public class ChannelCallbackController {
                 || "cookie".equalsIgnoreCase(headerName)
                 || "set-cookie".equalsIgnoreCase(headerName)
                 || "x-api-key".equalsIgnoreCase(headerName)
-                || "api-key".equalsIgnoreCase(headerName));
+                || "api-key".equalsIgnoreCase(headerName)
+                || "x-notification-secret".equalsIgnoreCase(headerName));
     }
 
     /**

@@ -76,6 +76,46 @@ public class TransactionOperationDO implements Serializable {
     private String merchantOperationNo;
 
     /**
+     * 动作请求来源，例如 OPENAPI、ADMIN_PORTAL、MERCHANT_PORTAL 或 SYSTEM。
+     */
+    private String requestSource;
+
+    /**
+     * 退款范围，FULL 表示相对原始本金全额退款，PARTIAL 表示部分退款，VOID 表示撤销。
+     */
+    private String refundScope;
+
+    /**
+     * 退款或撤销申请原因，不保存敏感支付工具信息。
+     */
+    private String requestReason;
+
+    /**
+     * 商户上送的当前交易动作描述，用于同步响应、查询和终态通知回显。
+     */
+    private String description;
+
+    /**
+     * 申请主体类型，例如 API_CLIENT、MERCHANT、ADMIN 或 SYSTEM。
+     */
+    private String applicantType;
+
+    /**
+     * 申请主体稳定标识。
+     */
+    private String applicantId;
+
+    /**
+     * 申请时的显示名称快照。
+     */
+    private String applicantName;
+
+    /**
+     * 动作执行模式；当前退款使用 CHANNEL。
+     */
+    private String executionMode;
+
+    /**
      * 生命周期内动作序号，从 1 递增。
      */
     private Integer operationSequence;

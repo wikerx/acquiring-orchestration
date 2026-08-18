@@ -93,11 +93,12 @@ public class JobRunLogServiceImpl implements JobRunLogService {
      */
     @Override
     public void markRunning(Long logId) {
+        LocalDateTime now = LocalDateTime.now();
         SysJobRunLogDO runLog = new SysJobRunLogDO();
         runLog.setId(logId);
         runLog.setRunStatus(JobRunStatusEnum.RUNNING.name());
-        runLog.setStartTime(LocalDateTime.now());
-        runLog.setUpdateTime(LocalDateTime.now());
+        runLog.setStartTime(now);
+        runLog.setUpdateTime(now);
         sysJobRunLogMapper.updateById(runLog);
     }
 
@@ -110,7 +111,8 @@ public class JobRunLogServiceImpl implements JobRunLogService {
      */
     @Override
     public void finishAsSuccess(Long logId, long durationMs, String resultMessage) {
-        sysJobRunLogMapper.finishIfRunning(logId, JobRunStatusEnum.SUCCESS.name(), resultMessage, null, durationMs);
+        sysJobRunLogMapper.finishIfRunning(logId, JobRunStatusEnum.SUCCESS.name(), resultMessage, null,
+                durationMs, LocalDateTime.now());
     }
 
     /**
@@ -122,7 +124,8 @@ public class JobRunLogServiceImpl implements JobRunLogService {
      */
     @Override
     public void finishAsFailed(Long logId, long durationMs, String errorMessage) {
-        sysJobRunLogMapper.finishIfRunning(logId, JobRunStatusEnum.FAILED.name(), null, errorMessage, durationMs);
+        sysJobRunLogMapper.finishIfRunning(logId, JobRunStatusEnum.FAILED.name(), null, errorMessage,
+                durationMs, LocalDateTime.now());
     }
 
     /**
@@ -143,7 +146,8 @@ public class JobRunLogServiceImpl implements JobRunLogService {
                 JobRunStatusEnum.TIMEOUT.name(),
                 null,
                 "job execution timeout",
-                durationMs
+                durationMs,
+                LocalDateTime.now()
         ) > 0;
     }
 

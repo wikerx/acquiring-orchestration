@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.client.payment.dto.checkout;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
@@ -73,29 +74,35 @@ public final class PaymentCheckoutClientDTOs {
         /** 付款页展示的商户 Logo 地址。 */
         private String merchantLogoUrl;
 
-        /** 支付完成后的商户返回地址。 */
-        private String merchantReturnUrl;
+        /** 商户通知 URL 明文；仅在内部签名链路传输，禁止完整写入日志。 */
+        private String merchantNotifyUrl;
 
-        /** 付款取消后的商户返回地址。 */
-        private String merchantCancelUrl;
+        /** 子商户完整明文 JSON 快照。 */
+        private String subMerchantInfoJson;
 
-        /** 商户通知 URL 摘要；内部请求不传递原始通知地址。 */
-        private String merchantNotifyUrlHash;
+        /** 付款人预填信息明文 JSON 快照。 */
+        private String payerInfoJson;
+
+        /** 持卡人账单预填信息明文 JSON 快照。 */
+        private String billingInfoJson;
+
+        /** 收货信息结构化 JSON；生成交易后拆分写入明文结构化快照表。 */
+        private String shippingInfoJson;
+
+        /** 交易完成后 Form POST 的商户结果页地址明文。 */
+        private String redirectUrl;
 
         /** ISO 3166-1 alpha-3 付款人国家/地区代码。 */
         private String payerCountry;
 
-        /** 付款人邮箱脱敏展示值。 */
-        private String payerEmailMasked;
+        /** 付款人邮箱明文。 */
+        private String payerEmail;
 
         /** 付款人邮箱不可逆摘要，用于风控匹配。 */
         private String payerEmailHash;
 
         /** 是否允许失败后重试，1 表示允许、0 表示禁止。 */
         private Integer retryAllowed;
-
-        /** 会话允许的最大支付尝试次数。 */
-        private Integer maxAttemptCount;
 
         /** 会话过期时间，按内部服务约定时区解释。 */
         private LocalDateTime expireTime;
@@ -220,6 +227,51 @@ public final class PaymentCheckoutClientDTOs {
 
         /** 有效期、重试次数和轮询配置。 */
         private Checkout checkout;
+
+        /** 商户上送的付款人预填信息。 */
+        private PayerInfo payerInfo;
+
+        /** 商户上送的账单预填信息。 */
+        private BillingInfo billingInfo;
+
+        /** 最近一次支付尝试结果；再次打开链接时直接回显。 */
+        private PaymentResultResponse paymentResult;
+
+        /** 卡数据加密公钥元数据和一次性 nonce，仅可支付状态返回。 */
+        private CardEncryption cardEncryption;
+    }
+
+    @Data
+    public static class PayerInfo implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String payerId;
+        private String email;
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+        private String ipAddress;
+        private String sessionId;
+        private java.util.Map<String, Object> browserInfo;
+        private String userAgent;
+    }
+
+    @Data
+    public static class BillingInfo implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String firstName;
+        private String lastName;
+        private String email;
+        private String phone;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
     }
 
     /**
@@ -252,6 +304,9 @@ public final class PaymentCheckoutClientDTOs {
         /** 客户端 IP 摘要。 */
         private String clientIpHash;
 
+        /** 3DS 渠道调用需要的真实 IP，仅允许在本次内部调用链中使用。 */
+        private String payerIp;
+
         /** User-Agent 摘要。 */
         private String userAgentHash;
 
@@ -267,8 +322,8 @@ public final class PaymentCheckoutClientDTOs {
         /** 设备信息脱敏 JSON；原始设备采集报文不得持久化。 */
         private String deviceInfoJson;
 
-        /** 敏感卡数据，仅允许短暂传入支付处理，禁止日志或普通业务持久化。 */
-        private CardInfo cardInfo;
+        /** 浏览器生成的卡数据密文信封，OpenAPI 不得解密。 */
+        private CardDataEnvelope cardDataEnvelope;
 
         /** 账单持卡人资料，用于渠道和 3DS 校验，日志必须脱敏。 */
         private BillingCardHolderInfo billingCardHolderInfo;
@@ -314,6 +369,23 @@ public final class PaymentCheckoutClientDTOs {
         private String userAgentHash;
     }
 
+    @Data
+    public static class CardBinRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String tokenHash;
+        private String checkoutSessionId;
+        private String cardBin;
+        private String traceId;
+    }
+
+    @Data
+    public static class CardBinResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String cardBrand;
+        private Boolean recognized;
+        private Boolean supported;
+    }
+
     /**
      * 3DS bridge 回跳内部请求，原始 return token 和认证数据在 OpenAPI 层已摘要/脱敏。
      */
@@ -343,6 +415,15 @@ public final class PaymentCheckoutClientDTOs {
          */
         private String authenticationDataJsonMasked;
 
+        /** 新 nonce 对应的卡数据密文信封。 */
+        private CardDataEnvelope cardDataEnvelope;
+
+        /** 继续认证和支付所需账单资料。 */
+        private BillingCardHolderInfo billingCardHolderInfo;
+
+        /** 当前浏览器环境摘要。 */
+        private String browserInfoJson;
+
         /**
          * TraceId 贯穿 3DS 回跳链路。
          */
@@ -352,6 +433,9 @@ public final class PaymentCheckoutClientDTOs {
          * 回跳浏览器 IP 摘要，用于非法回跳审计。
          */
         private String clientIpHash;
+
+        /** 继续 3DS 认证需要的真实 IP，仅允许在本次内部调用链中使用。 */
+        private String payerIp;
 
         /**
          * 回跳浏览器 UA 摘要，用于非法回跳审计。
@@ -519,49 +603,31 @@ public final class PaymentCheckoutClientDTOs {
         private Boolean retryAllowed;
 
         /**
-         * 当前剩余可支付尝试次数。
-         */
-        private Integer remainingAttemptCount;
-
-        /**
          * 前端处理中页面建议轮询间隔。
          */
         private Integer pollingIntervalSeconds;
     }
 
-    /**
-     * 付款人卡信息，只在 OpenAPI 到 service-payment 的内存调用链中过境。
-     */
+    @Data
+    public static class CardEncryption implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String algorithm;
+        private String keyId;
+        private String publicKey;
+        private String nonce;
+    }
+
+    /** OpenAPI 原样转发的卡数据密文信封。 */
     @Getter
     @Setter
-    public static class CardInfo implements Serializable {
-
+    public static class CardDataEnvelope implements Serializable {
         private static final long serialVersionUID = 1L;
-
-        /**
-         * 明文卡号，禁止日志输出和持久化保存。
-         */
-        private String cardNo;
-
-        /**
-         * 卡有效期月份。
-         */
-        private String expirationMonth;
-
-        /**
-         * 卡有效期年份。
-         */
-        private String expirationYear;
-
-        /**
-         * CVV/CVC，仅用于本次渠道请求，禁止保存。
-         */
-        private String securityCode;
-
-        /**
-         * 持卡人姓名，用于 3DS 和渠道授权请求。
-         */
-        private String cardholderName;
+        private String algorithm;
+        private String keyId;
+        private String encryptedKey;
+        private String iv;
+        private String ciphertext;
+        private String nonce;
     }
 
     /**
@@ -665,6 +731,7 @@ public final class PaymentCheckoutClientDTOs {
         /**
          * 交易时间。
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
 
         /**
@@ -686,6 +753,9 @@ public final class PaymentCheckoutClientDTOs {
          */
         private String actionType;
 
+        /** 当前 HTML 所属 3DS 阶段：INITIALIZE 为 Method，AUTHENTICATE 为 Challenge。 */
+        private String phase;
+
         /**
          * 渠道返回的 3DS HTML，进入前端前应保持原样但不得写入明文日志。
          */
@@ -700,6 +770,9 @@ public final class PaymentCheckoutClientDTOs {
          * 3DS 质询超时时间。
          */
         private Integer timeoutSeconds;
+
+        /** 下一 3DS 浏览器阶段重新加密卡数据所需公钥和 nonce。 */
+        private CardEncryption cardEncryption;
     }
 
     /**
@@ -724,11 +797,6 @@ public final class PaymentCheckoutClientDTOs {
          * 当前失败后是否允许重试。
          */
         private Boolean retryAllowed;
-
-        /**
-         * 失败后剩余可尝试次数。
-         */
-        private Integer remainingAttemptCount;
     }
 
     /**
@@ -755,22 +823,35 @@ public final class PaymentCheckoutClientDTOs {
         private Integer maxIntervalSeconds;
     }
 
-    /**
-     * 收银台完成后的商户跳转动作。
-     */
+    /** 收银台终态后通过浏览器表单返回商户的动作。 */
     @Data
     public static class Action implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /**
-         * 支付终态后跳转商户页面的 returnUrl，不是后端回调地址。
-         */
-        private String returnUrl;
+        /** 固定 POST，前端不得降级为 GET 跳转。 */
+        private String method;
+        /** 商户创建会话时提供的结果页地址。 */
+        private String redirectUrl;
+        /** 自动提交前的倒计时秒数。 */
+        private Integer delaySeconds;
+        /** 精确限定为文档 8.4 定义的九个表单字段。 */
+        private FormFields formFields;
+    }
 
-        /**
-         * 付款人取消时跳转商户页面的 cancelUrl。
-         */
-        private String cancelUrl;
+    /** 浏览器返回商户网站时提交的非权威交易摘要。 */
+    @Data
+    public static class FormFields implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String merchantId;
+        private String orderNo;
+        private String orderId;
+        private String transactionId;
+        private String transactionType;
+        private String transactionStatus;
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime transactionDateTime;
+        private String code;
+        private String message;
     }
 }

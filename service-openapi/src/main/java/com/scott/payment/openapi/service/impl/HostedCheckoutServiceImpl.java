@@ -6,6 +6,7 @@ import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
+import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
@@ -21,6 +22,8 @@ import com.scott.payment.openapi.support.OpenApiRequestContext;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionCreateVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
+import com.scott.payment.openapi.vo.checkout.HostedCheckoutCardBinVO;
+import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,8 +38,11 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Hosted Checkout 开放接口默认实现。
@@ -49,11 +55,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      * 当前 Hosted Checkout 支持的银行卡支付方式编码。
      */
     private static final String PAYMENT_METHOD_BANK_CARD = "BANK_CARD";
-
-    /**
-     * 当前 Hosted Checkout 默认接入的 MPGS 渠道编码。
-     */
-    private static final String CHANNEL_MPGS = "MPGS";
 
     /**
      * 代理链客户端 IP 请求头。
@@ -80,15 +81,13 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      */
     private static final String HEADER_USER_AGENT = "User-Agent";
 
+    /** 浏览器声明可接收内容类型的请求头，MPGS PAYER_BROWSER 认证要求提供。 */
+    private static final String HEADER_ACCEPT = "Accept";
+
     /**
      * 平台收银台前端基础地址的系统参数键。
      */
     private static final String CHECKOUT_FRONTEND_BASE_URL_CONFIG_KEY = "platform.checkout.frontend-base-url";
-
-    /**
-     * 脱敏日志摘要最大字符数。
-     */
-    private static final int LOG_SUMMARY_LIMIT = 1200;
 
     /**
      * 内部无时区时间转换为对外时间时使用的平台默认时区。
@@ -101,7 +100,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private final PaymentInternalClient paymentInternalClient;
 
     /**
-     * Hosted Checkout 会话有效期、重试和轮询等运行参数。
+     * Hosted Checkout 会话有效期等运行参数。
      */
     private final HostedCheckoutProperties properties;
 
@@ -164,8 +163,10 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
                                                        HostedCheckoutSessionCreateRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
         validateMerchantBinding(requestDTO);
+        validatePayerIpAddress(requestDTO);
+        validateCreateRequestAmounts(requestDTO);
         PaymentCheckoutClientDTOs.SessionCreateRequest clientRequest = toClientCreateRequest(encryptedData, requestDTO);
-        log.info("event: OPENAPI_CHECKOUT_CREATE_START stage=OPENAPI_SERVICE traceId: {} merchantId: {} merchantOrderNo: {} merchantRequestId: {} amount: {} currency: {} checkoutDomain: {} requestFingerprint: {} plainRequestSummary: {}",
+        log.info("event: OPENAPI_CHECKOUT_CREATE_START stage=OPENAPI_SERVICE traceId: {} merchantId: {} merchantOrderNo: {} merchantRequestId: {} amount: {} currency: {} checkoutDomain: {} requestFingerprint: {} payerCountry: {}",
                 TraceContext.getTraceId(),
                 clientRequest.getMerchantId(),
                 clientRequest.getMerchantOrderNo(),
@@ -174,17 +175,16 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
                 clientRequest.getCurrency(),
                 clientRequest.getCheckoutDomain(),
                 clientRequest.getRequestFingerprint(),
-                safeSummary(requestDTO));
+                clientRequest.getPayerCountry());
         PaymentCheckoutClientDTOs.SessionCreateResponse clientResponse =
                 paymentInternalClient.createCheckoutSession(clientRequest);
         HostedCheckoutSessionCreateVO responseVO = toCreateVO(requestDTO, clientResponse);
-        log.info("event: OPENAPI_CHECKOUT_CREATE_END stage=OPENAPI_SERVICE traceId: {} merchantId: {} checkoutSessionId: {} checkoutStatus: {} idempotentHit: {} responseSummary: {} durationMs: {}",
+        log.info("event: OPENAPI_CHECKOUT_CREATE_END stage=OPENAPI_SERVICE traceId: {} merchantId: {} checkoutSessionId: {} checkoutStatus: {} idempotentHit: {} durationMs: {}",
                 TraceContext.getTraceId(),
                 clientRequest.getMerchantId(),
                 clientResponse.getCheckoutSessionId(),
                 clientResponse.getCheckoutStatus(),
                 clientResponse.getIdempotentHit(),
-                safeSummary(responseVO),
                 elapsedMillis(startNanos));
         return responseVO;
     }
@@ -208,8 +208,8 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     /**
      * 提交一次 Hosted Checkout 付款尝试。
      *
-     * <p>仅向支付核心传递令牌摘要和请求指纹；PAN、CVV 与账单资料只在当前内存调用链中使用，
-     * 不写入 Redis、业务日志或 OpenAPI 响应。尝试幂等和交易状态流转由支付核心负责。</p>
+     * <p>OpenAPI 只转发浏览器密文信封，不接触 PAN、CVV 或有效期明文；
+     * 尝试幂等、nonce 消费、解密和交易状态流转由支付核心负责。</p>
      *
      * @param requestDTO 浏览器支付提交请求
      * @return 当前支付结果、处理中状态或 3DS 动作
@@ -226,7 +226,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         fillBrowserSecurity(clientRequest, requestDTO.getClientContext());
         clientRequest.setBrowserInfoJson(browserInfoJson(requestDTO.getClientContext()));
         clientRequest.setDeviceInfoJson(deviceInfoJson(requestDTO.getClientContext()));
-        clientRequest.setCardInfo(toClientCardInfo(requestDTO.getCardInfo()));
+        clientRequest.setCardDataEnvelope(toClientCardDataEnvelope(requestDTO.getCardDataEnvelope()));
         clientRequest.setBillingCardHolderInfo(toClientBillingInfo(requestDTO.getBillingCardHolderInfo()));
         PaymentCheckoutClientDTOs.PaymentResultResponse response = paymentInternalClient.submitCheckoutPayment(clientRequest);
         return toPaymentResultVO(response);
@@ -269,11 +269,30 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         clientRequest.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
         clientRequest.setCheckoutAttemptId(requestDTO.getCheckoutAttemptId());
         clientRequest.setAuthenticationDataJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(requestDTO.getAuthenticationData()));
+        clientRequest.setCardDataEnvelope(toClientCardDataEnvelope(requestDTO.getCardDataEnvelope()));
+        clientRequest.setBillingCardHolderInfo(toClientBillingInfo(requestDTO.getBillingCardHolderInfo()));
+        clientRequest.setBrowserInfoJson(browserInfoJson(requestDTO.getClientContext()));
         clientRequest.setTraceId(TraceContext.getTraceId());
         fillBrowserSecurity(clientRequest, requestDTO.getClientContext());
         PaymentCheckoutClientDTOs.PaymentResultResponse response =
                 paymentInternalClient.handleCheckoutThreeDsReturn(clientRequest);
         return toPaymentResultVO(response);
+    }
+
+    /** 卡 BIN 查询只传递前缀和令牌摘要，不接收或记录完整 PAN。 */
+    @Override
+    public HostedCheckoutCardBinVO resolveCardBin(HostedCheckoutBrowserRequestDTOs.CardBinRequest requestDTO) {
+        PaymentCheckoutClientDTOs.CardBinRequest clientRequest = new PaymentCheckoutClientDTOs.CardBinRequest();
+        clientRequest.setTokenHash(tokenHash(requestDTO.getOpaqueToken()));
+        clientRequest.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
+        clientRequest.setCardBin(requestDTO.getCardBin());
+        clientRequest.setTraceId(TraceContext.getTraceId());
+        PaymentCheckoutClientDTOs.CardBinResponse response = paymentInternalClient.resolveCheckoutCardBin(clientRequest);
+        HostedCheckoutCardBinVO result = new HostedCheckoutCardBinVO();
+        result.setCardBrand(response.getCardBrand());
+        result.setRecognized(response.getRecognized());
+        result.setSupported(response.getSupported());
+        return result;
     }
 
     /**
@@ -283,7 +302,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
             String encryptedData,
             HostedCheckoutSessionCreateRequestDTO requestDTO) {
         HostedCheckoutSessionCreateRequestDTO.OrderInfoDTO orderInfo = requestDTO.getOrderInfo();
-        HostedCheckoutSessionCreateRequestDTO.CheckoutInfoDTO checkoutInfo = requestDTO.getCheckoutInfo();
+        HostedCheckoutSessionCreateRequestDTO.TransactionInfoDTO transactionInfo = requestDTO.getTransactionInfo();
         PaymentCheckoutClientDTOs.SessionCreateRequest target = new PaymentCheckoutClientDTOs.SessionCreateRequest();
         target.setMerchantId(requestContext.getRequiredMerchantId());
         target.setMerchantOrderNo(orderInfo.getOrderNo());
@@ -293,62 +312,53 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         target.setCurrency(normalizeCurrency(orderInfo.getCurrency()));
         target.setCurrencyExponent(resolveCurrencyExponent(orderInfo.getCurrency()));
         target.setPaymentAction("PAYMENT");
-        target.setOrderSubject(orderInfo.getSubject());
-        target.setOrderDescription(orderInfo.getDescription());
-        target.setOrderItemsJson(orderInfo.getItems() == null ? null : JsonUtils.toJsonString(orderInfo.getItems()));
-        target.setAllowedPaymentMethods(toClientAllowedMethods(checkoutInfo.getAllowedPaymentMethods()));
+        target.setOrderSubject(null);
+        target.setOrderDescription(transactionInfo == null ? null : transactionInfo.getDescription());
+        target.setOrderItemsJson(requestDTO.getGoodsInfo() == null
+                ? null : JsonUtils.toJsonString(requestDTO.getGoodsInfo()));
+        target.setAllowedPaymentMethods(List.of());
         target.setCheckoutDomain(resolveCheckoutFrontendBaseUrl());
-        target.setLocale(checkoutInfo.getLocale());
+        target.setLocale(transactionInfo == null ? null : transactionInfo.getLanguage());
         target.setMerchantDisplayName(resolveMerchantDisplayName(requestDTO));
         target.setMerchantLogoUrl(null);
-        target.setMerchantReturnUrl(checkoutInfo.getReturnUrl());
-        target.setMerchantCancelUrl(checkoutInfo.getCancelUrl());
-        target.setMerchantNotifyUrlHash(sha256Hex(checkoutInfo.getNotifyUrl()));
+        String callbackUrl = transactionInfo == null ? null : transactionInfo.getCallbackUrl();
+        target.setMerchantNotifyUrl(callbackUrl);
+        target.setSubMerchantInfoJson(toJson(requestDTO.getMerchantInfo().getSubMerchantInfo()));
+        target.setPayerInfoJson(toJson(requestDTO.getPayerInfo()));
+        target.setBillingInfoJson(toJson(requestDTO.getBillingCardHolderInfo()));
+        target.setShippingInfoJson(requestDTO.getShippingInfo() == null
+                ? null : JsonUtils.toJsonString(requestDTO.getShippingInfo()));
+        String redirectUrl = transactionInfo == null ? null : transactionInfo.getRedirectUrl();
+        target.setRedirectUrl(redirectUrl);
         target.setPayerCountry(requestDTO.getPayerInfo() == null ? null : requestDTO.getPayerInfo().getCountry());
-        target.setPayerEmailMasked(requestDTO.getPayerInfo() == null ? null
-                : SensitiveDataMaskUtils.maskEmail(requestDTO.getPayerInfo().getEmail()));
+        target.setPayerEmail(requestDTO.getPayerInfo() == null ? null : requestDTO.getPayerInfo().getEmail());
         target.setPayerEmailHash(requestDTO.getPayerInfo() == null ? null
                 : sha256Hex(requestDTO.getPayerInfo().getEmail()));
-        target.setRetryAllowed(Boolean.FALSE.equals(checkoutInfo.getRetryAllowed()) ? 0 : 1);
-        target.setMaxAttemptCount(resolveMaxAttemptCount(checkoutInfo.getMaxAttemptCount()));
-        target.setExpireTime(resolveExpireTime(checkoutInfo.getExpireMinutes()));
+        target.setRetryAllowed(1);
+        target.setExpireTime(LocalDateTime.now().plusMinutes(properties.getDefaultExpireMinutes()));
         target.setRequestSource(requestSourceSummary());
         target.setTraceId(TraceContext.getTraceId());
         return target;
     }
 
-    /**
-     * 固化商户允许的支付方式，后续收银台展示不再依赖商户实时改配置。
-     */
-    private List<PaymentCheckoutClientDTOs.AllowedPaymentMethod> toClientAllowedMethods(
-            List<HostedCheckoutSessionCreateRequestDTO.AllowedPaymentMethodDTO> methods) {
-        if (methods == null) {
-            return List.of();
-        }
-        return methods.stream().map(method -> {
-            PaymentCheckoutClientDTOs.AllowedPaymentMethod target = new PaymentCheckoutClientDTOs.AllowedPaymentMethod();
-            target.setPaymentMethod(normalizePaymentMethod(method.getPaymentMethod()));
-            target.setChannelCode(normalizeChannelCode(method.getChannelCode()));
-            target.setBrands(method.getBrands());
-            target.setThreeDsMode(method.getThreeDsMode());
-            return target;
-        }).toList();
+    /** 将允许明文展示的收银台预填对象固化为 JSON。 */
+    private String toJson(Object source) {
+        return source == null ? null : JsonUtils.toJsonString(source);
     }
 
-    /**
-     * 转换付款人卡信息；明文 PAN/CVV 只在 OpenAPI 到 payment 的一次内存调用链中过境。
-     */
-    private PaymentCheckoutClientDTOs.CardInfo toClientCardInfo(
-            HostedCheckoutBrowserRequestDTOs.CardInfoDTO source) {
+    /** 原样转换浏览器卡数据密文信封，OpenAPI 不持有对应私钥。 */
+    private PaymentCheckoutClientDTOs.CardDataEnvelope toClientCardDataEnvelope(
+            HostedCheckoutBrowserRequestDTOs.CardDataEnvelopeDTO source) {
         if (source == null) {
             return null;
         }
-        PaymentCheckoutClientDTOs.CardInfo target = new PaymentCheckoutClientDTOs.CardInfo();
-        target.setCardNo(source.getCardNo());
-        target.setExpirationMonth(source.getExpirationMonth());
-        target.setExpirationYear(source.getExpirationYear());
-        target.setSecurityCode(source.getSecurityCode());
-        target.setCardholderName(source.getCardholderName());
+        PaymentCheckoutClientDTOs.CardDataEnvelope target = new PaymentCheckoutClientDTOs.CardDataEnvelope();
+        target.setAlgorithm(source.getAlgorithm());
+        target.setKeyId(source.getKeyId());
+        target.setEncryptedKey(source.getEncryptedKey());
+        target.setIv(source.getIv());
+        target.setCiphertext(source.getCiphertext());
+        target.setNonce(source.getNonce());
         return target;
     }
 
@@ -379,23 +389,29 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private HostedCheckoutSessionCreateVO toCreateVO(HostedCheckoutSessionCreateRequestDTO requestDTO,
                                                      PaymentCheckoutClientDTOs.SessionCreateResponse response) {
         HostedCheckoutSessionCreateVO vo = new HostedCheckoutSessionCreateVO();
-        HostedCheckoutSessionCreateVO.MerchantInfoVO merchantInfoVO = new HostedCheckoutSessionCreateVO.MerchantInfoVO();
-        merchantInfoVO.setMerchantId(requestContext.getRequiredMerchantId());
-        vo.setMerchantInfo(merchantInfoVO);
-        HostedCheckoutSessionCreateVO.CheckoutInfoVO checkoutInfoVO = new HostedCheckoutSessionCreateVO.CheckoutInfoVO();
-        checkoutInfoVO.setCheckoutSessionId(response.getCheckoutSessionId());
-        checkoutInfoVO.setCheckoutUrl(response.getCheckoutUrl());
-        checkoutInfoVO.setStatus(response.getCheckoutStatus());
-        checkoutInfoVO.setExpireTime(toOffsetDateTime(response.getExpireTime()));
-        checkoutInfoVO.setIdempotentHit(response.getIdempotentHit());
-        vo.setCheckoutInfo(checkoutInfoVO);
-        HostedCheckoutSessionCreateVO.OrderInfoVO orderInfoVO = new HostedCheckoutSessionCreateVO.OrderInfoVO();
-        orderInfoVO.setOrderNo(requestDTO.getOrderInfo().getOrderNo());
-        orderInfoVO.setOrderId(requestDTO.getOrderInfo().getOrderId());
-        orderInfoVO.setAmount(requestDTO.getOrderInfo().getAmount());
-        orderInfoVO.setCurrency(requestDTO.getOrderInfo().getCurrency());
-        vo.setOrderInfo(orderInfoVO);
+        vo.setMerchantInfo(copySnapshot(requestDTO.getMerchantInfo(), PaymentCreateVO.MerchantInfoVO.class));
+        vo.setOrderInfo(copySnapshot(requestDTO.getOrderInfo(), PaymentCreateVO.OrderInfoVO.class));
+        vo.setGoodsInfo(copySnapshotList(requestDTO.getGoodsInfo(), PaymentCreateVO.GoodsInfoVO.class));
+        vo.setBillingCardHolderInfo(copySnapshot(
+                requestDTO.getBillingCardHolderInfo(), PaymentCreateVO.BillingCardHolderInfoVO.class));
+        vo.setPayerInfo(copySnapshot(requestDTO.getPayerInfo(), PaymentCreateVO.PayerInfoVO.class));
+        vo.setShippingInfo(copySnapshot(requestDTO.getShippingInfo(), PaymentCreateVO.ShippingInfoVO.class));
+        vo.setTransactionInfo(copySnapshot(
+                requestDTO.getTransactionInfo(), HostedCheckoutSessionCreateVO.TransactionInfoVO.class));
+        vo.setCheckoutUrl(response.getCheckoutUrl());
         return vo;
+    }
+
+    /** 通过 JSON 结构转换只回显外部 VO 明确定义的字段。 */
+    private <T> T copySnapshot(Object source, Class<T> targetType) {
+        return source == null ? null : JsonUtils.parseObject(JsonUtils.toJsonString(source), targetType);
+    }
+
+    /** 转换可选快照集合；未提供时保持 null 以满足条件返回契约。 */
+    private <T> List<T> copySnapshotList(List<?> source, Class<T> targetType) {
+        return source == null ? null : source.stream()
+                .map(item -> copySnapshot(item, targetType))
+                .toList();
     }
 
     /**
@@ -411,7 +427,59 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
                 .map(this::toPaymentMethodVO)
                 .toList());
         vo.setCheckout(toCheckoutVO(response.getCheckout()));
+        vo.setPayerInfo(toPayerInfoVO(response.getPayerInfo()));
+        vo.setBillingInfo(toBillingInfoVO(response.getBillingInfo()));
+        vo.setPaymentResult(response.getPaymentResult() == null ? null : toPaymentResultVO(response.getPaymentResult()));
+        vo.setCardEncryption(toCardEncryptionVO(response.getCardEncryption()));
         return vo;
+    }
+
+    private HostedCheckoutSessionVO.CardEncryptionVO toCardEncryptionVO(
+            PaymentCheckoutClientDTOs.CardEncryption source) {
+        if (source == null) {
+            return null;
+        }
+        HostedCheckoutSessionVO.CardEncryptionVO target = new HostedCheckoutSessionVO.CardEncryptionVO();
+        target.setAlgorithm(source.getAlgorithm());
+        target.setKeyId(source.getKeyId());
+        target.setPublicKey(source.getPublicKey());
+        target.setNonce(source.getNonce());
+        return target;
+    }
+
+    private HostedCheckoutSessionVO.PayerInfoVO toPayerInfoVO(PaymentCheckoutClientDTOs.PayerInfo source) {
+        if (source == null) {
+            return null;
+        }
+        HostedCheckoutSessionVO.PayerInfoVO target = new HostedCheckoutSessionVO.PayerInfoVO();
+        target.setPayerId(source.getPayerId());
+        target.setEmail(source.getEmail());
+        target.setFirstName(source.getFirstName());
+        target.setLastName(source.getLastName());
+        target.setPhone(source.getPhone());
+        target.setCountry(source.getCountry());
+        target.setState(source.getState());
+        target.setCity(source.getCity());
+        target.setStreet(source.getStreet());
+        target.setPostal(source.getPostal());
+        return target;
+    }
+
+    private HostedCheckoutSessionVO.BillingInfoVO toBillingInfoVO(PaymentCheckoutClientDTOs.BillingInfo source) {
+        if (source == null) {
+            return null;
+        }
+        HostedCheckoutSessionVO.BillingInfoVO target = new HostedCheckoutSessionVO.BillingInfoVO();
+        target.setFirstName(source.getFirstName());
+        target.setLastName(source.getLastName());
+        target.setEmail(source.getEmail());
+        target.setPhone(source.getPhone());
+        target.setCountry(source.getCountry());
+        target.setState(source.getState());
+        target.setCity(source.getCity());
+        target.setStreet(source.getStreet());
+        target.setPostal(source.getPostal());
+        return target;
     }
 
     /**
@@ -474,7 +542,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     }
 
     /**
-     * 转换收银台会话控制信息，包括过期时间、重试次数和轮询间隔。
+     * 转换收银台会话控制信息，包括过期时间、重试开关和轮询间隔。
      */
     private HostedCheckoutSessionVO.CheckoutVO toCheckoutVO(PaymentCheckoutClientDTOs.Checkout source) {
         if (source == null) {
@@ -483,7 +551,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         HostedCheckoutSessionVO.CheckoutVO target = new HostedCheckoutSessionVO.CheckoutVO();
         target.setExpireTime(toOffsetDateTime(source.getExpireTime()));
         target.setRetryAllowed(source.getRetryAllowed());
-        target.setRemainingAttemptCount(source.getRemainingAttemptCount());
         target.setPollingIntervalSeconds(source.getPollingIntervalSeconds());
         return target;
     }
@@ -517,9 +584,11 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         }
         HostedCheckoutPaymentResultVO.ThreeDsActionVO target = new HostedCheckoutPaymentResultVO.ThreeDsActionVO();
         target.setActionType(source.getActionType());
+        target.setPhase(source.getPhase());
         target.setHtml(source.getHtml());
         target.setReturnUrl(source.getReturnUrl());
         target.setTimeoutSeconds(source.getTimeoutSeconds());
+        target.setCardEncryption(toCardEncryptionVO(source.getCardEncryption()));
         return target;
     }
 
@@ -534,7 +603,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         target.setReasonCode(source.getReasonCode());
         target.setMessage(source.getMessage());
         target.setRetryAllowed(source.getRetryAllowed());
-        target.setRemainingAttemptCount(source.getRemainingAttemptCount());
         return target;
     }
 
@@ -552,16 +620,28 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return target;
     }
 
-    /**
-     * 转换商户跳转地址；returnUrl 是付款人页面跳转，不是服务端通知回调。
-     */
+    /** 转换终态浏览器 Form POST 动作，不把 redirectUrl 当作服务端通知地址。 */
     private HostedCheckoutPaymentResultVO.ActionVO toActionVO(PaymentCheckoutClientDTOs.Action source) {
         if (source == null) {
             return null;
         }
         HostedCheckoutPaymentResultVO.ActionVO target = new HostedCheckoutPaymentResultVO.ActionVO();
-        target.setReturnUrl(source.getReturnUrl());
-        target.setCancelUrl(source.getCancelUrl());
+        target.setMethod(source.getMethod());
+        target.setRedirectUrl(source.getRedirectUrl());
+        target.setDelaySeconds(source.getDelaySeconds());
+        if (source.getFormFields() != null) {
+            HostedCheckoutPaymentResultVO.FormFieldsVO form = new HostedCheckoutPaymentResultVO.FormFieldsVO();
+            form.setMerchantId(source.getFormFields().getMerchantId());
+            form.setOrderNo(source.getFormFields().getOrderNo());
+            form.setOrderId(source.getFormFields().getOrderId());
+            form.setTransactionId(source.getFormFields().getTransactionId());
+            form.setTransactionType(source.getFormFields().getTransactionType());
+            form.setTransactionStatus(source.getFormFields().getTransactionStatus());
+            form.setTransactionDateTime(toOffsetDateTime(source.getFormFields().getTransactionDateTime()));
+            form.setCode(source.getFormFields().getCode());
+            form.setMessage(source.getFormFields().getMessage());
+            target.setFormFields(form);
+        }
         return target;
     }
 
@@ -573,6 +653,54 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         String requestMerchantId = requestDTO.getMerchantInfo() == null ? null : requestDTO.getMerchantInfo().getMerchantId();
         if (!contextMerchantId.equals(requestMerchantId)) {
             throw new ApiException(ApiResultEnum.MERCHANT_INVALID, "merchantInfo.merchantId does not match authorization");
+        }
+    }
+
+    /** payerInfo.ipAddress 必须是单个规范 IPv4/IPv6 字面量，禁止接受代理链或附加文本。 */
+    private void validatePayerIpAddress(HostedCheckoutSessionCreateRequestDTO requestDTO) {
+        String payerIp = requestDTO.getPayerInfo() == null ? null : requestDTO.getPayerInfo().getIpAddress();
+        if (!StringUtils.hasText(payerIp)) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "payerInfo.ipAddress is required");
+        }
+        try {
+            IpAddressNormalizer.normalizeExact(payerIp);
+        } catch (IllegalArgumentException exception) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID,
+                    "payerInfo.ipAddress must be a valid IPv4 or IPv6 literal");
+        }
+    }
+
+    /** 校验金额只保留最多两位有效小数，并继续服从币种自身辅币位规则。 */
+    private void validateCreateRequestAmounts(HostedCheckoutSessionCreateRequestDTO requestDTO) {
+        HostedCheckoutSessionCreateRequestDTO.OrderInfoDTO orderInfo = requestDTO.getOrderInfo();
+        validateAmount(orderInfo.getAmount(), orderInfo.getCurrency(), "orderInfo.amount");
+        if (requestDTO.getGoodsInfo() == null) {
+            return;
+        }
+        for (com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO.GoodsInfoDTO goods
+                : requestDTO.getGoodsInfo()) {
+            if (goods == null) {
+                continue;
+            }
+            if (!Objects.equals(normalizeCurrency(orderInfo.getCurrency()), normalizeCurrency(goods.getCurrency()))) {
+                throw new ApiException(ApiResultEnum.PARAM_INVALID, "goodsInfo.currency must match orderInfo.currency");
+            }
+            validateAmount(goods.getAmount(), goods.getCurrency(), "goodsInfo.amount");
+        }
+    }
+
+    /** 拒绝非正金额、第三位非零小数和超过 ISO 币种辅币位的金额。 */
+    private void validateAmount(java.math.BigDecimal amount, String currency, String field) {
+        if (amount == null) {
+            return;
+        }
+        if (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 2) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID,
+                    field + " fraction digits exceed supported precision");
+        }
+        if (StringUtils.hasText(currency) && !isoDictionaryService.isCurrencyFractionValid(amount, currency)) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID,
+                    field + " fraction digits exceed currency minor unit");
         }
     }
 
@@ -599,11 +727,11 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     }
 
     /**
-     * 规范化渠道编码，未指定时默认使用 MPGS 卡支付通道。
+     * 规范化可选渠道编码；未指定时保持为空，由支付服务根据商户路由选择。
      */
     private String normalizeChannelCode(String channelCode) {
         String normalized = channelCode == null ? null : channelCode.trim().toUpperCase(Locale.ROOT);
-        return StringUtils.hasText(normalized) ? normalized : CHANNEL_MPGS;
+        return StringUtils.hasText(normalized) ? normalized : null;
     }
 
     /**
@@ -614,16 +742,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
                 .map(IsoCurrencyInfo::defaultFractionDigits)
                 .filter(exponent -> exponent >= 0)
                 .orElse(2);
-    }
-
-    /**
-     * 解析最大付款尝试次数，避免商户传空或非正数造成无限重试。
-     */
-    private int resolveMaxAttemptCount(Integer input) {
-        if (input == null || input <= 0) {
-            return properties.getDefaultMaxAttemptCount();
-        }
-        return input;
     }
 
     /**
@@ -695,7 +813,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private void fillBrowserSecurity(PaymentCheckoutClientDTOs.PaymentSubmitRequest target,
                                      HostedCheckoutBrowserRequestDTOs.ClientContextDTO context) {
         HttpServletRequest request = currentRequest();
-        target.setClientIpHash(sha256Hex(resolveClientIp(request)));
+        String payerIp = normalizedClientIp(request);
+        target.setClientIpHash(sha256Hex(payerIp));
+        target.setPayerIp(payerIp);
         target.setUserAgentHash(sha256Hex(request == null ? null : request.getHeader(HEADER_USER_AGENT)));
         target.setOriginHash(sha256Hex(request == null ? null : request.getHeader(HEADER_ORIGIN)));
         target.setRefererHash(sha256Hex(request == null ? null : request.getHeader(HEADER_REFERER)));
@@ -717,15 +837,44 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private void fillBrowserSecurity(PaymentCheckoutClientDTOs.ThreeDsReturnRequest target,
                                      HostedCheckoutBrowserRequestDTOs.ClientContextDTO context) {
         HttpServletRequest request = currentRequest();
-        target.setClientIpHash(sha256Hex(resolveClientIp(request)));
+        String payerIp = normalizedClientIp(request);
+        target.setClientIpHash(sha256Hex(payerIp));
+        target.setPayerIp(payerIp);
         target.setUserAgentHash(sha256Hex(request == null ? null : request.getHeader(HEADER_USER_AGENT)));
+    }
+
+    /** Normalize the payer IP before it enters the transient 3DS provider call chain. */
+    private String normalizedClientIp(HttpServletRequest request) {
+        String clientIp = resolveClientIp(request);
+        if (!StringUtils.hasText(clientIp)) {
+            return null;
+        }
+        try {
+            return IpAddressNormalizer.normalizeExact(clientIp).ipValue();
+        } catch (IllegalArgumentException exception) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "payer IP address is invalid");
+        }
     }
 
     /**
      * 生成脱敏后的 browserInfo JSON，供 MPGS 3DS 请求和审计快照使用。
      */
     private String browserInfoJson(HostedCheckoutBrowserRequestDTOs.ClientContextDTO context) {
-        return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(context));
+        HttpServletRequest request = currentRequest();
+        Map<String, Object> browserInfo = new LinkedHashMap<>();
+        browserInfo.put("userAgent", request == null ? null : request.getHeader(HEADER_USER_AGENT));
+        browserInfo.put("acceptHeaders", request == null ? null : request.getHeader(HEADER_ACCEPT));
+        if (context != null) {
+            browserInfo.put("challengeWindowSize", context.getChallengeWindowSize());
+            browserInfo.put("colorDepth", context.getColorDepth());
+            browserInfo.put("javaEnabled", context.getJavaEnabled());
+            browserInfo.put("javaScriptEnabled", context.getJavaScriptEnabled());
+            browserInfo.put("language", context.getLanguage());
+            browserInfo.put("screenHeight", context.getScreenHeight());
+            browserInfo.put("screenWidth", context.getScreenWidth());
+            browserInfo.put("timezoneOffset", context.getTimezoneOffset());
+        }
+        return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(browserInfo));
     }
 
     /**
@@ -735,15 +884,12 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(context));
     }
 
-    /**
-     * 生成支付提交幂等指纹，只使用尾号等低敏信息，避免 PAN/CVV 进入摘要原文。
-     */
+    /** 生成支付提交幂等指纹，只使用信封元数据，不解密或派生卡号信息。 */
     private String requestFingerprintWithoutRawCard(HostedCheckoutBrowserRequestDTOs.PaymentSubmitRequest requestDTO) {
-        String cardTail = requestDTO.getCardInfo() == null || !StringUtils.hasText(requestDTO.getCardInfo().getCardNo())
-                ? null
-                : requestDTO.getCardInfo().getCardNo().substring(Math.max(0, requestDTO.getCardInfo().getCardNo().length() - 4));
+        HostedCheckoutBrowserRequestDTOs.CardDataEnvelopeDTO envelope = requestDTO.getCardDataEnvelope();
         return sha256Hex(requestDTO.getCheckoutSessionId() + ":" + requestDTO.getAttemptRequestId() + ":"
-                + requestDTO.getPaymentMethod() + ":" + cardTail);
+                + requestDTO.getPaymentMethod() + ":" + (envelope == null ? null : envelope.getKeyId()) + ":"
+                + (envelope == null ? null : envelope.getNonce()));
     }
 
     /**
@@ -793,23 +939,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private HttpServletRequest currentRequest() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         return attributes == null ? null : attributes.getRequest();
-    }
-
-    /**
-     * 生成日志摘要，统一走敏感字段脱敏和长度截断。
-     */
-    private String safeSummary(Object value) {
-        return truncate(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(value)), LOG_SUMMARY_LIMIT);
-    }
-
-    /**
-     * 截断日志摘要，避免大请求体或 3DS HTML 撑爆业务日志。
-     */
-    private String truncate(String value, int limit) {
-        if (value == null || value.length() <= limit) {
-            return value;
-        }
-        return value.substring(0, limit) + "...";
     }
 
     /**

@@ -1,7 +1,9 @@
 package com.scott.payment.admin.api.system;
 
 import com.scott.payment.admin.application.system.AdminUserApplicationService;
+import com.scott.payment.admin.dto.AdminUserProfileDTO;
 import com.scott.payment.admin.dto.SysUserAccountCreateRequest;
+import com.scott.payment.admin.dto.SysUserAccountDetailRequest;
 import com.scott.payment.admin.dto.SysUserAccountDTO;
 import com.scott.payment.admin.dto.SysUserAccountQueryRequest;
 import com.scott.payment.admin.dto.SysUserAccountResetPasswordRequest;
@@ -68,6 +70,21 @@ public class AdminUserController {
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.QUERY, operation = "分页查询后台用户列表")
     public CommonResult<PageResult<SysUserAccountDTO>> listUsers(@RequestBody(required = false) SysUserAccountQueryRequest request) {
         return success(adminUserApplicationService.pageUsers(request));
+    }
+
+    /**
+     * 按账号主键查询后台用户维护资料。
+     *
+     * @param request 用户详情查询请求
+     * @return 用户维护资料
+     */
+    @PostMapping("/detail")
+    @RequiresPermission("system:user:list")
+    @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.QUERY,
+            operation = "查询后台用户详情")
+    public CommonResult<AdminUserProfileDTO> getUserProfile(
+            @Valid @RequestBody SysUserAccountDetailRequest request) {
+        return success(adminUserApplicationService.getUserProfile(request.getAccountId()));
     }
 
     /**

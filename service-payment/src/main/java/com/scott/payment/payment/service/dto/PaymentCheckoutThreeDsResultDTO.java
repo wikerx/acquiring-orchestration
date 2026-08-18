@@ -12,7 +12,9 @@ public class PaymentCheckoutThreeDsResultDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** 平台归一化认证状态：PASSED、CHALLENGE_REQUIRED、FAILED 或 PROCESSING。 */
+    /** 本次响应对应的统一 3DS 阶段：INITIALIZE 或 AUTHENTICATE。 */
+    private String phase;
+    /** 平台归一化认证状态，独立于支付交易状态。 */
     private String status;
     /** 平台生成的 3DS 认证交易号。 */
     private String authenticationTransactionId;
@@ -24,6 +26,14 @@ public class PaymentCheckoutThreeDsResultDTO implements Serializable {
     private String channelRequestId;
     /** 命中的渠道商户配置主键。 */
     private Long channelMidConfigId;
+    /** 3DS 与后续资金动作必须复用的渠道编码。 */
+    private String channelCode;
+    /** 3DS 与后续资金动作必须复用的渠道主键。 */
+    private Long channelId;
+    /** 命中的 3DS 风控动作：FORCE_3DS、SKIP_3DS 或 NONE。 */
+    private String threeDsPolicyAction;
+    /** 命中的 3DS 风控规则主键；未命中时为空。 */
+    private Long threeDsPolicyRuleId;
     /** 渠道返回的 3DS 认证状态。 */
     private String threeDsStatus;
     /** 3DS 协议版本。 */
@@ -40,9 +50,9 @@ public class PaymentCheckoutThreeDsResultDTO implements Serializable {
     private String eci;
     /** 持卡人认证值，属于敏感认证材料，禁止写入日志或对外回显。 */
     private String cavv;
-    /** 渠道返回的受控挑战 HTML，禁止写入普通日志。 */
+    /** 渠道返回的受控 3DS Method 或 ACS Challenge HTML，禁止写入普通日志。 */
     private String redirectHtml;
-    /** 付款人 3DS 挑战跳转地址。 */
+    /** 3DS Method 或付款人 ACS Challenge 跳转地址。 */
     private String redirectUrl;
     /** 归一化认证失败码。 */
     private String failureCode;
@@ -69,6 +79,11 @@ public class PaymentCheckoutThreeDsResultDTO implements Serializable {
         return "CHALLENGE_REQUIRED".equals(status);
     }
 
+    /** @return true 表示必须先在浏览器执行 3DS Method HTML。 */
+    public boolean methodRequired() {
+        return "METHOD_REQUIRED".equals(status);
+    }
+
     /**
      * 判断认证是否明确失败。
      *
@@ -85,5 +100,14 @@ public class PaymentCheckoutThreeDsResultDTO implements Serializable {
      */
     public boolean processing() {
         return "PROCESSING".equals(status);
+    }
+
+    /**
+     * 判断当前路由不需要 3DS，可继续执行普通支付或授权。
+     *
+     * @return true 表示未命中强制 3DS 策略
+     */
+    public boolean notRequired() {
+        return "NOT_REQUIRED".equals(status);
     }
 }

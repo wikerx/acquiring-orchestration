@@ -5,6 +5,7 @@ import com.scott.payment.openapi.dto.body.HostedCheckoutSessionCreateRequestDTO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionCreateVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
+import com.scott.payment.openapi.vo.checkout.HostedCheckoutCardBinVO;
 
 /**
  * Hosted Checkout 开放接口服务。
@@ -35,4 +36,7 @@ public interface HostedCheckoutService {
      * 接收自有 3DS bridge 回跳并转换为 service-payment 内部状态推进命令。
      */
     HostedCheckoutPaymentResultVO handleThreeDsReturn(HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest requestDTO);
+
+    /** 识别 BIN 卡品牌并校验商户 MID 是否支持。 */
+    HostedCheckoutCardBinVO resolveCardBin(HostedCheckoutBrowserRequestDTOs.CardBinRequest requestDTO);
 }

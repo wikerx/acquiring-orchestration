@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.exchange.ExchangeRateDTOs.BusinessRateQuery;
@@ -29,9 +31,12 @@ import com.scott.payment.admin.mapper.ExchangeRateSourceMapper;
 import com.scott.payment.admin.mapper.ExchangeRateUsageSnapshotMapper;
 import com.scott.payment.admin.mapper.ExchangeRawRateMapper;
 import com.scott.payment.admin.service.AdminExchangeRateService;
+import com.scott.payment.component.core.auth.InternalAuthAccount;
+import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -51,7 +56,7 @@ import java.util.regex.Pattern;
  * @classname : AdminExchangeRateServiceImpl
  * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : Admin Exchange Rate Service Impl 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
+ * @description : 管理端汇率领域服务，负责汇率查询、规则校验、精度计算和主库写入；纯查询固定路由从库。
  * @status : create
  */
 public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
@@ -110,6 +115,8 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * </p>
      */
     private static final String MANUAL = "MANUAL";
+    /** 无登录上下文时写入审计字段的系统操作人标识，无单位、非敏感且不允许为空。 */
+    private static final String SYSTEM_OPERATOR = "system";
     /**
      * RATE STATUS ENABLED，表示当前记录在业务流程中的处理状态。
      * <p>
@@ -289,6 +296,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率源分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SourceResponse> pageSources(SourceQuery request) {
         SourceQuery query = request == null ? new SourceQuery() : request;
         Page<ExchangeRateSourceDO> page = sourceMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
@@ -311,6 +319,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率源列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SourceResponse> listSources(SourceQuery request) {
         SourceQuery query = request == null ? new SourceQuery() : request;
         return sourceMapper.selectList(Wrappers.<ExchangeRateSourceDO>lambdaQuery()
@@ -334,6 +343,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率源详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public SourceResponse getSource(Long id) {
         return toSourceResponse(findSource(id));
     }
@@ -345,6 +355,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 新增后的汇率源详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public SourceResponse createSource(SourceSaveRequest request) {
         validateSourceRequest(request, null);
@@ -364,6 +375,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 修改后的汇率源详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public SourceResponse updateSource(Long id, SourceSaveRequest request) {
         ExchangeRateSourceDO entity = findSource(id);
@@ -381,6 +393,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 切换状态后的汇率源详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public SourceResponse updateSourceStatus(Long id, Integer status) {
         ExchangeRateSourceDO entity = findSource(id);
@@ -397,6 +410,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 汇率源主键
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void deleteSource(Long id) {
         ExchangeRateSourceDO entity = findSource(id);
@@ -415,22 +429,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 原始汇率分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<RawRateResponse> pageRawRates(RawRateQuery request) {
         RawRateQuery query = request == null ? new RawRateQuery() : request;
         Page<ExchangeRawRateDO> page = rawRateMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
-                Wrappers.<ExchangeRawRateDO>lambdaQuery()
-                        .eq(ExchangeRawRateDO::getDeleted, NOT_DELETED)
-                        .eq(StringUtils.hasText(query.getSourceCode()), ExchangeRawRateDO::getSourceCode, trimUpper(query.getSourceCode()))
-                        .eq(StringUtils.hasText(query.getBaseCurrency()), ExchangeRawRateDO::getBaseCurrency, trimUpper(query.getBaseCurrency()))
-                        .eq(StringUtils.hasText(query.getQuoteCurrency()), ExchangeRawRateDO::getQuoteCurrency, trimUpper(query.getQuoteCurrency()))
-                        .eq(StringUtils.hasText(query.getRateStatus()), ExchangeRawRateDO::getRateStatus, trimUpper(query.getRateStatus()))
-                        .eq(StringUtils.hasText(query.getCreateMethod()), ExchangeRawRateDO::getCreateMethod, trimUpper(query.getCreateMethod()))
-                        .ge(query.getPublishStartTime() != null, ExchangeRawRateDO::getPublishTime, query.getPublishStartTime())
-                        .le(query.getPublishEndTime() != null, ExchangeRawRateDO::getPublishTime, query.getPublishEndTime())
-                        .ge(query.getFetchStartTime() != null, ExchangeRawRateDO::getFetchTime, query.getFetchStartTime())
-                        .le(query.getFetchEndTime() != null, ExchangeRawRateDO::getFetchTime, query.getFetchEndTime())
-                        .orderByDesc(ExchangeRawRateDO::getPublishTime)
-                        .orderByDesc(ExchangeRawRateDO::getId));
+                buildRawRateQueryWrapper(query));
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toRawRateResponse).toList());
     }
 
@@ -441,21 +444,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 原始汇率列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<RawRateResponse> listRawRates(RawRateQuery request) {
         RawRateQuery query = request == null ? new RawRateQuery() : request;
-        return rawRateMapper.selectList(Wrappers.<ExchangeRawRateDO>lambdaQuery()
-                        .eq(ExchangeRawRateDO::getDeleted, NOT_DELETED)
-                        .eq(StringUtils.hasText(query.getSourceCode()), ExchangeRawRateDO::getSourceCode, trimUpper(query.getSourceCode()))
-                        .eq(StringUtils.hasText(query.getBaseCurrency()), ExchangeRawRateDO::getBaseCurrency, trimUpper(query.getBaseCurrency()))
-                        .eq(StringUtils.hasText(query.getQuoteCurrency()), ExchangeRawRateDO::getQuoteCurrency, trimUpper(query.getQuoteCurrency()))
-                        .eq(StringUtils.hasText(query.getRateStatus()), ExchangeRawRateDO::getRateStatus, trimUpper(query.getRateStatus()))
-                        .eq(StringUtils.hasText(query.getCreateMethod()), ExchangeRawRateDO::getCreateMethod, trimUpper(query.getCreateMethod()))
-                        .ge(query.getPublishStartTime() != null, ExchangeRawRateDO::getPublishTime, query.getPublishStartTime())
-                        .le(query.getPublishEndTime() != null, ExchangeRawRateDO::getPublishTime, query.getPublishEndTime())
-                        .ge(query.getFetchStartTime() != null, ExchangeRawRateDO::getFetchTime, query.getFetchStartTime())
-                        .le(query.getFetchEndTime() != null, ExchangeRawRateDO::getFetchTime, query.getFetchEndTime())
-                        .orderByDesc(ExchangeRawRateDO::getPublishTime)
-                        .orderByDesc(ExchangeRawRateDO::getId))
+        return rawRateMapper.selectList(buildRawRateQueryWrapper(query))
                 .stream()
                 .map(this::toRawRateResponse)
                 .toList();
@@ -468,6 +460,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 原始汇率详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public RawRateResponse getRawRate(Long id) {
         return toRawRateResponse(findRawRate(id));
     }
@@ -479,6 +472,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 新增后的原始汇率详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public RawRateResponse createManualRawRate(RawRateSaveRequest request) {
         validateRawRateRequest(request);
@@ -500,6 +494,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 作废后的原始汇率详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public RawRateResponse voidRawRate(Long id, String voidReason) {
         ExchangeRawRateDO entity = findRawRate(id);
@@ -526,6 +521,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率规则分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<RuleResponse> pageRules(RuleQuery request) {
         RuleQuery query = request == null ? new RuleQuery() : request;
         Page<ExchangeRateRuleDO> page = ruleMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
@@ -550,6 +546,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率规则列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<RuleResponse> listRules(RuleQuery request) {
         RuleQuery query = request == null ? new RuleQuery() : request;
         return ruleMapper.selectList(Wrappers.<ExchangeRateRuleDO>lambdaQuery()
@@ -575,6 +572,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率规则详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public RuleResponse getRule(Long id) {
         return toRuleResponse(findRule(id));
     }
@@ -586,6 +584,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 新增后的规则详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public RuleResponse createRule(RuleSaveRequest request) {
         validateRuleRequest(request, null);
@@ -605,6 +604,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 修改后的规则详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public RuleResponse updateRule(Long id, RuleSaveRequest request) {
         ExchangeRateRuleDO entity = findRule(id);
@@ -622,6 +622,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 切换状态后的规则详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public RuleResponse updateRuleStatus(Long id, Integer status) {
         ExchangeRateRuleDO entity = findRule(id);
@@ -639,19 +640,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 业务汇率分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<BusinessRateResponse> pageBusinessRates(BusinessRateQuery request) {
         BusinessRateQuery query = request == null ? new BusinessRateQuery() : request;
         Page<ExchangeBusinessRateDO> page = businessRateMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
-                Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
-                        .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)
-                        .eq(StringUtils.hasText(query.getRateType()), ExchangeBusinessRateDO::getRateType, trimUpper(query.getRateType()))
-                        .eq(StringUtils.hasText(query.getSourceCode()), ExchangeBusinessRateDO::getSourceCode, trimUpper(query.getSourceCode()))
-                        .eq(StringUtils.hasText(query.getBaseCurrency()), ExchangeBusinessRateDO::getBaseCurrency, trimUpper(query.getBaseCurrency()))
-                        .eq(StringUtils.hasText(query.getQuoteCurrency()), ExchangeBusinessRateDO::getQuoteCurrency, trimUpper(query.getQuoteCurrency()))
-                        .eq(StringUtils.hasText(query.getRateStatus()), ExchangeBusinessRateDO::getRateStatus, trimUpper(query.getRateStatus()))
-                        .eq(StringUtils.hasText(query.getGenerateMethod()), ExchangeBusinessRateDO::getGenerateMethod, trimUpper(query.getGenerateMethod()))
-                        .orderByDesc(ExchangeBusinessRateDO::getEffectiveTime)
-                        .orderByDesc(ExchangeBusinessRateDO::getId));
+                buildBusinessRateQueryWrapper(query));
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toBusinessRateResponse).toList());
     }
 
@@ -662,18 +655,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 业务汇率列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<BusinessRateResponse> listBusinessRates(BusinessRateQuery request) {
         BusinessRateQuery query = request == null ? new BusinessRateQuery() : request;
-        return businessRateMapper.selectList(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
-                        .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)
-                        .eq(StringUtils.hasText(query.getRateType()), ExchangeBusinessRateDO::getRateType, trimUpper(query.getRateType()))
-                        .eq(StringUtils.hasText(query.getSourceCode()), ExchangeBusinessRateDO::getSourceCode, trimUpper(query.getSourceCode()))
-                        .eq(StringUtils.hasText(query.getBaseCurrency()), ExchangeBusinessRateDO::getBaseCurrency, trimUpper(query.getBaseCurrency()))
-                        .eq(StringUtils.hasText(query.getQuoteCurrency()), ExchangeBusinessRateDO::getQuoteCurrency, trimUpper(query.getQuoteCurrency()))
-                        .eq(StringUtils.hasText(query.getRateStatus()), ExchangeBusinessRateDO::getRateStatus, trimUpper(query.getRateStatus()))
-                        .eq(StringUtils.hasText(query.getGenerateMethod()), ExchangeBusinessRateDO::getGenerateMethod, trimUpper(query.getGenerateMethod()))
-                        .orderByDesc(ExchangeBusinessRateDO::getEffectiveTime)
-                        .orderByDesc(ExchangeBusinessRateDO::getId))
+        return businessRateMapper.selectList(buildBusinessRateQueryWrapper(query))
                 .stream()
                 .map(this::toBusinessRateResponse)
                 .toList();
@@ -686,6 +671,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 业务汇率详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public BusinessRateResponse getBusinessRate(Long id) {
         return toBusinessRateResponse(findBusinessRate(id));
     }
@@ -697,6 +683,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 新增后的业务汇率
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public BusinessRateResponse createManualBusinessRate(BusinessRateSaveRequest request) {
         validateBusinessRateRequest(request);
@@ -711,6 +698,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 新增后的业务汇率列表
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public List<BusinessRateResponse> createManualBusinessRates(BusinessRateBatchSaveRequest request) {
         if (request == null || request.getItems() == null || request.getItems().isEmpty()) {
@@ -734,6 +722,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 生成后的业务汇率详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public BusinessRateResponse generateBusinessRate(GenerateBusinessRateRequest request) {
         if (request == null || request.getRawRateId() == null || request.getRuleId() == null) {
@@ -760,7 +749,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         entity.setGenerateMethod(AUTO);
         entity.setRateStatus(RATE_STATUS_ENABLED);
         entity.setRemark(trim(request.getRemark()));
+        String operator = currentOperatorName();
+        entity.setCreateBy(operator);
         entity.setCreateTime(now);
+        entity.setUpdateBy(operator);
         entity.setUpdateTime(now);
         entity.setDeleted(NOT_DELETED);
         businessRateMapper.insert(entity);
@@ -775,11 +767,13 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 切换状态后的业务汇率详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public BusinessRateResponse updateBusinessRateStatus(Long id, Integer status) {
         ExchangeBusinessRateDO entity = findBusinessRate(id);
         validateStatus(status);
         entity.setRateStatus(status == ENABLED ? RATE_STATUS_ENABLED : RATE_STATUS_DISABLED);
+        entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
         businessRateMapper.updateById(entity);
         return toBusinessRateResponse(entity);
@@ -792,6 +786,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 汇率使用快照分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<UsageSnapshotResponse> pageUsageSnapshots(UsageSnapshotQuery request) {
         UsageSnapshotQuery query = request == null ? new UsageSnapshotQuery() : request;
         Page<ExchangeRateUsageSnapshotDO> page = usageSnapshotMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
@@ -817,6 +812,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 使用快照列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<UsageSnapshotResponse> listUsageSnapshots(UsageSnapshotQuery request) {
         UsageSnapshotQuery query = request == null ? new UsageSnapshotQuery() : request;
         return usageSnapshotMapper.selectList(Wrappers.<ExchangeRateUsageSnapshotDO>lambdaQuery()
@@ -843,6 +839,7 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @return 使用快照详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public UsageSnapshotResponse getUsageSnapshot(Long id) {
         ExchangeRateUsageSnapshotDO entity = usageSnapshotMapper.selectOne(Wrappers.<ExchangeRateUsageSnapshotDO>lambdaQuery()
                 .eq(ExchangeRateUsageSnapshotDO::getId, id)
@@ -1123,32 +1120,25 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 整理失效currentbusiness汇率，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param rule rule 输入值，参与 规则 的查询、校验、转换、写入或日志摘要
-     * @param rawRate raw Rate 输入值，参与 raw汇率 的查询、校验、转换、写入或日志摘要
-     * @param expireTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * 使同一规则和原始汇率对应的当前启用业务汇率失效，避免同一币种对存在多个启用版本。
+     *
+     * @param rule 用于确定汇率类型的规则
+     * @param rawRate 用于确定来源和币种对的原始汇率
+     * @param expireTime 旧业务汇率的失效时间和审计更新时间
      */
     private void expireCurrentBusinessRate(ExchangeRateRuleDO rule, ExchangeRawRateDO rawRate, LocalDateTime expireTime) {
         expireCurrentBusinessRate(rule.getRateType(), rawRate.getSourceCode(), rawRate.getBaseCurrency(), rawRate.getQuoteCurrency(), expireTime);
     }
 
     /**
-     * 整理失效currentbusiness汇率，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param rateType rate Type 输入值，参与 汇率type 的查询、校验、转换、写入或日志摘要
-     * @param sourceCode source Code 输入值，参与 来源编码 的查询、校验、转换、写入或日志摘要
-     * @param baseCurrency 币种代码，格式为 ISO 4217 三位大写字母
-     * @param quoteCurrency 币种代码，格式为 ISO 4217 三位大写字母
-     * @param expireTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * 将同一汇率类型、来源和币种对下的启用记录批量置为已失效，并记录实际操作人。
+     * 调用方事务覆盖查询和更新，任一记录更新失败时整体回滚。
+     *
+     * @param rateType 汇率类型编码
+     * @param sourceCode 汇率来源编码
+     * @param baseCurrency 原始币种，ISO 4217 三位大写代码
+     * @param quoteCurrency 目标币种，ISO 4217 三位大写代码
+     * @param expireTime 失效时间和审计更新时间
      */
     private void expireCurrentBusinessRate(String rateType, String sourceCode, String baseCurrency, String quoteCurrency, LocalDateTime expireTime) {
         businessRateMapper.selectList(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
@@ -1161,21 +1151,19 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
                 .forEach(existing -> {
                     existing.setRateStatus(RATE_STATUS_EXPIRED);
                     existing.setExpireTime(expireTime);
+                    existing.setUpdateBy(currentOperatorName());
                     existing.setUpdateTime(expireTime);
                     businessRateMapper.updateById(existing);
                 });
     }
 
     /**
-     * 创建manualbusiness汇率，完成必要校验后写入或委托下游服务处理。
-     * <p>
-     * 前置条件：调用方已完成 运营后台服务 的身份、权限、必填字段和业务唯一性准备。
-     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
-     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
-     * @return 写入、更新或删除后的处理结果
+     * 写入一条人工业务汇率；若新记录直接启用，先使同范围的旧启用记录失效。
+     * 调用方已完成字段校验并提供统一业务时间，创建人和更新人使用当前管理端操作人。
+     *
+     * @param request 已通过业务校验的人工汇率请求
+     * @param now 本批次统一使用的创建和更新时间
+     * @return 已写入主库的业务汇率实体
      */
     private ExchangeBusinessRateDO insertManualBusinessRate(BusinessRateSaveRequest request, LocalDateTime now) {
         String rateType = trimUpper(request.getRateType());
@@ -1199,7 +1187,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         entity.setGenerateMethod(MANUAL);
         entity.setRateStatus(rateStatus);
         entity.setRemark(trim(request.getRemark()));
+        String operator = currentOperatorName();
+        entity.setCreateBy(operator);
         entity.setCreateTime(now);
+        entity.setUpdateBy(operator);
         entity.setUpdateTime(now);
         entity.setDeleted(NOT_DELETED);
         businessRateMapper.insert(entity);
@@ -1467,14 +1458,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 构造business汇率响应对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
+     * 将业务汇率持久化实体转换为管理端响应，完整保留汇率精度、时效和审计字段。
+     *
+     * @param entity 已从数据库读取或刚写入的业务汇率实体
+     * @return 管理端业务汇率响应
      */
     private BusinessRateResponse toBusinessRateResponse(ExchangeBusinessRateDO entity) {
         BusinessRateResponse response = new BusinessRateResponse();
@@ -1494,8 +1481,75 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         response.setRateStatus(entity.getRateStatus());
         response.setRemark(entity.getRemark());
         response.setCreateTime(entity.getCreateTime());
+        response.setUpdateBy(entity.getUpdateBy());
         response.setUpdateTime(entity.getUpdateTime());
         return response;
+    }
+
+    /**
+     * 构建原始汇率分页和导出共用的查询条件，避免两类结果出现筛选或排序口径差异。
+     *
+     * @param query 已完成空值归一化的查询条件
+     * @return 按拉取时间、主键倒序排列的 MyBatis 查询对象
+     */
+    LambdaQueryWrapper<ExchangeRawRateDO> buildRawRateQueryWrapper(RawRateQuery query) {
+        return Wrappers.<ExchangeRawRateDO>lambdaQuery()
+                .eq(ExchangeRawRateDO::getDeleted, NOT_DELETED)
+                .eq(StringUtils.hasText(query.getSourceCode()), ExchangeRawRateDO::getSourceCode, trimUpper(query.getSourceCode()))
+                .eq(StringUtils.hasText(query.getBaseCurrency()), ExchangeRawRateDO::getBaseCurrency, trimUpper(query.getBaseCurrency()))
+                .eq(StringUtils.hasText(query.getQuoteCurrency()), ExchangeRawRateDO::getQuoteCurrency, trimUpper(query.getQuoteCurrency()))
+                .eq(StringUtils.hasText(query.getRateStatus()), ExchangeRawRateDO::getRateStatus, trimUpper(query.getRateStatus()))
+                .eq(StringUtils.hasText(query.getCreateMethod()), ExchangeRawRateDO::getCreateMethod, trimUpper(query.getCreateMethod()))
+                .ge(query.getPublishStartTime() != null, ExchangeRawRateDO::getPublishTime, query.getPublishStartTime())
+                .le(query.getPublishEndTime() != null, ExchangeRawRateDO::getPublishTime, query.getPublishEndTime())
+                .ge(query.getFetchStartTime() != null, ExchangeRawRateDO::getFetchTime, query.getFetchStartTime())
+                .le(query.getFetchEndTime() != null, ExchangeRawRateDO::getFetchTime, query.getFetchEndTime())
+                .ge(query.getEffectiveStartTime() != null, ExchangeRawRateDO::getEffectiveTime, query.getEffectiveStartTime())
+                .le(query.getEffectiveEndTime() != null, ExchangeRawRateDO::getEffectiveTime, query.getEffectiveEndTime())
+                .orderByDesc(ExchangeRawRateDO::getFetchTime)
+                .orderByDesc(ExchangeRawRateDO::getId);
+    }
+
+    /**
+     * 构建业务汇率分页和导出共用的查询条件，时间边界均包含起止时刻。
+     *
+     * @param query 已完成空值归一化的查询条件
+     * @return 按生效时间、主键倒序排列的 MyBatis 查询对象
+     */
+    LambdaQueryWrapper<ExchangeBusinessRateDO> buildBusinessRateQueryWrapper(BusinessRateQuery query) {
+        return Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
+                .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)
+                .eq(StringUtils.hasText(query.getRateType()), ExchangeBusinessRateDO::getRateType, trimUpper(query.getRateType()))
+                .eq(StringUtils.hasText(query.getSourceCode()), ExchangeBusinessRateDO::getSourceCode, trimUpper(query.getSourceCode()))
+                .eq(StringUtils.hasText(query.getBaseCurrency()), ExchangeBusinessRateDO::getBaseCurrency, trimUpper(query.getBaseCurrency()))
+                .eq(StringUtils.hasText(query.getQuoteCurrency()), ExchangeBusinessRateDO::getQuoteCurrency, trimUpper(query.getQuoteCurrency()))
+                .eq(StringUtils.hasText(query.getRateStatus()), ExchangeBusinessRateDO::getRateStatus, trimUpper(query.getRateStatus()))
+                .eq(StringUtils.hasText(query.getGenerateMethod()), ExchangeBusinessRateDO::getGenerateMethod, trimUpper(query.getGenerateMethod()))
+                .ge(query.getEffectiveStartTime() != null, ExchangeBusinessRateDO::getEffectiveTime, query.getEffectiveStartTime())
+                .le(query.getEffectiveEndTime() != null, ExchangeBusinessRateDO::getEffectiveTime, query.getEffectiveEndTime())
+                .ge(query.getCreateStartTime() != null, ExchangeBusinessRateDO::getCreateTime, query.getCreateStartTime())
+                .le(query.getCreateEndTime() != null, ExchangeBusinessRateDO::getCreateTime, query.getCreateEndTime())
+                .orderByDesc(ExchangeBusinessRateDO::getEffectiveTime)
+                .orderByDesc(ExchangeBusinessRateDO::getId);
+    }
+
+    /**
+     * 获取审计字段使用的操作人名称；任务或无登录上下文调用时使用 system。
+     *
+     * @return 管理员姓名、登录账号或 system
+     */
+    private String currentOperatorName() {
+        InternalAuthAccount account = InternalAuthContextHolder.get();
+        if (account == null) {
+            return SYSTEM_OPERATOR;
+        }
+        if (StringUtils.hasText(account.getRealName())) {
+            return account.getRealName();
+        }
+        if (StringUtils.hasText(account.getLoginAccount())) {
+            return account.getLoginAccount();
+        }
+        return SYSTEM_OPERATOR;
     }
 
     /**

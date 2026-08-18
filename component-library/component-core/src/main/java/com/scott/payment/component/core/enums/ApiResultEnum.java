@@ -53,7 +53,7 @@ public enum ApiResultEnum implements IResult {
     /**
      * 通用失败枚举，作为未细分系统异常的兜底返回。
      */
-    COMMON_FAILED("F500", "Internal server error"),
+    COMMON_FAILED("F500", "The system is busy; please try again later."),
 
     /**
      * 支付、退款或代付交易处理成功。
@@ -124,6 +124,7 @@ public enum ApiResultEnum implements IResult {
      * 商户号不存在、状态不可用或与请求不匹配。
      */
     MERCHANT_INVALID("F401009", "Merchant is invalid or unavailable"),
+    MERCHANT_FROZEN("F401010", "Merchant account is frozen"),
 
     /**
      * 请求参数值不合法。
@@ -186,9 +187,14 @@ public enum ApiResultEnum implements IResult {
     CARD_BRAND_NOT_SUPPORTED("F413", "Unsupported card brands"),
 
     /**
+     * 原交易当前不允许继续执行关联动作。
+     */
+    ORIGINAL_TRANSACTION_REJECTED("F414", "Original transaction rejected."),
+
+    /**
      * 服务内部错误。
      */
-    INTERNAL_SERVER_ERROR("F500", "Internal Server Error"),
+    INTERNAL_SERVER_ERROR("F500", "The system is busy; please try again later."),
 
     /**
      * 上游服务不可用或响应异常。
@@ -216,9 +222,39 @@ public enum ApiResultEnum implements IResult {
     QUERY_RESULT_NOT_FOUND("F512", "The search result set is invalid/does not exist"),
 
     /**
+     * 查询时间范围包含尚未完成物理表校验和规则发布的交易季度。
+     */
+    TRANSACTION_DATA_UNAVAILABLE("F513", "Transaction data is unavailable for the requested time range"),
+
+    /**
      * 商户交易号重复。
      */
     TRANSACTION_ID_DUPLICATED("F515", "transactionId repeat"),
+
+    /**
+     * 退款金额超过当前可退额度。
+     */
+    REFUND_AMOUNT_EXCEEDS_AVAILABLE("F516", "Refund amount exceeds available amount"),
+
+    /**
+     * 退款审批已被其他操作处理或版本不一致。
+     */
+    REFUND_APPROVAL_STATE_CONFLICT("F517", "Refund approval state conflict"),
+
+    /**
+     * 当前原交易状态或类型不允许执行退款动作。
+     */
+    REFUND_ACTION_NOT_ALLOWED("F518", "Refund action is not allowed"),
+
+    /**
+     * 勾兑异常案件不存在。
+     */
+    ABNORMAL_CASE_NOT_FOUND("F519", "Channel match abnormal case does not exist"),
+
+    /**
+     * 勾兑异常案件状态或版本冲突。
+     */
+    ABNORMAL_CASE_STATE_CONFLICT("F520", "Channel match abnormal case state conflict"),
 
     /**
      * 请求报文解析失败。

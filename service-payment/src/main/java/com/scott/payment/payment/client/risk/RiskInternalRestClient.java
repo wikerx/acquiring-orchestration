@@ -12,6 +12,8 @@ import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientReques
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientResponseDTO;
 import com.scott.payment.payment.client.risk.dto.RiskMerchantLimitReservationClientRequestDTO;
 import com.scott.payment.payment.client.risk.dto.RiskMerchantLimitReservationClientResponseDTO;
+import com.scott.payment.payment.client.risk.dto.RiskThreeDsPolicyClientRequestDTO;
+import com.scott.payment.payment.client.risk.dto.RiskThreeDsPolicyClientResponseDTO;
 import com.scott.payment.payment.config.RiskClientProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -72,6 +74,9 @@ public class RiskInternalRestClient implements RiskInternalClient {
 
     private static final String SERVICE_RISK_CANCEL_RESERVATION_URL =
             "http://service-risk/internal/risk/merchant-limit/reservations/cancel";
+
+    private static final String SERVICE_RISK_THREE_DS_POLICY_URL =
+            "http://service-risk/internal/risk/three-ds/policy/evaluate";
 
     /**
      * 直连 RestTemplate，用于 localhost、IP 或完整域名。
@@ -162,6 +167,36 @@ public class RiskInternalRestClient implements RiskInternalClient {
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-risk call failed", exception);
+        }
+    }
+
+    /**
+     * 调用 service-risk 执行路由后 3DS 策略只读评估。
+     *
+     * @param requestDTO 已路由交易维度
+     * @return 3DS 策略结果
+     */
+    @Override
+    public RiskThreeDsPolicyClientResponseDTO evaluateThreeDsPolicy(
+            RiskThreeDsPolicyClientRequestDTO requestDTO) {
+        URI uri = URI.create(SERVICE_RISK_THREE_DS_POLICY_URL);
+        try {
+            String responseBody = chooseRestTemplate(SERVICE_RISK_THREE_DS_POLICY_URL).postForObject(
+                    SERVICE_RISK_THREE_DS_POLICY_URL,
+                    buildSignedEntity(uri, JsonUtils.toJsonString(requestDTO)),
+                    String.class);
+            CommonResult<RiskThreeDsPolicyClientResponseDTO> result = JsonUtils.parseObject(
+                    responseBody,
+                    new TypeReference<CommonResult<RiskThreeDsPolicyClientResponseDTO>>() {
+                    });
+            if (result == null || !CommonResult.isSuccess(result) || result.getData() == null) {
+                throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
+                        "service-risk 3DS policy response is invalid");
+            }
+            return result.getData();
+        } catch (RestClientException exception) {
+            throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
+                    "service-risk 3DS policy call failed", exception);
         }
     }
 

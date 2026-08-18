@@ -18,10 +18,10 @@ import com.scott.payment.admin.entity.base.MccEntities;
 import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
-import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
@@ -31,6 +31,9 @@ import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
+import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
+import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
+import com.scott.payment.component.db.auth.support.MerchantLocaleSupport;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
@@ -40,6 +43,8 @@ import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.MerchantJwtKey;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.RsaKeyMaterial;
+import com.scott.payment.component.security.openapi.OpenApiKeyType;
+import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -255,10 +260,21 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
-    /**
-     * 商户安全缓存可靠失效协调器。
-     */
+    /** Admin、Merchant Portal、OpenAPI 和支付服务共用的完整商户资料缓存。 */
+    private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
+
+    /** 密钥元数据永久缓存的事务型可靠失效协调器。 */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
+    /** 管理端新增商户后的主账号、管理员角色与开户通知服务。 */
+    private final AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService;
+
+    /** OpenAPI 密钥统一启停规则。 */
+    private final OpenApiMerchantKeyMaterialService openApiKeyMaterialService;
+
+    /** 商户密钥生命周期邮件通知。 */
+    private final AdminMerchantSecurityNotificationService securityNotificationService;
+    private final AdminMerchantStatusLifecycleService statusLifecycleService;
 
     /**
      * 创建管理后台商户信息服务实现。
@@ -273,7 +289,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param isoCountryMapper          国家地区 Mapper
      * @param isoCurrencyMapper         币种 Mapper
      * @param keyMaterialFactory        密钥材料工厂
-     * @param cacheInvalidationCoordinator 商户安全缓存可靠失效协调器
+     * @param merchantRuntimeProfileCacheService 完整商户资料共享缓存
+     * @param cacheInvalidationCoordinator 密钥元数据永久缓存可靠失效协调器
+     * @param primaryAccountProvisioningService 商户主账号开通服务
+     * @param openApiKeyMaterialService OpenAPI 密钥统一领域服务
+     * @param securityNotificationService 密钥生命周期通知服务
      */
     public AdminMerchantInfoServiceImpl(BaseMerchantInfoMapper merchantInfoMapper,
                                         BaseMerchantJwtKeyMapper jwtKeyMapper,
@@ -285,7 +305,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         IsoCountryMapper isoCountryMapper,
                                         IsoCurrencyMapper isoCurrencyMapper,
                                         OpenApiKeyMaterialFactory keyMaterialFactory,
-                                        ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
+                                        MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
+                                        ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
+                                        AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService,
+                                        OpenApiMerchantKeyMaterialService openApiKeyMaterialService,
+                                        AdminMerchantSecurityNotificationService securityNotificationService,
+                                        AdminMerchantStatusLifecycleService statusLifecycleService) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
@@ -296,7 +321,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.isoCountryMapper = isoCountryMapper;
         this.isoCurrencyMapper = isoCurrencyMapper;
         this.keyMaterialFactory = keyMaterialFactory;
+        this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
+        this.primaryAccountProvisioningService = primaryAccountProvisioningService;
+        this.openApiKeyMaterialService = openApiKeyMaterialService;
+        this.securityNotificationService = securityNotificationService;
+        this.statusLifecycleService = statusLifecycleService;
     }
 
     /**
@@ -375,7 +405,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Override
     @DS(DataSourceName.SLAVE)
     public AdminMerchantInfoDTO getMerchant(Long id) {
-        return toDTO(requireMerchantById(id));
+        BaseMerchantInfoDO row = requireMerchantById(id);
+        MerchantRuntimeProfile profile = merchantRuntimeProfileCacheService.findRuntimeProfile(row.getMerchantId());
+        return profile == null ? toDTO(row) : toDTO(toMerchantInfoDO(profile));
     }
 
     /**
@@ -396,11 +428,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         row.setGmtCreate(now);
         row.setGmtModified(now);
         row.setDeleted(NOT_DELETED);
-        cacheInvalidationCoordinator.prepare(
-                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-                row.getMerchantId()
-        );
+        prepareRuntimeProfileInvalidation(merchantId);
         merchantInfoMapper.insert(row);
+        merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
+        primaryAccountProvisioningService.provision(row);
         return toDTO(row);
     }
 
@@ -420,13 +451,14 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         if (!row.getMerchantId().equals(newMerchantId)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户号创建后不允许修改");
         }
+        if (!java.util.Objects.equals(row.getMerchantStatus(), request.getMerchantStatus())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请使用冻结或解冻操作修改商户状态");
+        }
         merge(row, request);
         row.setGmtModified(LocalDateTime.now());
-        cacheInvalidationCoordinator.prepare(
-                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-                row.getMerchantId()
-        );
+        prepareRuntimeProfileInvalidation(row.getMerchantId());
         merchantInfoMapper.updateById(row);
+        merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
         return toDTO(row);
     }
 
@@ -443,14 +475,60 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     public AdminMerchantInfoDTO updateStatus(Long id, Integer merchantStatus) {
         BaseMerchantInfoDO row = requireMerchantById(id);
         validateStatus(merchantStatus);
+        validateStatusTransition(row.getMerchantStatus(), merchantStatus);
+        LocalDateTime operationTime = LocalDateTime.now();
         row.setMerchantStatus(merchantStatus);
-        row.setGmtModified(LocalDateTime.now());
-        cacheInvalidationCoordinator.prepare(
-                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-                row.getMerchantId()
-        );
+        row.setGmtModified(operationTime);
+        prepareRuntimeProfileInvalidation(row.getMerchantId());
         merchantInfoMapper.updateById(row);
+        merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
+        statusLifecycleService.onStatusChanged(row, merchantStatus, operationTime);
         return toDTO(row);
+    }
+
+    private void validateStatusTransition(Integer currentStatus, Integer targetStatus) {
+        boolean allowed = (Integer.valueOf(1).equals(currentStatus) && Integer.valueOf(2).equals(targetStatus))
+                || (Integer.valueOf(2).equals(currentStatus) && Integer.valueOf(1).equals(targetStatus));
+        if (!allowed) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户状态仅允许正常与冻结之间切换");
+        }
+    }
+
+    /**
+     * 软删除商户和全部 OpenAPI 密钥记录，并在事务提交后清除共享商户缓存。
+     *
+     * @param id 商户主键
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteMerchant(Long id) {
+        BaseMerchantInfoDO merchant = requireMerchantById(id);
+        prepareRuntimeProfileInvalidation(merchant.getMerchantId());
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_ROUTE, merchant.getMerchantId());
+        LocalDateTime now = LocalDateTime.now();
+        merchantInfoMapper.update(null, Wrappers.<BaseMerchantInfoDO>lambdaUpdate()
+                .set(BaseMerchantInfoDO::getDeleted, 1)
+                .set(BaseMerchantInfoDO::getGmtModified, now)
+                .eq(BaseMerchantInfoDO::getId, merchant.getId())
+                .eq(BaseMerchantInfoDO::getDeleted, NOT_DELETED));
+        jwtKeyMapper.update(null, Wrappers.<BaseMerchantJwtKeyDO>lambdaUpdate()
+                .set(BaseMerchantJwtKeyDO::getDeleted, 1)
+                .set(BaseMerchantJwtKeyDO::getGmtModified, now)
+                .eq(BaseMerchantJwtKeyDO::getMerchantId, merchant.getMerchantId())
+                .eq(BaseMerchantJwtKeyDO::getDeleted, NOT_DELETED));
+        platformPayloadKeyMapper.update(null, Wrappers.<BasePlatformPayloadKeyDO>lambdaUpdate()
+                .set(BasePlatformPayloadKeyDO::getDeleted, 1)
+                .set(BasePlatformPayloadKeyDO::getGmtModified, now)
+                .eq(BasePlatformPayloadKeyDO::getMerchantId, merchant.getMerchantId())
+                .eq(BasePlatformPayloadKeyDO::getDeleted, NOT_DELETED));
+        responseKeyMapper.update(null, Wrappers.<BaseMerchantResponseKeyDO>lambdaUpdate()
+                .set(BaseMerchantResponseKeyDO::getDeleted, 1)
+                .set(BaseMerchantResponseKeyDO::getGmtModified, now)
+                .eq(BaseMerchantResponseKeyDO::getMerchantId, merchant.getMerchantId())
+                .eq(BaseMerchantResponseKeyDO::getDeleted, NOT_DELETED));
+        merchantRuntimeProfileCacheService.evictRuntimeProfile(merchant.getMerchantId());
     }
 
     /**
@@ -464,7 +542,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO provisionSecurityMaterial(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
-        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
         MerchantJwtKey jwtKey = rotateJwtKeyInternal(merchant.getMerchantId());
         RsaKeyMaterial platformKey = rotatePlatformKeyInternal(merchant.getMerchantId());
         RsaKeyMaterial responseKey = rotateResponseKeyInternal(merchant.getMerchantId());
@@ -479,6 +557,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setMerchantResponsePublicKeyX509Base64(responseKey.publicKeyX509Base64());
         dto.setMerchantResponsePrivateKeyPkcs8Base64(responseKey.privateKeyPkcs8Base64());
         dto.setOneTimeSecret(true);
+        securityNotificationService.sendAfterCommit(merchant,
+                AdminMerchantSecurityNotificationService.TEMPLATE_CREATED,
+                "OpenAPI 接入密钥套件",
+                jwtKey.merchantKey());
         return dto;
     }
 
@@ -525,7 +607,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotateJwtKey(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
-        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
         MerchantJwtKey jwtKey = rotateJwtKeyInternal(merchant.getMerchantId());
         AdminMerchantSecurityMaterialDTO dto = baseMaterial(merchant);
         dto.setMerchantKey(jwtKey.merchantKey());
@@ -533,6 +615,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setJwtAlgorithm(jwtKey.algorithm());
         dto.setJwtExpiresSeconds(jwtKey.expiresSeconds());
         dto.setOneTimeSecret(true);
+        securityNotificationService.sendAfterCommit(merchant,
+                AdminMerchantSecurityNotificationService.TEMPLATE_RESET,
+                "JWT 签名密钥",
+                jwtKey.merchantKey());
         return dto;
     }
 
@@ -547,11 +633,15 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotatePlatformPayloadKey(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
-        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
         RsaKeyMaterial platformKey = rotatePlatformKeyInternal(merchant.getMerchantId());
         AdminMerchantSecurityMaterialDTO dto = baseMaterial(merchant);
         dto.setPlatformPublicKeyX509Base64(platformKey.publicKeyX509Base64());
         dto.setOneTimeSecret(false);
+        securityNotificationService.sendAfterCommit(merchant,
+                AdminMerchantSecurityNotificationService.TEMPLATE_RESET,
+                "平台请求体密钥",
+                platformKey.publicKeyX509Base64());
         return dto;
     }
 
@@ -566,13 +656,41 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotateMerchantResponseKey(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
-        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
         RsaKeyMaterial responseKey = rotateResponseKeyInternal(merchant.getMerchantId());
         AdminMerchantSecurityMaterialDTO dto = baseMaterial(merchant);
         dto.setMerchantResponsePublicKeyX509Base64(responseKey.publicKeyX509Base64());
         dto.setMerchantResponsePrivateKeyPkcs8Base64(responseKey.privateKeyPkcs8Base64());
         dto.setOneTimeSecret(true);
+        securityNotificationService.sendAfterCommit(merchant,
+                AdminMerchantSecurityNotificationService.TEMPLATE_RESET,
+                "商户响应密钥",
+                responseKey.publicKeyX509Base64());
         return dto;
+    }
+
+    /**
+     * 启用或停用当前 OpenAPI 密钥材料，登记缓存失效并在提交后发送安全通知。
+     *
+     * @param merchantId 商户号
+     * @param keyType 密钥类型
+     * @param enabled true 启用，false 停用
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void setOpenApiKeyEnabled(String merchantId, OpenApiKeyType keyType, boolean enabled) {
+        BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
+        openApiKeyMaterialService.setEnabled(merchant.getMerchantId(), keyType, enabled);
+        securityNotificationService.sendAfterCommit(
+                merchant,
+                enabled
+                        ? AdminMerchantSecurityNotificationService.TEMPLATE_ENABLED
+                        : AdminMerchantSecurityNotificationService.TEMPLATE_DISABLED,
+                keyDisplayName(keyType),
+                keyFingerprintSource(merchant.getMerchantId(), keyType)
+        );
     }
 
     /**
@@ -587,8 +705,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateMerchantResponseKey(String merchantId, AdminMerchantResponseKeyRequest request) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
-        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
         String publicKey = normalizeBase64(request.getPublicKeyX509Base64(), "响应公钥格式不正确");
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
         BaseMerchantResponseKeyDO row = selectResponseKey(merchant.getMerchantId());
         LocalDateTime now = LocalDateTime.now();
         if (row == null) {
@@ -614,19 +732,25 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 在当前商户写事务内登记共享运行资料缓存的精确失效意图。
-     *
-     * <p>Redis Value 不保存 JWT Secret、RSA 私钥或其他密钥明文；密钥变更仍统一登记该商户的
-     * 安全缓存失效，以保证 Admin、Merchant Portal 与 OpenAPI 在同一提交边界后重新读取事实源。
-     * 事务回滚时 pending 门禁会释放，提交后的删除失败由 Outbox 中继重试。</p>
+     * 在密钥表变更前登记永久元数据缓存失效门禁和 Outbox 意图。
      *
      * @param merchantId 已确认存在的商户号
      */
-    private void prepareMerchantRuntimeProfileInvalidation(String merchantId) {
-        cacheInvalidationCoordinator.prepare(
-                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-                merchantId
-        );
+    private void prepareKeyMetadataInvalidation(String merchantId) {
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_KEY_METADATA, merchantId);
+    }
+
+    /**
+     * 在商户主表变更前登记完整资料缓存的门禁和 Outbox 失效意图。
+     * <p>
+     * 事务提交后，Outbox 先可靠删除旧缓存，transaction-aware CachePut 再写入新资料；
+     * 即使新值写入 Redis 失败，也不会继续暴露旧的永久缓存。
+     * </p>
+     *
+     * @param merchantId 已确认的商户号
+     */
+    private void prepareRuntimeProfileInvalidation(String merchantId) {
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, merchantId);
     }
 
     /**
@@ -758,6 +882,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         row.setSettlementCurrency(trimUpper(request.getSettlementCurrency()));
         row.setTimezone(request.getTimezone().trim());
         row.setMerchantStatus(request.getMerchantStatus());
+        row.setDefaultLocale(MerchantLocaleSupport.normalize(request.getDefaultLocale()));
         row.setRiskLevel(request.getRiskLevel() == null ? DEFAULT_RISK_LEVEL : request.getRiskLevel());
         validateStatus(row.getMerchantStatus());
         validateRiskLevel(row.getRiskLevel());
@@ -917,6 +1042,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setMerchantName(row.getMerchantName());
         dto.setMerchantShortName(row.getMerchantShortName());
         dto.setMerchantStatus(row.getMerchantStatus());
+        dto.setDefaultLocale(MerchantLocaleSupport.normalize(row.getDefaultLocale()));
         dto.setMerchantCategoryCode(row.getMerchantCategoryCode());
         dto.setCountryCode(row.getCountryCode());
         dto.setRegionCode(row.getRegionCode());
@@ -936,6 +1062,74 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setPlatformPayloadKey(toPlatformSummary(selectPlatformKey(row.getMerchantId())));
         dto.setResponseKey(toResponseSummary(selectResponseKey(row.getMerchantId())));
         return dto;
+    }
+
+    /**
+     * 将完整商户缓存资料转换为管理端现有 DTO 转换链可复用的数据对象。
+     *
+     * <p>这里只转换 {@code base_merchant_info} 对应字段；密钥概要仍按管理端权限从密钥表查询，
+     * 不会把 JWT Secret 或 RSA 私钥写入 {@code merchant:info}。</p>
+     *
+     * @param profile 完整商户缓存资料
+     * @return 仅用于当前转换过程的商户数据对象
+     */
+    private BaseMerchantInfoDO toMerchantInfoDO(MerchantRuntimeProfile profile) {
+        BaseMerchantInfoDO row = new BaseMerchantInfoDO();
+        row.setId(profile.getId());
+        row.setMerchantId(profile.getMerchantId());
+        row.setMerchantName(profile.getMerchantName());
+        row.setBillingDescriptor(profile.getBillingDescriptor());
+        row.setMerchantShortName(profile.getMerchantShortName());
+        row.setMerchantStatus(profile.getMerchantStatus());
+        row.setDefaultLocale(MerchantLocaleSupport.normalize(profile.getDefaultLocale()));
+        row.setMerchantCategoryCode(profile.getMerchantCategoryCode());
+        row.setCountryCode(profile.getCountryCode());
+        row.setRegionCode(profile.getRegionCode());
+        row.setCity(profile.getCity());
+        row.setAddressLine(profile.getAddressLine());
+        row.setPostalCode(profile.getPostalCode());
+        row.setContactName(profile.getContactName());
+        row.setContactEmail(profile.getContactEmail());
+        row.setContactPhone(profile.getContactPhone());
+        row.setSettlementCurrency(profile.getSettlementCurrency());
+        row.setTimezone(profile.getTimezone());
+        row.setRiskLevel(profile.getRiskLevel());
+        row.setGmtCreate(profile.getGmtCreate());
+        row.setGmtModified(profile.getGmtModified());
+        row.setDeleted(NOT_DELETED);
+        return row;
+    }
+
+    /**
+     * 将主库商户记录转换为跨服务共享缓存资料。
+     *
+     * @param row 已写入主库的完整商户记录
+     * @return 不包含密钥材料的完整商户缓存资料
+     */
+    private MerchantRuntimeProfile toRuntimeProfile(BaseMerchantInfoDO row) {
+        MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
+        profile.setId(row.getId());
+        profile.setMerchantId(row.getMerchantId());
+        profile.setMerchantName(row.getMerchantName());
+        profile.setBillingDescriptor(row.getBillingDescriptor());
+        profile.setMerchantShortName(row.getMerchantShortName());
+        profile.setMerchantStatus(row.getMerchantStatus());
+        profile.setDefaultLocale(MerchantLocaleSupport.normalize(row.getDefaultLocale()));
+        profile.setMerchantCategoryCode(row.getMerchantCategoryCode());
+        profile.setCountryCode(row.getCountryCode());
+        profile.setRegionCode(row.getRegionCode());
+        profile.setCity(row.getCity());
+        profile.setAddressLine(row.getAddressLine());
+        profile.setPostalCode(row.getPostalCode());
+        profile.setContactName(row.getContactName());
+        profile.setContactEmail(row.getContactEmail());
+        profile.setContactPhone(row.getContactPhone());
+        profile.setSettlementCurrency(row.getSettlementCurrency());
+        profile.setTimezone(row.getTimezone());
+        profile.setRiskLevel(row.getRiskLevel());
+        profile.setGmtCreate(row.getGmtCreate());
+        profile.setGmtModified(row.getGmtModified());
+        return profile;
     }
 
     /**
@@ -1205,6 +1399,46 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .eq(BaseMerchantJwtKeyDO::getEnabled, ENABLED)
                 .orderByDesc(BaseMerchantJwtKeyDO::getEffectiveTime)
                 .last("LIMIT 1"));
+    }
+
+    /** 查询最新 JWT 记录，包括已停用记录，供安全通知生成不可逆指纹。 */
+    private BaseMerchantJwtKeyDO selectLatestJwtKey(String merchantId) {
+        return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>lambdaQuery()
+                .eq(BaseMerchantJwtKeyDO::getMerchantId, merchantId)
+                .eq(BaseMerchantJwtKeyDO::getDeleted, NOT_DELETED)
+                .orderByDesc(BaseMerchantJwtKeyDO::getEffectiveTime)
+                .orderByDesc(BaseMerchantJwtKeyDO::getId)
+                .last("LIMIT 1"));
+    }
+
+    /** 返回邮件中可展示的密钥材料名称。 */
+    private String keyDisplayName(OpenApiKeyType keyType) {
+        if (keyType == OpenApiKeyType.JWT_KEY) {
+            return "JWT 签名密钥";
+        }
+        if (keyType == OpenApiKeyType.PLATFORM_PUBLIC_KEY || keyType == OpenApiKeyType.PLATFORM_PAYLOAD_KEY) {
+            return "平台请求体密钥";
+        }
+        if (keyType == OpenApiKeyType.MERCHANT_RESPONSE_PUBLIC_KEY
+                || keyType == OpenApiKeyType.MERCHANT_RESPONSE_PRIVATE_KEY
+                || keyType == OpenApiKeyType.MERCHANT_RESPONSE_KEY) {
+            return "商户响应密钥";
+        }
+        throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "keyType 不支持启停");
+    }
+
+    /** 返回仅用于计算通知指纹的材料，原文不会离开当前进程或写入日志。 */
+    private String keyFingerprintSource(String merchantId, OpenApiKeyType keyType) {
+        if (keyType == OpenApiKeyType.JWT_KEY) {
+            BaseMerchantJwtKeyDO row = selectLatestJwtKey(merchantId);
+            return row == null ? null : row.getMerchantKey();
+        }
+        if (keyType == OpenApiKeyType.PLATFORM_PUBLIC_KEY || keyType == OpenApiKeyType.PLATFORM_PAYLOAD_KEY) {
+            BasePlatformPayloadKeyDO row = selectPlatformKey(merchantId);
+            return row == null ? null : row.getPublicKeyX509Base64();
+        }
+        BaseMerchantResponseKeyDO row = selectResponseKey(merchantId);
+        return row == null ? null : row.getPublicKeyX509Base64();
     }
 
     /**

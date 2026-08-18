@@ -44,6 +44,15 @@ public class ShardingTablePreCreateTableResult {
      */
     private String schemaCheckStatus;
 
+    /** 分片时间字段 DATETIME(3) 检查状态。 */
+    private String shardingTimeCheckStatus;
+
+    /** utf8mb4 字符集检查状态。 */
+    private String charsetCheckStatus;
+
+    /** AUTO_INCREMENT 是否落在当前季度安全号段。 */
+    private String autoIncrementCheckStatus;
+
     /**
      * AUTO_INCREMENT 起始值。
      */

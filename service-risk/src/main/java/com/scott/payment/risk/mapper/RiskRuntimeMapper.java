@@ -4,7 +4,6 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuleSnapshotRow;
-import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -577,6 +576,7 @@ public interface RiskRuntimeMapper {
                    COALESCE(remark, '商户来源网址限定') AS decisionReason
             FROM risk_rule_source_url
             WHERE deleted = 0
+              AND approval_status = 1
               AND status = 1
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
@@ -589,10 +589,13 @@ public interface RiskRuntimeMapper {
                                       @Param("sourceHost") String sourceHost);
 
     /**
-     * 加载当前商户全部有效来源网址允许规则。
+     * 加载当前商户全部有效期内的来源网址配置。
      *
      * @param merchantId 当前商户号
      * @param maxRows    查询硬上限
+     * <p>待审核、审核拒绝或交易禁止的记录仍进入快照，用于表达商户已经启用来源网址限制；
+     * 只有 {@code runtimeAllowed=true} 的记录能够作为允许项命中。</p>
+     *
      * @return 按更新时间倒序的来源主机快照行
      */
     @Select("""
@@ -607,10 +610,10 @@ public interface RiskRuntimeMapper {
                    COALESCE(remark, '商户来源网址限定') AS decisionReason,
                    'MERCHANT' AS merchantScope,
                    merchant_id AS merchantId,
-                   source_host AS sourceHost
+                   source_host AS sourceHost,
+                   CASE WHEN approval_status = 1 AND status = 1 THEN 1 ELSE 0 END AS runtimeAllowed
             FROM risk_rule_source_url
             WHERE deleted = 0
-              AND status = 1
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
@@ -631,7 +634,6 @@ public interface RiskRuntimeMapper {
             SELECT COUNT(1)
             FROM risk_rule_source_url
             WHERE deleted = 0
-              AND status = 1
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
@@ -649,6 +651,7 @@ public interface RiskRuntimeMapper {
             SELECT COUNT(1)
             FROM risk_rule_source_url
             WHERE deleted = 0
+              AND approval_status = 1
               AND status = 1
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
@@ -684,6 +687,7 @@ public interface RiskRuntimeMapper {
             SELECT COUNT(1)
             FROM merchant_ip_whitelist
             WHERE deleted = 0
+              AND approval_status = 1
               AND status = 1
               AND merchant_id = #{merchantId}
             """)
@@ -700,6 +704,7 @@ public interface RiskRuntimeMapper {
             SELECT COUNT(1)
             FROM merchant_ip_whitelist
             WHERE deleted = 0
+              AND approval_status = 1
               AND status = 1
               AND merchant_id = #{merchantId}
               AND ip_value = #{ipValue}
@@ -868,57 +873,54 @@ public interface RiskRuntimeMapper {
                                                                  @Param("currency") String currency);
 
     /**
-     * 从主库受控交易分表汇总指定半开时间区间内已通过风控的交易金额。
+     * 从交易逻辑表汇总指定商户、币种和半开时间区间内已通过风控的交易金额。
      *
      * <p>排除当前交易的根交易号和最新交易号，避免补偿或重试重复计入。</p>
      *
      * @return 与交易金额同币种、同精度的累计金额；无记录时返回零
      */
-    @DS(DataSourceName.MASTER)
+    @DS(DataSourceName.TRANSACTION)
     @Select("""
-            <script>
-            SELECT COALESCE(SUM(period_amount), 0)
-            FROM (
-                <foreach collection="tableNames" item="tableName" separator=" UNION ALL ">
-                    SELECT COALESCE(SUM(transaction_amount), 0) AS period_amount
-                    FROM ${tableName}
-                    WHERE deleted = 0
-                      AND merchant_id = #{merchantId}
-                      AND transaction_currency = #{currency}
-                      AND transaction_type IN ('PAYMENT', 'AUTHORIZATION', 'PRE_AUTHORIZATION')
-                      AND internal_risk_decision IN ('PASS', 'SKIP')
-                      AND transaction_status IN ('SUCCESS', 'PROCESSING', 'PENDING')
-                      AND transaction_date_time &gt;= #{beginTime}
-                      AND transaction_date_time &lt; #{endTime}
-                      AND COALESCE(root_transaction_id, '') &lt;&gt; #{excludeTransactionId}
-                      AND COALESCE(latest_transaction_id, '') &lt;&gt; #{excludeTransactionId}
-                </foreach>
-            ) period_totals
-            </script>
+            SELECT COALESCE(SUM(transaction_amount), 0)
+            FROM transaction_order
+            WHERE deleted = 0
+              AND merchant_id = #{merchantId}
+              AND transaction_currency = #{currency}
+              AND transaction_type IN ('PAYMENT', 'AUTHORIZATION', 'PRE_AUTHORIZATION')
+              AND internal_risk_decision IN ('PASS', 'SKIP')
+              AND transaction_status IN ('SUCCESS', 'PROCESSING', 'PENDING')
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTime}
+              AND COALESCE(root_transaction_id, '') <> #{excludeTransactionId}
+              AND COALESCE(latest_transaction_id, '') <> #{excludeTransactionId}
             """)
-    BigDecimal sumRiskApprovedTransactionAmount(@Param("tableNames") List<String> tableNames,
-                                                @Param("merchantId") String merchantId,
+    BigDecimal sumRiskApprovedTransactionAmount(@Param("merchantId") String merchantId,
                                                 @Param("currency") String currency,
                                                 @Param("beginTime") LocalDateTime beginTime,
                                                 @Param("endTime") LocalDateTime endTime,
                                                 @Param("excludeTransactionId") String excludeTransactionId);
 
     /**
-     * 从已校验的交易物理表查询指定交易的当前状态。
+     * 从交易逻辑表的单个季度范围查询指定交易的当前状态。
      *
-     * @param physicalTableName 已由分表模板解析并校验的物理表名
      * @param transactionId 平台交易号
+     * @param beginTime 风控编排持久化业务周期的开始时间（含）
+     * @param endTimeExclusive 风控编排持久化业务周期的结束时间（不含）
      * @return 交易状态；记录不存在时返回 {@code null}
      */
+    @DS(DataSourceName.TRANSACTION)
     @Select("""
             SELECT transaction_status
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE transaction_id = #{transactionId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
               AND deleted = 0
             LIMIT 1
             """)
-    String selectPaymentTransactionStatus(@Param("physicalTableName") String physicalTableName,
-                                          @Param("transactionId") String transactionId);
+    String selectPaymentTransactionStatus(@Param("transactionId") String transactionId,
+                                          @Param("beginTime") LocalDateTime beginTime,
+                                          @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
      * 汇总同商户、规则、币种和周期桶内其他交易的有效预占金额。
@@ -1058,39 +1060,6 @@ public interface RiskRuntimeMapper {
     RiskListMatch selectIssuerCountryByCardBin(@Param("numericValue") BigDecimal numericValue);
 
     /**
-     * 加载全部有效 BIN 发卡国家区间。
-     *
-     * @param maxRows 查询硬上限
-     * @return BIN 长度和数据源优先级从高到低的区间行
-     */
-    @Select("""
-            SELECT id AS ruleId,
-                   'SYSTEM' AS moduleType,
-                   'issuerCountry' AS functionCode,
-                   '发卡行国家/地区解析' AS functionName,
-                   'issuerCountry' AS hitElement,
-                   issuer_country_alpha3 AS hitValueMasked,
-                   'LOW' AS riskLevel,
-                   'PASS' AS decisionAction,
-                   'issuer country resolved by card bin' AS decisionReason,
-                   card_bin_start AS matchValueStartNumber,
-                   card_bin_end AS matchValueEndNumber,
-                   bin_length AS binLength,
-                   source_priority AS sourcePriority,
-                   issuer_country_alpha3 AS issuerCountryAlpha3
-            FROM base_card_bin_range
-            WHERE deleted = 0
-              AND status = 1
-              AND issuer_country_alpha3 IS NOT NULL
-              AND issuer_country_alpha3 <> ''
-              AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
-              AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
-            ORDER BY bin_length DESC, source_priority DESC, update_time DESC, id DESC
-            LIMIT #{maxRows}
-            """)
-    List<RiskRuleSnapshotRow> selectActiveIssuerCountryBinSnapshotRows(@Param("maxRows") int maxRows);
-
-    /**
      * 查询适用于交易维度、金额区间和当前风险等级的最高优先级 3DS 规则。
      *
      * @return 商户级优先的强制或跳过 3DS 规则；无适用规则时返回 {@code null}
@@ -1119,6 +1088,7 @@ public interface RiskRuntimeMapper {
                     merchant_scope = 'GLOBAL'
                     OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
                   )
+              AND (channel_code = 'ALL' OR channel_code = #{channelCode})
               AND (payment_method = 'ALL' OR payment_method = #{paymentMethod})
               AND (card_brand = 'ALL' OR card_brand = #{cardBrand})
               AND currency = #{currency}
@@ -1143,6 +1113,7 @@ public interface RiskRuntimeMapper {
             </script>
             """)
     RiskListMatch selectThreeDsRule(@Param("merchantId") String merchantId,
+                                    @Param("channelCode") String channelCode,
                                     @Param("paymentMethod") String paymentMethod,
                                     @Param("cardBrand") String cardBrand,
                                     @Param("amount") BigDecimal amount,
@@ -1172,6 +1143,7 @@ public interface RiskRuntimeMapper {
                    COALESCE(remark, rule_name) AS decisionReason,
                    merchant_scope AS merchantScope,
                    merchant_id AS merchantId,
+                   channel_code AS channelCode,
                    payment_method AS paymentMethod,
                    card_brand AS cardBrand,
                    amount_match_type AS amountMatchType,
@@ -1201,104 +1173,4 @@ public interface RiskRuntimeMapper {
             @Param("merchantId") String merchantId,
             @Param("maxRows") int maxRows);
 
-    /**
-     * 写入一次风控评估的主审计记录。
-     *
-     * @return 成功插入的记录数
-     */
-    @Insert("""
-            INSERT INTO risk_evaluation_record (
-                risk_record_no,
-                merchant_id,
-                merchant_order_no,
-                payment_order_no,
-                transaction_amount,
-                transaction_currency,
-                risk_level,
-                decision_result,
-                decision_reason,
-                hit_count,
-                evaluation_time
-            ) VALUES (
-                #{riskRecordNo},
-                #{merchantId},
-                #{merchantOrderNo},
-                #{paymentOrderNo},
-                #{transactionAmount},
-                #{transactionCurrency},
-                #{riskLevel},
-                #{decisionResult},
-                #{decisionReason},
-                #{hitCount},
-                #{evaluationTime}
-            )
-            """)
-    int insertEvaluationRecord(@Param("riskRecordNo") String riskRecordNo,
-                               @Param("merchantId") String merchantId,
-                               @Param("merchantOrderNo") String merchantOrderNo,
-                               @Param("paymentOrderNo") String paymentOrderNo,
-                               @Param("transactionAmount") BigDecimal transactionAmount,
-                               @Param("transactionCurrency") String transactionCurrency,
-                               @Param("riskLevel") String riskLevel,
-                               @Param("decisionResult") String decisionResult,
-                               @Param("decisionReason") String decisionReason,
-                               @Param("hitCount") Integer hitCount,
-                               @Param("evaluationTime") java.time.LocalDateTime evaluationTime);
-
-    /**
-     * 写入一条已脱敏的规则执行或命中审计明细。
-     *
-     * @param riskRecordNo 关联的风控评估流水号
-     * @param hit 已补齐阶段、匹配结果和决策影响的明细
-     * @param decisionTime 规则决策时间
-     * @return 成功插入的记录数
-     */
-    @Insert("""
-            INSERT INTO risk_evaluation_hit_detail (
-                risk_record_no,
-                module_type,
-                function_code,
-                function_name,
-                rule_id,
-                hit_element,
-                hit_value_masked,
-                risk_level,
-                decision_result,
-                decision_reason,
-                decision_time,
-                time_window_seconds,
-                threshold_count,
-                elements_json,
-                current_count,
-                stage_code,
-                stage_name,
-                stage_order,
-                match_result,
-                decision_effect
-            ) VALUES (
-                #{riskRecordNo},
-                #{hit.moduleType},
-                #{hit.functionCode},
-                #{hit.functionName},
-                #{hit.ruleId},
-                #{hit.hitElement},
-                #{hit.hitValueMasked},
-                #{hit.riskLevel},
-                #{hit.decisionAction},
-                #{hit.decisionReason},
-                #{decisionTime},
-                #{hit.timeWindowSeconds},
-                #{hit.thresholdCount},
-                #{hit.elementsJson},
-                #{hit.currentCount},
-                #{hit.stageCode},
-                #{hit.stageName},
-                #{hit.stageOrder},
-                #{hit.matchResult},
-                #{hit.decisionEffect}
-            )
-            """)
-    int insertEvaluationHit(@Param("riskRecordNo") String riskRecordNo,
-                            @Param("hit") RiskListMatch hit,
-                            @Param("decisionTime") java.time.LocalDateTime decisionTime);
 }

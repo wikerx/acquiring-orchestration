@@ -2,60 +2,106 @@
 internal-service:
   auth:
     # dev 可开启内部 HMAC 校验，调用方 service-payment 必须使用相同共享密钥签名。
+    # 环境说明：环境变量：RISK_INTERNAL_AUTH_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     enabled: ${RISK_INTERNAL_AUTH_ENABLED:true}
+    # 参数说明：声明内部签名调用方标识，必须与服务白名单中的名称完全一致。
     caller: service-payment
+    # 参数说明：配置内部服务签名密钥，所有通信方必须使用同一环境的高强度 Secret。
+    # 环境说明：环境变量：INTERNAL_SERVICE_AUTH_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
     secret: ${INTERNAL_SERVICE_AUTH_SECRET:dev-internal-service-secret}
+    # 参数说明：内部请求签名允许的客户端与服务端时钟偏差，使用 Spring Duration（如 5m 或 PT5M）。
     allowed-clock-skew: 5m
     whitelist:
+      # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
       - /risk/health
+      # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
       - /actuator/health/**
+      # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
       - /error
 
 risk:
   evaluation:
     # 是否启用运行时名单库和规则库。运行时查询优先走 Redis 缓存，缓存未命中再查从库。
+    # 环境说明：环境变量：RISK_RUNTIME_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     runtime-enabled: ${RISK_RUNTIME_ENABLED:true}
+    # 并发执行 AML、黑白名单和单笔限额三个无副作用只读规则组；累计限额、频控和 3DS 始终留在请求线程。
+    # 环境说明：环境变量：RISK_READ_ONLY_PARALLEL_ENABLED，dev 默认值为 "true"；其他环境启用前需完成线程池、数据库连接池和 Redis 容量压测。
+    read-only-parallel-enabled: ${RISK_READ_ONLY_PARALLEL_ENABLED:true}
+    # 只读风控专用固定线程数，必须至少为 3 且不得超过代码门禁上限。
+    # 环境说明：环境变量：RISK_READ_ONLY_PARALLELISM，dev 默认值为 "4"；其他环境按实例并发量和数据源连接池容量调整。
+    read-only-parallelism: ${RISK_READ_ONLY_PARALLELISM:4}
+    # 专用线程池有界队列容量；队列满时由请求线程执行以形成背压，禁止配置无界队列。
+    # 环境说明：环境变量：RISK_READ_ONLY_QUEUE_CAPACITY，dev 默认值为 "64"；其他环境需结合支付峰值和超时预算压测。
+    read-only-queue-capacity: ${RISK_READ_ONLY_QUEUE_CAPACITY:64}
+    # 三个只读规则组共享的等待上限，超时后抛出受控异常并由 payment 失败关闭。
+    # 环境说明：环境变量：RISK_READ_ONLY_TIMEOUT_MILLIS，dev 默认值为 "3000"；其他环境不得高于调用方总超时。
+    read-only-timeout-millis: ${RISK_READ_ONLY_TIMEOUT_MILLIS:3000}
     # 旧请求级缓存命中秒数；仅 LEGACY/SHADOW 迁移路径使用。
+    # 环境说明：环境变量：RISK_CACHE_HIT_TTL_SECONDS，dev 配置默认值为 "300"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     cache-hit-ttl-seconds: ${RISK_CACHE_HIT_TTL_SECONDS:300}
     # 旧请求级未命中缓存秒数；SNAPSHOT 通过 loaded=true 的空集合表达未配置。
+    # 环境说明：环境变量：RISK_CACHE_MISS_TTL_SECONDS，dev 配置默认值为 "60"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     cache-miss-ttl-seconds: ${RISK_CACHE_MISS_TTL_SECONDS:60}
     # dev 使用完整常驻快照；UAT/生产先使用 SHADOW 完成命中差异和容量观察后再切换。
+    # 环境说明：环境变量：RISK_RULE_CACHE_MODE，dev 配置默认值为 "SNAPSHOT"；test/uat/prod 必须选择已完成该环境验证的模式，切换时保留回退方案。
     rule-cache-mode: ${RISK_RULE_CACHE_MODE:SNAPSHOT}
     # 单快照容量边界；超过上限时不写 Redis 大 Key并回源主库。
+    # 环境说明：环境变量：RISK_RULE_SNAPSHOT_MAX_ROWS，dev 配置默认值为 "5000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     rule-snapshot-max-rows: ${RISK_RULE_SNAPSHOT_MAX_ROWS:5000}
+    # 参数说明：限制单次风控规则快照最大字符数，防止超大配置占用堆内存。
+    # 环境说明：环境变量：RISK_RULE_SNAPSHOT_MAX_CHARACTERS，dev 配置默认值为 "5242880"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     rule-snapshot-max-characters: ${RISK_RULE_SNAPSHOT_MAX_CHARACTERS:5242880}
-    # 累计金额计数迁移模式：LEGACY 仅旧 Key；SHADOW 旧 Key 决策并双写同槽 Key；CLUSTER_SAFE 仅同槽 Key。
-    counter-mode: ${RISK_COUNTER_MODE:LEGACY}
-    # 只有 SHADOW 覆盖完整最大业务周期且差异核对完成后才能设为 true；CLUSTER_SAFE 未确认时会阻断启动。
-    counter-cutover-confirmed: ${RISK_COUNTER_CUTOVER_CONFIRMED:false}
-    # 交易频率窗口独立迁移：LEGACY 固定窗口决策；SHADOW 对比单 ZSet 滑动窗口；SLIDING_WINDOW 使用滑动窗口决策。
-    frequency-mode: ${RISK_FREQUENCY_MODE:LEGACY}
-    # 只有 SHADOW 覆盖完整最大窗口且差异语义获业务确认后才允许开启。
-    frequency-cutover-confirmed: ${RISK_FREQUENCY_CUTOVER_CONFIRMED:false}
-    # 规则和单 ZSet 容量上限；越界时进入 REVIEW，不静默放行。
+    # 超容量后短时间跳过重复全量加载；标记绑定 generation，精确数据库查询仍会执行。
+    # 环境说明：环境变量：RISK_RULE_SNAPSHOT_CAPACITY_BYPASS_TTL_SECONDS，dev 默认值为 "30"；其他环境按规则变更频率和数据库承载能力配置。
+    rule-snapshot-capacity-bypass-ttl-seconds: ${RISK_RULE_SNAPSHOT_CAPACITY_BYPASS_TTL_SECONDS:30}
+    # 固定窗口规则容量上限；越界时进入 REVIEW，不静默放行。
+    # 环境说明：环境变量：RISK_FREQUENCY_MAX_WINDOW_SECONDS，dev 配置默认值为 "86400"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     frequency-max-window-seconds: ${RISK_FREQUENCY_MAX_WINDOW_SECONDS:86400}
+    # 参数说明：限制单条风控频次规则可配置的最大阈值，防止异常规则消耗过多资源。
+    # 环境说明：环境变量：RISK_FREQUENCY_MAX_THRESHOLD_COUNT，dev 配置默认值为 "1000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     frequency-max-threshold-count: ${RISK_FREQUENCY_MAX_THRESHOLD_COUNT:1000}
-    frequency-max-members: ${RISK_FREQUENCY_MAX_MEMBERS:2000}
     # 数据库基线迁移：LEGACY 使用 payment 交易事实；SHADOW 对比生命周期表；LIFECYCLE 使用预占生命周期事实。
+    # 环境说明：环境变量：RISK_BASELINE_MODE，dev 配置默认值为 "LEGACY"；test/uat/prod 必须选择已完成该环境验证的模式，切换时保留回退方案。
     baseline-mode: ${RISK_BASELINE_MODE:LEGACY}
     # 只有 SHADOW 覆盖完整最大周期、跨周期边界且差异为零后才允许开启。
+    # 环境说明：环境变量：RISK_BASELINE_CUTOVER_CONFIRMED，dev 配置默认值为 "false"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     baseline-cutover-confirmed: ${RISK_BASELINE_CUTOVER_CONFIRMED:false}
     # 每实例周期汇总 shadow 比较分母、差异和不可用次数，不记录业务明细。
+    # 环境说明：环境变量：RISK_SHADOW_OBSERVATION_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     shadow-observation-enabled: ${RISK_SHADOW_OBSERVATION_ENABLED:true}
+    # 参数说明：配置风控影子观察任务首次启动延迟，单位毫秒。
+    # 环境说明：环境变量：RISK_SHADOW_OBSERVATION_INITIAL_DELAY_MS，dev 配置默认值为 "60000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     shadow-observation-initial-delay-ms: ${RISK_SHADOW_OBSERVATION_INITIAL_DELAY_MS:60000}
+    # 参数说明：配置风控影子观察任务固定间隔，单位毫秒。
+    # 环境说明：环境变量：RISK_SHADOW_OBSERVATION_FIXED_DELAY_MS，dev 配置默认值为 "60000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     shadow-observation-fixed-delay-ms: ${RISK_SHADOW_OBSERVATION_FIXED_DELAY_MS:60000}
     # 消费 payment 终态事件并驱动 RESERVED -> CONFIRMED/CANCELLED。
+    # 环境说明：环境变量：RISK_RESERVATION_EVENT_CONSUMER_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     reservation-event-consumer-enabled: ${RISK_RESERVATION_EVENT_CONSUMER_ENABLED:true}
     # 扫描进程中断、MQ 丢失或 payment 本地事务失败后遗留的 PREPARING/RESERVED。
+    # 环境说明：环境变量：RISK_RESERVATION_RECONCILE_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     reservation-reconcile-enabled: ${RISK_RESERVATION_RECONCILE_ENABLED:true}
+    # 参数说明：配置风控预占对账单批数量，必须为正整数。
+    # 环境说明：环境变量：RISK_RESERVATION_RECONCILE_BATCH_SIZE，dev 配置默认值为 "100"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     reservation-reconcile-batch-size: ${RISK_RESERVATION_RECONCILE_BATCH_SIZE:100}
+    # 参数说明：配置风控预占对账任务固定间隔，单位毫秒。
+    # 环境说明：环境变量：RISK_RESERVATION_RECONCILE_FIXED_DELAY_MS，dev 配置默认值为 "60000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     reservation-reconcile-fixed-delay-ms: ${RISK_RESERVATION_RECONCILE_FIXED_DELAY_MS:60000}
+    # 参数说明：配置风控预占对账任务首次启动延迟，单位毫秒。
+    # 环境说明：环境变量：RISK_RESERVATION_RECONCILE_INITIAL_DELAY_MS，dev 配置默认值为 "30000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     reservation-reconcile-initial-delay-ms: ${RISK_RESERVATION_RECONCILE_INITIAL_DELAY_MS:30000}
+    # 参数说明：配置风控预占 PREPARING 状态超时，单位秒。
+    # 环境说明：环境变量：RISK_RESERVATION_PREPARING_TIMEOUT_SECONDS，dev 配置默认值为 "60"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     reservation-preparing-timeout-seconds: ${RISK_RESERVATION_PREPARING_TIMEOUT_SECONDS:60}
+    # 参数说明：配置风控预占未找到支付单时的宽限期，单位秒。
+    # 环境说明：环境变量：RISK_RESERVATION_PAYMENT_ABSENCE_GRACE_SECONDS，dev 配置默认值为 "300"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     reservation-payment-absence-grace-seconds: ${RISK_RESERVATION_PAYMENT_ABSENCE_GRACE_SECONDS:300}
     # 是否通过 MQ 异步写入风控评估审计记录。
+    # 环境说明：环境变量：RISK_AUDIT_MQ_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     audit-mq-enabled: ${RISK_AUDIT_MQ_ENABLED:true}
     # MQ 审计消费幂等 TTL，单位秒。
+    # 环境说明：环境变量：RISK_AUDIT_CONSUME_IDEMPOTENT_TTL_SECONDS，dev 配置默认值为 "604800"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     audit-consume-idempotent-ttl-seconds: ${RISK_AUDIT_CONSUME_IDEMPOTENT_TTL_SECONDS:604800}
     # 无运行时规则命中时保留本地骨架规则兜底，避免 dev 环境空库导致风险完全放行。
+    # 环境说明：环境变量：RISK_SKELETON_FALLBACK_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     skeleton-fallback-enabled: ${RISK_SKELETON_FALLBACK_ENABLED:true}

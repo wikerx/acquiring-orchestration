@@ -3,7 +3,7 @@ package com.scott.payment.job.handler.transaction;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.trace.TraceContext;
-import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.component.job.executor.JobHandler;
 import com.scott.payment.component.job.executor.JobHandlerDescriptor;
@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,11 +33,6 @@ import java.util.Map;
 @Component
 @Slf4j
 public class ChannelTransactionMatchJob implements JobHandler {
-
-    /**
-     * 渠道勾兑扫描的交易动作逻辑表，自动回看必须遵守该表的季度配置范围。
-     */
-    private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
 
     /**
      * 任务编码，和 sys_job_task.job_code 保持一致。
@@ -74,11 +70,6 @@ public class ChannelTransactionMatchJob implements JobHandler {
     private static final int DEFAULT_LOOKBACK_QUARTERS = 2;
 
     /**
-     * 限制自动跨季度扫描范围，避免错误任务参数放大数据库和渠道查询压力。
-     */
-    private static final int MAX_LOOKBACK_QUARTERS = 8;
-
-    /**
      * payment Internal Client 依赖，用于 Channel Transaction Match Job 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -89,20 +80,20 @@ public class ChannelTransactionMatchJob implements JobHandler {
     private final PaymentInternalClient paymentInternalClient;
 
     /**
-     * 分表配置范围解析器，仅用于裁剪任务自动生成的季度列表。
+     * 已发布的交易分片拓扑；自动扫描只能使用其中已建且校验通过的季度节点。
      */
-    private final ShardingTableRangeResolver tableRangeResolver;
+    private final TransactionShardingProperties shardingProperties;
 
     /**
      * 创建渠道交易查询勾兑任务处理器。
      *
      * @param paymentInternalClient service-payment 内部客户端
-     * @param tableRangeResolver 分表配置范围解析器
+     * @param shardingProperties 版本化交易分片拓扑
      */
     public ChannelTransactionMatchJob(PaymentInternalClient paymentInternalClient,
-                                      ShardingTableRangeResolver tableRangeResolver) {
+                                      TransactionShardingProperties shardingProperties) {
         this.paymentInternalClient = paymentInternalClient;
-        this.tableRangeResolver = tableRangeResolver;
+        this.shardingProperties = shardingProperties;
     }
 
     /**
@@ -234,12 +225,30 @@ public class ChannelTransactionMatchJob implements JobHandler {
                 : LocalDateTime.now();
         int lookbackQuarters = normalizeLookbackQuarters(request.getLookbackQuarters());
         LocalDateTime currentQuarter = quarterAnchor(referenceTime);
-        return java.util.stream.IntStream.range(0, lookbackQuarters)
-                .mapToObj(index -> currentQuarter.minusMonths(index * 3L))
-                .filter(transactionDateTime -> tableRangeResolver.isWithinConfiguredRange(
-                        TRANSACTION_OPERATION_TABLE,
-                        transactionDateTime))
+        return shardingProperties.getPhysicalNodes().stream()
+                .map(this::quarterAnchorFromPublishedNode)
+                .filter(transactionDateTime -> !transactionDateTime.isAfter(currentQuarter))
+                .sorted(Comparator.reverseOrder())
+                .limit(lookbackQuarters)
                 .toList();
+    }
+
+    /**
+     * 将版本化规则中的 yyyyQQ 节点后缀转换为季度锚点。
+     *
+     * @param suffix 已建且校验通过的物理节点后缀
+     * @return 对应季度第一天零点
+     */
+    private LocalDateTime quarterAnchorFromPublishedNode(String suffix) {
+        if (suffix == null || !suffix.matches("\\d{6}")) {
+            throw new IllegalStateException("transaction sharding physical node suffix must use yyyyQQ");
+        }
+        int year = Integer.parseInt(suffix.substring(0, 4));
+        int quarter = Integer.parseInt(suffix.substring(4, 6));
+        if (quarter < 1 || quarter > 4) {
+            throw new IllegalStateException("transaction sharding physical node quarter must be between 01 and 04");
+        }
+        return LocalDateTime.of(year, (quarter - 1) * 3 + 1, 1, 0, 0);
     }
 
     /**
@@ -257,7 +266,7 @@ public class ChannelTransactionMatchJob implements JobHandler {
      * 校验并限制向前扫描季度数。
      *
      * @param lookbackQuarters 请求指定季度数
-     * @return 默认值或不超过系统上限的季度数
+     * @return 默认值或调用方指定的正季度数；实际扫描仍受已发布节点集合约束
      * @throws ServiceException 输入非正数时抛出
      */
     private int normalizeLookbackQuarters(Integer lookbackQuarters) {
@@ -268,7 +277,7 @@ public class ChannelTransactionMatchJob implements JobHandler {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "lookbackQuarters must be greater than zero");
         }
-        return Math.min(lookbackQuarters, MAX_LOOKBACK_QUARTERS);
+        return lookbackQuarters;
     }
 
     /**

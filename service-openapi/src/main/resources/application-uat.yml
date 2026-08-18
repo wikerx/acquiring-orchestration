@@ -3,47 +3,77 @@
 spring:
   config:
     import:
+      # 参数说明：导入当前服务专属 Nacos DataId，承载只属于该服务的业务开关。
       - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # 参数说明：导入公共 Nacos DataId，统一时间、监控和链路追踪配置。
       - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # 参数说明：导入数据源 Nacos DataId，提供主从数据库连接与 MyBatis 配置。
       - optional:nacos:dataSource-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # 参数说明：导入分片治理 Nacos DataId，提供季度分表和物理表维护规则。
       - optional:nacos:sharding-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # 参数说明：导入 Redis Nacos DataId，提供 Lettuce Cluster、缓存和全局编号配置。
       - optional:nacos:redis-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # 参数说明：导入 RocketMQ Nacos DataId，提供消息连接、Topic 和消费者组治理配置。
       - optional:nacos:rocketmq-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # 参数说明：导入 Seata Nacos DataId；当前环境是否启用由该 DataId 决定。
       - optional:nacos:seata-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # 参数说明：导入 XXL-JOB Nacos DataId，提供调度中心和执行器配置。
       - optional:nacos:xxl-job-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
   cloud:
     bootstrap:
+      # 参数说明：控制 Spring Cloud Bootstrap 提前加载 Nacos 配置；关闭会导致远程配置无法在自动装配前生效。
       enabled: true
     nacos:
       discovery:
+        # 参数说明：配置 Nacos 服务地址；每个环境必须连接本环境 Nacos，禁止跨环境注册或拉取配置。
+        # 环境说明：环境变量：NACOS_SERVER（uat 配置默认 "nacos-uat:8848"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
         server-addr: ${NACOS_SERVER:nacos-uat:8848}
+        # 参数说明：配置 Nacos 命名空间；dev、test、uat、prod 必须使用不同 namespace ID 隔离。
+        # 环境说明：环境变量：NACOS_NAMESPACE（当前默认值为 "uat"）；dev、test、uat、prod 必须使用不同 namespace ID，防止服务注册和配置跨环境串用。
         namespace: ${NACOS_NAMESPACE:uat}
         # UAT/生产环境不得保留 Nacos 默认账号密码，必须由环境变量、K8s Secret 或 CI/CD Secret 注入。
+        # 环境说明：环境变量：NACOS_USERNAME（无默认值）；test/uat/prod 必须注入本环境最小权限账号，禁止使用 nacos、root 等开发默认账号。
         username: ${NACOS_USERNAME}
+        # 参数说明：配置访问外部组件的密码，必须按环境通过 Secret 注入并定期轮换。
+        # 环境说明：环境变量：NACOS_PASSWORD（无默认值）；启动前必须通过 K8s Secret、CI/CD Secret 或密钥管理系统注入，禁止写入 UAT/生产 YAML 或 Nacos 明文。
         password: ${NACOS_PASSWORD}
+        # 参数说明：控制服务是否注册到 Nacos；正常 test/uat/prod 部署必须开启。
         register-enabled: true
       config:
+        # 参数说明：配置 Nacos 服务地址；每个环境必须连接本环境 Nacos，禁止跨环境注册或拉取配置。
+        # 环境说明：环境变量：NACOS_SERVER（uat 配置默认 "nacos-uat:8848"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
         server-addr: ${NACOS_SERVER:nacos-uat:8848}
+        # 参数说明：配置 Nacos 命名空间；dev、test、uat、prod 必须使用不同 namespace ID 隔离。
         namespace: ${spring.cloud.nacos.discovery.namespace}
+        # 参数说明：配置外部组件账号；UAT/生产必须使用最小权限的环境专属账号。
         username: ${spring.cloud.nacos.discovery.username}
+        # 参数说明：配置访问外部组件的密码，必须按环境通过 Secret 注入并定期轮换。
         password: ${spring.cloud.nacos.discovery.password}
+        # 参数说明：指定注册或配置所属分组；同一环境的服务端与客户端必须一致。
         group: DEFAULT_GROUP
+        # 参数说明：指定 Nacos DataId 文件扩展名，当前项目统一使用 yaml。
         file-extension: yaml
+        # 参数说明：指定 Nacos 配置内容编码，项目 YAML 统一使用 UTF-8。
         encode: UTF-8
+        # 参数说明：控制 Nacos 配置变更是否动态刷新；涉及连接池或安全密钥时仍需按组件能力评估重启。
         refresh-enabled: true
+        # 参数说明：配置 Nacos 拉取配置失败后的重试次数，必须为非负整数。
         config-retry-time: 3
 
 logging:
+  # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml
 
 openapi:
   payment-client:
     # UAT 调用 service-payment /internal/** 的 HMAC-SHA256 共享密钥。
     # 必须与 service-payment.internal-service.auth.secret 使用同一 Secret，不允许在 yml 中写明文默认值。
+    # 环境说明：环境变量：INTERNAL_SERVICE_AUTH_SECRET（无默认值）；启动前必须通过 K8s Secret、CI/CD Secret 或密钥管理系统注入，禁止写入 UAT/生产 YAML 或 Nacos 明文。
     internal-secret: ${INTERNAL_SERVICE_AUTH_SECRET}
   payout-client:
     # UAT 调用 service-payout /internal/** 的 HMAC-SHA256 共享密钥。
     # 必须与 service-payout.internal-service.auth.secret 使用同一 Secret，不允许在 yml 中写明文默认值。
+    # 环境说明：环境变量：INTERNAL_SERVICE_AUTH_SECRET（无默认值）；启动前必须通过 K8s Secret、CI/CD Secret 或密钥管理系统注入，禁止写入 UAT/生产 YAML 或 Nacos 明文。
     internal-secret: ${INTERNAL_SERVICE_AUTH_SECRET}
   callback-security:
     # 商户通知重试维护密钥，只允许内部运维/后台任务调用方持有。

@@ -319,9 +319,18 @@ public class TransactionOrderDO implements Serializable {
     private String internalRiskRecordNo;
 
     /**
-     * 商户通知地址 SHA-256。
+     * 首次支付、授权或预授权请求中的商户网站原始 URL，用于查询接口稳定回显。
      */
-    private String callbackUrlHash;
+    private String merchantWebsite;
+
+    /** 商户异步通知地址明文；只允许用于通知投递和商户查询回显，禁止完整写入日志。 */
+    private String callbackUrl;
+
+    /** Hosted Checkout 交易完成后的商户页面返回地址明文。 */
+    private String redirectUrl;
+
+    /** Hosted Checkout 创建会话时指定的显示语言。 */
+    private String language;
 
     /**
      * 交易业务时间，所有交易分表统一字段，数据库类型必须为 DATETIME(3)。

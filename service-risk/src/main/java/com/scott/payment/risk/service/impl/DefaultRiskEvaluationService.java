@@ -1,7 +1,11 @@
 package com.scott.payment.risk.service.impl;
 
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.component.mq.message.RiskAuditHitMessage;
+import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
@@ -12,13 +16,13 @@ import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
 import com.scott.payment.risk.domain.state.RiskDecisionEnum;
 import com.scott.payment.risk.domain.state.RiskReasonCodeEnum;
-import com.scott.payment.risk.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.risk.repository.RiskAuditRecordPublisher;
 import com.scott.payment.risk.repository.RiskListRuntimeRepository;
 import com.scott.payment.risk.service.RiskEvaluationService;
 import com.scott.payment.risk.service.RiskRuntimeValueNormalizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -31,6 +35,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * @author : scott
@@ -50,6 +59,9 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      * 风控流水号前缀。
      */
     private static final String RISK_RECORD_PREFIX = "RK";
+
+    /** 支付核心内部生成的 Hosted Checkout 来源，商户 OpenAPI 不允许控制该值。 */
+    private static final String REQUEST_SOURCE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
 
     /**
      * 来源阻断关键词，当前仅用于骨架验证，正式名单应来自配置或数据库。
@@ -142,6 +154,9 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     /** 控制运行时规则和仅限兼容测试的骨架降级开关。 */
     private final RiskEvaluationProperties properties;
 
+    /** 执行无状态只读规则组的专用执行器；累计限额和频控预占不得提交到该执行器。 */
+    private final Executor readOnlyEvaluationExecutor;
+
     /**
      * 创建由 Spring 管理的实时风控评估服务。
      *
@@ -157,11 +172,13 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     public DefaultRiskEvaluationService(ObjectProvider<RiskListRuntimeRepository> riskListRuntimeRepositoryProvider,
                                         ObjectProvider<RiskRuntimeValueNormalizer> valueNormalizerProvider,
                                         ObjectProvider<RiskAuditRecordPublisher> auditRecordPublisherProvider,
-                                        RiskEvaluationProperties properties) {
+                                        RiskEvaluationProperties properties,
+                                        @Qualifier("riskReadOnlyEvaluationExecutor") Executor readOnlyEvaluationExecutor) {
         this.riskListRuntimeRepository = riskListRuntimeRepositoryProvider.getIfAvailable();
         this.valueNormalizer = valueNormalizerProvider.getIfAvailable(RiskRuntimeValueNormalizer::new);
         this.auditRecordPublisher = auditRecordPublisherProvider.getIfAvailable();
         this.properties = properties;
+        this.readOnlyEvaluationExecutor = readOnlyEvaluationExecutor;
     }
 
     /**
@@ -175,15 +192,24 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         this.valueNormalizer = new RiskRuntimeValueNormalizer();
         this.auditRecordPublisher = null;
         this.properties = new RiskEvaluationProperties();
+        this.readOnlyEvaluationExecutor = Runnable::run;
     }
 
     DefaultRiskEvaluationService(RiskListRuntimeRepository riskListRuntimeRepository,
                                  RiskAuditRecordPublisher auditRecordPublisher,
                                  RiskEvaluationProperties properties) {
+        this(riskListRuntimeRepository, auditRecordPublisher, properties, Runnable::run);
+    }
+
+    DefaultRiskEvaluationService(RiskListRuntimeRepository riskListRuntimeRepository,
+                                 RiskAuditRecordPublisher auditRecordPublisher,
+                                 RiskEvaluationProperties properties,
+                                 Executor readOnlyEvaluationExecutor) {
         this.riskListRuntimeRepository = riskListRuntimeRepository;
         this.valueNormalizer = new RiskRuntimeValueNormalizer();
         this.auditRecordPublisher = auditRecordPublisher;
         this.properties = properties == null ? new RiskEvaluationProperties() : properties;
+        this.readOnlyEvaluationExecutor = readOnlyEvaluationExecutor == null ? Runnable::run : readOnlyEvaluationExecutor;
     }
 
     /**
@@ -269,22 +295,29 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                     buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.IP_WHITELIST_MISSED, riskRecordNo),
                     details);
         }
-        Optional<RiskListMatch> sourceUrlMiss = findSourceUrlRestrictionMiss(requestDTO, context);
-        sourceUrlMiss.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_MISS)));
-        if (sourceUrlMiss.isPresent()) {
-            return RiskEvaluationOutcome.of(
-                    buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.SOURCE_URL_NOT_ALLOWED, riskRecordNo),
-                    details);
+        if (!isHostedCheckout(requestDTO)) {
+            Optional<RiskListMatch> sourceUrlMiss = findSourceUrlRestrictionMiss(requestDTO, context);
+            sourceUrlMiss.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_MISS)));
+            if (sourceUrlMiss.isPresent()) {
+                return RiskEvaluationOutcome.of(
+                        buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.SOURCE_URL_NOT_ALLOWED, riskRecordNo),
+                        details);
+            }
+            Optional<RiskListMatch> sourceUrlRule = findSourceUrlRule(requestDTO, context);
+            sourceUrlRule.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_HIT)));
+            if (sourceUrlRule.isPresent() && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(sourceUrlRule.get().getDecisionAction())) {
+                return RiskEvaluationOutcome.of(
+                        buildResult(resolveDecision(sourceUrlRule.get(), RiskDecisionEnum.REVIEW),
+                                RiskReasonCodeEnum.RULE_HIT, riskRecordNo),
+                        details);
+            }
         }
-        Optional<RiskListMatch> sourceUrlRule = findSourceUrlRule(requestDTO, context);
-        sourceUrlRule.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_HIT)));
-        if (sourceUrlRule.isPresent() && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(sourceUrlRule.get().getDecisionAction())) {
-            return RiskEvaluationOutcome.of(
-                    buildResult(resolveDecision(sourceUrlRule.get(), RiskDecisionEnum.REVIEW),
-                            RiskReasonCodeEnum.RULE_HIT, riskRecordNo),
-                    details);
-        }
-        List<RiskListMatch> amlDetails = evaluateAmlChecks(requestDTO, context);
+        ReadOnlyEvaluation readOnlyEvaluation = properties.isReadOnlyParallelEnabled()
+                ? evaluateReadOnlyGroups(requestDTO, context)
+                : null;
+        List<RiskListMatch> amlDetails = readOnlyEvaluation == null
+                ? evaluateAmlChecks(requestDTO, context)
+                : readOnlyEvaluation.amlDetails();
         details.addAll(amlDetails);
         Optional<RiskListMatch> amlBlockingDetail = firstBlockingDetail(amlDetails);
         if (amlBlockingDetail.isPresent()) {
@@ -293,14 +326,20 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                             RiskReasonCodeEnum.AML_HIT, riskRecordNo),
                     details);
         }
-        Optional<RiskListMatch> listBlockHit = evaluateBlackWhiteArbitration(requestDTO, context, details);
+        BlackWhiteEvaluation blackWhiteEvaluation = readOnlyEvaluation == null
+                ? evaluateBlackWhiteChecks(requestDTO, context)
+                : readOnlyEvaluation.blackWhiteEvaluation();
+        Optional<RiskListMatch> listBlockHit = evaluateBlackWhiteArbitration(blackWhiteEvaluation, details);
         if (listBlockHit.isPresent()) {
             return RiskEvaluationOutcome.of(
                     buildResult(resolveDecision(listBlockHit.get(), RiskDecisionEnum.REJECT),
                             RiskReasonCodeEnum.BLACKLIST_HIT, riskRecordNo),
                     details);
         }
-        Optional<RiskListMatch> limitHit = findMerchantLimitRule(requestDTO);
+        MerchantLimitReadOnlyEvaluation merchantLimitEvaluation = readOnlyEvaluation == null
+                ? evaluateMerchantLimitReadOnly(requestDTO)
+                : readOnlyEvaluation.merchantLimitEvaluation();
+        Optional<RiskListMatch> limitHit = merchantLimitEvaluation.limitHit();
         limitHit.ifPresent(match -> details.add(stage(match, STAGE_MERCHANT_LIMIT, MATCH_HIT)));
         if (limitHit.isPresent() && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(limitHit.get().getDecisionAction())) {
             return RiskEvaluationOutcome.of(
@@ -322,9 +361,11 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                             RiskReasonCodeEnum.RULE_HIT, riskRecordNo),
                     details);
         }
-        if (limitHit.isEmpty() && cumulativeLimitDetails.isEmpty() && hasActiveMerchantLimitRule(requestDTO)) {
+        if (limitHit.isEmpty() && cumulativeLimitDetails.isEmpty()
+                && merchantLimitEvaluation.activeMerchantLimitRule()) {
             details.add(checkpoint(STAGE_MERCHANT_LIMIT, MATCH_PASS, RiskDecisionEnum.PASS, "本笔交易未触发商户交易限额，放行"));
         }
+        boolean retainFrequencySuccessReservations = false;
         try {
             List<RiskListMatch> frequencyDetails = evaluateFrequencyRules(requestDTO, context).stream()
                     .map(match -> stage(
@@ -356,9 +397,14 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                         buildResult(RiskDecisionEnum.REQUIRE_3DS, RiskReasonCodeEnum.THREE_DS_REQUIRED, riskRecordNo),
                         details);
             }
+            retainFrequencySuccessReservations = true;
         } catch (RuntimeException exception) {
             rollbackMerchantLimitReservations(cumulativeLimitEvaluation);
             throw exception;
+        } finally {
+            if (!retainFrequencySuccessReservations) {
+                releaseFrequencySuccessReservations(requestDTO);
+            }
         }
         if (details.isEmpty()) {
             Optional<RiskEvaluationOutcome> skeletonOutcome = evaluateSkeletonFallback(requestDTO, riskRecordNo);
@@ -377,6 +423,20 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
+     * 释放本次评估已预占但不再可能进入支付成功终态的频控成功名额。
+     *
+     * @param requestDTO 当前风控请求；身份不完整时仓储实现安全忽略
+     */
+    private void releaseFrequencySuccessReservations(RiskPaymentEvaluateRequestDTO requestDTO) {
+        if (requestDTO == null) {
+            return;
+        }
+        riskListRuntimeRepository.releaseFrequencySuccessReservations(
+                requestDTO.getMerchantId(),
+                requestDTO.getTransactionId());
+    }
+
+    /**
      * 一次性归一化本次交易的全部名单查询值。
      *
      * <p>敏感输入只在内存中转换为哈希或脱敏值，后续规则编排不直接使用完整卡号、
@@ -391,10 +451,10 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 ? requestDTO.getCardBin()
                 : requestDTO.getCardNo());
         RiskRuntimeLookupValue ipLookup = valueNormalizer.ip(requestDTO.getPayerIp());
-        RiskRuntimeLookupValue emailLookup = valueNormalizer.email(requestDTO.getBillingEmail());
-        RiskRuntimeLookupValue emailDomainLookup = valueNormalizer.emailDomain(requestDTO.getBillingEmail());
-        RiskRuntimeLookupValue emailUsernameLookup = valueNormalizer.emailUsername(requestDTO.getBillingEmail());
-        RiskRuntimeLookupValue phoneLookup = valueNormalizer.phone(requestDTO.getBillingPhone());
+        RiskRuntimeLookupValue billingEmailLookup = valueNormalizer.email(requestDTO.getBillingEmail());
+        RiskRuntimeLookupValue billingEmailDomainLookup = valueNormalizer.emailDomain(requestDTO.getBillingEmail());
+        RiskRuntimeLookupValue billingEmailUsernameLookup = valueNormalizer.emailUsername(requestDTO.getBillingEmail());
+        RiskRuntimeLookupValue billingPhoneLookup = valueNormalizer.phone(requestDTO.getBillingPhone());
         RiskRuntimeLookupValue tradeCountryLookup = valueNormalizer.country(primaryCountry(requestDTO));
         RiskRuntimeLookupValue billingCountryLookup = valueNormalizer.country(requestDTO.getBillingCountry());
         RiskRuntimeLookupValue issuerCountryLookup = resolveIssuerCountry(cardBinLookup);
@@ -410,17 +470,64 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 requestDTO.getBillingCountry(),
                 requestDTO.getBillingRegion(),
                 requestDTO.getBillingCity());
+        RiskRuntimeLookupValue payerEmailLookup = hasText(requestDTO.getPayerEmail())
+                ? valueNormalizer.email(requestDTO.getPayerEmail()) : null;
+        RiskRuntimeLookupValue payerEmailDomainLookup = hasText(requestDTO.getPayerEmail())
+                ? valueNormalizer.emailDomain(requestDTO.getPayerEmail()) : null;
+        RiskRuntimeLookupValue payerEmailUsernameLookup = hasText(requestDTO.getPayerEmail())
+                ? valueNormalizer.emailUsername(requestDTO.getPayerEmail()) : null;
+        RiskRuntimeLookupValue payerPhoneLookup = hasText(requestDTO.getPayerPhone())
+                ? valueNormalizer.phone(requestDTO.getPayerPhone()) : null;
+        RiskRuntimeLookupValue payerCountryLookup = hasText(requestDTO.getPayerCountry())
+                ? valueNormalizer.country(requestDTO.getPayerCountry()) : null;
+        RiskRuntimeLookupValue payerNameLookup = hasText(requestDTO.getPayerName())
+                ? valueNormalizer.text(requestDTO.getPayerName(), true) : null;
+        RiskRuntimeLookupValue payerAddressLookup = hasText(requestDTO.getPayerAddress())
+                ? valueNormalizer.text(requestDTO.getPayerAddress(), true) : null;
+        RiskRuntimeLookupValue payerZipLookup = hasText(requestDTO.getPayerZip())
+                ? valueNormalizer.postalCode(requestDTO.getPayerZip()) : null;
+        RiskRuntimeLookupValue payerRegionLookup = hasAnyText(
+                requestDTO.getPayerCountry(), requestDTO.getPayerRegion(), requestDTO.getPayerCity())
+                ? valueNormalizer.region(
+                        requestDTO.getPayerCountry(),
+                        requestDTO.getPayerRegion(),
+                        requestDTO.getPayerCity())
+                : null;
+        RiskRuntimeLookupValue payerIdLookup = hasText(requestDTO.getPayerId())
+                ? valueNormalizer.text(requestDTO.getPayerId(), true) : null;
         RiskRuntimeLookupValue shippingAddressLookup = valueNormalizer.text(requestDTO.getShippingAddress(), true);
         RiskRuntimeLookupValue shippingZipLookup = valueNormalizer.postalCode(requestDTO.getShippingZip());
         RiskRuntimeLookupValue shippingCountryLookup = valueNormalizer.country(requestDTO.getShippingCountry());
+        RiskRuntimeLookupValue shippingNameLookup = hasText(requestDTO.getShippingName())
+                ? valueNormalizer.text(requestDTO.getShippingName(), true) : null;
+        RiskRuntimeLookupValue shippingEmailLookup = hasText(requestDTO.getShippingEmail())
+                ? valueNormalizer.email(requestDTO.getShippingEmail()) : null;
+        RiskRuntimeLookupValue shippingEmailDomainLookup = hasText(requestDTO.getShippingEmail())
+                ? valueNormalizer.emailDomain(requestDTO.getShippingEmail()) : null;
+        RiskRuntimeLookupValue shippingEmailUsernameLookup = hasText(requestDTO.getShippingEmail())
+                ? valueNormalizer.emailUsername(requestDTO.getShippingEmail()) : null;
+        RiskRuntimeLookupValue shippingPhoneLookup = hasText(requestDTO.getShippingPhone())
+                ? valueNormalizer.phone(requestDTO.getShippingPhone()) : null;
+        RiskRuntimeLookupValue shippingRegionLookup = hasAnyText(
+                requestDTO.getShippingCountry(), requestDTO.getShippingRegion(), requestDTO.getShippingCity())
+                ? valueNormalizer.region(
+                        requestDTO.getShippingCountry(),
+                        requestDTO.getShippingRegion(),
+                        requestDTO.getShippingCity())
+                : null;
         RiskRuntimeLookupValue customerIdLookup = valueNormalizer.text(requestDTO.getCustomerId(), true);
         RiskRuntimeLookupValue deviceFingerprintLookup = valueNormalizer.text(
                 requestDTO.getDeviceFingerprint(), true);
-        return new LookupContext(cardNoLookup, cardFingerprintLookup, cardBinLookup, ipLookup, emailLookup,
-                emailDomainLookup, emailUsernameLookup, phoneLookup, tradeCountryLookup, billingCountryLookup,
+        return new LookupContext(cardNoLookup, cardFingerprintLookup, cardBinLookup, ipLookup, billingEmailLookup,
+                billingEmailDomainLookup, billingEmailUsernameLookup, billingPhoneLookup,
+                tradeCountryLookup, billingCountryLookup,
                 issuerCountryLookup, sourceHostLookup, cardholderNameLookup, legalPersonLookup, enterpriseLookup,
                 merchantBillingAddressLookup, billingAddressLookup, billingZipLookup, billingRegionLookup,
-                shippingAddressLookup, shippingZipLookup, shippingCountryLookup, customerIdLookup,
+                payerEmailLookup, payerEmailDomainLookup, payerEmailUsernameLookup, payerPhoneLookup,
+                payerCountryLookup, payerNameLookup, payerAddressLookup, payerZipLookup, payerRegionLookup,
+                payerIdLookup, shippingAddressLookup, shippingZipLookup, shippingCountryLookup,
+                shippingNameLookup, shippingEmailLookup, shippingEmailDomainLookup,
+                shippingEmailUsernameLookup, shippingPhoneLookup, shippingRegionLookup, customerIdLookup,
                 deviceFingerprintLookup);
     }
 
@@ -458,6 +565,17 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
+     * 判断当前请求是否由平台 Hosted Checkout 内部链路发起。
+     *
+     * @param requestDTO 支付风控请求
+     * @return 可信来源标识为 HOSTED_CHECKOUT 时返回 {@code true}
+     */
+    private boolean isHostedCheckout(RiskPaymentEvaluateRequestDTO requestDTO) {
+        return requestDTO != null
+                && REQUEST_SOURCE_HOSTED_CHECKOUT.equals(requestDTO.getRequestSource());
+    }
+
+    /**
      * 执行商户、卡、IP、国家、邮箱、电话和设备等全部白名单节点。
      *
      * @return 每个存在启用规则节点的 HIT 或 MISS 明细
@@ -469,13 +587,23 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 new ListCheck(RiskListFunction.WHITE_CARD_NO, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.WHITE_CARD_FINGERPRINT, context.cardFingerprintLookup()),
                 new ListCheck(RiskListFunction.WHITE_CARD_BIN, context.cardBinLookup()),
-                new ListCheck(RiskListFunction.WHITE_TRADE_COUNTRY, context.tradeCountryLookup()),
+                new ListCheck(RiskListFunction.WHITE_TRADE_COUNTRY, context.tradeCountryLookup(),
+                        tradeCountryAuditElement(requestDTO)),
                 new ListCheck(RiskListFunction.WHITE_ISSUER_COUNTRY, context.issuerCountryLookup()),
-                new ListCheck(RiskListFunction.WHITE_IP, context.ipLookup()),
-                new ListCheck(RiskListFunction.WHITE_EMAIL, context.emailLookup()),
-                new ListCheck(RiskListFunction.WHITE_EMAIL_DOMAIN, context.emailDomainLookup()),
-                new ListCheck(RiskListFunction.WHITE_PHONE, context.phoneLookup()),
-                new ListCheck(RiskListFunction.WHITE_CUSTOMER_ID, context.customerIdLookup()),
+                new ListCheck(RiskListFunction.WHITE_IP, context.ipLookup(), "payerIp"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL, context.billingEmailLookup(), "billingEmail"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL_DOMAIN, context.billingEmailDomainLookup(), "billingEmailDomain"),
+                new ListCheck(RiskListFunction.WHITE_PHONE, context.billingPhoneLookup(), "billingPhone"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL, context.payerEmailLookup(), "payerEmail"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL_DOMAIN, context.payerEmailDomainLookup(), "payerEmailDomain"),
+                new ListCheck(RiskListFunction.WHITE_PHONE, context.payerPhoneLookup(), "payerPhone"),
+                new ListCheck(RiskListFunction.WHITE_TRADE_COUNTRY, context.payerCountryLookup(), "payerCountry"),
+                new ListCheck(RiskListFunction.WHITE_CUSTOMER_ID, context.payerIdLookup(), "payerId"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL, context.shippingEmailLookup(), "shippingEmail"),
+                new ListCheck(RiskListFunction.WHITE_EMAIL_DOMAIN, context.shippingEmailDomainLookup(), "shippingEmailDomain"),
+                new ListCheck(RiskListFunction.WHITE_PHONE, context.shippingPhoneLookup(), "shippingPhone"),
+                new ListCheck(RiskListFunction.WHITE_TRADE_COUNTRY, context.shippingCountryLookup(), "shippingCountry"),
+                new ListCheck(RiskListFunction.WHITE_CUSTOMER_ID, context.customerIdLookup(), "customerId"),
                 new ListCheck(RiskListFunction.WHITE_DEVICE_FINGERPRINT, context.deviceFingerprintLookup())
         ));
     }
@@ -490,23 +618,52 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         return evaluateListChecks(requestDTO.getMerchantId(), STAGE_BLACK_WHITE, List.of(
                 new ListCheck(RiskListFunction.BLACK_CARD_NO, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.BLACK_CARD_FINGERPRINT, context.cardFingerprintLookup()),
-                new ListCheck(RiskListFunction.BLACK_IP, context.ipLookup()),
+                new ListCheck(RiskListFunction.BLACK_IP, context.ipLookup(), "payerIp"),
                 new ListCheck(RiskListFunction.BLACK_CARD_BIN, context.cardBinLookup()),
-                new ListCheck(RiskListFunction.BLACK_CARDHOLDER_NAME, context.cardholderNameLookup()),
-                new ListCheck(RiskListFunction.BLACK_EMAIL, context.emailLookup()),
-                new ListCheck(RiskListFunction.BLACK_EMAIL_DOMAIN, context.emailDomainLookup()),
-                new ListCheck(RiskListFunction.BLACK_EMAIL_USERNAME, context.emailUsernameLookup()),
-                new ListCheck(RiskListFunction.BLACK_PHONE, context.phoneLookup()),
-                new ListCheck(RiskListFunction.BLACK_REGION, context.billingRegionLookup()),
-                new ListCheck(RiskListFunction.BLACK_BILLING_ADDRESS, context.billingAddressLookup()),
-                new ListCheck(RiskListFunction.BLACK_BILLING_ZIP, context.billingZipLookup()),
-                new ListCheck(RiskListFunction.BLACK_BILLING_COUNTRY, context.billingCountryLookup()),
-                new ListCheck(RiskListFunction.BLACK_SHIPPING_ADDRESS, context.shippingAddressLookup()),
-                new ListCheck(RiskListFunction.BLACK_SHIPPING_ZIP, context.shippingZipLookup()),
-                new ListCheck(RiskListFunction.BLACK_SHIPPING_COUNTRY, context.shippingCountryLookup()),
+                new ListCheck(RiskListFunction.BLACK_CARDHOLDER_NAME, context.cardholderNameLookup(), "billingName"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL, context.billingEmailLookup(), "billingEmail"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_DOMAIN, context.billingEmailDomainLookup(), "billingEmailDomain"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_USERNAME, context.billingEmailUsernameLookup(), "billingEmailUsername"),
+                new ListCheck(RiskListFunction.BLACK_PHONE, context.billingPhoneLookup(), "billingPhone"),
+                new ListCheck(RiskListFunction.BLACK_REGION, context.billingRegionLookup(), "billingRegion"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_ADDRESS, context.billingAddressLookup(), "billingAddress"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_ZIP, context.billingZipLookup(), "billingZip"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_COUNTRY, context.billingCountryLookup(), "billingCountry"),
+                new ListCheck(RiskListFunction.BLACK_CARDHOLDER_NAME, context.payerNameLookup(), "payerName"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL, context.payerEmailLookup(), "payerEmail"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_DOMAIN, context.payerEmailDomainLookup(), "payerEmailDomain"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_USERNAME, context.payerEmailUsernameLookup(), "payerEmailUsername"),
+                new ListCheck(RiskListFunction.BLACK_PHONE, context.payerPhoneLookup(), "payerPhone"),
+                new ListCheck(RiskListFunction.BLACK_REGION, context.payerRegionLookup(), "payerRegion"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_ADDRESS, context.payerAddressLookup(), "payerAddress"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_ZIP, context.payerZipLookup(), "payerZip"),
+                new ListCheck(RiskListFunction.BLACK_BILLING_COUNTRY, context.payerCountryLookup(), "payerCountry"),
+                new ListCheck(RiskListFunction.BLACK_CARDHOLDER_NAME, context.shippingNameLookup(), "shippingName"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL, context.shippingEmailLookup(), "shippingEmail"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_DOMAIN, context.shippingEmailDomainLookup(), "shippingEmailDomain"),
+                new ListCheck(RiskListFunction.BLACK_EMAIL_USERNAME, context.shippingEmailUsernameLookup(), "shippingEmailUsername"),
+                new ListCheck(RiskListFunction.BLACK_PHONE, context.shippingPhoneLookup(), "shippingPhone"),
+                new ListCheck(RiskListFunction.BLACK_REGION, context.shippingRegionLookup(), "shippingRegion"),
+                new ListCheck(RiskListFunction.BLACK_SHIPPING_ADDRESS, context.shippingAddressLookup(), "shippingAddress"),
+                new ListCheck(RiskListFunction.BLACK_SHIPPING_ZIP, context.shippingZipLookup(), "shippingZip"),
+                new ListCheck(RiskListFunction.BLACK_SHIPPING_COUNTRY, context.shippingCountryLookup(), "shippingCountry"),
                 new ListCheck(RiskListFunction.BLACK_ISSUER_COUNTRY, context.issuerCountryLookup()),
                 new ListCheck(RiskListFunction.BLACK_DEVICE_FINGERPRINT, context.deviceFingerprintLookup())
         ));
+    }
+
+    /**
+     * 查询完整黑白名单明细，但不在工作线程内执行最终仲裁或修改主线程审计集合。
+     *
+     * @param requestDTO 当前支付风控请求
+     * @param context 已归一化的只读查询上下文
+     * @return 可由请求线程按固定阶段顺序仲裁的不可变查询结果
+     */
+    private BlackWhiteEvaluation evaluateBlackWhiteChecks(RiskPaymentEvaluateRequestDTO requestDTO,
+                                                           LookupContext context) {
+        return new BlackWhiteEvaluation(
+                List.copyOf(evaluateWhitelistChecks(requestDTO, context)),
+                List.copyOf(evaluateBlacklistChecks(requestDTO, context)));
     }
 
     /**
@@ -514,14 +671,14 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      *
      * <p>每个等级均先判断白名单，再判断同等级黑名单；强等级先于优先和弱等级。</p>
      *
+     * @param evaluation 已完成查询的黑白名单只读结果
      * @param details 接收全部黑白名单节点审计明细
      * @return 仲裁后的首条阻断黑名单；白名单优先或均未阻断时返回空
      */
-    private Optional<RiskListMatch> evaluateBlackWhiteArbitration(RiskPaymentEvaluateRequestDTO requestDTO,
-                                                                  LookupContext context,
+    private Optional<RiskListMatch> evaluateBlackWhiteArbitration(BlackWhiteEvaluation evaluation,
                                                                   List<RiskListMatch> details) {
-        List<RiskListMatch> whitelistDetails = evaluateWhitelistChecks(requestDTO, context);
-        List<RiskListMatch> blacklistDetails = evaluateBlacklistChecks(requestDTO, context);
+        List<RiskListMatch> whitelistDetails = evaluation.whitelistDetails();
+        List<RiskListMatch> blacklistDetails = evaluation.blacklistDetails();
         details.addAll(whitelistDetails);
         details.addAll(blacklistDetails);
         List<RiskListMatch> whitelistMatches = whitelistDetails.stream()
@@ -565,12 +722,23 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 new ListCheck(RiskListFunction.AML_CARD, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.AML_CARD_BIN, context.cardBinLookup()),
                 new ListCheck(RiskListFunction.AML_COUNTRY, context.issuerCountryLookup(), "issuerCountry"),
-                new ListCheck(RiskListFunction.AML_IP, context.ipLookup()),
-                new ListCheck(RiskListFunction.AML_COUNTRY, context.tradeCountryLookup(), "tradeCountry"),
-                new ListCheck(RiskListFunction.AML_EMAIL, context.emailLookup(), "email"),
-                new ListCheck(RiskListFunction.AML_EMAIL, context.emailDomainLookup(), "emailDomain"),
-                new ListCheck(RiskListFunction.AML_PHONE, context.phoneLookup()),
-                new ListCheck(RiskListFunction.AML_CARDHOLDER_NAME, context.cardholderNameLookup()),
+                new ListCheck(RiskListFunction.AML_IP, context.ipLookup(), "payerIp"),
+                new ListCheck(RiskListFunction.AML_COUNTRY, context.tradeCountryLookup(),
+                        tradeCountryAuditElement(requestDTO)),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.billingEmailLookup(), "billingEmail"),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.billingEmailDomainLookup(), "billingEmailDomain"),
+                new ListCheck(RiskListFunction.AML_PHONE, context.billingPhoneLookup(), "billingPhone"),
+                new ListCheck(RiskListFunction.AML_CARDHOLDER_NAME, context.cardholderNameLookup(), "billingName"),
+                new ListCheck(RiskListFunction.AML_COUNTRY, context.payerCountryLookup(), "payerCountry"),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.payerEmailLookup(), "payerEmail"),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.payerEmailDomainLookup(), "payerEmailDomain"),
+                new ListCheck(RiskListFunction.AML_PHONE, context.payerPhoneLookup(), "payerPhone"),
+                new ListCheck(RiskListFunction.AML_CARDHOLDER_NAME, context.payerNameLookup(), "payerName"),
+                new ListCheck(RiskListFunction.AML_COUNTRY, context.shippingCountryLookup(), "shippingCountry"),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.shippingEmailLookup(), "shippingEmail"),
+                new ListCheck(RiskListFunction.AML_EMAIL, context.shippingEmailDomainLookup(), "shippingEmailDomain"),
+                new ListCheck(RiskListFunction.AML_PHONE, context.shippingPhoneLookup(), "shippingPhone"),
+                new ListCheck(RiskListFunction.AML_CARDHOLDER_NAME, context.shippingNameLookup(), "shippingName"),
                 new ListCheck(RiskListFunction.AML_LEGAL_PERSON, context.legalPersonLookup()),
                 new ListCheck(RiskListFunction.AML_ENTERPRISE, context.enterpriseLookup()),
                 new ListCheck(RiskListFunction.AML_MERCHANT_BILLING_ADDRESS,
@@ -598,6 +766,103 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             return Optional.empty();
         }
         return riskListRuntimeRepository.findMerchantLimitRule(requestDTO.getMerchantId(), requestDTO.getAmount(), requestDTO.getCurrency());
+    }
+
+    /**
+     * 查询单笔限额命中和启用状态，不执行累计限额预占。
+     *
+     * @param requestDTO 当前支付风控请求
+     * @return 单笔规则命中及启用状态快照
+     */
+    private MerchantLimitReadOnlyEvaluation evaluateMerchantLimitReadOnly(
+            RiskPaymentEvaluateRequestDTO requestDTO) {
+        return new MerchantLimitReadOnlyEvaluation(
+                findMerchantLimitRule(requestDTO),
+                hasActiveMerchantLimitRule(requestDTO));
+    }
+
+    /**
+     * 并发执行三个相互独立且无业务副作用的只读风控组。
+     *
+     * <p>三个任务共享同一超时边界；任一任务超时、异常或提交失败均取消其余结果并抛出
+     * 受控服务异常，由支付调用方按风控不可用拒绝交易。最终风险优先级仍在请求线程仲裁。</p>
+     *
+     * @param requestDTO 当前支付风控请求
+     * @param context 已归一化的只读查询上下文
+     * @return 三个只读规则组的不可变结果快照
+     */
+    private ReadOnlyEvaluation evaluateReadOnlyGroups(RiskPaymentEvaluateRequestDTO requestDTO,
+                                                       LookupContext context) {
+        List<CompletableFuture<?>> futures = new ArrayList<>(3);
+        long deadlineNanos = System.nanoTime()
+                + TimeUnit.MILLISECONDS.toNanos(properties.getReadOnlyTimeoutMillis());
+        try {
+            CompletableFuture<List<RiskListMatch>> amlFuture = CompletableFuture.supplyAsync(
+                    () -> List.copyOf(evaluateAmlChecks(requestDTO, context)),
+                    readOnlyEvaluationExecutor);
+            futures.add(amlFuture);
+            CompletableFuture<BlackWhiteEvaluation> blackWhiteFuture = CompletableFuture.supplyAsync(
+                    () -> evaluateBlackWhiteChecks(requestDTO, context),
+                    readOnlyEvaluationExecutor);
+            futures.add(blackWhiteFuture);
+            CompletableFuture<MerchantLimitReadOnlyEvaluation> merchantLimitFuture = CompletableFuture.supplyAsync(
+                    () -> evaluateMerchantLimitReadOnly(requestDTO),
+                    readOnlyEvaluationExecutor);
+            futures.add(merchantLimitFuture);
+
+            long remainingNanos = deadlineNanos - System.nanoTime();
+            if (remainingNanos <= 0) {
+                throw new TimeoutException("read-only risk task submission exceeded the shared timeout");
+            }
+            CompletableFuture.allOf(amlFuture, blackWhiteFuture, merchantLimitFuture)
+                    .get(remainingNanos, TimeUnit.NANOSECONDS);
+            return new ReadOnlyEvaluation(
+                    amlFuture.get(),
+                    blackWhiteFuture.get(),
+                    merchantLimitFuture.get());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            cancelReadOnlyFutures(futures);
+            throw readOnlyEvaluationUnavailable("INTERRUPTED", exception);
+        } catch (TimeoutException exception) {
+            cancelReadOnlyFutures(futures);
+            throw readOnlyEvaluationUnavailable("TIMEOUT", exception);
+        } catch (ExecutionException exception) {
+            cancelReadOnlyFutures(futures);
+            Throwable cause = exception.getCause() == null ? exception : exception.getCause();
+            throw readOnlyEvaluationUnavailable("EXECUTION_ERROR", cause);
+        } catch (RuntimeException exception) {
+            cancelReadOnlyFutures(futures);
+            throw readOnlyEvaluationUnavailable("SUBMISSION_ERROR", exception);
+        }
+    }
+
+    /**
+     * 尽力取消尚未完成的只读任务；任务只允许读缓存和数据库，不包含预占或状态更新。
+     *
+     * @param futures 本次评估已成功提交的任务
+     */
+    private void cancelReadOnlyFutures(List<CompletableFuture<?>> futures) {
+        futures.forEach(future -> future.cancel(true));
+    }
+
+    /**
+     * 记录不含敏感输入的失败摘要并构建统一服务异常。
+     *
+     * @param failureType 受控失败分类
+     * @param cause 原始失败原因
+     * @return 交给内部接口异常处理器的失败关闭异常
+     */
+    private ServiceException readOnlyEvaluationUnavailable(String failureType, Throwable cause) {
+        log.error("event: RISK_READ_ONLY_EVALUATION_FAILED stage=READ_ONLY_PARALLEL traceId: {} failureType: {} exceptionType: {} timeoutMillis: {}",
+                TraceContext.getTraceId(),
+                failureType,
+                cause == null ? "Unknown" : cause.getClass().getSimpleName(),
+                properties.getReadOnlyTimeoutMillis());
+        return new ServiceException(
+                ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                "risk read-only evaluation is unavailable",
+                cause);
     }
 
     /**
@@ -658,6 +923,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         }
         return riskListRuntimeRepository.findThreeDsRule(
                 requestDTO.getMerchantId(),
+                requestDTO.getChannelCode(),
                 requestDTO.getPaymentMethod(),
                 requestDTO.getCardBrand(),
                 requestDTO.getAmount(),
@@ -681,8 +947,8 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 context.cardNoLookup(),
                 context.cardFingerprintLookup(),
                 context.ipLookup(),
-                context.emailLookup(),
-                context.phoneLookup(),
+                context.billingEmailLookup(),
+                context.billingPhoneLookup(),
                 context.customerIdLookup(),
                 context.deviceFingerprintLookup()
         );
@@ -718,6 +984,9 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                                    List<ListCheck> checks) {
         List<RiskListMatch> details = new ArrayList<>();
         for (ListCheck check : checks) {
+            if (check.lookupValue() == null) {
+                continue;
+            }
             Optional<RiskListMatch> matched = findMatch(check.function(), merchantId, check.lookupValue());
             if (matched.isPresent()) {
                 RiskListMatch detail = copyMatch(matched.get());
@@ -1086,6 +1355,29 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         return requestDTO.getSubMerchantCountryCode();
     }
 
+    /** Return an audit label that preserves whether the transaction country came from billing or sub-merchant data. */
+    private String tradeCountryAuditElement(RiskPaymentEvaluateRequestDTO requestDTO) {
+        return hasText(requestDTO.getBillingCountry()) ? "billingCountry" : "tradeCountry";
+    }
+
+    /** Check one optional risk input without converting missing personal data into an EMPTY lookup. */
+    private boolean hasText(String value) {
+        return StringUtils.hasText(value);
+    }
+
+    /** Check whether a composite address dimension has at least one merchant-provided component. */
+    private boolean hasAnyText(String... values) {
+        if (values == null) {
+            return false;
+        }
+        for (String value : values) {
+            if (hasText(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 计算已执行节点中的最高风险等级，供后续 3DS 规则判断。
      */
@@ -1149,8 +1441,39 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         message.setDecisionReason(outcome.getResult().getReasonMessage());
         message.setHitCount(hitCount(outcome.getHits(), outcome.getResult().getDecision()));
         message.setEvaluationTime(outcome.getResult().getDecisionTime());
-        message.setHits(outcome.getHits());
+        message.setHits(outcome.getHits().stream().map(this::toAuditHitMessage).toList());
         auditRecordPublisher.publish(message);
+    }
+
+    /**
+     * 将 Risk 内部命中模型转换为跨服务 MQ DTO，阻止消费者依赖 Risk 领域包。
+     *
+     * @param match 已完成脱敏的风控执行明细
+     * @return 仅包含审计字段的 MQ 命中明细
+     */
+    private RiskAuditHitMessage toAuditHitMessage(RiskListMatch match) {
+        RiskAuditHitMessage message = new RiskAuditHitMessage();
+        message.setRuleId(match.getRuleId());
+        message.setModuleType(match.getModuleType());
+        message.setFunctionCode(match.getFunctionCode());
+        message.setFunctionName(match.getFunctionName());
+        message.setHitElement(match.getHitElement());
+        message.setHitValueMasked(match.getHitValueMasked());
+        message.setRiskLevel(match.getRiskLevel());
+        message.setDecisionAction(match.getDecisionAction());
+        message.setDecisionReason(match.getDecisionReason());
+        message.setTimeWindowSeconds(match.getTimeWindowSeconds());
+        message.setThresholdCount(match.getThresholdCount());
+        message.setElementsJson(match.getElementsJson());
+        message.setCurrentCount(match.getCurrentCount());
+        message.setAmountLimit(match.getAmountLimit());
+        message.setCurrentAmount(match.getCurrentAmount());
+        message.setStageCode(match.getStageCode());
+        message.setStageName(match.getStageName());
+        message.setStageOrder(match.getStageOrder());
+        message.setMatchResult(match.getMatchResult());
+        message.setDecisionEffect(match.getDecisionEffect());
+        return message;
     }
 
     /**
@@ -1287,10 +1610,10 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                  RiskRuntimeLookupValue cardFingerprintLookup,
                                  RiskRuntimeLookupValue cardBinLookup,
                                  RiskRuntimeLookupValue ipLookup,
-                                 RiskRuntimeLookupValue emailLookup,
-                                 RiskRuntimeLookupValue emailDomainLookup,
-                                 RiskRuntimeLookupValue emailUsernameLookup,
-                                 RiskRuntimeLookupValue phoneLookup,
+                                 RiskRuntimeLookupValue billingEmailLookup,
+                                 RiskRuntimeLookupValue billingEmailDomainLookup,
+                                 RiskRuntimeLookupValue billingEmailUsernameLookup,
+                                 RiskRuntimeLookupValue billingPhoneLookup,
                                  RiskRuntimeLookupValue tradeCountryLookup,
                                  RiskRuntimeLookupValue billingCountryLookup,
                                  RiskRuntimeLookupValue issuerCountryLookup,
@@ -1302,11 +1625,43 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                  RiskRuntimeLookupValue billingAddressLookup,
                                  RiskRuntimeLookupValue billingZipLookup,
                                  RiskRuntimeLookupValue billingRegionLookup,
+                                 RiskRuntimeLookupValue payerEmailLookup,
+                                 RiskRuntimeLookupValue payerEmailDomainLookup,
+                                 RiskRuntimeLookupValue payerEmailUsernameLookup,
+                                 RiskRuntimeLookupValue payerPhoneLookup,
+                                 RiskRuntimeLookupValue payerCountryLookup,
+                                 RiskRuntimeLookupValue payerNameLookup,
+                                 RiskRuntimeLookupValue payerAddressLookup,
+                                 RiskRuntimeLookupValue payerZipLookup,
+                                 RiskRuntimeLookupValue payerRegionLookup,
+                                 RiskRuntimeLookupValue payerIdLookup,
                                  RiskRuntimeLookupValue shippingAddressLookup,
                                  RiskRuntimeLookupValue shippingZipLookup,
                                  RiskRuntimeLookupValue shippingCountryLookup,
+                                 RiskRuntimeLookupValue shippingNameLookup,
+                                 RiskRuntimeLookupValue shippingEmailLookup,
+                                 RiskRuntimeLookupValue shippingEmailDomainLookup,
+                                 RiskRuntimeLookupValue shippingEmailUsernameLookup,
+                                 RiskRuntimeLookupValue shippingPhoneLookup,
+                                 RiskRuntimeLookupValue shippingRegionLookup,
                                  RiskRuntimeLookupValue customerIdLookup,
                                  RiskRuntimeLookupValue deviceFingerprintLookup) {
+    }
+
+    /** 三个独立只读规则组完成后交给请求线程确定性汇总的结果。 */
+    private record ReadOnlyEvaluation(List<RiskListMatch> amlDetails,
+                                      BlackWhiteEvaluation blackWhiteEvaluation,
+                                      MerchantLimitReadOnlyEvaluation merchantLimitEvaluation) {
+    }
+
+    /** 白名单与黑名单查询明细，列表顺序与规则声明顺序一致。 */
+    private record BlackWhiteEvaluation(List<RiskListMatch> whitelistDetails,
+                                        List<RiskListMatch> blacklistDetails) {
+    }
+
+    /** 单笔限额命中和启用状态，不包含累计限额预占结果。 */
+    private record MerchantLimitReadOnlyEvaluation(Optional<RiskListMatch> limitHit,
+                                                   boolean activeMerchantLimitRule) {
     }
 
     private record Stage(String code, String name, int order) {

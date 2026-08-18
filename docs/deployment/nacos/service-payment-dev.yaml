@@ -1,25 +1,109 @@
 # service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
 payment:
+  checkout:
+    card-vault:
+      # 表、分片规则、Topic、消费组和 service-data 密钥全部完成发布后再开启。
+      enabled: ${CHECKOUT_CARD_VAULT_PUBLISH_ENABLED:false}
+      key-id: ${CHECKOUT_CARD_VAULT_TRANSFER_KEY_ID:checkout-card-vault-v1}
+      public-key-x509-base64: ${CHECKOUT_CARD_VAULT_TRANSFER_PUBLIC_KEY_X509_BASE64:}
+  refund:
+    management:
+      # dev 已完成退款管理数据库迁移，默认开启查询和来源字段能力；其他环境仍需单独发布。
+      enabled: ${PAYMENT_REFUND_MANAGEMENT_ENABLED:true}
+      approval-enabled: ${PAYMENT_REFUND_APPROVAL_ENABLED:false}
+      approval-policy: ${PAYMENT_REFUND_APPROVAL_POLICY:NONE}
+      approval-expire-minutes: ${PAYMENT_REFUND_APPROVAL_EXPIRE_MINUTES:1440}
+      execution-mq-enabled: ${PAYMENT_REFUND_EXECUTION_MQ_ENABLED:false}
+      recovery-enabled: ${PAYMENT_REFUND_RECOVERY_ENABLED:false}
+      expiration-batch-size: ${PAYMENT_REFUND_EXPIRATION_BATCH_SIZE:100}
+      execution-recovery-batch-size: ${PAYMENT_REFUND_EXECUTION_RECOVERY_BATCH_SIZE:100}
+      execution-recovery-stale-seconds: ${PAYMENT_REFUND_EXECUTION_RECOVERY_STALE_SECONDS:300}
+  channel-match:
+    recovery:
+      # INIT 原资金请求仍可能在途，超过该秒数且已保存渠道查询身份后才允许主动勾兑。
+      init-request-grace-seconds: ${PAYMENT_CHANNEL_MATCH_INIT_REQUEST_GRACE_SECONDS:300}
+    abnormal:
+      # dev 完成异常表迁移和 Admin 权限后开启；test/uat/prod 不继承该默认值。
+      enabled: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_ENABLED:true}
+      review-required-threshold: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_THRESHOLD:12}
+      default-level: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_DEFAULT_LEVEL:HIGH}
+  redis:
+    redisson:
+      # 支付准备阶段显式启用全局唯一 Redisson Cluster 客户端和统一分布式锁服务。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
+      enabled: ${PAYMENT_REDIS_REDISSON_ENABLED:true}
+      # 参数说明：配置 Redisson Redis Cluster 节点扫描间隔，使用 Spring Duration。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_SCAN_INTERVAL，dev 配置默认值为 "5s"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      scan-interval: ${PAYMENT_REDIS_REDISSON_SCAN_INTERVAL:5s}
+      # 参数说明：配置 Redisson 命令重试次数；过大可能放大故障期间延迟。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_RETRY_ATTEMPTS，dev 配置默认值为 "3"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      retry-attempts: ${PAYMENT_REDIS_REDISSON_RETRY_ATTEMPTS:3}
+      # 参数说明：配置 Redisson 两次命令重试之间的间隔，使用 Spring Duration。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_RETRY_INTERVAL，dev 配置默认值为 "1s"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      retry-interval: ${PAYMENT_REDIS_REDISSON_RETRY_INTERVAL:1s}
+      # 参数说明：配置 Redisson 到 Master 的最小空闲连接数，需结合实例数和 Redis 连接上限规划。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_MASTER_MIN_IDLE，dev 配置默认值为 "2"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      master-connection-minimum-idle-size: ${PAYMENT_REDIS_REDISSON_MASTER_MIN_IDLE:2}
+      # 参数说明：配置 Redisson 到每个 Master 的连接池上限，需结合并发和 Redis maxclients 规划。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_MASTER_POOL_SIZE，dev 配置默认值为 "16"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      master-connection-pool-size: ${PAYMENT_REDIS_REDISSON_MASTER_POOL_SIZE:16}
+      # 强一致场景固定从 Master 读取，Slave 池仅保留低容量边界，不承担读流量。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_SLAVE_MIN_IDLE，dev 配置默认值为 "0"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      slave-connection-minimum-idle-size: ${PAYMENT_REDIS_REDISSON_SLAVE_MIN_IDLE:0}
+      # 参数说明：配置 Redisson 到每个 Replica 的连接池上限。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_SLAVE_POOL_SIZE，dev 配置默认值为 "8"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      slave-connection-pool-size: ${PAYMENT_REDIS_REDISSON_SLAVE_POOL_SIZE:8}
+      # 参数说明：配置 Redisson 订阅连接最小空闲数，Watchdog 和发布订阅会使用该连接。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_SUBSCRIPTION_MIN_IDLE，dev 配置默认值为 "1"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      subscription-connection-minimum-idle-size: ${PAYMENT_REDIS_REDISSON_SUBSCRIPTION_MIN_IDLE:1}
+      # 参数说明：配置 Redisson 订阅连接池上限，需结合锁数量和发布订阅负载设置。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_SUBSCRIPTION_POOL_SIZE，dev 配置默认值为 "4"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      subscription-connection-pool-size: ${PAYMENT_REDIS_REDISSON_SUBSCRIPTION_POOL_SIZE:4}
+      # 参数说明：配置 Redisson 通用工作线程数，0 表示使用库默认值；需结合 CPU 设置。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_THREADS，dev 配置默认值为 "4"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      threads: ${PAYMENT_REDIS_REDISSON_THREADS:4}
+      # 参数说明：配置 Redisson Netty I/O 线程数，0 表示使用库默认值；需结合 CPU 和实例数设置。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_NETTY_THREADS，dev 配置默认值为 "4"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      netty-threads: ${PAYMENT_REDIS_REDISSON_NETTY_THREADS:4}
+      # 参数说明：配置 Redisson Watchdog 锁续期基准超时，使用 Spring Duration；需覆盖正常业务抖动。
+      # 环境说明：环境变量：PAYMENT_REDIS_REDISSON_WATCHDOG_TIMEOUT，dev 配置默认值为 "30s"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+      lock-watchdog-timeout: ${PAYMENT_REDIS_REDISSON_WATCHDOG_TIMEOUT:30s}
+      # 参数说明：控制 Redisson 启动时是否校验 16384 个 Redis Cluster 槽位完整覆盖。
+      check-slots-coverage: true
+      # 参数说明：控制 Redisson TCP KeepAlive，长连接环境建议开启以发现失效连接。
+      keep-alive: true
+      # 参数说明：控制 Redisson TCP_NODELAY，开启可降低小命令交互延迟。
+      tcp-no-delay: true
   transaction:
+    merchant-notification:
+      # 新建通知任务最多投递 10 次；已有任务继续使用各自落库快照，不在应用启动时批量改写。
+      # 环境说明：环境变量 PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT；允许范围 1-100。
+      max-retry-count: ${PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT:10}
     outbox:
       # 持续投递 transaction_event_outbox；风险预占终态依赖该事件链路。
+      # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_RELAY_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
       relay-enabled: ${PAYMENT_TRANSACTION_OUTBOX_RELAY_ENABLED:true}
+      # 参数说明：配置相邻两次任务完成后的固定等待时间，单位毫秒。
+      # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_FIXED_DELAY_MS，dev 配置默认值为 "5000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_FIXED_DELAY_MS:5000}
+      # 参数说明：配置应用启动后首次执行任务前的等待时间，单位毫秒。
+      # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_INITIAL_DELAY_MS，dev 配置默认值为 "10000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       initial-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_INITIAL_DELAY_MS:10000}
+      # 参数说明：配置单批处理记录数；增大可提高吞吐，但会增加数据库锁持有时间和单次失败影响。
+      # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE，dev 配置默认值为 "100"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       batch-size: ${PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE:100}
-      lookback-quarters: ${PAYMENT_TRANSACTION_OUTBOX_LOOKBACK_QUARTERS:8}
-    merchant-notification:
-      mq:
-        # 商户通知消费者默认关闭，避免未配置 RocketMQ 的环境启动时误注册消费者；需要真实消费时显式设置为 true。
-        enabled: ${PAYMENT_MERCHANT_NOTIFICATION_MQ_ENABLED:false}
   risk-client:
+    # 参数说明：控制是否调用真实远程服务；UAT/生产必须开启并保证服务发现和鉴权可用。
+    # 环境说明：环境变量：PAYMENT_RISK_CLIENT_REMOTE_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     remote-enabled: ${PAYMENT_RISK_CLIENT_REMOTE_ENABLED:true}
+    # 参数说明：控制 Noop 降级实现；仅本地隔离测试允许开启，UAT/生产必须为 false。
+    # 环境说明：环境变量：PAYMENT_RISK_CLIENT_NOOP_ENABLED，dev 配置默认值为 "false"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     noop-enabled: ${PAYMENT_RISK_CLIENT_NOOP_ENABLED:false}
+    # 参数说明：指定内部服务调用方标识，必须与被调用方签名白名单一致。
     internal-caller: service-payment
+    # 参数说明：配置内部服务 HMAC-SHA256 共享密钥，调用方与被调用方必须使用同一环境的密钥。
+    # 环境说明：环境变量：PAYMENT_RISK_INTERNAL_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
     internal-secret: ${PAYMENT_RISK_INTERNAL_SECRET:dev-internal-service-secret}
-  order:
-    # 收单支付平台订单号前缀。
-    prefix: PA
   idempotent:
     # 创建交易幂等锁默认有效期，单位秒。
     create-ttl-seconds: 600

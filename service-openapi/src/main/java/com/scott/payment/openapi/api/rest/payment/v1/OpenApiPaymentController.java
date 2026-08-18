@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-import static com.scott.payment.component.core.model.CommonResult.success;
+import static com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentResponseFactory.from;
 
 /**
  * @author : scott
@@ -63,6 +63,6 @@ public class OpenApiPaymentController {
     public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
                                                        @RequestBody String encryptedData,
                                                        ApiMerchantPaymentRequestDTO requestDTO) {
-        return success(paymentApplicationService.createPayment(encryptedData, requestDTO));
+        return from(paymentApplicationService.createPayment(encryptedData, requestDTO));
     }
 }

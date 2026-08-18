@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Hosted Checkout 会话 Mapper。
@@ -130,6 +131,39 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                          @Param("now") LocalDateTime now);
 
     /**
+     * 核心准备完成后，用当前尝试绑定的预生成标识 CAS 替换为核心权威标识。
+     *
+     * <p>该更新不推进会话状态和乐观锁版本，避免影响紧随其后的 3DS 状态 CAS；
+     * 旧交易标识和 last_attempt_id 共同防止覆盖其他并发尝试。</p>
+     */
+    @Update("""
+            UPDATE payment_checkout_session
+            SET latest_transaction_id = #{latestTransactionId},
+                operation_id = #{operationId},
+                transaction_date_time = #{transactionDateTime},
+                channel_code = #{channelCode},
+                channel_mid_config_id = #{channelMidConfigId},
+                update_time = #{now}
+            WHERE checkout_session_id = #{checkoutSessionId}
+              AND last_attempt_id = #{lastAttemptId}
+              AND latest_transaction_id = #{expectedTransactionId}
+              AND operation_id = #{expectedOperationId}
+              AND checkout_status IN ('PAYING', 'AUTHENTICATING', 'PROCESSING')
+              AND success_attempt_id IS NULL
+              AND deleted = 0
+            """)
+    int syncPreparedIdentityCas(@Param("checkoutSessionId") String checkoutSessionId,
+                                @Param("lastAttemptId") String lastAttemptId,
+                                @Param("expectedTransactionId") String expectedTransactionId,
+                                @Param("expectedOperationId") String expectedOperationId,
+                                @Param("latestTransactionId") String latestTransactionId,
+                                @Param("operationId") String operationId,
+                                @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                @Param("channelCode") String channelCode,
+                                @Param("channelMidConfigId") Long channelMidConfigId,
+                                @Param("now") LocalDateTime now);
+
+    /**
      * 将会话 CAS 推进为支付成功终态。
      *
      * <p>仅允许从支付中间态更新，并要求尚无成功尝试，防止回调或轮询覆盖既有成功归属。</p>
@@ -245,4 +279,40 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                       @Param("processStage") String processStage,
                       @Param("version") Integer version,
                       @Param("now") LocalDateTime now);
+
+    /** 查询已超过付款期限且尚未提交渠道的会话候选。 */
+    @Select("""
+            SELECT *
+            FROM payment_checkout_session
+            WHERE expire_time <= #{now}
+              AND checkout_status IN ('PAYABLE', 'PAYABLE_FAILED_RETRYABLE')
+              AND success_attempt_id IS NULL
+              AND deleted = 0
+            ORDER BY expire_time ASC, id ASC
+            LIMIT #{limit}
+            """)
+    List<PaymentCheckoutSessionDO> selectExpireDue(@Param("now") LocalDateTime now,
+                                                   @Param("limit") int limit);
+
+    /** 将未支付会话按版本 CAS 推进到过期失败状态。 */
+    @Update("""
+            UPDATE payment_checkout_session
+            SET checkout_status = 'EXPIRED',
+                process_stage = 'RESULT_RENDERED',
+                result_snapshot = #{resultSnapshot},
+                last_status_time = #{now},
+                version = version + 1,
+                update_time = #{now}
+            WHERE checkout_session_id = #{checkoutSessionId}
+              AND expire_time <= #{now}
+              AND checkout_status IN ('PAYABLE', 'PAYABLE_FAILED_RETRYABLE')
+              AND success_attempt_id IS NULL
+              AND version = #{version}
+              AND deleted = 0
+            """)
+    int markExpiredCas(@Param("checkoutSessionId") String checkoutSessionId,
+                       @Param("resultSnapshot") String resultSnapshot,
+                       @Param("version") Integer version,
+                       @Param("now") LocalDateTime now);
+
 }

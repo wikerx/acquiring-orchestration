@@ -28,6 +28,9 @@ public interface ShardingGovernanceConverter {
      * @param entity 物理表登记实体
      * @return 物理表响应
      */
+    @Mapping(target = "ruleVersion", ignore = true)
+    @Mapping(target = "ruleChecksumPrefix", ignore = true)
+    @Mapping(target = "nodeRegistered", ignore = true)
     ShardingPhysicalTableResponse toPhysicalTableResponse(SysShardingPhysicalTableDO entity);
 
     /**

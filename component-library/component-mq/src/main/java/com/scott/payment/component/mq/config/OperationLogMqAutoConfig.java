@@ -5,6 +5,8 @@ import com.scott.payment.component.mq.initializer.MqResourceInitializerRunner;
 import com.scott.payment.component.mq.initializer.RocketMqResourceInitializer;
 import com.scott.payment.component.mq.properties.MqResourceInitializerProperties;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
+import com.scott.payment.component.mq.properties.RiskAuditMqProperties;
+import com.scott.payment.component.mq.properties.SecurityAuditMqProperties;
 import com.scott.payment.component.mq.publisher.OperationLogMessageSanitizer;
 import com.scott.payment.component.mq.publisher.OperationLogTopicResolver;
 import org.apache.rocketmq.spring.autoconfigure.RocketMQProperties;
@@ -23,7 +25,12 @@ import org.springframework.context.annotation.Configuration;
  * @status : create
  */
 @Configuration
-@EnableConfigurationProperties({OperationLogMqProperties.class, MqResourceInitializerProperties.class})
+@EnableConfigurationProperties({
+        OperationLogMqProperties.class,
+        RiskAuditMqProperties.class,
+        SecurityAuditMqProperties.class,
+        MqResourceInitializerProperties.class
+})
 public class OperationLogMqAutoConfig {
 
     /**

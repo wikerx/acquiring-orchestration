@@ -8,22 +8,15 @@ import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResu
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
-import com.scott.payment.payment.api.internal.dto.TransactionMerchantNotificationNotifyDueCommandDTO;
-import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.payment.service.TransactionCallbackService;
 import com.scott.payment.payment.service.TransactionChannelMatchService;
 import com.scott.payment.payment.service.TransactionRecordService;
-import com.scott.payment.payment.service.TransactionMerchantNotificationService;
-import com.scott.payment.payment.service.TransactionQueryService;
 import com.scott.payment.payment.service.PaymentTransactionService;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelCallbackQuery;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelLogQuery;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.MerchantNotificationQuery;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionDetailResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionOperationSearchResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionOperationResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionOrderResponse;
-import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionPageQuery;
+import com.scott.payment.payment.service.TransactionLocatorService;
+import com.scott.payment.payment.service.MerchantTransactionSnapshotService;
+import com.scott.payment.payment.service.MerchantTransactionResultDetailService;
+import com.scott.payment.payment.service.dto.MerchantTransactionResultDetailDTO;
+import com.scott.payment.payment.service.dto.MerchantTransactionSnapshotDTO;
 import org.springframework.stereotype.Service;
 
 /**
@@ -37,26 +30,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class PaymentTransactionApplicationService {
-
-    /**
-     * DEFAULT MERCHANT NOTIFICATION NOTIFY LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
-    private static final int DEFAULT_MERCHANT_NOTIFICATION_NOTIFY_LIMIT = 100;
-
-    /**
-     * MAX MERCHANT NOTIFICATION NOTIFY LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
-    private static final int MAX_MERCHANT_NOTIFICATION_NOTIFY_LIMIT = 500;
 
     /**
      * 收单支付交易服务。
@@ -74,19 +47,18 @@ public class PaymentTransactionApplicationService {
     private final TransactionChannelMatchService transactionChannelMatchService;
 
     /**
-     * 交易聚合查询服务。
-     */
-    private final TransactionQueryService transactionQueryService;
-
-    /**
-     * 商户交易结果通知服务。
-     */
-    private final TransactionMerchantNotificationService merchantNotificationService;
-
-    /**
      * 交易事实记录服务，用于回写 OpenAPI 响应加密摘要等审计信息。
      */
     private final TransactionRecordService transactionRecordService;
+
+    /** 交易固定表定位服务，用于补齐商户无需感知的分片路由字段。 */
+    private final TransactionLocatorService transactionLocatorService;
+
+    /** 商户可见交易快照服务，用于同步响应和查询统一回显首次请求资料。 */
+    private final MerchantTransactionSnapshotService merchantTransactionSnapshotService;
+
+    /** 平台生成的 3DS 与财务结果读取服务。 */
+    private final MerchantTransactionResultDetailService merchantTransactionResultDetailService;
 
     /**
      * 创建收单交易应用服务。
@@ -94,22 +66,24 @@ public class PaymentTransactionApplicationService {
      * @param paymentTransactionService 收单支付交易服务
      * @param transactionCallbackService 交易渠道回调服务
      * @param transactionChannelMatchService 渠道交易查询勾兑服务
-     * @param transactionQueryService 交易聚合查询服务
-     * @param merchantNotificationService 商户交易结果通知服务
      * @param transactionRecordService 交易事实记录服务
+     * @param transactionLocatorService 交易固定表定位服务
+     * @param merchantTransactionSnapshotService 商户可见交易快照服务
      */
     public PaymentTransactionApplicationService(PaymentTransactionService paymentTransactionService,
                                                 TransactionCallbackService transactionCallbackService,
                                                 TransactionChannelMatchService transactionChannelMatchService,
-                                                TransactionQueryService transactionQueryService,
-                                                TransactionMerchantNotificationService merchantNotificationService,
-                                                TransactionRecordService transactionRecordService) {
+                                                TransactionRecordService transactionRecordService,
+                                                TransactionLocatorService transactionLocatorService,
+                                                MerchantTransactionSnapshotService merchantTransactionSnapshotService,
+                                                MerchantTransactionResultDetailService merchantTransactionResultDetailService) {
         this.paymentTransactionService = paymentTransactionService;
         this.transactionCallbackService = transactionCallbackService;
         this.transactionChannelMatchService = transactionChannelMatchService;
-        this.transactionQueryService = transactionQueryService;
-        this.merchantNotificationService = merchantNotificationService;
         this.transactionRecordService = transactionRecordService;
+        this.transactionLocatorService = transactionLocatorService;
+        this.merchantTransactionSnapshotService = merchantTransactionSnapshotService;
+        this.merchantTransactionResultDetailService = merchantTransactionResultDetailService;
     }
 
     /**
@@ -119,7 +93,7 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createPayment(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.createPayment(commandDTO);
+        return enrichInitialResult(commandDTO, paymentTransactionService.createPayment(commandDTO));
     }
 
     /**
@@ -129,7 +103,7 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createAuthorization(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.createAuthorization(commandDTO);
+        return enrichInitialResult(commandDTO, paymentTransactionService.createAuthorization(commandDTO));
     }
 
     /**
@@ -139,7 +113,7 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createPreAuthorization(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.createPreAuthorization(commandDTO);
+        return enrichInitialResult(commandDTO, paymentTransactionService.createPreAuthorization(commandDTO));
     }
 
     /**
@@ -149,7 +123,8 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createIncrementalAuthorization(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.createIncrementalAuthorization(commandDTO);
+        transactionLocatorService.enrichFollowUpRoute(commandDTO);
+        return enrichFollowUpResult(commandDTO, paymentTransactionService.createIncrementalAuthorization(commandDTO));
     }
 
     /**
@@ -159,7 +134,8 @@ public class PaymentTransactionApplicationService {
      * @return 请款结果
      */
     public PaymentCreateResultDTO capture(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.capture(commandDTO);
+        transactionLocatorService.enrichFollowUpRoute(commandDTO);
+        return enrichFollowUpResult(commandDTO, paymentTransactionService.capture(commandDTO));
     }
 
     /**
@@ -169,7 +145,8 @@ public class PaymentTransactionApplicationService {
      * @return 预授权完成结果
      */
     public PaymentCreateResultDTO preAuthCompletion(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.preAuthCompletion(commandDTO);
+        transactionLocatorService.enrichFollowUpRoute(commandDTO);
+        return enrichFollowUpResult(commandDTO, paymentTransactionService.preAuthCompletion(commandDTO));
     }
 
     /**
@@ -179,7 +156,8 @@ public class PaymentTransactionApplicationService {
      * @return 退款结果
      */
     public PaymentCreateResultDTO refund(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.refund(commandDTO);
+        transactionLocatorService.enrichFollowUpRoute(commandDTO);
+        return enrichFollowUpResult(commandDTO, paymentTransactionService.refund(commandDTO));
     }
 
     /**
@@ -189,7 +167,8 @@ public class PaymentTransactionApplicationService {
      * @return 撤销结果
      */
     public PaymentCreateResultDTO voidPayment(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.voidPayment(commandDTO);
+        transactionLocatorService.enrichFollowUpRoute(commandDTO);
+        return enrichFollowUpResult(commandDTO, paymentTransactionService.voidPayment(commandDTO));
     }
 
     /**
@@ -199,7 +178,157 @@ public class PaymentTransactionApplicationService {
      * @return 查询结果
      */
     public PaymentQueryResultDTO query(PaymentCreateCommandDTO commandDTO) {
-        return paymentTransactionService.query(commandDTO);
+        transactionLocatorService.enrichQueryRoute(commandDTO);
+        PaymentQueryResultDTO resultDTO = paymentTransactionService.query(commandDTO);
+        MerchantTransactionSnapshotDTO snapshot = loadSnapshot(commandDTO,
+                commandDTO.getTransactionInfo().getRootTransactionId());
+        resultDTO.setSubMerchantInfo(snapshot.getSubMerchantInfo());
+        resultDTO.setGoodsInfo(snapshot.getGoodsInfo());
+        resultDTO.setBillingCardHolderInfo(snapshot.getBillingCardHolderInfo());
+        resultDTO.setPayerInfo(snapshot.getPayerInfo());
+        resultDTO.setShippingInfo(snapshot.getShippingInfo());
+        enrichQueryResultDetail(commandDTO, resultDTO);
+        return resultDTO;
+    }
+
+    private PaymentCreateResultDTO enrichInitialResult(PaymentCreateCommandDTO commandDTO,
+                                                       PaymentCreateResultDTO resultDTO) {
+        return enrichResult(resultDTO, loadSnapshot(commandDTO, resultDTO.getTransactionId()));
+    }
+
+    private PaymentCreateResultDTO enrichFollowUpResult(PaymentCreateCommandDTO commandDTO,
+                                                        PaymentCreateResultDTO resultDTO) {
+        return enrichResult(resultDTO, loadSnapshot(
+                commandDTO, commandDTO.getTransactionInfo().getRootTransactionId()));
+    }
+
+    private MerchantTransactionSnapshotDTO loadSnapshot(PaymentCreateCommandDTO commandDTO,
+                                                         String rootTransactionId) {
+        return merchantTransactionSnapshotService.loadSnapshots(
+                commandDTO.getMerchantId(), rootTransactionId,
+                commandDTO.getTransactionInfo() == null
+                        ? commandDTO.getTransactionDateTime()
+                        : commandDTO.getTransactionInfo().getRootTransactionDateTime() == null
+                        ? commandDTO.getTransactionDateTime()
+                        : commandDTO.getTransactionInfo().getRootTransactionDateTime());
+    }
+
+    private PaymentCreateResultDTO enrichResult(PaymentCreateResultDTO resultDTO,
+                                                MerchantTransactionSnapshotDTO snapshot) {
+        resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(snapshot.getSubMerchantInfo()));
+        resultDTO.setGoodsInfo(snapshot.getGoodsInfo());
+        resultDTO.setBillingCardHolderInfo(snapshot.getBillingCardHolderInfo());
+        resultDTO.setPayerInfo(snapshot.getPayerInfo());
+        resultDTO.setShippingInfo(snapshot.getShippingInfo());
+        MerchantTransactionResultDetailDTO detail = merchantTransactionResultDetailService.load(
+                resultDTO.getTransactionId(), resultDTO.getTransactionDateTime());
+        applyResultDetail(resultDTO, detail);
+        return resultDTO;
+    }
+
+    /** 查询按精确筛选动作或动作列表最后一笔读取平台生成详情。 */
+    private void enrichQueryResultDetail(PaymentCreateCommandDTO commandDTO,
+                                         PaymentQueryResultDTO resultDTO) {
+        if (resultDTO == null || resultDTO.getTransactionInfo() == null
+                || resultDTO.getTransactionInfo().isEmpty()) {
+            return;
+        }
+        String requestedTransactionId = commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getTransactionId();
+        PaymentQueryResultDTO.TransactionInfoDTO target = resultDTO.getTransactionInfo().stream()
+                .filter(item -> requestedTransactionId != null
+                        && requestedTransactionId.equals(item.getTransactionId()))
+                .findFirst()
+                .orElse(resultDTO.getTransactionInfo().get(resultDTO.getTransactionInfo().size() - 1));
+        MerchantTransactionResultDetailDTO detail = merchantTransactionResultDetailService.load(
+                target.getTransactionId(), target.getTransactionDateTime());
+        resultDTO.setThreeDSInfo(toQueryThreeDsInfo(detail.getThreeDsInfo()));
+        resultDTO.setSettlementRate(detail.getSettlementRate());
+        if (detail.getSettlementAmount() != null) {
+            resultDTO.setSettlementAmount(detail.getSettlementAmount());
+            resultDTO.setSettlementCurrency(detail.getSettlementCurrency());
+        }
+        resultDTO.setSettlementFeeAmount(detail.getSettlementFeeAmount());
+        resultDTO.setFeeItems(toQueryFeeItems(detail.getFeeItems()));
+    }
+
+    /** 将平台生成详情应用到创建或后续动作响应，不伪造缺失的结算事实。 */
+    private void applyResultDetail(PaymentCreateResultDTO resultDTO,
+                                   MerchantTransactionResultDetailDTO detail) {
+        if (detail == null) {
+            return;
+        }
+        resultDTO.setThreeDSInfo(toResultThreeDsInfo(detail.getThreeDsInfo()));
+        resultDTO.setSettlementRate(detail.getSettlementRate());
+        if (detail.getSettlementAmount() != null) {
+            resultDTO.setSettlementAmount(detail.getSettlementAmount());
+            resultDTO.setSettlementCurrency(detail.getSettlementCurrency());
+        }
+        resultDTO.setSettlementFeeAmount(detail.getSettlementFeeAmount());
+        resultDTO.setFeeItems(toResultFeeItems(detail.getFeeItems()));
+    }
+
+    private PaymentCreateResultDTO.ThreeDsInfoDTO toResultThreeDsInfo(
+            MerchantTransactionResultDetailDTO.ThreeDsInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCreateResultDTO.ThreeDsInfoDTO target = new PaymentCreateResultDTO.ThreeDsInfoDTO();
+        target.setEci(source.getEci());
+        target.setDsTransactionId(source.getDsTransactionId());
+        target.setThreeDsVersion(source.getThreeDsVersion());
+        target.setStatus(source.getStatus());
+        target.setLiabilityShifted(source.getLiabilityShifted());
+        return target;
+    }
+
+    private PaymentCreateResultDTO.ThreeDsInfoDTO toQueryThreeDsInfo(
+            MerchantTransactionResultDetailDTO.ThreeDsInfoDTO source) {
+        return toResultThreeDsInfo(source);
+    }
+
+    private java.util.List<PaymentCreateResultDTO.FeeItemDTO> toResultFeeItems(
+            java.util.List<MerchantTransactionResultDetailDTO.FeeItemDTO> source) {
+        if (source == null || source.isEmpty()) {
+            return java.util.List.of();
+        }
+        return source.stream().map(item -> {
+            PaymentCreateResultDTO.FeeItemDTO target = new PaymentCreateResultDTO.FeeItemDTO();
+            target.setCategories(item.getCategories());
+            target.setAmount(item.getAmount());
+            target.setCurrency(item.getCurrency());
+            target.setRate(item.getRate());
+            return target;
+        }).toList();
+    }
+
+    private java.util.List<PaymentCreateResultDTO.FeeItemDTO> toQueryFeeItems(
+            java.util.List<MerchantTransactionResultDetailDTO.FeeItemDTO> source) {
+        return toResultFeeItems(source);
+    }
+
+    /** 将冻结的内部子商户快照转换为当前动作的商户响应模型。 */
+    private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(
+            PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCreateResultDTO.SubMerchantInfoDTO target = new PaymentCreateResultDTO.SubMerchantInfoDTO();
+        target.setSubId(source.getSubId());
+        target.setSubName(source.getSubName());
+        target.setSubCompanyName(source.getSubCompanyName());
+        target.setSubCountryCode(source.getSubCountryCode());
+        target.setSubState(source.getSubState());
+        target.setSubCity(source.getSubCity());
+        target.setSubStreet(source.getSubStreet());
+        target.setSubPostal(source.getSubPostal());
+        target.setSubEmail(source.getSubEmail());
+        target.setSubPhone(source.getSubPhone());
+        target.setSubTaxId(source.getSubTaxId());
+        target.setMerchantCategory(source.getMerchantCategory());
+        target.setIntesCode(source.getIntesCode());
+        target.setChargeType(source.getChargeType());
+        return target;
     }
 
     /**
@@ -220,90 +349,6 @@ public class PaymentTransactionApplicationService {
      */
     public TransactionChannelMatchResultDTO matchDueChannelTransactions(TransactionChannelMatchCommandDTO commandDTO) {
         return transactionChannelMatchService.matchDue(commandDTO);
-    }
-
-    /**
-     * 分页查询交易主单。
-     *
-     * @param query 查询条件
-     * @return 主单分页结果
-     */
-    public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
-        return transactionQueryService.pageOrders(query);
-    }
-
-    /**
-     * 分页查询交易动作单。
-     *
-     * @param query 查询条件
-     * @return 动作单分页结果
-     */
-    public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
-        return transactionQueryService.pageOperations(query);
-    }
-
-    /**
-     * 分页查询交易动作单，并返回当前查询条件下的全量统计。
-     *
-     * @param query 查询条件
-     * @return 交易动作分页与统计响应
-     */
-    public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
-        return transactionQueryService.searchOperations(query);
-    }
-
-    /**
-     * 查询交易详情聚合数据。
-     *
-     * @param transactionId 平台交易 ID
-     * @return 交易详情
-     */
-    public TransactionDetailResponse detail(String transactionId) {
-        return transactionQueryService.detail(transactionId);
-    }
-
-    /**
-     * 分页查询渠道交互日志。
-     *
-     * @param query 查询条件
-     * @return 渠道交互日志分页结果
-     */
-    public PageResult<?> pageChannelLogs(ChannelLogQuery query) {
-        return transactionQueryService.pageChannelLogs(query);
-    }
-
-    /**
-     * 分页查询渠道回调业务记录。
-     *
-     * @param query 查询条件
-     * @return 渠道回调业务记录分页结果
-     */
-    public PageResult<?> pageChannelCallbacks(ChannelCallbackQuery query) {
-        return transactionQueryService.pageChannelCallbacks(query);
-    }
-
-    /**
-     * 分页查询商户通知任务。
-     *
-     * @param query 查询条件
-     * @return 商户通知任务分页结果
-     */
-    public PageResult<?> pageMerchantNotifications(MerchantNotificationQuery query) {
-        return transactionQueryService.pageMerchantNotifications(query);
-    }
-
-    /**
-     * 执行指定交易时间所在分表的到期商户通知。
-     *
-     * @param commandDTO 查询命令，仅使用 transactionDateTime 字段定位分表
-     * @param limit 最大处理数量
-     * @return 成功通知数量
-     */
-    public int notifyDueMerchantNotifications(TransactionMerchantNotificationNotifyDueCommandDTO commandDTO) {
-        int limit = commandDTO == null || commandDTO.getLimit() == null
-                ? DEFAULT_MERCHANT_NOTIFICATION_NOTIFY_LIMIT
-                : Math.min(commandDTO.getLimit(), MAX_MERCHANT_NOTIFICATION_NOTIFY_LIMIT);
-        return merchantNotificationService.notifyDue(commandDTO == null ? null : commandDTO.getTransactionDateTime(), limit);
     }
 
     /**

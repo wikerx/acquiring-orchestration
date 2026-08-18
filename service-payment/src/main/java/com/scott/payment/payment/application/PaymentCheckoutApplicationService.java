@@ -8,8 +8,12 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateRe
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutThreeDsReturnCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinResultDTO;
 import com.scott.payment.payment.service.PaymentCheckoutService;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
 
 /**
  * Hosted Checkout 应用编排服务。
@@ -77,5 +81,15 @@ public class PaymentCheckoutApplicationService {
      */
     public PaymentCheckoutPaymentResultDTO handleThreeDsReturn(PaymentCheckoutThreeDsReturnCommandDTO commandDTO) {
         return paymentCheckoutService.handleThreeDsReturn(commandDTO);
+    }
+
+    /** 执行收银台付款期限补偿扫描。 */
+    public int expireDue(LocalDateTime now, int limit) {
+        return paymentCheckoutService.expireDue(now, limit);
+    }
+
+    /** 解析收银台卡 BIN 品牌及商户支持状态。 */
+    public PaymentCheckoutCardBinResultDTO resolveCardBin(PaymentCheckoutCardBinCommandDTO commandDTO) {
+        return paymentCheckoutService.resolveCardBin(commandDTO);
     }
 }

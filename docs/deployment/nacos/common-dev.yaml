@@ -27,7 +27,9 @@ management:
       percentiles-histogram:
         # Redis 业务路径和 Lettuce 命令需要直方图才能在 Prometheus 聚合 P95/P99。
         acquiring.redis.operation.duration: true
+        # 参数说明：控制是否为 acquiring.redis.cache.invalidation.outbox.batch.duration 指标生成直方图，以支持 P95/P99 聚合。
         acquiring.redis.cache.invalidation.outbox.batch.duration: true
+        # 参数说明：控制是否为 lettuce.command.completion 指标生成直方图，以支持 P95/P99 聚合。
         lettuce.command.completion: true
 
 global-payment:

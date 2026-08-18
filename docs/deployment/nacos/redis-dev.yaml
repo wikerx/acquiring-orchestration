@@ -1,64 +1,109 @@
-# Redis 配置：本地开发环境使用单机模式，业务侧通过 component-redis 统一访问。
+# Redis 配置：本地开发环境统一连接 Redis 6.2.23 Cluster（3 Master + 3 Replica）。
 spring:
   data:
     redis:
-      # Redis database 编号。
+      # Redis Cluster 只允许 DB 0。
       database: 0
-      # 本地单机 Redis 默认无密码；如后续接入鉴权，可通过环境变量覆盖。
-      password: ${REDIS_PASSWORD:}
-      # 本地 Redis 单机地址。
-      host: ${REDIS_HOST:127.0.0.1}
-      # 本地 Redis 单机端口。
-      port: ${REDIS_PORT:6379}
+      # 本地开发集群密码；部署到其他环境必须通过环境变量覆盖。
+      # 环境说明：环境变量：REDIS_PASSWORD；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
+      password: ${REDIS_PASSWORD:scott123456Admin@123}
+      cluster:
+        nodes:
+          # 参数说明：配置一个 Redis Cluster 节点，格式为 host:port；至少提供全部 Master 地址并确保环境内可达。
+          # 环境说明：环境变量：REDIS_CLUSTER_NODE_1（dev 配置默认 "127.0.0.1:7001"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
+          - ${REDIS_CLUSTER_NODE_1:127.0.0.1:7001}
+          # 参数说明：配置一个 Redis Cluster 节点，格式为 host:port；至少提供全部 Master 地址并确保环境内可达。
+          # 环境说明：环境变量：REDIS_CLUSTER_NODE_2（dev 配置默认 "127.0.0.1:7002"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
+          - ${REDIS_CLUSTER_NODE_2:127.0.0.1:7002}
+          # 参数说明：配置一个 Redis Cluster 节点，格式为 host:port；至少提供全部 Master 地址并确保环境内可达。
+          # 环境说明：环境变量：REDIS_CLUSTER_NODE_3（dev 配置默认 "127.0.0.1:7003"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
+          - ${REDIS_CLUSTER_NODE_3:127.0.0.1:7003}
+          # 参数说明：配置一个 Redis Cluster 节点，格式为 host:port；至少提供全部 Master 地址并确保环境内可达。
+          # 环境说明：环境变量：REDIS_CLUSTER_NODE_4（dev 配置默认 "127.0.0.1:7004"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
+          - ${REDIS_CLUSTER_NODE_4:127.0.0.1:7004}
+          # 参数说明：配置一个 Redis Cluster 节点，格式为 host:port；至少提供全部 Master 地址并确保环境内可达。
+          # 环境说明：环境变量：REDIS_CLUSTER_NODE_5（dev 配置默认 "127.0.0.1:7005"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
+          - ${REDIS_CLUSTER_NODE_5:127.0.0.1:7005}
+          # 参数说明：配置一个 Redis Cluster 节点，格式为 host:port；至少提供全部 Master 地址并确保环境内可达。
+          # 环境说明：环境变量：REDIS_CLUSTER_NODE_6（dev 配置默认 "127.0.0.1:7006"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
+          - ${REDIS_CLUSTER_NODE_6:127.0.0.1:7006}
+        # 限制 MOVED/ASK 重定向次数，异常拓扑下快速失败。
+        max-redirects: 5
+      # 建立 TCP 连接的最大等待时间。
+      connect-timeout: 3s
       # 单次 Redis 操作超时时间。
-      timeout: 2s
+      timeout: 5s
       lettuce:
+        cluster:
+          refresh:
+            # MOVED、ASK、连接重建等事件触发拓扑刷新。
+            adaptive: true
+            # 同时周期刷新，覆盖未触发自适应事件的拓扑变化。
+            period: 30s
+            # 参数说明：控制 Lettuce 是否从当前拓扑动态发现后续 Redis Cluster 刷新节点。
+            dynamic-refresh-sources: true
         pool:
           # Lettuce 连接池最大活跃连接数。
-          max-active: 32
+          max-active: 16
           # 最大空闲连接数。
-          max-idle: 16
+          max-idle: 8
           # 最小空闲连接数。
-          min-idle: 4
+          min-idle: 1
           # 获取连接最大等待时间。
           max-wait: 2s
 
 payment:
   redis:
     # 所有直接业务 Key 的统一系统和环境前缀；不同环境必须配置不同值。
+    # 环境说明：环境变量：PAYMENT_REDIS_KEY_PREFIX（当前默认值为 "acquiring:dev"）；dev、test、uat、prod 必须使用不同 Redis Key 前缀或状态 Key，防止数据跨环境覆盖。
     key-prefix: ${PAYMENT_REDIS_KEY_PREFIX:acquiring:dev}
-    # dev/test 新部署直接使用精简 Key；UAT/生产必须按五阶段迁移流程显式覆盖，未配置时代码默认 LEGACY_ONLY。
-    key-migration-mode: ${PAYMENT_REDIS_KEY_MIGRATION_MODE:COMPACT_ONLY}
     mq-dedup:
       # 单个 MQ 去重时间桶最多保存的 SHA-256 消息摘要数量；超限后降级到数据库唯一约束。
+      # 环境说明：环境变量：PAYMENT_REDIS_MQ_DEDUP_MAX_MEMBERS_PER_BUCKET，dev 配置默认值为 "100000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       max-members-per-bucket: ${PAYMENT_REDIS_MQ_DEDUP_MAX_MEMBERS_PER_BUCKET:100000}
       # MQ 去重 TTL 的配置上限，单位秒；默认 30 天，防止误配置形成长期大 Key。
+      # 环境说明：环境变量：PAYMENT_REDIS_MQ_DEDUP_MAX_TTL_SECONDS，dev 配置默认值为 "2592000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       max-ttl-seconds: ${PAYMENT_REDIS_MQ_DEDUP_MAX_TTL_SECONDS:2592000}
     generic:
       # 风控规则缓存仍依赖 String 包装器；新增调用必须先登记 Key、TTL 和失败策略。
+      # 环境说明：环境变量：PAYMENT_REDIS_GENERIC_STRING_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
       string-enabled: ${PAYMENT_REDIS_GENERIC_STRING_ENABLED:true}
       # 无生产调用的集合包装器默认关闭，需要业务化设计和评审后才能显式启用。
+      # 环境说明：环境变量：PAYMENT_REDIS_GENERIC_HASH_ENABLED，dev 配置默认值为 "false"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
       hash-enabled: ${PAYMENT_REDIS_GENERIC_HASH_ENABLED:false}
+      # 参数说明：控制通用 Redis List 包装能力是否开放；启用前必须明确长度上限和清理策略。
+      # 环境说明：环境变量：PAYMENT_REDIS_GENERIC_LIST_ENABLED，dev 配置默认值为 "false"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
       list-enabled: ${PAYMENT_REDIS_GENERIC_LIST_ENABLED:false}
+      # 参数说明：控制通用 Redis Set 包装能力是否开放；启用前必须明确成员上限和清理策略。
+      # 环境说明：环境变量：PAYMENT_REDIS_GENERIC_SET_ENABLED，dev 配置默认值为 "false"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
       set-enabled: ${PAYMENT_REDIS_GENERIC_SET_ENABLED:false}
+      # 参数说明：控制通用 Redis ZSet 包装能力是否开放；启用前必须明确容量、分值和清理策略。
+      # 环境说明：环境变量：PAYMENT_REDIS_GENERIC_ZSET_ENABLED，dev 配置默认值为 "false"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
       zset-enabled: ${PAYMENT_REDIS_GENERIC_ZSET_ENABLED:false}
   cache:
     redis:
       # 是否启用 Spring Cache + Redis。缓存只用于高频读路径减压，交易事实仍以数据库为准。
+      # 环境说明：环境变量：PAYMENT_CACHE_REDIS_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
       enabled: ${PAYMENT_CACHE_REDIS_ENABLED:true}
       # Spring Cache 与直接业务 Key 共用系统和环境前缀，Cache Name 继续提供领域与数据集层级。
+      # 环境说明：环境变量：PAYMENT_CACHE_REDIS_KEY_PREFIX（当前默认值为 "acquiring:dev"）；dev、test、uat、prod 必须使用不同 Redis Key 前缀或状态 Key，防止数据跨环境覆盖。
       key-prefix: ${PAYMENT_CACHE_REDIS_KEY_PREFIX:acquiring:dev}
       # 未单独配置缓存名称时的默认 TTL。
+      # 环境说明：环境变量：PAYMENT_CACHE_REDIS_DEFAULT_TTL，dev 配置默认值为 "10m"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       default-ttl: ${PAYMENT_CACHE_REDIS_DEFAULT_TTL:10m}
       # 安全缓存失效门禁属于恢复性租约；到期只清理异常标记，可靠失效仍由事务 Outbox 重试保证。
+      # 环境说明：环境变量：PAYMENT_CACHE_INVALIDATION_GATE_TTL，dev 配置默认值为 "2h"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       invalidation-gate-ttl: ${PAYMENT_CACHE_INVALIDATION_GATE_TTL:2h}
       ttl:
         # 商户最小运行时资料为常驻读模型；后台变更通过可靠失效链路删除后按需重建。
+        # 环境说明：环境变量：PAYMENT_CACHE_MERCHANT_INFO_TTL，dev 配置默认值为 "0s"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
         "[merchant:info]": ${PAYMENT_CACHE_MERCHANT_INFO_TTL:0s}
         # 商户 OpenAPI IP 聚合策略为常驻安全读模型；白名单或开关变化后可靠失效。
+        # 环境说明：环境变量：PAYMENT_CACHE_MERCHANT_OPENAPI_TTL，dev 配置默认值为 "0s"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
         "[merchant:openapi]": ${PAYMENT_CACHE_MERCHANT_OPENAPI_TTL:0s}
-        # 仅四个非敏感公开 URL 参数进入常驻缓存；敏感配置禁止写入 Redis。
-        "[config:public]": ${PAYMENT_CACHE_PUBLIC_CONFIG_TTL:0s}
+        # 全局唯一系统参数使用跨服务常驻快照；管理端变更通过事务 Outbox 精确失效。
+        # 环境说明：环境变量：PAYMENT_CACHE_SYSTEM_CONFIG_TTL，常驻缓存只允许配置为 "0s"。
+        "[system:config]": ${PAYMENT_CACHE_SYSTEM_CONFIG_TTL:0s}
   global-id:
     # 是否启用全系统统一唯一标识生成器自动装配。
     enabled: true
@@ -71,12 +116,15 @@ payment:
     # 毫秒内最大序列。
     max-sequence: 999999
     # 单个 Hash 原子保存 last_millis 和 sequence；单 Key 不使用无必要的 Redis Cluster Hash Tag。
+    # 环境说明：环境变量：PAYMENT_GLOBAL_ID_STATE_KEY（当前默认值为 "acquiring:dev:global-id:state"）；dev、test、uat、prod 必须使用不同 Redis Key 前缀或状态 Key，防止数据跨环境覆盖。
     state-key: ${PAYMENT_GLOBAL_ID_STATE_KEY:acquiring:dev:global-id:state}
     # 序列溢出后最大重试次数。
     max-retry-times: 3
     # 序列溢出后短暂等待下一毫秒。
     retry-sleep-millis: 1
     # 正常启动必须为 false；只有完成备份校验、历史最大编号核对和双人审批后才能临时开启。
+    # 环境说明：环境变量：PAYMENT_GLOBAL_ID_RESTORE_ACKNOWLEDGED，dev 配置默认值为 "false"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     restore-acknowledged: ${PAYMENT_GLOBAL_ID_RESTORE_ACKNOWLEDGED:false}
     # 正常启动固定为 0；受控恢复时必须高于所有历史已签发编号的时间片 epochMillis。
+    # 环境说明：环境变量：PAYMENT_GLOBAL_ID_RESTORE_FLOOR_EPOCH_MILLIS，dev 配置默认值为 "0"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     restore-floor-epoch-millis: ${PAYMENT_GLOBAL_ID_RESTORE_FLOOR_EPOCH_MILLIS:0}

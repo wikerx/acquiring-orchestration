@@ -6,9 +6,14 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
+import com.scott.payment.payment.config.ChannelMatchAbnormalProperties;
+import com.scott.payment.payment.config.ChannelMatchRecoveryProperties;
+import com.scott.payment.payment.domain.reconciliation.ChannelMatchAbnormalTypeEnum;
+import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.service.ChannelTransactionStatusResolver;
+import com.scott.payment.payment.service.ChannelMatchAbnormalService;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.TransactionChannelMatchService;
@@ -19,10 +24,12 @@ import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 /**
  * @author : scott
@@ -60,6 +67,10 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
      * 缺少渠道查询身份时按天重试，等待迟到回调或人工补齐渠道身份，避免无效高频查询。
      */
     private static final long MISSING_IDENTITY_RETRY_HOURS = 24L;
+
+    /** 已明确离开 INIT 阶段的资金请求允许直接进入渠道状态查询。 */
+    private static final Set<String> QUERYABLE_ORIGINAL_REQUEST_STATUSES = Set.of(
+            "SENT", "SUCCESS", "TIMEOUT", "FAILED");
 
     /**
      * transaction Record Service 依赖，用于 Default Transaction Channel Match Service 调用对应的数据访问、远程调用或领域服务能力。
@@ -111,6 +122,15 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
      */
     private final ChannelTransactionStatusResolver channelStatusResolver;
 
+    /** 自动异常升级配置。 */
+    private final ChannelMatchAbnormalProperties abnormalProperties;
+
+    /** 历史 INIT 请求恢复查询配置。 */
+    private final ChannelMatchRecoveryProperties recoveryProperties;
+
+    /** 延迟获取异常服务，避免人工重查服务与自动勾兑服务形成构造器环。 */
+    private final ObjectProvider<ChannelMatchAbnormalService> abnormalServiceProvider;
+
     /**
      * 创建默认渠道交易查询勾兑服务。
      *
@@ -124,31 +144,36 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                                                 PaymentChannelInvokeService paymentChannelInvokeService,
                                                 TransactionChannelMatchResultTransactionService matchResultTransactionService,
                                                 PaymentChannelRouteService paymentChannelRouteService,
-                                                ChannelTransactionStatusResolver channelStatusResolver) {
+                                                ChannelTransactionStatusResolver channelStatusResolver,
+                                                ChannelMatchAbnormalProperties abnormalProperties,
+                                                ChannelMatchRecoveryProperties recoveryProperties,
+                                                ObjectProvider<ChannelMatchAbnormalService> abnormalServiceProvider) {
         this.transactionRecordService = transactionRecordService;
         this.paymentChannelInvokeService = paymentChannelInvokeService;
         this.matchResultTransactionService = matchResultTransactionService;
         this.paymentChannelRouteService = paymentChannelRouteService;
         this.channelStatusResolver = channelStatusResolver;
+        this.abnormalProperties = abnormalProperties;
+        this.recoveryProperties = recoveryProperties;
+        this.abnormalServiceProvider = abnormalServiceProvider;
     }
 
     /**
-     * 兼容旧测试和手工构造场景的构造器。
-     *
-     * @param transactionRecordService 交易事实记录服务
-     * @param paymentChannelInvokeService 渠道调用服务
-     * @param paymentChannelRouteService 渠道路由服务
-     * @param channelStatusResolver 渠道状态解析服务
+     * 保留既有单元测试和非 Spring 构造方式；该路径不启用异常自动建案。
      */
     public DefaultTransactionChannelMatchService(TransactionRecordService transactionRecordService,
-                                                PaymentChannelInvokeService paymentChannelInvokeService,
-                                                PaymentChannelRouteService paymentChannelRouteService,
-                                                ChannelTransactionStatusResolver channelStatusResolver) {
-        this(transactionRecordService,
-                paymentChannelInvokeService,
-                new DefaultTransactionChannelMatchResultTransactionService(transactionRecordService),
-                paymentChannelRouteService,
-                channelStatusResolver);
+                                                 PaymentChannelInvokeService paymentChannelInvokeService,
+                                                 TransactionChannelMatchResultTransactionService matchResultTransactionService,
+                                                 PaymentChannelRouteService paymentChannelRouteService,
+                                                 ChannelTransactionStatusResolver channelStatusResolver) {
+        this.transactionRecordService = transactionRecordService;
+        this.paymentChannelInvokeService = paymentChannelInvokeService;
+        this.matchResultTransactionService = matchResultTransactionService;
+        this.paymentChannelRouteService = paymentChannelRouteService;
+        this.channelStatusResolver = channelStatusResolver;
+        this.abnormalProperties = new ChannelMatchAbnormalProperties();
+        this.recoveryProperties = new ChannelMatchRecoveryProperties();
+        this.abnormalServiceProvider = null;
     }
 
     /**
@@ -175,6 +200,33 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
     /**
+     * 使用交易号和真实分片时间主动查询单笔非终态动作。
+     *
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 动作真实分片时间
+     * @return 单笔勾兑处理结果
+     */
+    @Override
+    public TransactionChannelMatchResultDTO matchOne(String transactionId,
+                                                      LocalDateTime transactionDateTime) {
+        TransactionChannelMatchResultDTO resultDTO = new TransactionChannelMatchResultDTO();
+        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(
+                transactionId, transactionDateTime);
+        if (operationDO == null) {
+            throw new com.scott.payment.component.core.exception.ServiceException(
+                    com.scott.payment.component.core.enums.ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        resultDTO.setScannedCount(1);
+        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
+                || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus())) {
+            resultDTO.setMatchedCount(1);
+            return resultDTO;
+        }
+        processOne(operationDO, LocalDateTime.now(), resultDTO);
+        return resultDTO;
+    }
+
+    /**
      * 查询并处理单笔待勾兑动作。
      * <p>
      * 只有渠道查询结果被解析为 SUCCESS/FAILED 终态时才推进交易；未识别、处理中、网络异常和解析异常都保留为待勾兑，
@@ -188,6 +240,10 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                             LocalDateTime now,
                             TransactionChannelMatchResultDTO resultDTO) {
         TransactionChannelRequestDO originalRequestDO = transactionRecordService.findOriginalChannelRequestForQuery(operationDO);
+        if (originalRequestDO != null && !isQueryableOriginalRequest(originalRequestDO, now)) {
+            resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
+            return;
+        }
         PaymentPreparedChannelRequestDTO preparedQueryRequest = buildQueryReference(operationDO, originalRequestDO);
         PaymentCreateCommandDTO queryCommand = toQueryCommand(operationDO);
         PaymentRouteResultDTO routeResult = restoreRouteResult(operationDO);
@@ -215,7 +271,14 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                 resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
                 return;
             }
-            if ("SUCCESS".equals(resolution.getTargetStatus()) || "FAILED".equals(resolution.getTargetStatus())) {
+            String mismatchType = moneyMismatchType(operationDO, response);
+            if (mismatchType != null) {
+                markMoneyMismatch(operationDO, originalRequestDO, now, invokeResultDTO, mismatchType);
+                resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
+                return;
+            }
+            if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resolution.getTargetStatus())
+                    || PaymentTransactionStatusEnum.FAILED.getCode().equals(resolution.getTargetStatus())) {
                 if (complete(operationDO, originalRequestDO, invokeResultDTO, resolution, now)) {
                     resultDTO.setMatchedCount(resultDTO.getMatchedCount() + 1);
                     return;
@@ -229,6 +292,76 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             // 查询异常无法证明渠道失败，资金动作必须保持非终态，等待下一次查询或回调确认。
             markPending(operationDO, originalRequestDO, now, null, "QUERY_EXCEPTION", exception.getMessage());
             resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
+        }
+    }
+
+    private boolean isQueryableOriginalRequest(TransactionChannelRequestDO originalRequestDO,
+                                               LocalDateTime now) {
+        if (originalRequestDO == null || !StringUtils.hasText(originalRequestDO.getRequestStatus())) {
+            return false;
+        }
+        String requestStatus = originalRequestDO.getRequestStatus().trim().toUpperCase(java.util.Locale.ROOT);
+        if (QUERYABLE_ORIGINAL_REQUEST_STATUSES.contains(requestStatus)) {
+            return true;
+        }
+        if (!"INIT".equals(requestStatus)) {
+            return false;
+        }
+        LocalDateTime createTime = originalRequestDO.getCreateTime();
+        LocalDateTime actualNow = now == null ? LocalDateTime.now() : now;
+        long graceSeconds = Math.max(0L, recoveryProperties.getInitRequestGraceSeconds());
+        return createTime == null || !createTime.isAfter(actualNow.minusSeconds(graceSeconds));
+    }
+
+    /**
+     * 比较渠道查询响应明确返回的币种；缺少结构化金额信息时不推断异常。
+     */
+    private String moneyMismatchType(TransactionOperationDO operationDO, ChannelPaymentResponse response) {
+        if (operationDO == null || response == null
+                || !StringUtils.hasText(operationDO.getTransactionCurrency())
+                || !StringUtils.hasText(response.getChannelCurrency())) {
+            return null;
+        }
+        if (!operationDO.getTransactionCurrency().trim().equalsIgnoreCase(response.getChannelCurrency().trim())) {
+            return ChannelMatchAbnormalTypeEnum.CURRENCY_MISMATCH.getCode();
+        }
+        if (operationDO.getTransactionAmount() != null && response.getChannelAmount() != null
+                && operationDO.getTransactionAmount().compareTo(response.getChannelAmount()) != 0) {
+            return ChannelMatchAbnormalTypeEnum.AMOUNT_MISMATCH.getCode();
+        }
+        return null;
+    }
+
+    /**
+     * 金额或币种不一致属于确定性异常，首次发现即转人工复核并阻止终态推进。
+     */
+    private void markMoneyMismatch(TransactionOperationDO operationDO,
+                                   TransactionChannelRequestDO originalRequestDO,
+                                   LocalDateTime now,
+                                   PaymentChannelInvokeResultDTO invokeResultDTO,
+                                   String abnormalType) {
+        boolean updated = matchResultTransactionService.markPendingByQuery(
+                operationDO,
+                originalRequestDO,
+                invokeResultDTO,
+                "MISMATCHED",
+                abnormalType,
+                now,
+                nextMatchTime(operationDO, now),
+                null);
+        if (!updated) {
+            return;
+        }
+        ChannelMatchAbnormalService abnormalService = abnormalService();
+        if (abnormalService != null) {
+            abnormalService.recordReviewRequired(
+                    operationDO,
+                    abnormalType,
+                    abnormalType,
+                    abnormalType,
+                    originalRequestDO == null ? null : originalRequestDO.getRequestId(),
+                    invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse(),
+                    now);
         }
     }
 
@@ -321,12 +454,20 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                              PaymentChannelInvokeResultDTO invokeResultDTO,
                              ChannelTransactionStatusResolution resolution,
                              LocalDateTime now) {
-        return matchResultTransactionService.completeByQuery(
+        boolean completed = matchResultTransactionService.completeByQuery(
                 operationDO,
                 originalRequestDO,
                 invokeResultDTO,
                 resolution,
                 now);
+        if (completed) {
+            ChannelMatchAbnormalService abnormalService = abnormalService();
+            if (abnormalService != null) {
+                abnormalService.autoResolve(operationDO.getTransactionId(), operationDO.getTransactionDateTime(),
+                        originalRequestDO == null ? null : originalRequestDO.getRequestId(), now);
+            }
+        }
+        return completed;
     }
 
     /**
@@ -391,13 +532,41 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                              PaymentChannelInvokeResultDTO invokeResultDTO,
                              String reason,
                              String failReason) {
-        matchResultTransactionService.markPendingByQuery(operationDO,
+        boolean manualReviewRequired = shouldEscalate(operationDO);
+        String matchStatus = manualReviewRequired ? "FAILED" : "PENDING";
+        boolean updated = matchResultTransactionService.markPendingByQuery(operationDO,
                 originalRequestDO,
                 invokeResultDTO,
+                matchStatus,
                 reason,
                 now,
                 nextMatchTime,
                 failReason);
+        if (updated && manualReviewRequired) {
+            ChannelMatchAbnormalService abnormalService = abnormalService();
+            if (abnormalService != null) {
+                String abnormalType = "QUERY_IDENTITY_MISSING".equals(reason)
+                        ? ChannelMatchAbnormalTypeEnum.QUERY_IDENTITY_MISSING.getCode()
+                        : ChannelMatchAbnormalTypeEnum.QUERY_RESULT_UNKNOWN.getCode();
+                abnormalService.recordReviewRequired(operationDO, abnormalType,
+                        reason, reason,
+                        originalRequestDO == null ? null : originalRequestDO.getRequestId(), now);
+            }
+        }
+    }
+
+    private boolean shouldEscalate(TransactionOperationDO operationDO) {
+        if (!abnormalProperties.isEnabled()) {
+            return false;
+        }
+        int threshold = Math.max(1, abnormalProperties.getReviewRequiredThreshold());
+        int currentCount = operationDO == null || operationDO.getChannelMatchCount() == null
+                ? 0 : operationDO.getChannelMatchCount();
+        return currentCount + 1 >= threshold;
+    }
+
+    private ChannelMatchAbnormalService abnormalService() {
+        return abnormalServiceProvider == null ? null : abnormalServiceProvider.getIfAvailable();
     }
 
     /**

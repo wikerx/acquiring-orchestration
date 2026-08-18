@@ -43,7 +43,7 @@ public class ChannelMidConfigDO {
     private Long channelId;
 
     /**
-     * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
+     * 渠道编码，用于定位统一 SPI 下的 provider 实现和路由配置。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
@@ -101,6 +101,9 @@ public class ChannelMidConfigDO {
      * </p>
      */
     private String paymentMethodScope;
+
+    /** 银行卡品牌范围：ALL、NONE 或逗号分隔的品牌编码。 */
+    private String cardBrandScope;
 
     /**
      * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
@@ -231,6 +234,11 @@ public class ChannelMidConfigDO {
      * </p>
      */
     private LocalDateTime expireTime;
+
+    /**
+     * MID 配置最后修改时间，用于隔离进程内短时敏感元数据缓存版本。
+     */
+    private LocalDateTime updateTime;
 
     /**
      * deleted，用于保存 Channel MID Config DO 中与 deleted 相关的业务属性。

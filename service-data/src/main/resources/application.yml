@@ -1,0 +1,28 @@
+# 本地基础配置只声明服务身份、端口和激活环境；数据库、Redis 与 RocketMQ 连接统一由 Nacos 提供。
+server:
+  # 参数说明：配置服务监听端口，有效范围 1-65535；同一主机上的服务端口不得冲突。
+  port: 8009
+  # 参数说明：配置 Spring Boot 停机方式；graceful 会等待在途请求完成后退出。
+  shutdown: graceful
+
+spring:
+  application:
+    # 参数说明：指定当前微服务在 Nacos、日志和监控中的稳定服务名；不同环境保持同名并通过 namespace 隔离。
+    name: service-data
+  profiles:
+    # 参数说明：指定 Maven 过滤后激活的 Spring Profile，必须与部署环境名称一致。
+    active: @profiles.active@
+  main:
+    # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
+    allow-bean-definition-overriding: true
+
+data:
+  card-vault:
+    # 默认关闭；开启后缺失传输私钥、HMAC pepper 或 KEK 会阻止服务启动。
+    enabled: ${CHECKOUT_CARD_VAULT_CONSUME_ENABLED:false}
+    transfer-key-id: ${CHECKOUT_CARD_VAULT_TRANSFER_KEY_ID:checkout-card-vault-v1}
+    transfer-private-key-pkcs8-base64: ${CHECKOUT_CARD_VAULT_TRANSFER_PRIVATE_KEY_PKCS8_BASE64:}
+    pan-hmac-key-version: ${CHECKOUT_CARD_VAULT_PAN_HMAC_KEY_VERSION:v1}
+    pan-hmac-pepper: ${CHECKOUT_CARD_VAULT_PAN_HMAC_PEPPER:}
+    kek-version: ${CHECKOUT_CARD_VAULT_KEK_VERSION:v1}
+    kek-base64: ${CHECKOUT_CARD_VAULT_KEK_BASE64:}

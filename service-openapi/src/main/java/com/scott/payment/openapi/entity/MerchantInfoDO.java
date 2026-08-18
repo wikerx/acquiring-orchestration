@@ -49,6 +49,9 @@ public class MerchantInfoDO extends BaseEntity {
      */
     private Integer merchantStatus;
 
+    /** Default merchant locale. */
+    private String defaultLocale;
+
     /**
      * 商户类别码，外卡收单通常使用 MCC 四位数字识别商户经营类型。
      */

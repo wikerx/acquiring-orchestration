@@ -38,14 +38,50 @@ public final class PaymentRedisSerializerFactory {
     private static final String MERCHANT_RUNTIME_PROFILE_CLASS_NAME =
             "com.scott.payment.component.db.auth.model.MerchantRuntimeProfile";
 
+    private static final String MERCHANT_KEY_METADATA_CLASS_NAME =
+            "com.scott.payment.component.db.auth.model.MerchantKeyMetadata";
+
+    private static final String MERCHANT_ROUTE_PROFILE_CLASS_NAME =
+            "com.scott.payment.component.db.route.model.MerchantRouteProfile";
+
+    private static final String MERCHANT_ROUTE_OPTION_CLASS_NAME =
+            "com.scott.payment.component.db.route.model.MerchantRouteProfile$RouteOption";
+
     private static final String MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME =
             "com.scott.payment.openapi.security.MerchantOpenApiAccessPolicy";
+
+    private static final String ADMIN_USER_PROFILE_CLASS_NAME =
+            "com.scott.payment.admin.dto.AdminUserProfileDTO";
+
+    private static final String PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME =
+            "com.scott.payment.payment.model.PaymentCardBinCacheEntry";
+
+    private static final String SYSTEM_CONFIG_SNAPSHOT_CLASS_NAME =
+            "com.scott.payment.component.db.systemconfig.model.SystemConfigSnapshot";
 
     private static final Pattern MERCHANT_RUNTIME_PROFILE = Pattern.compile(
             "^" + Pattern.quote(MERCHANT_RUNTIME_PROFILE_CLASS_NAME) + "$");
 
+    private static final Pattern MERCHANT_KEY_METADATA = Pattern.compile(
+            "^" + Pattern.quote(MERCHANT_KEY_METADATA_CLASS_NAME) + "$");
+
+    private static final Pattern MERCHANT_ROUTE_PROFILE = Pattern.compile(
+            "^" + Pattern.quote(MERCHANT_ROUTE_PROFILE_CLASS_NAME) + "$");
+
+    private static final Pattern MERCHANT_ROUTE_OPTION = Pattern.compile(
+            "^" + Pattern.quote(MERCHANT_ROUTE_OPTION_CLASS_NAME) + "$");
+
     private static final Pattern MERCHANT_OPENAPI_ACCESS_POLICY = Pattern.compile(
             "^" + Pattern.quote(MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME) + "$");
+
+    private static final Pattern ADMIN_USER_PROFILE = Pattern.compile(
+            "^" + Pattern.quote(ADMIN_USER_PROFILE_CLASS_NAME) + "$");
+
+    private static final Pattern PAYMENT_CARD_BIN_CACHE_ENTRY = Pattern.compile(
+            "^" + Pattern.quote(PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME) + "$");
+
+    private static final Pattern SYSTEM_CONFIG_SNAPSHOT = Pattern.compile(
+            "^" + Pattern.quote(SYSTEM_CONFIG_SNAPSHOT_CLASS_NAME) + "$");
 
     private static final Set<String> REGISTERED_VALUE_TYPES = Set.of(
             String.class.getName(),
@@ -58,7 +94,13 @@ public final class PaymentRedisSerializerFactory {
             LinkedHashMap.class.getName(),
             LinkedHashSet.class.getName(),
             MERCHANT_RUNTIME_PROFILE_CLASS_NAME,
-            MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME
+            MERCHANT_KEY_METADATA_CLASS_NAME,
+            MERCHANT_ROUTE_PROFILE_CLASS_NAME,
+            MERCHANT_ROUTE_OPTION_CLASS_NAME,
+            MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME,
+            ADMIN_USER_PROFILE_CLASS_NAME,
+            PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME,
+            SYSTEM_CONFIG_SNAPSHOT_CLASS_NAME
     );
 
     private PaymentRedisSerializerFactory() {
@@ -99,7 +141,13 @@ public final class PaymentRedisSerializerFactory {
     private static PolymorphicTypeValidator typeValidator() {
         return BasicPolymorphicTypeValidator.builder()
                 .allowIfSubType(MERCHANT_RUNTIME_PROFILE)
+                .allowIfSubType(MERCHANT_KEY_METADATA)
+                .allowIfSubType(MERCHANT_ROUTE_PROFILE)
+                .allowIfSubType(MERCHANT_ROUTE_OPTION)
                 .allowIfSubType(MERCHANT_OPENAPI_ACCESS_POLICY)
+                .allowIfSubType(ADMIN_USER_PROFILE)
+                .allowIfSubType(PAYMENT_CARD_BIN_CACHE_ENTRY)
+                .allowIfSubType(SYSTEM_CONFIG_SNAPSHOT)
                 .allowIfSubType(ArrayList.class)
                 .allowIfSubType(LinkedHashMap.class)
                 .allowIfSubType(LinkedHashSet.class)

@@ -6,7 +6,7 @@ INSERT INTO sys_job_task (
 ) VALUES (
     'CHANNEL_TRANSACTION_MATCH', '渠道交易查询勾兑任务', 'transaction', 'channelTransactionMatch',
     '0 */1 * * * ?', 'DISTRIBUTED', 'CRON', 'SYNC', 'LOCAL', 'FIRE_ONCE',
-    300, 1, 60, 0, JSON_OBJECT('lookbackQuarters', 4, 'limit', 100), 'ENABLED',
+    300, 0, 60, 0, JSON_OBJECT('lookbackQuarters', 4, 'limit', 100), 'ENABLED',
     '每分钟扫描当前及前三个季度的到期非终态交易；单笔查询使用分阶段退避，渠道结果未知时保持处理中。',
     DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 1 MINUTE), 0, 0, 'system', 'system'
 )

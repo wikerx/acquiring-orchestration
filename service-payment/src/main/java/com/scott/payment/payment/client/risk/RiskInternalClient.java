@@ -4,6 +4,8 @@ import com.scott.payment.payment.client.risk.dto.RiskMerchantLimitReservationCli
 import com.scott.payment.payment.client.risk.dto.RiskMerchantLimitReservationClientResponseDTO;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientRequestDTO;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientResponseDTO;
+import com.scott.payment.payment.client.risk.dto.RiskThreeDsPolicyClientRequestDTO;
+import com.scott.payment.payment.client.risk.dto.RiskThreeDsPolicyClientResponseDTO;
 
 /**
  * @author : scott
@@ -23,6 +25,17 @@ public interface RiskInternalClient {
      * @return 风控评估响应
      */
     RiskPaymentEvaluateClientResponseDTO evaluatePayment(RiskPaymentEvaluateClientRequestDTO requestDTO);
+
+    /**
+     * 在渠道路由完成后只读评估 3DS 策略，不创建累计限额或频控预占。
+     *
+     * @param requestDTO 已路由交易维度
+     * @return 3DS 策略结果
+     */
+    default RiskThreeDsPolicyClientResponseDTO evaluateThreeDsPolicy(
+            RiskThreeDsPolicyClientRequestDTO requestDTO) {
+        throw new UnsupportedOperationException("3DS policy evaluation is not supported");
+    }
 
     /**
      * 撤销支付本地事务失败后遗留的商户累计限额预占。

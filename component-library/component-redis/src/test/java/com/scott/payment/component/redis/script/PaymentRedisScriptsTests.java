@@ -46,6 +46,7 @@ class PaymentRedisScriptsTests {
 
         assertThat(script.getResultType()).isEqualTo(Long.class);
         assertThat(script.getScriptAsString())
+                .contains("redis.call('TIME')")
                 .contains("ZREMRANGEBYSCORE")
                 .contains("redis.call('TIME')")
                 .contains("ZCARD', currentBucketKey")
@@ -56,18 +57,50 @@ class PaymentRedisScriptsTests {
     }
 
     /**
-     * 锁释放 v1 脚本只能删除 token 与持有者一致的锁。
+     * token 租约释放 v1 脚本只能删除 token 与持有者一致的门禁。
      */
     @Test
-    void shouldLoadVersionedLockReleaseScript() {
-        log.info("测试锁释放 Lua 资源，关键输入: 锁 token 与当前持有者一致性校验");
-        var script = PaymentRedisScripts.lockReleaseV1();
+    void shouldLoadVersionedTokenLeaseReleaseScript() {
+        log.info("测试 token 租约释放 Lua 资源，关键输入: 门禁 token 与当前持有者一致性校验");
+        var script = PaymentRedisScripts.tokenLeaseReleaseV1();
 
         assertThat(script.getResultType()).isEqualTo(Long.class);
         assertThat(script.getScriptAsString())
                 .contains("redis.call('get', KEYS[1]) == ARGV[1]")
                 .contains("redis.call('del', KEYS[1])");
         assertThat(script.getSha1()).matches("[0-9a-f]{40}");
-        log.info("锁释放 Lua 资源测试完成，结果: 比较后删除契约存在");
+        log.info("token 租约释放 Lua 资源测试完成，结果: 比较后删除契约存在");
+    }
+
+    /**
+     * 并发租约 v1 脚本必须原子清理过期持有者、检查容量并写入新 token。
+     */
+    @Test
+    void shouldLoadVersionedConcurrencyLeaseAcquireScript() {
+        var script = PaymentRedisScripts.concurrencyLeaseAcquireV1();
+
+        assertThat(script.getResultType()).isEqualTo(Long.class);
+        assertThat(script.getScriptAsString())
+                .contains("ZREMRANGEBYSCORE")
+                .contains("ZCARD")
+                .contains("ZADD")
+                .contains("PEXPIRE");
+        assertThat(script.getSha1()).matches("[0-9a-f]{40}");
+    }
+
+    /**
+     * 并发租约续期脚本必须校验 token 仍属于当前 ZSet 后才能延长有效期。
+     */
+    @Test
+    void shouldLoadVersionedConcurrencyLeaseRenewScript() {
+        var script = PaymentRedisScripts.concurrencyLeaseRenewV1();
+
+        assertThat(script.getResultType()).isEqualTo(Long.class);
+        assertThat(script.getScriptAsString())
+                .contains("ZSCORE")
+                .contains("TIME")
+                .contains("ZADD")
+                .contains("PEXPIRE");
+        assertThat(script.getSha1()).matches("[0-9a-f]{40}");
     }
 }

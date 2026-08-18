@@ -1,10 +1,10 @@
 package com.scott.payment.risk.repository.impl;
 
 import com.scott.payment.component.mq.constant.MqTopic;
-import com.scott.payment.component.mq.producer.MqProducer;
+import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
+import com.scott.payment.component.mq.publisher.IndependentReliableMqPublisher;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
-import com.scott.payment.risk.mq.RiskMqConstants;
-import com.scott.payment.risk.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.risk.repository.RiskAuditRecordPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -21,7 +21,7 @@ public class MqRiskAuditRecordPublisher implements RiskAuditRecordPublisher {
     /**
      * 风控审计消息发布入口；骨架环境未装配时允许为空。
      */
-    private final MqProducer mqProducer;
+    private final IndependentReliableMqPublisher mqPublisher;
 
     /**
      * 风控审计 MQ 开关和消费幂等配置。
@@ -31,12 +31,12 @@ public class MqRiskAuditRecordPublisher implements RiskAuditRecordPublisher {
     /**
      * 创建可选的风控审计 MQ 发布器。
      *
-     * @param mqProducerProvider MQ 生产者提供器
+     * @param mqPublisherProvider 可靠 MQ 发布器提供器
      * @param properties         风控评估配置
      */
-    public MqRiskAuditRecordPublisher(ObjectProvider<MqProducer> mqProducerProvider,
+    public MqRiskAuditRecordPublisher(ObjectProvider<IndependentReliableMqPublisher> mqPublisherProvider,
                                       RiskEvaluationProperties properties) {
-        this.mqProducer = mqProducerProvider.getIfAvailable();
+        this.mqPublisher = mqPublisherProvider.getIfAvailable();
         this.properties = properties;
     }
 
@@ -51,18 +51,18 @@ public class MqRiskAuditRecordPublisher implements RiskAuditRecordPublisher {
      */
     @Override
     public void publish(RiskEvaluationAuditMessage message) {
-        if (!properties.isAuditMqEnabled() || mqProducer == null || message == null
+        if (!properties.isAuditMqEnabled() || mqPublisher == null || message == null
                 || !StringUtils.hasText(message.getRiskRecordNo())) {
             return;
         }
         try {
-            mqProducer.send(MqTopic.RISK_EVALUATION_AUDIT,
-                    RiskMqConstants.RISK_EVALUATION_AUDIT_TAG,
+            mqPublisher.publish(MqTopic.RISK_EVALUATION_AUDIT,
+                    MqTag.RISK_EVALUATION_AUDIT,
                     message);
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_AUDIT_PUBLISH_FAILED riskRecordNo: {} reason: {}",
+            log.warn("event: RISK_AUDIT_PUBLISH_FAILED riskRecordNo: {} exceptionType: {}",
                     message.getRiskRecordNo(),
-                    exception.getMessage());
+                    exception.getClass().getSimpleName());
         }
     }
 }

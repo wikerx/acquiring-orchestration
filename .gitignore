@@ -42,6 +42,7 @@ audit/*secret*.json
 *.key
 *.p12
 *.jks
+docs/nacos/*.zip
 
 # Generated
 coverage/
@@ -56,6 +57,12 @@ docs/sql/*
 !docs/sql/bug-001-06b-sharding-registry-rollback.sql
 !docs/sql/checkout-session-ddl-draft.sql
 !docs/sql/checkout-session-ddl-dev.sql
+!docs/sql/shardingsphere-test-table-retirement-20260802.sql
+!docs/sql/shardingsphere-auto-increment-repair-20260802.sql
+!docs/sql/20260814_01_transaction_visible_snapshot_plaintext_prepare.sql
+!docs/sql/20260814_02_transaction_visible_snapshot_plaintext_finalize.sql
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md
+!docs/archive/reports/transaction-sharding-scan-and-remediation-report.md
+/scripts/

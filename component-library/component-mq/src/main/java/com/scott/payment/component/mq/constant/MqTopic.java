@@ -36,6 +36,26 @@ public final class MqTopic {
      */
     public static final String RISK_EVALUATION_AUDIT = "acquiring_risk_evaluation_audit_topic";
 
+    /**
+     * OpenAPI 安全拦截审计 Topic。
+     */
+    public static final String SECURITY_INTERCEPT_AUDIT = "acquiring_security_intercept_audit_topic";
+
+    /**
+     * Admin 与 Merchant 登录审计 Topic。
+     */
+    public static final String LOGIN_AUDIT = "acquiring_login_audit_topic";
+
+    /**
+     * Admin 与 Merchant 业务邮件异步投递 Topic。
+     */
+    public static final String EMAIL_DELIVERY = "acquiring_email_delivery_topic";
+
+    /**
+     * 收银台卡资料库传输 Topic，只允许承载由 service-data 公钥加密且不含 CVV 的信封。
+     */
+    public static final String CHECKOUT_CARD_VAULT = "acquiring_checkout_card_vault_topic";
+
     private MqTopic() {
     }
 }

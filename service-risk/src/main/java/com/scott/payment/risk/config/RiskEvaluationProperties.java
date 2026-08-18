@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @classname : RiskEvaluationProperties
  * @date : 2026-07-30 23:05
  * @email : scott_x@163.com
- * @description : 风控运行时、规则快照、累计限额生命周期和交易频率窗口的配置边界
+ * @description : 风控运行时、规则快照、累计限额生命周期和固定频率窗口的配置边界
  * @status : update
  */
 @Data
@@ -20,6 +20,26 @@ public class RiskEvaluationProperties {
      * 是否启用运行时名单和规则库。
      */
     private boolean runtimeEnabled = true;
+
+    /**
+     * 是否并发执行 AML、黑白名单和单笔限额三个无副作用只读规则组。
+     */
+    private boolean readOnlyParallelEnabled = true;
+
+    /**
+     * 只读风控专用线程池固定线程数，至少覆盖三个独立规则组。
+     */
+    private int readOnlyParallelism = 4;
+
+    /**
+     * 只读风控专用线程池等待队列容量；队列满时由提交线程执行以形成背压。
+     */
+    private int readOnlyQueueCapacity = 64;
+
+    /**
+     * 三个只读规则组共享的最大等待毫秒数，超时后按风控不可用失败关闭。
+     */
+    private long readOnlyTimeoutMillis = 3_000;
 
     /**
      * Redis 命中缓存秒数。
@@ -47,24 +67,9 @@ public class RiskEvaluationProperties {
     private int ruleSnapshotMaxCharacters = 5 * 1024 * 1024;
 
     /**
-     * 累计限额和频率计数的 Redis Key 迁移模式。
+     * 快照容量越界后跳过重复完整加载的秒数；旁路标记绑定规则 generation，期间仍执行数据库精确查询。
      */
-    private RiskCounterMode counterMode = RiskCounterMode.LEGACY;
-
-    /**
-     * 是否已完成完整观察期并确认切换 Cluster-safe 计数。
-     */
-    private boolean counterCutoverConfirmed;
-
-    /**
-     * 交易频率窗口迁移模式；与累计金额计数独立，默认不改变历史固定窗口决策。
-     */
-    private RiskFrequencyMode frequencyMode = RiskFrequencyMode.LEGACY;
-
-    /**
-     * 是否已完成滑动窗口观察并批准其参与真实频控决策。
-     */
-    private boolean frequencyCutoverConfirmed;
+    private long ruleSnapshotCapacityBypassTtlSeconds = 30;
 
     /**
      * 单条频率规则允许的最大窗口秒数，超过后进入 REVIEW 而不执行 Redis 脚本。
@@ -75,11 +80,6 @@ public class RiskEvaluationProperties {
      * 单条频率规则允许的最大阈值，防止错误配置形成不可控高基数窗口。
      */
     private int frequencyMaxThresholdCount = 1_000;
-
-    /**
-     * 单个频率 ZSet 允许保留的最大交易摘要成员数，达到上限时保守进入 REVIEW。
-     */
-    private int frequencyMaxMembers = 2_000;
 
     /**
      * Redis 周期累计值首次初始化时使用的数据库基线口径。

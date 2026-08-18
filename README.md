@@ -33,8 +33,12 @@ component-library
 └── component-job
 
 channel-library
-├── payment-channel-library
-└── payout-channel-library
+├── payment-channel-api
+├── payment-channel-core
+├── payment-channel-mpgs
+├── payment-channel-worldpay
+├── payout-channel-api
+└── payout-channel-core
 
 service-gateway
 service-admin
@@ -97,7 +101,9 @@ Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等基础设施配置统
 当前工程已预留单元测试入口：
 
 ```text
-component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/PaymentOrderShardingAlgorithmTest.java
+component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/QuarterTableShardingAlgorithmTest.java
+component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/TransactionShardingDataSourceConfigurationTest.java
+component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/TransactionShardingRuleChecksumTest.java
 service-openapi/src/test/java/com/scott/payment/openapi/OpenApiApplicationTests.java
 ```
 
@@ -124,11 +130,11 @@ merchant/client -> service-gateway -> service-openapi -> service-payment/service
 渠道适配不作为独立微服务部署：
 
 ```text
-service-payment -> payment-channel-library
-service-payout  -> payout-channel-library
+service-payment -> payment-channel-api + payment-channel-core + selected payment Provider modules
+service-payout  -> payout-channel-api + payout-channel-core + selected payout Provider modules
 ```
 
-`payment-channel-library` 聚合收单支付渠道适配器，`payout-channel-library` 聚合代付渠道适配器。渠道侧回调统一进入 `service-openapi` 后，再分发到 `service-payment` 或 `service-payout` 做交易状态处理。
+Payment 与 Payout 使用相互独立的 SPI、统一模型和 Registry。每个 Provider 独立 Maven Module，渠道侧回调统一进入 `service-openapi` 完成安全校验后，再分发到 `service-payment` 或 `service-payout` 做幂等和平台状态处理。
 
 ## 基本原则
 

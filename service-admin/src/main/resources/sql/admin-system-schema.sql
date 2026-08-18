@@ -245,6 +245,7 @@ CREATE TABLE IF NOT EXISTS sys_role (
     app_id BIGINT NOT NULL COMMENT '系统应用ID',
     role_code VARCHAR(80) NOT NULL COMMENT '角色编码',
     role_name VARCHAR(100) NOT NULL COMMENT '角色名称',
+    merchant_id VARCHAR(32) NULL COMMENT '商户号，商户系统角色必须绑定当前商户',
     role_type VARCHAR(30) NOT NULL DEFAULT 'CUSTOM' COMMENT '角色类型：SYSTEM系统内置，CUSTOM自定义',
     data_scope VARCHAR(30) NOT NULL DEFAULT 'SELF' COMMENT '数据范围：ALL全部，SELF本人，CUSTOM自定义',
     description VARCHAR(500) NULL COMMENT '角色说明',
@@ -257,7 +258,8 @@ CREATE TABLE IF NOT EXISTS sys_role (
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
     PRIMARY KEY (id),
     UNIQUE KEY uk_sys_role_app_code_deleted (app_id, role_code, deleted),
-    KEY idx_sys_role_app_status (app_id, status, deleted)
+    KEY idx_sys_role_app_status (app_id, status, deleted),
+    KEY idx_sys_role_merchant (merchant_id, status, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色表';
 
 CREATE TABLE IF NOT EXISTS sys_menu (
@@ -728,7 +730,10 @@ VALUES
     (503, 2, 500, 'merchant_system_account_v1', '员工账号', 'MENU', '/system/account', 'system/account', 'merchant:system:account:list', 'User', 1, 93, 1, 0),
     (504, 2, 500, 'merchant_system_role_v1', '角色管理', 'MENU', '/system/role', 'system/role', 'merchant:system:role:list', 'Lock', 1, 94, 1, 0),
     (505, 2, 500, 'merchant_system_role_auth_v1', '角色授权', 'MENU', '/system/role-auth', 'system/role-auth', 'merchant:system:role:grantMenu', 'Unlock', 1, 95, 1, 0),
-    (506, 2, 0, 'merchant_openapi_keys_v1', '商户密钥管理', 'MENU', '/merchant-info/openapi-keys', 'merchant-info/openapi-keys', 'merchant:openapi:key:view', 'Key', 1, 80, 1, 0);
+    (506, 2, 0, 'merchant_openapi_keys_v1', '商户密钥管理', 'MENU', '/merchant-info/openapi-keys', 'merchant-info/openapi-keys', 'merchant:openapi:key:view', 'Key', 1, 80, 1, 0),
+    (507, 2, 0, 'merchant_access_config_catalog_v1', '支付接入管理', 'CATALOG', '/access-config', NULL, NULL, 'Lock', 1, 81, 1, 0),
+    (508, 2, 507, 'merchant_source_url_v1', '店铺网址', 'MENU', '/access-config/source-url', 'access-config/source-url', 'merchant:access-config:source-url:list', 'Link', 1, 82, 1, 0),
+    (509, 2, 507, 'merchant_ip_whitelist_v1', 'IP 白名单', 'MENU', '/access-config/ip-whitelist', 'access-config/ip-whitelist', 'merchant:access-config:ip-whitelist:list', 'Connection', 1, 83, 1, 0);
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
@@ -762,6 +767,12 @@ VALUES
     (523, 2, 506, 'merchant:openapi:key:download-private', '商户OpenAPI敏感材料导出', 'BUTTON', '*', '/merchant/openapi/keys/*', 1, 0),
     (524, 2, 506, 'merchant:openapi:key:rotate-jwt', '商户OpenAPI JWT密钥轮换', 'BUTTON', 'POST', '/merchant/openapi/keys/rotate', 1, 0),
     (525, 2, 506, 'merchant:openapi:key:rotate-response', '商户OpenAPI响应密钥轮换', 'BUTTON', 'POST', '/merchant/openapi/keys/rotate', 1, 0),
+    (526, 2, 508, 'merchant:access-config:source-url:list', '店铺网址查询', 'MENU', 'GET', '/merchant/access-config/source-urls', 1, 0),
+    (527, 2, 508, 'merchant:access-config:source-url:detail', '店铺网址详情', 'BUTTON', 'GET', '/merchant/access-config/source-urls', 1, 0),
+    (528, 2, 508, 'merchant:access-config:source-url:submit', '店铺网址提交', 'BUTTON', 'POST', '/merchant/access-config/source-urls', 1, 0),
+    (529, 2, 509, 'merchant:access-config:ip-whitelist:list', 'IP 白名单查询', 'MENU', 'GET', '/merchant/access-config/ip-whitelists', 1, 0),
+    (530, 2, 509, 'merchant:access-config:ip-whitelist:detail', 'IP 白名单详情', 'BUTTON', 'GET', '/merchant/access-config/ip-whitelists', 1, 0),
+    (531, 2, 509, 'merchant:access-config:ip-whitelist:submit', 'IP 白名单提交', 'BUTTON', 'POST', '/merchant/access-config/ip-whitelists', 1, 0),
     (211, 1, 211, 'system:user:list', '用户管理查询', 'MENU', 'POST', '/admin/system/users/search', 1, 0),
     (212, 1, 211, 'system:user:add', '用户新增', 'BUTTON', 'POST', '/admin/system/users/create', 1, 0),
     (213, 1, 211, 'system:user:edit', '用户编辑', 'BUTTON', '*', '/admin/system/users/**', 1, 0),
@@ -802,7 +813,7 @@ VALUES
     (301, 1, 231, 'merchant:info:list', '商户信息查询', 'MENU', 'GET', '/merchant/info', 1, 0),
     (302, 1, 231, 'merchant:info:detail', '商户详情', 'BUTTON', '*', '/admin/merchants/**', 1, 0),
     (303, 1, 231, 'merchant:info:edit', '商户编辑', 'BUTTON', '*', '/admin/merchants/**', 1, 0),
-    (304, 1, 231, 'merchant:info:disable', '商户停用', 'BUTTON', '*', '/admin/merchants/**/disable', 1, 0),
+    (304, 1, 231, 'merchant:info:changeStatus', '商户冻结/解冻', 'BUTTON', 'PUT', '/admin/merchants/**/status', 1, 0),
     (311, 1, 231, 'merchant:account:list', '商户账号查询', 'BUTTON', '*', '/admin/merchant-accounts/**', 1, 0),
     (312, 1, 231, 'merchant:account:add', '商户账号新增', 'BUTTON', '*', '/admin/merchant-accounts/**', 1, 0),
     (313, 1, 231, 'merchant:account:edit', '商户账号编辑', 'BUTTON', '*', '/admin/merchant-accounts/**', 1, 0),
@@ -909,10 +920,11 @@ WHERE role_permission.app_id = 1
   AND permission.id < 200
   AND role_permission.deleted = 0;
 
-INSERT IGNORE INTO sys_role (app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
+INSERT IGNORE INTO sys_role (app_id, role_code, role_name, merchant_id, role_type, data_scope, description, status, sort_no, deleted)
 SELECT 2,
        CONCAT('MERCHANT_ADMIN_', merchant_id),
        CONCAT(merchant_name, ' 商户管理员'),
+       merchant_id,
        'SYSTEM',
        'SELF',
        CONCAT('绑定商户ID=', id, '，商户号=', merchant_id, '，默认拥有商户端全部菜单和权限'),
@@ -922,10 +934,11 @@ SELECT 2,
 FROM base_merchant_info
 WHERE merchant_status = 1 AND deleted = 0;
 
-INSERT IGNORE INTO sys_role (app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
+INSERT IGNORE INTO sys_role (app_id, role_code, role_name, merchant_id, role_type, data_scope, description, status, sort_no, deleted)
 SELECT 2,
        CONCAT('MERCHANT_OPERATOR_', merchant_id),
        CONCAT(merchant_name, ' 商户操作员'),
+       merchant_id,
        'SYSTEM',
        'SELF',
        CONCAT('绑定商户ID=', id, '，商户号=', merchant_id, '，默认拥有商户端业务操作权限'),
@@ -935,10 +948,11 @@ SELECT 2,
 FROM base_merchant_info
 WHERE merchant_status = 1 AND deleted = 0;
 
-INSERT IGNORE INTO sys_role (app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
+INSERT IGNORE INTO sys_role (app_id, role_code, role_name, merchant_id, role_type, data_scope, description, status, sort_no, deleted)
 SELECT 2,
        CONCAT('MERCHANT_VIEWER_', merchant_id),
        CONCAT(merchant_name, ' 商户查看员'),
+       merchant_id,
        'SYSTEM',
        'SELF',
        CONCAT('绑定商户ID=', id, '，商户号=', merchant_id, '，默认仅拥有商户端查询权限'),
@@ -985,7 +999,8 @@ JOIN sys_menu m ON m.app_id = r.app_id AND m.deleted = 0
 WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_OPERATOR\_%'
-  AND m.menu_code IN ('merchant_openapi_keys_v1', 'merchant_system_catalog_v1',
+  AND m.menu_code IN ('merchant_openapi_keys_v1', 'merchant_access_config_catalog_v1',
+                      'merchant_source_url_v1', 'merchant_ip_whitelist_v1', 'merchant_system_catalog_v1',
                       'merchant_system_dept_v1', 'merchant_system_post_v1',
                       'merchant_system_account_v1', 'merchant_system_role_v1',
                       'merchant_system_role_auth_v1');
@@ -997,9 +1012,11 @@ JOIN sys_menu m ON m.app_id = r.app_id AND m.deleted = 0
 WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_VIEWER\_%'
-  AND m.permission_code IN ('merchant:openapi:key:view', 'merchant:system:dept:list',
+  AND (m.menu_code = 'merchant_access_config_catalog_v1'
+       OR m.permission_code IN ('merchant:access-config:source-url:list', 'merchant:access-config:ip-whitelist:list',
+                            'merchant:openapi:key:view', 'merchant:system:dept:list',
                             'merchant:system:post:list', 'merchant:system:account:list',
-                            'merchant:system:role:list');
+                            'merchant:system:role:list'));
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
 SELECT app_id, 1, id, 0 FROM sys_permission WHERE app_id = 1 AND status = 1 AND permission_code <> '*:*:*' AND deleted = 0;
@@ -1028,7 +1045,10 @@ JOIN sys_permission p ON p.app_id = r.app_id AND p.deleted = 0
 WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_OPERATOR\_%'
-  AND p.permission_code IN ('merchant:openapi:key:view', 'merchant:openapi:key:copy',
+  AND p.permission_code IN ('merchant:access-config:source-url:list', 'merchant:access-config:source-url:detail',
+                            'merchant:access-config:source-url:submit', 'merchant:access-config:ip-whitelist:list',
+                            'merchant:access-config:ip-whitelist:detail', 'merchant:access-config:ip-whitelist:submit',
+                            'merchant:openapi:key:view', 'merchant:openapi:key:copy',
                             'merchant:openapi:key:download', 'merchant:system:dept:list',
                             'merchant:system:post:list', 'merchant:system:account:list',
                             'merchant:system:role:list');
@@ -1040,7 +1060,9 @@ JOIN sys_permission p ON p.app_id = r.app_id AND p.deleted = 0
 WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_VIEWER\_%'
-  AND p.permission_code IN ('merchant:openapi:key:view', 'merchant:system:dept:list',
+  AND p.permission_code IN ('merchant:access-config:source-url:list', 'merchant:access-config:source-url:detail',
+                            'merchant:access-config:ip-whitelist:list', 'merchant:access-config:ip-whitelist:detail',
+                            'merchant:openapi:key:view', 'merchant:system:dept:list',
                             'merchant:system:post:list', 'merchant:system:account:list',
                             'merchant:system:role:list');
 
@@ -1950,10 +1972,12 @@ CREATE TABLE IF NOT EXISTS msg_email_send_record (
     bcc_emails TEXT NULL COMMENT '密送邮箱JSON数组',
     subject VARCHAR(500) NOT NULL COMMENT '邮件标题',
     content_snapshot LONGTEXT NULL COMMENT '邮件正文快照，敏感内容需脱敏',
+    delivery_content_cipher LONGTEXT NULL COMMENT '实际投递正文 AES-GCM 密文，发送成功后清空',
+    content_type VARCHAR(16) NULL COMMENT '实际投递正文类型：HTML、TEXT',
     variables_snapshot JSON NULL COMMENT '模板变量快照，敏感变量需脱敏',
     biz_type VARCHAR(64) NULL COMMENT '业务类型',
     biz_no VARCHAR(100) NULL COMMENT '业务单号',
-    send_status TINYINT NOT NULL DEFAULT 0 COMMENT '发送状态：0待发送，1发送中，2发送成功，3发送失败，4重试中，5已取消',
+    send_status TINYINT NOT NULL DEFAULT 0 COMMENT '发送状态：0待发送，1发送中，2发送成功，3已关闭，4等待重试，5已取消',
     retry_count INT NOT NULL DEFAULT 0 COMMENT '已重试次数',
     max_retry_count INT NOT NULL DEFAULT 0 COMMENT '最大重试次数',
     next_retry_time DATETIME(3) NULL COMMENT '下次重试时间',
@@ -1977,7 +2001,9 @@ CREATE TABLE IF NOT EXISTS msg_email_send_record (
     KEY idx_email_record_template (template_code),
     KEY idx_email_record_biz (biz_type, biz_no),
     KEY idx_email_record_create_time (create_time),
-    KEY idx_email_record_send_time (send_success_time)
+    KEY idx_email_record_send_time (send_success_time),
+    KEY idx_email_record_retry (app_code, send_status, next_retry_time, deleted),
+    KEY idx_email_record_recovery (app_code, send_status, send_start_time, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='邮件发送记录表';
 
 INSERT INTO sys_dict_type (id, dict_name, dict_type, biz_domain, system_builtin, editable, status, deleted)
@@ -2012,6 +2038,7 @@ VALUES
 (5025, 'email_scene_code', '密钥变更通知', 'API_KEY_CHANGED', 'zh-CN', 6, 'danger', 0, 1, 0),
 (5026, 'email_scene_code', '管理系统 MFA 安全通知', 'ADMIN_MFA', 'zh-CN', 7, 'danger', 0, 1, 0),
 (5027, 'email_scene_code', '商户 MFA 安全通知', 'MERCHANT_MFA', 'zh-CN', 8, 'danger', 0, 1, 0),
+(5028, 'email_scene_code', '密码变更通知', 'PASSWORD_CHANGED', 'zh-CN', 9, 'warning', 0, 1, 0),
 (5030, 'email_provider_type', 'SMTP', 'SMTP', 'zh-CN', 1, 'primary', 1, 1, 0),
 (5040, 'email_encryption_type', 'SSL', 'SSL', 'zh-CN', 1, 'primary', 1, 1, 0),
 (5041, 'email_encryption_type', 'TLS', 'TLS', 'zh-CN', 2, 'primary', 0, 1, 0),
@@ -2023,8 +2050,8 @@ VALUES
 (5060, 'email_send_status', '待发送', '0', 'zh-CN', 1, 'info', 1, 1, 0),
 (5061, 'email_send_status', '发送中', '1', 'zh-CN', 2, 'warning', 0, 1, 0),
 (5062, 'email_send_status', '发送成功', '2', 'zh-CN', 3, 'success', 0, 1, 0),
-(5063, 'email_send_status', '发送失败', '3', 'zh-CN', 4, 'danger', 0, 1, 0),
-(5064, 'email_send_status', '重试中', '4', 'zh-CN', 5, 'warning', 0, 1, 0),
+(5063, 'email_send_status', '已关闭', '3', 'zh-CN', 4, 'danger', 0, 1, 0),
+(5064, 'email_send_status', '等待重试', '4', 'zh-CN', 5, 'warning', 0, 1, 0),
 (5065, 'email_send_status', '已取消', '5', 'zh-CN', 6, 'info', 0, 1, 0),
 (5070, 'email_content_type', 'HTML', 'HTML', 'zh-CN', 1, 'primary', 1, 1, 0),
 (5071, 'email_content_type', '纯文本', 'TEXT', 'zh-CN', 2, 'info', 0, 1, 0),
@@ -2041,6 +2068,7 @@ VALUES
 (15025, 'email_scene_code', 'API Key Changed', 'API_KEY_CHANGED', 'en-US', 6, 'danger', 0, 1, 0),
 (15026, 'email_scene_code', 'Admin MFA Security', 'ADMIN_MFA', 'en-US', 7, 'danger', 0, 1, 0),
 (15027, 'email_scene_code', 'Merchant MFA Security', 'MERCHANT_MFA', 'en-US', 8, 'danger', 0, 1, 0),
+(15028, 'email_scene_code', 'Password Changed', 'PASSWORD_CHANGED', 'en-US', 9, 'warning', 0, 1, 0),
 (15030, 'email_provider_type', 'SMTP', 'SMTP', 'en-US', 1, 'primary', 1, 1, 0),
 (15040, 'email_encryption_type', 'SSL', 'SSL', 'en-US', 1, 'primary', 1, 1, 0),
 (15041, 'email_encryption_type', 'TLS', 'TLS', 'en-US', 2, 'primary', 0, 1, 0),
@@ -2052,8 +2080,8 @@ VALUES
 (15060, 'email_send_status', 'Pending', '0', 'en-US', 1, 'info', 1, 1, 0),
 (15061, 'email_send_status', 'Sending', '1', 'en-US', 2, 'warning', 0, 1, 0),
 (15062, 'email_send_status', 'Success', '2', 'en-US', 3, 'success', 0, 1, 0),
-(15063, 'email_send_status', 'Failed', '3', 'en-US', 4, 'danger', 0, 1, 0),
-(15064, 'email_send_status', 'Retrying', '4', 'en-US', 5, 'warning', 0, 1, 0),
+(15063, 'email_send_status', 'Closed', '3', 'en-US', 4, 'danger', 0, 1, 0),
+(15064, 'email_send_status', 'Retry Wait', '4', 'en-US', 5, 'warning', 0, 1, 0),
 (15065, 'email_send_status', 'Cancelled', '5', 'en-US', 6, 'info', 0, 1, 0),
 (15070, 'email_content_type', 'HTML', 'HTML', 'en-US', 1, 'primary', 1, 1, 0),
 (15071, 'email_content_type', 'Text', 'TEXT', 'en-US', 2, 'info', 0, 1, 0);
@@ -2137,18 +2165,18 @@ WHERE NOT EXISTS (
 
 UPDATE msg_email_template
 SET content_template = CASE template_code
-    WHEN 'ADMIN_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如果本次操作不是您本人发起，请立即联系系统管理员。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如非本人操作，请及时修改密码或联系平台客服。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'ADMIN_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件并及时联系系统管理员。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'ADMIN_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#eef3f8;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#1f2937;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;"><div style="padding:26px 30px;background:#0f172a;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#cbd5e1;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#f8fafc;border:1px solid #dbe5ef;border-radius:8px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#eef8f7;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #cde7e3;border-radius:10px;overflow:hidden;"><div style="padding:26px 30px;background:#0f766e;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#b7f4ea;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">商户账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantId}</strong></p><p style="margin:0 0 8px;">商户名称：<strong>${merchantName}</strong></p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#0f766e;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_ONBOARDING_APPROVED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#065f46;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请已审核通过。</p><div style="margin:20px 0;padding:18px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0;">审核时间：${reviewTime}</p></div><p style="margin:0 0 12px;">您可以登录商户系统查看商户资料、配置 API 密钥并进行后续对接。</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_ONBOARDING_REJECTED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核未通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请暂未通过审核。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">审核时间：${reviewTime}</p><p style="margin:0;">未通过原因：${rejectReason}</p></div><p style="margin:0;">请根据提示补充或修改资料后重新提交。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_CREATED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥生成通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已生成。</p><div style="margin:20px 0;padding:18px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">为保障账户安全，邮件中不会展示完整密钥内容。请登录商户系统查看或下载相关密钥信息。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#7c2d12;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥重置通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已被重置。</p><div style="margin:20px 0;padding:18px 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">新密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">请确认该操作是否由授权人员发起。如非本人或授权人员操作，请立即联系平台客服。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_ENABLED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#065f46;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥启用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已启用。</p><div style="margin:20px 0;padding:18px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_DISABLED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥停用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已停用。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">如果该操作不是您或授权人员发起，请及时联系平台客服。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如果本次操作不是您本人发起，请立即联系系统管理员。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如非本人操作，请及时修改密码或联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件并及时联系系统管理员。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:660px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:26px 30px;background:#2563EB;color:#FFFFFF;"><div style="font-size:12px;letter-spacing:0;text-transform:uppercase;color:#DBEAFE;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:660px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:26px 30px;background:#2563EB;color:#FFFFFF;"><div style="font-size:12px;letter-spacing:0;text-transform:uppercase;color:#DBEAFE;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">商户账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantId}</strong></p><p style="margin:0 0 8px;">商户名称：<strong>${merchantName}</strong></p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ONBOARDING_APPROVED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请已审核通过。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0;">审核时间：${reviewTime}</p></div><p style="margin:0 0 12px;">您可以登录商户系统查看商户资料、配置 API 密钥并进行后续对接。</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ONBOARDING_REJECTED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核未通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请暂未通过审核。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">审核时间：${reviewTime}</p><p style="margin:0;">未通过原因：${rejectReason}</p></div><p style="margin:0;">请根据提示补充或修改资料后重新提交。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_CREATED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥生成通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已生成。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">为保障账户安全，邮件中不会展示完整密钥内容。请登录商户系统查看或下载相关密钥信息。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#7c2d12;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥重置通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已被重置。</p><div style="margin:20px 0;padding:18px 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">新密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">请确认该操作是否由授权人员发起。如非本人或授权人员操作，请立即联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_ENABLED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥启用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已启用。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_DISABLED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥停用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已停用。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">如果该操作不是您或授权人员发起，请及时联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
     ELSE content_template
 END,
 update_by = 'system',
@@ -2184,6 +2212,49 @@ WHERE system_builtin = 1
   AND locale = 'zh-CN'
   AND template_code IN ('ADMIN_ACCOUNT_CREATED', 'MERCHANT_ACCOUNT_CREATED')
   AND deleted = 0;
+
+INSERT INTO msg_email_template (
+    template_code, template_name, app_code, scene_code, locale, subject_template, content_type,
+    content_template, variable_schema, sensitive_variable_names, status, system_builtin, version_no,
+    remark, create_by, update_by, deleted
+)
+SELECT item.template_code, item.template_name, item.app_code, 'PASSWORD_CHANGED', 'zh-CN',
+       item.subject_template, 'HTML', item.content_template, item.variable_schema,
+       '["temporaryPassword"]', 1, 1, 2, item.remark, 'system', 'system', 0
+FROM (
+    SELECT 'ADMIN_PASSWORD_CHANGED_BY_ADMIN' template_code,
+           '管理系统密码变更通知' template_name,
+           'ADMIN' app_code,
+           '【${systemName}】密码已由管理员修改' subject_template,
+           '<div style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">管理系统密码已修改</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 14px;font-size:20px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 16px;color:#64748B;">您的管理系统密码已由 ${operatorName} 修改。</p><div style="margin:18px 0;padding:18px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:6px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">临时密码：<strong>${temporaryPassword}</strong></p><p style="margin:0 0 8px;">操作时间：${operationTime}</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;word-break:break-all;">${loginUrl}</a></p></div><div style="padding:12px 14px;background:#FEF2F2;border-left:4px solid #DC2626;color:#991B1B;">请登录后立即修改密码。如非本人授权，请立即联系系统管理员。</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由系统自动发送，请勿直接回复或转发敏感信息。</div></div></div>' content_template,
+           '{"systemName":"Vexra Admin","userName":"张三","loginAccount":"admin@example.com","temporaryPassword":"******","operatorName":"系统管理员","operationTime":"2026-07-29 10:00:00","loginUrl":"https://admin.example.com/login"}' variable_schema,
+           '系统内置模板：管理员修改管理系统账号密码通知' remark
+    UNION ALL SELECT 'MERCHANT_PASSWORD_CHANGED_BY_ADMIN',
+           '商户系统密码变更通知',
+           'MERCHANT',
+           '【${systemName}】密码已由管理员修改',
+           '<div style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Merchant</div><div style="margin-top:6px;font-size:22px;font-weight:700;">商户系统密码已修改</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 14px;font-size:20px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 16px;color:#64748B;">您的商户系统密码已由 ${operatorName} 修改。</p><div style="margin:18px 0;padding:18px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:6px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">临时密码：<strong>${temporaryPassword}</strong></p><p style="margin:0 0 8px;">操作时间：${operationTime}</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;word-break:break-all;">${loginUrl}</a></p></div><div style="padding:12px 14px;background:#FEF2F2;border-left:4px solid #DC2626;color:#991B1B;">请登录后立即修改密码。如非本人授权，请立即联系商户管理员。</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由系统自动发送，请勿直接回复或转发敏感信息。</div></div></div>',
+           '{"systemName":"Vexra Merchant","userName":"张三","merchantId":"M10000001","merchantName":"示例商户","loginAccount":"merchant@example.com","temporaryPassword":"******","operatorName":"商户管理员","operationTime":"2026-07-29 10:00:00","loginUrl":"https://merchant.example.com/login"}',
+           '系统内置模板：商户管理员修改员工密码通知'
+) item
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM msg_email_template existing
+    WHERE existing.template_code = item.template_code
+      AND existing.locale = 'zh-CN'
+      AND existing.deleted = 0
+);
+
+DELETE FROM msg_email_template
+WHERE template_code IN (
+    'ADMIN_LOGIN_OTP',
+    'MERCHANT_LOGIN_OTP',
+    'ADMIN_PASSWORD_RESET',
+    'MERCHANT_PASSWORD_RESET',
+    'MERCHANT_ONBOARDING_APPROVED',
+    'MERCHANT_ONBOARDING_REJECTED',
+    'MERCHANT_MFA_EXEMPT_NOTICE_COPY_1785241605402'
+);
 
 INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 VALUES
@@ -2267,7 +2338,30 @@ VALUES
 (1042, 1, 1040, 'admin_transaction_operation_v1', '交易管理', 'MENU', '/transaction/operation', 'transaction/operation', 'transaction:operation:list', 'CreditCard', 1, 57, 1, 0),
 (1043, 1, 1040, 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1, 0),
 (1044, 1, 1040, 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1, 0),
-(1045, 1, 1040, 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1, 0);
+(1045, 1, 1040, 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1, 0),
+(1046, 1, 1040, 'admin_transaction_analytics_v1', '交易分析', 'MENU', '/transaction/analytics', 'transaction/analytics', 'transaction:analytics:view', 'DataAnalysis', 1, 55, 1, 0);
+
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT parent.app_id, parent.id, item.menu_code, item.menu_name, 'MENU', item.route_path,
+       item.component_path, item.permission_code, item.icon, 1, item.sort_no, 1, 0
+FROM sys_menu parent
+JOIN (
+    SELECT 'admin_transaction_refund_v1' menu_code, '退款管理' menu_name,
+           '/transaction/refund' route_path, 'transaction/refund' component_path,
+           'transaction:refund:list' permission_code, 'RefreshLeft' icon, 61 sort_no
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', '勾兑异常交易',
+           '/transaction/channel-match-abnormal', 'transaction/channel-match-abnormal',
+           'transaction:match-abnormal:list', 'Warning', 62
+) item
+WHERE parent.app_id = 1
+  AND parent.menu_code = 'admin_transaction_catalog_v1'
+  AND parent.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = parent.app_id
+        AND exists_menu.menu_code = item.menu_code
+        AND exists_menu.deleted = 0
+  );
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
@@ -2287,7 +2381,9 @@ VALUES
 (1072, 1, 1045, 'transaction:merchant-notification:detail', '商户回调记录详情', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/search', 1, 0),
 (1073, 1, 1041, 'transaction:order:export', '交易主单导出', 'BUTTON', 'POST', '/admin/transactions/orders/export', 1, 0),
 (1074, 1, 1042, 'transaction:operation:export', '交易动作导出', 'BUTTON', 'POST', '/admin/transactions/operations/export', 1, 0),
-(1075, 1, 1045, 'transaction:merchant-notification:export', '商户回调记录导出', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/export', 1, 0);
+(1075, 1, 1045, 'transaction:merchant-notification:export', '商户回调记录导出', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/export', 1, 0),
+(1077, 1, 1045, 'transaction:merchant-notification:retry', '商户终态回调重发', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/retry', 1, 0),
+(1078, 1, 1046, 'transaction:analytics:view', '交易分析访问', 'MENU', NULL, NULL, 1, 0);
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
@@ -2304,6 +2400,22 @@ JOIN (
     UNION ALL SELECT 'admin_transaction_channel_callback_v1', 'admin_transaction_channel_callback_detail_v1', '渠道回调记录详情', 'transaction:channel-callback:detail', 1
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_detail_v1', '商户回调记录详情', 'transaction:merchant-notification:detail', 1
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_export_v1', '商户回调记录导出', 'transaction:merchant-notification:export', 2
+    UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_retry_v1', '商户终态回调重发', 'transaction:merchant-notification:retry', 3
+    UNION ALL SELECT 'admin_transaction_analytics_v1', 'admin_transaction_analytics_overview_v1', '交易总览', 'transaction:analytics:overview', 1
+    UNION ALL SELECT 'admin_transaction_analytics_v1', 'admin_transaction_analytics_merchants_v1', '商户表现', 'transaction:analytics:merchants', 2
+    UNION ALL SELECT 'admin_transaction_analytics_v1', 'admin_transaction_analytics_failures_v1', '失败分析', 'transaction:analytics:failures', 3
+    UNION ALL SELECT 'admin_transaction_analytics_v1', 'admin_transaction_analytics_channels_v1', '渠道表现', 'transaction:analytics:channels', 4
+    UNION ALL SELECT 'admin_transaction_analytics_v1', 'admin_transaction_analytics_three_ds_v1', '3DS分析', 'transaction:analytics:three-ds', 5
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_detail_v1', '退款详情', 'transaction:refund:detail', 1
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_export_v1', '退款导出', 'transaction:refund:export', 2
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_approve_v1', '退款审批通过', 'transaction:refund:approve', 3
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_reject_v1', '退款审批拒绝', 'transaction:refund:reject', 4
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_detail_v1', '异常详情', 'transaction:match-abnormal:detail', 1
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_export_v1', '异常导出', 'transaction:match-abnormal:export', 2
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_assign_v1', '领取或转派', 'transaction:match-abnormal:assign', 3
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_requery_v1', '重新勾兑', 'transaction:match-abnormal:requery', 4
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_batch_requery_v1', '批量重新勾兑', 'transaction:match-abnormal:batch-requery', 5
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'admin_transaction_match_abnormal_resolve_v1', '处置异常', 'transaction:match-abnormal:resolve', 6
 ) button ON button.parent_code = parent.menu_code
 WHERE parent.app_id = 1
   AND parent.deleted = 0
@@ -2313,6 +2425,45 @@ WHERE parent.app_id = 1
         AND exists_menu.menu_code = button.menu_code
         AND exists_menu.deleted = 0
   );
+
+INSERT INTO sys_permission (
+    app_id, menu_id, permission_code, permission_name, permission_type,
+    resource_method, resource_path, description, status, deleted
+)
+SELECT 1, menu.id, item.permission_code, item.permission_name, item.permission_type,
+       item.resource_method, item.resource_path, item.description, 1, 0
+FROM (
+    SELECT 'admin_transaction_analytics_overview_v1' menu_code, 'transaction:analytics:overview' permission_code,
+           '交易总览' permission_name, 'BUTTON' permission_type, 'POST' resource_method,
+           '/admin/transactions/analytics/overview' resource_path, '查询交易总览统计' description
+    UNION ALL SELECT 'admin_transaction_analytics_merchants_v1', 'transaction:analytics:merchants', '商户表现', 'BUTTON', 'POST', '/admin/transactions/analytics/merchants', '查询商户交易表现统计'
+    UNION ALL SELECT 'admin_transaction_analytics_failures_v1', 'transaction:analytics:failures', '失败分析', 'BUTTON', 'POST', '/admin/transactions/analytics/failures', '查询后台失败原因统计'
+    UNION ALL SELECT 'admin_transaction_analytics_channels_v1', 'transaction:analytics:channels', '渠道表现', 'BUTTON', 'POST', '/admin/transactions/analytics/channels', '查询渠道请求和最终交易表现'
+    UNION ALL SELECT 'admin_transaction_analytics_three_ds_v1', 'transaction:analytics:three-ds', '3DS分析', 'BUTTON', 'POST', '/admin/transactions/analytics/three-ds', '查询3DS认证统计'
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'transaction:refund:list' permission_code,
+           '退款查询' permission_name, 'MENU' permission_type, 'POST' resource_method,
+           '/admin/transactions/refunds/search' resource_path, '查询退款和撤销记录' description
+    UNION ALL SELECT 'admin_transaction_refund_detail_v1', 'transaction:refund:detail', '退款详情', 'BUTTON', 'GET', '/admin/transactions/refunds/*', '查询退款详情'
+    UNION ALL SELECT 'admin_transaction_refund_export_v1', 'transaction:refund:export', '退款导出', 'BUTTON', 'POST', '/admin/transactions/refunds/export', '导出退款记录'
+    UNION ALL SELECT 'admin_transaction_refund_approve_v1', 'transaction:refund:approve', '退款审批通过', 'BUTTON', 'POST', '/admin/transactions/refund-approvals/*/approve', '审批通过退款'
+    UNION ALL SELECT 'admin_transaction_refund_reject_v1', 'transaction:refund:reject', '退款审批拒绝', 'BUTTON', 'POST', '/admin/transactions/refund-approvals/*/reject', '拒绝退款审批'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_v1', 'transaction:match-abnormal:list', '勾兑异常查询', 'MENU', 'POST', '/admin/transactions/channel-match-abnormalities/search', '查询勾兑异常案件'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_detail_v1', 'transaction:match-abnormal:detail', '勾兑异常详情', 'BUTTON', 'GET', '/admin/transactions/channel-match-abnormalities/*', '查询勾兑异常详情'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_export_v1', 'transaction:match-abnormal:export', '勾兑异常导出', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/export', '导出勾兑异常案件'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_assign_v1', 'transaction:match-abnormal:assign', '领取或转派异常', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/*/claim', '领取或转派勾兑异常'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_requery_v1', 'transaction:match-abnormal:requery', '重新勾兑', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/*/requery', '单笔重新勾兑'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_batch_requery_v1', 'transaction:match-abnormal:batch-requery', '批量重新勾兑', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/batch-requery', '批量重新勾兑'
+    UNION ALL SELECT 'admin_transaction_match_abnormal_resolve_v1', 'transaction:match-abnormal:resolve', '处置勾兑异常', 'BUTTON', 'POST', '/admin/transactions/channel-match-abnormalities/*/resolve', '确认无需修改或忽略案件'
+) item
+JOIN sys_menu menu ON menu.app_id = 1
+                  AND menu.menu_code = item.menu_code
+                  AND menu.deleted = 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_permission exists_permission
+    WHERE exists_permission.app_id = 1
+      AND exists_permission.permission_code = item.permission_code
+      AND exists_permission.deleted = 0
+);
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT 1, 1, id, 0
@@ -2365,6 +2516,128 @@ WHERE permission.app_id = 1
   AND permission.permission_code = 'transaction:operation:capture'
   AND permission.deleted = 0
   AND permission.status = 1;
+
+-- ===================== 商户系统退款管理菜单与权限 =====================
+INSERT INTO sys_menu (
+    app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
+    permission_code, icon, visible, keep_alive, external_link, sort_no, status, deleted
+)
+SELECT app.id, parent.id, 'merchant_transaction_refund_v1', '退款管理', 'MENU',
+       '/transaction/refund', 'transaction/refund', 'merchant:transaction:refund:list',
+       'RefreshLeft', 1, 1, 0, 32, 1, 0
+FROM sys_app app
+JOIN sys_menu parent ON parent.app_id = app.id
+                    AND parent.menu_code = 'merchant_transaction_catalog_v1'
+                    AND parent.deleted = 0
+WHERE app.app_code = 'MERCHANT'
+  AND app.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = app.id
+        AND exists_menu.menu_code = 'merchant_transaction_refund_v1'
+        AND exists_menu.deleted = 0
+  );
+
+INSERT INTO sys_menu (
+    app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
+    permission_code, icon, visible, keep_alive, external_link, sort_no, status, deleted
+)
+SELECT app.id, parent.id, item.menu_code, item.menu_name, 'BUTTON', NULL, NULL,
+       item.permission_code, NULL, 0, 0, 0, item.sort_no, 1, 0
+FROM sys_app app
+JOIN sys_menu parent ON parent.app_id = app.id
+                    AND parent.menu_code = 'merchant_transaction_refund_v1'
+                    AND parent.deleted = 0
+JOIN (
+    SELECT 'merchant_transaction_refund_detail_v1' menu_code, '退款详情' menu_name,
+           'merchant:transaction:refund:detail' permission_code, 1 sort_no
+    UNION ALL SELECT 'merchant_transaction_refund_export_v1', '退款导出',
+           'merchant:transaction:refund:export', 2
+) item
+WHERE app.app_code = 'MERCHANT'
+  AND app.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = app.id
+        AND exists_menu.menu_code = item.menu_code
+        AND exists_menu.deleted = 0
+  );
+
+INSERT INTO sys_permission (
+    app_id, menu_id, permission_code, permission_name, permission_type,
+    resource_method, resource_path, description, status, deleted
+)
+SELECT app.id, menu.id, item.permission_code, item.permission_name, item.permission_type,
+       item.resource_method, item.resource_path, item.description, 1, 0
+FROM sys_app app
+JOIN (
+    SELECT 'merchant_transaction_refund_v1' menu_code, 'merchant:transaction:refund:list' permission_code,
+           '退款查询' permission_name, 'MENU' permission_type, 'POST' resource_method,
+           '/merchant/transactions/refunds/search' resource_path, '查询当前商户退款记录' description
+    UNION ALL SELECT 'merchant_transaction_refund_detail_v1', 'merchant:transaction:refund:detail',
+           '退款详情', 'BUTTON', 'GET', '/merchant/transactions/refunds/*', '查询当前商户退款详情'
+    UNION ALL SELECT 'merchant_transaction_refund_export_v1', 'merchant:transaction:refund:export',
+           '退款导出', 'BUTTON', 'POST', '/merchant/transactions/refunds/export', '导出当前商户退款记录'
+) item
+JOIN sys_menu menu ON menu.app_id = app.id
+                  AND menu.menu_code = item.menu_code
+                  AND menu.deleted = 0
+WHERE app.app_code = 'MERCHANT'
+  AND app.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_permission exists_permission
+      WHERE exists_permission.app_id = app.id
+        AND exists_permission.permission_code = item.permission_code
+        AND exists_permission.deleted = 0
+  );
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT role.app_id, role.id, menu.id, 0
+FROM sys_role role
+JOIN sys_app app ON app.id = role.app_id AND app.app_code = 'MERCHANT' AND app.deleted = 0
+JOIN sys_menu menu ON menu.app_id = role.app_id AND menu.deleted = 0
+WHERE role.deleted = 0
+  AND (role.role_code = 'MERCHANT_ADMIN' OR role.role_code LIKE 'MERCHANT_ADMIN\_%')
+  AND menu.menu_code IN (
+      'merchant_transaction_refund_v1',
+      'merchant_transaction_refund_detail_v1',
+      'merchant_transaction_refund_export_v1'
+  );
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT role.app_id, role.id, permission.id, 0
+FROM sys_role role
+JOIN sys_app app ON app.id = role.app_id AND app.app_code = 'MERCHANT' AND app.deleted = 0
+JOIN sys_permission permission ON permission.app_id = role.app_id AND permission.deleted = 0
+WHERE role.deleted = 0
+  AND (role.role_code = 'MERCHANT_ADMIN' OR role.role_code LIKE 'MERCHANT_ADMIN\_%')
+  AND permission.permission_code LIKE 'merchant:transaction:refund:%';
+
+INSERT IGNORE INTO sys_merchant_menu_grant (
+    merchant_id, app_id, menu_id, grant_source, status, created_at, updated_at, deleted
+)
+SELECT merchant.merchant_id, menu.app_id, menu.id, 'SYSTEM', 1,
+       CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0
+FROM base_merchant_info merchant
+JOIN sys_app app ON app.app_code = 'MERCHANT' AND app.deleted = 0
+JOIN sys_menu menu ON menu.app_id = app.id AND menu.deleted = 0
+WHERE merchant.deleted = 0
+  AND menu.menu_code IN (
+      'merchant_transaction_refund_v1',
+      'merchant_transaction_refund_detail_v1',
+      'merchant_transaction_refund_export_v1'
+  );
+
+INSERT IGNORE INTO sys_merchant_permission_grant (
+    merchant_id, app_id, permission_id, grant_source, status, created_at, updated_at, deleted
+)
+SELECT merchant.merchant_id, permission.app_id, permission.id, 'SYSTEM', 1,
+       CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0
+FROM base_merchant_info merchant
+JOIN sys_app app ON app.app_code = 'MERCHANT' AND app.deleted = 0
+JOIN sys_permission permission ON permission.app_id = app.id AND permission.deleted = 0
+WHERE merchant.deleted = 0
+  AND permission.permission_code LIKE 'merchant:transaction:refund:%';
 
 -- =============================================================================
 -- 管理端菜单最终校准
@@ -2487,9 +2760,12 @@ FROM (
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_merchant_channel_mid_binding_v1', '商户MID绑定', 'MENU', '/channel/merchant-mid-binding', 'channel/merchant-mid-binding', 'channel:mid-binding:list', 'Connection', 1, 45, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_order_v1', '交易主单管理', 'MENU', '/transaction/order', 'transaction/order', 'transaction:order:list', 'DocumentChecked', 1, 56, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_operation_v1', '交易管理', 'MENU', '/transaction/operation', 'transaction/operation', 'transaction:operation:list', 'CreditCard', 1, 57, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_analytics_v1', '交易分析', 'MENU', '/transaction/analytics', 'transaction/analytics', 'transaction:analytics:view', 'DataAnalysis', 1, 55, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_refund_v1', '退款管理', 'MENU', '/transaction/refund', 'transaction/refund', 'transaction:refund:list', 'RefreshLeft', 1, 61, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_match_abnormal_v1', '勾兑异常交易', 'MENU', '/transaction/channel-match-abnormal', 'transaction/channel-match-abnormal', 'transaction:match-abnormal:list', 'Warning', 1, 62, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1
@@ -2542,9 +2818,12 @@ JOIN (
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_merchant_channel_mid_binding_v1', '商户MID绑定', 'MENU', '/channel/merchant-mid-binding', 'channel/merchant-mid-binding', 'channel:mid-binding:list', 'Connection', 1, 45, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_order_v1', '交易主单管理', 'MENU', '/transaction/order', 'transaction/order', 'transaction:order:list', 'DocumentChecked', 1, 56, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_operation_v1', '交易管理', 'MENU', '/transaction/operation', 'transaction/operation', 'transaction:operation:list', 'CreditCard', 1, 57, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_analytics_v1', '交易分析', 'MENU', '/transaction/analytics', 'transaction/analytics', 'transaction:analytics:view', 'DataAnalysis', 1, 55, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1
     UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_refund_v1', '退款管理', 'MENU', '/transaction/refund', 'transaction/refund', 'transaction:refund:list', 'RefreshLeft', 1, 61, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_match_abnormal_v1', '勾兑异常交易', 'MENU', '/transaction/channel-match-abnormal', 'transaction/channel-match-abnormal', 'transaction:match-abnormal:list', 'Warning', 1, 62, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1
@@ -2682,6 +2961,7 @@ JOIN (
     UNION ALL SELECT 'channel:mid', 'admin_channel_mid_v1'
     UNION ALL SELECT 'transaction:order', 'admin_transaction_order_v1'
     UNION ALL SELECT 'transaction:operation', 'admin_transaction_operation_v1'
+    UNION ALL SELECT 'transaction:analytics', 'admin_transaction_analytics_v1'
     UNION ALL SELECT 'transaction:channel-log', 'admin_transaction_channel_log_v1'
     UNION ALL SELECT 'transaction:channel-callback', 'admin_transaction_channel_callback_v1'
     UNION ALL SELECT 'transaction:merchant-notification', 'admin_transaction_merchant_notification_v1'
@@ -2692,6 +2972,31 @@ JOIN (
 JOIN sys_menu menu ON menu.app_id = permission.app_id AND menu.menu_code = target.menu_code AND menu.deleted = 0
 SET permission.menu_id = menu.id
 WHERE permission.app_id = 1
+  AND permission.deleted = 0;
+
+-- 交易分析子功能必须归属对应按钮菜单，不能被通用前缀修复重新挂回父菜单。
+UPDATE sys_permission permission
+JOIN sys_menu menu ON menu.app_id = permission.app_id
+                  AND menu.permission_code = permission.permission_code
+                  AND menu.menu_type = 'BUTTON'
+                  AND menu.parent_id = (
+                      SELECT parent.id
+                      FROM sys_menu parent
+                      WHERE parent.app_id = permission.app_id
+                        AND parent.menu_code = 'admin_transaction_analytics_v1'
+                        AND parent.deleted = 0
+                      LIMIT 1
+                  )
+                  AND menu.deleted = 0
+SET permission.menu_id = menu.id
+WHERE permission.app_id = 1
+  AND permission.permission_code IN (
+      'transaction:analytics:overview',
+      'transaction:analytics:merchants',
+      'transaction:analytics:failures',
+      'transaction:analytics:channels',
+      'transaction:analytics:three-ds'
+  )
   AND permission.deleted = 0;
 
 UPDATE sys_permission permission
@@ -3216,3 +3521,52 @@ SET status = CASE
 END
 WHERE batch_no = @card_bin_batch_no
   AND @card_bin_legacy_exists > 0;
+
+-- ===================== 商户访问配置审批邮件 =====================
+INSERT INTO sys_dict_data (
+    dict_type, dict_label, dict_value, locale, dict_sort, list_class, is_default, status, deleted
+)
+VALUES
+    ('email_scene_code', '商户访问配置审批', 'MERCHANT_ACCESS_CONFIG_APPROVAL', 'zh-CN', 11, 'warning', 0, 1, 0),
+    ('email_scene_code', 'Merchant Access Configuration Approval', 'MERCHANT_ACCESS_CONFIG_APPROVAL', 'en-US', 11, 'warning', 0, 1, 0)
+ON DUPLICATE KEY UPDATE dict_label = VALUES(dict_label), status = 1, deleted = 0;
+
+INSERT INTO msg_email_template (
+    template_code, template_name, app_code, scene_code, locale, subject_template, content_type,
+    content_template, variable_schema, sensitive_variable_names, status, system_builtin, version_no,
+    remark, create_by, update_by, deleted
+)
+SELECT item.template_code, item.template_name, 'MERCHANT', 'MERCHANT_ACCESS_CONFIG_APPROVAL', item.locale,
+       item.subject_template, 'HTML', item.content_template,
+       '{"systemName":"Vexra Merchant","merchantName":"Example Merchant","merchantId":"M10000001","configValue":"https://shop.example.com","transactionStatusText":"Allowed","reviewTime":"2026-08-06 10:00:00","rejectReason":"The submitted value could not be verified."}',
+       '[]', 1, 1, 1, '系统内置模板：商户访问配置审批结果通知', 'system', 'system', 0
+FROM (
+    SELECT 'MERCHANT_SOURCE_URL_APPROVED' template_code, '店铺网址审核通过通知' template_name, 'zh-CN' locale,
+           '【${systemName}】店铺网址审核通过' subject_template,
+           '<h2>店铺网址审核通过</h2><p>您好，${merchantName}：</p><p>店铺网址 <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p>' content_template
+    UNION ALL SELECT 'MERCHANT_SOURCE_URL_REJECTED', '店铺网址审核拒绝通知', 'zh-CN',
+           '【${systemName}】店铺网址审核未通过',
+           '<h2>店铺网址审核未通过</h2><p>您好，${merchantName}：</p><p>店铺网址 <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_IP_WHITELIST_APPROVED', '商户 IP 白名单审核通过通知', 'zh-CN',
+           '【${systemName}】商户 IP 白名单审核通过',
+           '<h2>商户 IP 白名单审核通过</h2><p>您好，${merchantName}：</p><p>IP <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_IP_WHITELIST_REJECTED', '商户 IP 白名单审核拒绝通知', 'zh-CN',
+           '【${systemName}】商户 IP 白名单审核未通过',
+           '<h2>商户 IP 白名单审核未通过</h2><p>您好，${merchantName}：</p><p>IP <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_SOURCE_URL_APPROVED', 'Store Website Approved', 'en-US',
+           '[${systemName}] Store website approved',
+           '<h2>Store website approved</h2><p>Hello ${merchantName},</p><p>Your store website <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_SOURCE_URL_REJECTED', 'Store Website Rejected', 'en-US',
+           '[${systemName}] Store website rejected',
+           '<h2>Store website rejected</h2><p>Hello ${merchantName},</p><p>Your store website <strong>${configValue}</strong> was rejected and remains prohibited.</p><p>Reason: <strong>${rejectReason}</strong></p><p>Reviewed at: ${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_IP_WHITELIST_APPROVED', 'Merchant IP Whitelist Approved', 'en-US',
+           '[${systemName}] IP whitelist entry approved',
+           '<h2>IP whitelist entry approved</h2><p>Hello ${merchantName},</p><p>Your IP <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_IP_WHITELIST_REJECTED', 'Merchant IP Whitelist Rejected', 'en-US',
+           '[${systemName}] IP whitelist entry rejected',
+           '<h2>IP whitelist entry rejected</h2><p>Hello ${merchantName},</p><p>Your IP <strong>${configValue}</strong> was rejected and remains prohibited.</p><p>Reason: <strong>${rejectReason}</strong></p><p>Reviewed at: ${reviewTime}</p>'
+) item
+ON DUPLICATE KEY UPDATE
+    template_name = VALUES(template_name), subject_template = VALUES(subject_template),
+    content_template = VALUES(content_template), variable_schema = VALUES(variable_schema),
+    status = 1, system_builtin = 1, update_by = 'system', deleted = 0;

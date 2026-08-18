@@ -196,6 +196,7 @@ public final class RiskDTOs {
          * 状态：0 停用，1 启用，允许为空。
          */
         private Integer status;
+
     }
 
     /**
@@ -501,6 +502,16 @@ public final class RiskDTOs {
          * 状态：0 停用，1 启用，允许为空。
          */
         private Integer status;
+
+        /**
+         * 审核状态，0 待审核、1 审核通过、2 审核拒绝；仅来源网址限定使用。
+         */
+        private Integer approvalStatus;
+
+        /**
+         * 提交来源，ADMIN 或 MERCHANT；仅来源网址限定使用。
+         */
+        private String submitSource;
     }
 
     /**
@@ -728,6 +739,44 @@ public final class RiskDTOs {
     }
 
     /**
+     * 商户端来源网址提交请求，商户号从认证上下文传递。
+     */
+    @Data
+    public static class MerchantSourceUrlSubmissionRequest {
+        /**
+         * 来源网址列表，每个值必须以 http:// 或 https:// 开头。
+         */
+        private List<String> sourceUrls;
+
+        /**
+         * 商户提交说明。
+         */
+        private String remark;
+    }
+
+    /**
+     * 商户来源网址审批请求。
+     */
+    @Data
+    public static class MerchantAccessApprovalRequest {
+        /**
+         * 审核结果，仅允许 1 审核通过或 2 审核拒绝。
+         */
+        private Integer approvalStatus;
+
+        /**
+         * 审批说明；审核拒绝时必须填写拒绝原因。
+         */
+        private String approvalRemark;
+
+        /**
+         * 审核通过后的交易状态，1 允许、0 禁止；为空默认允许。
+         */
+        private Integer status;
+
+    }
+
+    /**
      * 批量删除请求。
      */
     @Data
@@ -918,6 +967,31 @@ public final class RiskDTOs {
          * 状态：0 停用，1 启用。
          */
         private Integer status;
+
+        /**
+         * 审核状态，0 待审核、1 审核通过、2 审核拒绝。
+         */
+        private Integer approvalStatus;
+
+        /**
+         * 审批说明，审核拒绝时包含拒绝原因。
+         */
+        private String approvalRemark;
+
+        /**
+         * 提交来源，ADMIN 或 MERCHANT。
+         */
+        private String submitSource;
+
+        /**
+         * 审核人账号或姓名。
+         */
+        private String reviewBy;
+
+        /**
+         * 审核时间。
+         */
+        private LocalDateTime reviewTime;
 
         /**
          * 备注。
@@ -1155,5 +1229,14 @@ public final class RiskDTOs {
          * 决策结果：PASS、REJECT、REVIEW，允许为空。
          */
         private String decisionResult;
+
+        /** 风险等级：LOW、MEDIUM、HIGH、CRITICAL，允许为空。 */
+        private String riskLevel;
+
+        /** 评估时间范围起点（包含），按平台业务时区解释。 */
+        private LocalDateTime evaluationStartTime;
+
+        /** 评估时间范围终点（不包含），避免跨天查询出现边界重复。 */
+        private LocalDateTime evaluationEndTimeExclusive;
     }
 }

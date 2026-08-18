@@ -1,5 +1,6 @@
 package com.scott.payment.payment.api.internal.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -54,6 +55,7 @@ public class PaymentCheckoutPaymentResultDTO implements Serializable {
         /** 平台交易号。 */
         private String transactionId;
         /** 支付核心记录的交易业务时间。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
         /** 渠道授权码，按最小必要原则返回。 */
         private String authCode;
@@ -69,12 +71,16 @@ public class PaymentCheckoutPaymentResultDTO implements Serializable {
 
         /** 3DS 动作类型，例如 HTML 桥接或外部跳转。 */
         private String actionType;
+        /** 当前 HTML 所属 3DS 阶段，INITIALIZE 表示 Method，AUTHENTICATE 表示 ACS Challenge。 */
+        private String phase;
         /** 受控 3DS HTML，禁止写入普通日志或拼接未转义脚本。 */
         private String html;
         /** 3DS 完成后的平台受控返回地址。 */
         private String returnUrl;
         /** 3DS 动作超时时间，单位秒。 */
         private Integer timeoutSeconds;
+        /** 下一浏览器阶段重新加密卡数据所需的新公钥元数据和一次性 nonce。 */
+        private PaymentCheckoutSessionQueryResultDTO.CardEncryptionDTO cardEncryption;
     }
 
     /**
@@ -91,8 +97,6 @@ public class PaymentCheckoutPaymentResultDTO implements Serializable {
         private String message;
         /** 当前失败是否允许在同一会话内重试。 */
         private Boolean retryAllowed;
-        /** 当前会话剩余支付尝试次数。 */
-        private Integer remainingAttemptCount;
     }
 
     /**
@@ -111,17 +115,35 @@ public class PaymentCheckoutPaymentResultDTO implements Serializable {
         private Integer maxIntervalSeconds;
     }
 
-    /**
-     * 支付结束后允许执行的商户页面动作。
-     */
+    /** 支付终态后允许执行的浏览器 Form POST 动作。 */
     @Data
     public static class ActionDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        /** 支付完成后返回商户页面的地址。 */
-        private String returnUrl;
-        /** 付款取消后返回商户页面的地址。 */
-        private String cancelUrl;
+        /** 固定 POST，前端不得改用 GET。 */
+        private String method;
+        /** 商户创建会话时提供的结果页地址。 */
+        private String redirectUrl;
+        /** 自动提交前的倒计时秒数。 */
+        private Integer delaySeconds;
+        /** 文档 8.4 规定的九个表单字段。 */
+        private FormFieldsDTO formFields;
+    }
+
+    /** 返回商户网站的浏览器表单字段，不可作为资金结果凭证。 */
+    @Data
+    public static class FormFieldsDTO implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String merchantId;
+        private String orderNo;
+        private String orderId;
+        private String transactionId;
+        private String transactionType;
+        private String transactionStatus;
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime transactionDateTime;
+        private String code;
+        private String message;
     }
 }

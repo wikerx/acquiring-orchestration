@@ -29,6 +29,8 @@ import com.scott.payment.admin.mapper.ChannelPaymentCapabilityMapper;
 import com.scott.payment.admin.mapper.MerchantChannelMidBindingMapper;
 import com.scott.payment.admin.mapper.SysDictDataMapper;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +47,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 /**
@@ -129,6 +133,10 @@ class AdminChannelServiceImplTest {
      */
     private SysDictDataMapper dictDataMapper;
 
+    /** 商户路由永久快照可靠失效协调器。 */
+    @Mock
+    private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
     /**
      * service 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -150,8 +158,28 @@ class AdminChannelServiceImplTest {
                 limitRuleMapper,
                 midConfigMapper,
                 midBindingMapper,
-                dictDataMapper
+                dictDataMapper,
+                cacheInvalidationCoordinator
         );
+    }
+
+    /** 删除渠道限额前必须先登记该渠道全部绑定商户的路由快照失效。 */
+    @Test
+    void shouldPrepareMerchantRouteInvalidationBeforeDeletingLimit() {
+        when(limitRuleMapper.selectOne(any())).thenReturn(existingLimit("SINGLE_MAX", "100.00"));
+        when(midConfigMapper.selectList(any())).thenReturn(List.of(enabledMid()));
+        MerchantChannelMidBindingDO binding = new MerchantChannelMidBindingDO();
+        binding.setMerchantId("200001");
+        binding.setMidConfigId(501L);
+        binding.setDeleted(0L);
+        when(midBindingMapper.selectList(any())).thenReturn(List.of(binding));
+
+        service.deleteLimit(301L);
+
+        org.mockito.InOrder mutationOrder = inOrder(cacheInvalidationCoordinator, limitRuleMapper);
+        mutationOrder.verify(cacheInvalidationCoordinator)
+                .prepare(PaymentCacheNames.MERCHANT_ROUTE, "200001");
+        mutationOrder.verify(limitRuleMapper).updateById(any(ChannelLimitRuleDO.class));
     }
 
     @Test

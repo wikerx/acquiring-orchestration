@@ -1,9 +1,6 @@
 package com.scott.payment.risk.repository.impl;
 
-import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
-import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
+import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
 import com.scott.payment.risk.domain.PaymentTransactionLookupResult;
 import com.scott.payment.risk.mapper.RiskRuntimeMapper;
 import com.scott.payment.risk.repository.RiskPaymentTransactionStatusRepository;
@@ -14,56 +11,54 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * 按 transactionId 时间片定位 payment 动作分表的状态查询。
+ * 按持久化业务时间范围查询 payment 动作状态。
  */
 @Slf4j
 @Repository
 public class DefaultRiskPaymentTransactionStatusRepository
         implements RiskPaymentTransactionStatusRepository {
 
-    private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
-
     private final RiskRuntimeMapper mapper;
 
-    private final ShardingDataTemplate shardingDataTemplate;
-
-    private final TransactionShardingKeyParser shardingKeyParser;
-
-    public DefaultRiskPaymentTransactionStatusRepository(
-            RiskRuntimeMapper mapper,
-            ShardingDataTemplate shardingDataTemplate,
-            TransactionShardingKeyParser shardingKeyParser) {
+    /**
+     * 创建交易逻辑表状态仓储。
+     *
+     * @param mapper 风控运行时 Mapper
+     */
+    public DefaultRiskPaymentTransactionStatusRepository(RiskRuntimeMapper mapper) {
         this.mapper = mapper;
-        this.shardingDataTemplate = shardingDataTemplate;
-        this.shardingKeyParser = shardingKeyParser;
     }
 
     @Override
-    public PaymentTransactionLookupResult findStatus(String transactionId) {
-        if (!StringUtils.hasText(transactionId)) {
+    public PaymentTransactionLookupResult findStatus(String transactionId,
+                                                     LocalDateTime beginTime,
+                                                     LocalDateTime endTimeExclusive) {
+        if (!StringUtils.hasText(transactionId)
+                || beginTime == null
+                || endTimeExclusive == null
+                || !beginTime.isBefore(endTimeExclusive)) {
             return PaymentTransactionLookupResult.unknown();
         }
-        LocalDateTime transactionTime =
-                shardingKeyParser.parseTransactionDateTime(transactionId.trim());
-        if (transactionTime == null) {
-            return PaymentTransactionLookupResult.unknown();
-        }
+        String normalizedTransactionId = transactionId.trim();
         try {
-            String status = shardingDataTemplate.queryOne(
-                    ShardingSingleTableContext.of(
-                            TRANSACTION_OPERATION_TABLE,
-                            transactionTime,
-                            DataSourceName.MASTER),
-                    table -> mapper.selectPaymentTransactionStatus(
-                            table,
-                            transactionId.trim()));
+            String status = selectLogicalStatus(normalizedTransactionId, beginTime, endTimeExclusive);
             return StringUtils.hasText(status)
                     ? PaymentTransactionLookupResult.found(status)
                     : PaymentTransactionLookupResult.absent();
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_PAYMENT_STATUS_LOOKUP_FAILED transactionId: {} reason: {}",
-                    transactionId, exception.getMessage());
+            log.warn("event: RISK_PAYMENT_STATUS_LOOKUP_FAILED transactionId: {} exceptionType: {}",
+                    normalizedTransactionId, exception.getClass().getSimpleName());
             return PaymentTransactionLookupResult.unknown();
+        }
+    }
+
+    /** 从 primary 上的交易逻辑表受控业务周期读取状态。 */
+    private String selectLogicalStatus(String transactionId,
+                                       LocalDateTime beginTime,
+                                       LocalDateTime endTimeExclusive) {
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            return mapper.selectPaymentTransactionStatus(
+                    transactionId, beginTime, endTimeExclusive);
         }
     }
 }

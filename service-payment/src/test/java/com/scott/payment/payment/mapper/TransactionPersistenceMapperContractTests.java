@@ -1,23 +1,38 @@
 package com.scott.payment.payment.mapper;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import com.scott.payment.component.db.sharding.TransactionShardingRuleChecksum;
+import com.scott.payment.payment.service.impl.DefaultCaptureChannelResultTransactionService;
+import com.scott.payment.payment.service.impl.DefaultCaptureTransactionPreparationService;
+import com.scott.payment.payment.service.impl.DefaultIncrementalAuthorizationChannelResultTransactionService;
+import com.scott.payment.payment.service.impl.DefaultIncrementalAuthorizationTransactionPreparationService;
+import com.scott.payment.payment.service.impl.DefaultPaymentChannelResultTransactionService;
+import com.scott.payment.payment.service.impl.DefaultPaymentTransactionPreparationService;
+import com.scott.payment.payment.service.impl.DefaultRefundChannelResultTransactionService;
+import com.scott.payment.payment.service.impl.DefaultRefundTransactionPreparationService;
+import com.scott.payment.payment.service.impl.DefaultTransactionCallbackService;
+import com.scott.payment.payment.service.impl.DefaultTransactionChannelMatchResultTransactionService;
+import com.scott.payment.payment.service.impl.DefaultVoidChannelResultTransactionService;
+import com.scott.payment.payment.service.impl.DefaultVoidTransactionPreparationService;
 import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.junit.jupiter.api.Test;
+import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * @author : scott
@@ -25,310 +40,374 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @classname : TransactionPersistenceMapperContractTests
  * @date : 2026-07-23 13:26
  * @email : scott_x@163.com
- * @description : Transaction Persistence Mapper Contract Tests 映射组件，位于 支付核心服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
+ * @description : 校验交易 Mapper 的关键查询、CAS 更新 SQL，以及当前 Nacos 分表配置的静态契约
  * @status : create
  */
 class TransactionPersistenceMapperContractTests {
 
     @Test
-    void mapperInsertColumnsShouldExistInCanonicalTransactionDdl() throws Exception {
-        String ddl = readProjectFile("docs/sql/transaction-core-schema.sql");
+    void shardingConfigShouldPublishOnlyVersionedTopologyAndGovernance() throws IOException {
+        Map<String, Object> root = parseYaml(readProjectFile("docs/deployment/nacos/sharding-dev.yaml"));
+        Map<String, Object> sharding = childMap(root, "transaction-sharding");
+        Map<String, Object> governance = childMap(sharding, "governance");
+        Map<String, Object> maintenance = childMap(governance, "table-maintenance");
+        Map<String, Object> tables = childMap(governance, "tables");
 
-        assertInsertColumnsExistInDdl(
-                TransactionOrderMapper.class.getMethod(
-                        "insertPhysical",
-                        String.class,
-                        com.scott.payment.payment.entity.TransactionOrderDO.class),
-                tableDefinition(ddl, "transaction_order"));
-        assertInsertColumnsExistInDdl(
-                TransactionOperationMapper.class.getMethod(
-                        "insertPhysical",
-                        String.class,
-                        com.scott.payment.payment.entity.TransactionOperationDO.class),
-                tableDefinition(ddl, "transaction_operation"));
-        assertInsertColumnsExistInDdl(
-                TransactionChannelRequestMapper.class.getMethod(
-                        "insertPhysical",
-                        String.class,
-                        com.scott.payment.payment.entity.TransactionChannelRequestDO.class),
-                tableDefinition(ddl, "transaction_channel_request"));
-        assertInsertColumnsExistInDdl(
-                TransactionEventOutboxMapper.class.getMethod(
-                        "insertPhysical",
-                        String.class,
-                        com.scott.payment.payment.entity.TransactionEventOutboxDO.class),
-                tableDefinition(ddl, "transaction_event_outbox"));
-        assertInsertColumnsExistInDdl(
-                TransactionStatusHistoryMapper.class.getMethod(
-                        "insertPhysical",
-                        String.class,
-                        com.scott.payment.payment.entity.TransactionStatusHistoryDO.class),
-                tableDefinition(ddl, "transaction_status_history"));
-        assertInsertColumnsExistInDdl(
-                TransactionMerchantApiInteractionLogMapper.class.getMethod(
-                        "insertPhysical",
-                        String.class,
-                        com.scott.payment.payment.entity.TransactionMerchantApiInteractionLogDO.class),
-                tableDefinition(ddl, "transaction_merchant_api_interaction_log"));
+        assertThat(root).doesNotContainKey("global-payment");
+        assertThat(sharding).doesNotContainKey("mode");
+        assertThat(childList(sharding, "logic-tables"))
+                .containsExactlyInAnyOrderElementsOf(PRODUCTION_LOGIC_TABLES);
+        assertThat(sharding.get("rule-checksum"))
+                .isEqualTo(TransactionShardingRuleChecksum.calculate(toShardingProperties(sharding)));
+        assertThat(maintenance).containsEntry("allow-create-from-template-table", true)
+                .containsEntry("allow-alter-existing-table", false);
+        assertThat(tables).hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT);
+        assertThat(tables.values()).allSatisfy(value -> {
+            assertThat(value).isInstanceOf(Map.class);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> rule = (Map<String, Object>) value;
+            assertThat(rule.get("logical-table")).isIn(PRODUCTION_LOGIC_TABLES.toArray());
+            assertThat(rule).containsEntry("template-table", rule.get("logical-table"))
+                    .containsEntry("end-year", 2099);
+        });
     }
 
     @Test
-    void canonicalDdlShouldAlignBug001PersistenceModel() throws IOException {
-        String ddl = readProjectFile("docs/sql/transaction-core-schema.sql");
+    void transactionShardingDraftShouldDeclareOnlyVerifiedProductionTopology() throws IOException {
+        Map<String, Object> root = parseYaml(
+                readProjectFile("docs/deployment/nacos/transaction-sharding-dev-draft.yaml"));
+        Map<String, Object> sharding = childMap(root, "transaction-sharding");
 
-        String idempotency = tableDefinition(ddl, "transaction_idempotency");
-        assertThat(idempotency).contains(
-                "`merchant_order_id` VARCHAR(128) NULL",
-                "UNIQUE KEY `uk_scope_key` (`idempotency_scope`, `idempotency_key`)",
-                "KEY `idx_merchant_order_id` (`merchant_id`, `merchant_order_id`, `transaction_type`)");
+        assertThat(sharding).doesNotContainKey("mode");
+        assertThat(sharding.get("rule-version")).asString()
+                .matches("\\d{4}\\.\\d{2}\\.\\d{2}-\\d{3}");
+        assertThat(sharding.get("rule-checksum")).asString()
+                .matches("sha256:[0-9a-f]{64}");
+        assertThat(sharding).containsEntry("database-zone-id", "Asia/Shanghai")
+                .containsEntry("sharding-column", "transaction_date_time");
+        assertThat(childList(sharding, "physical-nodes"))
+                .containsExactly("202603", "202604");
+        assertThat(childList(sharding, "logic-tables"))
+                .containsExactlyInAnyOrderElementsOf(PRODUCTION_LOGIC_TABLES)
+                .noneMatch(table -> table.startsWith("test_"));
+        assertThat(childList(sharding, "direct-access-services"))
+                .containsExactlyInAnyOrder(
+                        "service-payment",
+                        "service-admin",
+                        "service-merchant",
+                        "service-risk",
+                        "service-data");
+        assertThat(sharding.get("rule-checksum"))
+                .isEqualTo(TransactionShardingRuleChecksum.calculate(toShardingProperties(sharding)));
+        assertThat(root).doesNotContainKey("global-payment");
+    }
 
-        String order = tableDefinition(ddl, "transaction_order");
-        assertThat(order).contains(
-                "`operation_id` VARCHAR(64) NOT NULL",
-                "`root_transaction_id` VARCHAR(64) NOT NULL",
-                "`latest_transaction_id` VARCHAR(64) NOT NULL",
-                "`merchant_order_id` VARCHAR(128) NOT NULL",
-                "UNIQUE KEY `uk_operation_id` (`operation_id`)",
-                "UNIQUE KEY `uk_root_transaction_id` (`root_transaction_id`)",
-                "KEY `idx_latest_transaction_id` (`latest_transaction_id`)");
-        assertThat(order).doesNotContain("root_operation_id", "latest_operation_id", "merchant_transaction_id");
-
-        String operation = tableDefinition(ddl, "transaction_operation");
-        assertThat(operation).contains(
-                "`operation_id` VARCHAR(64) NOT NULL",
-                "`transaction_id` VARCHAR(64) NOT NULL",
-                "`source_operation_id` VARCHAR(64) NULL",
-                "`merchant_operation_no` VARCHAR(128) NOT NULL",
-                "UNIQUE KEY `uk_transaction_id` (`transaction_id`)",
-                "KEY `idx_operation_time` (`operation_id`, `transaction_date_time`)",
-                "KEY `idx_source_operation` (`source_operation_id`, `transaction_date_time`)",
-                "UNIQUE KEY `uk_merchant_operation` (`merchant_id`, `source_transaction_id`, `transaction_type`, `merchant_operation_no`)");
-        assertThat(operation).doesNotContain(
-                "`merchant_order_id`",
-                "UNIQUE KEY `uk_operation_id` (`operation_id`)");
-
-        String channelRequest = tableDefinition(ddl, "transaction_channel_request");
-        assertThat(channelRequest).contains(
-                "`request_id` VARCHAR(64) NOT NULL",
-                "`channel_id` BIGINT NULL",
-                "`channel_order_no` VARCHAR(128) NULL",
-                "`channel_transaction_id` VARCHAR(128) NULL",
-                "`version` INT NOT NULL DEFAULT 0",
-                "UNIQUE KEY `uk_request_id` (`request_id`)",
-                "KEY `idx_channel_transaction_identity` (`channel_code`, `channel_order_no`, `channel_transaction_id`, `transaction_date_time`)");
-
-        String outbox = tableDefinition(ddl, "transaction_event_outbox");
-        assertThat(outbox).contains(
-                "`event_no` VARCHAR(64) NOT NULL",
-                "`message_key` VARCHAR(128) NOT NULL",
-                "`event_status` VARCHAR(32) NOT NULL",
-                "`retry_count` INT NOT NULL DEFAULT 0",
-                "`max_retry_count` INT NOT NULL DEFAULT 10",
-                "`next_retry_time` DATETIME(3) NULL",
-                "`version` INT NOT NULL DEFAULT 0");
-
-        String statusHistory = tableDefinition(ddl, "transaction_status_history");
-        assertThat(statusHistory).contains(
-                "`status_history_id` VARCHAR(64) NOT NULL",
-                "`transaction_id` VARCHAR(64) NOT NULL",
-                "`operation_id` VARCHAR(64) NULL",
-                "`from_status` VARCHAR(32) NULL",
-                "`to_status` VARCHAR(32) NOT NULL",
-                "`version_before` INT NULL",
-                "`version_after` INT NULL");
-
-        String merchantApiLog = tableDefinition(ddl, "transaction_merchant_api_interaction_log");
-        assertThat(merchantApiLog).contains(
-                "`api_log_id` VARCHAR(64) NOT NULL",
-                "`request_id` VARCHAR(64) NOT NULL",
-                "`merchant_order_id` VARCHAR(128) NULL",
-                "`request_cipher_digest` VARCHAR(128) NULL",
-                "`response_cipher_digest` VARCHAR(128) NULL",
-                "UNIQUE KEY `uk_api_log_id` (`api_log_id`)",
-                "KEY `idx_operation_time` (`operation_id`, `transaction_date_time`)");
+    private TransactionShardingProperties toShardingProperties(Map<String, Object> sharding) {
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.setRuleVersion(String.valueOf(sharding.get("rule-version")));
+        properties.setDatabaseZoneId(String.valueOf(sharding.get("database-zone-id")));
+        properties.setShardingColumn(String.valueOf(sharding.get("sharding-column")));
+        properties.setPrimaryDataSource(String.valueOf(sharding.get("primary-data-source")));
+        properties.setReplicaDataSources(childList(sharding, "replica-data-sources"));
+        properties.setPhysicalNodes(childList(sharding, "physical-nodes"));
+        properties.setLogicTables(childList(sharding, "logic-tables"));
+        Map<String, Object> budgetConfig = childMap(sharding, "query-budget");
+        TransactionShardingProperties.QueryBudget budget = new TransactionShardingProperties.QueryBudget();
+        budget.setSynchronousTimeoutMillis(((Number) budgetConfig.get("synchronous-timeout-millis")).longValue());
+        budget.setMaxResultRows(((Number) budgetConfig.get("max-result-rows")).intValue());
+        budget.setMaxConcurrentExportsPerUser(
+                ((Number) budgetConfig.get("max-concurrent-exports-per-user")).intValue());
+        properties.setQueryBudget(budget);
+        return properties;
     }
 
     @Test
-    void physicalTableScriptShouldCreateCurrentAndNextQuarterFromAlignedTemplates() throws IOException {
-        String sql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-migration.sql");
-        String[] logicalTables = {
-                "transaction_order",
-                "transaction_operation",
-                "transaction_channel_request",
-                "transaction_event_outbox",
-                "transaction_status_history",
-                "transaction_merchant_api_interaction_log"
-        };
+    void directAccessServiceConfigsShouldNotDeclareLegacyMigrationModes() throws IOException {
+        assertServiceHasNoShardingMode("service-payment-dev.yaml");
+        assertServiceHasNoShardingMode("service-data-dev.yaml");
+        assertServiceHasNoShardingMode("service-admin-dev.yaml");
+        assertServiceHasNoShardingMode("service-merchant-dev.yaml");
+        assertServiceHasNoShardingMode("service-risk-dev.yaml");
 
-        for (String logicalTable : logicalTables) {
-            assertThat(sql).contains(
-                    "CREATE TABLE IF NOT EXISTS `" + logicalTable + "_202603` LIKE `" + logicalTable + "`;",
-                    "CREATE TABLE IF NOT EXISTS `" + logicalTable + "_202604` LIKE `" + logicalTable + "`;",
-                    "'" + logicalTable + "_202603'",
-                    "'" + logicalTable + "_202604'");
-        }
+        Map<String, Object> dataConfig = parseYaml(readProjectFile("docs/deployment/nacos/service-data-dev.yaml"));
+        Map<String, Object> data = childMap(dataConfig, "data");
+        assertThat(childMap(data, "merchant-notification"))
+                .containsEntry("recovery-batch-limit", "${DATA_MERCHANT_NOTIFICATION_RECOVERY_BATCH_LIMIT:100}");
     }
 
     @Test
-    void shardingRegistryMigrationShouldBePreciseIdempotentAndRollbackable() throws IOException {
-        String migrationSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-migration.sql");
-        String rollbackSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-rollback.sql");
-        String evidenceSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-evidence.sql");
+    void callbackUrlsShouldUsePlaintextColumnsAcrossRuntimeAndShardTemplates() throws IOException {
+        String schema = readProjectFile("docs/sql/payment_acquiring_表结构.sql");
+        String migration = readProjectFile("service-admin/src/main/resources/sql/callback-url-plaintext-migration.sql");
 
-        assertThat(migrationSql).doesNotContain(
-                "LIKE '" + transactionWildcardPattern() + "'",
-                registryWideDeleteStatement());
-        assertThat(migrationSql.toUpperCase()).doesNotContain(tableTruncateKeyword());
-        assertThat(rollbackSql).doesNotContain(
-                "LIKE '" + transactionWildcardPattern() + "'",
-                registryWideDeleteStatement());
-        assertThat(rollbackSql.toUpperCase()).doesNotContain(tableTruncateKeyword());
-        assertThat(evidenceSql.toUpperCase()).doesNotContain(
-                "INSERT ",
-                "UPDATE ",
-                "DELETE ",
-                tableTruncateKeyword(),
-                "CREATE TABLE",
-                "ALTER TABLE",
-                "DROP TABLE");
-
-        assertThat(countOccurrences(migrationSql, "CREATE TABLE IF NOT EXISTS `transaction_")).isEqualTo(46);
-        assertThat(countOccurrences(migrationSql, "ALTER TABLE `transaction_")).isEqualTo(46);
-        assertThat(countOccurrences(migrationSql, "('transaction_")).isEqualTo(46);
-
-        assertThat(migrationSql).contains(
-                "SELECT 1 WHERE (SELECT COUNT(*) FROM `bug001_06b_target_registry`) <> 46",
-                "SELECT 1 WHERE (SELECT COUNT(DISTINCT `physical_table`) FROM `bug001_06b_target_registry`) <> 46",
-                "JOIN `bug001_06b_target_registry` t ON s.`physical_table` = t.`physical_table`",
-                "CREATE TABLE IF NOT EXISTS `sys_sharding_physical_table_backup_bug001_06b_20260725` LIKE `sys_sharding_physical_table`",
-                "WHERE s.`physical_table` = t.`physical_table`");
-        assertThat(rollbackSql).contains(
-                "DELETE s",
-                "JOIN `bug001_06b_target_registry` t ON s.`physical_table` = t.`physical_table`",
-                "LEFT JOIN `sys_sharding_physical_table_backup_bug001_06b_20260725` b ON b.`physical_table` = s.`physical_table`",
-                "WHERE b.`physical_table` IS NULL",
-                "UPDATE `sys_sharding_physical_table` s",
-                "JOIN `sys_sharding_physical_table_backup_bug001_06b_20260725` b ON b.`physical_table` = s.`physical_table`");
-        assertThat(evidenceSql).contains(
-                "information_schema`.`COLUMNS",
-                "information_schema`.`STATISTICS",
-                "LEFT(s.`logical_table`, 12) = 'transaction_'",
-                "target_count",
-                "distinct_physical_table_count");
+        assertThat(tableDefinition(schema, "transaction_order"))
+                .contains("`callback_url` varchar(512)", "`redirect_url` varchar(512)", "`language` varchar(20)")
+                .doesNotContain("callback_url_ciphertext", "callback_url_encryption_key_version", "callback_url_hash",
+                        "redirect_url_ciphertext", "redirect_url_encryption_key_version", "redirect_url_hash");
+        assertThat(tableDefinition(schema, "payment_checkout_session"))
+                .contains("`merchant_notify_url` varchar(512)", "`redirect_url` varchar(512)")
+                .doesNotContain("merchant_notify_url_ciphertext", "merchant_notify_url_hash",
+                        "redirect_url_ciphertext", "redirect_url_encryption_key_version", "redirect_url_hash");
+        assertThat(tableDefinition(schema, "transaction_merchant_notification"))
+                .contains("`callback_url` varchar(512)", "`payload_json` mediumtext")
+                .doesNotContain("notify_config_snapshot_json");
+        assertThat(migration)
+                .contains("transaction_order", "transaction_order_202603", "transaction_order_202604",
+                        "payment_checkout_session", "transaction_merchant_notification",
+                        "transaction_merchant_notification_202603", "transaction_merchant_notification_202604")
+                .contains("callback_url", "redirect_url", "merchant_notify_url", "payload_json");
     }
 
     @Test
-    void shardingConfigsShouldKeepTemplateCreationAndDisableAutomaticAlter() throws IOException {
-        String devYaml = readProjectFile("docs/deployment/nacos/sharding-dev.yaml");
-        String draftYaml = readProjectFile("docs/deployment/nacos/transaction-sharding-dev-draft.yaml");
+    void operationDescriptionShouldExistInTemplateAndEveryPublishedShardMigration() throws IOException {
+        String schema = readProjectFile("docs/sql/payment_acquiring_表结构.sql");
+        String migration = readProjectFile(
+                "service-admin/src/main/resources/sql/transaction-operation-description-migration.sql");
 
-        assertShardingConfigAligned(devYaml);
-        assertShardingConfigAligned(draftYaml);
+        assertThat(tableDefinition(schema, "transaction_operation"))
+                .contains("`description` varchar(128)");
+        assertThat(migration)
+                .contains("transaction_operation", "transaction_operation_202603", "transaction_operation_202604")
+                .contains("`description` varchar(128)");
     }
 
     @Test
-    void developmentShardingConfigShouldStartTransactionTablesAtFirstProvisionedQuarter() throws IOException {
-        String devYaml = readProjectFile("docs/deployment/nacos/sharding-dev.yaml");
-        String migrationSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-migration.sql");
+    void transactionLocatorShouldHaveAnExecutableFixedTableMigration() throws IOException {
+        String schema = readProjectFile("docs/sql/payment_acquiring_表结构.sql");
+        String migration = readProjectFile(
+                "service-admin/src/main/resources/sql/transaction-locator-migration.sql");
 
-        Set<String> transactionTables = transactionLogicalTables(devYaml);
-
-        assertThat(transactionTables).hasSize(23);
-        assertThat(countOccurrences(devYaml, "logical-table: transaction_")).isEqualTo(23);
-        for (String logicalTable : transactionTables) {
-            String section = yamlRuleSection(devYaml, logicalTable);
-            assertThat(section).as(logicalTable + " dev sharding start-year").contains("start-year: 2026");
-            assertThat(section).as(logicalTable + " dev sharding start-quarter").contains("start-quarter: 3");
-            assertThat(section).as(logicalTable + " dev sharding format").contains("table-name-format: \"%s_%d%02d\"");
-            assertThat(migrationSql).as(logicalTable + " current-quarter physical table")
-                    .contains("`" + logicalTable + "_202603`");
-            assertThat(migrationSql).as(logicalTable + " next-quarter physical table")
-                    .contains("`" + logicalTable + "_202604`");
-        }
+        assertThat(tableDefinition(schema, "transaction_locator"))
+                .contains("`transaction_id` varchar(64)", "`transaction_date_time` datetime(3)",
+                        "UNIQUE KEY `uk_transaction_id`", "KEY `idx_merchant_order_root`");
+        assertThat(migration)
+                .contains("CREATE TABLE IF NOT EXISTS `transaction_locator`", "`root_transaction_id` varchar(64)",
+                        "`root_transaction_date_time` datetime(3)", "UNIQUE KEY `uk_transaction_id`")
+                .doesNotContain("transaction_locator_202603", "transaction_locator_202604");
     }
 
     @Test
-    void developmentShardingConfigShouldFailWhenConfiguredStartIsBeforeProvisionedPhysicalTables() throws IOException {
-        String devYaml = readProjectFile("docs/deployment/nacos/sharding-dev.yaml");
-        String migrationSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-migration.sql");
-        String staleYaml = devYaml.replaceFirst("logical-table: transaction_order([\\s\\S]*?)start-quarter: 3",
-                "logical-table: transaction_order$1start-quarter: 1");
+    void transactionalPaymentCoordinatorsShouldSelectLogicalDataSourceBeforeTransactionBegins() {
+        List<Class<?>> transactionTypes = List.of(
+                DefaultPaymentTransactionPreparationService.class,
+                DefaultCaptureTransactionPreparationService.class,
+                DefaultRefundTransactionPreparationService.class,
+                DefaultVoidTransactionPreparationService.class,
+                DefaultIncrementalAuthorizationTransactionPreparationService.class,
+                DefaultPaymentChannelResultTransactionService.class,
+                DefaultCaptureChannelResultTransactionService.class,
+                DefaultRefundChannelResultTransactionService.class,
+                DefaultVoidChannelResultTransactionService.class,
+                DefaultIncrementalAuthorizationChannelResultTransactionService.class,
+                DefaultTransactionChannelMatchResultTransactionService.class,
+                DefaultTransactionCallbackService.class);
 
-        assertThatThrownBy(() -> assertDevConfigStartNotBeforeProvisionedTables(staleYaml, migrationSql))
-                .isInstanceOf(AssertionError.class)
-                .hasMessageContaining("transaction_order sharding start 202601 is before first provisioned physical table 202603");
+        assertThat(transactionTypes).allSatisfy(type -> {
+            DS annotation = type.getAnnotation(DS.class);
+            assertThat(annotation)
+                    .as("%s must select transaction before @Transactional opens", type.getSimpleName())
+                    .isNotNull();
+            assertThat(annotation.value()).isEqualTo(DataSourceName.TRANSACTION);
+        });
     }
 
     @Test
-    void migrationRunbookShouldContainManualChecksBackfillValidationAndRollback() throws IOException {
-        String sql = readProjectFile("docs/sql/bug-001-05g-ddl-persistence-alignment-migration.sql");
+    void allLogicalWritesAndLocksShouldCarryTransactionShardingTime() {
+        List<Class<?>> transactionMappers = List.of(
+                TransactionAmountChangeLogMapper.class,
+                TransactionChannelCallbackLogMapper.class,
+                TransactionChannelCallbackMapper.class,
+                TransactionChannelInteractionLogMapper.class,
+                TransactionChannelRequestMapper.class,
+                TransactionAuthenticationInfoMapper.class,
+                TransactionEventOutboxMapper.class,
+                TransactionFlowEventMapper.class,
+                TransactionMerchantApiInteractionLogMapper.class,
+                TransactionMerchantNotificationMapper.class,
+                TransactionOperationMapper.class,
+                TransactionOrderMapper.class,
+                TransactionPaymentMethodInfoMapper.class,
+                TransactionStatusHistoryMapper.class);
 
-        assertThat(sql).contains(
-                "本文件不得通过脚本自动执行",
-                "不是幂等脚本",
-                "字段缺失清单",
-                "历史重复数据与空值检查",
-                "兼容迁移 DDL 草案",
-                "UPDATE transaction_order",
-                "UPDATE transaction_operation",
-                "执行后校验 SQL",
-                "回滚草案",
-                "历史季度扩展生成提示");
-        assertThat(sql).doesNotContain(
-                "\nALTER TABLE transaction_order DROP COLUMN",
-                "\nALTER TABLE transaction_operation DROP COLUMN");
+        transactionMappers.stream()
+                .flatMap(type -> Arrays.stream(type.getMethods()))
+                .forEach(method -> {
+                    Insert insert = method.getAnnotation(Insert.class);
+                    if (insert != null) {
+                        String insertSql = String.join("\n", insert.value());
+                        if (insertSql.contains("INSERT INTO transaction_")) {
+                            assertThat(insertSql)
+                                    .as("%s.%s logical insert", method.getDeclaringClass().getSimpleName(), method.getName())
+                                    .contains("transaction_date_time")
+                                    .doesNotContain("${");
+                        }
+                    }
+                    Update update = method.getAnnotation(Update.class);
+                    if (update != null) {
+                        assertSafeLogicalMutation(method, String.join("\n", update.value()), "UPDATE");
+                    }
+                    Delete delete = method.getAnnotation(Delete.class);
+                    if (delete != null) {
+                        assertSafeLogicalMutation(method, String.join("\n", delete.value()), "DELETE FROM");
+                    }
+                    Select select = method.getAnnotation(Select.class);
+                    String selectSql = select == null ? "" : String.join("\n", select.value());
+                    if (selectSql.contains("FROM transaction_")) {
+                        assertThat(selectSql)
+                                .as("%s.%s logical select", method.getDeclaringClass().getSimpleName(), method.getName())
+                                .contains("transaction_date_time")
+                                .doesNotContain("${");
+                    }
+                    if (selectSql.contains("FROM transaction_") && selectSql.contains("FOR UPDATE")) {
+                        assertThat(selectSql)
+                                .as("%s.%s lock SQL", method.getDeclaringClass().getSimpleName(), method.getName())
+                                .contains("transaction_date_time")
+                                .doesNotContain("${");
+                    }
+                });
     }
 
     @Test
-    void operationInsertShouldPersistMerchantOperationNoAndSourceOperationId() throws NoSuchMethodException {
-        Method method = TransactionOperationMapper.class.getMethod(
-                "insertPhysical",
-                String.class,
-                com.scott.payment.payment.entity.TransactionOperationDO.class);
+    void authenticationMapperShouldUseLogicalTableAndNeverPersistCavv() {
+        String upsertSql = annotationValue(methodNamed(
+                TransactionAuthenticationInfoMapper.class, "upsertPhase"), Insert.class);
+        String selectSql = annotationValue(methodNamed(
+                TransactionAuthenticationInfoMapper.class, "selectByAuthenticationInfoId"), Select.class);
 
-        String sql = annotationValue(method, Insert.class);
-
-        assertThat(sql).contains("source_operation_id");
-        assertThat(sql).contains("merchant_operation_no");
-        assertThat(sql).contains("#{operationDO.sourceOperationId}");
-        assertThat(sql).contains("#{operationDO.merchantOperationNo}");
-        assertThat(sql).doesNotContain("merchant_order_id");
+        assertThat(upsertSql)
+                .contains("INSERT INTO transaction_authentication_info")
+                .contains("ON DUPLICATE KEY UPDATE")
+                .contains("cavv = NULL")
+                .contains("authentication_status IN ('AUTHENTICATED', 'FAILED')")
+                .contains("#{row.transactionDateTime}")
+                .doesNotContain("#{row.cavv}")
+                .doesNotContain("${");
+        assertThat(selectSql)
+                .contains("authentication_info_id = #{authenticationInfoId}")
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .doesNotContain("${");
     }
 
     @Test
-    void channelRequestMapperShouldExposeStableLookupAndCasUpdateSql() throws NoSuchMethodException {
-        String requestIdSql = annotationValue(TransactionChannelRequestMapper.class.getMethod(
-                "selectByRequestIdPhysical",
+    void pocLogicalMappersShouldRoutePointReadsLocksAndNotificationUpdatesByTransactionTime()
+            throws NoSuchMethodException {
+        String orderSelectSql = annotationValue(TransactionOrderMapper.class.getMethod(
+                "selectByOperationId",
                 String.class,
-                String.class), Select.class);
-        String originalRequestSql = annotationValue(TransactionChannelRequestMapper.class.getMethod(
-                "selectOriginalByTransactionPhysical",
+                java.time.LocalDateTime.class), Select.class);
+        String orderLockSql = annotationValue(TransactionOrderMapper.class.getMethod(
+                "selectByOperationIdForUpdate",
                 String.class,
+                java.time.LocalDateTime.class), Select.class);
+        String operationSelectSql = annotationValue(TransactionOperationMapper.class.getMethod(
+                "selectByTransactionId",
                 String.class,
-                String.class), Select.class);
-        String channelTransactionSql = annotationValue(TransactionChannelRequestMapper.class.getMethod(
-                "selectByChannelTransactionPhysical",
+                java.time.LocalDateTime.class), Select.class);
+        String notificationUpdateSql = annotationValue(TransactionMerchantNotificationMapper.class.getMethod(
+                "activateByTransactionId",
                 String.class,
-                String.class,
-                String.class,
-                String.class), Select.class);
-        String updateStatusSql = annotationValue(TransactionChannelRequestMapper.class.getMethod(
-                "updateStatusPhysical",
-                String.class,
-                String.class,
-                Integer.class,
-                java.util.List.class,
-                String.class,
-                String.class,
-                String.class,
-                String.class,
-                String.class,
-                String.class,
+                java.time.LocalDateTime.class,
                 Integer.class,
                 String.class,
                 String.class,
                 java.time.LocalDateTime.class,
-                Integer.class), Update.class);
+                java.time.LocalDateTime.class), Update.class);
+
+        assertLogicalPointSql(orderSelectSql, "transaction_order");
+        assertLogicalPointSql(operationSelectSql, "transaction_operation");
+        assertLogicalPointSql(orderLockSql, "transaction_order");
+        assertThat(orderLockSql).contains("FOR UPDATE");
+        assertThat(notificationUpdateSql)
+                .contains("UPDATE transaction_merchant_notification")
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .contains("version = #{expectedVersion}")
+                .contains("version = version + 1")
+                .contains("#{callbackPayloadJson}")
+                .contains("notify_status = 'INIT'")
+                .contains("deleted = 0")
+                .doesNotContain("${");
+    }
+
+    @Test
+    void callbackLogicalUpdateShouldRequireShardTimeVersionAndCurrentStatus() {
+        String sql = annotationValue(
+                methodNamed(TransactionChannelCallbackMapper.class, "updateProcessResultLogical"), Update.class);
+
+        assertThat(sql)
+                .contains("UPDATE transaction_channel_callback")
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .contains("version = #{expectedVersion}")
+                .contains("callback_status IN")
+                .contains("version = version + 1")
+                .contains("deleted = 0")
+                .doesNotContain("${");
+    }
+
+    private static final Set<String> PRODUCTION_LOGIC_TABLES = Set.of(
+            "transaction_order",
+            "transaction_operation",
+            "transaction_merchant_snapshot",
+            "transaction_payment_method_info",
+            "transaction_payer_info",
+            "transaction_billing_info",
+            "transaction_shipping_info",
+            "transaction_additional_info",
+            "transaction_authentication_info",
+            "transaction_product_item",
+            "transaction_channel_request",
+            "transaction_channel_interaction_log",
+            "transaction_channel_callback",
+            "transaction_channel_callback_log",
+            "transaction_flow_event",
+            "transaction_status_history",
+            "transaction_amount_change_log",
+            "transaction_finance_state",
+            "transaction_currency_conversion",
+            "transaction_merchant_notification",
+            "transaction_merchant_notification_log",
+            "transaction_merchant_api_interaction_log",
+            "transaction_event_outbox",
+            "transaction_abnormal_event",
+            "transaction_card_vault");
+
+    @Test
+    void transactionMappersShouldNotExposeDynamicPhysicalTableSql() {
+        List<Class<?>> transactionMappers = List.of(
+                TransactionAmountChangeLogMapper.class,
+                TransactionChannelCallbackLogMapper.class,
+                TransactionChannelCallbackMapper.class,
+                TransactionChannelInteractionLogMapper.class,
+                TransactionChannelRequestMapper.class,
+                TransactionEventOutboxMapper.class,
+                TransactionFlowEventMapper.class,
+                TransactionMerchantApiInteractionLogMapper.class,
+                TransactionMerchantNotificationMapper.class,
+                TransactionOperationMapper.class,
+                TransactionOrderMapper.class,
+                TransactionPaymentMethodInfoMapper.class,
+                TransactionStatusHistoryMapper.class);
+
+        transactionMappers.stream()
+                .flatMap(type -> Arrays.stream(type.getMethods()))
+                .forEach(method -> {
+                    assertThat(Arrays.toString(method.getAnnotations()))
+                            .as("%s.%s must use a fixed logical table", method.getDeclaringClass().getSimpleName(), method.getName())
+                            .doesNotContain("${");
+                    assertThat(Arrays.stream(method.getParameters()).map(java.lang.reflect.Parameter::getName))
+                            .noneMatch(name -> name.toLowerCase(java.util.Locale.ROOT).contains("physicaltable"));
+                });
+    }
+
+    @Test
+    void channelRequestMapperShouldExposeStableLookupAndCasUpdateSql() throws NoSuchMethodException {
+        String requestIdSql = annotationValue(methodNamed(
+                TransactionChannelRequestMapper.class, "selectByRequestId"), Select.class);
+        String originalRequestSql = annotationValue(methodNamed(
+                TransactionChannelRequestMapper.class, "selectOriginalByTransaction"), Select.class);
+        String channelTransactionSql = annotationValue(methodNamed(
+                TransactionChannelRequestMapper.class, "selectByChannelTransaction"), Select.class);
+        String updateStatusSql = annotationValue(methodNamed(
+                TransactionChannelRequestMapper.class, "updateStatusLogical"), Update.class);
 
         assertThat(requestIdSql).contains("request_id = #{requestId}");
         assertThat(originalRequestSql).contains("transaction_id = #{transactionId}");
@@ -340,76 +419,103 @@ class TransactionPersistenceMapperContractTests {
         assertThat(updateStatusSql).contains("version = #{expectedVersion}");
         assertThat(updateStatusSql).contains("request_status IN");
         assertThat(updateStatusSql).contains("version = version + 1");
+        assertThat(updateStatusSql).contains("transaction_date_time = #{transactionDateTime}");
+    }
+
+    /**
+     * 3DS 认证结果只能写入认证专用字段，不能覆盖支付或授权已准备好的渠道交易号。
+     */
+    @Test
+    void checkoutAuthenticationResultShouldNotOverwriteFundsTransactionIdentity() {
+        Method method = methodNamed(PaymentCheckoutAttemptMapper.class, "markAuthenticationResultCas");
+        String sql = annotationValue(method, Update.class);
+
+        assertThat(sql)
+                .contains("three_ds_transaction_id = #{threeDsTransactionId}")
+                .doesNotContain("channel_transaction_id = #{channelTransactionId}")
+                .doesNotContain("channel_request_id = #{channelRequestId}");
+        assertThat(Arrays.stream(method.getParameters())
+                .map(java.lang.reflect.Parameter::getName))
+                .doesNotContain("channelTransactionId", "channelRequestId");
+    }
+
+    /**
+     * 渠道交互结果只能回填本地准备阶段已经创建的空结果行，重复或迟到结果不得覆盖首个审计事实。
+     */
+    @Test
+    void channelInteractionMapperShouldExposeStableLookupAndOneShotResultCas() {
+        String selectSql = annotationValue(methodNamed(
+                TransactionChannelInteractionLogMapper.class, "selectByRequestId"), Select.class);
+        String updateSql = annotationValue(methodNamed(
+                TransactionChannelInteractionLogMapper.class, "updateByRequestIdLogical"), Update.class);
+
+        assertThat(selectSql).contains("request_id = #{requestId}")
+                .contains("transaction_date_time = #{transactionDateTime}");
+        assertThat(updateSql).contains("request_id = #{requestId}")
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .contains("http_status IS NULL")
+                .contains("response_header_json_masked IS NULL")
+                .contains("response_body_json_masked IS NULL")
+                .contains("exception_type IS NULL")
+                .contains("exception_message IS NULL")
+                .contains("duration_millis IS NULL");
     }
 
     @Test
     void operationMapperShouldCasUpdateNonTerminalChannelResultForRecovery() throws NoSuchMethodException {
-        String sql = annotationValue(TransactionOperationMapper.class.getMethod(
-                "updateNonTerminalChannelResultPhysical",
-                String.class,
-                Long.class,
-                Integer.class,
-                String.class,
-                String.class,
-                String.class,
-                String.class,
-                String.class,
-                String.class,
-                String.class,
-                String.class,
-                String.class,
-                java.time.LocalDateTime.class), Update.class);
+        String sql = annotationValue(methodNamed(
+                TransactionOperationMapper.class, "updateNonTerminalChannelResult"), Update.class);
 
         assertThat(sql).contains("version = #{expectedVersion}");
         assertThat(sql).contains("transaction_status NOT IN ('SUCCESS', 'FAILED')");
         assertThat(sql).contains("channel_match_status = 'PENDING'");
         assertThat(sql).contains("last_channel_match_request_id = #{requestId}");
         assertThat(sql).contains("next_channel_match_time = COALESCE(next_channel_match_time, #{matchTime})");
+        assertThat(sql).contains("transaction_date_time = #{transactionDateTime}");
         assertThat(sql).doesNotContain("complete_time");
     }
 
     @Test
     void operationMapperShouldExposeNonTerminalIncrementalAuthorizationLookup() throws NoSuchMethodException {
-        String sql = annotationValue(TransactionOperationMapper.class.getMethod(
-                "selectNonTerminalIncrementalAuthorizationsPhysical",
-                String.class,
-                String.class,
-                String.class), Select.class);
+        String sql = annotationValue(methodNamed(
+                TransactionOperationMapper.class, "selectNonTerminalIncrementalAuthorizations"), Select.class);
 
         assertThat(sql).contains("operation_id = #{operationId}");
         assertThat(sql).contains("transaction_type = 'INCREMENTAL_AUTHORIZATION'");
         assertThat(sql).contains("transaction_status IN ('PROCESSING', 'PENDING')");
+        assertThat(sql).contains("transaction_date_time >= #{beginTime}");
         assertThat(sql).contains("deleted = 0");
     }
 
     @Test
-    void operationMapperShouldLetServiceHandleMissingQueryIdentityAndProtectTerminalUpdates() throws NoSuchMethodException {
-        String selectSql = annotationValue(TransactionOperationMapper.class.getMethod(
-                "selectPendingChannelMatchPhysical",
-                String.class,
-                String.class,
-                java.time.LocalDateTime.class,
-                int.class), Select.class);
-        String updateSql = annotationValue(TransactionOperationMapper.class.getMethod(
-                "updateChannelMatchPhysical",
-                String.class,
-                Long.class,
-                Integer.class,
-                String.class,
-                String.class,
-                String.class,
-                java.time.LocalDateTime.class,
-                java.time.LocalDateTime.class,
-                String.class), Update.class);
+    void operationMapperShouldReturnInitCandidatesForServiceGracePeriodCheckAndProtectTerminalUpdates()
+            throws NoSuchMethodException {
+        String selectSql = annotationValue(methodNamed(
+                TransactionOperationMapper.class, "selectPendingChannelMatch"), Select.class);
+        String updateSql = annotationValue(methodNamed(
+                TransactionOperationMapper.class, "updateChannelMatch"), Update.class);
+        String orderUpdateSql = annotationValue(methodNamed(
+                TransactionOrderMapper.class, "updateLatestChannelMatch"), Update.class);
 
         assertThat(selectSql).contains("channel_code IS NOT NULL");
+        assertThat(selectSql).doesNotContain("NOT EXISTS");
+        assertThat(selectSql).doesNotContain("request_status = 'INIT'");
         assertThat(selectSql).doesNotContain("channel_order_no IS NOT NULL");
         assertThat(selectSql).doesNotContain("channel_transaction_id IS NOT NULL");
         assertThat(updateSql).contains("version = #{expectedVersion}");
+        assertThat(updateSql).contains("transaction_date_time = #{transactionDateTime}");
+        assertThat(updateSql).contains(
+                "channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')");
         assertThat(updateSql).contains("transaction_status NOT IN ('SUCCESS', 'FAILED')");
+        assertThat(orderUpdateSql).contains("latest_transaction_id = #{latestTransactionId}");
+        assertThat(orderUpdateSql).contains(
+                "channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')");
+        assertThat(orderUpdateSql).contains("channel_match_status = #{matchStatus}");
+        assertThat(orderUpdateSql).doesNotContain("transaction_status =");
     }
 
-    private static <A extends java.lang.annotation.Annotation> String annotationValue(Method method, Class<A> annotationType) {
+    private static <A extends java.lang.annotation.Annotation> String annotationValue(Method method,
+                                                                                       Class<A> annotationType) {
         java.lang.annotation.Annotation annotation = method.getAnnotation(annotationType);
         assertThat(annotation).isNotNull();
         if (annotation instanceof Insert insert) {
@@ -424,86 +530,64 @@ class TransactionPersistenceMapperContractTests {
         return Arrays.toString(method.getAnnotations());
     }
 
-    private static void assertInsertColumnsExistInDdl(Method method, String ddlTableDefinition) {
-        Set<String> ddlColumns = ddlColumnNames(ddlTableDefinition);
-        Set<String> insertColumns = insertColumnNames(annotationValue(method, Insert.class));
-
-        assertThat(ddlColumns).containsAll(insertColumns);
+    private static Method methodNamed(Class<?> mapperType, String methodName) {
+        return Arrays.stream(mapperType.getMethods())
+                .filter(method -> method.getName().equals(methodName))
+                .reduce((left, right) -> {
+                    throw new AssertionError("mapper method is overloaded: " + mapperType.getSimpleName() + "." + methodName);
+                })
+                .orElseThrow(() -> new AssertionError(
+                        "mapper method not found: " + mapperType.getSimpleName() + "." + methodName));
     }
 
-    private static void assertShardingConfigAligned(String yaml) {
-        assertThat(yaml).contains(
-                "allow-alter-existing-table: false",
-                "logical-table: transaction_order",
-                "template-table: transaction_order",
-                "logical-table: transaction_operation",
-                "template-table: transaction_operation",
-                "logical-table: transaction_channel_request",
-                "template-table: transaction_channel_request",
-                "logical-table: transaction_event_outbox",
-                "template-table: transaction_event_outbox",
-                "logical-table: transaction_status_history",
-                "template-table: transaction_status_history",
-                "logical-table: transaction_merchant_api_interaction_log",
-                "template-table: transaction_merchant_api_interaction_log",
-                "table-name-format: \"%s_%d%02d\"");
-    }
-
-    private static void assertDevConfigStartNotBeforeProvisionedTables(String yaml, String migrationSql) {
-        for (String logicalTable : transactionLogicalTables(yaml)) {
-            String section = yamlRuleSection(yaml, logicalTable);
-            int configuredStart = configuredStartSuffix(section);
-            int firstProvisioned = firstProvisionedSuffix(migrationSql, logicalTable);
-            assertThat(configuredStart)
-                    .as(logicalTable + " sharding start " + configuredStart
-                            + " is before first provisioned physical table " + firstProvisioned)
-                    .isGreaterThanOrEqualTo(firstProvisioned);
+    private static void assertSafeLogicalMutation(Method method, String sql, String statementPrefix) {
+        if (!sql.contains(statementPrefix + " transaction_")) {
+            return;
         }
+        assertThat(sql)
+                .as("%s.%s logical mutation", method.getDeclaringClass().getSimpleName(), method.getName())
+                .contains("transaction_date_time")
+                .doesNotContain("${");
     }
 
-    private static Set<String> transactionLogicalTables(String yaml) {
-        Matcher matcher = Pattern.compile("logical-table: (transaction_[a-z_]+)").matcher(yaml);
-        Set<String> tables = new LinkedHashSet<>();
-        while (matcher.find()) {
-            tables.add(matcher.group(1));
-        }
-        return tables;
+    private static void assertLogicalPointSql(String sql, String logicalTable) {
+        assertThat(sql)
+                .contains("FROM " + logicalTable)
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .contains("deleted = 0")
+                .doesNotContain("${");
     }
 
-    private static String yamlRuleSection(String yaml, String logicalTable) {
-        String marker = "logical-table: " + logicalTable;
-        int logicalTableIndex = yaml.indexOf(marker);
-        assertThat(logicalTableIndex).as("sharding rule exists: " + logicalTable).isGreaterThanOrEqualTo(0);
-        int sectionStart = yaml.lastIndexOf("\n      ", logicalTableIndex);
-        assertThat(sectionStart).as("sharding rule section start: " + logicalTable).isGreaterThanOrEqualTo(0);
-        int sectionEnd = yaml.indexOf("\n      ", logicalTableIndex + marker.length());
-        while (sectionEnd >= 0 && sectionEnd + 7 < yaml.length() && Character.isWhitespace(yaml.charAt(sectionEnd + 7))) {
-            sectionEnd = yaml.indexOf("\n      ", sectionEnd + 1);
-        }
-        return yaml.substring(sectionStart, sectionEnd < 0 ? yaml.length() : sectionEnd);
+    private static void assertServiceHasNoShardingMode(String fileName) throws IOException {
+        Map<String, Object> root = parseYaml(readProjectFile("docs/deployment/nacos/" + fileName));
+        assertThat(root).doesNotContainKey("transaction-sharding");
     }
 
-    private static int configuredStartSuffix(String section) {
-        int year = yamlInt(section, "start-year");
-        int quarter = yamlInt(section, "start-quarter");
-        return year * 100 + quarter;
+    private static Map<String, Object> parseYaml(String yaml) {
+        return new Yaml().load(yaml);
     }
 
-    private static int yamlInt(String section, String key) {
-        Matcher matcher = Pattern.compile(key + ":\\s*(\\d+)").matcher(section);
-        assertThat(matcher.find()).as("yaml key exists: " + key).isTrue();
-        return Integer.parseInt(matcher.group(1));
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> childMap(Map<String, Object> parent, String key) {
+        Object child = parent.get(key);
+        assertThat(child).as("YAML map '%s'", key).isInstanceOf(Map.class);
+        return (Map<String, Object>) child;
     }
 
-    private static int firstProvisionedSuffix(String migrationSql, String logicalTable) {
-        Matcher matcher = Pattern.compile("`" + Pattern.quote(logicalTable) + "_(\\d{6})`").matcher(migrationSql);
-        Integer min = null;
-        while (matcher.find()) {
-            int suffix = Integer.parseInt(matcher.group(1));
-            min = min == null ? suffix : Math.min(min, suffix);
-        }
-        assertThat(min).as("provisioned physical table exists: " + logicalTable).isNotNull();
-        return min;
+    @SuppressWarnings("unchecked")
+    private static List<String> childList(Map<String, Object> parent, String key) {
+        Object child = parent.get(key);
+        assertThat(child).as("YAML list '%s'", key).isInstanceOf(List.class);
+        return (List<String>) child;
+    }
+
+    private static String tableDefinition(String schema, String tableName) {
+        String marker = "CREATE TABLE `" + tableName + "`";
+        int begin = schema.indexOf(marker);
+        assertThat(begin).as("schema table %s", tableName).isGreaterThanOrEqualTo(0);
+        int end = schema.indexOf(";", begin);
+        assertThat(end).as("schema terminator for %s", tableName).isGreaterThan(begin);
+        return schema.substring(begin, end);
     }
 
     private static String readProjectFile(String relativePath) throws IOException {
@@ -520,55 +604,5 @@ class TransactionPersistenceMapperContractTests {
             }
         }
         throw new AssertionError("project file not found: " + relativePath);
-    }
-
-    private static String tableDefinition(String ddl, String tableName) {
-        String marker = "CREATE TABLE IF NOT EXISTS `" + tableName + "` (";
-        int start = ddl.indexOf(marker);
-        assertThat(start).as("table definition exists: " + tableName).isGreaterThanOrEqualTo(0);
-        int next = ddl.indexOf("\n\nCREATE TABLE IF NOT EXISTS `", start + marker.length());
-        return ddl.substring(start, next < 0 ? ddl.length() : next);
-    }
-
-    private static Set<String> ddlColumnNames(String ddlTableDefinition) {
-        return ddlTableDefinition.lines()
-                .map(String::trim)
-                .filter(line -> line.startsWith("`"))
-                .map(line -> line.substring(1, line.indexOf('`', 1)))
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-    }
-
-    private static Set<String> insertColumnNames(String sql) {
-        int columnsStart = sql.indexOf('(');
-        int valuesKeyword = sql.indexOf("VALUES", columnsStart);
-        int columnsEnd = valuesKeyword < 0 ? -1 : sql.lastIndexOf(')', valuesKeyword);
-        assertThat(columnsStart).isGreaterThanOrEqualTo(0);
-        assertThat(columnsEnd).isGreaterThan(columnsStart);
-        return Arrays.stream(sql.substring(columnsStart + 1, columnsEnd).split(","))
-                .map(column -> column.replace("`", "").trim())
-                .filter(column -> !column.isEmpty())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-    }
-
-    private static int countOccurrences(String value, String needle) {
-        int count = 0;
-        int index = 0;
-        while ((index = value.indexOf(needle, index)) >= 0) {
-            count++;
-            index += needle.length();
-        }
-        return count;
-    }
-
-    private static String transactionWildcardPattern() {
-        return "transaction" + "\\_%";
-    }
-
-    private static String tableTruncateKeyword() {
-        return "TRUN" + "CATE ";
-    }
-
-    private static String registryWideDeleteStatement() {
-        return "DELETE" + " FROM `" + "sys_sharding_physical_table" + "`";
     }
 }

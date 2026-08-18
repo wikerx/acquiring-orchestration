@@ -1,9 +1,11 @@
 # RocketMQ 配置：用于交易异步事件、通知重试、对账补偿和管理类操作日志异步链路。
 rocketmq:
   # NameServer 地址，dev 默认本机；如果服务运行在 Docker 网络内，需要改成容器可达地址。
+  # 环境说明：环境变量：ROCKETMQ_NAME_SERVER（dev 配置默认 "127.0.0.1:9876"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
   name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
   producer:
     # 本地开发统一生产者分组。
+    # 环境说明：环境变量：ROCKETMQ_PRODUCER_GROUP（当前默认值为 "acquiring-orchestration-producer"）；共享 RocketMQ 集群时各环境必须使用独立分组，防止跨环境消费。
     group: ${ROCKETMQ_PRODUCER_GROUP:acquiring-orchestration-producer}
     # 发送超时时间，单位毫秒。
     send-message-timeout: 3000
@@ -32,42 +34,140 @@ acquiring:
       # Topic 默认权限，6 = 可读 + 可写。
       default-topic-perm: 6
       resources:
+        # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
         - name: acquiring_admin_operation_log_topic
+          # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
           type: TOPIC
+          # 参数说明：配置 RocketMQ Topic 读队列数，必须为正整数并结合消费并发设置。
           read-queue-nums: 4
+          # 参数说明：配置 RocketMQ Topic 写队列数，必须为正整数并结合生产吞吐设置。
           write-queue-nums: 4
+        # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
         - name: acquiring_merchant_operation_log_topic
+          # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
           type: TOPIC
+          # 参数说明：配置 RocketMQ Topic 读队列数，必须为正整数并结合消费并发设置。
           read-queue-nums: 4
+          # 参数说明：配置 RocketMQ Topic 写队列数，必须为正整数并结合生产吞吐设置。
           write-queue-nums: 4
+        # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
         - name: payment-event
+          # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
           type: TOPIC
+          # 参数说明：配置 RocketMQ Topic 读队列数，必须为正整数并结合消费并发设置。
           read-queue-nums: 4
+          # 参数说明：配置 RocketMQ Topic 写队列数，必须为正整数并结合生产吞吐设置。
           write-queue-nums: 4
+        # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
         - name: acquiring_risk_evaluation_audit_topic
+          # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
+          type: TOPIC
+          # 参数说明：配置 RocketMQ Topic 读队列数，必须为正整数并结合消费并发设置。
+          read-queue-nums: 4
+          # 参数说明：配置 RocketMQ Topic 写队列数，必须为正整数并结合生产吞吐设置。
+          write-queue-nums: 4
+        # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
+        - name: acquiring_security_intercept_audit_topic
+          # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
+          type: TOPIC
+          # 参数说明：配置 RocketMQ Topic 读队列数，必须为正整数并结合消费并发设置。
+          read-queue-nums: 4
+          # 参数说明：配置 RocketMQ Topic 写队列数，必须为正整数并结合生产吞吐设置。
+          write-queue-nums: 4
+        # Admin 与 Merchant 登录审计 Topic。
+        - name: acquiring_login_audit_topic
           type: TOPIC
           read-queue-nums: 4
           write-queue-nums: 4
-        - name: acquiring-admin-operation-log-consumer-dev
+        # Admin 与 Merchant 业务邮件定位消息 Topic，不携带正文或地址。
+        - name: acquiring_email_delivery_topic
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
+        # 收银台卡资料库 Topic 只承载由 service-data 公钥加密且不含 CVV 的信封。
+        - name: acquiring_checkout_card_vault_topic
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
+        # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
+        - name: acquiring-data-admin-operation-log-consumer
+          # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
+          type: CONSUMER_GROUP
+          # 参数说明：配置消费者组重试队列数，必须与 Broker 能力匹配。
+          retry-queue-nums: 1
+          # 参数说明：配置 RocketMQ 消费最大重试次数，超过后进入死信处理。
+          retry-max-times: 16
+          # 参数说明：配置 RocketMQ 消费超时，单位分钟；超过后消息可能进入重试流程。
+          consume-timeout-minute: 15
+        # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
+        - name: acquiring-data-merchant-operation-log-consumer
+          # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
+          type: CONSUMER_GROUP
+          # 参数说明：配置消费者组重试队列数，必须与 Broker 能力匹配。
+          retry-queue-nums: 1
+          # 参数说明：配置 RocketMQ 消费最大重试次数，超过后进入死信处理。
+          retry-max-times: 16
+          # 参数说明：配置 RocketMQ 消费超时，单位分钟；超过后消息可能进入重试流程。
+          consume-timeout-minute: 15
+        # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
+        - name: acquiring-data-merchant-notification-consumer
+          # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
+          type: CONSUMER_GROUP
+          # 参数说明：配置消费者组重试队列数，必须与 Broker 能力匹配。
+          retry-queue-nums: 1
+          # 参数说明：配置 RocketMQ 消费最大重试次数，超过后进入死信处理。
+          retry-max-times: 16
+          # 参数说明：配置 RocketMQ 消费超时，单位分钟；超过后消息可能进入重试流程。
+          consume-timeout-minute: 15
+        # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
+        - name: acquiring-data-risk-evaluation-audit-consumer
+          # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
+          type: CONSUMER_GROUP
+          # 参数说明：配置消费者组重试队列数，必须与 Broker 能力匹配。
+          retry-queue-nums: 1
+          # 参数说明：配置 RocketMQ 消费最大重试次数，超过后进入死信处理。
+          retry-max-times: 16
+          # 参数说明：配置 RocketMQ 消费超时，单位分钟；超过后消息可能进入重试流程。
+          consume-timeout-minute: 15
+        # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
+        - name: acquiring-data-security-intercept-audit-consumer
+          # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
+          type: CONSUMER_GROUP
+          # 参数说明：配置消费者组重试队列数，必须与 Broker 能力匹配。
+          retry-queue-nums: 1
+          # 参数说明：配置 RocketMQ 消费最大重试次数，超过后进入死信处理。
+          retry-max-times: 16
+          # 参数说明：配置 RocketMQ 消费超时，单位分钟；超过后消息可能进入重试流程。
+          consume-timeout-minute: 15
+        # 登录审计由 service-data 集中持久化。
+        - name: acquiring-data-login-audit-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
-        - name: acquiring-merchant-operation-log-consumer-dev
+        # service-data 卡资料库独立消费组，数据库唯一键承担最终幂等。
+        - name: acquiring-data-checkout-card-vault-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
-        - name: acquiring-payment-merchant-notification-consumer-dev
+        # Admin 与 Merchant 使用独立消费组，按 Tag 隔离发送账户和业务边界。
+        - name: acquiring-admin-email-delivery-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
-        - name: acquiring-risk-evaluation-audit-consumer-dev
+        - name: acquiring-merchant-email-delivery-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
+    outbox:
+      relay-enabled: true
+      batch-size: 100
+      max-retry-count: 8
+      retry-delay-seconds: 10
+      processing-timeout-seconds: 120
   operation-log:
     mq:
       # 管理类系统操作日志 MQ 链路总开关。
@@ -79,12 +179,35 @@ acquiring:
       # 操作日志生产者分组。
       producer-group: acquiring-operation-log-producer
       # 管理后台操作日志消费者分组。
-      admin-consumer-group: acquiring-admin-operation-log-consumer-dev
+      admin-consumer-group: acquiring-data-admin-operation-log-consumer
       # 商户管理系统操作日志消费者分组。
-      merchant-consumer-group: acquiring-merchant-operation-log-consumer-dev
+      merchant-consumer-group: acquiring-data-merchant-operation-log-consumer
       # 单条消息发送超时时间，单位毫秒。
       send-timeout-ms: 3000
       # 操作日志消息最大文本长度，超出后会在发送前截断。
       max-message-length: 8192
       # 是否启用敏感字段脱敏标记。
       mask-sensitive-data: true
+
+  security-audit:
+    mq:
+      # OpenAPI 安全拦截审计由 service-data 集中消费并持久化。
+      enabled: true
+      # Redis 只保留短期消费幂等标记，数据库 event_no 唯一键是最终依据。
+      consume-idempotent-ttl-seconds: 604800
+
+  email:
+    delivery:
+      # 仅在表结构、运行时密钥、Topic 和消费组均已就绪后启用。
+      enabled: ${EMAIL_DELIVERY_ENABLED:true}
+      default-max-retry-count: 3
+      retry-delay-seconds: 30
+      max-retry-delay-seconds: 3600
+      processing-timeout-seconds: 300
+      batch-size: 100
+      relay-interval-millis: 30000
+
+payment:
+  email:
+    # 必须由环境变量或密钥管理服务注入，禁止在 Nacos 草案中写入真实密钥。
+    secret: ${PAYMENT_EMAIL_SECRET:}

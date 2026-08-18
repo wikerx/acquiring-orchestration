@@ -1,11 +1,66 @@
-global-payment:
-  sharding:
+# ShardingSphere-JDBC 交易逻辑路由与物理表治理的 dev 已发布非秘密配置。
+# actualDataNodes 只包含已建表且通过治理校验的季度；变更后必须重新计算并校验规则 checksum。
+transaction-sharding:
+  rule-version: "2026.08.14-001"
+  rule-checksum: "sha256:1558bdaa3834f1b93035d6fba3e7027f941f179323f18e60279b9c1c87c04331"
+  database-zone-id: Asia/Shanghai
+  sharding-column: transaction_date_time
+  primary-data-source: master
+  replica-data-sources:
+    - slave_1
+    - slave_2
+  physical-nodes:
+    - "202603"
+    - "202604"
+  logic-tables:
+    - transaction_order
+    - transaction_operation
+    - transaction_merchant_snapshot
+    - transaction_payment_method_info
+    - transaction_payer_info
+    - transaction_billing_info
+    - transaction_shipping_info
+    - transaction_additional_info
+    - transaction_authentication_info
+    - transaction_product_item
+    - transaction_channel_request
+    - transaction_channel_interaction_log
+    - transaction_channel_callback
+    - transaction_channel_callback_log
+    - transaction_flow_event
+    - transaction_status_history
+    - transaction_amount_change_log
+    - transaction_finance_state
+    - transaction_currency_conversion
+    - transaction_merchant_notification
+    - transaction_merchant_notification_log
+    - transaction_merchant_api_interaction_log
+    - transaction_event_outbox
+    - transaction_abnormal_event
+    - transaction_card_vault
+  direct-access-services:
+    - service-payment
+    - service-admin
+    - service-merchant
+    - service-risk
+    - service-data
+  query-budget:
+    synchronous-timeout-millis: 5000
+    max-result-rows: 1000
+    max-concurrent-exports-per-user: 1
+
+  # 下列配置只供 Job/Admin 的模板、DDL、schema 和号段治理直连链路使用。
+  governance:
     # 分表策略。quarter 表示按 transaction_date_time 所在季度分表。
     strategy: quarter
     # 数据库统一时区。所有交易时间字段按 UTC+8 写入和路由，避免跨时区导致季度判断不一致。
     database-timezone: Asia/Shanghai
     # 全局默认分表字段。参与分表的表必须在写入和查询时传入该字段。
     sharding-column: transaction_date_time
+    # 在协议支持上限结束前四个季度告警。
+    expiry-warning-quarters: 4
+    # Admin 只展示当前季度起的有限规划窗口，禁止把 2099 协议上限展开为待建表清单。
+    planning-horizon-quarters: 8
 
     table-maintenance:
       # 是否启用分表物理表治理能力。关闭后只保留规则展示，不执行预建表。
@@ -30,361 +85,627 @@ global-payment:
     id-generator:
       # 使用 MySQL 自增主键，并通过 AUTO_INCREMENT 起始值形成 yyyyQQ 前缀。
       mode: mysql-auto-increment-prefix
+      # 参数说明：配置分片自增编号的时间前缀格式，变更会影响编号解析兼容性。
       prefix-format: yyyyQQ
+      # 参数说明：配置分片表自增序列位数，必须与 max-sequence 一致。
       sequence-width: 12
+      # 参数说明：配置分片表自增序列起始值，必须大于等于 1。
       start-sequence: 1
+      # 参数说明：配置单时间片可分配的最大序列号，必须与 sequence-width/sequence-length 容量一致。
       max-sequence: 999999999999
 
     # 参与分表的逻辑表清单。key 仅用于配置归类，物理表名必须使用 logical-table 生成。
     tables:
-      test-transaction:
-        enabled: true
-        logical-table: test_transaction
-        template-table: test_transaction
-        id-column: id
-        sharding-column: transaction_date_time
-        start-year: 2026
-        start-quarter: 1
-        end-year: 2035
-        end-quarter: 4
-        table-name-format: "%s_%d%02d"
-        actual-data-source: master
-        description: 测试交易主表，按交易时间季度分表。
-      test-transaction-info:
-        enabled: true
-        logical-table: test_transaction_info
-        template-table: test_transaction_info
-        id-column: id
-        sharding-column: transaction_date_time
-        start-year: 2026
-        start-quarter: 1
-        end-year: 2035
-        end-quarter: 4
-        table-name-format: "%s_%d%02d"
-        actual-data-source: master
-        description: 测试交易信息表，按交易时间季度分表。
-      test-transaction-merge-info:
-        enabled: true
-        logical-table: test_transaction_merge_info
-        template-table: test_transaction_merge_info
-        id-column: id
-        sharding-column: transaction_date_time
-        start-year: 2026
-        start-quarter: 1
-        end-year: 2035
-        end-quarter: 4
-        table-name-format: "%s_%d%02d"
-        actual-data-source: master
-        description: 测试交易附属信息表，按交易时间季度分表。
-      test-transaction-status-info:
-        enabled: true
-        logical-table: test_transaction_status_info
-        template-table: test_transaction_status_info
-        id-column: id
-        sharding-column: transaction_date_time
-        start-year: 2026
-        start-quarter: 1
-        end-year: 2035
-        end-quarter: 4
-        table-name-format: "%s_%d%02d"
-        actual-data-source: master
-        description: 测试交易状态信息表，按交易时间季度分表。
       transaction-order:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_order
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_order
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 交易生命周期主单；同一笔原始交易的授权、增量授权、请款、退款、拒付等动作共用同一个 operation_id。
       transaction-operation:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_operation
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_operation
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 交易动作单；授权、增量授权、请款、退款、Void、拒付等每一个动作一条记录。
       transaction-merchant-snapshot:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_merchant_snapshot
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_merchant_snapshot
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存交易发生时的商户、渠道、MID、费率、结算、内风控配置快照，避免后续配置变更影响历史交易解释。
       transaction-payment-method-info:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_payment_method_info
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_payment_method_info
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存卡、钱包、令牌、渠道绑卡标识等支付工具摘要。
       transaction-payer-info:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_payer_info
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_payer_info
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
-        description: 保存付款人身份、联系方式、IP、设备摘要，用于风控、审计和后台展示。
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
+        description: 保存商户上送的付款人身份、联系方式、IP 和浏览器信息明文快照，供风控、审计和商户查询回显使用。
       transaction-billing-info:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_billing_info
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_billing_info
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存交易维度账单地址和邮编等信息，供卡组织、渠道、风控、争议场景使用。
-      transaction-additional-info:
+      transaction-shipping-info:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
-        logical-table: transaction_additional_info
-        template-table: transaction_additional_info
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
+        logical-table: transaction_shipping_info
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
+        template-table: transaction_shipping_info
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
+        description: 保存商户上送的收货人身份、联系方式和收货地址明文快照，供风控、渠道透传和商户查询回显使用。
+      transaction-additional-info:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
+        enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
+        logical-table: transaction_additional_info
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
+        template-table: transaction_additional_info
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
+        id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
+        sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
+        start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
+        start-quarter: 3
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
+        end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
+        table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
+        actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存循环付款、分期、Hosted Checkout、二维码、支付链接等扩展属性，避免主表字段膨胀。
       transaction-authentication-info:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_authentication_info
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_authentication_info
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存3DS、SCA、渠道/卡组织认证结果，支撑交易详情页认证信息展示和后续责任转移判断。
       transaction-product-item:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_product_item
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_product_item
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存商户上送的商品/订单项目明细，支撑交易详情页商品列表、风控摘要、争议和人工排查。
       transaction-channel-request:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_channel_request
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_channel_request
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存一次渠道请求的核心字段、同步响应摘要和渠道结果判断。
       transaction-channel-interaction-log:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_channel_interaction_log
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_channel_interaction_log
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存渠道请求、响应、异常的可审计日志；请求/响应对象直接转 JSON 后脱敏入库。
       transaction-channel-callback-log:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_channel_callback_log
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_channel_callback_log
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存渠道回调原文、验签、IP校验和平台响应日志。
       transaction-channel-callback:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_channel_callback
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_channel_callback
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存渠道回调解析后的业务处理结果、幂等和状态推进结果。
       transaction-flow-event:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_flow_event
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_flow_event
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 记录交易每一个流程事件，用于后台时间线展示和问题追踪。
       transaction-status-history:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_status_history
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_status_history
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 记录订单、动作、财务状态机每一次流转，支持审计和问题追踪。
       transaction-amount-change-log:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_amount_change_log
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_amount_change_log
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 记录授权、请款、退款、拒付等动作对订单累计金额的影响。
       transaction-finance-state:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_finance_state
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_finance_state
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存交易维度结算、对账、入账当前状态和批次关联。
       transaction-currency-conversion:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_currency_conversion
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_currency_conversion
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存DCC、渠道币种转换EDC、结算换汇、退款换汇等汇率报价、换算金额和舍入规则快照。
       transaction-merchant-notification:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_merchant_notification
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_merchant_notification
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存给商户异步通知的任务当前状态、重试计划和成功记录。
       transaction-merchant-notification-log:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_merchant_notification_log
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_merchant_notification_log
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存每一次商户通知请求/响应日志。
       transaction-merchant-api-interaction-log:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_merchant_api_interaction_log
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_merchant_api_interaction_log
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存商户 OpenAPI 请求和平台响应的脱敏审计日志。
       transaction-event-outbox:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_event_outbox
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_event_outbox
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
         id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
         sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
         start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
-        end-year: 2035
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
         actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 交易本地事务内写入事件，事务提交后可靠投递 RocketMQ。
       transaction-abnormal-event:
+        # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
         enabled: true
+        # 参数说明：指定业务代码访问的逻辑表名，必须与 Mapper 和分片规则一致。
         logical-table: transaction_abnormal_event
+        # 参数说明：指定创建季度物理表时复制结构的模板表，必须完成结构审核。
         template-table: transaction_abnormal_event
+        # 参数说明：指定分片物理表主键列名，必须与模板表结构一致。
+        id-column: id
+        # 参数说明：指定季度分片路由字段；写入和查询必须提供该交易时间字段。
+        sharding-column: transaction_date_time
+        # 参数说明：配置分片表预生成范围的起始年份。
+        start-year: 2026
+        # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
+        start-quarter: 3
+        # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
+        end-year: 2099
+        # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
+        end-quarter: 4
+        # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
+        table-name-format: "%s_%d%02d"
+        # 参数说明：指定该逻辑表执行 DDL 和路由时使用的数据源，资金写入必须指向可写主库。
+        actual-data-source: master
+        # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
+        description: 保存已能定位交易时间的交易异常事件，如状态推进失败、金额校验失败、回调无法处理等。
+      transaction-card-vault:
+        enabled: true
+        logical-table: transaction_card_vault
+        template-table: transaction_card_vault
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
         start-quarter: 3
-        end-year: 2035
+        end-year: 2099
         end-quarter: 4
         table-name-format: "%s_%d%02d"
         actual-data-source: master
-        description: 保存已能定位交易时间的交易异常事件，如状态推进失败、金额校验失败、回调无法处理等。
+        description: 保存收银台无 CVV 卡资料的字段密文、PAN HMAC 和被 KEK 包裹的 DEK。

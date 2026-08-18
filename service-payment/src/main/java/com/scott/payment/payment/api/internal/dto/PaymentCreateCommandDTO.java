@@ -1,5 +1,6 @@
 package com.scott.payment.payment.api.internal.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -8,6 +9,8 @@ import lombok.Data;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -67,6 +70,32 @@ public class PaymentCreateCommandDTO implements Serializable {
      * 请求唯一标识，当前默认与 merchantOrderId 一致，用于链路追踪。
      */
     private String requestId;
+
+    /**
+     * 内部动作来源，例如 OPENAPI、ADMIN_PORTAL、MERCHANT_PORTAL 或 SYSTEM。
+     * 该字段不属于商户 OpenAPI 外部协议。
+     */
+    private String requestSource;
+
+    /**
+     * 申请主体稳定标识；OpenAPI 使用商户号，后台使用认证账号 ID。
+     */
+    private String applicantId;
+
+    /**
+     * 申请时的显示名称快照。
+     */
+    private String applicantName;
+
+    /**
+     * 退款或撤销申请原因，不允许包含卡号、CVV、密钥或完整渠道报文。
+     */
+    private String requestReason;
+
+    /**
+     * 支付核心在校验历史成功和未终态退款后确定的退款范围。
+     */
+    private String refundScope;
 
     /**
      * 订单金额，主币种单位，例如 123.45 USD。
@@ -133,6 +162,7 @@ public class PaymentCreateCommandDTO implements Serializable {
     /**
      * 交易请求时间，按 UTC+8 业务时区写入。
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
 
     /**
@@ -185,6 +215,15 @@ public class PaymentCreateCommandDTO implements Serializable {
      */
     private BillingCardHolderInfoDTO billingCardHolderInfo;
 
+    /** 首次交易商品或服务明细，用于生命周期快照和商户结果回显。 */
+    private List<GoodsInfoDTO> goodsInfo;
+
+    /** 商户上送的付款人信息，用于名单、AML、IP 和地域风控。 */
+    private PayerInfoDTO payerInfo;
+
+    /** 商户可选上送的收货人及收货地址，用于收货地址风险校验。 */
+    private ShippingInfoDTO shippingInfo;
+
     /**
      * 卡信息，仅允许在 Payment 到渠道调用的内存链路中使用。
      */
@@ -194,6 +233,9 @@ public class PaymentCreateCommandDTO implements Serializable {
      * 3DS 认证信息，用于渠道授权和责任转移判断。
      */
     private ThreeDsInfoDTO threeDsInfo;
+
+    /** Hosted Checkout 已命中强制 3DS；为 true 时支付核心只接受服务端确认的 PASSED 结果。 */
+    private Boolean threeDsRequired;
 
     /**
      * Hosted Checkout 等内部编排透传的渠道身份，不对商户开放。
@@ -490,6 +532,57 @@ public class PaymentCreateCommandDTO implements Serializable {
         private String postal;
     }
 
+    /** 商品或服务行信息，amount 表示该行总金额。 */
+    @Data
+    public static class GoodsInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String name;
+        private Integer quantity;
+        private BigDecimal amount;
+        private String currency;
+    }
+
+    /** 付款人身份、联系方式、地址和浏览器上下文。 */
+    @Data
+    public static class PayerInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String payerId;
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+        private String ipAddress;
+        private String sessionId;
+        private Map<String, Object> browserInfo;
+        private String userAgent;
+    }
+
+    /** 收货人及收货地址信息。 */
+    @Data
+    public static class ShippingInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String firstName;
+        private String lastName;
+        private String phone;
+        private String email;
+        private String country;
+        private String state;
+        private String city;
+        private String street;
+        private String postal;
+    }
+
     @Data
     /**
      * @author : scott
@@ -533,6 +626,9 @@ public class PaymentCreateCommandDTO implements Serializable {
          * CVV/CVC 安全码，只允许用于内存渠道调用，不允许明文日志、MQ 或落库。
          */
         private String securityCode;
+
+        /** 卡面持卡人姓名，只允许在当前支付渠道调用链使用。 */
+        private String cardholderName;
     }
 
     @Data
@@ -548,6 +644,9 @@ public class PaymentCreateCommandDTO implements Serializable {
     public static class ThreeDsInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
+
+        /** 平台服务端确认的认证状态；资金动作只接受 PASSED。 */
+        private String authenticationStatus;
 
         /**
          * MPGS 3DS authentication transaction id，PAY/AUTHORIZE 必须引用同一认证交易。
@@ -598,6 +697,13 @@ public class PaymentCreateCommandDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 3DS 策略评估和后续资金动作共同使用的渠道编码。 */
+        private String channelCode;
+        /** 已路由渠道主键。 */
+        private Long channelId;
+        /** 已路由渠道 MID 配置主键。 */
+        private Long channelMidConfigId;
+
         /** 渠道订单号。 */
         private String channelOrderNo;
         /** 渠道交易号。 */
@@ -633,10 +739,18 @@ public class PaymentCreateCommandDTO implements Serializable {
          */
         private String sourceTransactionId;
 
+        /** 生命周期首笔平台交易 ID，由 transaction_locator 内部补齐，不接受商户上送。 */
+        private String rootTransactionId;
+
         /**
          * 原交易业务时间，用于按 transaction_date_time + transaction_id 精确定位交易主单所在物理分表。
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime sourceTransactionDateTime;
+
+        /** 生命周期根主单的 transaction_date_time，由调用链透传，禁止从业务编号解析。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * 原交易对应的渠道交易 ID，由支付核心按 sourceTransactionId 查询原动作单后补齐，不要求商户上送。
@@ -664,6 +778,17 @@ public class PaymentCreateCommandDTO implements Serializable {
         private String callbackUrl;
 
         /**
+         * 商户发起支付的网站原始 URL，用于来源网址限定、交易主单留存和商户响应回显。
+         */
+        private String merchantWebsite;
+
+        /** Hosted Checkout 结果页返回地址，仅允许加密持久化。 */
+        private String redirectUrl;
+
+        /** Hosted Checkout 创建会话时指定的显示语言。 */
+        private String language;
+
+        /**
          * card Brand，用于保存 Transaction Info DTO 中与 cardbrand 相关的业务属性。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
@@ -672,6 +797,9 @@ public class PaymentCreateCommandDTO implements Serializable {
          * </p>
          */
         private String cardBrand;
+
+        /** BIN 基础数据识别出的发卡国家/地区，优先保存 ISO Alpha-2 编码。 */
+        private String issuerCountry;
     }
 
     /**

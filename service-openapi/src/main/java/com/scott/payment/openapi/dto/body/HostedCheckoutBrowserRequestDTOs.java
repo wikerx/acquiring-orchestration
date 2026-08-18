@@ -62,10 +62,10 @@ public final class HostedCheckoutBrowserRequestDTOs {
         @NotBlank(message = "paymentMethod is required")
         private String paymentMethod;
 
-        /** 敏感卡数据，仅允许短暂传入支付链路，禁止写日志或业务库。 */
+        /** 浏览器生成的卡数据密文信封，服务端入口禁止接收明文 PAN、CVV 和有效期。 */
         @Valid
-        @NotNull(message = "cardInfo is required")
-        private CardInfoDTO cardInfo;
+        @NotNull(message = "cardDataEnvelope is required")
+        private CardDataEnvelopeDTO cardDataEnvelope;
 
         /** 账单持卡人资料，用于渠道和 3DS 校验，不得完整写入日志。 */
         @Valid
@@ -100,6 +100,20 @@ public final class HostedCheckoutBrowserRequestDTOs {
         private ClientContextDTO clientContext;
     }
 
+    /** 卡号输入完成后的 BIN 品牌识别请求，只发送 6 到 11 位前缀。 */
+    @Getter
+    @Setter
+    public static class CardBinRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        @NotBlank(message = "opaqueToken is required")
+        private String opaqueToken;
+        @NotBlank(message = "checkoutSessionId is required")
+        private String checkoutSessionId;
+        @NotBlank(message = "cardBin is required")
+        @Pattern(regexp = "^\\d{6,11}$", message = "cardBin format does not match")
+        private String cardBin;
+    }
+
     /**
      * 付款人从 3DS 页面返回收银台的请求。
      */
@@ -124,42 +138,41 @@ public final class HostedCheckoutBrowserRequestDTOs {
         /** 渠道返回的 3DS 认证数据，属于敏感协议载荷，禁止完整记录。 */
         private String authenticationData;
 
+        /** 使用 3DS 动作响应中新 nonce 加密的卡数据，供服务端继续认证或认证后扣款。 */
+        @Valid
+        @NotNull(message = "cardDataEnvelope is required")
+        private CardDataEnvelopeDTO cardDataEnvelope;
+
+        /** 继续认证和资金动作所需的账单持卡人资料。 */
+        @Valid
+        private BillingCardHolderInfoDTO billingCardHolderInfo;
+
         /** 3DS 返回时的浏览器环境摘要。 */
         private ClientContextDTO clientContext;
     }
 
-    /**
-     * 浏览器提交的敏感银行卡资料。
-     */
+    /** 浏览器提交的 RSA-OAEP-256 + AES-256-GCM 卡数据密文信封。 */
     @Getter
     @Setter
-    public static class CardInfoDTO implements Serializable {
+    public static class CardDataEnvelopeDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
-
-        /** 12 至 19 位完整 PAN，仅允许短暂传入支付处理，禁止日志和持久化。 */
-        @NotBlank(message = "cardInfo.cardNo is required")
-        @Pattern(regexp = "^\\d{12,19}$", message = "cardInfo.cardNo format does not match")
-        private String cardNo;
-
-        /** 两位卡片到期月份，格式 {@code MM}。 */
-        @NotBlank(message = "cardInfo.expirationMonth is required")
-        @Pattern(regexp = "^(0[1-9]|1[0-2])$", message = "cardInfo.expirationMonth format does not match")
-        private String expirationMonth;
-
-        /** 四位卡片到期年份，格式 {@code yyyy}。 */
-        @NotBlank(message = "cardInfo.expirationYear is required")
-        @Pattern(regexp = "^20\\d{2}$", message = "cardInfo.expirationYear format does not match")
-        private String expirationYear;
-
-        /** 三或四位 CVV/CVC，严禁日志、缓存、数据库或响应回显。 */
-        @NotBlank(message = "cardInfo.securityCode is required")
-        @Pattern(regexp = "^\\d{3,4}$", message = "cardInfo.securityCode format does not match")
-        private String securityCode;
-
-        /** 卡面持卡人姓名，属于个人信息，日志中必须脱敏。 */
-        @NotBlank(message = "cardInfo.cardholderName is required")
-        private String cardholderName;
+        @NotBlank(message = "cardDataEnvelope.algorithm is required")
+        private String algorithm;
+        @NotBlank(message = "cardDataEnvelope.keyId is required")
+        private String keyId;
+        @NotBlank(message = "cardDataEnvelope.encryptedKey is required")
+        @Pattern(regexp = "^[A-Za-z0-9_-]{64,1024}$", message = "cardDataEnvelope.encryptedKey format does not match")
+        private String encryptedKey;
+        @NotBlank(message = "cardDataEnvelope.iv is required")
+        @Pattern(regexp = "^[A-Za-z0-9_-]{16,32}$", message = "cardDataEnvelope.iv format does not match")
+        private String iv;
+        @NotBlank(message = "cardDataEnvelope.ciphertext is required")
+        @Pattern(regexp = "^[A-Za-z0-9_-]{16,8192}$", message = "cardDataEnvelope.ciphertext format does not match")
+        private String ciphertext;
+        @NotBlank(message = "cardDataEnvelope.nonce is required")
+        @Pattern(regexp = "^[A-Za-z0-9_-]{16,128}$", message = "cardDataEnvelope.nonce format does not match")
+        private String nonce;
     }
 
     /**
@@ -242,6 +255,24 @@ public final class HostedCheckoutBrowserRequestDTOs {
          * 屏幕信息，进入 3DS browserInfo 前会整体脱敏保存。
          */
         private String screen;
+
+        /** ACS challenge 窗口尺寸，例如 FULL_SCREEN。 */
+        private String challengeWindowSize;
+
+        /** 浏览器屏幕颜色深度。 */
+        private Integer colorDepth;
+
+        /** 浏览器是否启用 Java。 */
+        private Boolean javaEnabled;
+
+        /** 浏览器是否启用 JavaScript。 */
+        private Boolean javaScriptEnabled;
+
+        /** 浏览器屏幕高度。 */
+        private Integer screenHeight;
+
+        /** 浏览器屏幕宽度。 */
+        private Integer screenWidth;
 
         /**
          * 前端生成的设备标识，内部只传输 hash，不能作为唯一安全凭据。

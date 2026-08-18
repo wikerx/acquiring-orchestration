@@ -24,9 +24,9 @@ public interface TransactionEventOutboxService {
     void save(TransactionEventOutboxDO eventDO);
 
     /**
-     * 查询指定交易时间所在物理分表中待投递的本地事件。
+     * 查询指定交易时间所在季度中待投递的本地事件。
      *
-     * @param eventTime 交易时间，用于定位物理分表；保留参数名兼容现有调用方
+     * @param eventTime 交易时间，用于 ShardingSphere 精确定位季度
      * @param now       当前时间
      * @param limit     最大返回条数
      * @return 待投递事件列表
@@ -52,4 +52,20 @@ public interface TransactionEventOutboxService {
      * @return true 表示更新成功
      */
     boolean markFailed(TransactionEventOutboxDO eventDO, LocalDateTime nextRetryTime, String failReason, LocalDateTime now);
+
+    /**
+     * 恢复稳定退款执行事件的投递；不存在时返回 false，由上层按原事件号补建。
+     *
+     * @param eventNo 稳定事件号
+     * @param transactionDateTime 退款动作分片时间
+     * @param eventType 退款执行事件类型
+     * @param now 恢复时间
+     * @return true 表示事件已存在；已处于 INIT 时同样返回 true
+     */
+    default boolean recoverForRedelivery(String eventNo,
+                                         LocalDateTime transactionDateTime,
+                                         String eventType,
+                                         LocalDateTime now) {
+        return false;
+    }
 }

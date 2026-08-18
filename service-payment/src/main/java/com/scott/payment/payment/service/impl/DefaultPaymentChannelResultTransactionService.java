@@ -1,5 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
@@ -10,7 +12,6 @@ import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
  * @status : create
  */
 @Service
+@DS(DataSourceName.TRANSACTION)
 public class DefaultPaymentChannelResultTransactionService implements PaymentChannelResultTransactionService {
 
     /**
@@ -42,21 +44,11 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
     private final TransactionLifecycleEventService lifecycleEventService;
 
     /**
-     * 创建渠道同步结果事务默认实现。
-     *
-     * @param transactionRecordService 交易事实记录服务
-     */
-    public DefaultPaymentChannelResultTransactionService(TransactionRecordService transactionRecordService) {
-        this(transactionRecordService, null);
-    }
-
-    /**
      * 创建带终态 Outbox 能力的渠道同步结果事务服务。
      *
      * @param transactionRecordService 交易事实记录服务
      * @param lifecycleEventService    交易状态变更 Outbox 服务
      */
-    @Autowired
     public DefaultPaymentChannelResultTransactionService(
             TransactionRecordService transactionRecordService,
             TransactionLifecycleEventService lifecycleEventService) {
@@ -89,7 +81,7 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
                 resultDTO,
                 riskDecisionEnum,
                 currencyExponent);
-        if (statusChanged && lifecycleEventService != null
+        if (statusChanged
                 && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus()))) {
             lifecycleEventService.saveStatusChanged(
@@ -101,5 +93,56 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
                     resultDTO.getStatus(),
                     commandDTO.getTransactionDateTime());
         }
+    }
+
+    /** 在独立事务中抢占 INIT 渠道请求。 */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public boolean claimInitialChannelSubmission(String requestId, java.time.LocalDateTime transactionDateTime) {
+        return transactionRecordService.claimInitialChannelSubmission(requestId, transactionDateTime);
+    }
+
+    /**
+     * 记录渠道调用前失败。复用已准备的渠道请求身份，但不会伪造 PSP 响应或渠道交互。
+     */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public boolean recordInitialPreChannelFailure(PaymentCreateCommandDTO commandDTO,
+                                                  PaymentRouteResultDTO routeResultDTO,
+                                                  PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                  PaymentCreateResultDTO resultDTO,
+                                                  PaymentRiskDecisionEnum riskDecisionEnum,
+                                                  int currencyExponent) {
+        if (!transactionRecordService.claimInitialPreChannelFailure(
+                invokeResultDTO.getRequestId(), commandDTO.getTransactionDateTime())) {
+            return false;
+        }
+        boolean statusChanged = transactionRecordService.completeInitialChannelResultAndReport(
+                commandDTO,
+                routeResultDTO,
+                invokeResultDTO,
+                resultDTO,
+                riskDecisionEnum,
+                currencyExponent);
+        if (statusChanged) {
+            lifecycleEventService.saveStatusChanged(
+                    resultDTO.getTransactionId(),
+                    resultDTO.getOperationId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    resultDTO.getTransactionType(),
+                    resultDTO.getStatus(),
+                    commandDTO.getTransactionDateTime());
+        }
+        return statusChanged;
+    }
+
+    /** 在独立事务中写入通用交易级 3DS 标识。 */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void markThreeDsIndicator(String transactionId,
+                                     java.time.LocalDateTime transactionDateTime,
+                                     String indicator) {
+        transactionRecordService.markThreeDsIndicator(transactionId, transactionDateTime, indicator);
     }
 }

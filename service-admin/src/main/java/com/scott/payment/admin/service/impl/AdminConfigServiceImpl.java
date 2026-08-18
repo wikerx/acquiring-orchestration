@@ -14,9 +14,9 @@ import com.scott.payment.admin.mapper.SysConfigMapper;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
-import com.scott.payment.component.core.cache.PlatformConfigCachePolicy;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -46,9 +46,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      */
     private static final long NOT_DELETED = 0L;
 
-    /**
-     * 默认启用状态。
-     */
+    /** 默认启用状态。 */
     private static final int ENABLED = 1;
 
     /**
@@ -65,9 +63,12 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * 受管永久缓存可靠失效协调器。
      *
      * <p>当前复用既有商户安全缓存 Outbox 表以兼容历史事件；协调器本身按 cacheName 和
-     * businessKey 工作，可安全承载白名单内的平台公开配置。</p>
+     * businessKey 工作，可承载全部全局唯一系统参数的精确失效。</p>
      */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
+    /** 跨服务统一系统参数读取服务。 */
+    private final SystemConfigReadService systemConfigReadService;
 
     /**
      * 创建系统参数配置服务实现。
@@ -75,22 +76,24 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * @param sysConfigMapper              系统参数配置 Mapper
      * @param configConverter              系统参数配置对象转换器
      * @param cacheInvalidationCoordinator 受管永久缓存可靠失效协调器
+     * @param systemConfigReadService      跨服务统一系统参数读取服务
      */
     public AdminConfigServiceImpl(
             SysConfigMapper sysConfigMapper,
             ConfigConverter configConverter,
-            ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
+            ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
+            SystemConfigReadService systemConfigReadService) {
         this.sysConfigMapper = sysConfigMapper;
         this.configConverter = configConverter;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
+        this.systemConfigReadService = systemConfigReadService;
     }
 
     /**
      * 保存或更新系统参数配置。
      *
-     * <p>只有 {@link PlatformConfigCachePolicy} 登记的非敏感公开配置进入永久缓存。此类配置
-     * 必须先在当前事务登记 Outbox 和 pending 门禁，再写数据库；任一步失败均回滚数据库事务，
-     * 避免永久缓存失效失败后长期返回旧值。</p>
+     * <p>所有配置共用全局唯一配置键和永久缓存。保存前必须在当前事务登记 Outbox 和 pending
+     * 门禁，再写数据库；任一步失败均回滚数据库事务，避免失效失败后长期返回旧值。</p>
      *
      * @param request 系统参数配置保存请求
      * @return 保存后的配置
@@ -110,7 +113,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
             entity.setDeleted(NOT_DELETED);
         }
         fillConfig(entity, request, now);
-        preparePublicConfigInvalidation(configKey);
+        prepareSystemConfigInvalidation(configKey);
         if (entity.getId() == null) {
             sysConfigMapper.insert(entity);
         } else {
@@ -127,11 +130,12 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      */
     @Override
     public SysConfigDTO getConfigByKey(String configKey) {
-        SysConfigDO entity = findActiveConfig(configKey);
-        if (entity == null) {
+        String normalizedConfigKey = normalizeConfigKey(configKey);
+        var snapshot = systemConfigReadService.findByKey(normalizedConfigKey).orElse(null);
+        if (snapshot == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), ApiResultEnum.NOT_FOUND.getMessage() + ":" + configKey);
         }
-        return configConverter.toDTO(entity);
+        return configConverter.toDTO(snapshot);
     }
 
     /**
@@ -146,15 +150,12 @@ public class AdminConfigServiceImpl implements AdminConfigService {
             return Map.of();
         }
         Map<String, String> values = new LinkedHashMap<>();
-        sysConfigMapper.selectList(Wrappers.<SysConfigDO>lambdaQuery()
-                        .in(SysConfigDO::getConfigKey, configKeys)
-                        .eq(SysConfigDO::getStatus, ENABLED)
-                        .eq(SysConfigDO::getDeleted, NOT_DELETED))
-                .forEach(row -> {
-                    if (StringUtils.hasText(row.getConfigValue())) {
-                        values.put(row.getConfigKey(), row.getConfigValue().trim());
-                    }
-                });
+        configKeys.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .forEach(configKey -> systemConfigReadService.findEnabledValue(configKey)
+                        .ifPresent(configValue -> values.put(configKey, configValue)));
         return values;
     }
 
@@ -213,8 +214,8 @@ public class AdminConfigServiceImpl implements AdminConfigService {
     /**
      * 软删除指定配置。
      *
-     * <p>删除白名单内的公开配置时，缓存删除与数据库软删除共用同一事务型 Outbox 意图；
-     * 未进入缓存白名单的普通或敏感配置不创建 Redis 门禁。</p>
+     * <p>缓存删除与数据库软删除共用同一事务型 Outbox 意图，确保所有唯一配置键采用相同的
+     * 永久缓存一致性策略。</p>
      *
      * @param configKey 参数键名
      */
@@ -226,7 +227,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         if (entity == null) {
             return;
         }
-        preparePublicConfigInvalidation(normalizedConfigKey);
+        prepareSystemConfigInvalidation(normalizedConfigKey);
         entity.setDeleted(entity.getId());
         entity.setUpdatedAt(LocalDateTime.now());
         sysConfigMapper.updateById(entity);
@@ -265,14 +266,12 @@ public class AdminConfigServiceImpl implements AdminConfigService {
     }
 
     /**
-     * 为允许进入 Redis 的平台公开配置登记可靠失效意图。
+     * 为全局唯一系统参数登记可靠缓存失效意图。
      *
-     * @param configKey 已规范化的平台配置键
+     * @param configKey 已规范化的参数键名
      */
-    private void preparePublicConfigInvalidation(String configKey) {
-        if (PlatformConfigCachePolicy.isCacheable(configKey)) {
-            cacheInvalidationCoordinator.prepare(PaymentCacheNames.PLATFORM_CONFIG, configKey);
-        }
+    private void prepareSystemConfigInvalidation(String configKey) {
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.SYSTEM_CONFIG, configKey);
     }
 
     /**

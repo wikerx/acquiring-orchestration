@@ -4,12 +4,9 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
-import com.baomidou.dynamic.datasource.annotation.DS;
-import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
-import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
-import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
+import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
+import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionAmountSummaryResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationResponse;
@@ -22,9 +19,11 @@ import com.scott.payment.merchant.service.MerchantTransactionQueryService;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -34,11 +33,14 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * @author : scott
@@ -46,7 +48,7 @@ import java.util.Objects;
  * @classname : JdbcMerchantTransactionQueryService
  * @date : 2026-07-20 00:00
  * @email : scott_x@163.com
- * @description : 商户后台交易只读 JDBC 查询实现，位于 service-merchant 服务实现层，直接读取交易分表并强制 merchant_id 过滤。
+ * @description : 商户后台交易只读查询实现，仅访问 ShardingSphere 交易逻辑表，并在主查询和富化查询中强制 merchant_id 与分片时间。
  * @status : create
  */
 @Service
@@ -79,6 +81,8 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * </p>
      */
     private static final String TRANSACTION_PAYMENT_METHOD_INFO_TABLE = "transaction_payment_method_info";
+    private static final String ACCESS_TYPE_DIRECT_API = "DIRECT_API";
+    private static final String ACCESS_TYPE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
     /**
      * DEFAULT QUERY TIME ZONE，用于保存 Jdbc Merchant Transaction Query Service 中与 defaultquerytimezone 相关的业务属性。
      * <p>
@@ -98,38 +102,54 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * </p>
      */
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    /**
-     * sharding Data Template，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final ShardingDataTemplate shardingDataTemplate;
-    /**
-     * transaction Sharding Key Parser，用于保存 Jdbc Merchant Transaction Query Service 中与 交易sharding密钥parser 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final TransactionShardingKeyParser transactionShardingKeyParser;
+    /** 在 transaction 逻辑数据源上执行普通读和强一致读。 */
+    private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
+    /** 单次同步查询允许返回的最大记录数。 */
+    private final int maxResultRows;
+    /** 当前版本已登记物理节点中的最早季度，用于受控批量定位生命周期主单。 */
+    private final LocalDateTime registeredNodeBegin;
 
     /**
      * 创建商户交易只读查询实现。
      *
      * @param jdbcTemplate 命名参数 JDBC 模板
-     * @param shardingDataTemplate 分表数据访问统一入口
-     * @param transactionShardingKeyParser 交易分表键解析器
+     */
+    public JdbcMerchantTransactionQueryService(NamedParameterJdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, new TransactionLogicalReadExecutor(),
+                new TransactionShardingProperties());
+    }
+
+    /**
+     * 创建生产环境商户交易查询服务，并为每条 JDBC Statement 应用同步查询超时。
+     *
+     * @param dataSource dynamic-datasource 外层路由数据源
+     * @param transactionLogicalReadExecutor 交易逻辑数据源只读执行器
+     * @param shardingProperties 查询资源预算配置
+     * @param queryJdbcTemplateFactory 查询专用 JDBC 模板工厂
+     */
+    @Autowired
+    public JdbcMerchantTransactionQueryService(DataSource dataSource,
+                                               TransactionLogicalReadExecutor transactionLogicalReadExecutor,
+                                               TransactionShardingProperties shardingProperties,
+                                               TransactionQueryJdbcTemplateFactory queryJdbcTemplateFactory) {
+        this(queryJdbcTemplateFactory.create(dataSource, shardingProperties),
+                transactionLogicalReadExecutor, shardingProperties);
+    }
+
+    /**
+     * 创建同时执行商户隔离、逻辑路由和结果行数预算的交易查询服务。
+     *
+     * @param jdbcTemplate 命名参数 JDBC 模板
+     * @param transactionLogicalReadExecutor 交易逻辑数据源只读执行器
+     * @param shardingProperties 查询资源预算配置
      */
     public JdbcMerchantTransactionQueryService(NamedParameterJdbcTemplate jdbcTemplate,
-                                               ShardingDataTemplate shardingDataTemplate,
-                                               TransactionShardingKeyParser transactionShardingKeyParser) {
+                                               TransactionLogicalReadExecutor transactionLogicalReadExecutor,
+                                               TransactionShardingProperties shardingProperties) {
         this.jdbcTemplate = jdbcTemplate;
-        this.shardingDataTemplate = shardingDataTemplate;
-        this.transactionShardingKeyParser = transactionShardingKeyParser;
+        this.transactionLogicalReadExecutor = transactionLogicalReadExecutor;
+        this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
+        this.registeredNodeBegin = resolveRegisteredNodeBegin(shardingProperties.getPhysicalNodes());
     }
 
     /**
@@ -139,23 +159,27 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * @return 主单分页结果
      */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
-        long total = 0L;
+        if (isEmptyTimeRange(safeQuery)) {
+            return emptyPage(safeQuery);
+        }
+        return executeRead(false, () -> pageOrdersNormalized(safeQuery));
+    }
+
+    /**
+     * 按已注入的 merchant_id 和分片时间范围执行分页，任何 SQL 分支均不得移除商户谓词。
+     *
+     * @param safeQuery 已校验且 merchantId 非空的查询
+     * @return 仅包含当前商户数据的全季度分页结果
+     */
+    private PageResult<TransactionOrderResponse> pageOrdersNormalized(TransactionPageQuery safeQuery) {
         long offset = offset(safeQuery);
         long limit = safeQuery.safePageSize();
-        List<TransactionOrderResponse> rows = new ArrayList<>();
-        for (String table : physicalTablesInRange(TRANSACTION_ORDER_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
-            long count = countOrders(table, safeQuery);
-            total += count;
-            if (rows.size() < limit && offset < count) {
-                rows.addAll(selectOrders(table, safeQuery, offset, limit - rows.size()));
-                offset = 0;
-            } else {
-                offset = Math.max(0, offset - count);
-            }
-        }
+        long total = countOrders(TRANSACTION_ORDER_TABLE, safeQuery);
+        List<TransactionOrderResponse> rows = offset < total
+                ? selectOrders(TRANSACTION_ORDER_TABLE, safeQuery, offset, limit)
+                : List.of();
         enrichOrders(rows);
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
@@ -167,13 +191,20 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * @return 动作单分页与统计
      */
     @Override
-    @DS(DataSourceName.SLAVE)
     public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
-        TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
-        response.setPage(pageOperations(safeQuery));
-        response.setSummary(operationSummary(safeQuery));
-        return response;
+        if (isEmptyTimeRange(safeQuery)) {
+            TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
+            response.setPage(emptyPage(safeQuery));
+            response.setSummary(new TransactionOperationSummaryResponse());
+            return response;
+        }
+        return executeRead(false, () -> {
+            TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
+            response.setPage(pageOperations(safeQuery));
+            response.setSummary(operationSummary(safeQuery));
+            return response;
+        });
     }
 
     /**
@@ -181,37 +212,52 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      *
      * @param merchantId 当前登录商户号
      * @param transactionId 平台交易 ID
+     * @param transactionDateTime 列表查询返回的真实交易分片时间
      * @return 商户可见交易详情
      */
     @Override
-    @DS(DataSourceName.SLAVE)
-    public TransactionDetailResponse detail(String merchantId, String transactionId) {
+    public TransactionDetailResponse detail(String merchantId,
+                                            String transactionId,
+                                            LocalDateTime transactionDateTime,
+                                            LocalDateTime rootTransactionDateTime) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ApiException(ApiResultEnum.UNAUTHORIZED, "merchant context missing");
         }
-        if (!StringUtils.hasText(transactionId)) {
+        if (!StringUtils.hasText(transactionId)
+                || transactionDateTime == null
+                || rootTransactionDateTime == null) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID);
         }
-        LocalDateTime transactionDateTime = parseTransactionDateTime(transactionId);
-        if (transactionDateTime == null) {
-            throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
-        }
-        String operationTable = physicalTable(TRANSACTION_OPERATION_TABLE, transactionDateTime);
-        TransactionOperationResponse sourceOperation = selectOperationByTransactionId(operationTable, transactionId);
+        return executeRead(true,
+                () -> detailNormalized(
+                        merchantId, transactionId, transactionDateTime, rootTransactionDateTime));
+    }
+
+    /**
+     * 在主库读作用域装配商户交易详情，并在动作单和主单两层重复校验 merchant_id。
+     *
+     * @param merchantId 当前登录商户号
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 列表查询返回的真实交易分片时间
+     * @return 当前商户可见的聚合详情
+     */
+    private TransactionDetailResponse detailNormalized(String merchantId,
+                                                        String transactionId,
+                                                        LocalDateTime transactionDateTime,
+                                                        LocalDateTime rootTransactionDateTime) {
+        TransactionOperationResponse sourceOperation = selectOperationByTransactionId(
+                TRANSACTION_OPERATION_TABLE, transactionId, transactionDateTime, merchantId);
         if (sourceOperation == null || !merchantId.equals(sourceOperation.getMerchantId())) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        LocalDateTime orderTime = parseOperationDateTime(sourceOperation.getOperationId());
-        if (orderTime == null) {
-            orderTime = sourceOperation.getTransactionDateTime();
-        }
-        TransactionOrderResponse order = selectOrderByOperationId(physicalTable(TRANSACTION_ORDER_TABLE, orderTime), sourceOperation.getOperationId());
+        TransactionOrderResponse order = selectOrderByOperationId(
+                TRANSACTION_ORDER_TABLE, sourceOperation.getOperationId(), rootTransactionDateTime, merchantId);
         if (order == null || !merchantId.equals(order.getMerchantId())) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         LocalDateTime beginTime = order.getTransactionDateTime() == null ? sourceOperation.getTransactionDateTime() : order.getTransactionDateTime();
-        List<TransactionOperationResponse> operations = selectOperationsByOperationId(sourceOperation.getOperationId(), beginTime, LocalDateTime.now());
-        operations.removeIf(operation -> !merchantId.equals(operation.getMerchantId()));
+        List<TransactionOperationResponse> operations = selectOperationsByOperationId(
+                sourceOperation.getOperationId(), merchantId, beginTime, LocalDateTime.now());
         operations.sort(Comparator.comparing(TransactionOperationResponse::getOperationSequence, Comparator.nullsLast(Integer::compareTo))
                 .thenComparing(TransactionOperationResponse::getOperationTime, Comparator.nullsLast(LocalDateTime::compareTo)));
         enrichOperations(operations);
@@ -223,52 +269,45 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 跨季度物理表分页查询当前商户的交易操作单。
-     * <p>
-     * 先逐表统计并消耗全局 offset，只在命中当前页的分表读取明细，避免把各分表分页结果
-     * 直接拼接造成页码偏移错误。
-     * </p>
+     * 通过交易逻辑表分页查询当前商户的交易操作单，由 ShardingSphere 完成跨季度路由和归并。
      *
      * @param safeQuery 已校验并绑定 merchantId 和时间范围的查询
-     * @return 跨分表统一分页结果
+     * @return 跨季度统一分页结果
      */
     private PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery safeQuery) {
-        long total = 0L;
         long offset = offset(safeQuery);
         long limit = safeQuery.safePageSize();
-        List<TransactionOperationResponse> rows = new ArrayList<>();
-        for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
-            String paymentTable = paymentInfoTableForOperationTable(table);
-            long count = countOperations(table, paymentTable, safeQuery);
-            total += count;
-            if (rows.size() < limit && offset < count) {
-                rows.addAll(selectOperations(table, paymentTable, safeQuery, offset, limit - rows.size()));
-                offset = 0;
-            } else {
-                offset = Math.max(0, offset - count);
-            }
-        }
+        long total = countOperations(
+                TRANSACTION_OPERATION_TABLE, TRANSACTION_PAYMENT_METHOD_INFO_TABLE, safeQuery);
+        List<TransactionOperationResponse> rows = offset < total
+                ? selectOperations(
+                        TRANSACTION_OPERATION_TABLE,
+                        TRANSACTION_PAYMENT_METHOD_INFO_TABLE,
+                        safeQuery,
+                        offset,
+                        limit)
+                : List.of();
         enrichOperations(rows);
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
 
     /**
-     * 跨季度物理表汇总当前商户交易操作金额和支付方式。
-     * <p>
-     * 汇总只使用已校验查询范围，金额保持数据库 {@code BigDecimal} 精度，不在分表循环中
-     * 提前舍入。
-     * </p>
+     * 通过交易逻辑表汇总当前商户交易操作金额和支付方式。
+     * 金额保持数据库 {@code BigDecimal} 精度，并始终按币种分别汇总。
      *
      * @param safeQuery 已校验并绑定商户和时间范围的查询
-     * @return 合并各分表后的操作统计
+     * @return 跨季度操作统计
      */
     private TransactionOperationSummaryResponse operationSummary(TransactionPageQuery safeQuery) {
         SummaryAccumulator accumulator = new SummaryAccumulator();
-        for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
-            String paymentTable = paymentInfoTableForOperationTable(table);
-            selectAmountSummary(table, paymentTable, safeQuery).forEach(accumulator::addAmount);
-            selectPaymentMethodSummary(table, paymentTable, safeQuery).forEach(accumulator::addPaymentMethod);
-        }
+        selectAmountSummary(
+                TRANSACTION_OPERATION_TABLE,
+                TRANSACTION_PAYMENT_METHOD_INFO_TABLE,
+                safeQuery).forEach(accumulator::addAmount);
+        selectPaymentMethodSummary(
+                TRANSACTION_OPERATION_TABLE,
+                TRANSACTION_PAYMENT_METHOD_INFO_TABLE,
+                safeQuery).forEach(accumulator::addPaymentMethod);
         return accumulator.toResponse();
     }
 
@@ -279,7 +318,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
      * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param table 固定交易逻辑表名，只允许使用类内受控常量
      * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
@@ -290,7 +329,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 WHERE deleted = 0
                   AND merchant_id = :merchantId
                   AND transaction_date_time >= :beginTime
-                  AND transaction_date_time <= :endTime
+                  AND transaction_date_time < :endTime
                 %s
                 """.formatted(table, orderWhereSql(query)), orderParams(query), Long.class);
     }
@@ -302,7 +341,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
      * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param table 固定交易逻辑表名，只允许使用类内受控常量
      * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @param offset 分页或扫描窗口参数，用于限制单次查询范围
      * @param limit 分页或扫描窗口参数，用于限制单次查询范围
@@ -318,7 +357,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 WHERE deleted = 0
                   AND merchant_id = :merchantId
                   AND transaction_date_time >= :beginTime
-                  AND transaction_date_time <= :endTime
+                  AND transaction_date_time < :endTime
                 %s
                 ORDER BY transaction_date_time DESC, id DESC
                 LIMIT :offset, :limit
@@ -332,7 +371,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
      * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param table 固定交易逻辑表名，只允许使用类内受控常量
      * @param paymentTable payment Table 输入值，参与 payment表 的查询、校验、转换、写入或日志摘要
      * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
@@ -344,7 +383,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 WHERE o.deleted = 0
                   AND o.merchant_id = :merchantId
                   AND o.transaction_date_time >= :beginTime
-                  AND o.transaction_date_time <= :endTime
+                  AND o.transaction_date_time < :endTime
                 %s
                 """.formatted(table, operationWhereSql(query, paymentTable)), operationParams(query), Long.class);
     }
@@ -356,7 +395,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
      * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param table 固定交易逻辑表名，只允许使用类内受控常量
      * @param paymentTable payment Table 输入值，参与 paymenttable 的查询、校验、转换、写入或日志摘要
      * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @param offset 分页或扫描窗口参数，用于限制单次查询范围
@@ -373,7 +412,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 WHERE o.deleted = 0
                   AND o.merchant_id = :merchantId
                   AND o.transaction_date_time >= :beginTime
-                  AND o.transaction_date_time <= :endTime
+                  AND o.transaction_date_time < :endTime
                 %s
                 ORDER BY o.transaction_date_time DESC, o.id DESC
                 LIMIT :offset, :limit
@@ -387,7 +426,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
      * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param table 固定交易逻辑表名，只允许使用类内受控常量
      * @param paymentTable payment Table 输入值，参与 paymenttable 的查询、校验、转换、写入或日志摘要
      * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @return 查询得到的业务对象、分页结果或空结果
@@ -403,7 +442,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 WHERE o.deleted = 0
                   AND o.merchant_id = :merchantId
                   AND o.transaction_date_time >= :beginTime
-                  AND o.transaction_date_time <= :endTime
+                  AND o.transaction_date_time < :endTime
                 %s
                 GROUP BY o.transaction_status, COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent
                 """.formatted(table, operationWhereSql(query, paymentTable)), operationParams(query), summaryRowMapper());
@@ -416,7 +455,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
      * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param table 固定交易逻辑表名，只允许使用类内受控常量
      * @param paymentTable payment Table 输入值，参与 paymenttable 的查询、校验、转换、写入或日志摘要
      * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @return 查询得到的业务对象、分页结果或空结果
@@ -434,7 +473,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 WHERE o.deleted = 0
                   AND o.merchant_id = :merchantId
                   AND o.transaction_date_time >= :beginTime
-                  AND o.transaction_date_time <= :endTime
+                  AND o.transaction_date_time < :endTime
                 %s
                 GROUP BY COALESCE(p.payment_method, 'UNKNOWN'), p.payment_brand, COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent
                 """.formatted(table, paymentTable, operationWhereSql(query, paymentTable)), operationParams(query), paymentSummaryRowMapper());
@@ -460,7 +499,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         appendTextFilter(sql, query.getPaymentMethod(), "AND payment_method = :paymentMethod");
         appendTextFilter(sql, query.getPaymentBrand(), "AND payment_brand = :paymentBrand");
         appendTextFilter(sql, query.getChannelOrderNo(), "AND channel_order_no = :channelOrderNo");
-        appendTextFilter(sql, query.getChannelMatchStatus(), "AND channel_match_status = :channelMatchStatus");
         appendTextFilter(sql, query.getReconciliationStatus(), "AND reconciliation_status = :reconciliationStatus");
         appendTextFilter(sql, query.getSettlementStatus(), "AND settlement_status = :settlementStatus");
         return sql.toString();
@@ -485,7 +523,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         appendTextFilter(sql, query.getTransactionType(), "AND o.transaction_type = :transactionType");
         appendTextFilter(sql, query.getTransactionStatus(), "AND o.transaction_status = :transactionStatus");
         appendTextFilter(sql, query.getChannelOrderNo(), "AND o.channel_order_no = :channelOrderNo");
-        appendTextFilter(sql, query.getChannelMatchStatus(), "AND o.channel_match_status = :channelMatchStatus");
         appendTextFilter(sql, query.getReconciliationStatus(), "AND o.reconciliation_status = :reconciliationStatus");
         appendTextFilter(sql, query.getSettlementStatus(), "AND o.settlement_status = :settlementStatus");
         if (StringUtils.hasText(query.getPaymentMethod())) {
@@ -536,7 +573,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .addValue("paymentMethod", query.getPaymentMethod())
                 .addValue("paymentBrand", query.getPaymentBrand())
                 .addValue("channelOrderNo", query.getChannelOrderNo())
-                .addValue("channelMatchStatus", query.getChannelMatchStatus())
                 .addValue("reconciliationStatus", query.getReconciliationStatus())
                 .addValue("settlementStatus", query.getSettlementStatus());
     }
@@ -559,7 +595,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .addValue("transactionType", query.getTransactionType())
                 .addValue("transactionStatus", query.getTransactionStatus())
                 .addValue("channelOrderNo", query.getChannelOrderNo())
-                .addValue("channelMatchStatus", query.getChannelMatchStatus())
                 .addValue("reconciliationStatus", query.getReconciliationStatus())
                 .addValue("settlementStatus", query.getSettlementStatus())
                 .addValue("paymentMethod", query.getPaymentMethod())
@@ -580,7 +615,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return new MapSqlParameterSource()
                 .addValue("merchantId", query.getMerchantId())
                 .addValue("beginTime", query.getBeginTime())
-                .addValue("endTime", query.getEndTime());
+                .addValue("endTime", exclusiveEnd(query.getEndTime()));
     }
 
     /**
@@ -590,18 +625,29 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
      * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param table 固定交易逻辑表名，只允许使用类内受控常量
      * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+     * @param transactionDateTime 列表返回的真实毫秒分片时间
+     * @param merchantId 当前登录商户号
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private TransactionOperationResponse selectOperationByTransactionId(String table, String transactionId) {
+    private TransactionOperationResponse selectOperationByTransactionId(String table,
+                                                                         String transactionId,
+                                                                         LocalDateTime transactionDateTime,
+                                                                         String merchantId) {
         List<TransactionOperationResponse> rows = jdbcTemplate.query("""
                 SELECT *
                 FROM %s
                 WHERE transaction_id = :transactionId
+                  AND merchant_id = :merchantId
+                  AND transaction_date_time = :transactionDateTime
                   AND deleted = 0
                 LIMIT 1
-                """.formatted(table), new MapSqlParameterSource("transactionId", transactionId), operationMapper());
+                """.formatted(table), new MapSqlParameterSource()
+                .addValue("transactionId", transactionId)
+                .addValue("merchantId", merchantId)
+                .addValue("transactionDateTime", transactionDateTime),
+                operationMapper());
         return rows.isEmpty() ? null : rows.get(0);
     }
 
@@ -612,18 +658,26 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
      * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param table 固定交易逻辑表名，只允许使用类内受控常量
      * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private TransactionOrderResponse selectOrderByOperationId(String table, String operationId) {
+    private TransactionOrderResponse selectOrderByOperationId(String table,
+                                                               String operationId,
+                                                               LocalDateTime transactionDateTime,
+                                                               String merchantId) {
         List<TransactionOrderResponse> rows = jdbcTemplate.query("""
                 SELECT *
                 FROM %s
                 WHERE operation_id = :operationId
+                  AND merchant_id = :merchantId
+                  AND transaction_date_time = :transactionDateTime
                   AND deleted = 0
                 LIMIT 1
-                """.formatted(table), new MapSqlParameterSource("operationId", operationId), orderMapper());
+                """.formatted(table), new MapSqlParameterSource()
+                .addValue("operationId", operationId)
+                .addValue("merchantId", merchantId)
+                .addValue("transactionDateTime", transactionDateTime), orderMapper());
         return rows.isEmpty() ? null : rows.get(0);
     }
 
@@ -639,18 +693,24 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private List<TransactionOperationResponse> selectOperationsByOperationId(String operationId, LocalDateTime beginTime, LocalDateTime endTime) {
-        List<TransactionOperationResponse> rows = new ArrayList<>();
-        for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE, beginTime, endTime)) {
-            rows.addAll(jdbcTemplate.query("""
+    private List<TransactionOperationResponse> selectOperationsByOperationId(String operationId,
+                                                                              String merchantId,
+                                                                              LocalDateTime beginTime,
+                                                                              LocalDateTime endTime) {
+        return jdbcTemplate.query("""
                     SELECT *
                     FROM %s
                     WHERE operation_id = :operationId
+                      AND merchant_id = :merchantId
+                      AND transaction_date_time >= :beginTime
+                      AND transaction_date_time < :endTime
                       AND deleted = 0
                     ORDER BY operation_sequence ASC, operation_time ASC
-                    """.formatted(table), new MapSqlParameterSource("operationId", operationId), operationMapper()));
-        }
-        return rows;
+                    """.formatted(TRANSACTION_OPERATION_TABLE), new MapSqlParameterSource()
+                    .addValue("operationId", operationId)
+                    .addValue("merchantId", merchantId)
+                    .addValue("beginTime", beginTime)
+                    .addValue("endTime", exclusiveEnd(endTime)), operationMapper());
     }
 
     /**
@@ -678,6 +738,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             }
             TransactionOrderResponse order = orderByOperation.get(row.getOperationId());
             if (order != null) {
+                row.setRootTransactionDateTime(order.getTransactionDateTime());
                 row.setAuthorizedAmount(order.getAuthorizedAmount());
                 row.setCapturedAmount(order.getCapturedAmount());
                 row.setRefundedAmount(order.getRefundedAmount());
@@ -687,7 +748,42 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                         row.getTransactionStatus(),
                         order.getMerchantResponseMessage()));
             }
-            row.setAccessType("DIRECT_API");
+        }
+        enrichAccessTypes(rows);
+        enrichOperationThreeDs(rows);
+    }
+
+    /** 批量识别当前商户的历史收银台交易，避免逐条查询和跨商户读取。 */
+    private void enrichAccessTypes(List<TransactionOperationResponse> rows) {
+        String merchantId = rows.stream()
+                .map(TransactionOperationResponse::getMerchantId)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(null);
+        List<String> unresolvedTransactionIds = rows.stream()
+                .filter(row -> !ACCESS_TYPE_HOSTED_CHECKOUT.equals(row.getAccessType()))
+                .map(TransactionOperationResponse::getTransactionId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (!StringUtils.hasText(merchantId) || unresolvedTransactionIds.isEmpty()) {
+            return;
+        }
+        Set<String> hostedTransactionIds = new HashSet<>(jdbcTemplate.queryForList("""
+                SELECT DISTINCT transaction_id
+                FROM payment_checkout_attempt
+                WHERE merchant_id = :merchantId
+                  AND transaction_id IN (:transactionIds)
+                  AND deleted = 0
+                """, new MapSqlParameterSource()
+                .addValue("merchantId", merchantId)
+                .addValue("transactionIds", unresolvedTransactionIds), String.class));
+        for (TransactionOperationResponse row : rows) {
+            if (hostedTransactionIds.contains(row.getTransactionId())) {
+                row.setAccessType(ACCESS_TYPE_HOSTED_CHECKOUT);
+            } else if (!StringUtils.hasText(row.getAccessType())) {
+                row.setAccessType(ACCESS_TYPE_DIRECT_API);
+            }
         }
     }
 
@@ -729,6 +825,71 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 }
             }
         }
+        enrichOrderThreeDs(rows);
+    }
+
+    /** 按生命周期操作号批量补齐商户可见主单 3DS 标识。 */
+    private void enrichOrderThreeDs(List<TransactionOrderResponse> rows) {
+        Set<String> threeDsOperationIds = findThreeDsOperationIds(rows.stream()
+                .map(TransactionOrderResponse::getOperationId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList(), rows.get(0).getMerchantId());
+        rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
+    }
+
+    /** 按生命周期操作号批量补齐商户可见动作单 3DS 标识。 */
+    private void enrichOperationThreeDs(List<TransactionOperationResponse> rows) {
+        Set<String> threeDsOperationIds = findThreeDsOperationIds(rows.stream()
+                .map(TransactionOperationResponse::getOperationId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList(), rows.get(0).getMerchantId());
+        rows.forEach(row -> row.setThreeDsEnabled(threeDsOperationIds.contains(row.getOperationId()) ? 1 : 0));
+    }
+
+    /**
+     * 在商户边界内优先读取平台支付方式 3DS 快照，并回退 Hosted Checkout 尝试记录。
+     * 支付方式查询同时绑定操作号、登记分片范围和动作单商户归属，避免跨商户读取。
+     */
+    private Set<String> findThreeDsOperationIds(List<String> operationIds, String merchantId) {
+        if (operationIds == null || operationIds.isEmpty() || !StringUtils.hasText(merchantId)) {
+            return Set.of();
+        }
+        MapSqlParameterSource params = new MapSqlParameterSource()
+                .addValue("operationIds", operationIds)
+                .addValue("merchantId", merchantId)
+                .addValue("registeredNodeBegin", registeredNodeBegin)
+                .addValue("registeredNodeEnd", exclusiveEnd(LocalDateTime.now()));
+        Set<String> result = new HashSet<>(jdbcTemplate.queryForList("""
+                SELECT DISTINCT p.operation_id
+                FROM transaction_payment_method_info p
+                WHERE p.operation_id IN (:operationIds)
+                  AND p.transaction_date_time >= :registeredNodeBegin
+                  AND p.transaction_date_time < :registeredNodeEnd
+                  AND NULLIF(TRIM(p.three_ds_indicator), '') IS NOT NULL
+                  AND EXISTS (
+                      SELECT 1
+                      FROM transaction_operation o
+                      WHERE o.operation_id = p.operation_id
+                        AND o.transaction_date_time = p.transaction_date_time
+                        AND o.merchant_id = :merchantId
+                        AND o.deleted = 0
+                  )
+                """, params, String.class));
+        if (result.size() < operationIds.size()) {
+            result.addAll(jdbcTemplate.queryForList("""
+                    SELECT DISTINCT operation_id
+                    FROM payment_checkout_attempt
+                    WHERE merchant_id = :merchantId
+                      AND operation_id IN (:operationIds)
+                      AND three_ds_required = 1
+                      AND deleted = 0
+                    """, new MapSqlParameterSource()
+                    .addValue("merchantId", merchantId)
+                    .addValue("operationIds", operationIds), String.class));
+        }
+        return result;
     }
 
     /**
@@ -781,25 +942,38 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      */
     private Map<String, PaymentInfoRow> paymentInfoByTransaction(List<TransactionOperationResponse> rows) {
         Map<String, PaymentInfoRow> result = new LinkedHashMap<>();
-        Map<LocalDateTime, List<String>> idsByTime = new LinkedHashMap<>();
+        Map<MerchantTimeScope, List<String>> idsByScope = new LinkedHashMap<>();
         for (TransactionOperationResponse row : rows) {
-            if (row.getTransactionDateTime() != null && StringUtils.hasText(row.getTransactionId())) {
-                idsByTime.computeIfAbsent(row.getTransactionDateTime(), key -> new ArrayList<>()).add(row.getTransactionId());
+            if (row.getTransactionDateTime() != null
+                    && StringUtils.hasText(row.getMerchantId())
+                    && StringUtils.hasText(row.getTransactionId())) {
+                MerchantTimeScope scope = new MerchantTimeScope(row.getMerchantId(), row.getTransactionDateTime());
+                idsByScope.computeIfAbsent(scope, key -> new ArrayList<>()).add(row.getTransactionId());
             }
         }
-        idsByTime.forEach((time, ids) -> {
+        idsByScope.forEach((scope, ids) -> {
             if (ids.isEmpty()) {
                 return;
             }
-            String table = physicalTable(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, time);
             jdbcTemplate.query("""
-                    SELECT transaction_id, operation_id, payment_method, payment_brand, card_bin, card_last4, card_number_masked
-                    FROM %s
-                    WHERE transaction_id IN (:transactionIds)
-                      AND transaction_date_time = :transactionDateTime
-                    """.formatted(table), new MapSqlParameterSource()
+                    SELECT p.transaction_id, p.operation_id, p.payment_method, p.payment_brand,
+                           p.card_bin, p.card_last4, p.card_number_masked
+                    FROM %s p
+                    WHERE p.transaction_id IN (:transactionIds)
+                      AND p.transaction_date_time = :transactionDateTime
+                      AND EXISTS (
+                          SELECT 1
+                          FROM %s o
+                          WHERE o.transaction_id = p.transaction_id
+                            AND o.transaction_date_time = p.transaction_date_time
+                            AND o.merchant_id = :merchantId
+                            AND o.deleted = 0
+                      )
+                    """.formatted(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, TRANSACTION_OPERATION_TABLE),
+                    new MapSqlParameterSource()
                     .addValue("transactionIds", ids)
-                    .addValue("transactionDateTime", time), paymentInfoMapper())
+                    .addValue("transactionDateTime", scope.transactionDateTime())
+                    .addValue("merchantId", scope.merchantId()), paymentInfoMapper())
                     .forEach(row -> result.putIfAbsent(row.transactionId(), row));
         });
         return result;
@@ -817,28 +991,39 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      */
     private Map<String, PaymentInfoRow> paymentInfoByOrderTransaction(List<TransactionOrderResponse> rows) {
         Map<String, PaymentInfoRow> result = new LinkedHashMap<>();
-        Map<LocalDateTime, List<String>> idsByTime = new LinkedHashMap<>();
+        Map<MerchantTimeScope, List<String>> idsByScope = new LinkedHashMap<>();
         for (TransactionOrderResponse row : rows) {
-            if (row.getTransactionDateTime() == null) {
+            if (row.getTransactionDateTime() == null || !StringUtils.hasText(row.getMerchantId())) {
                 continue;
             }
-            List<String> transactionIds = idsByTime.computeIfAbsent(row.getTransactionDateTime(), key -> new ArrayList<>());
+            MerchantTimeScope scope = new MerchantTimeScope(row.getMerchantId(), row.getTransactionDateTime());
+            List<String> transactionIds = idsByScope.computeIfAbsent(scope, key -> new ArrayList<>());
             addIfText(transactionIds, row.getLatestTransactionId());
             addIfText(transactionIds, row.getRootTransactionId());
         }
-        idsByTime.forEach((time, ids) -> {
+        idsByScope.forEach((scope, ids) -> {
             if (ids.isEmpty()) {
                 return;
             }
-            String table = physicalTable(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, time);
             jdbcTemplate.query("""
-                    SELECT transaction_id, operation_id, payment_method, payment_brand, card_bin, card_last4, card_number_masked
-                    FROM %s
-                    WHERE transaction_date_time = :transactionDateTime
-                      AND transaction_id IN (:transactionIds)
-                    """.formatted(table), new MapSqlParameterSource()
-                    .addValue("transactionDateTime", time)
-                    .addValue("transactionIds", ids), paymentInfoMapper())
+                    SELECT p.transaction_id, p.operation_id, p.payment_method, p.payment_brand,
+                           p.card_bin, p.card_last4, p.card_number_masked
+                    FROM %s p
+                    WHERE p.transaction_date_time = :transactionDateTime
+                      AND p.transaction_id IN (:transactionIds)
+                      AND EXISTS (
+                          SELECT 1
+                          FROM %s o
+                          WHERE o.transaction_id = p.transaction_id
+                            AND o.transaction_date_time = p.transaction_date_time
+                            AND o.merchant_id = :merchantId
+                            AND o.deleted = 0
+                      )
+                    """.formatted(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, TRANSACTION_OPERATION_TABLE),
+                    new MapSqlParameterSource()
+                    .addValue("transactionDateTime", scope.transactionDateTime())
+                    .addValue("transactionIds", ids)
+                    .addValue("merchantId", scope.merchantId()), paymentInfoMapper())
                     .forEach(row -> result.putIfAbsent(row.transactionId(), row));
         });
         return result;
@@ -856,23 +1041,39 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      */
     private Map<String, PaymentInfoRow> paymentInfoByOrderOperation(List<TransactionOrderResponse> rows) {
         Map<String, PaymentInfoRow> result = new LinkedHashMap<>();
-        Map<LocalDateTime, List<String>> operationIdsByTime = new LinkedHashMap<>();
+        Map<MerchantTimeScope, List<String>> operationIdsByScope = new LinkedHashMap<>();
         for (TransactionOrderResponse row : rows) {
-            if (row.getTransactionDateTime() != null && StringUtils.hasText(row.getOperationId())) {
-                operationIdsByTime.computeIfAbsent(row.getTransactionDateTime(), key -> new ArrayList<>()).add(row.getOperationId());
+            if (row.getTransactionDateTime() != null
+                    && StringUtils.hasText(row.getMerchantId())
+                    && StringUtils.hasText(row.getOperationId())) {
+                MerchantTimeScope scope = new MerchantTimeScope(row.getMerchantId(), row.getTransactionDateTime());
+                operationIdsByScope.computeIfAbsent(scope, key -> new ArrayList<>()).add(row.getOperationId());
             }
         }
-        operationIdsByTime.forEach((time, operationIds) -> {
+        operationIdsByScope.forEach((scope, operationIds) -> {
             if (operationIds.isEmpty()) {
                 return;
             }
-            String table = physicalTable(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, time);
             jdbcTemplate.query("""
-                    SELECT transaction_id, operation_id, payment_method, payment_brand, card_bin, card_last4, card_number_masked
-                    FROM %s
-                    WHERE operation_id IN (:operationIds)
-                    ORDER BY transaction_date_time ASC, id ASC
-                    """.formatted(table), new MapSqlParameterSource("operationIds", operationIds), paymentInfoMapper())
+                    SELECT p.transaction_id, p.operation_id, p.payment_method, p.payment_brand,
+                           p.card_bin, p.card_last4, p.card_number_masked
+                    FROM %s p
+                    WHERE p.operation_id IN (:operationIds)
+                      AND p.transaction_date_time = :transactionDateTime
+                      AND EXISTS (
+                          SELECT 1
+                          FROM %s o
+                          WHERE o.operation_id = p.operation_id
+                            AND o.transaction_date_time = p.transaction_date_time
+                            AND o.merchant_id = :merchantId
+                            AND o.deleted = 0
+                      )
+                    ORDER BY p.transaction_date_time ASC, p.id ASC
+                    """.formatted(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, TRANSACTION_OPERATION_TABLE),
+                    new MapSqlParameterSource()
+                    .addValue("operationIds", operationIds)
+                    .addValue("transactionDateTime", scope.transactionDateTime())
+                    .addValue("merchantId", scope.merchantId()), paymentInfoMapper())
                     .forEach(row -> result.putIfAbsent(row.operationId(), row));
         });
         return result;
@@ -890,18 +1091,19 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      */
     private Map<String, OperationVisibleInfoRow> operationVisibleInfoByOperation(List<TransactionOrderResponse> rows) {
         Map<String, OperationVisibleInfoRow> result = new LinkedHashMap<>();
-        Map<LocalDateTime, List<String>> operationIdsByTime = new LinkedHashMap<>();
+        Map<MerchantTimeScope, List<String>> operationIdsByScope = new LinkedHashMap<>();
         for (TransactionOrderResponse row : rows) {
-            if (row.getTransactionDateTime() != null && StringUtils.hasText(row.getOperationId())) {
-                operationIdsByTime.computeIfAbsent(row.getTransactionDateTime(), key -> new ArrayList<>()).add(row.getOperationId());
+            if (row.getTransactionDateTime() != null
+                    && StringUtils.hasText(row.getMerchantId())
+                    && StringUtils.hasText(row.getOperationId())) {
+                MerchantTimeScope scope = new MerchantTimeScope(row.getMerchantId(), row.getTransactionDateTime());
+                operationIdsByScope.computeIfAbsent(scope, key -> new ArrayList<>()).add(row.getOperationId());
             }
         }
-        operationIdsByTime.forEach((time, operationIds) -> {
+        operationIdsByScope.forEach((scope, operationIds) -> {
             if (operationIds.isEmpty()) {
                 return;
             }
-            String operationTable = physicalTable(TRANSACTION_OPERATION_TABLE, time);
-            String paymentTable = physicalTable(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, time);
             jdbcTemplate.query("""
                     SELECT o.operation_id,
                            MAX(NULLIF(o.auth_code, '')) AS auth_code,
@@ -910,10 +1112,17 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                            MAX(NULLIF(p.card_number_masked, '')) AS card_number_masked
                     FROM %s o
                     LEFT JOIN %s p ON p.operation_id = o.operation_id
+                                      AND p.transaction_date_time = o.transaction_date_time
                     WHERE o.operation_id IN (:operationIds)
+                      AND o.transaction_date_time = :transactionDateTime
+                      AND o.merchant_id = :merchantId
                       AND o.deleted = 0
                     GROUP BY o.operation_id
-                    """.formatted(operationTable, paymentTable), new MapSqlParameterSource("operationIds", operationIds), operationVisibleInfoMapper())
+                    """.formatted(TRANSACTION_OPERATION_TABLE, TRANSACTION_PAYMENT_METHOD_INFO_TABLE),
+                    new MapSqlParameterSource()
+                    .addValue("operationIds", operationIds)
+                    .addValue("transactionDateTime", scope.transactionDateTime())
+                    .addValue("merchantId", scope.merchantId()), operationVisibleInfoMapper())
                     .forEach(row -> result.putIfAbsent(row.operationId(), row));
         });
         return result;
@@ -946,24 +1155,40 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private Map<String, TransactionOrderResponse> orderByOperation(List<TransactionOperationResponse> rows) {
-        Map<String, TransactionOrderResponse> result = new LinkedHashMap<>();
-        for (TransactionOperationResponse row : rows) {
-            if (!StringUtils.hasText(row.getOperationId()) || result.containsKey(row.getOperationId())) {
-                continue;
-            }
-            LocalDateTime orderTime = parseOperationDateTime(row.getOperationId());
-            if (orderTime == null) {
-                orderTime = row.getTransactionDateTime();
-            }
-            if (orderTime == null) {
-                continue;
-            }
-            TransactionOrderResponse order = selectOrderByOperationId(physicalTable(TRANSACTION_ORDER_TABLE, orderTime), row.getOperationId());
-            if (order != null) {
-                result.put(row.getOperationId(), order);
-            }
+        if (rows == null || rows.isEmpty()) {
+            return Map.of();
         }
-        return result;
+        String merchantId = rows.stream()
+                .map(TransactionOperationResponse::getMerchantId)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElseThrow(() -> new ApiException(ApiResultEnum.UNAUTHORIZED, "merchant context missing"));
+        List<String> operationIds = rows.stream()
+                .map(TransactionOperationResponse::getOperationId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (operationIds.isEmpty()) {
+            return Map.of();
+        }
+        List<TransactionOrderResponse> orders = jdbcTemplate.query("""
+                SELECT *
+                FROM transaction_order
+                WHERE merchant_id = :merchantId
+                  AND operation_id IN (:operationIds)
+                  AND transaction_date_time >= :registeredNodeBegin
+                  AND transaction_date_time < :registeredNodeEnd
+                  AND deleted = 0
+                """, new MapSqlParameterSource()
+                .addValue("merchantId", merchantId)
+                .addValue("operationIds", operationIds)
+                .addValue("registeredNodeBegin", registeredNodeBegin)
+                .addValue("registeredNodeEnd", exclusiveEnd(LocalDateTime.now())), orderMapper());
+        return orders.stream().collect(java.util.stream.Collectors.toMap(
+                TransactionOrderResponse::getOperationId,
+                java.util.function.Function.identity(),
+                (left, right) -> left,
+                LinkedHashMap::new));
     }
 
     /**
@@ -983,6 +1208,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         }
         fillDefaultTimeRange(safeQuery);
         normalizeMerchantResponseCode(safeQuery);
+        safeQuery.setPageSize((int) Math.min(safeQuery.safePageSize(), maxResultRows));
         return safeQuery;
     }
 
@@ -1002,9 +1228,22 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         if (safeBegin.isAfter(safeEnd)) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "beginTime must not be after endTime");
         }
-        query.setBeginTime(convertBetweenZones(safeBegin, queryZone, ZoneId.of(DEFAULT_QUERY_TIME_ZONE)));
-        query.setEndTime(convertBetweenZones(safeEnd, queryZone, ZoneId.of(DEFAULT_QUERY_TIME_ZONE)));
+        ZoneId storageZone = ZoneId.of(DEFAULT_QUERY_TIME_ZONE);
+        LocalDateTime storageBegin = convertBetweenZones(safeBegin, queryZone, storageZone);
+        LocalDateTime storageEnd = convertBetweenZones(safeEnd, queryZone, storageZone);
+        LocalDateTime currentStorageTime = LocalDateTime.now(storageZone);
+        query.setBeginTime(storageBegin.isBefore(registeredNodeBegin) ? registeredNodeBegin : storageBegin);
+        query.setEndTime(storageEnd.isAfter(currentStorageTime) ? currentStorageTime : storageEnd);
         query.setQueryTimeZone(queryZone.getId());
+    }
+
+    private boolean isEmptyTimeRange(TransactionPageQuery query) {
+        return query.getBeginTime() != null && query.getEndTime() != null
+                && query.getBeginTime().isAfter(query.getEndTime());
+    }
+
+    private <T> PageResult<T> emptyPage(PageRequest query) {
+        return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
     }
 
     /**
@@ -1116,78 +1355,18 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 整理物理表in范围，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
-     * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 在 transaction 逻辑数据源执行普通读或主库强一致读。
      */
-    private List<String> physicalTablesInRange(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime) {
-        return shardingDataTemplate.resolvePhysicalTables(
-                ShardingRangeTableContext.of(logicalTable, beginTime, endTime, DataSourceName.SLAVE));
+    private <T> T executeRead(boolean primaryOnly, Supplier<T> query) {
+        return primaryOnly
+                ? transactionLogicalReadExecutor.readPrimary(query)
+                : transactionLogicalReadExecutor.read(query);
     }
 
-    /**
-     * 整理物理表，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
-     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
-        return shardingDataTemplate.resolvePhysicalTable(
-                ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.SLAVE));
-    }
-
-    /**
-     * 解析parse交易date时间，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
-     * @return 构造、转换或解析后的业务值
-     */
-    private LocalDateTime parseTransactionDateTime(String transactionId) {
-        return transactionShardingKeyParser.parseTransactionDateTime(transactionId);
-    }
-
-    /**
-     * 解析parse动作date时间，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
-     * @return 构造、转换或解析后的业务值
-     */
-    private LocalDateTime parseOperationDateTime(String operationId) {
-        return transactionShardingKeyParser.parseOperationDateTime(operationId);
-    }
-
-    /**
-     * 整理动作单对应的支付工具分表，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param operationPhysicalTable operation Physical Table 输入值，参与 动作物理表 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private String paymentInfoTableForOperationTable(String operationPhysicalTable) {
-        return operationPhysicalTable.replaceFirst("^" + TRANSACTION_OPERATION_TABLE, TRANSACTION_PAYMENT_METHOD_INFO_TABLE);
+    /** 将包含式结束时间转换为 MySQL DATETIME(3) 半开区间上界。 */
+    private LocalDateTime exclusiveEnd(LocalDateTime endTime) {
+        LocalDateTime actualEnd = endTime == null ? LocalDateTime.now() : endTime;
+        return actualEnd.plusNanos(1_000_000L);
     }
 
     /**
@@ -1229,6 +1408,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                     rs.getBigDecimal("authorized_amount")));
             row.setCurrencyExponent(nullableInt(rs, "currency_exponent"));
             row.setTransactionRate(defaultRate(rs.getBigDecimal("transaction_rate")));
+            row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
             row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
@@ -1243,10 +1423,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setSettlementStatus(rs.getString("settlement_status"));
             row.setReconciliationStatus(rs.getString("reconciliation_status"));
             row.setAccountingStatus(rs.getString("accounting_status"));
-            row.setChannelMatchStatus(rs.getString("channel_match_status"));
             row.setChannelCode(rs.getString("channel_code"));
             row.setChannelOrderNo(rs.getString("channel_order_no"));
             row.setTransactionDateTime(localDateTime(rs, "transaction_date_time"));
+            row.setRootTransactionDateTime(row.getTransactionDateTime());
             row.setTransactionTimeZone(rs.getString("transaction_time_zone"));
             return row;
         };
@@ -1280,6 +1460,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setTransactionAmount(rs.getBigDecimal("transaction_amount"));
             row.setCurrencyExponent(nullableInt(rs, "currency_exponent"));
             row.setTransactionRate(defaultRate(rs.getBigDecimal("transaction_rate")));
+            row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
             row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
@@ -1292,11 +1473,18 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setSettlementStatus(rs.getString("settlement_status"));
             row.setReconciliationStatus(rs.getString("reconciliation_status"));
             row.setAccountingStatus(rs.getString("accounting_status"));
-            row.setChannelMatchStatus(rs.getString("channel_match_status"));
             row.setTransactionDateTime(localDateTime(rs, "transaction_date_time"));
             row.setOperationTime(localDateTime(rs, "operation_time"));
+            row.setAccessType(resolveAccessType(getStringIfExists(rs, "request_source")));
             return row;
         };
+    }
+
+    /** 将支付核心持久化的请求来源映射为商户端接入类型。 */
+    private String resolveAccessType(String requestSource) {
+        return ACCESS_TYPE_HOSTED_CHECKOUT.equalsIgnoreCase(requestSource)
+                ? ACCESS_TYPE_HOSTED_CHECKOUT
+                : ACCESS_TYPE_DIRECT_API;
     }
 
     /**
@@ -1412,6 +1600,15 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     private Integer nullableInt(ResultSet rs, String column) throws SQLException {
         int value = rs.getInt(column);
         return rs.wasNull() ? null : value;
+    }
+
+    /** 兼容历史结果集缺少新增来源字段的场景。 */
+    private String getStringIfExists(ResultSet rs, String column) {
+        try {
+            return rs.getString(column);
+        } catch (SQLException exception) {
+            return null;
+        }
     }
 
     /**
@@ -1555,7 +1752,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     static String resolveMerchantResponseMessage(String transactionStatus, String persistedMessage) {
-        if ("FAILED".equals(transactionStatus) && StringUtils.hasText(persistedMessage)) {
+        if ("FAILED".equals(transactionStatus)
+                && StringUtils.hasText(persistedMessage)
+                && !isInternalFailureToken(persistedMessage)) {
             return persistedMessage.trim();
         }
         if ("SUCCESS".equals(transactionStatus)) {
@@ -1568,6 +1767,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             return ApiResultEnum.PENDING.getMessage();
         }
         return ApiResultEnum.PROCESSING.getMessage();
+    }
+
+    private static boolean isInternalFailureToken(String message) {
+        return message != null && message.trim().matches("[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+");
     }
 
     /**
@@ -1654,6 +1857,23 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     private record OperationVisibleInfoRow(String operationId, String authCode, String cardBin, String cardNumberMasked) {
+    }
+
+    /** 将最早已登记季度转换为 ShardingSphere 可路由的半开范围起点。 */
+    private static LocalDateTime resolveRegisteredNodeBegin(List<String> physicalNodes) {
+        return physicalNodes == null ? LocalDateTime.of(1970, 1, 1, 0, 0)
+                : physicalNodes.stream()
+                .filter(node -> node != null && node.matches("\\d{4}0[1-4]"))
+                .min(String::compareTo)
+                .map(node -> LocalDateTime.of(
+                        Integer.parseInt(node.substring(0, 4)),
+                        (Character.digit(node.charAt(5), 10) - 1) * 3 + 1,
+                        1, 0, 0))
+                .orElse(LocalDateTime.of(1970, 1, 1, 0, 0));
+    }
+
+    /** 商户归属和真实分片时间共同限定富化查询范围。 */
+    private record MerchantTimeScope(String merchantId, LocalDateTime transactionDateTime) {
     }
 
     private record SummaryRow(String transactionStatus, String paymentMethod, String paymentBrand, String currency,

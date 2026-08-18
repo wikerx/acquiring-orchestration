@@ -32,6 +32,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -307,6 +308,7 @@ public class PaymentServiceImpl implements PaymentService {
                                               ApiMerchantPaymentRequestDTO requestDTO,
                                               OpenApiPaymentOperationEnum operation) {
         long startNanos = System.nanoTime();
+        validateRequestAmounts(requestDTO);
         if (!paymentClientProperties.isRemoteEnabled()) {
             logOpenApiPaymentSubmitStart(encryptedData, requestDTO, operation, null);
             PaymentCreateVO localResult = createLocalPaymentResult(requestDTO, operation);
@@ -334,6 +336,7 @@ public class PaymentServiceImpl implements PaymentService {
      */
     private PaymentCreateVO submitPayment(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
+        validateRequestAmounts(requestDTO);
         if (!paymentClientProperties.isRemoteEnabled()) {
             logOpenApiPaymentSubmitStart(encryptedData, requestDTO, OpenApiPaymentOperationEnum.PAYMENT, null);
             PaymentCreateVO localResult = createLocalPaymentResult(requestDTO, OpenApiPaymentOperationEnum.PAYMENT);
@@ -347,6 +350,60 @@ public class PaymentServiceImpl implements PaymentService {
         PaymentCreateVO responseVO = converter.toPaymentCreateVO(requestDTO, clientResponseDTO, resolveMerchantSettlementCurrency());
         logOpenApiPaymentSubmitEnd(requestDTO, OpenApiPaymentOperationEnum.PAYMENT, responseVO, startNanos);
         return responseVO;
+    }
+
+    /**
+     * 校验商户金额不超过系统两位小数上限，并继续服从币种自身辅币位规则。
+     * <p>
+     * 三位小数币种允许商户传入末位为零的表示（如 12.340），但平台不会对第三位做四舍五入。
+     * 后续动作未上送币种时，由支付核心根据源交易币种再次校验。
+     * </p>
+     *
+     * @param requestDTO 商户交易请求
+     */
+    private void validateRequestAmounts(ApiMerchantPaymentRequestDTO requestDTO) {
+        if (requestDTO == null) {
+            return;
+        }
+        if (requestDTO.getOrderInfo() != null) {
+            validateAmount(
+                    requestDTO.getOrderInfo().getAmount(),
+                    requestDTO.getOrderInfo().getCurrency(),
+                    "orderInfo.amount"
+            );
+        }
+        if (requestDTO.getGoodsInfo() != null) {
+            for (ApiMerchantPaymentRequestDTO.GoodsInfoDTO goods : requestDTO.getGoodsInfo()) {
+                if (goods != null) {
+                    validateAmount(goods.getAmount(), goods.getCurrency(), "goodsInfo.amount");
+                }
+            }
+        }
+    }
+
+    /**
+     * 校验单笔业务金额，禁止非正金额、静默舍入和超过币种辅币位。
+     *
+     * @param amount   主币种金额
+     * @param currency ISO 4217 三字母币种；后续动作可为空
+     * @param field    错误消息中的字段名
+     */
+    private void validateAmount(BigDecimal amount, String currency, String field) {
+        if (amount == null) {
+            return;
+        }
+        if (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 2) {
+            throw new ServiceException(
+                    ApiResultEnum.PARAM_INVALID.getCode(),
+                    field + " fraction digits exceed supported precision"
+            );
+        }
+        if (StringUtils.hasText(currency) && !isoDictionaryService.isCurrencyFractionValid(amount, currency)) {
+            throw new ServiceException(
+                    ApiResultEnum.PARAM_INVALID.getCode(),
+                    field + " fraction digits exceed currency minor unit"
+            );
+        }
     }
 
     /**
@@ -575,23 +632,49 @@ public class PaymentServiceImpl implements PaymentService {
         }
         clientRequestDTO.setTransactionDateTime(LocalDateTime.now());
         clientRequestDTO.setRequestId(resolveMerchantOrderId(requestDTO));
+        clientRequestDTO.setRequestSource("OPENAPI");
+        clientRequestDTO.setApplicantId(requestContext.getRequiredMerchantId());
         if (requestDTO.getTransactionInfo() != null) {
             clientRequestDTO.setCallbackUrl(requestDTO.getTransactionInfo().getCallbackUrl());
+            clientRequestDTO.setRequestReason(requestDTO.getTransactionInfo().getDescription());
         }
         clientRequestDTO.setRequestFingerprint(keyMaterialFactory.fingerprint(encryptedData));
         clientRequestDTO.setOpenApiRequestPath(resolveRequestPath());
         clientRequestDTO.setOpenApiRequestTime(LocalDateTime.now());
         clientRequestDTO.setMerchantRequestCipherMasked(maskCipher(encryptedData));
-        clientRequestDTO.setMerchantRequestPlainJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(requestDTO)));
+        clientRequestDTO.setMerchantRequestPlainJsonMasked(
+                SensitiveDataMaskUtils.maskTransactionInteractionJsonSafely(JsonUtils.toJsonString(requestDTO)));
         clientRequestDTO.setSubMerchantInfo(converter.toPaymentClientSubMerchantInfo(
                 requestDTO.getMerchantInfo() == null ? null : requestDTO.getMerchantInfo().getSubMerchantInfo()));
         clientRequestDTO.setBillingCardHolderInfo(converter.toPaymentClientBillingCardHolderInfo(requestDTO.getBillingCardHolderInfo()));
+        clientRequestDTO.setGoodsInfo(converter.toPaymentClientGoodsInfo(requestDTO.getGoodsInfo()));
+        clientRequestDTO.setPayerInfo(converter.toPaymentClientPayerInfo(requestDTO.getPayerInfo()));
+        clientRequestDTO.setShippingInfo(converter.toPaymentClientShippingInfo(requestDTO.getShippingInfo()));
         clientRequestDTO.setCardInfo(converter.toPaymentClientCardInfo(requestDTO.getCardInfo()));
         clientRequestDTO.setThreeDsInfo(converter.toPaymentClientThreeDsInfo(requestDTO.getThreeDsInfo()));
         clientRequestDTO.setTransactionInfo(converter.toPaymentClientTransactionInfo(requestDTO.getTransactionInfo()));
-        clientRequestDTO.setRiskContext(converter.toPaymentClientRiskContext(requestDTO.getRiskContext()));
+        clientRequestDTO.setRiskContext(converter.toPaymentClientRiskContext(requestDTO.getRiskInfo()));
+        clientRequestDTO.setSourceUrl(resolveMerchantWebsite(requestDTO, operation));
         populateRequestSource(clientRequestDTO);
         return clientRequestDTO;
+    }
+
+    /**
+     * 仅首次支付类接口使用商户上送网站执行来源网址限定，后续动作不得改变生命周期来源。
+     *
+     * @param requestDTO 商户请求
+     * @param operation 当前交易动作
+     * @return 商户网站原值，非首次支付动作返回 null
+     */
+    private String resolveMerchantWebsite(ApiMerchantPaymentRequestDTO requestDTO,
+                                          OpenApiPaymentOperationEnum operation) {
+        if (operation != OpenApiPaymentOperationEnum.PAYMENT
+                && operation != OpenApiPaymentOperationEnum.AUTHORIZATION
+                && operation != OpenApiPaymentOperationEnum.PRE_AUTHORIZATION) {
+            return null;
+        }
+        return requestDTO == null || requestDTO.getTransactionInfo() == null
+                ? null : requestDTO.getTransactionInfo().getMerchantWebsite();
     }
 
     /**
@@ -853,10 +936,13 @@ public class PaymentServiceImpl implements PaymentService {
             return;
         }
         HttpServletRequest request = attributes.getRequest();
-        clientRequestDTO.setPayerIp(resolveClientIp(request));
-        clientRequestDTO.setUserAgent(request.getHeader(USER_AGENT));
-        String origin = request.getHeader(ORIGIN);
-        clientRequestDTO.setSourceUrl(StringUtils.hasText(origin) ? origin : request.getHeader(REFERER));
+        PaymentCreateClientRequestDTO.PayerInfoDTO payerInfo = clientRequestDTO.getPayerInfo();
+        clientRequestDTO.setPayerIp(payerInfo != null && StringUtils.hasText(payerInfo.getIpAddress())
+                ? payerInfo.getIpAddress().trim()
+                : resolveClientIp(request));
+        clientRequestDTO.setUserAgent(payerInfo != null && StringUtils.hasText(payerInfo.getUserAgent())
+                ? payerInfo.getUserAgent()
+                : request.getHeader(USER_AGENT));
     }
 
     /**

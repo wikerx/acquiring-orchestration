@@ -9,7 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.RedisClusterConfiguration;
+import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -62,15 +63,24 @@ class RedisIdempotentIntegrationTests {
 
     @BeforeEach
     void setUp() {
-        RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration(
-                System.getProperty("idempotent.redis.host", "127.0.0.1"),
-                Integer.parseInt(System.getProperty("idempotent.redis.port", "6379"))
+        String configuredNodes = System.getProperty(
+                "idempotent.redis.cluster.nodes",
+                "127.0.0.1:7001,127.0.0.1:7002,127.0.0.1:7003,"
+                        + "127.0.0.1:7004,127.0.0.1:7005,127.0.0.1:7006"
         );
-        configuration.setDatabase(Integer.parseInt(System.getProperty("idempotent.redis.database", "0")));
-        String password = System.getProperty("idempotent.redis.password", "");
-        if (!password.isBlank()) {
-            configuration.setPassword(password);
+        String password = System.getProperty("idempotent.redis.cluster.password");
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException(
+                    "idempotent.redis.cluster.password is required for Cluster integration tests");
         }
+        RedisClusterConfiguration configuration = new RedisClusterConfiguration(
+                Arrays.stream(configuredNodes.split(","))
+                        .map(String::trim)
+                        .filter(node -> !node.isEmpty())
+                        .toList()
+        );
+        configuration.setMaxRedirects(5);
+        configuration.setPassword(RedisPassword.of(password));
         connectionFactory = new LettuceConnectionFactory(configuration);
         connectionFactory.afterPropertiesSet();
         connectionFactory.start();
@@ -90,7 +100,7 @@ class RedisIdempotentIntegrationTests {
         rememberCandidateKeys(60L);
         rememberCandidateKeys(2L);
         if (redisTemplate != null && !cleanupKeys.isEmpty()) {
-            redisTemplate.delete(cleanupKeys);
+            cleanupKeys.forEach(redisTemplate::delete);
         }
         if (connectionFactory != null) {
             connectionFactory.destroy();
@@ -149,7 +159,7 @@ class RedisIdempotentIntegrationTests {
     }
 
     /**
-     * 在本机临时 Redis 上采样生产 MQ 双桶 Lua 的顺序吞吐和尾延迟。
+     * 在本机 Redis Cluster 上采样生产 MQ 双桶 Lua 的顺序吞吐和尾延迟。
      *
      * <p>该样本不包含 RocketMQ、数据库唯一约束和生产网络，不作为生产容量结论。</p>
      */
@@ -179,7 +189,7 @@ class RedisIdempotentIntegrationTests {
 
         log.info(
                 "真实 Redis MQ 去重基础性能完成，样本数: {} throughputOpsPerSecond: {} "
-                        + "p95Micros: {} p99Micros: {}；仅代表本机临时容器顺序调用",
+                        + "p95Micros: {} p99Micros: {}；仅代表本机开发 Cluster 顺序调用",
                 measuredCount,
                 throughputPerSecond(measuredCount, elapsedNanos),
                 percentileMicros(latencyNanos, 0.95D),

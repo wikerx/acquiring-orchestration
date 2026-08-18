@@ -13,6 +13,7 @@ import com.scott.payment.admin.mapper.BaseCardBinRangeMapper;
 import com.scott.payment.admin.service.AdminDictService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -24,6 +25,7 @@ import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -335,6 +337,7 @@ public class AdminBaseCardBinApplicationService {
      * @return 保存后的卡 BIN 数据
      */
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
     public CardBinDTOs.CardBinResponse create(CardBinDTOs.CardBinSaveRequest request) {
         NormalizedBinRange range = normalizeRange(request.getCardBinStart(), request.getCardBinEnd());
         assertDictValue(CARD_BRAND_DICT, request.getCardBrand(), "卡品牌不存在或已停用");
@@ -364,6 +367,7 @@ public class AdminBaseCardBinApplicationService {
      * @return 更新后的卡 BIN 数据
      */
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
     public CardBinDTOs.CardBinResponse update(Long id, CardBinDTOs.CardBinSaveRequest request) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         NormalizedBinRange range = normalizeRange(request.getCardBinStart(), request.getCardBinEnd());
@@ -387,6 +391,7 @@ public class AdminBaseCardBinApplicationService {
      * @param id 主键 ID
      */
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
     public void remove(Long id) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         row.setStatus(STATUS_DISABLED);
@@ -404,6 +409,7 @@ public class AdminBaseCardBinApplicationService {
      * @return 更新后的卡 BIN 数据
      */
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
     public CardBinDTOs.CardBinResponse updateStatus(Long id, CardBinDTOs.CardBinStatusRequest request) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         Integer targetStatus = normalizeStatus(request.getStatus(), null);
@@ -431,8 +437,8 @@ public class AdminBaseCardBinApplicationService {
                         .le(CardBinEntities.BaseCardBinRangeDO::getCardBinStart, value)
                         .ge(CardBinEntities.BaseCardBinRangeDO::getCardBinEnd, value)
                         .orderByDesc(CardBinEntities.BaseCardBinRangeDO::getBinLength)
-                        .orderByDesc(CardBinEntities.BaseCardBinRangeDO::getSourcePriority)
                         .orderByDesc(CardBinEntities.BaseCardBinRangeDO::getUpdateTime)
+                        .orderByDesc(CardBinEntities.BaseCardBinRangeDO::getId)
         );
         DictLabels labels = loadDictLabels();
         List<CardBinDTOs.CardBinResponse> matches = rows.stream().map(row -> toResponse(row, labels)).toList();
@@ -472,6 +478,7 @@ public class AdminBaseCardBinApplicationService {
      * @return 本次导入批次结果
      */
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
     public CardBinDTOs.CardBinImportBatchResponse initFromLegacyDb() {
         String batchNo = "INIT_DB_IMPORT_" + BATCH_TIME_FORMATTER.format(LocalDateTime.now());
         CardBinEntities.BaseCardBinImportBatchDO batch = new CardBinEntities.BaseCardBinImportBatchDO();

@@ -112,6 +112,10 @@ public class AdminMerchantSaveRequest {
     @NotNull(message = "商户状态不能为空")
     private Integer merchantStatus;
 
+    /** 商户默认语言，仅支持 zh-CN 和 en-US。 */
+    @NotBlank(message = "默认语言不能为空")
+    private String defaultLocale;
+
     /**
      * 商户风险等级，可为空；为空时由服务端填充默认值。
      */

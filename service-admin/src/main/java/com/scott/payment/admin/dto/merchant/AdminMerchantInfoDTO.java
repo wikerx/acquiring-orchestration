@@ -53,6 +53,9 @@ public class AdminMerchantInfoDTO {
      */
     private Integer merchantStatus;
 
+    /** 商户系统和商户通知默认语言。 */
+    private String defaultLocale;
+
     /**
      * 商户 MCC 类目编码。
      */

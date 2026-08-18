@@ -1,5 +1,6 @@
 package com.scott.payment.admin.dto.transaction;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
 import lombok.Data;
@@ -403,6 +404,16 @@ public final class AdminTransactionDTOs {
          * 后台操作原因，写入交易描述，便于后续审计和排查。
          */
         private String reason;
+
+        /**
+         * 被操作交易的真实分片时间，必须来自交易列表查询结果，禁止根据交易号推断。
+         */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime transactionDateTime;
+
+        /** 被操作交易所属生命周期根主单的真实分片时间。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
     }
 
     /**
@@ -658,6 +669,9 @@ public final class AdminTransactionDTOs {
          */
         private BigDecimal transactionRate;
 
+        /** 是否按 3DS 交易处理：0 否，1 是。 */
+        private Integer threeDsEnabled;
+
         /**
          * 是否启用 DCC，0 否、1 是。
          */
@@ -796,7 +810,12 @@ public final class AdminTransactionDTOs {
          * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
+
+        /** 生命周期根主单的真实分片时间，动作详情必须与 transactionDateTime 一并传入。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * transaction Time Zone，用于保存 Transaction Order Response 中与 交易timezone 相关的业务属性。
@@ -966,6 +985,9 @@ public final class AdminTransactionDTOs {
          * 标签金额转交易金额使用的汇率，未换汇时返回 1.00000000。
          */
         private BigDecimal transactionRate;
+
+        /** 是否按 3DS 交易处理：0 否，1 是。 */
+        private Integer threeDsEnabled;
 
         /**
          * 是否启用 DCC，0 否、1 是。
@@ -1180,7 +1202,12 @@ public final class AdminTransactionDTOs {
          * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
+
+        /** 生命周期根主单的真实分片时间。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * operation Time，用于保存 Transaction Operation Response 中与 动作time 相关的业务属性。
@@ -1309,6 +1336,63 @@ public final class AdminTransactionDTOs {
         private List<TransactionAmountSummaryResponse> amountSummaries = Collections.emptyList();
     }
 
+    /** 交易账单或收货联系人信息，仅包含管理端允许展示的商户业务字段。 */
+    @Data
+    public static class TransactionContactInfoResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /** 名。 */
+        private String firstName;
+
+        /** 姓。 */
+        private String lastName;
+
+        /** 联系电话明文。 */
+        private String phone;
+
+        /** 联系邮箱明文。 */
+        private String email;
+
+        /** ISO 3166-1 alpha-3 国家或地区代码。 */
+        private String country;
+
+        /** 州、省或地区。 */
+        private String state;
+
+        /** 城市。 */
+        private String city;
+
+        /** 街道地址。 */
+        private String street;
+
+        /** 邮政编码。 */
+        private String postal;
+    }
+
+    /** 付款人信息，包含风控排查所需的付款人、网络和浏览器上下文。 */
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class TransactionPayerInfoResponse extends TransactionContactInfoResponse {
+
+        private static final long serialVersionUID = 1L;
+
+        /** 商户侧付款人或客户标识。 */
+        private String payerId;
+
+        /** 付款人客户端 IP 明文。 */
+        private String ipAddress;
+
+        /** 商户付款会话标识。 */
+        private String sessionId;
+
+        /** 商户上送的浏览器结构化信息。 */
+        private Map<String, Object> browserInfo;
+
+        /** 付款人客户端 User-Agent。 */
+        private String userAgent;
+    }
+
     /**
      * 交易聚合详情响应。
      */
@@ -1326,6 +1410,15 @@ public final class AdminTransactionDTOs {
          * </p>
          */
         private TransactionOrderResponse order;
+
+        /** 持卡人账单信息；当前交易未保存时为空。 */
+        private TransactionContactInfoResponse billingCardHolderInfo;
+
+        /** 付款人信息；当前交易未保存时为空。 */
+        private TransactionPayerInfoResponse payerInfo;
+
+        /** 收货信息；当前交易未保存时为空。 */
+        private TransactionContactInfoResponse shippingInfo;
 
         /**
          * operations，用于保存 Transaction Detail Response 中与 交易动作 相关的业务属性。

@@ -1,0 +1,48 @@
+# service-data 专属配置：异步操作日志、风控与安全审计持久化，以及商户通知投递参数。
+data:
+  card-vault:
+    # 默认关闭；所有密钥必须由 K8s Secret、CI/CD Secret 或 KMS 注入，禁止写入 Nacos 明文。
+    enabled: ${CHECKOUT_CARD_VAULT_CONSUME_ENABLED:false}
+    transfer-key-id: ${CHECKOUT_CARD_VAULT_TRANSFER_KEY_ID:checkout-card-vault-v1}
+    transfer-private-key-pkcs8-base64: ${CHECKOUT_CARD_VAULT_TRANSFER_PRIVATE_KEY_PKCS8_BASE64:}
+    pan-hmac-key-version: ${CHECKOUT_CARD_VAULT_PAN_HMAC_KEY_VERSION:v1}
+    pan-hmac-pepper: ${CHECKOUT_CARD_VAULT_PAN_HMAC_PEPPER:}
+    kek-version: ${CHECKOUT_CARD_VAULT_KEK_VERSION:v1}
+    kek-base64: ${CHECKOUT_CARD_VAULT_KEK_BASE64:}
+  merchant-notification:
+    mq:
+      # 只有 service-data 注册商户通知消费者，service-payment 不再消费或发送回调。
+      # 环境说明：环境变量：DATA_MERCHANT_NOTIFICATION_MQ_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
+      enabled: ${DATA_MERCHANT_NOTIFICATION_MQ_ENABLED:true}
+    # 商户回调建连和读取超时，单位毫秒。
+    # 环境说明：环境变量：DATA_MERCHANT_NOTIFICATION_CONNECT_TIMEOUT_MILLIS，dev 配置默认值为 "3000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+    connect-timeout-millis: ${DATA_MERCHANT_NOTIFICATION_CONNECT_TIMEOUT_MILLIS:3000}
+    # 参数说明：配置 HTTP 读取响应超时，单位毫秒；需覆盖下游正常 P99 延迟。
+    # 环境说明：环境变量：DATA_MERCHANT_NOTIFICATION_READ_TIMEOUT_MILLIS，dev 配置默认值为 "10000"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+    read-timeout-millis: ${DATA_MERCHANT_NOTIFICATION_READ_TIMEOUT_MILLIS:10000}
+    # 必须大于 HTTP 总超时，避免仍在请求中的任务被另一实例重复回收。
+    # 环境说明：环境变量：DATA_MERCHANT_NOTIFICATION_PROCESSING_TIMEOUT_SECONDS，dev 配置默认值为 "60"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
+    processing-timeout-seconds: ${DATA_MERCHANT_NOTIFICATION_PROCESSING_TIMEOUT_SECONDS:60}
+    # 单季度每次只读取有界超时候选，再逐条执行带分片键、版本和状态的 CAS。
+    # 环境说明：环境变量：DATA_MERCHANT_NOTIFICATION_RECOVERY_BATCH_LIMIT，dev 默认值为 "100"；有效范围 1-500。
+    recovery-batch-limit: ${DATA_MERCHANT_NOTIFICATION_RECOVERY_BATCH_LIMIT:100}
+    # 默认只允许 HTTPS 公网地址。隔离 dev 使用本地 SDK 回调服务时，必须通过环境变量显式开启并在验收后关闭。
+    allow-http: ${DATA_MERCHANT_NOTIFICATION_ALLOW_HTTP:false}
+    allow-private-network: ${DATA_MERCHANT_NOTIFICATION_ALLOW_PRIVATE_NETWORK:false}
+
+internal-service:
+  auth:
+    # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
+    enabled: true
+    # 参数说明：声明内部签名调用方标识，必须与服务白名单中的名称完全一致。
+    caller: service-job
+    # 参数说明：配置内部服务签名密钥，所有通信方必须使用同一环境的高强度 Secret。
+    # 环境说明：环境变量：DATA_INTERNAL_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
+    secret: ${DATA_INTERNAL_SECRET:dev-internal-service-secret}
+    # 参数说明：内部请求签名允许的客户端与服务端时钟偏差，使用 Spring Duration（如 5m 或 PT5M）。
+    allowed-clock-skew: 5m
+    whitelist:
+      # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
+      - /actuator/health/**
+      # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
+      - /error

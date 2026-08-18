@@ -1,10 +1,12 @@
 package com.scott.payment.admin.service;
 
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistConfigRequest;
+import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistApprovalRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistCreateRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistQuery;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistResponse;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistUpdateRequest;
+import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistSubmissionRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 import java.util.List;
@@ -69,6 +71,33 @@ public interface AdminMerchantIpWhitelistService {
      * @return 更新后的记录
      */
     MerchantIpWhitelistResponse updateWhitelistStatus(Long id, Integer status);
+
+    /**
+     * 审批商户提交的 IP 白名单记录，只允许待审核记录执行一次终态审批。
+     *
+     * @param id      白名单记录 ID
+     * @param request 审批结果、说明和审核通过后的交易状态
+     * @return 审批后的记录
+     */
+    MerchantIpWhitelistResponse approveWhitelist(Long id, MerchantIpWhitelistApprovalRequest request);
+
+    /**
+     * 查询指定商户自己的 IP 白名单记录，不跨商户聚合。
+     *
+     * @param merchantId 已认证商户号
+     * @return 该商户全部未删除记录
+     */
+    List<MerchantIpWhitelistResponse> listMerchantWhitelists(String merchantId);
+
+    /**
+     * 以商户来源提交待审核 IP 白名单，交易状态固定为禁止。
+     *
+     * @param merchantId 已认证商户号
+     * @param request    IP 列表和提交说明
+     * @return 新增的待审核记录
+     */
+    List<MerchantIpWhitelistResponse> submitMerchantWhitelists(
+            String merchantId, MerchantIpWhitelistSubmissionRequest request);
 
     /**
      * 软删除单条 IP 白名单记录。

@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -65,5 +66,31 @@ class DefaultPaymentChannelResultTransactionServiceTests {
                 "PAYMENT",
                 "FAILED",
                 LocalDateTime.of(2026, 7, 30, 10, 0));
+    }
+
+    @Test
+    void shouldNotOverwriteChannelSubmissionWhenPreChannelFailureLosesInitCas() {
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        TransactionLifecycleEventService eventService = mock(TransactionLifecycleEventService.class);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 8, 12, 10, 0);
+        when(recordService.claimInitialPreChannelFailure("REQ-1001", transactionDateTime))
+                .thenReturn(false);
+        DefaultPaymentChannelResultTransactionService service =
+                new DefaultPaymentChannelResultTransactionService(recordService, eventService);
+        PaymentCreateCommandDTO command = new PaymentCreateCommandDTO();
+        command.setTransactionDateTime(transactionDateTime);
+        PaymentCreateResultDTO result = new PaymentCreateResultDTO();
+        result.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+        PaymentChannelInvokeResultDTO invokeResult = new PaymentChannelInvokeResultDTO();
+        invokeResult.setRequestId("REQ-1001");
+
+        boolean changed = service.recordInitialPreChannelFailure(
+                command, null, invokeResult, result, PaymentRiskDecisionEnum.REQUIRE_3DS, 2);
+
+        assertThat(changed).isFalse();
+        verify(recordService).claimInitialPreChannelFailure("REQ-1001", transactionDateTime);
+        verify(recordService, never()).completeInitialChannelResultAndReport(
+                any(), any(), any(), any(), any(), anyInt());
+        verify(eventService, never()).saveStatusChanged(any(), any(), any(), any(), any(), any(), any());
     }
 }
