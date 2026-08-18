@@ -91,8 +91,6 @@ public class PaymentCheckoutSessionCreateCommandDTO implements Serializable {
     private String payerEmailHash;
     /** 是否允许同一会话在失败后重试：0 否，1 是。 */
     private Integer retryAllowed;
-    /** 同一会话允许创建的最大支付尝试次数。 */
-    private Integer maxAttemptCount;
     /** 会话失效时间。 */
     private LocalDateTime expireTime;
     /** 已脱敏的会话创建来源摘要。 */

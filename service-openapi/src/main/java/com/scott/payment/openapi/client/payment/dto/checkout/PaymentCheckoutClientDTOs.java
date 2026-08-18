@@ -104,9 +104,6 @@ public final class PaymentCheckoutClientDTOs {
         /** 是否允许失败后重试，1 表示允许、0 表示禁止。 */
         private Integer retryAllowed;
 
-        /** 会话允许的最大支付尝试次数。 */
-        private Integer maxAttemptCount;
-
         /** 会话过期时间，按内部服务约定时区解释。 */
         private LocalDateTime expireTime;
 
@@ -606,11 +603,6 @@ public final class PaymentCheckoutClientDTOs {
         private Boolean retryAllowed;
 
         /**
-         * 当前剩余可支付尝试次数。
-         */
-        private Integer remainingAttemptCount;
-
-        /**
          * 前端处理中页面建议轮询间隔。
          */
         private Integer pollingIntervalSeconds;
@@ -805,11 +797,6 @@ public final class PaymentCheckoutClientDTOs {
          * 当前失败后是否允许重试。
          */
         private Boolean retryAllowed;
-
-        /**
-         * 失败后剩余可尝试次数。
-         */
-        private Integer remainingAttemptCount;
     }
 
     /**

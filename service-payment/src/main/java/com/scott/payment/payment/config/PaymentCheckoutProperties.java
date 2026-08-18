@@ -47,11 +47,6 @@ public class PaymentCheckoutProperties {
     private int expirationBatchSize = 200;
 
     /**
-     * 默认最大支付尝试次数。
-     */
-    private int defaultMaxAttemptCount = 3;
-
-    /**
      * 前端轮询基础间隔秒数。
      */
     private int pollingIntervalSeconds = 3;

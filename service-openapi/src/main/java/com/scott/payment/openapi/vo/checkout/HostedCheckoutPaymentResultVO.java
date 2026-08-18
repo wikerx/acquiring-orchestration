@@ -117,9 +117,6 @@ public class HostedCheckoutPaymentResultVO implements Serializable {
 
         /** 当前失败是否允许在同一会话内重试。 */
         private Boolean retryAllowed;
-
-        /** 当前会话剩余支付尝试次数。 */
-        private Integer remainingAttemptCount;
     }
 
     /**

@@ -1,9 +1,11 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.channel.payment.dto.request.ChannelThreeDsAuthenticationRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelThreeDsAuthenticationResponse;
 import com.scott.payment.channel.payment.enums.ChannelThreeDsPhase;
 import com.scott.payment.channel.payment.enums.ChannelThreeDsStatus;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.entity.TransactionAuthenticationInfoDO;
 import com.scott.payment.payment.mapper.TransactionAuthenticationInfoMapper;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 class DefaultPaymentAuthenticationRecordServiceTests {
+
+    @Test
+    void shouldRouteThreeDsAuditWritesToTransactionLogicalDataSource() {
+        DS dataSource = DefaultPaymentAuthenticationRecordService.class.getAnnotation(DS.class);
+
+        assertThat(dataSource).isNotNull();
+        assertThat(dataSource.value()).isEqualTo(DataSourceName.TRANSACTION);
+    }
 
     @Test
     void shouldPersistOnlyStableSafeThreeDsPhaseSummary() {

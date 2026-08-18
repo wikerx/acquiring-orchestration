@@ -98,7 +98,7 @@ public class PaymentCheckoutSessionDO implements Serializable {
     private String payerEmailHash;
     /** 是否允许失败后重试：0 否，1 是。 */
     private Integer retryAllowed;
-    /** 会话允许的最大支付尝试次数。 */
+    /** 兼容历史表结构的最大尝试次数；当前支付资格判断不使用。 */
     private Integer maxAttemptCount;
     /** 已创建的支付尝试数量。 */
     private Integer attemptCount;

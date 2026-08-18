@@ -89,7 +89,6 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getCurrencyExponent()).isEqualTo(2);
         assertThat(captured.getCheckoutDomain()).isEqualTo("https://pay.example.com");
         assertThat(captured.getRetryAllowed()).isEqualTo(1);
-        assertThat(captured.getMaxAttemptCount()).isEqualTo(3);
         assertThat(captured.getMerchantDisplayName()).isEqualTo("Demo Sub Merchant");
         assertThat(captured.getAllowedPaymentMethods()).isEmpty();
         assertThat(captured.getSubMerchantInfoJson()).contains("Demo Sub Merchant");
@@ -115,7 +114,6 @@ class HostedCheckoutServiceImplTests {
         assertThat(paymentInternalClient.sessionCreateRequest.getAllowedPaymentMethods()).isEmpty();
         assertThat(paymentInternalClient.sessionCreateRequest.getCheckoutDomain()).isEqualTo("https://pay.example.com");
         assertThat(paymentInternalClient.sessionCreateRequest.getRetryAllowed()).isEqualTo(1);
-        assertThat(paymentInternalClient.sessionCreateRequest.getMaxAttemptCount()).isEqualTo(3);
     }
 
     @Test
@@ -248,7 +246,6 @@ class HostedCheckoutServiceImplTests {
     private HostedCheckoutServiceImpl newCheckoutService(CapturingCheckoutClient paymentInternalClient) {
         HostedCheckoutProperties properties = new HostedCheckoutProperties();
         properties.setTokenPepper(TOKEN_PEPPER);
-        properties.setDefaultMaxAttemptCount(3);
         properties.setDefaultExpireMinutes(30);
         properties.setMaxExpireMinutes(120);
         return new HostedCheckoutServiceImpl(
@@ -599,7 +596,6 @@ class HostedCheckoutServiceImplTests {
             responseDTO.setOrder(order);
             PaymentCheckoutClientDTOs.Checkout checkout = new PaymentCheckoutClientDTOs.Checkout();
             checkout.setRetryAllowed(true);
-            checkout.setRemainingAttemptCount(3);
             checkout.setPollingIntervalSeconds(2);
             responseDTO.setCheckout(checkout);
             PaymentCheckoutClientDTOs.CardEncryption cardEncryption =

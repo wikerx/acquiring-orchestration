@@ -1,8 +1,11 @@
 package com.scott.payment.admin.service;
 
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.AnalyticsQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelPerformanceResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.FailureResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.MerchantPerformanceResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.OverviewResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ThreeDsResponse;
 
 /**
  * @author : scott
@@ -30,4 +33,28 @@ public interface AdminTransactionAnalyticsQueryService {
      * @return 按交易笔数排序的商户表现
      */
     MerchantPerformanceResponse merchantPerformance(AnalyticsQuery query);
+
+    /**
+     * 查询管理端失败分析。
+     *
+     * @param query 已校验并限制在31天内的分析条件
+     * @return 后台可见失败分析
+     */
+    FailureResponse failures(AnalyticsQuery query);
+
+    /**
+     * 查询渠道请求及最终交易表现。
+     *
+     * @param query 已校验并限制在31天内的分析条件
+     * @return 渠道表现分析
+     */
+    ChannelPerformanceResponse channelPerformance(AnalyticsQuery query);
+
+    /**
+     * 查询按交易去重的3DS认证分析。
+     *
+     * @param query 已校验并限制在31天内的分析条件
+     * @return 3DS认证分析
+     */
+    ThreeDsResponse threeDs(AnalyticsQuery query);
 }

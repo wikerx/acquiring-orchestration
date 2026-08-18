@@ -6,7 +6,6 @@ import com.scott.payment.channel.payment.dto.response.ChannelThreeDsAuthenticati
 import com.scott.payment.channel.payment.enums.ChannelThreeDsPhase;
 import com.scott.payment.channel.payment.enums.ChannelThreeDsStatus;
 import com.scott.payment.channel.payment.exception.ChannelException;
-import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.channel.payment.executor.PaymentChannelExecutor;
 import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
@@ -334,7 +333,7 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         return request;
     }
 
-    /** Build a provider callback URL from the platform-owned HTTPS gateway origin. */
+    /** Build an optional provider callback URL from the platform-owned HTTPS gateway origin. */
     private String notificationUrl(String channelCode) {
         if (systemConfigReadService == null) {
             return null;
@@ -352,12 +351,16 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
                     || base.getQuery() != null
                     || base.getFragment() != null
                     || (StringUtils.hasText(base.getPath()) && !"/".equals(base.getPath()))) {
-                throw new ChannelRequestException("platform gateway base URL must be a secure HTTPS origin");
+                log.warn("event: THREE_DS_NOTIFICATION_URL_SKIPPED configKey: {} channelCode: {} reason: UNSAFE_ORIGIN",
+                        GATEWAY_BASE_URL_CONFIG_KEY, channelCode);
+                return null;
             }
             return new URI("https", null, base.getHost(), base.getPort(),
                     THREE_DS_CALLBACK_PATH_PREFIX + channelCode + "/3ds", null, null).toString();
         } catch (URISyntaxException exception) {
-            throw new ChannelRequestException("platform gateway base URL is invalid", exception);
+            log.warn("event: THREE_DS_NOTIFICATION_URL_SKIPPED configKey: {} channelCode: {} reason: INVALID_URI exceptionType: {}",
+                    GATEWAY_BASE_URL_CONFIG_KEY, channelCode, exception.getClass().getSimpleName());
+            return null;
         }
     }
 

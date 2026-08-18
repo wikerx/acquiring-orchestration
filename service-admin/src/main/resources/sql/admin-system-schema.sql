@@ -2383,7 +2383,7 @@ VALUES
 (1074, 1, 1042, 'transaction:operation:export', '交易动作导出', 'BUTTON', 'POST', '/admin/transactions/operations/export', 1, 0),
 (1075, 1, 1045, 'transaction:merchant-notification:export', '商户回调记录导出', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/export', 1, 0),
 (1077, 1, 1045, 'transaction:merchant-notification:retry', '商户终态回调重发', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/retry', 1, 0),
-(1078, 1, 1046, 'transaction:analytics:view', '交易分析查询', 'MENU', 'POST', '/admin/transactions/analytics/**', 1, 0);
+(1078, 1, 1046, 'transaction:analytics:view', '交易分析访问', 'MENU', NULL, NULL, 1, 0);
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
@@ -2401,6 +2401,11 @@ JOIN (
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_detail_v1', '商户回调记录详情', 'transaction:merchant-notification:detail', 1
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_export_v1', '商户回调记录导出', 'transaction:merchant-notification:export', 2
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_retry_v1', '商户终态回调重发', 'transaction:merchant-notification:retry', 3
+    UNION ALL SELECT 'admin_transaction_analytics_v1', 'admin_transaction_analytics_overview_v1', '交易总览', 'transaction:analytics:overview', 1
+    UNION ALL SELECT 'admin_transaction_analytics_v1', 'admin_transaction_analytics_merchants_v1', '商户表现', 'transaction:analytics:merchants', 2
+    UNION ALL SELECT 'admin_transaction_analytics_v1', 'admin_transaction_analytics_failures_v1', '失败分析', 'transaction:analytics:failures', 3
+    UNION ALL SELECT 'admin_transaction_analytics_v1', 'admin_transaction_analytics_channels_v1', '渠道表现', 'transaction:analytics:channels', 4
+    UNION ALL SELECT 'admin_transaction_analytics_v1', 'admin_transaction_analytics_three_ds_v1', '3DS分析', 'transaction:analytics:three-ds', 5
     UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_detail_v1', '退款详情', 'transaction:refund:detail', 1
     UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_export_v1', '退款导出', 'transaction:refund:export', 2
     UNION ALL SELECT 'admin_transaction_refund_v1', 'admin_transaction_refund_approve_v1', '退款审批通过', 'transaction:refund:approve', 3
@@ -2428,7 +2433,14 @@ INSERT INTO sys_permission (
 SELECT 1, menu.id, item.permission_code, item.permission_name, item.permission_type,
        item.resource_method, item.resource_path, item.description, 1, 0
 FROM (
-    SELECT 'admin_transaction_refund_v1' menu_code, 'transaction:refund:list' permission_code,
+    SELECT 'admin_transaction_analytics_overview_v1' menu_code, 'transaction:analytics:overview' permission_code,
+           '交易总览' permission_name, 'BUTTON' permission_type, 'POST' resource_method,
+           '/admin/transactions/analytics/overview' resource_path, '查询交易总览统计' description
+    UNION ALL SELECT 'admin_transaction_analytics_merchants_v1', 'transaction:analytics:merchants', '商户表现', 'BUTTON', 'POST', '/admin/transactions/analytics/merchants', '查询商户交易表现统计'
+    UNION ALL SELECT 'admin_transaction_analytics_failures_v1', 'transaction:analytics:failures', '失败分析', 'BUTTON', 'POST', '/admin/transactions/analytics/failures', '查询后台失败原因统计'
+    UNION ALL SELECT 'admin_transaction_analytics_channels_v1', 'transaction:analytics:channels', '渠道表现', 'BUTTON', 'POST', '/admin/transactions/analytics/channels', '查询渠道请求和最终交易表现'
+    UNION ALL SELECT 'admin_transaction_analytics_three_ds_v1', 'transaction:analytics:three-ds', '3DS分析', 'BUTTON', 'POST', '/admin/transactions/analytics/three-ds', '查询3DS认证统计'
+    UNION ALL SELECT 'admin_transaction_refund_v1', 'transaction:refund:list' permission_code,
            '退款查询' permission_name, 'MENU' permission_type, 'POST' resource_method,
            '/admin/transactions/refunds/search' resource_path, '查询退款和撤销记录' description
     UNION ALL SELECT 'admin_transaction_refund_detail_v1', 'transaction:refund:detail', '退款详情', 'BUTTON', 'GET', '/admin/transactions/refunds/*', '查询退款详情'
@@ -2960,6 +2972,31 @@ JOIN (
 JOIN sys_menu menu ON menu.app_id = permission.app_id AND menu.menu_code = target.menu_code AND menu.deleted = 0
 SET permission.menu_id = menu.id
 WHERE permission.app_id = 1
+  AND permission.deleted = 0;
+
+-- 交易分析子功能必须归属对应按钮菜单，不能被通用前缀修复重新挂回父菜单。
+UPDATE sys_permission permission
+JOIN sys_menu menu ON menu.app_id = permission.app_id
+                  AND menu.permission_code = permission.permission_code
+                  AND menu.menu_type = 'BUTTON'
+                  AND menu.parent_id = (
+                      SELECT parent.id
+                      FROM sys_menu parent
+                      WHERE parent.app_id = permission.app_id
+                        AND parent.menu_code = 'admin_transaction_analytics_v1'
+                        AND parent.deleted = 0
+                      LIMIT 1
+                  )
+                  AND menu.deleted = 0
+SET permission.menu_id = menu.id
+WHERE permission.app_id = 1
+  AND permission.permission_code IN (
+      'transaction:analytics:overview',
+      'transaction:analytics:merchants',
+      'transaction:analytics:failures',
+      'transaction:analytics:channels',
+      'transaction:analytics:three-ds'
+  )
   AND permission.deleted = 0;
 
 UPDATE sys_permission permission

@@ -1805,8 +1805,6 @@ merchantInfo.merchantId + orderInfo.orderId
 | `allowedPaymentMethods[].channelCode` | string | O | 仅在平台明确提供可用渠道编码时传入；通常省略 |
 | `allowedPaymentMethods[].brands` | array | O | 允许卡品牌，例如 `VISA/MASTERCARD/AMEX/JCB` |
 | `allowedPaymentMethods[].threeDsMode` | string | O | 使用平台批准的 3DS 模式，例如 `AUTO` |
-| `checkoutInfo.retryAllowed` | boolean | O | 会话内支付失败后是否允许重试 |
-| `checkoutInfo.maxAttemptCount` | integer | O | 最大支付尝试次数，受平台上限约束 |
 | `checkoutInfo.returnUrl` | string | M | 支付结果页返回商户页面的 HTTP/HTTPS URL，最长 256 字符 |
 | `checkoutInfo.cancelUrl` | string | O | 付款人取消后的返回地址 |
 | `checkoutInfo.notifyUrl` | string | O | 通知地址，使用边界见 4.5 节 |
@@ -1848,8 +1846,6 @@ merchantInfo.merchantId + orderInfo.orderId
         "threeDsMode": "AUTO"
       }
     ],
-    "retryAllowed": true,
-    "maxAttemptCount": 3,
     "returnUrl": "https://merchant.example/payment/result",
     "cancelUrl": "https://merchant.example/cart"
   },

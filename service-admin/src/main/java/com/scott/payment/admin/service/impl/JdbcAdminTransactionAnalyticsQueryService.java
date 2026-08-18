@@ -2,10 +2,18 @@ package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.AmountMetric;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.AnalyticsQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelMetric;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelPerformanceResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelTrendMetric;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.CountMetric;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.DimensionMetric;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.FailureReasonMetric;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.FailureResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.MerchantMetric;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.MerchantPerformanceResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.OverviewResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ThreeDsResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ThreeDsTrendMetric;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.TrendMetric;
 import com.scott.payment.admin.service.AdminTransactionAnalyticsQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -29,6 +37,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,6 +61,10 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
     private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
     /** 支付工具摘要逻辑表名，仅用于受控静态 SQL 拼装。 */
     private static final String TRANSACTION_PAYMENT_METHOD_TABLE = "transaction_payment_method_info";
+    /** 渠道请求逻辑表名，仅用于受控静态SQL拼装。 */
+    private static final String TRANSACTION_CHANNEL_REQUEST_TABLE = "transaction_channel_request";
+    /** 3DS认证逻辑表名，仅用于受控静态SQL拼装。 */
+    private static final String TRANSACTION_AUTHENTICATION_TABLE = "transaction_authentication_info";
     /** 单次统计允许扫描的最大自然日跨度。 */
     private static final int MAX_QUERY_DAYS = 31;
     /** 管理端单次查询允许选择的最大商户数量。 */
@@ -68,6 +81,12 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
     private static final String STATUS_PENDING = "PENDING";
     /** 不进入终态成功率分母的处理中状态编码。 */
     private static final String STATUS_PROCESSING = "PROCESSING";
+    /** 银行卡交易的统一支付方式编码。 */
+    private static final String PAYMENT_METHOD_BANK_CARD = "BANK_CARD";
+    /** 3DS认证类型编码。 */
+    private static final String AUTHENTICATION_TYPE_THREE_DS = "3DS";
+    /** 渠道请求终态集合；INIT和SENT不进入成功率分母。 */
+    private static final List<String> CHANNEL_TERMINAL_STATUSES = List.of("SUCCESS", "FAILED", "TIMEOUT");
     /** 页面未指定时使用的查询时区，也是交易表时间解释时区。 */
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
     /** MySQL 统计 Asia/Shanghai 自然日时使用的固定偏移。 */
@@ -142,6 +161,42 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return transactionLogicalReadExecutor.read(() -> merchantPerformanceNormalized(safeQuery));
     }
 
+    /**
+     * 查询管理端失败分析。
+     *
+     * @param query 页面分析条件
+     * @return 后台可见失败原因、趋势和渠道分布
+     */
+    @Override
+    public FailureResponse failures(AnalyticsQuery query) {
+        AnalyticsQuery safeQuery = normalize(query);
+        return transactionLogicalReadExecutor.read(() -> failuresNormalized(safeQuery));
+    }
+
+    /**
+     * 查询渠道请求和最终交易表现。
+     *
+     * @param query 页面分析条件
+     * @return 渠道请求成功率、耗时和最终交易表现
+     */
+    @Override
+    public ChannelPerformanceResponse channelPerformance(AnalyticsQuery query) {
+        AnalyticsQuery safeQuery = normalize(query);
+        return transactionLogicalReadExecutor.read(() -> channelPerformanceNormalized(safeQuery));
+    }
+
+    /**
+     * 查询按交易去重的3DS认证分析。
+     *
+     * @param query 页面分析条件
+     * @return 3DS覆盖率、认证、挑战和责任转移指标
+     */
+    @Override
+    public ThreeDsResponse threeDs(AnalyticsQuery query) {
+        AnalyticsQuery safeQuery = normalize(query);
+        return transactionLogicalReadExecutor.read(() -> threeDsNormalized(safeQuery));
+    }
+
     /** 在同一逻辑数据源上下文完成总览的全部聚合，避免跨数据源读取产生口径差异。 */
     private OverviewResponse overviewNormalized(AnalyticsQuery query) {
         OverviewResponse response = querySummary(query);
@@ -171,6 +226,66 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
             });
         }
         response.setMerchants(merchants);
+        return response;
+    }
+
+    /** 组合失败汇总、自然日趋势、原因分类和渠道分布。 */
+    private FailureResponse failuresNormalized(AnalyticsQuery query) {
+        OverviewResponse summary = querySummary(query);
+        FailureResponse response = new FailureResponse();
+        response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
+        response.setTerminalCount(summary.getSuccessCount() + summary.getFailedCount());
+        response.setFailedCount(summary.getFailedCount());
+        response.setFailureRate(percentage(summary.getFailedCount(), response.getTerminalCount()));
+        response.setAffectedMerchantCount(queryAffectedMerchantCount(query));
+        response.setTrend(fillTrendDates(query, queryFailureTrend(query)));
+        List<FailureReasonMetric> reasons = queryFailureReasons(query);
+        response.setCategories(failureCategories(reasons, response.getFailedCount()));
+        reasons.stream()
+                .sorted(Comparator.comparingLong(FailureReasonMetric::getTotalCount).reversed()
+                        .thenComparing(FailureReasonMetric::getKey))
+                .limit(10)
+                .forEach(response.getReasons()::add);
+        response.setChannels(queryFailureChannels(query, response.getFailedCount()));
+        return response;
+    }
+
+    /** 组合请求级渠道指标，并合并最终交易口径，禁止混用两个成功率分母。 */
+    private ChannelPerformanceResponse channelPerformanceNormalized(AnalyticsQuery query) {
+        ChannelPerformanceResponse response = queryChannelSummary(query);
+        response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
+        List<ChannelMetric> channels = queryChannelMetrics(query);
+        mergeChannelTransactionMetrics(query, channels);
+        response.setChannels(channels);
+        response.setTrend(fillChannelTrendDates(query, queryChannelTrend(query)));
+        response.setResponseCodes(queryChannelResponseCodes(query, response.getCompletedRequestCount()));
+        return response;
+    }
+
+    /** 组合按交易去重的3DS指标，认证成功和交易成功分别计算。 */
+    private ThreeDsResponse threeDsNormalized(AnalyticsQuery query) {
+        ThreeDsResponse response = queryThreeDsSummary(query);
+        response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
+        response.setEligibleCardTransactionCount(queryEligibleCardTransactionCount(query));
+        response.setCoverageRate(percentage(response.getAuthenticationTransactionCount(),
+                response.getEligibleCardTransactionCount()));
+        response.setAuthenticationSuccessRate(percentage(response.getAuthenticatedCount(),
+                response.getAuthenticatedCount() + response.getFailedCount()));
+        response.setPaymentSuccessRate(percentage(response.getPaymentSuccessCount(),
+                response.getPaymentSuccessCount() + response.getPaymentFailedCount()));
+        response.setChallengeRate(percentage(response.getChallengeRequiredCount(),
+                response.getAuthenticationTransactionCount()));
+        response.setTrend(fillThreeDsTrendDates(query, queryThreeDsTrend(query)));
+        response.setStatuses(queryThreeDsDimension(query, "authentication_status",
+                response.getAuthenticationTransactionCount()));
+        response.setVersions(queryThreeDsDimension(query, "three_ds_version",
+                response.getAuthenticationTransactionCount()));
+        response.setSources(queryThreeDsDimension(query, "authentication_source",
+                response.getAuthenticationTransactionCount()));
+        response.setChallenges(queryThreeDsDimension(query, "challenge_status",
+                response.getAuthenticationTransactionCount()));
+        response.setLiabilityShifts(queryThreeDsDimension(query, "liability_shift_status",
+                response.getAuthenticationTransactionCount()));
         return response;
     }
 
@@ -360,6 +475,463 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         });
     }
 
+    /** 查询出现失败交易的商户数量。 */
+    private long queryAffectedMerchantCount(AnalyticsQuery query) {
+        String sql = "SELECT COUNT(DISTINCT o.merchant_id) FROM %s o WHERE %s AND o.transaction_status = :failedStatus"
+                .formatted(TRANSACTION_OPERATION_TABLE, baseWhere(query));
+        Long value = jdbcTemplate.queryForObject(sql, params(query), Long.class);
+        return value == null ? 0L : value;
+    }
+
+    /** 查询失败交易自然日趋势，只返回失败笔数并由公共方法补齐无数据日期。 */
+    private List<TrendMetric> queryFailureTrend(AnalyticsQuery query) {
+        String sql = """
+                SELECT DATE_FORMAT(CONVERT_TZ(o.transaction_date_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d') AS stat_date,
+                       COUNT(1) AS failed_count
+                FROM %s o
+                WHERE %s
+                  AND o.transaction_status = :failedStatus
+                GROUP BY DATE_FORMAT(CONVERT_TZ(o.transaction_date_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d')
+                ORDER BY stat_date ASC
+                """.formatted(TRANSACTION_OPERATION_TABLE, baseWhere(query));
+        return jdbcTemplate.query(sql, params(query), (rs, rowNum) -> {
+            TrendMetric metric = new TrendMetric();
+            metric.setDate(rs.getString("stat_date"));
+            metric.setTotalCount(rs.getLong("failed_count"));
+            metric.setFailedCount(metric.getTotalCount());
+            return metric;
+        });
+    }
+
+    /** 查询全部失败原因码后在Java中完成稳定分类，避免遗漏低频原因对类别总量的贡献。 */
+    private List<FailureReasonMetric> queryFailureReasons(AnalyticsQuery query) {
+        String sql = """
+                SELECT COALESCE(NULLIF(o.fail_reason_code, ''), 'UNKNOWN') AS reason_code,
+                       MAX(COALESCE(NULLIF(o.fail_reason_message, ''), 'No failure description')) AS reason_message,
+                       COUNT(1) AS total_count
+                FROM %s o
+                WHERE %s
+                  AND o.transaction_status = :failedStatus
+                GROUP BY COALESCE(NULLIF(o.fail_reason_code, ''), 'UNKNOWN')
+                ORDER BY total_count DESC, reason_code ASC
+                """.formatted(TRANSACTION_OPERATION_TABLE, baseWhere(query));
+        return jdbcTemplate.query(sql, params(query), (rs, rowNum) -> {
+            FailureReasonMetric metric = new FailureReasonMetric();
+            metric.setKey(rs.getString("reason_code"));
+            metric.setMessage(rs.getString("reason_message"));
+            metric.setCategory(failureCategory(metric.getKey()));
+            metric.setTotalCount(rs.getLong("total_count"));
+            return metric;
+        });
+    }
+
+    /** 按稳定失败原因码归类，未知或历史编码统一进入OTHER且不丢失数量。 */
+    private String failureCategory(String reasonCode) {
+        return switch (reasonCode == null ? "" : reasonCode) {
+            case "RISK_REJECTED" -> "RISK";
+            case "ROUTE_FAILED", "CHANNEL_UNSUPPORTED" -> "ROUTING";
+            case "EXCHANGE_RATE_NOT_FOUND" -> "EXCHANGE_RATE";
+            case "CHANNEL_REQUEST_FAILED", "CHANNEL_RESPONSE_INVALID", "CHANNEL_TIMEOUT" -> "CHANNEL";
+            case "STATE_TRANSITION_DENIED" -> "STATE_MACHINE";
+            default -> "OTHER";
+        };
+    }
+
+    /** 汇总全部失败原因类别，并为原因排行补充失败总量占比。 */
+    private List<CountMetric> failureCategories(List<FailureReasonMetric> reasons, long failedCount) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        reasons.forEach(reason -> {
+            reason.setPercentage(percentage(reason.getTotalCount(), failedCount));
+            counts.merge(reason.getCategory(), reason.getTotalCount(), Long::sum);
+        });
+        return counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed().thenComparing(Map.Entry::getKey))
+                .map(entry -> countMetric(entry.getKey(), entry.getValue(), failedCount))
+                .toList();
+    }
+
+    /** 查询失败交易渠道分布，路由前失败统一记为NO_CHANNEL。 */
+    private List<CountMetric> queryFailureChannels(AnalyticsQuery query, long failedCount) {
+        String sql = """
+                SELECT COALESCE(NULLIF(o.channel_code, ''), 'NO_CHANNEL') AS dimension_key,
+                       COUNT(1) AS total_count
+                FROM %s o
+                WHERE %s
+                  AND o.transaction_status = :failedStatus
+                GROUP BY COALESCE(NULLIF(o.channel_code, ''), 'NO_CHANNEL')
+                ORDER BY total_count DESC, dimension_key ASC
+                LIMIT 12
+                """.formatted(TRANSACTION_OPERATION_TABLE, baseWhere(query));
+        return jdbcTemplate.query(sql, params(query), (rs, rowNum) ->
+                countMetric(rs.getString("dimension_key"), rs.getLong("total_count"), failedCount));
+    }
+
+    /** 查询非勾兑业务渠道请求汇总，未完成请求不进入请求成功率分母。 */
+    private ChannelPerformanceResponse queryChannelSummary(AnalyticsQuery query) {
+        String sql = """
+                SELECT COUNT(1) AS total_request_count,
+                       SUM(CASE WHEN r.request_status IN (:channelTerminalStatuses) THEN 1 ELSE 0 END) AS completed_request_count,
+                       SUM(CASE WHEN r.request_status IN (:channelTerminalStatuses) AND r.platform_success = 1 THEN 1 ELSE 0 END) AS successful_request_count,
+                       SUM(CASE WHEN r.request_status IN ('SUCCESS', 'FAILED') AND r.platform_success = 0 THEN 1 ELSE 0 END) AS failed_request_count,
+                       SUM(CASE WHEN r.request_status = 'TIMEOUT' THEN 1 ELSE 0 END) AS timeout_request_count,
+                       SUM(CASE WHEN r.request_status NOT IN (:channelTerminalStatuses) THEN 1 ELSE 0 END) AS in_flight_request_count,
+                       COALESCE(AVG(CASE WHEN r.request_status IN (:channelTerminalStatuses) THEN r.duration_millis END), 0) AS average_duration_millis,
+                       COALESCE(MAX(CASE WHEN r.request_status IN (:channelTerminalStatuses) THEN r.duration_millis END), 0) AS maximum_duration_millis
+                FROM %s r
+                JOIN %s o ON o.transaction_id = r.transaction_id
+                               AND o.transaction_date_time = r.transaction_date_time
+                WHERE %s
+                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(query));
+        return jdbcTemplate.queryForObject(sql, params(query), (rs, rowNum) -> {
+            ChannelPerformanceResponse response = new ChannelPerformanceResponse();
+            response.setTotalRequestCount(rs.getLong("total_request_count"));
+            response.setCompletedRequestCount(rs.getLong("completed_request_count"));
+            response.setSuccessfulRequestCount(rs.getLong("successful_request_count"));
+            response.setFailedRequestCount(rs.getLong("failed_request_count"));
+            response.setTimeoutRequestCount(rs.getLong("timeout_request_count"));
+            response.setInFlightRequestCount(rs.getLong("in_flight_request_count"));
+            response.setRequestSuccessRate(percentage(response.getSuccessfulRequestCount(),
+                    response.getCompletedRequestCount()));
+            response.setAverageDurationMillis(scaleDuration(rs.getBigDecimal("average_duration_millis")));
+            response.setMaximumDurationMillis(rs.getLong("maximum_duration_millis"));
+            return response;
+        });
+    }
+
+    /** 查询各渠道请求量、成功率和耗时。 */
+    private List<ChannelMetric> queryChannelMetrics(AnalyticsQuery query) {
+        String sql = """
+                SELECT COALESCE(NULLIF(r.channel_code, ''), 'UNKNOWN') AS channel_code,
+                       COUNT(1) AS total_request_count,
+                       SUM(CASE WHEN r.request_status IN (:channelTerminalStatuses) THEN 1 ELSE 0 END) AS completed_request_count,
+                       SUM(CASE WHEN r.request_status IN (:channelTerminalStatuses) AND r.platform_success = 1 THEN 1 ELSE 0 END) AS successful_request_count,
+                       SUM(CASE WHEN r.request_status IN ('SUCCESS', 'FAILED') AND r.platform_success = 0 THEN 1 ELSE 0 END) AS failed_request_count,
+                       SUM(CASE WHEN r.request_status = 'TIMEOUT' THEN 1 ELSE 0 END) AS timeout_request_count,
+                       SUM(CASE WHEN r.request_status NOT IN (:channelTerminalStatuses) THEN 1 ELSE 0 END) AS in_flight_request_count,
+                       COALESCE(AVG(CASE WHEN r.request_status IN (:channelTerminalStatuses) THEN r.duration_millis END), 0) AS average_duration_millis,
+                       COALESCE(MAX(CASE WHEN r.request_status IN (:channelTerminalStatuses) THEN r.duration_millis END), 0) AS maximum_duration_millis
+                FROM %s r
+                JOIN %s o ON o.transaction_id = r.transaction_id
+                               AND o.transaction_date_time = r.transaction_date_time
+                WHERE %s
+                GROUP BY COALESCE(NULLIF(r.channel_code, ''), 'UNKNOWN')
+                ORDER BY total_request_count DESC, channel_code ASC
+                LIMIT 50
+                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(query));
+        return jdbcTemplate.query(sql, params(query), (rs, rowNum) -> {
+            ChannelMetric metric = new ChannelMetric();
+            metric.setChannelCode(rs.getString("channel_code"));
+            metric.setTotalRequestCount(rs.getLong("total_request_count"));
+            metric.setCompletedRequestCount(rs.getLong("completed_request_count"));
+            metric.setSuccessfulRequestCount(rs.getLong("successful_request_count"));
+            metric.setFailedRequestCount(rs.getLong("failed_request_count"));
+            metric.setTimeoutRequestCount(rs.getLong("timeout_request_count"));
+            metric.setInFlightRequestCount(rs.getLong("in_flight_request_count"));
+            metric.setRequestSuccessRate(percentage(metric.getSuccessfulRequestCount(),
+                    metric.getCompletedRequestCount()));
+            metric.setAverageDurationMillis(scaleDuration(rs.getBigDecimal("average_duration_millis")));
+            metric.setMaximumDurationMillis(rs.getLong("maximum_duration_millis"));
+            return metric;
+        });
+    }
+
+    /** 为渠道请求表现补充首笔交易最终状态，两个口径独立计算并在DTO中分别命名。 */
+    private void mergeChannelTransactionMetrics(AnalyticsQuery query, List<ChannelMetric> channels) {
+        Map<String, ChannelMetric> indexed = new LinkedHashMap<>();
+        channels.forEach(metric -> indexed.put(metric.getChannelCode(), metric));
+        String sql = """
+                SELECT COALESCE(NULLIF(o.channel_code, ''), 'UNKNOWN') AS channel_code,
+                       COUNT(1) AS transaction_count,
+                       SUM(CASE WHEN o.transaction_status = :successStatus THEN 1 ELSE 0 END) AS success_count,
+                       SUM(CASE WHEN o.transaction_status = :failedStatus THEN 1 ELSE 0 END) AS failed_count
+                FROM %s o
+                WHERE %s
+                  AND o.channel_code IS NOT NULL
+                GROUP BY COALESCE(NULLIF(o.channel_code, ''), 'UNKNOWN')
+                ORDER BY transaction_count DESC, channel_code ASC
+                LIMIT 50
+                """.formatted(TRANSACTION_OPERATION_TABLE, baseWhere(query));
+        jdbcTemplate.query(sql, params(query), rs -> {
+            String channelCode = rs.getString("channel_code");
+            ChannelMetric metric = indexed.computeIfAbsent(channelCode, key -> {
+                ChannelMetric created = new ChannelMetric();
+                created.setChannelCode(key);
+                channels.add(created);
+                return created;
+            });
+            metric.setTransactionCount(rs.getLong("transaction_count"));
+            metric.setTransactionSuccessCount(rs.getLong("success_count"));
+            metric.setTransactionFailedCount(rs.getLong("failed_count"));
+            metric.setTransactionSuccessRate(percentage(metric.getTransactionSuccessCount(),
+                    metric.getTransactionSuccessCount() + metric.getTransactionFailedCount()));
+        });
+        channels.sort(Comparator.comparingLong(ChannelMetric::getTotalRequestCount).reversed()
+                .thenComparing(ChannelMetric::getChannelCode));
+    }
+
+    /** 查询渠道请求自然日趋势，超时与其他失败拆开以避免图表重复计数。 */
+    private List<ChannelTrendMetric> queryChannelTrend(AnalyticsQuery query) {
+        String sql = """
+                SELECT DATE_FORMAT(CONVERT_TZ(r.request_start_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d') AS stat_date,
+                       COUNT(1) AS total_request_count,
+                       SUM(CASE WHEN r.request_status IN (:channelTerminalStatuses) AND r.platform_success = 1 THEN 1 ELSE 0 END) AS successful_request_count,
+                       SUM(CASE WHEN r.request_status IN ('SUCCESS', 'FAILED') AND r.platform_success = 0 THEN 1 ELSE 0 END) AS failed_request_count,
+                       SUM(CASE WHEN r.request_status = 'TIMEOUT' THEN 1 ELSE 0 END) AS timeout_request_count,
+                       SUM(CASE WHEN r.request_status NOT IN (:channelTerminalStatuses) THEN 1 ELSE 0 END) AS in_flight_request_count
+                FROM %s r
+                JOIN %s o ON o.transaction_id = r.transaction_id
+                               AND o.transaction_date_time = r.transaction_date_time
+                WHERE %s
+                GROUP BY DATE_FORMAT(CONVERT_TZ(r.request_start_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d')
+                ORDER BY stat_date ASC
+                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(query));
+        return jdbcTemplate.query(sql, params(query), (rs, rowNum) -> {
+            ChannelTrendMetric metric = new ChannelTrendMetric();
+            metric.setDate(rs.getString("stat_date"));
+            metric.setTotalRequestCount(rs.getLong("total_request_count"));
+            metric.setSuccessfulRequestCount(rs.getLong("successful_request_count"));
+            metric.setFailedRequestCount(rs.getLong("failed_request_count"));
+            metric.setTimeoutRequestCount(rs.getLong("timeout_request_count"));
+            metric.setInFlightRequestCount(rs.getLong("in_flight_request_count"));
+            long completed = metric.getSuccessfulRequestCount() + metric.getFailedRequestCount()
+                    + metric.getTimeoutRequestCount();
+            metric.setRequestSuccessRate(percentage(metric.getSuccessfulRequestCount(), completed));
+            return metric;
+        });
+    }
+
+    /** 查询渠道响应码分布，优先使用收单码，其次网关码和平台结果码。 */
+    private List<CountMetric> queryChannelResponseCodes(AnalyticsQuery query, long completedCount) {
+        String sql = """
+                SELECT COALESCE(NULLIF(r.acquirer_code, ''), NULLIF(r.gateway_code, ''),
+                                NULLIF(r.platform_result_code, ''), 'UNKNOWN') AS dimension_key,
+                       COUNT(1) AS total_count
+                FROM %s r
+                JOIN %s o ON o.transaction_id = r.transaction_id
+                               AND o.transaction_date_time = r.transaction_date_time
+                WHERE %s
+                  AND r.request_status IN (:channelTerminalStatuses)
+                GROUP BY COALESCE(NULLIF(r.acquirer_code, ''), NULLIF(r.gateway_code, ''),
+                                  NULLIF(r.platform_result_code, ''), 'UNKNOWN')
+                ORDER BY total_count DESC, dimension_key ASC
+                LIMIT 12
+                """.formatted(TRANSACTION_CHANNEL_REQUEST_TABLE, TRANSACTION_OPERATION_TABLE, channelWhere(query));
+        return jdbcTemplate.query(sql, params(query), (rs, rowNum) ->
+                countMetric(rs.getString("dimension_key"), rs.getLong("total_count"), completedCount));
+    }
+
+    /** 构造渠道请求分析条件，显式携带两个逻辑表的分片时间谓词。 */
+    private String channelWhere(AnalyticsQuery query) {
+        return "r.deleted = 0 AND r.channel_match_flag = 0"
+                + " AND r.transaction_date_time >= :beginTime AND r.transaction_date_time < :endTime"
+                + " AND " + baseWhere(query);
+    }
+
+    /** 查询筛选范围内首笔银行卡交易数，作为3DS覆盖率分母。 */
+    private long queryEligibleCardTransactionCount(AnalyticsQuery query) {
+        String sql = """
+                SELECT COUNT(1)
+                FROM %s o
+                WHERE %s
+                  AND EXISTS (
+                    SELECT 1 FROM %s p_card
+                    WHERE p_card.transaction_id = o.transaction_id
+                      AND p_card.transaction_date_time = o.transaction_date_time
+                      AND p_card.payment_method = :cardPaymentMethod
+                  )
+                """.formatted(TRANSACTION_OPERATION_TABLE, baseWhere(query), TRANSACTION_PAYMENT_METHOD_TABLE);
+        Long value = jdbcTemplate.queryForObject(sql, params(query), Long.class);
+        return value == null ? 0L : value;
+    }
+
+    /** 查询按交易去重后的3DS汇总，认证状态优先级为成功、失败、处理中。 */
+    private ThreeDsResponse queryThreeDsSummary(AnalyticsQuery query) {
+        String sql = """
+                SELECT COUNT(1) AS authentication_transaction_count,
+                       SUM(CASE WHEN d.authentication_status = 'AUTHENTICATED' THEN 1 ELSE 0 END) AS authenticated_count,
+                       SUM(CASE WHEN d.authentication_status = 'FAILED' THEN 1 ELSE 0 END) AS failed_count,
+                       SUM(CASE WHEN d.authentication_status = 'PROCESSING' THEN 1 ELSE 0 END) AS processing_count,
+                       SUM(CASE WHEN d.transaction_status = :successStatus THEN 1 ELSE 0 END) AS payment_success_count,
+                       SUM(CASE WHEN d.transaction_status = :failedStatus THEN 1 ELSE 0 END) AS payment_failed_count,
+                       SUM(CASE WHEN d.challenge_required = 1 THEN 1 ELSE 0 END) AS challenge_required_count,
+                       SUM(CASE WHEN d.challenge_status = 'COMPLETED' THEN 1 ELSE 0 END) AS challenge_completed_count,
+                       SUM(CASE WHEN d.challenge_status = 'FAILED' THEN 1 ELSE 0 END) AS challenge_failed_count,
+                       SUM(CASE WHEN d.liability_shift_status = 'SHIFTED' THEN 1 ELSE 0 END) AS liability_shifted_count,
+                       SUM(CASE WHEN d.liability_shift_status = 'NOT_SHIFTED' THEN 1 ELSE 0 END) AS liability_not_shifted_count,
+                       SUM(CASE WHEN d.liability_shift_status = 'UNKNOWN' THEN 1 ELSE 0 END) AS liability_unknown_count
+                FROM (%s) d
+                """.formatted(threeDsTransactionSubquery(query));
+        return jdbcTemplate.queryForObject(sql, params(query), (rs, rowNum) -> {
+            ThreeDsResponse response = new ThreeDsResponse();
+            response.setAuthenticationTransactionCount(rs.getLong("authentication_transaction_count"));
+            response.setAuthenticatedCount(rs.getLong("authenticated_count"));
+            response.setFailedCount(rs.getLong("failed_count"));
+            response.setProcessingCount(rs.getLong("processing_count"));
+            response.setPaymentSuccessCount(rs.getLong("payment_success_count"));
+            response.setPaymentFailedCount(rs.getLong("payment_failed_count"));
+            response.setChallengeRequiredCount(rs.getLong("challenge_required_count"));
+            response.setChallengeCompletedCount(rs.getLong("challenge_completed_count"));
+            response.setChallengeFailedCount(rs.getLong("challenge_failed_count"));
+            response.setLiabilityShiftedCount(rs.getLong("liability_shifted_count"));
+            response.setLiabilityNotShiftedCount(rs.getLong("liability_not_shifted_count"));
+            response.setLiabilityUnknownCount(rs.getLong("liability_unknown_count"));
+            return response;
+        });
+    }
+
+    /** 查询按交易去重的3DS自然日趋势。 */
+    private List<ThreeDsTrendMetric> queryThreeDsTrend(AnalyticsQuery query) {
+        String sql = """
+                SELECT d.stat_date,
+                       COUNT(1) AS total_count,
+                       SUM(CASE WHEN d.authentication_status = 'AUTHENTICATED' THEN 1 ELSE 0 END) AS authenticated_count,
+                       SUM(CASE WHEN d.authentication_status = 'FAILED' THEN 1 ELSE 0 END) AS failed_count,
+                       SUM(CASE WHEN d.authentication_status = 'PROCESSING' THEN 1 ELSE 0 END) AS processing_count
+                FROM (%s) d
+                GROUP BY d.stat_date
+                ORDER BY d.stat_date ASC
+                """.formatted(threeDsTransactionSubquery(query));
+        return jdbcTemplate.query(sql, params(query), (rs, rowNum) -> {
+            ThreeDsTrendMetric metric = new ThreeDsTrendMetric();
+            metric.setDate(rs.getString("stat_date"));
+            metric.setTotalCount(rs.getLong("total_count"));
+            metric.setAuthenticatedCount(rs.getLong("authenticated_count"));
+            metric.setFailedCount(rs.getLong("failed_count"));
+            metric.setProcessingCount(rs.getLong("processing_count"));
+            metric.setAuthenticationSuccessRate(percentage(metric.getAuthenticatedCount(),
+                    metric.getAuthenticatedCount() + metric.getFailedCount()));
+            return metric;
+        });
+    }
+
+    /** 查询受控3DS维度分布，调用方不能传入任意列或表达式。 */
+    private List<CountMetric> queryThreeDsDimension(AnalyticsQuery query, String dimension, long totalCount) {
+        String column = switch (dimension) {
+            case "authentication_status" -> "d.authentication_status";
+            case "three_ds_version" -> "d.three_ds_version";
+            case "authentication_source" -> "d.authentication_source";
+            case "challenge_status" -> "d.challenge_status";
+            case "liability_shift_status" -> "d.liability_shift_status";
+            default -> throw new IllegalArgumentException("unsupported 3DS analytics dimension");
+        };
+        String sql = """
+                SELECT %s AS dimension_key, COUNT(1) AS total_count
+                FROM (%s) d
+                GROUP BY %s
+                ORDER BY total_count DESC, dimension_key ASC
+                LIMIT 12
+                """.formatted(column, threeDsTransactionSubquery(query), column);
+        return jdbcTemplate.query(sql, params(query), (rs, rowNum) ->
+                countMetric(rs.getString("dimension_key"), rs.getLong("total_count"), totalCount));
+    }
+
+    /**
+     * 构造3DS交易级事实子查询；同一交易的INITIALIZE、AUTHENTICATE和VERIFY阶段只输出一行。
+     */
+    private String threeDsTransactionSubquery(AnalyticsQuery query) {
+        return """
+                SELECT a.transaction_id,
+                       a.transaction_date_time,
+                       o.transaction_status,
+                       DATE_FORMAT(CONVERT_TZ(a.transaction_date_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d') AS stat_date,
+                       CASE
+                         WHEN SUM(CASE WHEN a.authentication_status = 'AUTHENTICATED' THEN 1 ELSE 0 END) > 0 THEN 'AUTHENTICATED'
+                         WHEN SUM(CASE WHEN a.authentication_status = 'FAILED' THEN 1 ELSE 0 END) > 0 THEN 'FAILED'
+                         ELSE 'PROCESSING'
+                       END AS authentication_status,
+                       COALESCE(MAX(NULLIF(a.three_ds_version, '')), 'UNKNOWN') AS three_ds_version,
+                       CASE
+                         WHEN SUM(CASE WHEN a.authentication_source = 'CHANNEL' THEN 1 ELSE 0 END) > 0 THEN 'CHANNEL'
+                         WHEN SUM(CASE WHEN a.authentication_source = 'MERCHANT' THEN 1 ELSE 0 END) > 0 THEN 'MERCHANT'
+                         ELSE COALESCE(MAX(NULLIF(a.authentication_source, '')), 'UNKNOWN')
+                       END AS authentication_source,
+                       MAX(CASE WHEN a.challenge_required = 1 THEN 1 ELSE 0 END) AS challenge_required,
+                       CASE
+                         WHEN SUM(CASE WHEN a.challenge_status = 'COMPLETED' THEN 1 ELSE 0 END) > 0 THEN 'COMPLETED'
+                         WHEN SUM(CASE WHEN a.challenge_status = 'FAILED' THEN 1 ELSE 0 END) > 0 THEN 'FAILED'
+                         WHEN MAX(CASE WHEN a.challenge_required = 1 OR a.challenge_status = 'REQUIRED' THEN 1 ELSE 0 END) = 1 THEN 'REQUIRED'
+                         ELSE 'NOT_REQUIRED'
+                       END AS challenge_status,
+                       CASE
+                         WHEN SUM(CASE WHEN a.liability_shift = 1 THEN 1 ELSE 0 END) > 0 THEN 'SHIFTED'
+                         WHEN SUM(CASE WHEN a.liability_shift = 0 THEN 1 ELSE 0 END) > 0 THEN 'NOT_SHIFTED'
+                         ELSE 'UNKNOWN'
+                       END AS liability_shift_status
+                FROM %s a
+                JOIN %s o ON o.transaction_id = a.transaction_id
+                               AND o.transaction_date_time = a.transaction_date_time
+                WHERE a.authentication_type = :threeDsAuthenticationType
+                  AND a.transaction_date_time >= :beginTime
+                  AND a.transaction_date_time < :endTime
+                  AND %s
+                GROUP BY a.transaction_id, a.transaction_date_time, o.transaction_status,
+                         DATE_FORMAT(CONVERT_TZ(a.transaction_date_time, :storageTimeZone, :querySqlTimeZone), '%%Y-%%m-%%d')
+                """.formatted(TRANSACTION_AUTHENTICATION_TABLE, TRANSACTION_OPERATION_TABLE, baseWhere(query));
+    }
+
+    /** 补齐渠道趋势日期，避免切换筛选条件时横轴跳动。 */
+    private List<ChannelTrendMetric> fillChannelTrendDates(AnalyticsQuery query, List<ChannelTrendMetric> rows) {
+        Map<String, ChannelTrendMetric> indexed = new LinkedHashMap<>();
+        rows.forEach(row -> indexed.put(row.getDate(), row));
+        List<ChannelTrendMetric> result = new ArrayList<>();
+        for (LocalDate date : analyticsDates(query)) {
+            ChannelTrendMetric metric = indexed.get(date.toString());
+            if (metric == null) {
+                metric = new ChannelTrendMetric();
+                metric.setDate(date.toString());
+            }
+            result.add(metric);
+        }
+        return result;
+    }
+
+    /** 补齐3DS趋势日期，空日期保持全部指标为零。 */
+    private List<ThreeDsTrendMetric> fillThreeDsTrendDates(AnalyticsQuery query, List<ThreeDsTrendMetric> rows) {
+        Map<String, ThreeDsTrendMetric> indexed = new LinkedHashMap<>();
+        rows.forEach(row -> indexed.put(row.getDate(), row));
+        List<ThreeDsTrendMetric> result = new ArrayList<>();
+        for (LocalDate date : analyticsDates(query)) {
+            ThreeDsTrendMetric metric = indexed.get(date.toString());
+            if (metric == null) {
+                metric = new ThreeDsTrendMetric();
+                metric.setDate(date.toString());
+            }
+            result.add(metric);
+        }
+        return result;
+    }
+
+    /** 生成页面查询时区下连续自然日，用于全部趋势图统一补零。 */
+    private List<LocalDate> analyticsDates(AnalyticsQuery query) {
+        ZoneId queryZone = resolveQueryZone(query.getQueryTimeZone());
+        ZoneId storageZone = ZoneId.of(DEFAULT_QUERY_TIME_ZONE);
+        LocalDateTime displayBegin = convertBetweenZones(query.getBeginTime(), storageZone, queryZone);
+        LocalDateTime displayEnd = convertBetweenZones(query.getEndTime(), storageZone, queryZone);
+        LocalDate firstDate = displayBegin.toLocalDate();
+        LocalDate lastDate = displayEnd.toLocalTime().equals(LocalTime.MIDNIGHT)
+                ? displayEnd.toLocalDate().minusDays(1) : displayEnd.toLocalDate();
+        List<LocalDate> dates = new ArrayList<>();
+        for (LocalDate date = firstDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
+            dates.add(date);
+        }
+        return dates;
+    }
+
+    /** 创建数量占比指标，所有百分比使用BigDecimal计算。 */
+    private CountMetric countMetric(String key, long count, long total) {
+        CountMetric metric = new CountMetric();
+        metric.setKey(StringUtils.hasText(key) ? key : "UNKNOWN");
+        metric.setTotalCount(count);
+        metric.setPercentage(percentage(count, total));
+        return metric;
+    }
+
+    /** 将渠道平均耗时保留两位小数，缺失值按零展示。 */
+    private BigDecimal scaleDuration(BigDecimal duration) {
+        return duration == null ? BigDecimal.ZERO.setScale(2, RoundingMode.UNNECESSARY)
+                : duration.setScale(2, RoundingMode.HALF_UP);
+    }
+
     /** 构造首笔交易统一过滤条件；支付方式和发卡国家通过摘要表存在性过滤。 */
     private String baseWhere(AnalyticsQuery query) {
         StringBuilder where = new StringBuilder("""
@@ -413,7 +985,10 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
                 .addValue("failedStatus", STATUS_FAILED)
                 .addValue("pendingStatus", STATUS_PENDING)
                 .addValue("processingStatus", STATUS_PROCESSING)
-                .addValue("inFlightStatuses", List.of(STATUS_PENDING, STATUS_PROCESSING));
+                .addValue("inFlightStatuses", List.of(STATUS_PENDING, STATUS_PROCESSING))
+                .addValue("channelTerminalStatuses", CHANNEL_TERMINAL_STATUSES)
+                .addValue("cardPaymentMethod", PAYMENT_METHOD_BANK_CARD)
+                .addValue("threeDsAuthenticationType", AUTHENTICATION_TYPE_THREE_DS);
     }
 
     /** 归一化查询时间和枚举编码，并在访问数据库前拒绝超过 31 天的扫描。 */
@@ -476,6 +1051,16 @@ public class JdbcAdminTransactionAnalyticsQueryService implements AdminTransacti
         return BigDecimal.valueOf(successCount)
                 .multiply(BigDecimal.valueOf(100L))
                 .divide(BigDecimal.valueOf(terminalCount), 2, RoundingMode.HALF_UP);
+    }
+
+    /** 计算任意非负计数的百分比，分母为零时返回0.00。 */
+    private BigDecimal percentage(long numerator, long denominator) {
+        if (denominator <= 0L) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.UNNECESSARY);
+        }
+        return BigDecimal.valueOf(Math.max(0L, numerator))
+                .multiply(BigDecimal.valueOf(100L))
+                .divide(BigDecimal.valueOf(denominator), 2, RoundingMode.HALF_UP);
     }
 
     /** 合并新旧商户筛选字段并去重，避免超大 IN 条件放大分片扫描。 */
