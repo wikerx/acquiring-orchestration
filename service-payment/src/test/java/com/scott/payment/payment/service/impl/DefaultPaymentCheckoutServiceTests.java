@@ -44,6 +44,7 @@ import com.scott.payment.payment.service.dto.PaymentCheckoutThreeDsResultDTO;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.support.PaymentCheckoutTokenSupport;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -70,8 +71,15 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * Hosted Checkout 内部服务单元测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultPaymentCheckoutServiceTests
+ * @date : 2026-08-08 15:05
+ * @email : scott_x@163.com
+ * @description : 验证 Hosted Checkout 会话、支付尝试、安全校验及卡品牌识别等内部业务行为
+ * @status : create
  */
+@Slf4j
 class DefaultPaymentCheckoutServiceTests {
 
     /** Hosted Checkout 会话持久化 Mapper 测试替身。 */
@@ -243,6 +251,26 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(resultDTO.getCardBrand()).isEqualTo("AMEX");
         assertThat(resultDTO.getRecognized()).isTrue();
         assertThat(resultDTO.getSupported()).isFalse();
+    }
+
+    /** 卡能力服务不可用时必须复用统一平台规则，避免兼容路径遗漏 UnionPay 等品牌。 */
+    @Test
+    void shouldUseUnifiedCardBrandRuleWhenCardCapabilityServiceIsUnavailable() {
+        log.info("验证卡能力服务不可用时收银台复用统一卡品牌规则");
+        PaymentCheckoutSessionDO sessionDO = payableSession();
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(sessionDO));
+        when(sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId())).thenReturn(sessionDO);
+        PaymentCheckoutCardBinCommandDTO commandDTO = new PaymentCheckoutCardBinCommandDTO();
+        commandDTO.setTokenHash("token-hash");
+        commandDTO.setCheckoutSessionId(sessionDO.getCheckoutSessionId());
+        commandDTO.setCardBin("621234");
+
+        PaymentCheckoutCardBinResultDTO resultDTO = service.resolveCardBin(commandDTO);
+
+        assertThat(resultDTO.getCardBrand()).isEqualTo("UNIONPAY");
+        assertThat(resultDTO.getRecognized()).isTrue();
+        assertThat(resultDTO.getSupported()).isFalse();
+        log.info("统一卡品牌规则验证完成，结果为 UnionPay 且当前 MID 不支持");
     }
 
     @Test

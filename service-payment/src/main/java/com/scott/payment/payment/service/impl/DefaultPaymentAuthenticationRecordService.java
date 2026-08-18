@@ -1,10 +1,12 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.channel.payment.dto.request.ChannelThreeDsAuthenticationRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelThreeDsAuthenticationResponse;
 import com.scott.payment.channel.payment.enums.ChannelThreeDsPhase;
 import com.scott.payment.channel.payment.enums.ChannelThreeDsStatus;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.entity.PaymentCheckoutAttemptDO;
 import com.scott.payment.payment.entity.TransactionAuthenticationInfoDO;
 import com.scott.payment.payment.mapper.TransactionAuthenticationInfoMapper;
@@ -25,9 +27,16 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * 3DS 认证审计实现。只持久化白名单摘要，渠道原文、HTML、CAVV 和令牌均不会进入数据表。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultPaymentAuthenticationRecordService
+ * @date : 2026-08-17 18:35
+ * @email : scott_x@163.com
+ * @description : 3DS认证审计实现，通过交易逻辑数据源按交易时间分片持久化安全摘要，禁止保存渠道原文、HTML、CAVV和令牌
+ * @status : create
  */
 @Service
+@DS(DataSourceName.TRANSACTION)
 public class DefaultPaymentAuthenticationRecordService implements PaymentAuthenticationRecordService {
 
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";

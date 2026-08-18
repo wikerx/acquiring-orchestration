@@ -80,7 +80,13 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Hosted Checkout 默认内部服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultPaymentCheckoutService
+ * @date : 2026-08-08 15:05
+ * @email : scott_x@163.com
+ * @description : 编排 Hosted Checkout 会话、支付尝试、3DS、交易提交及付款人状态查询，并保护令牌和卡数据安全边界
+ * @status : create
  */
 @Service
 @Slf4j
@@ -364,7 +370,13 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         return expired;
     }
 
-    /** 根据当前会话的 MID 品牌快照解析 BIN 并返回权威支持状态。 */
+    /**
+     * 根据当前会话的 MID 品牌快照解析 BIN，并返回品牌识别与支持状态。
+     *
+     * @param commandDTO 包含令牌摘要、会话编号和 6 至 11 位 BIN 的查询命令
+     * @return 当前会话维度的卡品牌识别和支持结果
+     * @throws ServiceException 令牌、会话或绑定关系无效时抛出
+     */
     @Override
     public PaymentCheckoutCardBinResultDTO resolveCardBin(PaymentCheckoutCardBinCommandDTO commandDTO) {
         LocalDateTime now = LocalDateTime.now();
@@ -376,7 +388,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             throw new ServiceException(ApiResultEnum.QUERY_RESULT_NOT_FOUND);
         }
         String brand = cardCapabilityService == null
-                ? resolveCardBrandByPrefix(commandDTO.getCardBin())
+                ? PaymentCardBrandRuleMatcher.resolve(commandDTO.getCardBin())
                 : cardCapabilityService.resolveCardBrand(commandDTO.getCardBin());
         PaymentCheckoutCardBinResultDTO resultDTO = new PaymentCheckoutCardBinResultDTO();
         resultDTO.setCardBrand(brand);
@@ -2262,7 +2274,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     }
 
     /**
-     * 基于卡号前缀粗略识别卡组织，最终品牌以后续 BIN 或渠道结果为准。
+     * 解析付款卡品牌，优先使用 BIN 基础数据，并在能力服务缺失时复用统一平台规则。
+     *
+     * @param cardInfoDTO 已解密且通过收银台校验的卡信息
+     * @return 平台标准卡品牌；卡号缺失时返回 {@code null}
      */
     private String resolveCardBrand(PaymentCheckoutPaymentSubmitCommandDTO.CardInfoDTO cardInfoDTO) {
         if (cardInfoDTO == null || !StringUtils.hasText(cardInfoDTO.getCardNo())) {
@@ -2271,25 +2286,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         if (cardCapabilityService != null) {
             return cardCapabilityService.resolveCardBrand(cardInfoDTO.getCardNo());
         }
-        return resolveCardBrandByPrefix(cardInfoDTO.getCardNo());
-    }
-
-    /** BIN 基础表不可用时使用卡组织公开前缀做保守兜底。 */
-    private String resolveCardBrandByPrefix(String value) {
-        String cardNo = value == null ? "" : value.trim();
-        if (cardNo.startsWith("4")) {
-            return "VISA";
-        }
-        if (cardNo.startsWith("34") || cardNo.startsWith("37")) {
-            return "AMEX";
-        }
-        if (cardNo.startsWith("35")) {
-            return "JCB";
-        }
-        if (cardNo.startsWith("5") || cardNo.startsWith("22")) {
-            return "MASTERCARD";
-        }
-        return "UNKNOWN";
+        return PaymentCardBrandRuleMatcher.resolve(cardInfoDTO.getCardNo());
     }
 
     private String normalizeCode(String value) {

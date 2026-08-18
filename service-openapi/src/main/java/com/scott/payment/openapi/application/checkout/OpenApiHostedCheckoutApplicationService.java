@@ -84,6 +84,12 @@ public class OpenApiHostedCheckoutApplicationService {
         return hostedCheckoutService.handleThreeDsReturn(requestDTO);
     }
 
+    /**
+     * 解析卡号段（BIN）
+     *
+     * @param requestDTO 卡Bin信息
+     * @return 卡品牌信息
+     */
     public HostedCheckoutCardBinVO resolveCardBin(HostedCheckoutBrowserRequestDTOs.CardBinRequest requestDTO) {
         return hostedCheckoutService.resolveCardBin(requestDTO);
     }

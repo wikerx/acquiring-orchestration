@@ -5,7 +5,9 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO;
 import com.scott.payment.payment.model.PaymentCardBinCacheEntry;
 import com.scott.payment.payment.service.MerchantRouteProfileCacheService;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +25,7 @@ import static org.mockito.Mockito.when;
  * @description : 验证收银台支付方式只暴露商户 MID 实际能力，并由 BIN 基础表优先判定卡品牌。
  * @status : create
  */
+@Slf4j
 class PaymentCheckoutCardCapabilityServiceTests {
 
     /** MID 仅支持 Visa 和 Mastercard 时，收银台不得展示商户请求中的其他品牌。 */
@@ -78,6 +81,22 @@ class PaymentCheckoutCardCapabilityServiceTests {
         assertThat(service.resolveCardBrand("6011111111111117")).isEqualTo("DISCOVER");
         assertThat(service.resolveCardBrand("6212345678901234")).isEqualTo("UNIONPAY");
         assertThat(service.resolveCardBrand("6759649826438453")).isEqualTo("MAESTRO");
+    }
+
+    /** BIN 数据源异常时必须降级使用平台规则，避免收银台品牌识别被基础数据故障阻断。 */
+    @Test
+    void shouldFallbackToPlatformCardBrandRuleWhenDatabaseLookupFails() {
+        log.info("验证 BIN 数据源异常时降级使用平台卡品牌规则");
+        PaymentCardBinCacheReader cardBinCacheReader = mock(PaymentCardBinCacheReader.class);
+        when(cardBinCacheReader.findByPrefix("22230000000"))
+                .thenThrow(new DataAccessResourceFailureException("simulated BIN data source failure"));
+        PaymentCheckoutCardCapabilityService service = new PaymentCheckoutCardCapabilityService(
+                mock(MerchantRouteProfileCacheService.class), cardBinCacheReader);
+
+        String brand = service.resolveCardBrand("222300");
+
+        assertThat(brand).isEqualTo("MASTERCARD");
+        log.info("BIN 数据源异常降级验证完成，结果为平台 Mastercard 品牌");
     }
 
     /** 商户不传 cardBrand 时，服务端必须在风控和路由前补齐卡品牌和 ISO Alpha-3 发卡国家。 */

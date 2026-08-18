@@ -1,8 +1,11 @@
 package com.scott.payment.admin.application.transaction;
 
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.AnalyticsQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ChannelPerformanceResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.FailureResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.MerchantPerformanceResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.OverviewResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionAnalyticsDTOs.ThreeDsResponse;
 import com.scott.payment.admin.service.AdminTransactionAnalyticsQueryService;
 import org.springframework.stereotype.Service;
 
@@ -48,5 +51,35 @@ public class AdminTransactionAnalyticsApplicationService {
      */
     public MerchantPerformanceResponse merchantPerformance(AnalyticsQuery query) {
         return analyticsQueryService.merchantPerformance(query);
+    }
+
+    /**
+     * 查询管理端失败分析。
+     *
+     * @param query 页面筛选条件
+     * @return 后台可见失败分析
+     */
+    public FailureResponse failures(AnalyticsQuery query) {
+        return analyticsQueryService.failures(query);
+    }
+
+    /**
+     * 查询渠道请求及最终交易表现。
+     *
+     * @param query 页面筛选条件
+     * @return 渠道表现分析
+     */
+    public ChannelPerformanceResponse channelPerformance(AnalyticsQuery query) {
+        return analyticsQueryService.channelPerformance(query);
+    }
+
+    /**
+     * 查询按交易去重的3DS认证分析。
+     *
+     * @param query 页面筛选条件
+     * @return 3DS认证分析
+     */
+    public ThreeDsResponse threeDs(AnalyticsQuery query) {
+        return analyticsQueryService.threeDs(query);
     }
 }

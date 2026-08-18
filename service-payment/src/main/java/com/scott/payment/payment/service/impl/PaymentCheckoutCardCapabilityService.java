@@ -5,6 +5,8 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO;
 import com.scott.payment.payment.model.PaymentCardBinCacheEntry;
 import com.scott.payment.payment.service.MerchantRouteProfileCacheService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -19,7 +21,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** 聚合商户 MID 卡品牌能力，并提供服务端 BIN 品牌解析。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutCardCapabilityService
+ * @date : 2026-08-08 15:05
+ * @email : scott_x@163.com
+ * @description : 聚合商户 MID 银行卡能力，并按 BIN 基础数据优先、平台规则降级的顺序解析卡品牌
+ * @status : create
+ */
+@Slf4j
 @Service
 public class PaymentCheckoutCardCapabilityService {
 
@@ -31,13 +42,25 @@ public class PaymentCheckoutCardCapabilityService {
     private final MerchantRouteProfileCacheService routeProfileCacheService;
     private final PaymentCardBinCacheReader cardBinCacheReader;
 
+    /**
+     * 创建收银台银行卡能力服务。
+     *
+     * @param routeProfileCacheService 商户 MID 路由能力缓存服务
+     * @param cardBinCacheReader       BIN 基础数据缓存读取服务
+     */
     public PaymentCheckoutCardCapabilityService(MerchantRouteProfileCacheService routeProfileCacheService,
                                                 PaymentCardBinCacheReader cardBinCacheReader) {
         this.routeProfileCacheService = routeProfileCacheService;
         this.cardBinCacheReader = cardBinCacheReader;
     }
 
-    /** 从商户已启用 MID 聚合收银台可展示的支付方式与卡品牌。 */
+    /**
+     * 从商户已启用 MID 聚合收银台可展示的支付方式与卡品牌。
+     *
+     * @param merchantId       商户编号
+     * @param requestedMethods 商户请求展示的支付方式，可为空
+     * @return 同时满足商户请求和有效 MID 能力的支付方式
+     */
     public List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> resolveAllowedMethods(
             String merchantId,
             List<PaymentCheckoutSessionCreateCommandDTO.AllowedPaymentMethodDTO> requestedMethods) {
@@ -97,7 +120,14 @@ public class PaymentCheckoutCardCapabilityService {
         return result;
     }
 
-    /** 数据库优先解析卡品牌，未命中时使用稳定卡组织前缀规则兜底。 */
+    /**
+     * 按 BIN 基础数据优先、平台卡组织规则降级的顺序解析卡品牌。
+     *
+     * <p>BIN 基础数据未命中或查询异常时均执行平台规则，避免辅助查询故障阻断收银台。</p>
+     *
+     * @param cardDigits 6 至 11 位 BIN 或完整卡号；非数字字符会在查询前移除
+     * @return 平台标准卡品牌，无法识别时返回 {@code UNKNOWN}
+     */
     public String resolveCardBrand(String cardDigits) {
         String digits = digits(cardDigits);
         PaymentCardBinCacheEntry matched = resolveCardBin(digits);
@@ -107,7 +137,13 @@ public class PaymentCheckoutCardCapabilityService {
         return PaymentCardBrandRuleMatcher.resolve(digits);
     }
 
-    /** 根据卡号补齐平台内部卡品牌和 ISO Alpha-3 发卡国家，商户 OpenAPI 不需要上送这些字段。 */
+    /**
+     * 根据卡号补齐平台内部卡品牌和 ISO Alpha-3 发卡国家。
+     *
+     * <p>商户 OpenAPI 无需上送这些字段；BIN 查询异常时仅补齐规则可识别的卡品牌，发卡国家保持为空。</p>
+     *
+     * @param commandDTO 支付创建命令；非银行卡或未提供卡号时不处理
+     */
     public void enrichCardBrand(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO == null
                 || !"BANK_CARD".equals(normalize(commandDTO.getPaymentMethod()))
@@ -130,12 +166,26 @@ public class PaymentCheckoutCardCapabilityService {
         }
     }
 
+    /**
+     * 查询 BIN 基础数据；数据访问异常时按未命中处理，由调用方执行平台规则降级。
+     *
+     * <p>异常日志只记录异常类型，禁止记录卡号、BIN 或 SQL 参数。</p>
+     *
+     * @param cardDigits 已规范化的卡号数字
+     * @return BIN 命中结果；长度不足或数据访问异常时返回 {@code null}
+     */
     private PaymentCardBinCacheEntry resolveCardBin(String cardDigits) {
         if (cardDigits.length() < 6) {
             return null;
         }
         String prefix = (cardDigits + "00000000000").substring(0, 11);
-        return cardBinCacheReader.findByPrefix(prefix);
+        try {
+            return cardBinCacheReader.findByPrefix(prefix);
+        } catch (DataAccessException exception) {
+            log.warn("BIN 基础数据查询异常，已降级使用平台卡品牌规则，exceptionType={}",
+                    exception.getClass().getSimpleName());
+            return null;
+        }
     }
 
     /** 交易快照只接受三位字母国家代码，避免统计维度混入 Alpha-2 或国家名称。 */

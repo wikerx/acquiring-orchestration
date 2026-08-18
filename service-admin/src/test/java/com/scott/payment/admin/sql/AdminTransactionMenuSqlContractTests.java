@@ -38,10 +38,16 @@ class AdminTransactionMenuSqlContractTests {
             "merchant:transaction:refund:export"
     );
 
-    private static final Set<String> ANALYTICS_PERMISSIONS = Set.of(
+    private static final Set<String> ADMIN_ANALYTICS_PERMISSIONS = Set.of(
             "transaction:analytics:view",
-            "merchant:transaction:analytics:view"
+            "transaction:analytics:overview",
+            "transaction:analytics:merchants",
+            "transaction:analytics:failures",
+            "transaction:analytics:channels",
+            "transaction:analytics:three-ds"
     );
+
+    private static final String MERCHANT_ANALYTICS_PERMISSION = "merchant:transaction:analytics:view";
 
     @Test
     void refundAndMatchAbnormalMenusShouldCoverControllerPermissions() throws IOException {
@@ -147,21 +153,28 @@ class AdminTransactionMenuSqlContractTests {
         String merchantController = readRepositoryFile(
                 "service-merchant/src/main/java/com/scott/payment/merchant/api/transaction/MerchantTransactionAnalyticsController.java");
 
-        assertThat(schema).contains("admin_transaction_analytics_v1", "transaction:analytics:view");
+        assertThat(schema).contains("admin_transaction_analytics_v1");
         assertThat(adminMigration).contains(
                 "START TRANSACTION", "COMMIT", "app.app_code = 'ADMIN'",
-                "INSERT IGNORE INTO sys_role_menu", "INSERT IGNORE INTO sys_role_permission");
+                "INSERT IGNORE INTO sys_role_menu", "INSERT IGNORE INTO sys_role_permission",
+                "原先拥有交易分析页面权限的角色继承全部五个功能权限");
         assertThat(merchantMigration).contains(
                 "START TRANSACTION", "COMMIT", "app.app_code = 'MERCHANT'",
                 "INSERT IGNORE INTO sys_role_menu", "INSERT IGNORE INTO sys_role_permission",
                 "INSERT IGNORE INTO sys_merchant_menu_grant",
                 "INSERT IGNORE INTO sys_merchant_permission_grant");
-        assertThat(adminController).contains("@RequiresPermission(\"transaction:analytics:view\")");
-        assertThat(merchantController).contains("@RequiresPermission(\"merchant:transaction:analytics:view\")");
+        for (String permission : ADMIN_ANALYTICS_PERMISSIONS) {
+            assertThat(schema).contains(permission);
+            assertThat(adminMigration).contains(permission);
+            if (!"transaction:analytics:view".equals(permission)) {
+                assertThat(adminController).contains("@RequiresPermission(\"" + permission + "\")");
+            }
+        }
+        assertThat(merchantController).contains(
+                "@RequiresPermission(\"" + MERCHANT_ANALYTICS_PERMISSION + "\")");
         assertThat(adminMigration.toUpperCase()).doesNotContain("DELETE FROM", "DROP TABLE", "TRUNCATE TABLE");
         assertThat(merchantMigration.toUpperCase()).doesNotContain("DELETE FROM", "DROP TABLE", "TRUNCATE TABLE");
-        assertThat(ANALYTICS_PERMISSIONS).allSatisfy(permission ->
-                assertThat(schema + adminMigration + merchantMigration).contains(permission));
+        assertThat(schema + merchantMigration).contains(MERCHANT_ANALYTICS_PERMISSION);
     }
 
     private String readRepositoryFile(String relativePath) throws IOException {
