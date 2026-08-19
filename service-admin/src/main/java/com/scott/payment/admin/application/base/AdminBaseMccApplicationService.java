@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.base;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -20,6 +21,7 @@ import com.scott.payment.admin.service.AdminDictService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
@@ -300,6 +302,7 @@ public class AdminBaseMccApplicationService {
      *
      * <p>搜索命中 MCC Code 时会保留对应二级和一级分类，保证页面仍展示完整树路径。</p>
      */
+    @DS(DataSourceName.SLAVE)
     public List<MccVO.MccTreeNodeVO> tree(MccRequests.MccTreeQueryRequest request) {
         MccRequests.MccTreeQueryRequest query = request == null ? new MccRequests.MccTreeQueryRequest() : request;
         List<MccEntities.BaseMccLevel1DO> level1Rows = level1Mapper.selectList(baseLevel1Query());
@@ -431,6 +434,7 @@ public class AdminBaseMccApplicationService {
     /**
      * 查询 MCC 编码详情。
      */
+    @DS(DataSourceName.SLAVE)
     public MccVO.MccCodeVO getCode(Long id) {
         return toCodeVO(getCodeById(id));
     }
@@ -461,6 +465,7 @@ public class AdminBaseMccApplicationService {
     /**
      * 分页查询 MCC 风险策略。
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<MccVO.MccRiskPolicyVO> pagePolicies(MccRequests.MccRiskPolicyQueryRequest request) {
         MccRequests.MccRiskPolicyQueryRequest query = request == null ? new MccRequests.MccRiskPolicyQueryRequest() : request;
         Page<MccEntities.BaseMccRiskPolicyDO> page = riskPolicyMapper.selectPage(
@@ -518,6 +523,7 @@ public class AdminBaseMccApplicationService {
     /**
      * 查询风险策略详情。
      */
+    @DS(DataSourceName.SLAVE)
     public MccVO.MccRiskPolicyVO getPolicyDetail(Long id) {
         return toPolicyVO(getPolicy(id));
     }
@@ -551,6 +557,7 @@ public class AdminBaseMccApplicationService {
     /**
      * 查询 MCC 概览统计。
      */
+    @DS(DataSourceName.SLAVE)
     public MccVO.MccOverviewVO overview() {
         MccVO.MccOverviewVO overview = new MccVO.MccOverviewVO();
         overview.setLevel1Count(nonNullCount(level1Mapper.selectCount(baseLevel1Query())));
@@ -566,6 +573,7 @@ public class AdminBaseMccApplicationService {
     /**
      * 查询页面下拉选项。
      */
+    @DS(DataSourceName.SLAVE)
     public Map<String, Object> options() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("level1", level1Mapper.selectList(baseLevel1Query()).stream().map(row -> option(row.getId(), row.getLevel1Code(), row.getNameCn(), row.getNameEn(), LEVEL1, null)).toList());
@@ -583,6 +591,7 @@ public class AdminBaseMccApplicationService {
     /**
      * 导出 MCC 编码。
      */
+    @DS(DataSourceName.SLAVE)
     public void exportCodes(MccRequests.MccTreeQueryRequest request, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<MccCodeExportRow> rows = codeMapper.selectList(baseCodeQuery().orderByAsc(MccEntities.BaseMccCodeDO::getMccCode))

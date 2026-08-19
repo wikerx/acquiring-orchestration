@@ -107,7 +107,7 @@ class DefaultPaymentCheckoutServiceTests {
     private PaymentAuthenticationRecordService authenticationRecordService;
 
     /** 立即执行回调的事务模板，避免单元测试依赖真实数据库事务。 */
-    private TransactionOperations transactionOperations;
+    private TrackingTransactionOperations transactionOperations;
 
     /** 商户通知任务 Mapper 测试替身。 */
     private TransactionMerchantNotificationMapper merchantNotificationMapper;
@@ -129,7 +129,7 @@ class DefaultPaymentCheckoutServiceTests {
         paymentTransactionService = mock(PaymentTransactionService.class);
         authenticationRecordService = mock(PaymentAuthenticationRecordService.class);
         merchantNotificationMapper = mock(TransactionMerchantNotificationMapper.class);
-        transactionOperations = new ImmediateTransactionOperations();
+        transactionOperations = new TrackingTransactionOperations();
         properties = new PaymentCheckoutProperties();
         properties.setTokenPepper("unit-test-hosted-checkout-token-pepper");
         properties.setTokenKeyVersion("test-v1");
@@ -345,6 +345,73 @@ class DefaultPaymentCheckoutServiceTests {
         verify(paymentTransactionService).failPreparedTransaction(
                 any(), eq("THREE_DS_AUTHENTICATION_TIMEOUT"), anyString());
         verify(authenticationRecordService).recordTimeout(failedAttempt);
+        assertThat(transactionOperations.isActive()).isFalse();
+    }
+
+    @Test
+    void shouldConvergeTimedOutCoreTransactionOnlyAfterCheckoutTransactionCommits() {
+        PaymentCheckoutSessionDO processingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutSessionDO retryableSession = sessionWithStatus(
+                PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+        PaymentCheckoutAttemptDO processingAttempt = processingAttempt(processingSession);
+        processingAttempt.setThreeDsRequired(1);
+        processingAttempt.setAuthenticationStartTime(LocalDateTime.now().minusSeconds(601));
+        PaymentCheckoutAttemptDO failedAttempt = attemptWithStatus(processingSession,
+                PaymentCheckoutAttemptStatusEnum.FAILED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        failedAttempt.setChannelResponseCode("THREE_DS_AUTHENTICATION_TIMEOUT");
+        failedAttempt.setFailureReasonCode("THREE_DS_AUTHENTICATION_FAILED");
+        PaymentCheckoutPaymentStatusCommandDTO commandDTO = paymentStatusCommand(processingSession, processingAttempt);
+
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(processingSession));
+        when(sessionMapper.selectByCheckoutSessionId(processingSession.getCheckoutSessionId()))
+                .thenReturn(processingSession, processingSession, retryableSession);
+        when(attemptMapper.selectByCheckoutAttemptId(processingAttempt.getCheckoutAttemptId()))
+                .thenReturn(processingAttempt, failedAttempt);
+        when(attemptMapper.markThreeDsTimedOutCas(anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), any(), any())).thenReturn(1);
+        when(sessionMapper.markFailedCas(anyString(), anyString(), anyString(), any(), any())).thenReturn(1);
+        when(paymentTransactionService.failPreparedTransaction(any(), anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    assertThat(transactionOperations.isActive()).isFalse();
+                    return null;
+                });
+        org.mockito.Mockito.doAnswer(invocation -> {
+            assertThat(transactionOperations.isActive()).isFalse();
+            return null;
+        }).when(authenticationRecordService).recordTimeout(failedAttempt);
+
+        service.queryPaymentStatus(commandDTO);
+
+        verify(paymentTransactionService).failPreparedTransaction(
+                any(), eq("THREE_DS_AUTHENTICATION_TIMEOUT"), anyString());
+        verify(authenticationRecordService).recordTimeout(failedAttempt);
+    }
+
+    @Test
+    void shouldRetryCoreConvergenceForPreviouslyPersistedThreeDsTimeout() {
+        PaymentCheckoutSessionDO failedSession = sessionWithStatus(
+                PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+        PaymentCheckoutAttemptDO failedAttempt = attemptWithStatus(failedSession,
+                PaymentCheckoutAttemptStatusEnum.FAILED,
+                PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
+        failedAttempt.setChannelResponseCode("THREE_DS_AUTHENTICATION_TIMEOUT");
+        failedAttempt.setFailureReasonCode("THREE_DS_AUTHENTICATION_FAILED");
+        PaymentCheckoutPaymentStatusCommandDTO commandDTO = paymentStatusCommand(failedSession, failedAttempt);
+
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(failedSession));
+        when(sessionMapper.selectByCheckoutSessionId(failedSession.getCheckoutSessionId()))
+                .thenReturn(failedSession);
+        when(attemptMapper.selectByCheckoutAttemptId(failedAttempt.getCheckoutAttemptId()))
+                .thenReturn(failedAttempt);
+
+        service.queryPaymentStatus(commandDTO);
+
+        verify(attemptMapper, never()).markThreeDsTimedOutCas(anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), any(), any(), any());
+        verify(authenticationRecordService).recordTimeout(failedAttempt);
+        verify(paymentTransactionService).failPreparedTransaction(
+                any(), eq("THREE_DS_AUTHENTICATION_TIMEOUT"), anyString());
     }
 
     @Test
@@ -1547,11 +1614,24 @@ class DefaultPaymentCheckoutServiceTests {
         }
     }
 
-    private static class ImmediateTransactionOperations implements TransactionOperations {
+    private static class TrackingTransactionOperations implements TransactionOperations {
+
+        /** 当前线程是否正在执行 checkout 本地事务回调。 */
+        private boolean active;
 
         @Override
         public <T> T execute(TransactionCallback<T> action) {
-            return action.doInTransaction(null);
+            active = true;
+            try {
+                return action.doInTransaction(null);
+            } finally {
+                active = false;
+            }
+        }
+
+        /** 返回测试事务回调是否仍在执行。 */
+        private boolean isActive() {
+            return active;
         }
     }
 }

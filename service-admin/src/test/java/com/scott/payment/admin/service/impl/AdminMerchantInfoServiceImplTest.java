@@ -8,9 +8,13 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.entity.base.MccEntities;
+import com.scott.payment.admin.entity.fee.FeeEntities.FeePlanDO;
+import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundAccountDO;
 import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
+import com.scott.payment.admin.mapper.FeePlanMapper;
+import com.scott.payment.admin.mapper.MerchantFundAccountMapper;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantResponseKeyDO;
@@ -21,6 +25,7 @@ import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoor
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
@@ -147,6 +152,22 @@ class AdminMerchantInfoServiceImplTest {
     @Mock
     private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
+    /** 商户资金账户开户及结算币种一致性服务。 */
+    @Mock
+    private AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
+
+    /** 商户详情登录状态查询组件。 */
+    @Mock
+    private SysAccountMapper sysAccountMapper;
+
+    /** 商户详情资金账户查询组件。 */
+    @Mock
+    private MerchantFundAccountMapper fundAccountMapper;
+
+    /** 商户详情当前费率查询组件。 */
+    @Mock
+    private FeePlanMapper feePlanMapper;
+
     /**
      * service 依赖，用于 Admin Merchant Info Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -179,6 +200,10 @@ class AdminMerchantInfoServiceImplTest {
                 merchantRuntimeProfileCacheService,
                 cacheInvalidationCoordinator,
                 mock(AdminMerchantPrimaryAccountProvisioningService.class),
+                fundAccountProvisioningService,
+                sysAccountMapper,
+                fundAccountMapper,
+                feePlanMapper,
                 mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
                 mock(AdminMerchantSecurityNotificationService.class),
                 mock(AdminMerchantStatusLifecycleService.class)
@@ -279,6 +304,24 @@ class AdminMerchantInfoServiceImplTest {
         log.info("管理端编辑商户缓存一致性完成，结果: 失效意图早于主表更新");
     }
 
+    /** 商户结算币种变化时，应在商户资料落库前同步资金账户币种。 */
+    @Test
+    void shouldSynchronizeFundAccountBeforeUpdatingSettlementCurrency() {
+        log.info("测试商户结算币种同步，关键输入: merchantId=200045, USD->EUR");
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+        AdminMerchantSaveRequest request = validRequest("200045");
+        request.setSettlementCurrency("eur");
+
+        service.updateMerchant(1L, request);
+
+        InOrder order = inOrder(fundAccountProvisioningService, merchantInfoMapper);
+        order.verify(fundAccountProvisioningService)
+                .synchronizeSettlementCurrency("200045", "eur");
+        order.verify(merchantInfoMapper).updateById(argThat((BaseMerchantInfoDO row) ->
+                row != null && "EUR".equals(row.getSettlementCurrency())));
+        log.info("商户结算币种同步完成，结果: 资金账户先同步，商户资料后落库");
+    }
+
     /** 管理端停用商户应先阻止交易服务继续命中旧状态。 */
     @Test
     void shouldPrepareInvalidationBeforeUpdatingMerchantStatus() {
@@ -347,6 +390,41 @@ class AdminMerchantInfoServiceImplTest {
 
         assertThat(jsonNode.get("id").isTextual()).isTrue();
         assertThat(jsonNode.get("id").asText()).isEqualTo("2076595876878270466");
+    }
+
+    /** 历史商户没有登录账号、资金账户或费率时，详情必须明确返回未初始化状态。 */
+    @Test
+    void shouldExposeUninitializedOperationalFoundationForHistoricalMerchant() {
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+        when(sysAccountMapper.selectCount(any())).thenReturn(0L);
+
+        AdminMerchantInfoDTO result = service.getMerchant(1L);
+
+        assertThat(result.getLoginInitialized()).isFalse();
+        assertThat(result.getFundAccountNo()).isNull();
+        assertThat(result.getFundAccountStatus()).isNull();
+        assertThat(result.getCurrentFeeVersionNo()).isNull();
+    }
+
+    /** 已初始化商户详情应返回当前单结算币种账户和已生效费率版本。 */
+    @Test
+    void shouldExposeFundAccountAndCurrentFeeVersionInMerchantDetail() {
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+        when(sysAccountMapper.selectCount(any())).thenReturn(1L);
+        MerchantFundAccountDO fundAccount = new MerchantFundAccountDO();
+        fundAccount.setAccountNo("FA200045USD");
+        fundAccount.setAccountStatus("NORMAL");
+        when(fundAccountMapper.selectOne(any())).thenReturn(fundAccount);
+        FeePlanDO feePlan = new FeePlanDO();
+        feePlan.setCurrentVersionNo(3);
+        when(feePlanMapper.selectOne(any())).thenReturn(feePlan);
+
+        AdminMerchantInfoDTO result = service.getMerchant(1L);
+
+        assertThat(result.getLoginInitialized()).isTrue();
+        assertThat(result.getFundAccountNo()).isEqualTo("FA200045USD");
+        assertThat(result.getFundAccountStatus()).isEqualTo("NORMAL");
+        assertThat(result.getCurrentFeeVersionNo()).isEqualTo(3);
     }
 
     private MccEntities.BaseMccLevel1DO level1() {

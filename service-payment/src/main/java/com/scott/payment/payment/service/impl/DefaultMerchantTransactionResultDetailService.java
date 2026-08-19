@@ -25,7 +25,6 @@ import java.util.List;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultMerchantTransactionResultDetailService implements MerchantTransactionResultDetailService {
 
     private final TransactionAuthenticationInfoMapper authenticationInfoMapper;
@@ -41,6 +40,7 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
 
     /** {@inheritDoc} */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public MerchantTransactionResultDetailDTO load(String transactionId, LocalDateTime transactionDateTime) {
         MerchantTransactionResultDetailDTO target = new MerchantTransactionResultDetailDTO();
         if (!StringUtils.hasText(transactionId) || transactionDateTime == null) {

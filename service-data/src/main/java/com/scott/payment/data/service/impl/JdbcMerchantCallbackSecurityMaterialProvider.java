@@ -18,7 +18,6 @@ import java.time.LocalDateTime;
 
 /** 从主库读取当前启用的商户 JWT 密钥和响应公钥，不经过交易分片数据源。 */
 @Service
-@DS(DataSourceName.MASTER)
 public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCallbackSecurityMaterialProvider {
 
     /** 启用状态值。 */
@@ -50,6 +49,7 @@ public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCal
      * @return 商户回调 JWT 密钥和响应公钥
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public MerchantCallbackSecurityMaterial load(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         BaseMerchantJwtKeyDO jwtKey = jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>query()

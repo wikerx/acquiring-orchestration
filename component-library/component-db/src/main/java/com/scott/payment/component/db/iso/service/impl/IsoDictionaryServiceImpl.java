@@ -41,7 +41,6 @@ import java.util.function.Supplier;
  */
 @Slf4j
 @Service
-@DS(DataSourceName.SLAVE)
 public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictionaryCacheInvalidator {
 
     /**
@@ -113,6 +112,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 启用国家地区列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<IsoCountryInfo> listCountries() {
         return loadFromCache(
                 newCacheKey(COUNTRY_CACHE_BUSINESS),
@@ -130,6 +130,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 命中的国家地区列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<IsoCountryInfo> searchCountries(String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return listCountries();
@@ -148,6 +149,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 命中的国家地区
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public Optional<IsoCountryInfo> getCountry(String value) {
         if (!StringUtils.hasText(value)) {
             return Optional.empty();
@@ -166,6 +168,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 指定大洲下的国家地区列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<IsoCountryInfo> listCountriesByContinent(String continentCode) {
         if (!StringUtils.hasText(continentCode)) {
             return listCountries();
@@ -184,6 +187,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 默认使用该币种的国家地区列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<IsoCountryInfo> listCountriesByCurrency(String currencyAlpha3Code) {
         if (!StringUtils.hasText(currencyAlpha3Code)) {
             return listCountries();
@@ -201,6 +205,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 启用币种列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<IsoCurrencyInfo> listCurrencies() {
         return loadFromCache(
                 newCacheKey(CURRENCY_CACHE_BUSINESS),
@@ -218,6 +223,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 命中的币种列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<IsoCurrencyInfo> searchCurrencies(String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return listCurrencies();
@@ -236,6 +242,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 命中的币种信息
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public Optional<IsoCurrencyInfo> getCurrency(String value) {
         if (!StringUtils.hasText(value)) {
             return Optional.empty();
@@ -255,6 +262,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return true 表示金额小数位合法
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public boolean isCurrencyFractionValid(BigDecimal amount, String currencyValue) {
         return getCurrency(currencyValue)
                 .map(currency -> IsoCurrencyResolver.isValidFraction(amount, currency))
@@ -269,6 +277,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 最小辅币单位金额
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public long toMinorUnit(BigDecimal amount, String currencyValue) {
         IsoCurrencyInfo currency = getCurrency(currencyValue)
                 .orElseThrow(() -> new IllegalArgumentException("currency can not be resolved"));

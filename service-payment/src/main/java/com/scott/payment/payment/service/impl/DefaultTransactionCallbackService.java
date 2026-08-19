@@ -58,7 +58,6 @@ import java.util.Optional;
  */
 @Service
 @Slf4j
-@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionCallbackService implements TransactionCallbackService {
 
     /**
@@ -302,6 +301,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      * @return 回调处理结果
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TransactionChannelCallbackResultDTO recordChannelCallback(TransactionChannelCallbackCommandDTO commandDTO) {
         validate(commandDTO);

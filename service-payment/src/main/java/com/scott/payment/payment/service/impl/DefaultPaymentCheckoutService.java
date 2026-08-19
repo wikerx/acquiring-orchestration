@@ -486,6 +486,11 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 status -> convergeTimedOutThreeDs(loadedSession, resolvedAttempt, now));
         PaymentCheckoutSessionDO sessionDO = statusContext == null ? loadedSession : statusContext.sessionDO();
         PaymentCheckoutAttemptDO attemptDO = statusContext == null ? resolvedAttempt : statusContext.attemptDO();
+        if (statusContext != null && statusContext.coreConvergenceRequired()) {
+            recordThreeDsTimeout(attemptDO);
+            failPreparedCoreTransaction(attemptDO, FAILURE_THREE_DS_AUTHENTICATION_TIMEOUT,
+                    MESSAGE_THREE_DS_AUTHENTICATION_TIMEOUT);
+        }
         insertEvent(event(sessionDO, attemptDO, EVENT_PAYMENT_STATUS_QUERIED,
                 PaymentCheckoutProcessStageEnum.RESULT_RENDERED, PaymentCheckoutEventResultEnum.SUCCESS,
                 commandDTO.getTraceId(), null, now));
@@ -497,7 +502,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                                          PaymentCheckoutAttemptDO attemptDO,
                                                          LocalDateTime now) {
         if (!isThreeDsTimedOut(attemptDO, now)) {
-            return new PaymentStatusContext(sessionDO, attemptDO);
+            return new PaymentStatusContext(sessionDO, attemptDO, requiresCoreTimeoutConvergence(attemptDO));
         }
         int updated = attemptMapper.markThreeDsTimedOutCas(
                 attemptDO.getCheckoutAttemptId(),
@@ -517,17 +522,22 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                     sessionDO.getCheckoutSessionId());
             return new PaymentStatusContext(
                     latestSession == null ? sessionDO : latestSession,
-                    latestAttempt == null ? attemptDO : latestAttempt);
+                    latestAttempt == null ? attemptDO : latestAttempt,
+                    requiresCoreTimeoutConvergence(latestAttempt));
         }
         latestAttempt = latestAttempt == null ? attemptDO : latestAttempt;
-        recordThreeDsTimeout(latestAttempt);
-        failPreparedCoreTransaction(latestAttempt, FAILURE_THREE_DS_AUTHENTICATION_TIMEOUT,
-                MESSAGE_THREE_DS_AUTHENTICATION_TIMEOUT);
         PaymentCheckoutSessionDO latestSession = failSession(sessionDO, latestAttempt, now);
         insertEvent(event(latestSession, latestAttempt, EVENT_THREE_DS_FAILED,
                 PaymentCheckoutProcessStageEnum.RESULT_RENDERED, PaymentCheckoutEventResultEnum.FAILED,
                 null, latestAttempt.getAttemptRequestId(), now));
-        return new PaymentStatusContext(latestSession, latestAttempt);
+        return new PaymentStatusContext(latestSession, latestAttempt, true);
+    }
+
+    /** 已由 checkout 超时 CAS 标记的尝试需要在主库事务提交后幂等收敛交易核心。 */
+    private boolean requiresCoreTimeoutConvergence(PaymentCheckoutAttemptDO attemptDO) {
+        return attemptDO != null
+                && FAILURE_THREE_DS_AUTHENTICATION_TIMEOUT.equals(attemptDO.getChannelResponseCode())
+                && PaymentCheckoutAttemptStatusEnum.FAILED.getCode().equals(attemptDO.getAttemptStatus());
     }
 
     /** 超时 CAS 成功后补记认证失败摘要；审计异常不反向阻断核心交易失败收敛。 */
@@ -2332,7 +2342,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     }
 
     private record PaymentStatusContext(PaymentCheckoutSessionDO sessionDO,
-                                        PaymentCheckoutAttemptDO attemptDO) {
+                                        PaymentCheckoutAttemptDO attemptDO,
+                                        boolean coreConvergenceRequired) {
     }
 
     private record ThreeDsReturnContext(PaymentCheckoutSessionDO sessionDO,

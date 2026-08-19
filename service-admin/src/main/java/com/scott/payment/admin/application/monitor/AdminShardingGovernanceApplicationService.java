@@ -1,5 +1,7 @@
 package com.scott.payment.admin.application.monitor;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.client.job.JobSchedulerInternalClient;
@@ -164,6 +166,7 @@ public class AdminShardingGovernanceApplicationService {
      *
      * @return 分表规则列表
      */
+    @DS(DataSourceName.SLAVE)
     public List<ShardingRuleResponse> listRules() {
         return configuredRules().entrySet().stream()
                 .map(this::toRuleResponse)
@@ -176,6 +179,7 @@ public class AdminShardingGovernanceApplicationService {
      * @param logicalTable 逻辑表或规则 key
      * @return 分表规则
      */
+    @DS(DataSourceName.SLAVE)
     public ShardingRuleResponse getRule(String logicalTable) {
         Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> entry = findRule(logicalTable);
         return toRuleResponse(entry);
@@ -187,6 +191,7 @@ public class AdminShardingGovernanceApplicationService {
      * @param request 查询条件
      * @return 物理表分页结果
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<ShardingPhysicalTableResponse> pagePhysicalTables(ShardingPhysicalTableQueryRequest request) {
         ShardingPhysicalTableQueryRequest query = request == null ? new ShardingPhysicalTableQueryRequest() : request;
         Page<SysShardingPhysicalTableDO> page = physicalTableMapper.selectPage(
@@ -210,6 +215,7 @@ public class AdminShardingGovernanceApplicationService {
      * @param id 物理表登记主键
      * @return 物理表详情
      */
+    @DS(DataSourceName.SLAVE)
     public ShardingPhysicalTableResponse getPhysicalTable(Long id) {
         SysShardingPhysicalTableDO entity = physicalTableMapper.selectById(id);
         if (entity == null) {
@@ -260,6 +266,7 @@ public class AdminShardingGovernanceApplicationService {
      * @param request 查询条件
      * @return 建表日志分页结果
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<ShardingTableCreateLogResponse> pageCreateLogs(ShardingTableCreateLogQueryRequest request) {
         ShardingTableCreateLogQueryRequest query = request == null ? new ShardingTableCreateLogQueryRequest() : request;
         Page<SysShardingTableCreateLogDO> page = createLogMapper.selectPage(
@@ -282,6 +289,7 @@ public class AdminShardingGovernanceApplicationService {
      * @param id 建表日志主键
      * @return 建表日志详情
      */
+    @DS(DataSourceName.SLAVE)
     public ShardingTableCreateLogResponse getCreateLog(Long id) {
         SysShardingTableCreateLogDO entity = createLogMapper.selectById(id);
         if (entity == null) {

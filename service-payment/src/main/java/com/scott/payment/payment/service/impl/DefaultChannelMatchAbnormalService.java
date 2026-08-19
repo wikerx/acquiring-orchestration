@@ -46,7 +46,6 @@ import java.util.Map;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalService {
 
     private static final int MAX_BATCH_REQUERY = 100;
@@ -86,6 +85,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
      * @return 领取或转派后的最新案件记录
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public AbnormalRecord assign(String eventId, AssignCommand command) {
         if (command == null || command.getTransactionDateTime() == null || command.getExpectedVersion() == null
@@ -108,6 +108,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
      * @return 处置后的最新案件记录
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public AbnormalRecord resolve(String eventId, ResolveCommand command) {
         if (command == null || command.getTransactionDateTime() == null || command.getExpectedVersion() == null) {
@@ -141,6 +142,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
      * @return 重新勾兑后的最新案件记录
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public AbnormalRecord requery(String eventId, RequeryCommand command) {
         if (command == null || command.getTransactionDateTime() == null || command.getExpectedVersion() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -164,6 +166,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
      * @return 批量受理和失败统计
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public BatchRequeryResult batchRequery(BatchRequeryCommand command) {
         List<CaseReference> cases = command == null || command.getCases() == null
                 ? List.of() : command.getCases();
@@ -198,6 +201,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
      * @param seenTime 本次发现时间
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void recordReviewRequired(TransactionOperationDO operationDO,
                                      String abnormalType,
@@ -220,6 +224,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
      * @param seenTime 本次发现时间
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void recordReviewRequired(TransactionOperationDO operationDO,
                                      String abnormalType,
@@ -308,6 +313,7 @@ public class DefaultChannelMatchAbnormalService implements ChannelMatchAbnormalS
      * @return 关闭案件数
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public int autoResolve(String transactionId,
                            LocalDateTime transactionDateTime,

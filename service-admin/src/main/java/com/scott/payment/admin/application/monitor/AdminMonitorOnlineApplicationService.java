@@ -1,5 +1,7 @@
 package com.scott.payment.admin.application.monitor;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -70,6 +72,7 @@ public class AdminMonitorOnlineApplicationService {
      * @param pageSize 每页大小
      * @return 在线用户分页信息
      */
+    @DS(DataSourceName.SLAVE)
     public Map<String, Object> pageOnlineUsers(int pageNo, int pageSize) {
         LambdaQueryWrapper<SysLoginSessionDO> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(SysLoginSessionDO::getLogout, 0);

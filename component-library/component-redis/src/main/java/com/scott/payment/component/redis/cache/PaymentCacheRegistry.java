@@ -30,7 +30,9 @@ public final class PaymentCacheRegistry {
             PaymentCacheNames.MERCHANT_ROUTE, Duration.ZERO,
             PaymentCacheNames.SYSTEM_CONFIG, Duration.ZERO,
             PaymentCacheNames.ADMIN_USER_PROFILE, Duration.ZERO,
-            PaymentCacheNames.CARD_BIN, Duration.ZERO
+            PaymentCacheNames.CARD_BIN, Duration.ZERO,
+            PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH, Duration.ZERO,
+            PaymentCacheNames.MERCHANT_ACTIVE_FEE, Duration.ZERO
     );
 
     private PaymentCacheRegistry() {

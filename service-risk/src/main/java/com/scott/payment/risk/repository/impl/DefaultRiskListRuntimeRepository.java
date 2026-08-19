@@ -63,7 +63,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@DS(DataSourceName.MASTER)
 public class DefaultRiskListRuntimeRepository implements RiskListRuntimeRepository {
 
     /** 金额进入 Redis Lua 前采用的固定小数位数，转换过程禁止隐式舍入。 */
@@ -347,6 +346,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 商户级优先于全局规则的命中明细；未命中或运行时关闭时返回空
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findListMatch(RiskListFunction function,
                                                  String merchantId,
                                                  RiskRuntimeLookupValue lookupValue) {
@@ -400,6 +400,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 存在商户级或适用全局规则时返回 {@code true}
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public boolean hasActiveListRule(RiskListFunction function, String merchantId) {
         if (!properties.isRuntimeEnabled() || function == null || riskRuntimeMapper == null) {
             return false;
@@ -447,6 +448,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 允许清单命中明细；参数无效、未配置或未命中时返回空
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findSourceUrlRule(String merchantId, RiskRuntimeLookupValue lookupValue) {
         if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId)
                 || lookupValue == null || !StringUtils.hasText(lookupValue.getSourceHost()) || riskRuntimeMapper == null) {
@@ -510,6 +512,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 限制已生效且当前来源不在允许范围内时返回 REJECT 明细
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findSourceUrlRestrictionMiss(String merchantId, RiskRuntimeLookupValue lookupValue) {
         if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return Optional.empty();
@@ -597,6 +600,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 白名单命中时的 PASS 明细；未配置、参数无效或未命中时返回空
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findMerchantIpWhitelistHit(String merchantId, RiskRuntimeLookupValue lookupValue) {
         if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return Optional.empty();
@@ -632,6 +636,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 白名单启用且 IP 为空或未命中时的拒绝明细，否则返回空
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findMerchantIpWhitelistMiss(String merchantId, RiskRuntimeLookupValue lookupValue) {
         if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return Optional.empty();
@@ -677,6 +682,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 首条超限规则；运行时关闭、参数不完整或未超限时返回空
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findMerchantLimitRule(String merchantId, BigDecimal amount, String currency) {
         if (!properties.isRuntimeEnabled() || amount == null || !StringUtils.hasText(currency) || riskRuntimeMapper == null) {
             return Optional.empty();
@@ -727,6 +733,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 逐条累计限额明细及可回滚 Redis 预占
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public MerchantLimitEvaluation reserveCumulativeMerchantLimits(RiskPaymentEvaluateRequestDTO requestDTO) {
         return reserveCumulativeMerchantLimits(requestDTO, null);
     }
@@ -742,6 +749,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 累计限额执行明细及仅在全部通过后保留的可回滚预占
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public MerchantLimitEvaluation reserveCumulativeMerchantLimits(RiskPaymentEvaluateRequestDTO requestDTO,
                                                                    String riskRecordNo) {
         if (!properties.isRuntimeEnabled() || requestDTO == null || riskRuntimeMapper == null
@@ -906,6 +914,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @param evaluation 原累计限额评估结果；空值按幂等空操作处理
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public void rollbackMerchantLimitReservations(MerchantLimitEvaluation evaluation) {
         if (evaluation == null) {
             return;
@@ -923,6 +932,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 规则运行时关闭或无有效规则时返回 {@code false}
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public boolean hasActiveMerchantLimitRule(String merchantId, String currency) {
         if (!properties.isRuntimeEnabled() || !StringUtils.hasText(currency) || riskRuntimeMapper == null) {
             return false;
@@ -964,6 +974,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 首条超限或计数器不可用明细；全部通过时返回空
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findFrequencyRuleHit(String merchantId,
                                                         RiskPaymentEvaluateRequestDTO requestDTO,
                                                         RiskRuntimeLookupValue cardNoLookup,
@@ -997,6 +1008,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 与启用规则顺序一致的不可变执行明细
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public List<RiskListMatch> evaluateFrequencyRules(String merchantId,
                                                       RiskPaymentEvaluateRequestDTO requestDTO,
                                                       RiskRuntimeLookupValue cardNoLookup,
@@ -1023,6 +1035,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * {@inheritDoc}
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public void releaseFrequencySuccessReservations(String merchantId, String transactionId) {
         if (frequencySuccessReservationService == null
                 || !StringUtils.hasText(merchantId)
@@ -1039,6 +1052,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 规则运行时开启且存在有效规则时返回 {@code true}
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public boolean hasActiveFrequencyRule(String merchantId) {
         if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return false;
@@ -1055,6 +1069,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return Mapper 命中的 ISO 代码；输入或运行时不可用时返回空
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public Optional<String> findIssuerCountryByCardBin(RiskRuntimeLookupValue cardBinLookup) {
         if (!properties.isRuntimeEnabled() || cardBinLookup == null || cardBinLookup.getNumericValue() == null
                 || riskRuntimeMapper == null) {
@@ -1080,6 +1095,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @return 最高优先级的强制或跳过 3DS 规则；无适用规则时返回空
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findThreeDsRule(String merchantId,
                                                    String channelCode,
                                                    String paymentMethod,

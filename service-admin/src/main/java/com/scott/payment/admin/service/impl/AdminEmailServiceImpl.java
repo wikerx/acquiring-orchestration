@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -310,6 +312,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 发件账户分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<EmailAccountResponse> pageAccounts(EmailAccountQuery query) {
         EmailAccountQuery safeQuery = query == null ? new EmailAccountQuery() : query;
         Page<EmailAccountDO> page = accountMapper.selectPage(
@@ -326,6 +329,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 不包含 SMTP 密码明文的账户详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public EmailAccountResponse getAccount(Long id) {
         return toAccountResponse(requireAccount(id));
     }
@@ -482,6 +486,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 查询得到的业务对象、分页结果或空结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<EmailTemplateResponse> pageTemplates(EmailTemplateQuery query) {
         EmailTemplateQuery safeQuery = query == null ? new EmailTemplateQuery() : query;
         Page<EmailTemplateDO> page = templateMapper.selectPage(
@@ -498,6 +503,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 模板详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public EmailTemplateResponse getTemplate(Long id) {
         return toTemplateResponse(requireTemplate(id));
     }
@@ -635,6 +641,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 邮件发送记录分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<EmailRecordResponse> pageRecords(EmailRecordQuery query) {
         EmailRecordQuery safeQuery = query == null ? new EmailRecordQuery() : query;
         Page<EmailSendRecordDO> page = recordMapper.selectPage(
@@ -651,6 +658,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 发送记录详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public EmailRecordResponse getRecord(Long id) {
         return toRecordResponse(requireRecord(id));
     }

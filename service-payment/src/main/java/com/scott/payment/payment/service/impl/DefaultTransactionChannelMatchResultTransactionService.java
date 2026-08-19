@@ -26,7 +26,6 @@ import java.time.LocalDateTime;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionChannelMatchResultTransactionService implements TransactionChannelMatchResultTransactionService {
 
     /**
@@ -68,6 +67,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
      * @return true 表示终态推进成功
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public boolean completeByQuery(TransactionOperationDO operationDO,
                                    TransactionChannelRequestDO originalRequestDO,
@@ -117,6 +117,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
      * @return true 表示待恢复摘要更新成功
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public boolean markPendingByQuery(TransactionOperationDO operationDO,
                                       TransactionChannelRequestDO originalRequestDO,
@@ -131,6 +132,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
 
     /** 保存 PENDING、MISMATCHED 或 FAILED 勾兑摘要。 */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public boolean markPendingByQuery(TransactionOperationDO operationDO,
                                       TransactionChannelRequestDO originalRequestDO,

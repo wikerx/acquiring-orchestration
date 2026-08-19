@@ -1,11 +1,13 @@
 package com.scott.payment.admin.application.base;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.export.RegionCurrencyExportRow;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -128,6 +130,7 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param continentCode 大洲编码
      * @return 分页结果
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageRegionCurrencies(int pageNo, int pageSize,
                                                                 String keyword, String continentCode) {
         Map<String, IsoCurrencyDO> currencyMap = enabledCurrencyMap();
@@ -157,6 +160,7 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param id 国家地区主键
      * @return 映射详情
      */
+    @DS(DataSourceName.SLAVE)
     public CommonResult<Map<String, Object>> getRegionCurrency(Long id) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
@@ -170,6 +174,7 @@ public class AdminBaseRegionCurrencyApplicationService {
      *
      * @return 全量映射列表
      */
+    @DS(DataSourceName.SLAVE)
     public void exportRegionCurrencies(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         Map<String, IsoCurrencyDO> currencyMap = currencyMap();

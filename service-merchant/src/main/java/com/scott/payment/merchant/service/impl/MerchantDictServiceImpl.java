@@ -1,5 +1,7 @@
 package com.scott.payment.merchant.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -66,6 +68,7 @@ public class MerchantDictServiceImpl implements MerchantDictService {
      * @return 字典项分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<DictDataResponse> pageDictData(DictDataQuery query) {
         DictDataQuery safeQuery = query == null ? new DictDataQuery() : query;
         IPage<SysDictDataDO> page = dictDataMapper.selectPage(

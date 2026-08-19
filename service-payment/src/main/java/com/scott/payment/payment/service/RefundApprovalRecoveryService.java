@@ -19,7 +19,6 @@ import java.util.List;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class RefundApprovalRecoveryService {
 
     private final TransactionRefundApprovalMapper approvalMapper;
@@ -44,6 +43,7 @@ public class RefundApprovalRecoveryService {
      * @param limit 单轮最大任务数
      * @return 实际完成过期处理的任务数
      */
+    @DS(DataSourceName.TRANSACTION)
     public int expireDue(LocalDateTime now, int limit) {
         LocalDateTime actualNow = now == null ? LocalDateTime.now() : now;
         List<TransactionRefundApprovalDO> approvals = approvalMapper.selectExpired(actualNow, safeLimit(limit));
@@ -64,6 +64,7 @@ public class RefundApprovalRecoveryService {
      * @param limit 单轮最大任务数
      * @return 已确认或恢复执行事件的任务数
      */
+    @DS(DataSourceName.TRANSACTION)
     public int recoverApproved(LocalDateTime now, long staleSeconds, int limit) {
         LocalDateTime actualNow = now == null ? LocalDateTime.now() : now;
         LocalDateTime staleBefore = actualNow.minusSeconds(Math.max(1L, staleSeconds));

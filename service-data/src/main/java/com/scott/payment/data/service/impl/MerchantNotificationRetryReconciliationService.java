@@ -34,7 +34,6 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class MerchantNotificationRetryReconciliationService {
 
     private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID);
@@ -87,6 +86,7 @@ public class MerchantNotificationRetryReconciliationService {
      * @param requestedTimes 可选季度定位时间；为空时覆盖全部已发布且不晚于当前季度的节点
      * @return 可靠入队事件数量
      */
+    @DS(DataSourceName.TRANSACTION)
     public int reconcile(int limitPerQuarter, List<LocalDateTime> requestedTimes) {
         if (limitPerQuarter <= 0) {
             throw new IllegalArgumentException("merchant notification reconcile limit must be positive");

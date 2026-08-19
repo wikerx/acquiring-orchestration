@@ -46,7 +46,6 @@ import java.util.Map;
  */
 @Slf4j
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultMerchantNotificationDeliveryService implements MerchantNotificationDeliveryService {
 
     /** 商户通知任务逻辑表。 */
@@ -124,6 +123,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
      * {@inheritDoc}
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public int notifyDue(LocalDateTime transactionDateTime, int limit) {
         validateTransactionDateTime(transactionDateTime);
         if (limit <= 0) {
@@ -152,6 +152,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
      * {@inheritDoc}
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean notifyTransaction(LocalDateTime transactionDateTime, String transactionId) {
         validateTransactionDateTime(transactionDateTime);
         if (!StringUtils.hasText(transactionId)) {
@@ -172,6 +173,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
      * {@inheritDoc}
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean retryTransaction(LocalDateTime transactionDateTime,
                                     String transactionId,
                                     String callbackEventId) {
@@ -196,6 +198,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
      * {@inheritDoc}
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean retryDue(LocalDateTime transactionDateTime,
                             String transactionId,
                             String notifyId,

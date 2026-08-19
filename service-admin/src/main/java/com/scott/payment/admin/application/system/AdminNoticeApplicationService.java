@@ -1,5 +1,7 @@
 package com.scott.payment.admin.application.system;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
@@ -60,6 +62,7 @@ public class AdminNoticeApplicationService {
      * @param createBy    创建人
      * @return 分页结果
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<SysNoticeDO> pageNotices(int pageNo, int pageSize, String noticeTitle,
                                                String noticeType, String createBy) {
         LambdaQueryWrapper<SysNoticeDO> queryWrapper = new LambdaQueryWrapper<>();
@@ -79,6 +82,7 @@ public class AdminNoticeApplicationService {
      * @param id 主键
      * @return 通知公告
      */
+    @DS(DataSourceName.SLAVE)
     public SysNoticeDO getNotice(Long id) {
         return findNotice(id);
     }
@@ -89,6 +93,7 @@ public class AdminNoticeApplicationService {
      * @param limit 最大条数
      * @return 启用公告列表
      */
+    @DS(DataSourceName.SLAVE)
     public List<SysNoticeDO> listDashboardNotices(int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 5));
         return sysNoticeMapper.selectPage(new Page<>(1, safeLimit), new LambdaQueryWrapper<SysNoticeDO>()

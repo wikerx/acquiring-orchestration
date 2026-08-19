@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -331,6 +333,7 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
      * @return 规则分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<ChannelAlertRuleResponse> pageRules(ChannelAlertRuleQuery request) {
         ChannelAlertRuleQuery query = request == null ? new ChannelAlertRuleQuery() : request;
         Page<ChannelAlertRuleDO> page = ruleMapper.selectPage(
@@ -348,6 +351,7 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
      * @return 规则详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public ChannelAlertRuleResponse getRule(Long id) {
         return toRuleResponse(requireRule(id));
     }
@@ -431,6 +435,7 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
      * @return 维度详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public ChannelAlertRuleDimensionResponse getRuleDimension(Long id) {
         ChannelAlertRuleDO origin = requireRule(id);
         List<ChannelAlertRuleDO> rows = loadDimensionRules(origin);
@@ -570,6 +575,7 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
      * @return 事件分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<ChannelAlertEventResponse> pageEvents(ChannelAlertEventQuery request) {
         ChannelAlertEventQuery query = request == null ? new ChannelAlertEventQuery() : request;
         Page<ChannelAlertEventDO> page = eventMapper.selectPage(
@@ -587,6 +593,7 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
      * @return 事件详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public ChannelAlertEventResponse getEvent(Long id) {
         return toEventResponse(requireEvent(id));
     }
@@ -632,6 +639,7 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
      * @return 通知日志分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<ChannelAlertNotifyLogResponse> pageNotifyLogs(ChannelAlertNotifyLogQuery request) {
         ChannelAlertNotifyLogQuery query = request == null ? new ChannelAlertNotifyLogQuery() : request;
         Page<ChannelAlertNotifyLogDO> page = notifyLogMapper.selectPage(

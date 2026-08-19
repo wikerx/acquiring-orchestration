@@ -31,7 +31,6 @@ import java.util.UUID;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 @Slf4j
 public class MerchantNotificationRetryStateService {
 
@@ -63,6 +62,7 @@ public class MerchantNotificationRetryStateService {
      * @param finishedTime 当前尝试结束时间
      * @param currentAttemptNo 当前已完成的 attempt
      */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void recordFailure(DataMerchantNotificationTaskDO task,
                               int processingVersion,

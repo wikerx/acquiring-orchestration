@@ -1,11 +1,9 @@
 package com.scott.payment.payment.service.impl;
 
-import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.mq.message.RefundExecutionMessage;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
@@ -42,7 +40,6 @@ import java.math.BigDecimal;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChannelExecutor {
 
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";

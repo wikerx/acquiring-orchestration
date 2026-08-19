@@ -44,7 +44,6 @@ import java.util.Map;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultMerchantTransactionSnapshotService implements MerchantTransactionSnapshotService {
 
     private static final String TIME_ZONE = "Asia/Shanghai";
@@ -82,6 +81,7 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
      * 保存首次交易的商户可见请求快照。
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void recordInitialSnapshots(PaymentCreateCommandDTO commandDTO,
                                        PaymentCreateResultDTO resultDTO,
                                        LocalDateTime now) {
@@ -137,6 +137,7 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
      * 读取生命周期根交易的商户可见请求快照。
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public MerchantTransactionSnapshotDTO loadSnapshots(String merchantId,
                                                          String rootTransactionId,
                                                          LocalDateTime rootTransactionDateTime) {

@@ -24,7 +24,6 @@ import java.util.List;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionEventOutboxService implements TransactionEventOutboxService {
 
     /**
@@ -48,6 +47,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      * @param eventDO 本地事件记录
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void save(TransactionEventOutboxDO eventDO) {
         validateEvent(eventDO);
         requireSingleRow(eventOutboxMapper.insertLogical(eventDO));
@@ -62,6 +62,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      * @return 待投递事件列表
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
         if (eventTime == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "eventTime is required");
@@ -85,6 +86,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      * @return true 表示更新成功
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
         validatePersistedEvent(eventDO);
         LocalDateTime actualSentTime = sentTime == null ? LocalDateTime.now() : sentTime;
@@ -102,6 +104,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      * @return true 表示更新成功
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean markFailed(TransactionEventOutboxDO eventDO,
                               LocalDateTime nextRetryTime,
                               String failReason,
@@ -134,6 +137,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      * @return false 表示事件不存在；true 表示事件已可由 relay 投递或已处于待投递状态
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean recoverForRedelivery(String eventNo,
                                         LocalDateTime transactionDateTime,
                                         String eventType,

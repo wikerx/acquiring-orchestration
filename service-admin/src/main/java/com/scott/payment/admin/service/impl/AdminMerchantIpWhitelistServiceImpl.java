@@ -1,9 +1,9 @@
 package com.scott.payment.admin.service.impl;
 
-import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
-import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistConfigRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistApprovalRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistCreateRequest;
@@ -30,6 +30,8 @@ import com.scott.payment.component.db.auth.entity.MerchantOpenApiAccessConfigDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.MerchantIpWhitelistMapper;
 import com.scott.payment.component.db.auth.mapper.MerchantOpenApiAccessConfigMapper;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
+import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -155,6 +157,7 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
      * @return 分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<MerchantIpWhitelistResponse> pageWhitelists(MerchantIpWhitelistQuery query) {
         MerchantIpWhitelistQuery condition = query == null ? new MerchantIpWhitelistQuery() : query;
         List<MerchantIpWhitelistDO> matchedRecords = listMatchedWhitelists(condition);
@@ -181,6 +184,7 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
      * @return 商户维度白名单列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<MerchantIpWhitelistResponse> listWhitelists(MerchantIpWhitelistQuery query) {
         MerchantIpWhitelistQuery condition = query == null ? new MerchantIpWhitelistQuery() : query;
         Map<String, List<MerchantIpWhitelistDO>> grouped = groupByMerchant(listMatchedWhitelists(condition));
@@ -235,6 +239,7 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
      * @return 白名单详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public MerchantIpWhitelistResponse getWhitelist(Long id) {
         MerchantIpWhitelistDO row = requireWhitelist(id);
         BaseMerchantInfoDO merchant = findMerchant(row.getMerchantId());
@@ -411,6 +416,7 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
      * @return 未删除记录列表
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public List<MerchantIpWhitelistResponse> listMerchantWhitelists(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchant(merchantId);
         MerchantOpenApiAccessConfigDO config = findConfig(merchant.getMerchantId());

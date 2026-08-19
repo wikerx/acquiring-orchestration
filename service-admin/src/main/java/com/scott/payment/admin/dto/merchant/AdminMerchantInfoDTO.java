@@ -140,4 +140,16 @@ public class AdminMerchantInfoDTO {
      * 当前生效的商户响应密钥摘要，可为空。
      */
     private AdminMerchantKeySummaryDTO responseKey;
+
+    /** 是否已创建商户系统登录账号；历史商户未初始化时为 false。 */
+    private Boolean loginInitialized;
+
+    /** 当前单结算币种资金账户号；尚未开户时为空。 */
+    private String fundAccountNo;
+
+    /** 当前资金账户状态；尚未开户时为空。 */
+    private String fundAccountStatus;
+
+    /** 当前已生效商户费率版本号；尚未配置时为空。 */
+    private Integer currentFeeVersionNo;
 }

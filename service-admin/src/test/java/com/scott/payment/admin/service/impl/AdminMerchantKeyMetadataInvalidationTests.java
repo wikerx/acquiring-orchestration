@@ -4,6 +4,8 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantResponseKeyRequest;
 import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
+import com.scott.payment.admin.mapper.FeePlanMapper;
+import com.scott.payment.admin.mapper.MerchantFundAccountMapper;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
@@ -95,6 +97,10 @@ class AdminMerchantKeyMetadataInvalidationTests {
                 mock(MerchantRuntimeProfileCacheService.class),
                 cacheInvalidationCoordinator,
                 mock(AdminMerchantPrimaryAccountProvisioningService.class),
+                mock(AdminMerchantFundAccountProvisioningService.class),
+                mock(com.scott.payment.component.db.auth.mapper.SysAccountMapper.class),
+                mock(MerchantFundAccountMapper.class),
+                mock(FeePlanMapper.class),
                 mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
                 mock(AdminMerchantSecurityNotificationService.class),
                 mock(AdminMerchantStatusLifecycleService.class)

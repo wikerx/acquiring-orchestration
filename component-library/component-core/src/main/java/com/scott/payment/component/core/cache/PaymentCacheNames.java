@@ -65,6 +65,18 @@ public final class PaymentCacheNames {
      */
     public static final String CARD_BIN = "cardBin";
 
+    /**
+     * 全局中国大陆结算日历月视图缓存，业务键为 {@code yyyy-MM}。
+     * 数据库是事实源，日历初始化、批量维护和年度确认后统一失效。
+     */
+    public static final String SETTLEMENT_HOLIDAY_MONTH = "settlement:calendar:month";
+
+    /**
+     * 商户当前已生效费率只读快照，业务键为商户号。
+     * 管理端审核新版本成功后统一失效，模板启停不影响已经复制到商户的版本。
+     */
+    public static final String MERCHANT_ACTIVE_FEE = "merchant:activeFee";
+
     private PaymentCacheNames() {
     }
 }

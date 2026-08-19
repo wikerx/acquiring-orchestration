@@ -7141,7 +7141,8 @@ CREATE TABLE `transaction_operation` (
   KEY `idx_source_transaction` (`source_transaction_id`,`transaction_date_time`),
   KEY `idx_merchant_order_id` (`merchant_id`,`merchant_order_id`,`transaction_type`),
   KEY `idx_refund_type_time` (`transaction_type`,`transaction_date_time`,`id`),
-  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`)
+  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`),
+  KEY `idx_pending_fund_balance` (`merchant_id`,`transaction_status`,`settlement_status`,`transaction_type`,`transaction_date_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易动作单；授权、增量授权、请款、退款、Void、拒付等每一个动作一条记录。';
 
 -- ----------------------------
@@ -7232,7 +7233,8 @@ CREATE TABLE `transaction_operation_202603` (
   KEY `idx_source_transaction` (`source_transaction_id`,`transaction_date_time`),
   KEY `idx_merchant_order_id` (`merchant_id`,`merchant_order_id`,`transaction_type`),
   KEY `idx_refund_type_time` (`transaction_type`,`transaction_date_time`,`id`),
-  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`)
+  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`),
+  KEY `idx_pending_fund_balance` (`merchant_id`,`transaction_status`,`settlement_status`,`transaction_type`,`transaction_date_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202603000000001230 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易动作单；授权、增量授权、请款、退款、Void、拒付等每一个动作一条记录。';
 
 -- ----------------------------
@@ -7323,7 +7325,8 @@ CREATE TABLE `transaction_operation_202604` (
   KEY `idx_source_transaction` (`source_transaction_id`,`transaction_date_time`),
   KEY `idx_merchant_order_id` (`merchant_id`,`merchant_order_id`,`transaction_type`),
   KEY `idx_refund_type_time` (`transaction_type`,`transaction_date_time`,`id`),
-  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`)
+  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`),
+  KEY `idx_pending_fund_balance` (`merchant_id`,`transaction_status`,`settlement_status`,`transaction_type`,`transaction_date_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202604000000000001 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易动作单；授权、增量授权、请款、退款、Void、拒付等每一个动作一条记录。';
 
 -- ----------------------------

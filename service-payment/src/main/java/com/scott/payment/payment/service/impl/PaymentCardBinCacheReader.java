@@ -1,6 +1,8 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.entity.PaymentCardBinRangeDO;
 import com.scott.payment.payment.mapper.PaymentCardBinRangeMapper;
 import com.scott.payment.payment.model.PaymentCardBinCacheEntry;
@@ -24,6 +26,7 @@ public class PaymentCardBinCacheReader {
     }
 
     @Cacheable(cacheNames = PaymentCacheNames.CARD_BIN, key = "#p0")
+    @DS(DataSourceName.SLAVE)
     public PaymentCardBinCacheEntry findByPrefix(String cardBinPrefix) {
         long numericValue = Long.parseLong(cardBinPrefix);
         PaymentCardBinRangeDO matched = cardBinRangeMapper.selectBestMatch(

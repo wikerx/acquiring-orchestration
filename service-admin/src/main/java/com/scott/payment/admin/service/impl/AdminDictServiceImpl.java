@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -121,6 +123,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典类型列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SysDictTypeDTO> pageDictTypes(SysDictTypeQueryRequest request) {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
         Page<SysDictTypeDO> page = dictTypeMapper.selectPage(
@@ -142,6 +145,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典类型列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysDictTypeDTO> listDictTypes(SysDictTypeQueryRequest request) {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
         return dictTypeMapper.selectList(buildDictTypeQueryWrapper(query))
@@ -202,6 +206,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典数据列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SysDictDataDTO> pageDictData(SysDictDataQueryRequest request) {
         SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;
         Page<SysDictDataDO> page = dictDataMapper.selectPage(
@@ -223,6 +228,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典数据列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysDictDataDTO> listDictData(SysDictDataQueryRequest request) {
         SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;
         return dictDataMapper.selectList(buildDictDataQueryWrapper(query))
@@ -238,6 +244,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典数据详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public SysDictDataDTO getDictDataById(Long id) {
         SysDictDataDO entity = findDictDataById(id);
         return dictConverter.toDataDTO(entity);

@@ -1,11 +1,13 @@
 package com.scott.payment.admin.application.base;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.export.IsoCurrencyExportRow;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -126,6 +128,7 @@ public class AdminBaseCurrencyApplicationService {
      * @param status   状态
      * @return 分页结果
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<IsoCurrencyDO> pageCurrencies(int pageNo, int pageSize, String keyword, Integer status) {
         LambdaQueryWrapper<IsoCurrencyDO> queryWrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(keyword)) {
@@ -149,6 +152,7 @@ public class AdminBaseCurrencyApplicationService {
      * @param id 主键
      * @return 币种详情
      */
+    @DS(DataSourceName.SLAVE)
     public IsoCurrencyDO getCurrency(Long id) {
         return isoCurrencyMapper.selectById(id);
     }
@@ -158,6 +162,7 @@ public class AdminBaseCurrencyApplicationService {
      *
      * @return 币种列表
      */
+    @DS(DataSourceName.SLAVE)
     public void exportCurrencies(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<IsoCurrencyExportRow> rows = isoCurrencyMapper.selectList(new LambdaQueryWrapper<IsoCurrencyDO>()

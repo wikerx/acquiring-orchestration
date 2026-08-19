@@ -21,7 +21,6 @@ import org.springframework.util.StringUtils;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionLocatorService implements TransactionLocatorService {
 
     private final TransactionLocatorMapper transactionLocatorMapper;
@@ -41,6 +40,7 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
      * @param commandDTO 后续动作命令
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void enrichFollowUpRoute(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO == null
                 || !StringUtils.hasText(commandDTO.getMerchantId())
@@ -63,6 +63,7 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
      * @param commandDTO 商户交易查询命令
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void enrichQueryRoute(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO == null
                 || !StringUtils.hasText(commandDTO.getMerchantId())

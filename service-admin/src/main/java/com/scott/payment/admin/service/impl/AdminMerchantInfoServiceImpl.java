@@ -15,9 +15,13 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSecurityMaterialDTO;
 import com.scott.payment.admin.service.AdminMerchantInfoService;
 import com.scott.payment.admin.entity.base.MccEntities;
+import com.scott.payment.admin.entity.fee.FeeEntities.FeePlanDO;
+import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundAccountDO;
 import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
+import com.scott.payment.admin.mapper.FeePlanMapper;
+import com.scott.payment.admin.mapper.MerchantFundAccountMapper;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -27,10 +31,12 @@ import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantResponseKeyDO;
 import com.scott.payment.component.db.auth.entity.BasePlatformPayloadKeyDO;
+import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.db.auth.support.MerchantLocaleSupport;
@@ -269,6 +275,18 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     /** 管理端新增商户后的主账号、管理员角色与开户通知服务。 */
     private final AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService;
 
+    /** 管理端新增商户后的零余额资金账户开户服务。 */
+    private final AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
+
+    /** 商户登录账号查询组件，仅用于详情页判断登录体系是否已初始化。 */
+    private final SysAccountMapper sysAccountMapper;
+
+    /** 商户资金账户查询组件，仅用于详情页展示开户结果。 */
+    private final MerchantFundAccountMapper fundAccountMapper;
+
+    /** 商户费用方案查询组件，仅用于详情页展示当前生效版本。 */
+    private final FeePlanMapper feePlanMapper;
+
     /** OpenAPI 密钥统一启停规则。 */
     private final OpenApiMerchantKeyMaterialService openApiKeyMaterialService;
 
@@ -292,6 +310,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param merchantRuntimeProfileCacheService 完整商户资料共享缓存
      * @param cacheInvalidationCoordinator 密钥元数据永久缓存可靠失效协调器
      * @param primaryAccountProvisioningService 商户主账号开通服务
+     * @param fundAccountProvisioningService 商户资金账户开户服务
+     * @param sysAccountMapper 商户登录账号查询组件
+     * @param fundAccountMapper 商户资金账户查询组件
+     * @param feePlanMapper 商户费用方案查询组件
      * @param openApiKeyMaterialService OpenAPI 密钥统一领域服务
      * @param securityNotificationService 密钥生命周期通知服务
      */
@@ -308,6 +330,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
                                         ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
                                         AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService,
+                                        AdminMerchantFundAccountProvisioningService fundAccountProvisioningService,
+                                        SysAccountMapper sysAccountMapper,
+                                        MerchantFundAccountMapper fundAccountMapper,
+                                        FeePlanMapper feePlanMapper,
                                         OpenApiMerchantKeyMaterialService openApiKeyMaterialService,
                                         AdminMerchantSecurityNotificationService securityNotificationService,
                                         AdminMerchantStatusLifecycleService statusLifecycleService) {
@@ -324,6 +350,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
         this.primaryAccountProvisioningService = primaryAccountProvisioningService;
+        this.fundAccountProvisioningService = fundAccountProvisioningService;
+        this.sysAccountMapper = sysAccountMapper;
+        this.fundAccountMapper = fundAccountMapper;
+        this.feePlanMapper = feePlanMapper;
         this.openApiKeyMaterialService = openApiKeyMaterialService;
         this.securityNotificationService = securityNotificationService;
         this.statusLifecycleService = statusLifecycleService;
@@ -407,7 +437,43 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     public AdminMerchantInfoDTO getMerchant(Long id) {
         BaseMerchantInfoDO row = requireMerchantById(id);
         MerchantRuntimeProfile profile = merchantRuntimeProfileCacheService.findRuntimeProfile(row.getMerchantId());
-        return profile == null ? toDTO(row) : toDTO(toMerchantInfoDO(profile));
+        AdminMerchantInfoDTO result = profile == null ? toDTO(row) : toDTO(toMerchantInfoDO(profile));
+        enrichOperationalFoundation(result);
+        return result;
+    }
+
+    /**
+     * 补充商户详情页的登录、资金账户和当前费率初始化状态。
+     *
+     * <p>该方法只在单商户详情查询执行，避免列表页逐商户查询产生 N+1。</p>
+     *
+     * @param dto 已完成基础资料与密钥摘要转换的商户详情
+     */
+    private void enrichOperationalFoundation(AdminMerchantInfoDTO dto) {
+        String merchantId = dto.getMerchantId();
+        dto.setLoginInitialized(sysAccountMapper.selectCount(Wrappers.<SysAccountDO>lambdaQuery()
+                .eq(SysAccountDO::getMerchantId, merchantId)
+                .eq(SysAccountDO::getDeleted, 0L)) > 0);
+
+        MerchantFundAccountDO fundAccount = fundAccountMapper.selectOne(
+                Wrappers.<MerchantFundAccountDO>lambdaQuery()
+                        .eq(MerchantFundAccountDO::getMerchantId, merchantId)
+                        .eq(MerchantFundAccountDO::getDeleted, 0L)
+                        .orderByAsc(MerchantFundAccountDO::getId)
+                        .last("LIMIT 1"));
+        if (fundAccount != null) {
+            dto.setFundAccountNo(fundAccount.getAccountNo());
+            dto.setFundAccountStatus(fundAccount.getAccountStatus());
+        }
+
+        FeePlanDO feePlan = feePlanMapper.selectOne(Wrappers.<FeePlanDO>lambdaQuery()
+                .eq(FeePlanDO::getPlanType, "MERCHANT")
+                .eq(FeePlanDO::getMerchantId, merchantId)
+                .eq(FeePlanDO::getDeleted, 0L)
+                .last("LIMIT 1"));
+        if (feePlan != null) {
+            dto.setCurrentFeeVersionNo(feePlan.getCurrentVersionNo());
+        }
     }
 
     /**
@@ -432,6 +498,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         merchantInfoMapper.insert(row);
         merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
         primaryAccountProvisioningService.provision(row);
+        fundAccountProvisioningService.provision(row);
         return toDTO(row);
     }
 
@@ -453,6 +520,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         }
         if (!java.util.Objects.equals(row.getMerchantStatus(), request.getMerchantStatus())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请使用冻结或解冻操作修改商户状态");
+        }
+        if (!java.util.Objects.equals(trimUpper(row.getSettlementCurrency()),
+                trimUpper(request.getSettlementCurrency()))) {
+            fundAccountProvisioningService.synchronizeSettlementCurrency(
+                    row.getMerchantId(), request.getSettlementCurrency());
         }
         merge(row, request);
         row.setGmtModified(LocalDateTime.now());

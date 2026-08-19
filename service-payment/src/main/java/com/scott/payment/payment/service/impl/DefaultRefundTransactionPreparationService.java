@@ -60,7 +60,6 @@ import java.util.Objects;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultRefundTransactionPreparationService implements RefundTransactionPreparationService {
 
     /**
@@ -284,6 +283,7 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
      * @return 新建或幂等命中的退款准备结果
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public RefundPreparationResultDTO prepareRefund(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
         if (transactionRecordService == null) {

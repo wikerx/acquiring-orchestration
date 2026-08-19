@@ -1,11 +1,13 @@
 package com.scott.payment.admin.application.base;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.export.IsoCountryExportRow;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -127,6 +129,7 @@ public class AdminBaseCountryApplicationService {
      * @param status        状态
      * @return 分页结果
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<IsoCountryDO> pageCountries(int pageNo, int pageSize, String keyword,
                                                   String continentCode, Integer status) {
         LambdaQueryWrapper<IsoCountryDO> queryWrapper = new LambdaQueryWrapper<>();
@@ -152,6 +155,7 @@ public class AdminBaseCountryApplicationService {
      * @param id 主键
      * @return 国家地区详情
      */
+    @DS(DataSourceName.SLAVE)
     public IsoCountryDO getCountry(Long id) {
         return isoCountryMapper.selectById(id);
     }
@@ -161,6 +165,7 @@ public class AdminBaseCountryApplicationService {
      *
      * @return 国家地区列表
      */
+    @DS(DataSourceName.SLAVE)
     public void exportCountries(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<IsoCountryExportRow> rows = isoCountryMapper.selectList(new LambdaQueryWrapper<IsoCountryDO>()

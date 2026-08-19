@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.base;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -17,6 +18,7 @@ import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
@@ -304,6 +306,7 @@ public class AdminBaseCardBinApplicationService {
      * @param request 查询请求
      * @return 卡 BIN 分页数据
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<CardBinDTOs.CardBinResponse> page(CardBinDTOs.CardBinQueryRequest request) {
         CardBinDTOs.CardBinQueryRequest query = request == null ? new CardBinDTOs.CardBinQueryRequest() : request;
         LambdaQueryWrapper<CardBinEntities.BaseCardBinRangeDO> wrapper = buildListQuery(query);
@@ -326,6 +329,7 @@ public class AdminBaseCardBinApplicationService {
      * @param id 主键 ID
      * @return 卡 BIN 详情
      */
+    @DS(DataSourceName.SLAVE)
     public CardBinDTOs.CardBinResponse detail(Long id) {
         return toResponse(getActiveRow(id), loadDictLabels());
     }
@@ -535,6 +539,7 @@ public class AdminBaseCardBinApplicationService {
      * @param request 查询请求
      * @param response HTTP 响应
      */
+    @DS(DataSourceName.SLAVE)
     public void export(CardBinDTOs.CardBinQueryRequest request, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         DictLabels labels = loadDictLabels();
@@ -563,6 +568,7 @@ public class AdminBaseCardBinApplicationService {
      *
      * @return 页面下拉选项聚合响应
      */
+    @DS(DataSourceName.SLAVE)
     public CardBinDTOs.CardBinOptionsResponse options() {
         CardBinDTOs.CardBinOptionsResponse response = new CardBinDTOs.CardBinOptionsResponse();
         response.setCardBrandOptions(dictOptions(CARD_BRAND_DICT));
