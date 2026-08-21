@@ -94,7 +94,7 @@ public class ManagedCacheInvalidationCoordinator {
         events.put(target, new EventContext(event, lease));
         int inserted = outboxMapper.insertEvent(event);
         if (inserted != 1) {
-            throw new IllegalStateException("Managed persistent cache invalidation intent was not persisted");
+            throw new IllegalStateException("Managed cache invalidation intent was not persisted");
         }
     }
 
@@ -131,10 +131,10 @@ public class ManagedCacheInvalidationCoordinator {
                     } catch (RuntimeException exception) {
                         log.warn(
                                 "event: MANAGED_CACHE_INVALIDATION_AFTER_COMMIT_FAILED "
-                                        + "eventId: {} cacheName: {} reason: {}",
+                                        + "eventId: {} cacheName: {} exceptionType: {}",
                                 context.event().getEventId(),
                                 context.event().getCacheName(),
-                                exception.getMessage()
+                                exception.getClass().getSimpleName()
                         );
                     }
                 }
@@ -166,10 +166,10 @@ public class ManagedCacheInvalidationCoordinator {
         } catch (RuntimeException exception) {
             log.warn(
                     "event: MANAGED_CACHE_INVALIDATION_ABORT_FAILED "
-                            + "cacheName: {} businessKey: {} reason: {}",
+                            + "cacheName: {} businessKey: {} exceptionType: {}",
                     lease.cacheName(),
                     lease.businessKey(),
-                    exception.getMessage()
+                    exception.getClass().getSimpleName()
             );
         }
     }
@@ -214,7 +214,7 @@ public class ManagedCacheInvalidationCoordinator {
         if (!TransactionSynchronizationManager.isActualTransactionActive()
                 || !TransactionSynchronizationManager.isSynchronizationActive()) {
             throw new IllegalStateException(
-                    "Managed persistent cache invalidation must be prepared inside an active database transaction"
+                    "Managed cache invalidation must be prepared inside an active database transaction"
             );
         }
     }

@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.converter.DeptConverter;
 import com.scott.payment.admin.dto.SysDeptDTO;
@@ -67,6 +69,7 @@ public class AdminDeptServiceImpl implements AdminDeptService {
      * @return 后台管理应用的部门树
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysDeptDTO> tree() {
         List<SysDeptDO> departments = sysDeptMapper.selectList(
                 Wrappers.<SysDeptDO>lambdaQuery()
@@ -83,6 +86,7 @@ public class AdminDeptServiceImpl implements AdminDeptService {
      * @return 部门记录；不存在时返回 {@code null}
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public SysDeptDO getDept(Long id) {
         return sysDeptMapper.selectById(id);
     }
@@ -93,6 +97,7 @@ public class AdminDeptServiceImpl implements AdminDeptService {
      * @return 部门导出记录
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysDeptDO> exportDepts() {
         return sysDeptMapper.selectList(
                 Wrappers.<SysDeptDO>lambdaQuery()

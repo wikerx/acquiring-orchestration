@@ -24,7 +24,6 @@ import java.util.List;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionEventOutboxService implements TransactionEventOutboxService {
 
     /**
@@ -48,6 +47,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      * @param eventDO 本地事件记录
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void save(TransactionEventOutboxDO eventDO) {
         validateEvent(eventDO);
         requireSingleRow(eventOutboxMapper.insertLogical(eventDO));
@@ -62,6 +62,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      * @return 待投递事件列表
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
         if (eventTime == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "eventTime is required");
@@ -78,6 +79,51 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     }
 
     /**
+     * 使用版本号 CAS 将事件推进为 PROCESSING，确保多实例只有一个取得发送权。
+     *
+     * @param eventDO 查询得到的待投递事件
+     * @param claimedTime 抢占时间
+     * @return true 表示抢占成功
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public boolean claimForPublish(TransactionEventOutboxDO eventDO, LocalDateTime claimedTime) {
+        validatePersistedEvent(eventDO);
+        LocalDateTime actualClaimedTime = claimedTime == null ? LocalDateTime.now() : claimedTime;
+        int affectedRows = eventOutboxMapper.claimForPublishLogical(
+                eventDO.getId(), eventDO.getTransactionDateTime(), eventDO.getVersion(), actualClaimedTime);
+        if (affectedRows == 1) {
+            eventDO.setVersion(eventDO.getVersion() + 1);
+            eventDO.setEventStatus("PROCESSING");
+            eventDO.setUpdateTime(actualClaimedTime);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 按季度恢复超时 PROCESSING 事件，避免进程在发送前后退出造成永久卡住。
+     *
+     * @param eventTime 交易分片季度锚点
+     * @param staleBefore PROCESSING 超时边界
+     * @param now 恢复时间
+     * @return 恢复或关闭的记录数
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public int recoverStaleProcessing(LocalDateTime eventTime,
+                                      LocalDateTime staleBefore,
+                                      LocalDateTime now) {
+        if (eventTime == null || staleBefore == null || now == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(),
+                    "eventTime, staleBefore and now are required");
+        }
+        LocalDateTime beginTime = quarterBegin(eventTime);
+        return eventOutboxMapper.recoverStaleProcessingLogical(
+                beginTime, beginTime.plusMonths(3), staleBefore, now);
+    }
+
+    /**
      * 标记本地事件已投递。
      *
      * @param eventDO  待更新事件
@@ -85,6 +131,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      * @return true 表示更新成功
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
         validatePersistedEvent(eventDO);
         LocalDateTime actualSentTime = sentTime == null ? LocalDateTime.now() : sentTime;
@@ -102,6 +149,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      * @return true 表示更新成功
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean markFailed(TransactionEventOutboxDO eventDO,
                               LocalDateTime nextRetryTime,
                               String failReason,
@@ -134,6 +182,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      * @return false 表示事件不存在；true 表示事件已可由 relay 投递或已处于待投递状态
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean recoverForRedelivery(String eventNo,
                                         LocalDateTime transactionDateTime,
                                         String eventType,

@@ -62,10 +62,10 @@ public class PaymentRiskReservationCompensation {
                             decisionDTO,
                             ROLLBACK_REASON);
                 } catch (RuntimeException exception) {
-                    log.error("event: PAYMENT_RISK_RESERVATION_COMPENSATION_FAILED transactionId: {} riskRecordNo: {} reason: {}",
+                    log.error("event: PAYMENT_RISK_RESERVATION_COMPENSATION_FAILED transactionId: {} riskRecordNo: {} exceptionType: {}",
                             commandDTO == null ? null : commandDTO.getTransactionId(),
                             decisionDTO.getRiskRecordNo(),
-                            exception.getMessage());
+                            exception.getClass().getSimpleName());
                 }
             }
         });

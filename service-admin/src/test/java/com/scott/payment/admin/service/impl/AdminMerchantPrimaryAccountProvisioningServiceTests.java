@@ -12,6 +12,8 @@ import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysMenuDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantUserDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantUserRoleDO;
+import com.scott.payment.component.db.auth.entity.SysMerchantMenuGrantDO;
+import com.scott.payment.component.db.auth.entity.SysMerchantPermissionGrantDO;
 import com.scott.payment.component.db.auth.entity.SysPermissionDO;
 import com.scott.payment.component.db.auth.entity.SysRoleDO;
 import com.scott.payment.component.db.auth.entity.SysRoleMenuDO;
@@ -23,6 +25,8 @@ import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantUserRoleMapper;
+import com.scott.payment.component.db.auth.mapper.SysMerchantMenuGrantMapper;
+import com.scott.payment.component.db.auth.mapper.SysMerchantPermissionGrantMapper;
 import com.scott.payment.component.db.auth.mapper.SysPermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
@@ -57,6 +61,8 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
         SysRolePermissionMapper rolePermissionMapper = mock(SysRolePermissionMapper.class);
         SysMerchantUserMapper merchantUserMapper = mock(SysMerchantUserMapper.class);
         SysMerchantUserRoleMapper merchantUserRoleMapper = mock(SysMerchantUserRoleMapper.class);
+        SysMerchantMenuGrantMapper merchantMenuGrantMapper = mock(SysMerchantMenuGrantMapper.class);
+        SysMerchantPermissionGrantMapper merchantPermissionGrantMapper = mock(SysMerchantPermissionGrantMapper.class);
         AdminEmailService emailService = mock(AdminEmailService.class);
         AdminConfigService configService = mock(AdminConfigService.class);
 
@@ -76,7 +82,9 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
                 new AdminMerchantPrimaryAccountProvisioningService(
                         appMapper, userMapper, accountMapper, mfaMapper, roleMapper,
                         menuMapper, permissionMapper, roleMenuMapper, rolePermissionMapper,
-                        merchantUserMapper, merchantUserRoleMapper, emailService, configService
+                        merchantUserMapper, merchantUserRoleMapper,
+                        merchantMenuGrantMapper, merchantPermissionGrantMapper,
+                        emailService, configService
                 );
 
         service.provision(merchant());
@@ -87,6 +95,8 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
         assertThat(roleCaptor.getValue().getMerchantId()).isEqualTo("M10001");
         verify(roleMenuMapper).insert(any(SysRoleMenuDO.class));
         verify(rolePermissionMapper).insert(any(SysRolePermissionDO.class));
+        verify(merchantMenuGrantMapper).insert(any(SysMerchantMenuGrantDO.class));
+        verify(merchantPermissionGrantMapper).insert(any(SysMerchantPermissionGrantDO.class));
 
         ArgumentCaptor<SysAccountDO> accountCaptor = ArgumentCaptor.forClass(SysAccountDO.class);
         verify(accountMapper).insert(accountCaptor.capture());

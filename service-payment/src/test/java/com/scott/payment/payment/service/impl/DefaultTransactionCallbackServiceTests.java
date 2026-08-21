@@ -1,5 +1,8 @@
 package com.scott.payment.payment.service.impl;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
@@ -24,6 +27,7 @@ import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 
 import java.math.BigDecimal;
@@ -52,6 +56,64 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class DefaultTransactionCallbackServiceTests {
+
+    /** 渠道回调正文属于不可信敏感数据，日志只允许记录长度和不可逆摘要。 */
+    @Test
+    void shouldLogCallbackBodyMetadataWithoutRawPayload() {
+        TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any())).thenReturn(1);
+        when(recordService.findOperationByChannelTransaction(
+                "202607141000000000001", "CH202607141000000000001")).thenReturn(operation());
+        when(recordService.findOrder(any(LocalDateTime.class), eq("OP202607141000000000001"))).thenReturn(order());
+        when(recordService.completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("AUTHORIZED"), eq("00"), eq("Approved"))).thenReturn(true);
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                callbackLogMapper,
+                callbackMapper,
+                recordService,
+                new CapturingEventOutboxService(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new FixedMpgsCallbackHandler()))))),
+                new DefaultChannelTransactionStatusResolver());
+        TransactionChannelCallbackCommandDTO commandDTO = callbackCommand();
+        String rawBodyMarker = "callback-body-marker-6bd6f9b7";
+        commandDTO.setRequestBody(commandDTO.getRequestBody().replace(
+                "\"result\": \"SUCCESS\"",
+                "\"result\": \"SUCCESS\", \"opaqueCallbackMarker\": \"" + rawBodyMarker + "\""));
+
+        Logger logger = (Logger) LoggerFactory.getLogger(DefaultTransactionCallbackService.class);
+        boolean additive = logger.isAdditive();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.setAdditive(false);
+        logger.addAppender(appender);
+        try {
+            callbackService.recordChannelCallback(commandDTO);
+
+            ILoggingEvent startEvent = appender.list.stream()
+                    .filter(event -> event.getFormattedMessage().contains("PAYMENT_CHANNEL_CALLBACK_START"))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(startEvent.getFormattedMessage().contains(rawBodyMarker))
+                    .as("channel callback log must not contain raw payload content")
+                    .isFalse();
+            assertThat(startEvent.getFormattedMessage())
+                    .contains("bodyLength:")
+                    .contains("bodySha256:")
+                    .doesNotContain("bodySummary:");
+        } finally {
+            logger.detachAppender(appender);
+            logger.setAdditive(additive);
+            appender.stop();
+        }
+    }
 
     /**
      * ShardingSphere 模式必须在同一交易数据源事务中只使用逻辑表，并以分片时间、版本和当前状态完成回调 CAS。

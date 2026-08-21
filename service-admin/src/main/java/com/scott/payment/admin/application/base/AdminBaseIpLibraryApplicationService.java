@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.base;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.dto.base.IpLibraryDTOs;
 import com.scott.payment.admin.entity.base.IpLibraryEntities;
@@ -8,6 +9,7 @@ import com.scott.payment.admin.mapper.IpLibrarySplitModelMapper;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -115,6 +117,7 @@ public class AdminBaseIpLibraryApplicationService {
     /**
      * 分页查询 IP 库区间。
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<IpLibraryDTOs.IpLibraryRecordResponse> page(IpLibraryDTOs.IpLibraryQueryRequest request) {
         IpLibraryDTOs.IpLibraryQueryRequest query = request == null ? new IpLibraryDTOs.IpLibraryQueryRequest() : request;
         String ipType = normalizeIpType(query.getIpType(), query.getIpAddress());

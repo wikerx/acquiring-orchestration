@@ -34,7 +34,6 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class MerchantNotificationRetryReconciliationService {
 
     private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID);
@@ -87,6 +86,7 @@ public class MerchantNotificationRetryReconciliationService {
      * @param requestedTimes 可选季度定位时间；为空时覆盖全部已发布且不晚于当前季度的节点
      * @return 可靠入队事件数量
      */
+    @DS(DataSourceName.TRANSACTION)
     public int reconcile(int limitPerQuarter, List<LocalDateTime> requestedTimes) {
         if (limitPerQuarter <= 0) {
             throw new IllegalArgumentException("merchant notification reconcile limit must be positive");
@@ -112,6 +112,33 @@ public class MerchantNotificationRetryReconciliationService {
         log.info("event: DATA_MERCHANT_NOTIFY_RECONCILE_END traceId: {} quarterCount: {} queuedCount: {} limitPerQuarter: {}",
                 TraceContext.getTraceId(), quarters.size(), queued, limitPerQuarter);
         return queued;
+    }
+
+    /**
+     * 精确补发一条已经到期的通知 MQ 命令，不在内部接口线程访问商户端点。
+     *
+     * @param transactionId 平台交易 ID
+     * @param transactionDateTime 交易分片时间
+     * @return true 表示找到到期任务并可靠入队，false 表示任务不存在或尚未到期
+     */
+    @DS(DataSourceName.TRANSACTION)
+    public boolean reconcileTransaction(String transactionId, LocalDateTime transactionDateTime) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        DataMerchantNotificationTaskDO task;
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            task = notificationMapper.selectReadyByTransactionId(transactionId, transactionDateTime, now);
+        }
+        if (task == null) {
+            return false;
+        }
+        reliableMqPublisher.publish(
+                MqTopic.PAYMENT_EVENT,
+                MqTag.MERCHANT_NOTIFICATION_RETRY_DUE,
+                retryMessage(task, now));
+        log.info("event: DATA_MERCHANT_NOTIFY_RECONCILE_TRANSACTION_END traceId: {} transactionId: {} notifyId: {} expectedVersion: {} attemptNo: {}",
+                TraceContext.getTraceId(), task.getTransactionId(), task.getNotifyId(), task.getVersion(),
+                task.getLastAttemptNo() == null ? 1 : task.getLastAttemptNo() + 1);
+        return true;
     }
 
     /** 逐条 CAS 恢复当前季度超时 PROCESSING 任务。 */

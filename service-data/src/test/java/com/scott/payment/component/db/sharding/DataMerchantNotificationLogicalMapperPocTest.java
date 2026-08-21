@@ -178,6 +178,7 @@ class DataMerchantNotificationLogicalMapperPocTest {
         DataMerchantNotificationLogDO result = new DataMerchantNotificationLogDO();
         result.setNotifyLogId("notify-log-q3");
         result.setNotifyId("notify-q3");
+        result.setDeliveryMode("AUTO");
         result.setTransactionId("transaction-q3");
         result.setMerchantId("merchant-poc");
         result.setAttemptNo(1);
@@ -207,11 +208,14 @@ class DataMerchantNotificationLogicalMapperPocTest {
                     + "target_url_hash VARCHAR(128), target_url_masked VARCHAR(512), payload_json_masked VARCHAR(1024), "
                     + "sign_type VARCHAR(32), notify_status VARCHAR(32) NOT NULL, last_attempt_no INT NOT NULL, "
                     + "max_retry_count INT NOT NULL, next_retry_time TIMESTAMP(3), success_time TIMESTAMP(3), "
-                    + "fail_reason VARCHAR(512), transaction_date_time TIMESTAMP(3) NOT NULL, "
+                    + "fail_reason VARCHAR(512), processing_mode VARCHAR(16), processing_event_id VARCHAR(128), "
+                    + "transaction_date_time TIMESTAMP(3) NOT NULL, "
                     + "version INT NOT NULL, deleted INT NOT NULL, update_time TIMESTAMP(3) NOT NULL)");
             direct.execute("CREATE TABLE transaction_merchant_notification_log_" + suffix + " ("
                     + "id BIGINT AUTO_INCREMENT NOT NULL, notify_log_id VARCHAR(64) NOT NULL, "
-                    + "notify_id VARCHAR(64) NOT NULL, transaction_id VARCHAR(64) NOT NULL, operation_id VARCHAR(64), "
+                    + "notify_id VARCHAR(64) NOT NULL, callback_event_id VARCHAR(128), "
+                    + "delivery_mode VARCHAR(16) NOT NULL DEFAULT 'AUTO', "
+                    + "transaction_id VARCHAR(64) NOT NULL, operation_id VARCHAR(64), "
                     + "merchant_id VARCHAR(64), attempt_no INT, target_url_hash VARCHAR(128), http_status INT, "
                     + "request_header_json_masked VARCHAR(1024), request_body_json_masked VARCHAR(1024), "
                     + "response_body_json_masked VARCHAR(1024), success INT, error_message VARCHAR(1024), "

@@ -23,24 +23,24 @@ class MerchantNotificationConfigTests {
     void shouldUseBoundedDefaultRetryCount() {
         contextRunner.run(context -> {
             assertThat(context).hasNotFailed();
-            assertThat(context.getBean(MerchantNotificationProperties.class).getMaxRetryCount()).isEqualTo(10);
+            assertThat(context.getBean(MerchantNotificationProperties.class).getMaxRetryCount()).isEqualTo(5);
         });
     }
 
     @Test
     void shouldBindExplicitRetryCount() {
         contextRunner
-                .withPropertyValues("payment.transaction.merchant-notification.max-retry-count=12")
+                .withPropertyValues("payment.transaction.merchant-notification.max-retry-count=5")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
-                    assertThat(context.getBean(MerchantNotificationProperties.class).getMaxRetryCount()).isEqualTo(12);
+                    assertThat(context.getBean(MerchantNotificationProperties.class).getMaxRetryCount()).isEqualTo(5);
                 });
     }
 
     @Test
     void shouldRejectRetryCountOutsideAllowedRange() {
         contextRunner
-                .withPropertyValues("payment.transaction.merchant-notification.max-retry-count=101")
+                .withPropertyValues("payment.transaction.merchant-notification.max-retry-count=6")
                 .run(context -> assertThat(context).hasFailed());
     }
 }

@@ -9,6 +9,8 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -56,8 +58,11 @@ public class DefaultMerchantKeyMetadataCacheService implements MerchantKeyMetada
             return cacheReader.findFresh(normalizedMerchantId);
         }
         MerchantKeyMetadata metadata = cacheReader.findCached(normalizedMerchantId);
-        return mustBypassCache(normalizedMerchantId)
-                ? cacheReader.findFresh(normalizedMerchantId)
+        if (mustBypassCache(normalizedMerchantId)) {
+            return cacheReader.findFresh(normalizedMerchantId);
+        }
+        return isJwtOutsideValidityWindow(metadata, LocalDateTime.now())
+                ? cacheReader.refresh(normalizedMerchantId)
                 : metadata;
     }
 
@@ -97,11 +102,19 @@ public class DefaultMerchantKeyMetadataCacheService implements MerchantKeyMetada
         try {
             return invalidationGuard.isPending(PaymentCacheNames.MERCHANT_KEY_METADATA, merchantId);
         } catch (RuntimeException exception) {
-            log.warn("event: MERCHANT_KEY_METADATA_GUARD_CHECK_FAILED cacheName: {} exceptionType: {} reason: {}",
+            log.warn("event: MERCHANT_KEY_METADATA_GUARD_CHECK_FAILED cacheName: {} exceptionType: {}",
                     PaymentCacheNames.MERCHANT_KEY_METADATA,
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage());
+                    exception.getClass().getSimpleName());
             return true;
         }
+    }
+
+    /** 时间自然推进到 JWT 生效或失效边界时强制刷新永久 revision 缓存。 */
+    private boolean isJwtOutsideValidityWindow(MerchantKeyMetadata metadata, LocalDateTime now) {
+        if (metadata == null || metadata.getJwtKeyId() == null) {
+            return false;
+        }
+        return metadata.getJwtEffectiveTime() != null && metadata.getJwtEffectiveTime().isAfter(now)
+                || metadata.getJwtExpireTime() != null && !metadata.getJwtExpireTime().isAfter(now);
     }
 }

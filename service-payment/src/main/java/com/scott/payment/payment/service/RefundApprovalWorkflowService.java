@@ -45,7 +45,6 @@ import java.util.Objects;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class RefundApprovalWorkflowService {
 
     private static final String APPROVAL_ID_PREFIX = "RA";
@@ -96,6 +95,7 @@ public class RefundApprovalWorkflowService {
      * @param now 当前业务时间
      * @return 新审批任务
      */
+    @DS(DataSourceName.TRANSACTION)
     public TransactionRefundApprovalDO createPendingApproval(PaymentCreateCommandDTO commandDTO,
                                                               TransactionOrderDO sourceOrderDO,
                                                               PaymentCreateResultDTO resultDTO,
@@ -138,6 +138,7 @@ public class RefundApprovalWorkflowService {
      * @param commandDTO 审批决策命令
      * @return 已批准审批任务
      */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TransactionRefundApprovalDO approve(RefundApprovalDecisionCommandDTO commandDTO) {
         validateDecisionCommand(commandDTO, false);
@@ -173,6 +174,7 @@ public class RefundApprovalWorkflowService {
      * @param commandDTO 审批决策命令，原因必填
      * @return 已拒绝审批任务
      */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TransactionRefundApprovalDO reject(RefundApprovalDecisionCommandDTO commandDTO) {
         validateDecisionCommand(commandDTO, true);
@@ -209,6 +211,7 @@ public class RefundApprovalWorkflowService {
      * @param now 当前业务时间
      * @return true 表示本次实际完成过期处理
      */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public boolean expire(String approvalId, LocalDateTime now) {
         LocalDateTime actualNow = now == null ? LocalDateTime.now() : now;
@@ -245,6 +248,7 @@ public class RefundApprovalWorkflowService {
      * @param now 恢复时间
      * @return true 表示事件已存在或已按原事件号补建
      */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public boolean recoverApprovedExecution(String approvalId, LocalDateTime now) {
         LocalDateTime actualNow = now == null ? LocalDateTime.now() : now;

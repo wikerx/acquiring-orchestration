@@ -7,6 +7,8 @@ import com.scott.payment.admin.dto.export.TransactionOperationExportRow;
 import com.scott.payment.admin.dto.export.TransactionOrderExportRow;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelLogQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryRequest;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
@@ -312,6 +314,24 @@ public class AdminTransactionApplicationService {
                 fullTransactionAmount(sourceOperation, sourceOperation.getTransactionAmount()),
                 ADMIN_VOID_ORDER_ID_PREFIX);
         return paymentInternalClient.voidPayment(requestDTO);
+    }
+
+    /**
+     * 主动重查并勾兑单笔交易，支付核心负责勾兑状态白名单和终态 CAS 门禁。
+     *
+     * @param transactionId 平台交易号
+     * @param request 真实交易分片时间
+     * @return 单笔勾兑结果
+     */
+    public ChannelMatchRequeryResponse requeryChannelMatch(
+            String transactionId,
+            ChannelMatchRequeryRequest request) {
+        if (!StringUtils.hasText(transactionId)
+                || request == null
+                || request.getTransactionDateTime() == null) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        }
+        return paymentInternalClient.requeryChannelMatch(transactionId, request);
     }
 
     /**

@@ -21,10 +21,10 @@ import java.util.UUID;
  * @classname : RedisCacheInvalidationGuard
  * @date : 2026-07-31 00:00
  * @email : scott_x@163.com
- * @description : Redis 基础设施层的受管永久缓存失效门禁，负责以 token 租约保护数据库变更至缓存精确删除完成之间的一致性窗口
- * @status : create
+ * @description : Redis 基础设施层的受管缓存失效门禁，负责以 token 租约保护数据库变更至缓存精确删除完成之间的一致性窗口
+ * @status : update
  *
- * <p>门禁只保护已登记的永久缓存。管理端在数据库事务写入前获取门禁，读取端在门禁存在期间
+ * <p>门禁只保护显式登记的共享缓存。管理端在数据库事务写入前获取门禁，读取端在门禁存在期间
  * 绕过 Redis 并查询主库，Outbox 在事务提交后删除缓存并按 token 释放门禁。</p>
  */
 @Service
@@ -79,7 +79,7 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
      * Lua 校验持有者，不写入日志。
      * </p>
      *
-     * @param cacheName   受支持的永久缓存名称
+     * @param cacheName   受支持的共享缓存名称
      * @param businessKey 商户号或平台配置键
      * @param ttl        门禁最长持有时间
      * @return 包含持有者 token 的失效租约
@@ -128,7 +128,7 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
     /**
      * 判断指定受管缓存业务键是否仍处于失效保护窗口。
      *
-     * @param cacheName   受支持的永久缓存名称
+     * @param cacheName   受支持的共享缓存名称
      * @param businessKey 商户号或平台配置键
      * @return Redis 明确存在门禁时返回 {@code true}
      * @throws IllegalStateException Redis 未返回确定状态时抛出，避免错误放行旧安全配置
@@ -219,16 +219,17 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
     }
 
     /**
-     * 构造受管永久缓存的失效门禁 Key。
+     * 构造受管缓存的失效门禁 Key。
      * <p>
-     * 门禁紧邻对应永久缓存命名空间，便于按业务域识别，同时不会与 Spring Cache 的实际
+     * 门禁紧邻对应缓存命名空间，便于按业务域识别，同时不会与 Spring Cache 的实际
      * 业务 Key 冲突。物理格式分别为：
      * {@code acquiring:{environment}:merchant:info:pending:{merchantId}}、
      * {@code acquiring:{environment}:merchant:openapi:pending:{merchantId}}、
      * {@code acquiring:{environment}:merchant:keyMeta:pending:{merchantId}}、
-     * {@code acquiring:{environment}:merchant:route:pending:{merchantId}} 和
-     * {@code acquiring:{environment}:system:configPending:{configKeyDigest}}、
-     * {@code acquiring:{environment}:admin:user:profile:pending:{accountId}}。
+     * {@code acquiring:{environment}:merchant:route:pending:{merchantId}}、
+     * {@code acquiring:{environment}:merchant:activeFee:pending:{merchantId}} 和
+     * {@code acquiring:{environment}:settlement:calendar:month:pending:{yyyy-MM}} 和
+     * {@code acquiring:{environment}:system:configPending:{configKeyDigest}}。
      * </p>
      *
      * @param cacheName   Spring Cache 名称
@@ -245,14 +246,38 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
                     redisProperties.businessKey("merchant", "keyMeta", "pending", businessKey);
             case PaymentCacheNames.MERCHANT_ROUTE ->
                     redisProperties.businessKey("merchant", "route", "pending", businessKey);
+            case PaymentCacheNames.MERCHANT_ACTIVE_FEE ->
+                    redisProperties.businessKey("merchant", "activeFee", "pending", businessKey);
+            case PaymentCacheNames.ISO_COUNTRY ->
+                    redisProperties.businessKey("iso", "country", "pending", businessKey);
+            case PaymentCacheNames.ISO_CURRENCY ->
+                    redisProperties.businessKey("iso", "currency", "pending", businessKey);
+            case PaymentCacheNames.MCC_OPTIONS ->
+                    redisProperties.businessKey("mcc", "options", "pending", businessKey);
+            case PaymentCacheNames.EMAIL_TEMPLATE_ENABLED ->
+                    redisProperties.businessKey(
+                            "email",
+                            "template",
+                            "enabledPending",
+                            com.scott.payment.component.redis.support.RedisKeyDigest.sha256(businessKey)
+                    );
+            case PaymentCacheNames.SYSTEM_DICT_OPTIONS ->
+                    redisProperties.businessKey(
+                            "system",
+                            "dict",
+                            "optionsPending",
+                            com.scott.payment.component.redis.support.RedisKeyDigest.sha256(businessKey)
+                    );
+            case PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH ->
+                    redisProperties.businessKey(
+                            "settlement", "calendar", "month", "pending", businessKey
+                    );
             case PaymentCacheNames.SYSTEM_CONFIG ->
                     redisProperties.businessKey(
                             "system",
                             "configPending",
                             com.scott.payment.component.redis.support.RedisKeyDigest.sha256(businessKey)
                     );
-            case PaymentCacheNames.ADMIN_USER_PROFILE ->
-                    redisProperties.businessKey("admin", "user", "profile", "pending", businessKey);
             default -> throw new IllegalArgumentException(
                     "Cache invalidation guard does not allow cache name: " + cacheName
             );

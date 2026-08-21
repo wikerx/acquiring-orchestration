@@ -5,7 +5,6 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyCommandDTO;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyDueCommandDTO;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationReconcileCommandDTO;
-import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import com.scott.payment.data.service.impl.MerchantNotificationRetryReconciliationService;
 import org.springframework.stereotype.Service;
 
@@ -27,21 +26,16 @@ public class MerchantNotificationApplicationService {
     /** 单次内部补偿允许处理的最大任务数。 */
     private static final int MAX_LIMIT = 5;
 
-    /** 商户通知投递服务。 */
-    private final MerchantNotificationDeliveryService deliveryService;
-
     /** 到期任务低频 MQ 对账服务。 */
     private final MerchantNotificationRetryReconciliationService reconciliationService;
 
     /**
      * 创建商户通知应用服务。
      *
-     * @param deliveryService 商户通知投递服务
+     * @param reconciliationService 只负责重新可靠入 MQ 的通知对账服务
      */
     public MerchantNotificationApplicationService(
-            MerchantNotificationDeliveryService deliveryService,
             MerchantNotificationRetryReconciliationService reconciliationService) {
-        this.deliveryService = deliveryService;
         this.reconciliationService = reconciliationService;
     }
 
@@ -49,21 +43,21 @@ public class MerchantNotificationApplicationService {
      * 执行一个交易时间分片中的到期商户通知补偿。
      *
      * @param commandDTO 补偿命令
-     * @return 本次成功通知数量
+     * @return 本次可靠入队数量
      */
     public int notifyDue(MerchantNotificationNotifyDueCommandDTO commandDTO) {
         if (commandDTO == null || commandDTO.getTransactionDateTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time is required");
         }
         int limit = normalizeLimit(commandDTO.getLimit());
-        return deliveryService.notifyDue(commandDTO.getTransactionDateTime(), limit);
+        return reconciliationService.reconcile(limit, java.util.List.of(commandDTO.getTransactionDateTime()));
     }
 
     /**
      * 按平台交易号和上游传入的交易时间精确重试一条通知。
      *
      * @param commandDTO 单笔通知补偿命令
-     * @return true 表示本次回调成功，false 表示任务未到期、不存在或回调失败
+     * @return true 表示补偿命令已可靠入队，false 表示任务不存在或尚未到期
      */
     public boolean notifyTransaction(MerchantNotificationNotifyCommandDTO commandDTO) {
         if (commandDTO == null || commandDTO.getTransactionDateTime() == null) {
@@ -72,7 +66,8 @@ public class MerchantNotificationApplicationService {
         if (commandDTO.getTransactionId() == null || commandDTO.getTransactionId().isBlank()) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_id is required");
         }
-        return deliveryService.notifyTransaction(commandDTO.getTransactionDateTime(), commandDTO.getTransactionId());
+        return reconciliationService.reconcileTransaction(
+                commandDTO.getTransactionId(), commandDTO.getTransactionDateTime());
     }
 
     /**

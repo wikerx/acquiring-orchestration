@@ -76,6 +76,31 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
     /**
+     * 精确读取一条尚未激活的通知任务，供终态事务在 CAS 成功后创建首次延时事件。
+     *
+     * @param transactionId 平台交易 ID
+     * @param transactionDateTime 交易分片时间
+     * @param expectedVersion 当前通知任务版本
+     * @return 待激活通知任务；不存在时返回 null
+     */
+    @Select("""
+            SELECT notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
+                   transaction_date_time, version
+            FROM transaction_merchant_notification
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND notify_status = 'INIT'
+              AND next_retry_time IS NULL
+              AND deleted = 0
+            LIMIT 1
+            """)
+    TransactionMerchantNotificationDO selectPendingActivation(
+            @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime,
+            @Param("expectedVersion") Integer expectedVersion);
+
+    /**
      * 激活逻辑表中指定交易分片的终态商户通知。
      *
      * @param transactionId 平台当前交易 ID

@@ -22,7 +22,7 @@ import java.util.concurrent.Semaphore;
  * @classname : MerchantRuntimeProfileCacheReader
  * @date : 2026-07-30 21:25
  * @email : scott_x@163.com
- * @description : 完整商户资料缓存读写器，负责只读库加载、主库刷新和事务提交后的精确缓存更新
+ * @description : 完整商户资料缓存读写器，负责主库加载、事务提交后的精确缓存更新
  * @status : create
  */
 @Service
@@ -74,12 +74,15 @@ public class MerchantRuntimeProfileCacheReader {
     }
 
     /**
-     * 正常状态下读取缓存，未命中时从只读库加载。
+     * 正常状态下读取缓存，未命中时从主库加载。
+     *
+     * <p>商户资料缓存没有过期时间，缓存重建必须读取主库，避免失效后因主从复制延迟
+     * 把旧资料再次写入永久缓存。</p>
      *
      * @param merchantId 已规范化的商户号
      * @return 商户运行时资料；不存在时返回 null
      */
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     @Cacheable(
             cacheNames = PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
             key = "#p0",

@@ -10,6 +10,7 @@ import com.scott.payment.admin.mapper.EmailSendRecordMapper;
 import com.scott.payment.admin.mapper.EmailTemplateMapper;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.email.service.EnabledEmailTemplateCacheReader;
 import com.scott.payment.component.mq.email.EmailPayloadCrypto;
 import com.scott.payment.component.mq.properties.EmailDeliveryProperties;
 import org.apache.ibatis.session.SqlSession;
@@ -50,7 +51,9 @@ class AdminEmailRecordProjectionTests {
                     mock(EmailPayloadCrypto.class),
                     mock(AdminEmailDeliveryService.class),
                     mock(AdminSmtpEmailSender.class),
-                    new EmailDeliveryProperties());
+                    new EmailDeliveryProperties(),
+                    mock(EnabledEmailTemplateCacheReader.class),
+                    mock(com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator.class));
 
             EmailRecordQuery query = new EmailRecordQuery();
             query.setEmailNo("PROJECTION");

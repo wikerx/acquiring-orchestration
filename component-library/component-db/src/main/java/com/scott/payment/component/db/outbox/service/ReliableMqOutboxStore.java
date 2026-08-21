@@ -21,7 +21,6 @@ import java.util.List;
  * @status : create
  */
 @Service
-@DS(DataSourceName.MASTER)
 public class ReliableMqOutboxStore {
 
     /** Outbox Mapper。 */
@@ -33,33 +32,39 @@ public class ReliableMqOutboxStore {
     }
 
     /** 在调用方事务中写入消息意图。 */
+    @DS(DataSourceName.MASTER)
     public int insert(ReliableMqOutboxDO event) {
         return mapper.insert(event);
     }
 
     /** 按事件号查询消息。 */
+    @DS(DataSourceName.MASTER)
     public ReliableMqOutboxDO findByEventId(String eventId) {
         return mapper.selectByEventId(eventId);
     }
 
     /** 查询已到期消息。 */
+    @DS(DataSourceName.MASTER)
     public List<ReliableMqOutboxDO> findDue(LocalDateTime now, int limit) {
         return mapper.selectDue(now, limit);
     }
 
     /** 在独立短事务中 CAS 抢占消息。 */
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int claim(Long id, Integer version, LocalDateTime now) {
         return mapper.claim(id, version, now);
     }
 
     /** 在独立短事务中标记消息成功。 */
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int markSent(Long id, Integer version, LocalDateTime now) {
         return mapper.markSent(id, version, now);
     }
 
     /** 在独立短事务中记录消息失败。 */
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int markFailed(Long id,
                           Integer version,
@@ -71,6 +76,7 @@ public class ReliableMqOutboxStore {
     }
 
     /** 恢复超时占用，返回恢复数量。 */
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int recoverStale(LocalDateTime staleBefore, LocalDateTime now) {
         return mapper.recoverStale(staleBefore, now);

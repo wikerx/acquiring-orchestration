@@ -1,5 +1,9 @@
 package com.scott.payment.merchant.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.dictionary.model.DictionaryOptionSnapshot;
+import com.scott.payment.component.db.dictionary.service.DictionaryOptionCacheReader;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -12,6 +16,8 @@ import com.scott.payment.merchant.mapper.SysDictDataMapper;
 import com.scott.payment.merchant.service.MerchantDictService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+import java.util.List;
 
 /**
  * @author : scott
@@ -49,14 +55,18 @@ public class MerchantDictServiceImpl implements MerchantDictService {
      * </p>
      */
     private final SysDictDataMapper dictDataMapper;
+    private final DictionaryOptionCacheReader dictionaryOptionCacheReader;
 
     /**
      * 创建商户后台只读字典服务。
      *
      * @param dictDataMapper 字典数据 Mapper
+     * @param dictionaryOptionCacheReader 跨系统启用字典下拉快照读取器
      */
-    public MerchantDictServiceImpl(SysDictDataMapper dictDataMapper) {
+    public MerchantDictServiceImpl(SysDictDataMapper dictDataMapper,
+                                   DictionaryOptionCacheReader dictionaryOptionCacheReader) {
         this.dictDataMapper = dictDataMapper;
+        this.dictionaryOptionCacheReader = dictionaryOptionCacheReader;
     }
 
     /**
@@ -66,8 +76,12 @@ public class MerchantDictServiceImpl implements MerchantDictService {
      * @return 字典项分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<DictDataResponse> pageDictData(DictDataQuery query) {
         DictDataQuery safeQuery = query == null ? new DictDataQuery() : query;
+        if (isEnabledOptionQuery(safeQuery)) {
+            return pageCachedOptions(safeQuery);
+        }
         IPage<SysDictDataDO> page = dictDataMapper.selectPage(
                 new Page<>(safeQuery.safePageNo(), safeQuery.safePageSize()),
                 buildQueryWrapper(safeQuery));
@@ -76,6 +90,34 @@ public class MerchantDictServiceImpl implements MerchantDictService {
                 safeQuery.safePageNo(),
                 safeQuery.safePageSize(),
                 page.getRecords().stream().map(this::toResponse).toList());
+    }
+
+    /** 判断请求是否为可使用有限期快照的纯下拉查询。 */
+    private boolean isEnabledOptionQuery(DictDataQuery query) {
+        return StringUtils.hasText(query.getDictType())
+                && !StringUtils.hasText(query.getDictLabel())
+                && !StringUtils.hasText(query.getDictValue())
+                && !StringUtils.hasText(query.getParentValue())
+                && (query.getStatus() == null || query.getStatus() == ENABLED);
+    }
+
+    /** 将指定字典的启用快照按请求页码切分为标准分页响应。 */
+    private PageResult<DictDataResponse> pageCachedOptions(DictDataQuery query) {
+        String locale = StringUtils.hasText(query.getLocale()) ? query.getLocale().trim() : DEFAULT_LOCALE;
+        List<DictionaryOptionSnapshot> snapshots = dictionaryOptionCacheReader.findEnabled(
+                query.getDictType().trim(),
+                locale
+        );
+        long pageNo = query.safePageNo();
+        long pageSize = query.safePageSize();
+        long start = (pageNo - 1) * pageSize;
+        int fromIndex = (int) Math.min(start, snapshots.size());
+        int toIndex = (int) Math.min(start + pageSize, snapshots.size());
+        List<DictDataResponse> records = snapshots.subList(fromIndex, toIndex)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+        return PageResult.of(snapshots.size(), pageNo, pageSize, records);
     }
 
     /**
@@ -122,6 +164,23 @@ public class MerchantDictServiceImpl implements MerchantDictService {
         response.setExtraJson(entity.getExtraJson());
         response.setIsDefault(entity.getIsDefault());
         response.setStatus(entity.getStatus());
+        return response;
+    }
+
+    /** 将共享字典快照转换为商户端只读响应。 */
+    private DictDataResponse toResponse(DictionaryOptionSnapshot snapshot) {
+        DictDataResponse response = new DictDataResponse();
+        response.setId(snapshot.getId());
+        response.setDictType(snapshot.getDictType());
+        response.setDictLabel(snapshot.getDictLabel());
+        response.setDictValue(snapshot.getDictValue());
+        response.setParentValue(snapshot.getParentValue());
+        response.setLocale(snapshot.getLocale());
+        response.setDictSort(snapshot.getDictSort());
+        response.setListClass(snapshot.getListClass());
+        response.setExtraJson(snapshot.getExtraJson());
+        response.setIsDefault(snapshot.getIsDefault());
+        response.setStatus(snapshot.getStatus());
         return response;
     }
 }

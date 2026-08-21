@@ -58,6 +58,18 @@ public class DataMerchantNotificationTaskDO {
     /** 最大通知次数，必须大于零。 */
     private Integer maxRetryCount;
 
+    /** 当前 PROCESSING 的投递模式；非执行状态允许为空。 */
+    private String processingMode;
+
+    /** 当前人工回调 MQ 事件号；自动投递和非执行状态允许为空。 */
+    private String processingEventId;
+
+    /** 当前通知任务状态，仅用于人工命令并发和恢复判断。 */
+    private String notifyStatus;
+
+    /** 自动计划的下一次投递时间；人工执行时为空。 */
+    private LocalDateTime nextRetryTime;
+
     /** 交易业务时间，用于定位通知任务和日志的季度分表。 */
     private LocalDateTime transactionDateTime;
 

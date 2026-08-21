@@ -1,5 +1,6 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.admin.converter.ConfigConverter;
 import com.scott.payment.admin.dto.SysConfigDTO;
 import com.scott.payment.admin.dto.SysConfigSaveRequest;
@@ -7,6 +8,7 @@ import com.scott.payment.admin.entity.SysConfigDO;
 import com.scott.payment.admin.mapper.SysConfigMapper;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.systemconfig.model.SystemConfigSnapshot;
 import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import lombok.extern.slf4j.Slf4j;
@@ -125,6 +127,8 @@ class AdminConfigServiceImplTests {
 
         assertRollbackForException(save.getAnnotation(Transactional.class));
         assertRollbackForException(delete.getAnnotation(Transactional.class));
+        assertThat(save.getAnnotation(DS.class).value()).isEqualTo(DataSourceName.MASTER);
+        assertThat(delete.getAnnotation(DS.class).value()).isEqualTo(DataSourceName.MASTER);
     }
 
     private Fixture fixture() {

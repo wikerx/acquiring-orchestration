@@ -74,10 +74,9 @@ public class DefaultMerchantRouteProfileCacheService implements MerchantRoutePro
         try {
             return invalidationGuard.isPending(PaymentCacheNames.MERCHANT_ROUTE, merchantId);
         } catch (RuntimeException exception) {
-            log.warn("event: MERCHANT_ROUTE_GUARD_CHECK_FAILED cacheName: {} exceptionType: {} reason: {}",
+            log.warn("event: MERCHANT_ROUTE_GUARD_CHECK_FAILED cacheName: {} exceptionType: {}",
                     PaymentCacheNames.MERCHANT_ROUTE,
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage());
+                    exception.getClass().getSimpleName());
             return true;
         }
     }

@@ -1,11 +1,13 @@
 package com.scott.payment.admin.application.base;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.export.RegionCurrencyExportRow;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -18,6 +20,7 @@ import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
 import com.scott.payment.component.db.iso.service.IsoDictionaryCacheInvalidator;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -128,6 +131,7 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param continentCode 大洲编码
      * @return 分页结果
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageRegionCurrencies(int pageNo, int pageSize,
                                                                 String keyword, String continentCode) {
         Map<String, IsoCurrencyDO> currencyMap = enabledCurrencyMap();
@@ -157,6 +161,7 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param id 国家地区主键
      * @return 映射详情
      */
+    @DS(DataSourceName.SLAVE)
     public CommonResult<Map<String, Object>> getRegionCurrency(Long id) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
@@ -170,6 +175,7 @@ public class AdminBaseRegionCurrencyApplicationService {
      *
      * @return 全量映射列表
      */
+    @DS(DataSourceName.SLAVE)
     public void exportRegionCurrencies(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         Map<String, IsoCurrencyDO> currencyMap = currencyMap();
@@ -201,6 +207,8 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param body 请求体
      * @return 处理结果
      */
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public CommonResult<Void> createRegionCurrency(Map<String, String> body) {
         return updateCountryCurrency(Long.valueOf(body.get("countryId")), body.get("currencyAlpha3Code"));
     }
@@ -212,6 +220,8 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param body 请求体
      * @return 处理结果
      */
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public CommonResult<Void> updateRegionCurrency(Long id, Map<String, String> body) {
         return updateCountryCurrency(id, body.get("currencyAlpha3Code"));
     }
@@ -222,6 +232,8 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param id 国家地区主键
      * @return 处理结果
      */
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public CommonResult<Void> removeRegionCurrency(Long id) {
         return updateCountryCurrency(id, "");
     }
@@ -233,6 +245,8 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param body 状态请求体
      * @return 处理结果
      */
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public CommonResult<Void> updateStatus(Long id, Map<String, Integer> body) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {

@@ -66,7 +66,7 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
      * 查询当前商户主体资料。
      *
      * <p>完整资料直接来自 Admin、Merchant Portal、OpenAPI 和支付服务共用的永久缓存；
-     * 缓存未命中时由共享缓存组件统一回源只读库。</p>
+     * 缓存未命中时由共享缓存组件统一回源主库，避免复制延迟将旧资料写回永久缓存。</p>
      *
      * @param merchantId 认证上下文中的商户号
      * @return 当前商户主体资料

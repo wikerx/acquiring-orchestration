@@ -113,15 +113,19 @@ public class MerchantAccessAdminRestClient implements MerchantAccessAdminClient 
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
         String caller = properties.getInternalCaller();
+        String requestBody = JsonUtils.toJsonString(body);
         String signature = InternalServiceSignature.sign(
-                HttpMethod.POST.name(), uri.getRawPath(), timestamp, nonce, caller, properties.getInternalSecret());
+                HttpMethod.POST.name(),
+                InternalServiceSignature.requestTarget(uri.getRawPath(), uri.getRawQuery()),
+                timestamp, nonce, caller,
+                InternalServiceSignature.payloadSha256(requestBody), properties.getInternalSecret());
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.add(InternalServiceSignature.HEADER_CALLER, caller);
         headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
         headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
         headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
-        return new HttpEntity<>(JsonUtils.toJsonString(body), headers);
+        return new HttpEntity<>(requestBody, headers);
     }
 
     private <T> T unwrap(CommonResult<T> result) {

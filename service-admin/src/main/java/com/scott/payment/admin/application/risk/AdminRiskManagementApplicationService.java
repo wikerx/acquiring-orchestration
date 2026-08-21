@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.risk;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.risk.RiskDTOs;
@@ -22,6 +23,7 @@ import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
+import com.scott.payment.component.db.constant.DataSourceName;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -746,6 +748,7 @@ public class AdminRiskManagementApplicationService {
      *
      * @return 页面下拉选项
      */
+    @DS(DataSourceName.SLAVE)
     public RiskDTOs.RiskOptionsResponse options() {
         RiskDTOs.RiskOptionsResponse response = new RiskDTOs.RiskOptionsResponse();
         response.setStatusOptions(List.of(option("启用", "1", "success"), option("停用", "0", "info")));
@@ -786,6 +789,7 @@ public class AdminRiskManagementApplicationService {
      * @param request      查询条件，允许为空，为空时使用默认分页
      * @return 名单分页数据，响应值仅返回脱敏展示字段和配置字段
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<RiskDTOs.RiskRecordResponse> pageList(String moduleType, String functionCode, RiskDTOs.RiskListQueryRequest request) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);
         ensureFunctionPermission(definition, "list");
@@ -831,6 +835,7 @@ public class AdminRiskManagementApplicationService {
      * @param id           配置记录ID
      * @return 名单配置详情
      */
+    @DS(DataSourceName.SLAVE)
     public RiskDTOs.RiskRecordResponse listDetail(String moduleType, String functionCode, Long id) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);
         ensureFunctionPermission(definition, "detail");
@@ -845,6 +850,7 @@ public class AdminRiskManagementApplicationService {
      * @param id           配置记录ID
      * @return 编辑详情，敏感明文仅在该接口授权后返回
      */
+    @DS(DataSourceName.SLAVE)
     public RiskDTOs.RiskRecordResponse listEditDetail(String moduleType, String functionCode, Long id) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);
         ensureFunctionPermission(definition, "edit");
@@ -1051,6 +1057,7 @@ public class AdminRiskManagementApplicationService {
      * @param request      查询条件，允许为空，为空时使用默认分页
      * @return 规则配置分页数据
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<RiskDTOs.RiskRecordResponse> pageRules(String functionCode, RiskDTOs.RiskRuleQueryRequest request) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_RULE, functionCode);
         ensureFunctionPermission(definition, "list");
@@ -1139,6 +1146,7 @@ public class AdminRiskManagementApplicationService {
      * @param id           规则记录ID
      * @return 规则详情
      */
+    @DS(DataSourceName.SLAVE)
     public RiskDTOs.RiskRecordResponse ruleDetail(String functionCode, Long id) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_RULE, functionCode);
         ensureFunctionPermission(definition, "detail");
@@ -1409,6 +1417,7 @@ public class AdminRiskManagementApplicationService {
      * @param merchantId 已认证商户号
      * @return 该商户未删除来源网址列表
      */
+    @DS(DataSourceName.MASTER)
     public List<RiskDTOs.RiskRecordResponse> listMerchantSourceUrls(String merchantId) {
         String normalizedMerchantId = trim(merchantId);
         if (!StringUtils.hasText(normalizedMerchantId)) {
@@ -1464,6 +1473,7 @@ public class AdminRiskManagementApplicationService {
      *
      * @return 各功能配置数量、启用数量和最近配置变更
      */
+    @DS(DataSourceName.SLAVE)
     public Map<String, Object> dashboard() {
         List<Map<String, Object>> groups = new ArrayList<>();
         for (RiskFunctionDefinition definition : RiskFunctionDefinition.all()) {
@@ -1504,6 +1514,7 @@ public class AdminRiskManagementApplicationService {
      *
      * @return 近 30 天商户风险统计，按高风险命中数倒序
      */
+    @DS(DataSourceName.SLAVE)
     public List<Map<String, Object>> merchantRiskRanking() {
         return riskManagementMapper.selectMerchantRiskRanking(20);
     }
@@ -1514,6 +1525,7 @@ public class AdminRiskManagementApplicationService {
      * @param request 分页请求，允许为空，为空时使用默认分页
      * @return 配置变更日志分页数据
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageChangeLogs(PageRequestAdapter request) {
         PageRequestAdapter query = request == null ? new PageRequestAdapter() : request;
         long total = riskManagementMapper.countChangeLogs();
@@ -1527,6 +1539,7 @@ public class AdminRiskManagementApplicationService {
      * @param request 商户、订单、风险等级、决策结果、时间范围和分页条件
      * @return 风控评估记录分页数据
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageTodayRiskEvents(RiskDTOs.EvaluationQueryRequest request) {
         RiskDTOs.EvaluationQueryRequest query = request == null
                 ? new RiskDTOs.EvaluationQueryRequest()
@@ -1549,6 +1562,7 @@ public class AdminRiskManagementApplicationService {
      * @param request 查询条件，允许按交易标识、风险等级、决策结果和评估时间范围过滤
      * @return 风控评估记录分页数据
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageEvaluations(RiskDTOs.EvaluationQueryRequest request) {
         RiskDTOs.EvaluationQueryRequest query = request == null ? new RiskDTOs.EvaluationQueryRequest() : request;
         validateEvaluationTimeRange(query);
@@ -1610,6 +1624,7 @@ public class AdminRiskManagementApplicationService {
      * @param riskRecordNo 风控记录号
      * @return 命中明细列表
      */
+    @DS(DataSourceName.SLAVE)
     public List<Map<String, Object>> evaluationHits(String riskRecordNo) {
         return evaluationDetails(riskRecordNo);
     }
@@ -1620,6 +1635,7 @@ public class AdminRiskManagementApplicationService {
      * @param riskRecordNo 风控记录号
      * @return 按执行阶段排列的规则评估记录
      */
+    @DS(DataSourceName.SLAVE)
     public List<Map<String, Object>> evaluationDetails(String riskRecordNo) {
         if (!StringUtils.hasText(riskRecordNo)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "风控记录号不能为空");
@@ -1633,6 +1649,7 @@ public class AdminRiskManagementApplicationService {
      * @param request 查询条件，允许按商户、订单号、加黑对象类型和状态过滤
      * @return 系统交易加黑分页数据
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageTradeBlack(RiskDTOs.TradeBlackQueryRequest request) {
         RiskDTOs.TradeBlackQueryRequest query = request == null ? new RiskDTOs.TradeBlackQueryRequest() : request;
         long total = riskManagementMapper.countTradeBlack(query.getMerchantId(), query.getMerchantOrderNo(), query.getPaymentOrderNo(), query.getBlackTargetType(), query.getStatus());
@@ -1695,6 +1712,7 @@ public class AdminRiskManagementApplicationService {
      * @param functionCode 功能编码，用于解析物理表白名单和功能级权限
      * @param response     HTTP 响应，方法内部写入统一样式 Excel
      */
+    @DS(DataSourceName.SLAVE)
     public void export(String moduleType, String functionCode, HttpServletResponse response) {
         export(moduleType, functionCode, null, response);
     }
@@ -1707,6 +1725,7 @@ public class AdminRiskManagementApplicationService {
      * @param request      导出筛选条件，允许为空
      * @param response     HTTP 响应，方法内部写入统一样式 Excel
      */
+    @DS(DataSourceName.SLAVE)
     public void export(String moduleType, String functionCode, RiskDTOs.RiskListQueryRequest request, HttpServletResponse response) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);
         ensureFunctionPermission(definition, "export");
@@ -1735,6 +1754,7 @@ public class AdminRiskManagementApplicationService {
      * @param request      导出筛选条件，允许为空
      * @param response     HTTP 响应，方法内部写入统一样式 Excel
      */
+    @DS(DataSourceName.SLAVE)
     public void exportRule(String functionCode, RiskDTOs.RiskRuleQueryRequest request, HttpServletResponse response) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_RULE, functionCode);
         ensureFunctionPermission(definition, "export");

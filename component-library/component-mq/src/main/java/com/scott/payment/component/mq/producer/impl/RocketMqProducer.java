@@ -5,6 +5,8 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.producer.MqProducer;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.client.producer.SendResult;
+import org.apache.rocketmq.client.producer.SendStatus;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.messaging.support.MessageBuilder;
@@ -70,18 +72,50 @@ public class RocketMqProducer implements MqProducer {
         fillMessageMetadata(message);
         RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
         if (rocketMQTemplate == null) {
-            log.warn("RocketMQTemplate未就绪，消息发送已跳过，topic：{}，tag：{}，messageId：{}",
-                    topic,
-                    tag,
-                    message.getMessageId());
-            return;
+            throw new IllegalStateException("RocketMQTemplate is not ready");
         }
         String destination = StringUtils.hasText(tag) ? topic + ":" + tag : topic;
-        rocketMQTemplate.syncSend(destination, MessageBuilder.withPayload(JsonUtils.toJsonString(message))
+        SendResult sendResult = rocketMQTemplate.syncSend(destination, MessageBuilder.withPayload(JsonUtils.toJsonString(message))
                 .setHeader(TraceContext.TRACE_ID_HEADER, message.getTraceId())
                 .setHeader(RETRY_COUNT_HEADER, message.getRetryCount())
                 .setHeader(MESSAGE_ID_HEADER, message.getMessageId())
                 .build());
+        requireSendOk(sendResult, destination, message.getMessageId());
+    }
+
+    /**
+     * 将相同业务分组的消息发送到同一队列，避免同交易事件主动乱序。
+     *
+     * @param topic RocketMQ Topic
+     * @param tag RocketMQ Tag，可为空
+     * @param message 不含敏感明文的消息体
+     * @param messageGroup 非空业务分组键
+     */
+    @Override
+    public void sendOrderly(String topic,
+                            String tag,
+                            BaseMqMessage message,
+                            String messageGroup) {
+        Objects.requireNonNull(message, "mq message can not be null");
+        if (!StringUtils.hasText(topic) || !StringUtils.hasText(messageGroup)) {
+            throw new IllegalArgumentException("rocketmq topic and message group can not be blank");
+        }
+        fillMessageMetadata(message);
+        RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
+        if (rocketMQTemplate == null) {
+            throw new IllegalStateException("RocketMQTemplate is not ready");
+        }
+        String destination = StringUtils.hasText(tag) ? topic + ":" + tag : topic;
+        SendResult sendResult = rocketMQTemplate.syncSendOrderly(
+                destination,
+                MessageBuilder.withPayload(JsonUtils.toJsonString(message))
+                        .setHeader(TraceContext.TRACE_ID_HEADER, message.getTraceId())
+                        .setHeader(RETRY_COUNT_HEADER, message.getRetryCount())
+                        .setHeader(MESSAGE_ID_HEADER, message.getMessageId())
+                        .build(),
+                messageGroup
+        );
+        requireSendOk(sendResult, destination, message.getMessageId());
     }
 
     /**
@@ -113,10 +147,12 @@ public class RocketMqProducer implements MqProducer {
                 .build();
         long deliverTimestamp = deliverAt.toEpochMilli();
         if (deliverTimestamp <= System.currentTimeMillis()) {
-            rocketMQTemplate.syncSend(destination, rocketMessage);
+            requireSendOk(rocketMQTemplate.syncSend(destination, rocketMessage),
+                    destination, message.getMessageId());
             return;
         }
-        rocketMQTemplate.syncSendDeliverTimeMills(destination, rocketMessage, deliverTimestamp);
+        requireSendOk(rocketMQTemplate.syncSendDeliverTimeMills(destination, rocketMessage, deliverTimestamp),
+                destination, message.getMessageId());
     }
 
     /**
@@ -151,7 +187,22 @@ public class RocketMqProducer implements MqProducer {
         if (StringUtils.hasText(traceId)) {
             builder.setHeader(TraceContext.TRACE_ID_HEADER, traceId);
         }
-        rocketMQTemplate.syncSend(destination, builder.build());
+        requireSendOk(rocketMQTemplate.syncSend(destination, builder.build()), destination, messageId);
+    }
+
+    /**
+     * 校验同步发送结果，任何非 {@code SEND_OK} 结果均交给 Outbox 或上层重试。
+     *
+     * @param sendResult RocketMQ 同步发送结果
+     * @param destination Topic 与 Tag 组成的目标地址
+     * @param messageId 平台消息唯一编号
+     */
+    private void requireSendOk(SendResult sendResult, String destination, String messageId) {
+        if (sendResult == null || sendResult.getSendStatus() != SendStatus.SEND_OK) {
+            String sendStatus = sendResult == null ? "NULL" : sendResult.getSendStatus().name();
+            throw new IllegalStateException("RocketMQ send failed, destination=" + destination
+                    + ", messageId=" + messageId + ", sendStatus=" + sendStatus);
+        }
     }
 
     /**

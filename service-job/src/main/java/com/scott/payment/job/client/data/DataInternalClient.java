@@ -19,7 +19,7 @@ public interface DataInternalClient {
      * 触发指定交易时间分表中的到期商户通知补偿。
      *
      * @param requestDTO 商户通知补偿请求
-     * @return 成功通知数量
+     * @return 可靠入队数量
      */
     Integer notifyDueMerchantNotifications(DataMerchantNotificationNotifyDueClientRequestDTO requestDTO);
 
@@ -35,7 +35,7 @@ public interface DataInternalClient {
      * 精确重试单笔商户通知，分片时间必须由调用方显式传入。
      *
      * @param requestDTO 单笔商户通知补偿请求
-     * @return true 表示商户端点返回 2xx
+     * @return true 表示单笔补偿命令已可靠入队
      */
     Boolean notifyMerchantNotification(DataMerchantNotificationNotifyClientRequestDTO requestDTO);
 }

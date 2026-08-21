@@ -131,7 +131,7 @@ class RiskCacheInvalidationRelayServiceTests {
                 any()
         );
         assertThat(retryTimeCaptor.getValue()).isAfter(LocalDateTime.now());
-        assertThat(reasonCaptor.getValue()).contains("redis unavailable");
+        assertThat(reasonCaptor.getValue()).isEqualTo("IllegalStateException");
     }
 
     @Test

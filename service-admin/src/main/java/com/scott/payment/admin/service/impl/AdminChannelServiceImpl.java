@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -255,6 +257,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return 渠道基础信息分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<ChannelInfoResponse> pageChannels(ChannelInfoQuery request) {
         ChannelInfoQuery query = request == null ? new ChannelInfoQuery() : request;
         Page<ChannelInfoDO> page = channelInfoMapper.selectPage(
@@ -282,6 +285,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return 渠道编码、名称、状态和业务支持能力摘要
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<ChannelOption> listChannelOptions() {
         return channelInfoMapper.selectList(Wrappers.<ChannelInfoDO>lambdaQuery()
                         .eq(ChannelInfoDO::getDeleted, NOT_DELETED)
@@ -309,6 +313,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return 渠道基础信息、支付方式摘要和 MID 参数模板
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public ChannelInfoResponse getChannel(Long id) {
         return toChannelResponse(findChannel(id));
     }
@@ -397,6 +402,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return 支付能力分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<CapabilityResponse> pageCapabilities(CapabilityQuery request) {
         CapabilityQuery query = request == null ? new CapabilityQuery() : request;
         Page<ChannelPaymentCapabilityDO> page = capabilityMapper.selectPage(
@@ -415,6 +421,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return 支付能力详情，包含支持币种和卡品牌
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public CapabilityResponse getCapability(Long id) {
         ChannelPaymentCapabilityDO entity = findCapability(id);
         return toCapabilityResponse(entity, findChannel(entity.getChannelId()));
@@ -544,6 +551,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return 限额规则分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<LimitResponse> pageLimits(LimitQuery request) {
         LimitQuery query = request == null ? new LimitQuery() : request;
         Page<ChannelLimitRuleDO> page = limitRuleMapper.selectPage(
@@ -562,6 +570,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return 限额规则详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public LimitResponse getLimit(Long id) {
         ChannelLimitRuleDO entity = findLimit(id);
         return toLimitResponse(entity, findChannel(entity.getChannelId()));
@@ -692,6 +701,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return 渠道 MID 分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<ChannelMidConfigResponse> pageMids(ChannelMidConfigQuery request) {
         ChannelMidConfigQuery query = request == null ? new ChannelMidConfigQuery() : request;
         Page<ChannelMidConfigDO> page = midConfigMapper.selectPage(
@@ -710,6 +720,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return MID 配置详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public ChannelMidConfigResponse getMid(Long id) {
         ChannelMidConfigDO entity = findMid(id);
         return toMidResponse(entity, findChannel(entity.getChannelId()));
@@ -802,6 +813,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return 绑定关系分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<MerchantChannelMidBindingResponse> pageMidBindings(MerchantChannelMidBindingQuery request) {
         MerchantChannelMidBindingQuery query = request == null ? new MerchantChannelMidBindingQuery() : request;
         Page<MerchantChannelMidBindingDO> page = midBindingMapper.selectPage(
@@ -821,6 +833,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * @return 绑定详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public MerchantChannelMidBindingResponse getMidBinding(Long id) {
         MerchantChannelMidBindingDO entity = findMidBinding(id);
         return toMidBindingResponse(entity, findChannel(entity.getChannelId()), findMid(entity.getMidConfigId()));

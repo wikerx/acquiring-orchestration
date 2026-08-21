@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -64,6 +66,7 @@ public class AdminPostServiceImpl implements AdminPostService {
      * @return 按排序号升序的岗位分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SysPostDO> pagePosts(int pageNo, int pageSize, String postCode, String postName, Integer status) {
         LambdaQueryWrapper<SysPostDO> queryWrapper = Wrappers.<SysPostDO>lambdaQuery()
                 .like(StringUtils.hasText(postCode), SysPostDO::getPostCode, postCode)
@@ -81,6 +84,7 @@ public class AdminPostServiceImpl implements AdminPostService {
      * @return 按排序号升序的岗位列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysPostDO> listEnabledPosts() {
         return sysPostMapper.selectList(
                 Wrappers.<SysPostDO>lambdaQuery()
@@ -97,6 +101,7 @@ public class AdminPostServiceImpl implements AdminPostService {
      * @return 岗位记录；不存在时返回 {@code null}
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public SysPostDO getPost(Long id) {
         return sysPostMapper.selectById(id);
     }
@@ -107,6 +112,7 @@ public class AdminPostServiceImpl implements AdminPostService {
      * @return 按排序号升序的岗位导出记录
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysPostDO> exportPosts() {
         return sysPostMapper.selectList(
                 Wrappers.<SysPostDO>lambdaQuery()

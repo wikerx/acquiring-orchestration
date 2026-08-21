@@ -194,10 +194,10 @@ public class RocketMqAdminFacade {
                     return true;
                 }
             } catch (Exception exception) {
-                log.warn("检查 RocketMQ Topic 失败，topic：{}，brokerAddress：{}，原因：{}",
+                log.warn("检查 RocketMQ Topic 失败，topic：{}，brokerAddress：{}，异常类型：{}",
                         topicName,
                         brokerAddress,
-                        exception.getMessage());
+                        exception.getClass().getSimpleName());
             }
         }
         return false;
@@ -221,10 +221,10 @@ public class RocketMqAdminFacade {
                     return true;
                 }
             } catch (Exception exception) {
-                log.warn("检查 RocketMQ Consumer Group 失败，group：{}，brokerAddress：{}，原因：{}",
+                log.warn("检查 RocketMQ Consumer Group 失败，group：{}，brokerAddress：{}，异常类型：{}",
                         groupName,
                         brokerAddress,
-                        exception.getMessage());
+                        exception.getClass().getSimpleName());
             }
         }
         return false;

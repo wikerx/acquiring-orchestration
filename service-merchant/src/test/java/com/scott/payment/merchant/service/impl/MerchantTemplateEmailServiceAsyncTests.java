@@ -2,6 +2,8 @@ package com.scott.payment.merchant.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scott.payment.component.mq.email.EmailPayloadCrypto;
+import com.scott.payment.component.db.email.model.EnabledEmailTemplateSnapshot;
+import com.scott.payment.component.db.email.service.EnabledEmailTemplateCacheReader;
 import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
 import com.scott.payment.component.mq.properties.EmailDeliveryProperties;
 import com.scott.payment.merchant.entity.email.MerchantEmailEntities.MerchantEmailAccountDO;
@@ -9,7 +11,6 @@ import com.scott.payment.merchant.entity.email.MerchantEmailEntities.MerchantEma
 import com.scott.payment.merchant.entity.email.MerchantEmailEntities.MerchantEmailTemplateDO;
 import com.scott.payment.merchant.mapper.MerchantEmailAccountMapper;
 import com.scott.payment.merchant.mapper.MerchantEmailSendRecordMapper;
-import com.scott.payment.merchant.mapper.MerchantEmailTemplateMapper;
 import com.scott.payment.merchant.service.MerchantTemplateEmailService.MerchantEmailSendCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -30,16 +31,18 @@ class MerchantTemplateEmailServiceAsyncTests {
     @Test
     void shouldPersistEncryptedPendingRecordAndEnqueue() {
         MerchantEmailAccountMapper accountMapper = mock(MerchantEmailAccountMapper.class);
-        MerchantEmailTemplateMapper templateMapper = mock(MerchantEmailTemplateMapper.class);
         MerchantEmailSendRecordMapper recordMapper = mock(MerchantEmailSendRecordMapper.class);
+        EnabledEmailTemplateCacheReader enabledTemplateCacheReader =
+                mock(EnabledEmailTemplateCacheReader.class);
         EmailPayloadCrypto payloadCrypto = mock(EmailPayloadCrypto.class);
         MerchantEmailDeliveryService deliveryService = mock(MerchantEmailDeliveryService.class);
         EmailDeliveryProperties properties = new EmailDeliveryProperties();
         properties.setDefaultMaxRetryCount(3);
         MerchantTemplateEmailServiceImpl service = new MerchantTemplateEmailServiceImpl(
-                accountMapper, templateMapper, recordMapper, new ObjectMapper(), payloadCrypto,
-                deliveryService, properties);
-        when(templateMapper.selectOne(any())).thenReturn(template());
+                accountMapper, recordMapper, new ObjectMapper(), payloadCrypto,
+                deliveryService, properties, enabledTemplateCacheReader);
+        when(enabledTemplateCacheReader.findEnabled("MFA_CODE", "zh-CN"))
+                .thenReturn(templateSnapshot());
         when(accountMapper.selectOne(any())).thenReturn(account());
         when(payloadCrypto.encrypt("Code 123456")).thenReturn("cipher-content");
         doAnswer(invocation -> {
@@ -74,6 +77,22 @@ class MerchantTemplateEmailServiceAsyncTests {
         template.setContentType("HTML");
         template.setSensitiveVariableNames("[\"otp\"]");
         return template;
+    }
+
+    private EnabledEmailTemplateSnapshot templateSnapshot() {
+        MerchantEmailTemplateDO template = template();
+        EnabledEmailTemplateSnapshot snapshot = new EnabledEmailTemplateSnapshot();
+        snapshot.setId(template.getId());
+        snapshot.setTemplateCode(template.getTemplateCode());
+        snapshot.setTemplateName(template.getTemplateName());
+        snapshot.setAppCode(template.getAppCode());
+        snapshot.setSceneCode(template.getSceneCode());
+        snapshot.setLocale(template.getLocale());
+        snapshot.setSubjectTemplate(template.getSubjectTemplate());
+        snapshot.setContentType(template.getContentType());
+        snapshot.setContentTemplate(template.getContentTemplate());
+        snapshot.setSensitiveVariableNames(template.getSensitiveVariableNames());
+        return snapshot;
     }
 
     private MerchantEmailAccountDO account() {

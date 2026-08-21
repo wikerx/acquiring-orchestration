@@ -24,7 +24,6 @@ import java.util.Objects;
  * 基于数据库唯一键和版本号 CAS 的商户累计限额预占状态服务。
  */
 @Service
-@DS(DataSourceName.MASTER)
 public class DefaultMerchantLimitReservationStateService implements MerchantLimitReservationStateService {
 
     /** 新建预占事实的乐观锁初始版本。 */
@@ -58,6 +57,7 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
      * 在独立事务中提交 PREPARING 意图，确保 Redis 变更前已有可恢复记录。
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public MerchantLimitReservationDO prepare(MerchantLimitReservationDO candidate) {
         validateCandidate(candidate);
@@ -93,6 +93,7 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
      * @return 已处于 RESERVED/CONFIRMED 或本次迁移成功时返回 {@code true}
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public boolean markReserved(MerchantLimitReservationDO reservation) {
         if (reservation == null || reservation.getId() == null || reservation.getVersion() == null) {
@@ -133,6 +134,7 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
      * @return 实际迁移、幂等命中和冲突数量汇总
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public MerchantLimitReservationTransitionSummary confirm(String transactionId) {
         return transitionAll(findByTransactionId(transactionId), MerchantLimitReservationStatus.CONFIRMED, null);
@@ -146,6 +148,7 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
      * @return 实际迁移、幂等命中和冲突数量汇总
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public MerchantLimitReservationTransitionSummary cancel(String transactionId, String reason) {
         return transitionAll(findByTransactionId(transactionId), MerchantLimitReservationStatus.CANCELLED, reason);
@@ -159,6 +162,7 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
      * @return 实际迁移、幂等命中和冲突数量汇总
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public MerchantLimitReservationTransitionSummary cancel(List<MerchantLimitReservationDO> reservations,
                                                              String reason) {
@@ -172,6 +176,7 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
      * @return 已加数据库行锁的预占记录；参数为空或记录不存在时返回空集合
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.MANDATORY, rollbackFor = Exception.class)
     public List<MerchantLimitReservationDO> lockByTransactionId(String transactionId) {
         if (!StringUtils.hasText(transactionId)) {
@@ -190,6 +195,7 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
      * @return 实际迁移、幂等命中和冲突数量汇总
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.MANDATORY, rollbackFor = Exception.class)
     public MerchantLimitReservationTransitionSummary cancelLocked(
             List<MerchantLimitReservationDO> reservations,
@@ -207,6 +213,7 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
      * @return 按主键升序返回的预占记录；参数为空或记录不存在时返回空集合
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public List<MerchantLimitReservationDO> findByTransactionId(String transactionId) {
         if (!StringUtils.hasText(transactionId)) {
             return List.of();
@@ -223,6 +230,7 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
      * @return 待核对的 PREPARING/RESERVED 记录；参数无效时返回空集合
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public List<MerchantLimitReservationDO> findStaleNonTerminal(LocalDateTime updatedBefore, int limit) {
         if (updatedBefore == null || limit <= 0) {
             return List.of();

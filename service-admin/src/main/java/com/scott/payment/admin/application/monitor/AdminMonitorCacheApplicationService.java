@@ -102,7 +102,7 @@ public class AdminMonitorCacheApplicationService {
             return result;
         } catch (RuntimeException exception) {
             result.put("connected", false);
-            result.put("message", exception.getMessage());
+            result.put("message", "Redis INFO unavailable: " + exception.getClass().getSimpleName());
             return result;
         }
     }

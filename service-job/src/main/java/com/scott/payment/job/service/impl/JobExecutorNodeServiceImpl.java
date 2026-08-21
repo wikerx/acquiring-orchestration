@@ -1,5 +1,7 @@
 package com.scott.payment.job.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.scott.payment.job.entity.SysJobExecutorNodeDO;
 import com.scott.payment.job.mapper.SysJobExecutorNodeMapper;
@@ -146,6 +148,7 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
      * @return 按最近心跳倒序、节点标识升序排列的节点列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysJobExecutorNodeDO> listNodes() {
         return sysJobExecutorNodeMapper.selectList(new LambdaQueryWrapper<SysJobExecutorNodeDO>()
                 .orderByDesc(SysJobExecutorNodeDO::getLastHeartbeatTime)

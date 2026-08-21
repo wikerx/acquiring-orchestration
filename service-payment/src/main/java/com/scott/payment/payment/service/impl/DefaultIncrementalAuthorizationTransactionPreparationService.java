@@ -56,7 +56,6 @@ import java.util.Objects;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultIncrementalAuthorizationTransactionPreparationService implements IncrementalAuthorizationTransactionPreparationService {
 
     /**
@@ -248,6 +247,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
      * @return 新建或幂等命中的增量授权准备结果
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public IncrementalAuthorizationPreparationResultDTO prepareIncrementalAuthorization(
             PaymentCreateCommandDTO commandDTO,

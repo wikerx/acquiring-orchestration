@@ -23,14 +23,21 @@ public final class PaymentCacheRegistry {
      * <p>{@link Duration#ZERO} 明确表示常驻缓存。常驻只描述 Redis 不设置物理过期时间，
      * 数据仍由数据库提供事实来源，并由管理端变更链路可靠失效后按需重建。</p>
      */
-    private static final Map<String, Duration> DEFAULT_TTLS = Map.of(
-            PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, Duration.ZERO,
-            PaymentCacheNames.MERCHANT_OPENAPI_ACCESS, Duration.ZERO,
-            PaymentCacheNames.MERCHANT_KEY_METADATA, Duration.ZERO,
-            PaymentCacheNames.MERCHANT_ROUTE, Duration.ZERO,
-            PaymentCacheNames.SYSTEM_CONFIG, Duration.ZERO,
-            PaymentCacheNames.ADMIN_USER_PROFILE, Duration.ZERO,
-            PaymentCacheNames.CARD_BIN, Duration.ZERO
+    private static final Map<String, Duration> DEFAULT_TTLS = Map.ofEntries(
+            Map.entry(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, Duration.ZERO),
+            Map.entry(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS, Duration.ZERO),
+            Map.entry(PaymentCacheNames.MERCHANT_KEY_METADATA, Duration.ZERO),
+            Map.entry(PaymentCacheNames.MERCHANT_ROUTE, Duration.ZERO),
+            Map.entry(PaymentCacheNames.SYSTEM_CONFIG, Duration.ZERO),
+            Map.entry(PaymentCacheNames.CARD_BIN, Duration.ofMinutes(30)),
+            Map.entry(PaymentCacheNames.CARD_BIN_MISS, Duration.ofMinutes(2)),
+            Map.entry(PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH, Duration.ZERO),
+            Map.entry(PaymentCacheNames.MERCHANT_ACTIVE_FEE, Duration.ZERO),
+            Map.entry(PaymentCacheNames.ISO_COUNTRY, Duration.ZERO),
+            Map.entry(PaymentCacheNames.ISO_CURRENCY, Duration.ZERO),
+            Map.entry(PaymentCacheNames.MCC_OPTIONS, Duration.ZERO),
+            Map.entry(PaymentCacheNames.SYSTEM_DICT_OPTIONS, Duration.ofMinutes(10)),
+            Map.entry(PaymentCacheNames.EMAIL_TEMPLATE_ENABLED, Duration.ofMinutes(5))
     );
 
     private PaymentCacheRegistry() {
@@ -48,9 +55,9 @@ public final class PaymentCacheRegistry {
     /**
      * 校验并合并 Cache 生命周期配置。
      *
-     * <p>当前登记项均属于业务常驻快照，部署配置只能显式声明为零，不能临时改成
-     * 有限 TTL 掩盖失效链路问题。普通有限期缓存无需登记，直接使用 CacheManager 默认 TTL；
-     * 只有永久缓存或需要特殊 TTL 的缓存才进入本注册表。</p>
+     * <p>常驻快照的部署配置只能显式声明为零，不能临时改成有限 TTL
+     * 掩盖失效链路问题。有限期缓存可按业务要求登记特殊 TTL；未登记的普通查询缓存
+     * 使用 CacheManager 默认 TTL。</p>
      *
      * @param overrides 配置中心提供的生命周期覆盖；零值表示常驻
      * @return 包含全部已登记 Cache 的有效生命周期

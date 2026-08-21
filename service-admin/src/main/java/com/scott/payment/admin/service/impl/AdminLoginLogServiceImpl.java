@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -55,6 +57,7 @@ public class AdminLoginLogServiceImpl implements AdminLoginLogService {
      * @return 登录日志分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SysLoginLogDTO> pageLoginLogs(SysLoginLogQueryRequest request) {
         SysLoginLogQueryRequest query = request == null ? new SysLoginLogQueryRequest() : request;
         Page<SysLoginLogDO> page = loginLogMapper.selectPage(

@@ -65,6 +65,32 @@ class MerchantNotificationRetryReconciliationServiceTests {
                 eq(LocalDateTime.of(2026, 10, 1, 0, 0)), any(), any(), anyInt());
     }
 
+    /** 单笔内部补偿也只能发布精确 CAS 消息，不能直接访问商户端点。 */
+    @Test
+    void shouldRequeueExactDueTaskThroughMq() {
+        DataMerchantNotificationMapper mapper = mock(DataMerchantNotificationMapper.class);
+        ReliableMqPublisher publisher = mock(ReliableMqPublisher.class);
+        TransactionShardingProperties sharding = new TransactionShardingProperties();
+        sharding.setPhysicalNodes(List.of("202603"));
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 8, 1, 10, 0);
+        DataMerchantNotificationTaskDO task = task("NOTIFY-EXACT", "TX-EXACT", transactionDateTime);
+        when(mapper.selectReadyByTransactionId(eq("TX-EXACT"), eq(transactionDateTime), any()))
+                .thenReturn(task);
+        Clock clock = Clock.fixed(
+                Instant.parse("2026-08-06T04:45:00Z"), ZoneId.of("Asia/Shanghai"));
+        MerchantNotificationRetryReconciliationService service =
+                new MerchantNotificationRetryReconciliationService(mapper, publisher, sharding, clock, 120, 100);
+
+        assertThat(service.reconcileTransaction("TX-EXACT", transactionDateTime)).isTrue();
+
+        ArgumentCaptor<MerchantNotificationRetryDueMessage> captor =
+                ArgumentCaptor.forClass(MerchantNotificationRetryDueMessage.class);
+        verify(publisher).publish(any(), eq(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE), captor.capture());
+        assertThat(captor.getValue().getNotifyId()).isEqualTo("NOTIFY-EXACT");
+        assertThat(captor.getValue().getExpectedVersion()).isEqualTo(4);
+        assertThat(captor.getValue().getAttemptNo()).isEqualTo(2);
+    }
+
     private DataMerchantNotificationTaskDO task(String notifyId,
                                                 String transactionId,
                                                 LocalDateTime transactionDateTime) {

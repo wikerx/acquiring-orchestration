@@ -17,6 +17,8 @@ import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysMenuDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantUserDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantUserRoleDO;
+import com.scott.payment.component.db.auth.entity.SysMerchantMenuGrantDO;
+import com.scott.payment.component.db.auth.entity.SysMerchantPermissionGrantDO;
 import com.scott.payment.component.db.auth.entity.SysPermissionDO;
 import com.scott.payment.component.db.auth.entity.SysRoleDO;
 import com.scott.payment.component.db.auth.entity.SysRoleMenuDO;
@@ -28,6 +30,8 @@ import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantUserRoleMapper;
+import com.scott.payment.component.db.auth.mapper.SysMerchantMenuGrantMapper;
+import com.scott.payment.component.db.auth.mapper.SysMerchantPermissionGrantMapper;
 import com.scott.payment.component.db.auth.mapper.SysPermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
@@ -80,6 +84,8 @@ public class AdminMerchantPrimaryAccountProvisioningService {
     private final SysRolePermissionMapper rolePermissionMapper;
     private final SysMerchantUserMapper merchantUserMapper;
     private final SysMerchantUserRoleMapper merchantUserRoleMapper;
+    private final SysMerchantMenuGrantMapper merchantMenuGrantMapper;
+    private final SysMerchantPermissionGrantMapper merchantPermissionGrantMapper;
     private final AdminEmailService emailService;
     private final AdminConfigService configService;
 
@@ -95,6 +101,8 @@ public class AdminMerchantPrimaryAccountProvisioningService {
             SysRolePermissionMapper rolePermissionMapper,
             SysMerchantUserMapper merchantUserMapper,
             SysMerchantUserRoleMapper merchantUserRoleMapper,
+            SysMerchantMenuGrantMapper merchantMenuGrantMapper,
+            SysMerchantPermissionGrantMapper merchantPermissionGrantMapper,
             AdminEmailService emailService,
             AdminConfigService configService) {
         this.appMapper = appMapper;
@@ -108,6 +116,8 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         this.rolePermissionMapper = rolePermissionMapper;
         this.merchantUserMapper = merchantUserMapper;
         this.merchantUserRoleMapper = merchantUserRoleMapper;
+        this.merchantMenuGrantMapper = merchantMenuGrantMapper;
+        this.merchantPermissionGrantMapper = merchantPermissionGrantMapper;
         this.emailService = emailService;
         this.configService = configService;
     }
@@ -130,6 +140,7 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         LocalDateTime now = LocalDateTime.now();
         SysRoleDO role = createAdministratorRole(app, merchant, roleCode, now);
         grantMerchantApplication(app.getId(), role.getId(), now);
+        grantMerchantScope(app.getId(), merchant.getMerchantId(), now);
 
         SysUserDO user = createUser(merchant, now);
         String initialPassword = generateInitialPassword();
@@ -219,6 +230,51 @@ public class AdminMerchantPrimaryAccountProvisioningService {
             relation.setCreatedAt(now);
             relation.setDeleted(AuthConstants.NOT_DELETED);
             rolePermissionMapper.insert(relation);
+        }
+    }
+
+    /**
+     * 创建平台授予当前商户的菜单和权限上限。
+     *
+     * <p>商户端最终权限是商户授权与角色授权的交集，因此新开户必须同时保存两层关系。
+     * 所有记录与商户资料、主账号和角色共享本地事务。</p>
+     *
+     * @param appId 商户系统应用 ID
+     * @param merchantId 新开户商户号
+     * @param now 统一开户时间
+     */
+    private void grantMerchantScope(Long appId, String merchantId, LocalDateTime now) {
+        List<SysMenuDO> menus = menuMapper.selectList(Wrappers.<SysMenuDO>lambdaQuery()
+                .eq(SysMenuDO::getAppId, appId)
+                .eq(SysMenuDO::getStatus, AuthConstants.ENABLED)
+                .eq(SysMenuDO::getDeleted, AuthConstants.NOT_DELETED));
+        for (SysMenuDO menu : menus) {
+            SysMerchantMenuGrantDO grant = new SysMerchantMenuGrantDO();
+            grant.setMerchantId(merchantId);
+            grant.setAppId(appId);
+            grant.setMenuId(menu.getId());
+            grant.setGrantSource("SYSTEM");
+            grant.setStatus(AuthConstants.ENABLED);
+            grant.setCreatedAt(now);
+            grant.setUpdatedAt(now);
+            grant.setDeleted(AuthConstants.NOT_DELETED);
+            merchantMenuGrantMapper.insert(grant);
+        }
+        List<SysPermissionDO> permissions = permissionMapper.selectList(Wrappers.<SysPermissionDO>lambdaQuery()
+                .eq(SysPermissionDO::getAppId, appId)
+                .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
+                .eq(SysPermissionDO::getDeleted, AuthConstants.NOT_DELETED));
+        for (SysPermissionDO permission : permissions) {
+            SysMerchantPermissionGrantDO grant = new SysMerchantPermissionGrantDO();
+            grant.setMerchantId(merchantId);
+            grant.setAppId(appId);
+            grant.setPermissionId(permission.getId());
+            grant.setGrantSource("SYSTEM");
+            grant.setStatus(AuthConstants.ENABLED);
+            grant.setCreatedAt(now);
+            grant.setUpdatedAt(now);
+            grant.setDeleted(AuthConstants.NOT_DELETED);
+            merchantPermissionGrantMapper.insert(grant);
         }
     }
 

@@ -15,6 +15,7 @@ import org.springframework.data.redis.serializer.SerializationException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -50,14 +51,38 @@ public final class PaymentRedisSerializerFactory {
     private static final String MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME =
             "com.scott.payment.openapi.security.MerchantOpenApiAccessPolicy";
 
-    private static final String ADMIN_USER_PROFILE_CLASS_NAME =
-            "com.scott.payment.admin.dto.AdminUserProfileDTO";
-
     private static final String PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME =
             "com.scott.payment.payment.model.PaymentCardBinCacheEntry";
 
+    private static final String DICTIONARY_OPTION_SNAPSHOT_CLASS_NAME =
+            "com.scott.payment.component.db.dictionary.model.DictionaryOptionSnapshot";
+
+    private static final String ENABLED_EMAIL_TEMPLATE_SNAPSHOT_CLASS_NAME =
+            "com.scott.payment.component.db.email.model.EnabledEmailTemplateSnapshot";
+
+    private static final String MCC_OPTION_SNAPSHOT_CLASS_NAME =
+            "com.scott.payment.component.db.mcc.model.MccOptionSnapshot";
+
     private static final String SYSTEM_CONFIG_SNAPSHOT_CLASS_NAME =
             "com.scott.payment.component.db.systemconfig.model.SystemConfigSnapshot";
+
+    private static final String HOLIDAY_CALENDAR_MONTH_CLASS_NAME =
+            "com.scott.payment.admin.dto.system.HolidayCalendarDTOs$CalendarMonthResponse";
+
+    private static final String HOLIDAY_CALENDAR_YEAR_CLASS_NAME =
+            "com.scott.payment.admin.dto.system.HolidayCalendarDTOs$CalendarYearResponse";
+
+    private static final String HOLIDAY_CALENDAR_DAY_CLASS_NAME =
+            "com.scott.payment.admin.dto.system.HolidayCalendarDTOs$CalendarDayResponse";
+
+    private static final String MERCHANT_CURRENT_FEE_CLASS_NAME =
+            "com.scott.payment.merchant.dto.MerchantFinanceDTOs$CurrentFeeResponse";
+
+    private static final String MERCHANT_FEE_RULE_CLASS_NAME =
+            "com.scott.payment.merchant.dto.MerchantFinanceDTOs$FeeRuleResponse";
+
+    private static final String MERCHANT_FEE_TIER_CLASS_NAME =
+            "com.scott.payment.merchant.dto.MerchantFinanceDTOs$FeeTierResponse";
 
     private static final Pattern MERCHANT_RUNTIME_PROFILE = Pattern.compile(
             "^" + Pattern.quote(MERCHANT_RUNTIME_PROFILE_CLASS_NAME) + "$");
@@ -74,14 +99,38 @@ public final class PaymentRedisSerializerFactory {
     private static final Pattern MERCHANT_OPENAPI_ACCESS_POLICY = Pattern.compile(
             "^" + Pattern.quote(MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME) + "$");
 
-    private static final Pattern ADMIN_USER_PROFILE = Pattern.compile(
-            "^" + Pattern.quote(ADMIN_USER_PROFILE_CLASS_NAME) + "$");
-
     private static final Pattern PAYMENT_CARD_BIN_CACHE_ENTRY = Pattern.compile(
             "^" + Pattern.quote(PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME) + "$");
 
+    private static final Pattern DICTIONARY_OPTION_SNAPSHOT = Pattern.compile(
+            "^" + Pattern.quote(DICTIONARY_OPTION_SNAPSHOT_CLASS_NAME) + "$");
+
+    private static final Pattern ENABLED_EMAIL_TEMPLATE_SNAPSHOT = Pattern.compile(
+            "^" + Pattern.quote(ENABLED_EMAIL_TEMPLATE_SNAPSHOT_CLASS_NAME) + "$");
+
+    private static final Pattern MCC_OPTION_SNAPSHOT = Pattern.compile(
+            "^" + Pattern.quote(MCC_OPTION_SNAPSHOT_CLASS_NAME) + "$");
+
     private static final Pattern SYSTEM_CONFIG_SNAPSHOT = Pattern.compile(
             "^" + Pattern.quote(SYSTEM_CONFIG_SNAPSHOT_CLASS_NAME) + "$");
+
+    private static final Pattern HOLIDAY_CALENDAR_MONTH = Pattern.compile(
+            "^" + Pattern.quote(HOLIDAY_CALENDAR_MONTH_CLASS_NAME) + "$");
+
+    private static final Pattern HOLIDAY_CALENDAR_YEAR = Pattern.compile(
+            "^" + Pattern.quote(HOLIDAY_CALENDAR_YEAR_CLASS_NAME) + "$");
+
+    private static final Pattern HOLIDAY_CALENDAR_DAY = Pattern.compile(
+            "^" + Pattern.quote(HOLIDAY_CALENDAR_DAY_CLASS_NAME) + "$");
+
+    private static final Pattern MERCHANT_CURRENT_FEE = Pattern.compile(
+            "^" + Pattern.quote(MERCHANT_CURRENT_FEE_CLASS_NAME) + "$");
+
+    private static final Pattern MERCHANT_FEE_RULE = Pattern.compile(
+            "^" + Pattern.quote(MERCHANT_FEE_RULE_CLASS_NAME) + "$");
+
+    private static final Pattern MERCHANT_FEE_TIER = Pattern.compile(
+            "^" + Pattern.quote(MERCHANT_FEE_TIER_CLASS_NAME) + "$");
 
     private static final Set<String> REGISTERED_VALUE_TYPES = Set.of(
             String.class.getName(),
@@ -89,6 +138,7 @@ public final class PaymentRedisSerializerFactory {
             Integer.class.getName(),
             Long.class.getName(),
             BigDecimal.class.getName(),
+            LocalDate.class.getName(),
             LocalDateTime.class.getName(),
             ArrayList.class.getName(),
             LinkedHashMap.class.getName(),
@@ -98,9 +148,17 @@ public final class PaymentRedisSerializerFactory {
             MERCHANT_ROUTE_PROFILE_CLASS_NAME,
             MERCHANT_ROUTE_OPTION_CLASS_NAME,
             MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME,
-            ADMIN_USER_PROFILE_CLASS_NAME,
             PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME,
-            SYSTEM_CONFIG_SNAPSHOT_CLASS_NAME
+            DICTIONARY_OPTION_SNAPSHOT_CLASS_NAME,
+            ENABLED_EMAIL_TEMPLATE_SNAPSHOT_CLASS_NAME,
+            MCC_OPTION_SNAPSHOT_CLASS_NAME,
+            SYSTEM_CONFIG_SNAPSHOT_CLASS_NAME,
+            HOLIDAY_CALENDAR_MONTH_CLASS_NAME,
+            HOLIDAY_CALENDAR_YEAR_CLASS_NAME,
+            HOLIDAY_CALENDAR_DAY_CLASS_NAME,
+            MERCHANT_CURRENT_FEE_CLASS_NAME,
+            MERCHANT_FEE_RULE_CLASS_NAME,
+            MERCHANT_FEE_TIER_CLASS_NAME
     );
 
     private PaymentRedisSerializerFactory() {
@@ -145,12 +203,21 @@ public final class PaymentRedisSerializerFactory {
                 .allowIfSubType(MERCHANT_ROUTE_PROFILE)
                 .allowIfSubType(MERCHANT_ROUTE_OPTION)
                 .allowIfSubType(MERCHANT_OPENAPI_ACCESS_POLICY)
-                .allowIfSubType(ADMIN_USER_PROFILE)
                 .allowIfSubType(PAYMENT_CARD_BIN_CACHE_ENTRY)
+                .allowIfSubType(DICTIONARY_OPTION_SNAPSHOT)
+                .allowIfSubType(ENABLED_EMAIL_TEMPLATE_SNAPSHOT)
+                .allowIfSubType(MCC_OPTION_SNAPSHOT)
                 .allowIfSubType(SYSTEM_CONFIG_SNAPSHOT)
+                .allowIfSubType(HOLIDAY_CALENDAR_MONTH)
+                .allowIfSubType(HOLIDAY_CALENDAR_YEAR)
+                .allowIfSubType(HOLIDAY_CALENDAR_DAY)
+                .allowIfSubType(MERCHANT_CURRENT_FEE)
+                .allowIfSubType(MERCHANT_FEE_RULE)
+                .allowIfSubType(MERCHANT_FEE_TIER)
                 .allowIfSubType(ArrayList.class)
                 .allowIfSubType(LinkedHashMap.class)
                 .allowIfSubType(LinkedHashSet.class)
+                .allowIfSubType(LocalDate.class)
                 .allowIfSubType(LocalDateTime.class)
                 .allowIfSubType(BigDecimal.class)
                 .allowIfSubType(Long.class)
@@ -214,6 +281,7 @@ public final class PaymentRedisSerializerFactory {
                 || value instanceof Integer
                 || value instanceof Long
                 || value instanceof BigDecimal
+                || value instanceof LocalDate
                 || value instanceof LocalDateTime;
     }
 

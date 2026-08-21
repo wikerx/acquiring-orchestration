@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.converter.MenuConverter;
 import com.scott.payment.admin.dto.SysMenuCreateRequest;
@@ -159,6 +161,7 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      * @return 菜单树
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysMenuDTO> treeMenus(SysMenuQueryRequest request) {
         return treeMenus(AuthConstants.APP_ADMIN, request);
     }
@@ -171,6 +174,7 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      * @return 指定应用的菜单树
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysMenuDTO> treeMenus(String appCode, SysMenuQueryRequest request) {
         SysMenuQueryRequest query = request == null ? new SysMenuQueryRequest() : request;
         SysAppDO app = getApp(appCode);

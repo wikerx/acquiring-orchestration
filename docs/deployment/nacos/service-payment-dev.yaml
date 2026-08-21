@@ -76,9 +76,9 @@ payment:
       tcp-no-delay: true
   transaction:
     merchant-notification:
-      # 新建通知任务最多投递 10 次；已有任务继续使用各自落库快照，不在应用启动时批量改写。
-      # 环境说明：环境变量 PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT；允许范围 1-100。
-      max-retry-count: ${PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT:10}
+      # 商户终态回调固定自动投递 5 次：首次 5 秒，失败后依次等待 1、5、10、30 分钟。
+      # 环境说明：环境变量 PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT；当前协议只允许 5。
+      max-retry-count: ${PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT:5}
     outbox:
       # 持续投递 transaction_event_outbox；风险预占终态依赖该事件链路。
       # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_RELAY_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
@@ -92,6 +92,8 @@ payment:
       # 参数说明：配置单批处理记录数；增大可提高吞吐，但会增加数据库锁持有时间和单次失败影响。
       # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE，dev 配置默认值为 "100"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       batch-size: ${PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE:100}
+      # PROCESSING 超过该时间后允许 CAS 恢复为待重试，必须大于单次 MQ 同步发送超时。
+      processing-timeout-seconds: ${PAYMENT_TRANSACTION_OUTBOX_PROCESSING_TIMEOUT_SECONDS:120}
   risk-client:
     # 参数说明：控制是否调用真实远程服务；UAT/生产必须开启并保证服务发现和鉴权可用。
     # 环境说明：环境变量：PAYMENT_RISK_CLIENT_REMOTE_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。

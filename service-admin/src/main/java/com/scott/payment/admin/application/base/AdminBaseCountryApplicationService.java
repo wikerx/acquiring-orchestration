@@ -1,11 +1,13 @@
 package com.scott.payment.admin.application.base;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.export.IsoCountryExportRow;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -16,6 +18,7 @@ import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.component.db.iso.service.IsoDictionaryCacheInvalidator;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -127,6 +130,7 @@ public class AdminBaseCountryApplicationService {
      * @param status        状态
      * @return 分页结果
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<IsoCountryDO> pageCountries(int pageNo, int pageSize, String keyword,
                                                   String continentCode, Integer status) {
         LambdaQueryWrapper<IsoCountryDO> queryWrapper = new LambdaQueryWrapper<>();
@@ -152,6 +156,7 @@ public class AdminBaseCountryApplicationService {
      * @param id 主键
      * @return 国家地区详情
      */
+    @DS(DataSourceName.SLAVE)
     public IsoCountryDO getCountry(Long id) {
         return isoCountryMapper.selectById(id);
     }
@@ -161,6 +166,7 @@ public class AdminBaseCountryApplicationService {
      *
      * @return 国家地区列表
      */
+    @DS(DataSourceName.SLAVE)
     public void exportCountries(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<IsoCountryExportRow> rows = isoCountryMapper.selectList(new LambdaQueryWrapper<IsoCountryDO>()
@@ -191,6 +197,8 @@ public class AdminBaseCountryApplicationService {
      * @param country 国家地区实体
      * @return 保存后的实体
      */
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public IsoCountryDO createCountry(IsoCountryDO country) {
         country.setId(null);
         country.setCreatedAt(LocalDateTime.now());
@@ -211,6 +219,8 @@ public class AdminBaseCountryApplicationService {
      * @param input 更新输入
      * @return 更新结果
      */
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public CommonResult<IsoCountryDO> updateCountry(Long id, IsoCountryDO input) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
@@ -230,6 +240,8 @@ public class AdminBaseCountryApplicationService {
      * @param body 状态请求体
      * @return 更新结果
      */
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public CommonResult<IsoCountryDO> updateStatus(Long id, Map<String, Integer> body) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
@@ -247,6 +259,8 @@ public class AdminBaseCountryApplicationService {
      *
      * @param id 主键
      */
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public void removeCountry(Long id) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country != null) {

@@ -281,7 +281,7 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
             result.setFetchStatus(result.getSkipCount() > 0 ? PARTIAL_SUCCESS : SUCCESS);
         } catch (Exception ex) {
             result.setFetchStatus(FAILED);
-            result.setErrorMessage(ex.getMessage());
+            result.setErrorMessage(ex.getClass().getSimpleName());
         } finally {
             LocalDateTime endTime = LocalDateTime.now();
             insertFetchLog(result, source, startTime, endTime);

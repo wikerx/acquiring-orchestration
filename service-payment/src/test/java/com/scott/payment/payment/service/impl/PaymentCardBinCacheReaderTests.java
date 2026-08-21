@@ -1,6 +1,8 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.entity.PaymentCardBinRangeDO;
 import com.scott.payment.payment.mapper.PaymentCardBinRangeMapper;
 import com.scott.payment.payment.model.PaymentCardBinCacheEntry;
@@ -10,6 +12,7 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 
 import java.util.List;
 
@@ -22,6 +25,18 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class PaymentCardBinCacheReaderTests {
+
+    /** BIN 缓存失效后的首次重建必须读主库，避免复制延迟重新缓存旧区间。 */
+    @Test
+    void shouldRebuildCardBinCacheFromMaster() throws Exception {
+        DS dataSource = AnnotatedElementUtils.findMergedAnnotation(
+                PaymentCardBinCacheReader.class.getMethod("findByPrefix", String.class),
+                DS.class
+        );
+
+        assertThat(dataSource).isNotNull();
+        assertThat(dataSource.value()).isEqualTo(DataSourceName.MASTER);
+    }
 
     @Test
     void shouldQueryDatabaseOnlyOnceForSameElevenDigitPrefix() {
@@ -68,7 +83,10 @@ class PaymentCardBinCacheReaderTests {
         context.register(CacheTestConfiguration.class);
         context.registerBean(PaymentCardBinRangeMapper.class, () -> mapper);
         context.registerBean(CacheManager.class,
-                () -> new ConcurrentMapCacheManager(PaymentCacheNames.CARD_BIN));
+                () -> new ConcurrentMapCacheManager(
+                        PaymentCacheNames.CARD_BIN,
+                        PaymentCacheNames.CARD_BIN_MISS
+                ));
         context.registerBean(PaymentCardBinCacheReader.class);
         context.refresh();
         return context;

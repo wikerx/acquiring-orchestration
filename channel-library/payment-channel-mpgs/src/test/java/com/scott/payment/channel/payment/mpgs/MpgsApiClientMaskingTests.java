@@ -171,6 +171,41 @@ class MpgsApiClientMaskingTests {
                         .doesNotContain("\"sourceOfFunds\"", "\"card\"", "\"result\"", "\"response\""));
     }
 
+    /** 渠道异常日志不得包含 endpoint 认证信息、异常正文或异常堆栈。 */
+    @Test
+    void shouldLogOnlySafeMetadataWhenChannelRequestFails() {
+        MpgsApiClient client = new MpgsApiClient(
+                new MpgsChannelProperties(),
+                new MpgsRequestMapper(),
+                new MpgsResponseMapper(),
+                new FailingHttpClient());
+        ChannelPaymentRequest request = paymentRequest();
+        request.getExtension().put("requestUrl",
+                "https://api-user:must-not-enter-log@test-gateway.mastercard.com/api/rest");
+        request.getExtension().put("mid.version", "100");
+        request.getExtension().put("midNo", "TESTDEVMER031");
+        request.getExtension().put("mid.password", "metadata-password");
+        Logger logger = (Logger) LoggerFactory.getLogger(MpgsApiClient.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            assertThatThrownBy(() -> client.execute(request)).isInstanceOf(RuntimeException.class);
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .allSatisfy(message -> assertThat(message)
+                        .doesNotContain("must-not-enter-log", "secretKey=must-not-enter-log"));
+        assertThat(appender.list)
+                .filteredOn(event -> event.getFormattedMessage().contains("CHANNEL_REQUEST_FAILED"))
+                .allSatisfy(event -> assertThat(event.getThrowableProxy()).isNull());
+    }
+
     /**
      * MPGS RETRIEVE 查询必须使用 order.id 和 transaction.id 组成 URL，不能用平台 transactionId 或本地 requestId 替代。
      */
@@ -522,6 +557,16 @@ class MpgsApiClientMaskingTests {
                                                                 HttpResponse.BodyHandler<T> responseBodyHandler,
                                                                 HttpResponse.PushPromiseHandler<T> pushPromiseHandler) {
             return CompletableFuture.failedFuture(new UnsupportedOperationException("async not used"));
+        }
+    }
+
+    /** 固定抛出携带敏感正文的网络异常，用于验证异常日志边界。 */
+    private static final class FailingHttpClient extends CapturingHttpClient {
+
+        @Override
+        public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler)
+                throws IOException {
+            throw new IOException("secretKey=must-not-enter-log");
         }
     }
 

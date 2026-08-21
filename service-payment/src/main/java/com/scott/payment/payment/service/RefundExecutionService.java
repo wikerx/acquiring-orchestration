@@ -28,7 +28,6 @@ import java.util.Objects;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class RefundExecutionService {
 
     private static final String REQUEST_STATUS_INIT = "INIT";
@@ -65,6 +64,7 @@ public class RefundExecutionService {
      * @param message 退款执行消息
      * @return 本次处理结果
      */
+    @DS(DataSourceName.TRANSACTION)
     public RefundExecutionOutcomeEnum execute(RefundExecutionMessage message) {
         validate(message);
         TransactionOperationDO operation = operationMapper.selectByTransactionId(

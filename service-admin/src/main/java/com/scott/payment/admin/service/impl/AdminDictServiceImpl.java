@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -16,9 +18,17 @@ import com.scott.payment.admin.mapper.SysDictDataMapper;
 import com.scott.payment.admin.mapper.SysDictTypeMapper;
 import com.scott.payment.admin.service.AdminDictService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.dictionary.model.DictionaryOptionSnapshot;
+import com.scott.payment.component.db.dictionary.service.DictionaryOptionCacheReader;
+import com.scott.payment.component.db.dictionary.support.DictionaryOptionCacheKey;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -73,19 +83,37 @@ public class AdminDictServiceImpl implements AdminDictService {
      */
     private final DictConverter dictConverter;
 
+    /** 跨系统启用字典下拉快照读取器。 */
+    private final DictionaryOptionCacheReader dictionaryOptionCacheReader;
+
+    /** 事务感知的 Spring Cache 管理器。 */
+    private final CacheManager cacheManager;
+
+    /** 字典项写事务使用的可靠精确缓存失效协调器。 */
+    private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
     /**
      * 创建数据字典领域服务。
      *
      * @param dictTypeMapper 字典类型数据访问组件
      * @param dictDataMapper 字典项数据访问组件
      * @param dictConverter  数据字典对象转换器
+     * @param dictionaryOptionCacheReader 跨系统启用字典下拉快照读取器
+     * @param cacheManager 事务感知的 Spring Cache 管理器
+     * @param cacheInvalidationCoordinator 事务缓存可靠失效协调器
      */
     public AdminDictServiceImpl(SysDictTypeMapper dictTypeMapper,
                                 SysDictDataMapper dictDataMapper,
-                                DictConverter dictConverter) {
+                                DictConverter dictConverter,
+                                DictionaryOptionCacheReader dictionaryOptionCacheReader,
+                                CacheManager cacheManager,
+                                ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.dictTypeMapper = dictTypeMapper;
         this.dictDataMapper = dictDataMapper;
         this.dictConverter = dictConverter;
+        this.dictionaryOptionCacheReader = dictionaryOptionCacheReader;
+        this.cacheManager = cacheManager;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
     }
 
     /**
@@ -95,6 +123,8 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 保存后的字典类型
      */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public SysDictTypeDTO saveDictType(SysDictTypeSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
         SysDictTypeDO entity = findDictTypeOrThrowWhenBlank(request.getDictType());
@@ -111,6 +141,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         } else {
             dictTypeMapper.updateById(entity);
         }
+        clearOptionCache();
         return dictConverter.toTypeDTO(entity);
     }
 
@@ -121,6 +152,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典类型列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SysDictTypeDTO> pageDictTypes(SysDictTypeQueryRequest request) {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
         Page<SysDictTypeDO> page = dictTypeMapper.selectPage(
@@ -142,6 +174,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典类型列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysDictTypeDTO> listDictTypes(SysDictTypeQueryRequest request) {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
         return dictTypeMapper.selectList(buildDictTypeQueryWrapper(query))
@@ -156,6 +189,8 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param dictType 字典类型编码
      */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public void deleteDictType(String dictType) {
         SysDictTypeDO entity = findDictTypeOrThrowWhenBlank(dictType);
         if (entity == null) {
@@ -164,6 +199,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         entity.setDeleted(entity.getId());
         entity.setUpdatedAt(LocalDateTime.now());
         dictTypeMapper.updateById(entity);
+        clearOptionCache();
     }
 
     /**
@@ -173,10 +209,14 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 保存后的字典数据
      */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public SysDictDataDTO saveDictData(SysDictDataSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
         String locale = defaultIfBlank(request.getLocale(), DEFAULT_LOCALE);
         SysDictDataDO entity = findDictDataOrThrowWhenBlank(request.getDictType(), request.getDictValue(), locale);
+        String previousType = entity == null ? request.getDictType() : entity.getDictType();
+        String previousLocale = entity == null ? locale : entity.getLocale();
         if (entity == null) {
             entity = new SysDictDataDO();
             entity.setDictType(request.getDictType());
@@ -192,6 +232,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         } else {
             dictDataMapper.updateById(entity);
         }
+        evictOptionCaches(previousType, previousLocale, entity.getDictType(), entity.getLocale());
         return dictConverter.toDataDTO(entity);
     }
 
@@ -202,6 +243,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典数据列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SysDictDataDTO> pageDictData(SysDictDataQueryRequest request) {
         SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;
         Page<SysDictDataDO> page = dictDataMapper.selectPage(
@@ -223,8 +265,16 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典数据列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysDictDataDTO> listDictData(SysDictDataQueryRequest request) {
         SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;
+        if (isEnabledOptionQuery(query)) {
+            String locale = defaultIfBlank(query.getLocale(), DEFAULT_LOCALE);
+            return dictionaryOptionCacheReader.findEnabled(query.getDictType().trim(), locale)
+                    .stream()
+                    .map(this::toDataDTO)
+                    .toList();
+        }
         return dictDataMapper.selectList(buildDictDataQueryWrapper(query))
                 .stream()
                 .map(dictConverter::toDataDTO)
@@ -238,6 +288,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典数据详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public SysDictDataDTO getDictDataById(Long id) {
         SysDictDataDO entity = findDictDataById(id);
         return dictConverter.toDataDTO(entity);
@@ -251,11 +302,16 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 更新后的字典数据
      */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public SysDictDataDTO updateDictDataById(Long id, SysDictDataSaveRequest request) {
         SysDictDataDO entity = findDictDataById(id);
+        String previousType = entity.getDictType();
+        String previousLocale = entity.getLocale();
         LocalDateTime now = LocalDateTime.now();
         fillDictData(entity, request, defaultIfBlank(request.getLocale(), entity.getLocale()), now);
         dictDataMapper.updateById(entity);
+        evictOptionCaches(previousType, previousLocale, entity.getDictType(), entity.getLocale());
         return dictConverter.toDataDTO(entity);
     }
 
@@ -302,6 +358,8 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param locale    语言区域
      */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public void deleteDictData(String dictType, String dictValue, String locale) {
         SysDictDataDO entity = findDictDataOrThrowWhenBlank(dictType, dictValue, defaultIfBlank(locale, DEFAULT_LOCALE));
         if (entity == null) {
@@ -310,6 +368,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         entity.setDeleted(entity.getId());
         entity.setUpdatedAt(LocalDateTime.now());
         dictDataMapper.updateById(entity);
+        evictOptionCache(entity.getDictType(), entity.getLocale());
     }
 
     /**
@@ -318,11 +377,78 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param id 字典数据主键
      */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public void deleteDictDataById(Long id) {
         SysDictDataDO entity = findDictDataById(id);
         entity.setDeleted(entity.getId());
         entity.setUpdatedAt(LocalDateTime.now());
         dictDataMapper.updateById(entity);
+        evictOptionCache(entity.getDictType(), entity.getLocale());
+    }
+
+    /** 清空两端共享的启用数据字典下拉快照。 */
+    @Override
+    public void refreshOptionCache() {
+        clearOptionCache();
+    }
+
+    /** 判断是否为可使用共享快照的纯启用字典下拉查询。 */
+    private boolean isEnabledOptionQuery(SysDictDataQueryRequest query) {
+        return StringUtils.hasText(query.getDictType())
+                && !StringUtils.hasText(query.getDictLabel())
+                && !StringUtils.hasText(query.getDictValue())
+                && !StringUtils.hasText(query.getParentValue())
+                && query.getStatus() != null
+                && query.getStatus() == ENABLED;
+    }
+
+    /** 将共享下拉快照转换为管理端字典数据响应。 */
+    private SysDictDataDTO toDataDTO(DictionaryOptionSnapshot snapshot) {
+        SysDictDataDTO response = new SysDictDataDTO();
+        response.setId(snapshot.getId());
+        response.setDictType(snapshot.getDictType());
+        response.setDictLabel(snapshot.getDictLabel());
+        response.setDictValue(snapshot.getDictValue());
+        response.setParentValue(snapshot.getParentValue());
+        response.setLocale(snapshot.getLocale());
+        response.setDictSort(snapshot.getDictSort());
+        response.setListClass(snapshot.getListClass());
+        response.setExtraJson(snapshot.getExtraJson());
+        response.setIsDefault(snapshot.getIsDefault());
+        response.setStatus(snapshot.getStatus());
+        return response;
+    }
+
+    /** 在当前业务事务内登记指定字典类型和语言的下拉快照可靠失效。 */
+    private void evictOptionCache(String dictType, String locale) {
+        cacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.SYSTEM_DICT_OPTIONS,
+                DictionaryOptionCacheKey.of(dictType, defaultIfBlank(locale, DEFAULT_LOCALE))
+        );
+    }
+
+    /** 新旧字典分组相同时只失效一次，不同时分别删除两个精确业务键。 */
+    private void evictOptionCaches(String previousType,
+                                   String previousLocale,
+                                   String currentType,
+                                   String currentLocale) {
+        String previousKey = DictionaryOptionCacheKey.of(
+                previousType, defaultIfBlank(previousLocale, DEFAULT_LOCALE));
+        String currentKey = DictionaryOptionCacheKey.of(
+                currentType, defaultIfBlank(currentLocale, DEFAULT_LOCALE));
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.SYSTEM_DICT_OPTIONS, previousKey);
+        if (!previousKey.equals(currentKey)) {
+            cacheInvalidationCoordinator.prepare(PaymentCacheNames.SYSTEM_DICT_OPTIONS, currentKey);
+        }
+    }
+
+    /** 在当前事务提交后清空所有共享字典下拉快照。 */
+    private void clearOptionCache() {
+        Cache cache = cacheManager.getCache(PaymentCacheNames.SYSTEM_DICT_OPTIONS);
+        if (cache != null) {
+            cache.clear();
+        }
     }
 
     /**

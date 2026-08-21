@@ -14,10 +14,10 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantResponseKeyRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSecurityMaterialDTO;
 import com.scott.payment.admin.service.AdminMerchantInfoService;
-import com.scott.payment.admin.entity.base.MccEntities;
-import com.scott.payment.admin.mapper.BaseMccCodeMapper;
-import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
-import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
+import com.scott.payment.admin.entity.fee.FeeEntities.FeePlanDO;
+import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundAccountDO;
+import com.scott.payment.admin.mapper.FeePlanMapper;
+import com.scott.payment.admin.mapper.MerchantFundAccountMapper;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -27,19 +27,21 @@ import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantResponseKeyDO;
 import com.scott.payment.component.db.auth.entity.BasePlatformPayloadKeyDO;
+import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.db.auth.support.MerchantLocaleSupport;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.iso.entity.IsoCountryDO;
-import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
-import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
-import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
+import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.db.mcc.model.MccOptionSnapshot;
+import com.scott.payment.component.db.mcc.service.MccOptionCacheReader;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.MerchantJwtKey;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.RsaKeyMaterial;
@@ -54,9 +56,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * @author : scott
@@ -73,24 +75,6 @@ import java.util.Map;
 @Service
 public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
 
-    /**
-     * MCC LEVEL 1 VALUE PREFIX，用于保存 Admin Merchant Info Service Impl 中与 mcclevel1valueprefix 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private static final String MCC_LEVEL1_VALUE_PREFIX = "L1:";
-    /**
-     * MCC LEVEL 2 VALUE PREFIX，用于保存 Admin Merchant Info Service Impl 中与 mcclevel2valueprefix 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private static final String MCC_LEVEL2_VALUE_PREFIX = "L2:";
     /**
      * NOT DELETED，用于保存 Admin Merchant Info Service Impl 中与 notdeleted 相关的业务属性。
      * <p>
@@ -216,46 +200,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
     private final BaseMerchantResponseKeyMapper responseKeyMapper;
-    /**
-     * MCC Level 1 Mapper 依赖，用于 Admin Merchant Info Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final BaseMccLevel1Mapper mccLevel1Mapper;
-    /**
-     * MCC Level 2 Mapper 依赖，用于 Admin Merchant Info Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final BaseMccLevel2Mapper mccLevel2Mapper;
-    /**
-     * MCC Code Mapper，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final BaseMccCodeMapper mccCodeMapper;
-    /**
-     * ISO Country Mapper，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持国家地区；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final IsoCountryMapper isoCountryMapper;
-    /**
-     * 收单支付币种字段，通常使用 ISO 4217 三位字母代码，不能为空时由上层校验。
-     */
-    private final IsoCurrencyMapper isoCurrencyMapper;
+    /** 跨系统共享的 MCC 三级选项常驻缓存读取器。 */
+    private final MccOptionCacheReader mccOptionCacheReader;
+
+    /** 跨系统共享的 ISO 国家和币种常驻缓存服务。 */
+    private final IsoDictionaryService isoDictionaryService;
     /**
      * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
@@ -268,6 +217,18 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
 
     /** 管理端新增商户后的主账号、管理员角色与开户通知服务。 */
     private final AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService;
+
+    /** 管理端新增商户后的零余额资金账户开户服务。 */
+    private final AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
+
+    /** 商户登录账号查询组件，仅用于详情页判断登录体系是否已初始化。 */
+    private final SysAccountMapper sysAccountMapper;
+
+    /** 商户资金账户查询组件，仅用于详情页展示开户结果。 */
+    private final MerchantFundAccountMapper fundAccountMapper;
+
+    /** 商户费用方案查询组件，仅用于详情页展示当前生效版本。 */
+    private final FeePlanMapper feePlanMapper;
 
     /** OpenAPI 密钥统一启停规则。 */
     private final OpenApiMerchantKeyMaterialService openApiKeyMaterialService;
@@ -283,15 +244,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param jwtKeyMapper              商户 JWT 密钥 Mapper
      * @param platformPayloadKeyMapper  平台请求体密钥 Mapper
      * @param responseKeyMapper         商户响应密钥 Mapper
-     * @param mccLevel1Mapper           MCC 一级分类 Mapper
-     * @param mccLevel2Mapper           MCC 二级分类 Mapper
-     * @param mccCodeMapper             MCC 编码 Mapper
-     * @param isoCountryMapper          国家地区 Mapper
-     * @param isoCurrencyMapper         币种 Mapper
+     * @param mccOptionCacheReader      公共 MCC 三级选项缓存读取器
+     * @param isoDictionaryService      公共 ISO 国家和币种缓存服务
      * @param keyMaterialFactory        密钥材料工厂
      * @param merchantRuntimeProfileCacheService 完整商户资料共享缓存
      * @param cacheInvalidationCoordinator 密钥元数据永久缓存可靠失效协调器
      * @param primaryAccountProvisioningService 商户主账号开通服务
+     * @param fundAccountProvisioningService 商户资金账户开户服务
+     * @param sysAccountMapper 商户登录账号查询组件
+     * @param fundAccountMapper 商户资金账户查询组件
+     * @param feePlanMapper 商户费用方案查询组件
      * @param openApiKeyMaterialService OpenAPI 密钥统一领域服务
      * @param securityNotificationService 密钥生命周期通知服务
      */
@@ -299,15 +261,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         BaseMerchantJwtKeyMapper jwtKeyMapper,
                                         BasePlatformPayloadKeyMapper platformPayloadKeyMapper,
                                         BaseMerchantResponseKeyMapper responseKeyMapper,
-                                        BaseMccLevel1Mapper mccLevel1Mapper,
-                                        BaseMccLevel2Mapper mccLevel2Mapper,
-                                        BaseMccCodeMapper mccCodeMapper,
-                                        IsoCountryMapper isoCountryMapper,
-                                        IsoCurrencyMapper isoCurrencyMapper,
+                                        MccOptionCacheReader mccOptionCacheReader,
+                                        IsoDictionaryService isoDictionaryService,
                                         OpenApiKeyMaterialFactory keyMaterialFactory,
                                         MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
                                         ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
                                         AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService,
+                                        AdminMerchantFundAccountProvisioningService fundAccountProvisioningService,
+                                        SysAccountMapper sysAccountMapper,
+                                        MerchantFundAccountMapper fundAccountMapper,
+                                        FeePlanMapper feePlanMapper,
                                         OpenApiMerchantKeyMaterialService openApiKeyMaterialService,
                                         AdminMerchantSecurityNotificationService securityNotificationService,
                                         AdminMerchantStatusLifecycleService statusLifecycleService) {
@@ -315,15 +278,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
         this.responseKeyMapper = responseKeyMapper;
-        this.mccLevel1Mapper = mccLevel1Mapper;
-        this.mccLevel2Mapper = mccLevel2Mapper;
-        this.mccCodeMapper = mccCodeMapper;
-        this.isoCountryMapper = isoCountryMapper;
-        this.isoCurrencyMapper = isoCurrencyMapper;
+        this.mccOptionCacheReader = mccOptionCacheReader;
+        this.isoDictionaryService = isoDictionaryService;
         this.keyMaterialFactory = keyMaterialFactory;
         this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
         this.primaryAccountProvisioningService = primaryAccountProvisioningService;
+        this.fundAccountProvisioningService = fundAccountProvisioningService;
+        this.sysAccountMapper = sysAccountMapper;
+        this.fundAccountMapper = fundAccountMapper;
+        this.feePlanMapper = feePlanMapper;
         this.openApiKeyMaterialService = openApiKeyMaterialService;
         this.securityNotificationService = securityNotificationService;
         this.statusLifecycleService = statusLifecycleService;
@@ -338,34 +302,31 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 商户新增和编辑表单选项
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public AdminMerchantFormOptionsDTO getFormOptions() {
         AdminMerchantFormOptionsDTO result = new AdminMerchantFormOptionsDTO();
-        result.setMccOptions(buildMccOptions());
-        result.setCountries(isoCountryMapper.selectList(Wrappers.<IsoCountryDO>lambdaQuery()
-                        .eq(IsoCountryDO::getDeleted, NOT_DELETED)
-                        .eq(IsoCountryDO::getStatus, ENABLED)
-                        .orderByAsc(IsoCountryDO::getAlpha3Code))
+        result.setMccOptions(mccOptionCacheReader.listOptions()
                 .stream()
-                .map(row -> optionItem(row.getAlpha3Code(),
-                        label(row.getAlpha3Code(), row.getChineseName(), row.getEnglishName()),
-                        row.getChineseName(),
-                        row.getEnglishName(),
+                .map(this::toMccOption)
+                .collect(Collectors.toCollection(ArrayList::new)));
+        result.setCountries(isoDictionaryService.listCountries()
+                .stream()
+                .map(row -> optionItem(row.alpha3(),
+                        label(row.alpha3(), row.chineseName(), row.englishName()),
+                        row.chineseName(),
+                        row.englishName(),
                         null,
                         null))
-                .toList());
-        result.setCurrencies(isoCurrencyMapper.selectList(Wrappers.<IsoCurrencyDO>lambdaQuery()
-                        .eq(IsoCurrencyDO::getDeleted, NOT_DELETED)
-                        .eq(IsoCurrencyDO::getStatus, ENABLED)
-                        .orderByAsc(IsoCurrencyDO::getAlpha3Code))
+                .collect(Collectors.toCollection(ArrayList::new)));
+        result.setCurrencies(isoDictionaryService.listCurrencies()
                 .stream()
-                .map(row -> optionItem(row.getAlpha3Code(),
+                .map(row -> optionItem(row.alphabeticCode(),
                         currencyLabel(row),
-                        row.getChineseName(),
-                        row.getEnglishName(),
-                        row.getFractionDigits(),
-                        row.getMinimumAmount()))
-                .toList());
+                        row.chineseName(),
+                        row.englishName(),
+                        row.defaultFractionDigits(),
+                        row.minimumAmount()))
+                .collect(Collectors.toCollection(ArrayList::new)));
         return result;
     }
 
@@ -407,7 +368,43 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     public AdminMerchantInfoDTO getMerchant(Long id) {
         BaseMerchantInfoDO row = requireMerchantById(id);
         MerchantRuntimeProfile profile = merchantRuntimeProfileCacheService.findRuntimeProfile(row.getMerchantId());
-        return profile == null ? toDTO(row) : toDTO(toMerchantInfoDO(profile));
+        AdminMerchantInfoDTO result = profile == null ? toDTO(row) : toDTO(toMerchantInfoDO(profile));
+        enrichOperationalFoundation(result);
+        return result;
+    }
+
+    /**
+     * 补充商户详情页的登录、资金账户和当前费率初始化状态。
+     *
+     * <p>该方法只在单商户详情查询执行，避免列表页逐商户查询产生 N+1。</p>
+     *
+     * @param dto 已完成基础资料与密钥摘要转换的商户详情
+     */
+    private void enrichOperationalFoundation(AdminMerchantInfoDTO dto) {
+        String merchantId = dto.getMerchantId();
+        dto.setLoginInitialized(sysAccountMapper.selectCount(Wrappers.<SysAccountDO>lambdaQuery()
+                .eq(SysAccountDO::getMerchantId, merchantId)
+                .eq(SysAccountDO::getDeleted, 0L)) > 0);
+
+        MerchantFundAccountDO fundAccount = fundAccountMapper.selectOne(
+                Wrappers.<MerchantFundAccountDO>lambdaQuery()
+                        .eq(MerchantFundAccountDO::getMerchantId, merchantId)
+                        .eq(MerchantFundAccountDO::getDeleted, 0L)
+                        .orderByAsc(MerchantFundAccountDO::getId)
+                        .last("LIMIT 1"));
+        if (fundAccount != null) {
+            dto.setFundAccountNo(fundAccount.getAccountNo());
+            dto.setFundAccountStatus(fundAccount.getAccountStatus());
+        }
+
+        FeePlanDO feePlan = feePlanMapper.selectOne(Wrappers.<FeePlanDO>lambdaQuery()
+                .eq(FeePlanDO::getPlanType, "MERCHANT")
+                .eq(FeePlanDO::getMerchantId, merchantId)
+                .eq(FeePlanDO::getDeleted, 0L)
+                .last("LIMIT 1"));
+        if (feePlan != null) {
+            dto.setCurrentFeeVersionNo(feePlan.getCurrentVersionNo());
+        }
     }
 
     /**
@@ -432,6 +429,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         merchantInfoMapper.insert(row);
         merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
         primaryAccountProvisioningService.provision(row);
+        fundAccountProvisioningService.provision(row);
         return toDTO(row);
     }
 
@@ -453,6 +451,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         }
         if (!java.util.Objects.equals(row.getMerchantStatus(), request.getMerchantStatus())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请使用冻结或解冻操作修改商户状态");
+        }
+        if (!java.util.Objects.equals(trimUpper(row.getSettlementCurrency()),
+                trimUpper(request.getSettlementCurrency()))) {
+            fundAccountProvisioningService.synchronizeSettlementCurrency(
+                    row.getMerchantId(), request.getSettlementCurrency());
         }
         merge(row, request);
         row.setGmtModified(LocalDateTime.now());
@@ -507,6 +510,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         prepareRuntimeProfileInvalidation(merchant.getMerchantId());
         prepareKeyMetadataInvalidation(merchant.getMerchantId());
         cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_ROUTE, merchant.getMerchantId());
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS, merchant.getMerchantId());
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_ACTIVE_FEE, merchant.getMerchantId());
         LocalDateTime now = LocalDateTime.now();
         merchantInfoMapper.update(null, Wrappers.<BaseMerchantInfoDO>lambdaUpdate()
                 .set(BaseMerchantInfoDO::getDeleted, 1)
@@ -896,48 +901,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @return MCC 级联选项
      */
-    private List<AdminMerchantFormOptionsDTO.OptionNode> buildMccOptions() {
-        List<MccEntities.BaseMccLevel1DO> level1Rows = mccLevel1Mapper.selectList(Wrappers.<MccEntities.BaseMccLevel1DO>lambdaQuery()
-                .eq(MccEntities.BaseMccLevel1DO::getDeleted, (long) NOT_DELETED)
-                .eq(MccEntities.BaseMccLevel1DO::getStatus, ENABLED)
-                .orderByAsc(MccEntities.BaseMccLevel1DO::getSortNo)
-                .orderByAsc(MccEntities.BaseMccLevel1DO::getLevel1Code));
-        List<MccEntities.BaseMccLevel2DO> level2Rows = mccLevel2Mapper.selectList(Wrappers.<MccEntities.BaseMccLevel2DO>lambdaQuery()
-                .eq(MccEntities.BaseMccLevel2DO::getDeleted, (long) NOT_DELETED)
-                .eq(MccEntities.BaseMccLevel2DO::getStatus, ENABLED)
-                .orderByAsc(MccEntities.BaseMccLevel2DO::getSortNo)
-                .orderByAsc(MccEntities.BaseMccLevel2DO::getLevel2Code));
-        List<MccEntities.BaseMccCodeDO> codeRows = mccCodeMapper.selectList(Wrappers.<MccEntities.BaseMccCodeDO>lambdaQuery()
-                .eq(MccEntities.BaseMccCodeDO::getDeleted, (long) NOT_DELETED)
-                .eq(MccEntities.BaseMccCodeDO::getStatus, ENABLED)
-                .orderByAsc(MccEntities.BaseMccCodeDO::getMccCode));
-
-        Map<Long, AdminMerchantFormOptionsDTO.OptionNode> level1Options = new LinkedHashMap<>();
-        level1Rows.forEach(row -> level1Options.put(row.getId(),
-                optionNode(MCC_LEVEL1_VALUE_PREFIX + row.getId(), label(row.getLevel1Code(), row.getNameCn(), row.getNameEn()), row.getNameCn(), row.getNameEn())));
-
-        Map<Long, AdminMerchantFormOptionsDTO.OptionNode> level2Options = new LinkedHashMap<>();
-        level2Rows.forEach(row -> {
-            AdminMerchantFormOptionsDTO.OptionNode parent = level1Options.get(row.getLevel1Id());
-            if (parent == null) {
-                return;
-            }
-            AdminMerchantFormOptionsDTO.OptionNode node = optionNode(MCC_LEVEL2_VALUE_PREFIX + row.getId(),
-                    label(row.getLevel2Code(), row.getNameCn(), row.getNameEn()),
-                    row.getNameCn(),
-                    row.getNameEn());
-            level2Options.put(row.getId(), node);
-            parent.getChildren().add(node);
-        });
-
-        codeRows.forEach(row -> {
-            AdminMerchantFormOptionsDTO.OptionNode parent = level2Options.get(row.getLevel2Id());
-            if (parent == null) {
-                return;
-            }
-            parent.getChildren().add(optionNode(row.getMccCode(), label(row.getMccCode(), row.getNameCn(), row.getNameEn()), row.getNameCn(), row.getNameEn()));
-        });
-        return new ArrayList<>(level1Options.values());
+    private AdminMerchantFormOptionsDTO.OptionNode toMccOption(MccOptionSnapshot source) {
+        AdminMerchantFormOptionsDTO.OptionNode option = optionNode(
+                source.getValue(), source.getLabel(), source.getNameCn(), source.getNameEn());
+        option.setChildren(source.getChildren().stream()
+                .map(this::toMccOption)
+                .collect(Collectors.toCollection(ArrayList::new)));
+        return option;
     }
 
     /**
@@ -1014,13 +984,14 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param row 币种数据库实体
      * @return 币种兼容展示标签
      */
-    private String currencyLabel(IsoCurrencyDO row) {
-        StringBuilder builder = new StringBuilder(label(row.getAlpha3Code(), row.getChineseName(), row.getEnglishName()));
-        if (row.getFractionDigits() != null) {
-            builder.append("，辅币位：").append(row.getFractionDigits());
+    private String currencyLabel(IsoCurrencyInfo row) {
+        StringBuilder builder = new StringBuilder(label(
+                row.alphabeticCode(), row.chineseName(), row.englishName()));
+        if (row.defaultFractionDigits() >= 0) {
+            builder.append("，辅币位：").append(row.defaultFractionDigits());
         }
-        if (row.getMinimumAmount() != null) {
-            builder.append("，最小金额：").append(row.getMinimumAmount().stripTrailingZeros().toPlainString());
+        if (row.minimumAmount() != null) {
+            builder.append("，最小金额：").append(row.minimumAmount().stripTrailingZeros().toPlainString());
         }
         return builder.toString();
     }

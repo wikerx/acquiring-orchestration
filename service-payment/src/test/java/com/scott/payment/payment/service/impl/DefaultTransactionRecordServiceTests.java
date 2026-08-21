@@ -39,6 +39,7 @@ import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -294,13 +295,19 @@ class DefaultTransactionRecordServiceTests {
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
         TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        MerchantNotificationInitialDeliveryService initialDeliveryService =
+                mock(MerchantNotificationInitialDeliveryService.class);
         LocalDateTime transactionDateTime = LocalDateTime.of(2026, 7, 1, 0, 30);
+        TransactionMerchantNotificationDO pendingNotification = new TransactionMerchantNotificationDO();
         when(operationMapper.completeStatus(any(), any(), any(), anyString(), anyString(), any(), any(),
                 any(), any(), any(), any(), any(), any(), anyString())).thenReturn(1);
         when(orderMapper.markInitialSuccess(anyString(), any(), anyString(), any(BigDecimal.class), any(), anyString()))
                 .thenReturn(1);
         when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
         when(flowEventMapper.insertLogical(any(TransactionFlowEventDO.class))).thenReturn(1);
+        when(notificationMapper.selectPendingActivation(
+                "TX202607010030000000001", transactionDateTime, 0))
+                .thenReturn(pendingNotification);
         when(notificationMapper.activateByTransactionId(
                 anyString(), any(), any(), anyString(), anyString(), any(), any()))
                 .thenReturn(1);
@@ -320,6 +327,8 @@ class DefaultTransactionRecordServiceTests {
                 mock(TransactionPaymentMethodInfoMapper.class),
                 new TransactionShardingKeyParser(),
                 properties);
+        ReflectionTestUtils.setField(recordService, "merchantNotificationInitialDeliveryService",
+                initialDeliveryService);
 
         TransactionOperationDO operationDO = processingInitialOperation();
         operationDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
@@ -365,6 +374,8 @@ class DefaultTransactionRecordServiceTests {
                 notificationAuditPayloadCaptor.capture(),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class));
+        verify(initialDeliveryService).schedule(
+                eq(pendingNotification), eq(1), any(LocalDateTime.class));
         assertThat(callbackPayloadCaptor.getValue())
                 .contains("\"transactionStatus\":\"SUCCESS\"")
                 .contains("\"processStage\":\"FINISHED\"")
@@ -1548,6 +1559,10 @@ class DefaultTransactionRecordServiceTests {
                 mock(TransactionPaymentMethodInfoMapper.class),
                 new TransactionShardingKeyParser(),
                 logicalShardingProperties());
+        MerchantNotificationInitialDeliveryService initialDeliveryService =
+                mock(MerchantNotificationInitialDeliveryService.class);
+        ReflectionTestUtils.setField(recordService, "merchantNotificationInitialDeliveryService",
+                initialDeliveryService);
         PaymentCreateCommandDTO commandDTO = baseCommand();
         commandDTO.setRequestId(commandDTO.getMerchantOrderId());
         commandDTO.setMerchantRequestCipherMasked("cipher***tail");
@@ -1618,7 +1633,11 @@ class DefaultTransactionRecordServiceTests {
         assertThat(notificationCapture.value.getTargetUrlMasked()).isEqualTo("https://merchant.example/callback?***");
         assertPlaintextCallbackTask(
                 notificationCapture.value, "https://merchant.example/callback?source=qa");
-        assertThat(notificationCapture.value.getMaxRetryCount()).isEqualTo(10);
+        assertThat(notificationCapture.value.getMaxRetryCount()).isEqualTo(5);
+        assertThat(notificationCapture.value.getNextRetryTime())
+                .isEqualTo(notificationCapture.value.getCreateTime().plusSeconds(5));
+        verify(initialDeliveryService).schedule(
+                eq(notificationCapture.value), eq(0), eq(notificationCapture.value.getCreateTime()));
         assertNestedMerchantPayload(notificationCapture.value.getPayloadJsonMasked());
     }
 

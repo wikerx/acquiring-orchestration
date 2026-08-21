@@ -3,6 +3,8 @@ package com.scott.payment.component.mq.producer.impl;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
+import org.apache.rocketmq.client.producer.SendResult;
+import org.apache.rocketmq.client.producer.SendStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
@@ -11,6 +13,7 @@ import org.springframework.messaging.Message;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
@@ -33,14 +36,16 @@ class RocketMqProducerTest {
     }
 
     @Test
-    void shouldFillTraceMetadataEvenWhenRocketMqTemplateIsUnavailable() {
+    void shouldRejectDeliveryWhenRocketMqTemplateIsUnavailable() {
         TraceContext.setTraceId("trace-mq-001");
         ObjectProvider<RocketMQTemplate> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(null);
         RocketMqProducer producer = new RocketMqProducer(provider);
         BaseMqMessage message = new BaseMqMessage();
 
-        producer.send("payment-event", "created", message);
+        assertThatIllegalStateException()
+                .isThrownBy(() -> producer.send("payment-event", "created", message))
+                .withMessage("RocketMQTemplate is not ready");
 
         assertThat(message.getMessageId()).isNotBlank();
         assertThat(message.getCreatedAt()).isNotNull();
@@ -54,6 +59,8 @@ class RocketMqProducerTest {
         ObjectProvider<RocketMQTemplate> provider = mock(ObjectProvider.class);
         RocketMQTemplate rocketMQTemplate = mock(RocketMQTemplate.class);
         when(provider.getIfAvailable()).thenReturn(rocketMQTemplate);
+        when(rocketMQTemplate.syncSend(eq("payment-event:created"), org.mockito.ArgumentMatchers.any(Message.class)))
+                .thenReturn(sendOk());
         RocketMqProducer producer = new RocketMqProducer(provider);
         BaseMqMessage message = new BaseMqMessage();
         message.setMessageId("message-001");
@@ -81,6 +88,9 @@ class RocketMqProducerTest {
         BaseMqMessage message = new BaseMqMessage();
         message.setMessageId("message-delayed-001");
         Instant deliverAt = Instant.now().plusSeconds(300);
+        when(rocketMQTemplate.syncSendDeliverTimeMills(
+                eq("payment-event:retry-due"), org.mockito.ArgumentMatchers.any(Message.class),
+                eq(deliverAt.toEpochMilli()))).thenReturn(sendOk());
 
         producer.sendAt("payment-event", "retry-due", message, deliverAt);
 
@@ -88,5 +98,45 @@ class RocketMqProducerTest {
         verify(rocketMQTemplate).syncSendDeliverTimeMills(
                 eq("payment-event:retry-due"), captor.capture(), eq(deliverAt.toEpochMilli()));
         assertThat(captor.getValue().getHeaders().get("messageId")).isEqualTo("message-delayed-001");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRejectNonSuccessfulBrokerResult() {
+        ObjectProvider<RocketMQTemplate> provider = mock(ObjectProvider.class);
+        RocketMQTemplate rocketMQTemplate = mock(RocketMQTemplate.class);
+        when(provider.getIfAvailable()).thenReturn(rocketMQTemplate);
+        SendResult result = new SendResult();
+        result.setSendStatus(SendStatus.FLUSH_DISK_TIMEOUT);
+        when(rocketMQTemplate.syncSend(eq("payment-event:created"), org.mockito.ArgumentMatchers.any(Message.class)))
+                .thenReturn(result);
+        RocketMqProducer producer = new RocketMqProducer(provider);
+
+        assertThatIllegalStateException()
+                .isThrownBy(() -> producer.send("payment-event", "created", new BaseMqMessage()))
+                .withMessageContaining("sendStatus=FLUSH_DISK_TIMEOUT");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldSendOrderlyByBusinessGroup() {
+        ObjectProvider<RocketMQTemplate> provider = mock(ObjectProvider.class);
+        RocketMQTemplate rocketMQTemplate = mock(RocketMQTemplate.class);
+        when(provider.getIfAvailable()).thenReturn(rocketMQTemplate);
+        when(rocketMQTemplate.syncSendOrderly(
+                eq("payment-event:updated"), org.mockito.ArgumentMatchers.any(Message.class), eq("TXN-001")))
+                .thenReturn(sendOk());
+        RocketMqProducer producer = new RocketMqProducer(provider);
+
+        producer.sendOrderly("payment-event", "updated", new BaseMqMessage(), "TXN-001");
+
+        verify(rocketMQTemplate).syncSendOrderly(
+                eq("payment-event:updated"), org.mockito.ArgumentMatchers.any(Message.class), eq("TXN-001"));
+    }
+
+    private SendResult sendOk() {
+        SendResult result = new SendResult();
+        result.setSendStatus(SendStatus.SEND_OK);
+        return result;
     }
 }

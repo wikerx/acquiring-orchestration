@@ -21,6 +21,8 @@ import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.cache.RedisCacheWriter;
+import org.springframework.data.redis.cache.BatchStrategies;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
@@ -37,7 +39,7 @@ import java.util.Map;
  * @classname : PaymentRedisCacheAutoConfiguration
  * @date : 2026-07-30 22:05
  * @email : scott_x@163.com
- * @description : 支付系统 Redis Cache 自动配置，集中注册常驻业务快照、统一序列化、故障降级和独立 miss marker 存储
+ * @description : 支付系统 Redis Cache 自动配置，集中注册业务读模型生命周期、统一序列化、故障降级和独立 miss marker 存储
  * @status : update
  */
 @Slf4j
@@ -93,7 +95,11 @@ public class PaymentRedisCacheAutoConfiguration {
                         properties.getKeyPrefix(),
                         properties.getTtlJitterPercent())
         ));
-        return RedisCacheManager.builder(redisConnectionFactory)
+        RedisCacheWriter cacheWriter = RedisCacheWriter.nonLockingRedisCacheWriter(
+                redisConnectionFactory,
+                BatchStrategies.scan(1000)
+        );
+        return RedisCacheManager.builder(cacheWriter)
                 .cacheDefaults(defaultConfiguration)
                 .withInitialCacheConfigurations(cacheConfigurations)
                 .enableStatistics()
@@ -261,11 +267,10 @@ public class PaymentRedisCacheAutoConfiguration {
      * @param exception Redis Cache 运行时异常
      */
     private void logCacheFailure(String operation, Cache cache, RuntimeException exception) {
-        log.warn("event: REDIS_CACHE_OPERATION_FAILED operation: {} cacheName: {} exceptionType: {} reason: {}",
+        log.warn("event: REDIS_CACHE_OPERATION_FAILED operation: {} cacheName: {} exceptionType: {}",
                 operation,
                 cache == null ? "UNKNOWN" : cache.getName(),
-                exception.getClass().getSimpleName(),
-                exception.getMessage());
+                exception.getClass().getSimpleName());
     }
 
     /**
@@ -284,6 +289,9 @@ public class PaymentRedisCacheAutoConfiguration {
                 || PaymentCacheNames.MERCHANT_OPENAPI_ACCESS.equals(cacheName)
                 || PaymentCacheNames.MERCHANT_KEY_METADATA.equals(cacheName)
                 || PaymentCacheNames.MERCHANT_ROUTE.equals(cacheName)
+                || PaymentCacheNames.MERCHANT_ACTIVE_FEE.equals(cacheName)
+                || PaymentCacheNames.ISO_COUNTRY.equals(cacheName)
+                || PaymentCacheNames.ISO_CURRENCY.equals(cacheName)
                 || PaymentCacheNames.SYSTEM_CONFIG.equals(cacheName)) {
             throw exception;
         }

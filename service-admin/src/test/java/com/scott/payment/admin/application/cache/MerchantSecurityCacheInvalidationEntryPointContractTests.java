@@ -88,6 +88,25 @@ class MerchantSecurityCacheInvalidationEntryPointContractTests {
         log.info("删除商户路由失效验证完成，结果: merchant:route Outbox 已登记");
     }
 
+    /** 删除商户时必须清理不再可访问的 OpenAPI 策略和当前生效费率快照。 */
+    @Test
+    void shouldPrepareDependentCacheInvalidationsWhenMerchantIsDeleted() throws IOException {
+        String source = Files.readString(modulePath(
+                "src/main/java/com/scott/payment/admin/service/impl/AdminMerchantInfoServiceImpl.java"
+        ));
+
+        assertPreparesInvalidation(
+                source,
+                "public void deleteMerchant(",
+                "cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS"
+        );
+        assertPreparesInvalidation(
+                source,
+                "public void deleteMerchant(",
+                "cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_ACTIVE_FEE"
+        );
+    }
+
     /** OpenAPI IP 策略写入口必须登记聚合策略缓存失效。 */
     @Test
     void shouldPrepareInvalidationForEveryOpenApiAccessMutation() throws IOException {

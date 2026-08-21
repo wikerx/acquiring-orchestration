@@ -1,5 +1,7 @@
 package com.scott.payment.job.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.model.PageResult;
@@ -158,6 +160,7 @@ public class JobRunLogServiceImpl implements JobRunLogService {
      * @return 按创建时间和主键倒序的分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SysJobRunLogDO> pageLogs(JobRunLogQueryRequest request) {
         JobRunLogQueryRequest query = request == null ? new JobRunLogQueryRequest() : request;
         Page<SysJobRunLogDO> page = sysJobRunLogMapper.selectPage(
@@ -195,6 +198,7 @@ public class JobRunLogServiceImpl implements JobRunLogService {
      * @return 按创建时间和主键倒序的日志列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysJobRunLogDO> listLogs(JobRunLogQueryRequest request) {
         return sysJobRunLogMapper.selectList(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
     }
@@ -205,6 +209,7 @@ public class JobRunLogServiceImpl implements JobRunLogService {
      * @return 按开始时间升序排列的超时候选列表
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public List<SysJobRunLogDO> selectTimeoutCandidates() {
         return sysJobRunLogMapper.selectTimeoutCandidates();
     }

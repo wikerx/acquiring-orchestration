@@ -31,9 +31,6 @@ public class ManagedCacheInvalidationRelayService {
     /** 单次发布失败后的固定重试间隔，单位秒。 */
     private static final long RETRY_DELAY_SECONDS = 5L;
 
-    /** 持久化失败原因的最大字符数。 */
-    private static final int FAILURE_REASON_MAX_LENGTH = 512;
-
     /** 共享 Outbox 数据访问组件。 */
     private final ManagedCacheInvalidationOutboxMapper outboxMapper;
 
@@ -128,12 +125,12 @@ public class ManagedCacheInvalidationRelayService {
             );
             log.warn(
                     "event: MANAGED_CACHE_INVALIDATION_PUBLISH_FAILED "
-                            + "eventId: {} cacheName: {} retryCount: {} nextRetryTime: {} reason: {}",
+                            + "eventId: {} cacheName: {} retryCount: {} nextRetryTime: {} exceptionType: {}",
                     event.getEventId(),
                     event.getCacheName(),
                     event.getRetryCount(),
                     nextRetryTime,
-                    exception.getMessage()
+                    exception.getClass().getSimpleName()
             );
             return false;
         }
@@ -171,12 +168,7 @@ public class ManagedCacheInvalidationRelayService {
      * @return 最多 512 字符的非空原因
      */
     private String failureReason(RuntimeException exception) {
-        String reason = exception.getMessage();
-        if (!StringUtils.hasText(reason)) {
-            reason = exception.getClass().getSimpleName();
-        }
-        return reason.length() <= FAILURE_REASON_MAX_LENGTH
-                ? reason
-                : reason.substring(0, FAILURE_REASON_MAX_LENGTH);
+        String failureType = exception.getClass().getSimpleName();
+        return StringUtils.hasText(failureType) ? failureType : "CacheInvalidationPublishException";
     }
 }

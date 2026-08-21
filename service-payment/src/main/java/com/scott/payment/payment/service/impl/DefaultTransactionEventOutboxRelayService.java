@@ -12,6 +12,8 @@ import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.TransactionEventOutboxRelayService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -37,11 +39,6 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      */
     private static final long DEFAULT_RETRY_DELAY_MINUTES = 1L;
 
-    /**
-     * 失败原因最大长度，必须与 transaction_event_outbox.fail_reason 保持一致。
-     */
-    private static final int FAIL_REASON_MAX_LENGTH = 512;
-
     /** 商户通知重试时间按平台交易时区转换为 RocketMQ 绝对时间戳。 */
     private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
@@ -55,16 +52,29 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      */
     private final MqProducer mqProducer;
 
+    /** PROCESSING 状态允许保留的秒数，超时后由下一轮扫描恢复。 */
+    private final long processingTimeoutSeconds;
+
     /**
      * 创建交易本地消息投递服务。
      *
      * @param eventOutboxService 交易本地消息服务
      * @param mqProducer         RocketMQ 生产者
      */
-    public DefaultTransactionEventOutboxRelayService(TransactionEventOutboxService eventOutboxService,
-                                                    MqProducer mqProducer) {
+    @Autowired
+    public DefaultTransactionEventOutboxRelayService(
+            TransactionEventOutboxService eventOutboxService,
+            MqProducer mqProducer,
+            @Value("${payment.transaction.outbox.processing-timeout-seconds:120}") long processingTimeoutSeconds) {
         this.eventOutboxService = eventOutboxService;
         this.mqProducer = mqProducer;
+        this.processingTimeoutSeconds = Math.max(processingTimeoutSeconds, 1L);
+    }
+
+    /** 测试和独立组件环境使用默认 PROCESSING 超时配置。 */
+    DefaultTransactionEventOutboxRelayService(TransactionEventOutboxService eventOutboxService,
+                                               MqProducer mqProducer) {
+        this(eventOutboxService, mqProducer, 120L);
     }
 
     /**
@@ -77,6 +87,12 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
     @Override
     public int publishDueEvents(LocalDateTime eventTime, int limit) {
         LocalDateTime now = LocalDateTime.now();
+        int recovered = eventOutboxService.recoverStaleProcessing(
+                eventTime, now.minusSeconds(processingTimeoutSeconds), now);
+        if (recovered > 0) {
+            log.warn("event: TRANSACTION_OUTBOX_PROCESSING_RECOVERED recoveredCount: {} eventQuarter: {}",
+                    recovered, eventTime);
+        }
         List<TransactionEventOutboxDO> events = eventOutboxService.listDueEvents(eventTime, now, limit);
         int successCount = 0;
         for (TransactionEventOutboxDO eventDO : events) {
@@ -99,6 +115,11 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      */
     private boolean publishSingle(TransactionEventOutboxDO eventDO, LocalDateTime now) {
         long startNanos = System.nanoTime();
+        if (!eventOutboxService.claimForPublish(eventDO, now)) {
+            log.info("event: TRANSACTION_OUTBOX_CLAIM_SKIPPED eventNo: {} transactionId: {} version: {}",
+                    eventDO.getEventNo(), eventDO.getTransactionId(), eventDO.getVersion());
+            return false;
+        }
         try {
             BaseMqMessage message = buildMessage(eventDO);
             if (!StringUtils.hasText(message.getMessageId())) {
@@ -110,6 +131,7 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
             if (!StringUtils.hasText(message.getTraceId())) {
                 message.setTraceId(TraceContext.getOrCreateTraceId());
             }
+            message.setRetryCount(Math.max(eventDO.getRetryCount() == null ? 0 : eventDO.getRetryCount(), 0));
             log.info("event: TRANSACTION_OUTBOX_PUBLISH_START stage=MQ traceId: {} eventNo: {} messageId: {} messageKey: {} retryCount: {} topic: {} tag: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} transactionType: {} transactionDateTime: {}",
                     message.getTraceId(),
                     eventDO.getEventNo(),
@@ -148,8 +170,20 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
             return updated;
         } catch (Exception exception) {
             LocalDateTime nextRetryTime = now.plusMinutes(DEFAULT_RETRY_DELAY_MINUTES);
-            eventOutboxService.markFailed(eventDO, nextRetryTime, safeFailReason(exception), now);
-            log.warn("event: TRANSACTION_OUTBOX_PUBLISH_FAILED stage=MQ traceId: {} eventNo: {} messageKey: {} transactionId: {} operationId: {} retryCount: {} nextRetryTime: {} errorType: {} message: {} durationMs: {}",
+            String failureType = safeFailReason(exception);
+            boolean failedStateRecorded = eventOutboxService.markFailed(
+                    eventDO, nextRetryTime, failureType, now);
+            if (!failedStateRecorded) {
+                log.error("event: TRANSACTION_OUTBOX_MARK_FAILED_CAS_FAILED stage=MQ traceId: {} eventNo: {} messageKey: {} transactionId: {} operationId: {} expectedVersion: {} errorType: {}",
+                        TraceContext.getTraceId(),
+                        eventDO.getEventNo(),
+                        eventDO.getMessageKey(),
+                        eventDO.getTransactionId(),
+                        eventDO.getOperationId(),
+                        eventDO.getVersion(),
+                        failureType);
+            }
+            log.warn("event: TRANSACTION_OUTBOX_PUBLISH_FAILED stage=MQ traceId: {} eventNo: {} messageKey: {} transactionId: {} operationId: {} retryCount: {} nextRetryTime: {} errorType: {} stateRecorded: {} durationMs: {}",
                     TraceContext.getTraceId(),
                     eventDO.getEventNo(),
                     eventDO.getMessageKey(),
@@ -157,10 +191,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                     eventDO.getOperationId(),
                     eventDO.getRetryCount(),
                     nextRetryTime,
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage(),
-                    elapsedMillis(startNanos),
-                    exception);
+                    failureType,
+                    failedStateRecorded,
+                    elapsedMillis(startNanos));
             return false;
         }
     }
@@ -176,6 +209,10 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                     eventDO.getTag(),
                     retryMessage,
                     retryMessage.getDeliverAt().atZone(PLATFORM_ZONE_ID).toInstant());
+            return;
+        }
+        if (StringUtils.hasText(eventDO.getMessageGroup())) {
+            mqProducer.sendOrderly(eventDO.getTopic(), eventDO.getTag(), message, eventDO.getMessageGroup());
             return;
         }
         mqProducer.send(eventDO.getTopic(), eventDO.getTag(), message);
@@ -195,8 +232,8 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      * 从本地事件表载荷恢复 MQ 消息体。
      * <p>
      * 前置条件：eventDO 来自 transaction_event_outbox 分表，payloadJson 可能是历史版本消息。
-     * 该方法优先反序列化为 TransactionEventMessage；解析为空时返回空消息对象，由投递逻辑补齐 messageId、createdAt、traceId 和 retryCount，
-     * 保证失败重试仍能带着原事件编号投递。
+     * 该方法优先反序列化为明确消息类型；载荷为空、畸形或无法识别时抛出异常并进入 Outbox 重试，
+     * 禁止发送缺失交易身份的空事件。
      * </p>
      * @param eventDO 本地事件表记录，提供 payloadJson、topic、tag 和业务标识
      * @return 可交给 MQ 生产者发送的基础消息
@@ -219,27 +256,15 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
             return executionMessage;
         }
         TransactionEventMessage message = JsonUtils.parseObject(eventDO.getPayloadJson(), TransactionEventMessage.class);
-        return message == null ? new TransactionEventMessage() : message;
-    }
-
-    /**
-     * 规范化failreason，返回调用链后续步骤可直接使用的业务值。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param exception 下游调用、校验或持久化阶段捕获的异常对象
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private String safeFailReason(Exception exception) {
-        String message = exception.getMessage();
-        if (!StringUtils.hasText(message)) {
-            message = exception.getClass().getSimpleName();
-        }
-        if (message.length() > FAIL_REASON_MAX_LENGTH) {
-            return message.substring(0, FAIL_REASON_MAX_LENGTH);
+        if (message == null || !StringUtils.hasText(message.getEventType())) {
+            throw new IllegalStateException("transaction outbox payload is invalid");
         }
         return message;
+    }
+
+    /** 返回不包含异常正文或消息载荷的失败类型摘要。 */
+    private String safeFailReason(Exception exception) {
+        String failureType = exception.getClass().getSimpleName();
+        return StringUtils.hasText(failureType) ? failureType : "MqPublishException";
     }
 }

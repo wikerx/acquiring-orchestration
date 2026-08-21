@@ -23,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultVoidChannelResultTransactionService implements VoidChannelResultTransactionService {
 
     /**
@@ -63,6 +62,7 @@ public class DefaultVoidChannelResultTransactionService implements VoidChannelRe
      * @param invokeResultDTO      渠道调用结果
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void recordVoidChannelResult(VoidPreparationResultDTO preparationResultDTO,
                                         PaymentChannelInvokeResultDTO invokeResultDTO) {

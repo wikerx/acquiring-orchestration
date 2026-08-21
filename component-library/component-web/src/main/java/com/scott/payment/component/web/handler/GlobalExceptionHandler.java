@@ -16,10 +16,14 @@ import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.validation.ObjectError;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 
 /**
@@ -43,7 +47,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ApiException.class)
     public CommonResult<Void> handleApiException(ApiException exception) {
-        log.warn("Open API exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
+        log.warn("Open API exception, code: {}, exceptionType: {}, messageLength: {}",
+                exception.getCode(), exception.getClass().getSimpleName(), messageLength(exception.getMessage()));
         return errorResult(exception.getCode(), exception.getMessage());
     }
 
@@ -55,7 +60,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ServiceException.class)
     public CommonResult<Void> handleServiceException(ServiceException exception) {
-        log.warn("Service exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
+        log.warn("Service exception, code: {}, exceptionType: {}, messageLength: {}",
+                exception.getCode(), exception.getClass().getSimpleName(), messageLength(exception.getMessage()));
         return errorResult(exception.getCode(), exception.getMessage());
     }
 
@@ -67,7 +73,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BizException.class)
     public CommonResult<Void> handleBizException(BizException exception) {
-        log.warn("Business exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
+        log.warn("Business exception, code: {}, exceptionType: {}, messageLength: {}",
+                exception.getCode(), exception.getClass().getSimpleName(), messageLength(exception.getMessage()));
         return errorResult(exception.getCode(), exception.getMessage());
     }
 
@@ -79,8 +86,10 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public CommonResult<Void> handleValidException(MethodArgumentNotValidException exception) {
-        log.warn("Request parameter validation failed: {}", exception.getMessage());
-        return CommonResult.error(ApiResultEnum.PARAM_INVALID.getCode(), exception.getMessage());
+        String fieldName = firstFieldName(exception.getBindingResult());
+        log.warn("Request parameter validation failed, field: {}", fieldName);
+        return CommonResult.error(ApiResultEnum.PARAM_INVALID.getCode(),
+                resolveBindingValidationMessage(exception.getBindingResult()));
     }
 
     /**
@@ -91,7 +100,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public CommonResult<Void> handleMethodNotSupportedException(HttpRequestMethodNotSupportedException exception) {
-        log.warn("Request method not supported: {}", exception.getMessage());
+        log.warn("Request method not supported, method: {}", exception.getMethod());
         return CommonResult.error(ApiResultEnum.METHOD_NOT_ALLOWED);
     }
 
@@ -132,8 +141,132 @@ public class GlobalExceptionHandler {
     })
 
     public CommonResult<Void> handleRequestParameterException(Exception exception) {
-        log.warn("Request parameter exception: {}", exception.getMessage());
-        return CommonResult.error(ApiResultEnum.PARAM_INVALID.getCode(), exception.getMessage());
+        String safeMessage = resolveRequestParameterMessage(exception);
+        log.warn("Request parameter exception, type: {}, field: {}",
+                exception.getClass().getSimpleName(), resolveRequestParameterField(exception));
+        return CommonResult.error(ApiResultEnum.PARAM_INVALID.getCode(), safeMessage);
+    }
+
+    /**
+     * 根据参数异常类型生成不包含 rejected value、请求正文或框架异常细节的对外提示。
+     *
+     * @param exception Spring Web 参数异常
+     * @return 受控参数错误提示
+     */
+    private String resolveRequestParameterMessage(Exception exception) {
+        if (exception instanceof BindException bindException) {
+            return resolveBindingValidationMessage(bindException.getBindingResult());
+        }
+        if (exception instanceof ConstraintViolationException violationException) {
+            return violationException.getConstraintViolations().stream()
+                    .findFirst()
+                    .map(this::resolveConstraintViolationMessage)
+                    .orElse(ApiResultEnum.PARAM_INVALID.getMessage());
+        }
+        if (exception instanceof MissingServletRequestParameterException missingException) {
+            return "Missing request parameter: " + missingException.getParameterName();
+        }
+        if (exception instanceof MethodArgumentTypeMismatchException mismatchException) {
+            return "Invalid request parameter format: " + mismatchException.getName();
+        }
+        if (exception instanceof HttpMessageNotReadableException) {
+            return "Invalid request body format.";
+        }
+        if (exception instanceof ServletRequestBindingException) {
+            return "Request parameter binding failed.";
+        }
+        return ApiResultEnum.PARAM_INVALID.getMessage();
+    }
+
+    /**
+     * 生成字段校验提示，仅使用服务端字段名和约束文案，不读取或拼接 rejected value。
+     *
+     * @param bindingResult Spring 参数绑定结果
+     * @return 受控字段校验提示
+     */
+    private String resolveBindingValidationMessage(BindingResult bindingResult) {
+        FieldError fieldError = bindingResult.getFieldError();
+        if (fieldError != null) {
+            return fieldError.getField() + ": " + validationText(fieldError.getDefaultMessage());
+        }
+        ObjectError objectError = bindingResult.getGlobalError();
+        if (objectError != null) {
+            return validationText(objectError.getDefaultMessage());
+        }
+        return ApiResultEnum.PARAM_INVALID.getMessage();
+    }
+
+    /**
+     * 生成方法参数约束提示，不读取约束对应的实际参数值。
+     *
+     * @param violation Bean Validation 约束异常
+     * @return 受控约束提示
+     */
+    private String resolveConstraintViolationMessage(ConstraintViolation<?> violation) {
+        String propertyPath = violation.getPropertyPath() == null ? null : violation.getPropertyPath().toString();
+        String message = validationText(violation.getMessage());
+        return propertyPath == null || propertyPath.isBlank() ? message : propertyPath + ": " + message;
+    }
+
+    /**
+     * 提取用于安全日志定位的字段名，不写入字段值或请求正文。
+     *
+     * @param exception Spring Web 参数异常
+     * @return 字段名；无法确定时返回短横线
+     */
+    private String resolveRequestParameterField(Exception exception) {
+        if (exception instanceof BindException bindException) {
+            return firstFieldName(bindException.getBindingResult());
+        }
+        if (exception instanceof ConstraintViolationException violationException) {
+            return violationException.getConstraintViolations().stream()
+                    .findFirst()
+                    .map(ConstraintViolation::getPropertyPath)
+                    .map(Object::toString)
+                    .orElse("-");
+        }
+        if (exception instanceof MissingServletRequestParameterException missingException) {
+            return missingException.getParameterName();
+        }
+        if (exception instanceof MethodArgumentTypeMismatchException mismatchException) {
+            return mismatchException.getName();
+        }
+        return "-";
+    }
+
+    /**
+     * 提取首个校验失败字段名，用于日志定位且不包含字段值。
+     *
+     * @param bindingResult Spring 参数绑定结果
+     * @return 字段名；不存在字段错误时返回短横线
+     */
+    private String firstFieldName(BindingResult bindingResult) {
+        FieldError fieldError = bindingResult.getFieldError();
+        return fieldError == null ? "-" : fieldError.getField();
+    }
+
+    /**
+     * 规范化服务端声明的校验文案，避免空文案或换行污染响应与日志结构。
+     *
+     * @param message 校验注解或绑定器提供的约束文案
+     * @return 单行、长度受控的校验文案
+     */
+    private String validationText(String message) {
+        if (message == null || message.isBlank()) {
+            return ApiResultEnum.PARAM_INVALID.getMessage();
+        }
+        String singleLine = message.replace('\r', ' ').replace('\n', ' ').trim();
+        return singleLine.length() <= 160 ? singleLine : singleLine.substring(0, 160);
+    }
+
+    /**
+     * 计算异常文案长度，日志只保留低敏感诊断信息而不记录原文。
+     *
+     * @param message 异常文案
+     * @return 字符数；空值返回 0
+     */
+    private int messageLength(String message) {
+        return message == null ? 0 : message.length();
     }
 
     /**

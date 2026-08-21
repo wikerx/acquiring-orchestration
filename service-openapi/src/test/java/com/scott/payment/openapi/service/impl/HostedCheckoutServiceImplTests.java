@@ -29,6 +29,7 @@ import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionCreateVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -47,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * Hosted Checkout OpenAPI 服务测试，覆盖商户绑定、Token 不透明性、金额币种和页面状态映射。
  */
+@Slf4j
 class HostedCheckoutServiceImplTests {
 
     /** 单元测试 Token 摘要盐值，不得复用于运行环境。 */
@@ -54,6 +56,9 @@ class HostedCheckoutServiceImplTests {
 
     /** 模拟浏览器持有的不透明原始 Token，用于验证日志与下游请求不泄露明文。 */
     private static final String RAW_OPAQUE_TOKEN = "raw-browser-token-123";
+
+    /** 支付服务固定响应时间，用于校验浏览器倒计时校准字段的时区转换。 */
+    private static final LocalDateTime CHECKOUT_SERVER_TIME = LocalDateTime.of(2026, 8, 20, 21, 30);
 
     @AfterEach
     void clearRequestContext() {
@@ -146,6 +151,7 @@ class HostedCheckoutServiceImplTests {
 
     @Test
     void shouldHashOpaqueTokenBeforeQueryingCheckoutSession() {
+        log.info("用例开始：校验不透明 Token 摘要及支付服务响应时间透传");
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
         bindRequestContext("200001");
@@ -168,7 +174,9 @@ class HostedCheckoutServiceImplTests {
         assertThat(responseVO.getCardEncryption().getKeyId()).isEqualTo("checkout-card-v1");
         assertThat(responseVO.getCardEncryption().getPublicKey()).isEqualTo("public-key-base64");
         assertThat(responseVO.getCardEncryption().getNonce()).isEqualTo("checkout-nonce");
+        assertThat(responseVO.getCheckout().getServerTime().toLocalDateTime()).isEqualTo(CHECKOUT_SERVER_TIME);
         assertThat(JsonUtils.toJsonString(captured)).doesNotContain(RAW_OPAQUE_TOKEN);
+        log.info("用例结果：Token 仅以下游摘要传输，serverTime 已转换为带偏移时间返回浏览器");
     }
 
     @Test
@@ -595,6 +603,8 @@ class HostedCheckoutServiceImplTests {
             order.setCurrencyExponent(2);
             responseDTO.setOrder(order);
             PaymentCheckoutClientDTOs.Checkout checkout = new PaymentCheckoutClientDTOs.Checkout();
+            checkout.setExpireTime(CHECKOUT_SERVER_TIME.plusHours(24));
+            checkout.setServerTime(CHECKOUT_SERVER_TIME);
             checkout.setRetryAllowed(true);
             checkout.setPollingIntervalSeconds(2);
             responseDTO.setCheckout(checkout);

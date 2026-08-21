@@ -34,6 +34,31 @@ public interface TransactionEventOutboxService {
     List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit);
 
     /**
+     * 使用版本号 CAS 抢占待投递事件。
+     *
+     * @param eventDO 查询得到的待投递事件
+     * @param claimedTime 抢占时间
+     * @return true 表示当前实例取得投递权
+     */
+    default boolean claimForPublish(TransactionEventOutboxDO eventDO, LocalDateTime claimedTime) {
+        return false;
+    }
+
+    /**
+     * 恢复指定季度中因进程退出遗留的超时 PROCESSING 事件。
+     *
+     * @param eventTime 交易分片季度锚点
+     * @param staleBefore PROCESSING 超时边界
+     * @param now 恢复时间
+     * @return 恢复或关闭的记录数
+     */
+    default int recoverStaleProcessing(LocalDateTime eventTime,
+                                       LocalDateTime staleBefore,
+                                       LocalDateTime now) {
+        return 0;
+    }
+
+    /**
      * 标记本地事件已投递。
      *
      * @param eventDO  待更新事件

@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -29,9 +31,14 @@ import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.admin.service.AdminEmailService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
+import com.scott.payment.component.db.email.model.EnabledEmailTemplateSnapshot;
+import com.scott.payment.component.db.email.service.EnabledEmailTemplateCacheReader;
+import com.scott.payment.component.db.email.support.EmailTemplateCacheKey;
 import com.scott.payment.component.mq.email.EmailDeliveryFailureSummary;
 import com.scott.payment.component.mq.email.EmailPayloadCrypto;
 import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
@@ -272,6 +279,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     private final AdminSmtpEmailSender smtpEmailSender;
     /** 邮件默认重试配置。 */
     private final EmailDeliveryProperties deliveryProperties;
+    /** 跨系统已启用邮件模板快照读取器。 */
+    private final EnabledEmailTemplateCacheReader enabledTemplateCacheReader;
+    /** 已启用邮件模板缓存的事务门禁与 Outbox 可靠失效协调器。 */
+    private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
 /**
  * 整理admin邮件serviceimpl，返回当前业务步骤需要的规范化结果。
@@ -284,6 +295,8 @@ public class AdminEmailServiceImpl implements AdminEmailService {
  * @param templateMapper template Mapper 输入值，参与 template映射器 的查询、校验、转换、写入或日志摘要
  * @param recordMapper record Mapper 输入值，参与 记录映射器 的查询、校验、转换、写入或日志摘要
  * @param adminConfigService admin Config Service 输入值，参与 admin配置service 的查询、校验、转换、写入或日志摘要
+ * @param enabledTemplateCacheReader 已启用邮件模板快照读取器
+ * @param cacheInvalidationCoordinator 已启用邮件模板缓存可靠失效协调器
  */
     public AdminEmailServiceImpl(EmailAccountMapper accountMapper,
                                  EmailTemplateMapper templateMapper,
@@ -292,7 +305,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
                                  EmailPayloadCrypto payloadCrypto,
                                  AdminEmailDeliveryService deliveryService,
                                  AdminSmtpEmailSender smtpEmailSender,
-                                 EmailDeliveryProperties deliveryProperties) {
+                                 EmailDeliveryProperties deliveryProperties,
+                                 EnabledEmailTemplateCacheReader enabledTemplateCacheReader,
+                                 ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.accountMapper = accountMapper;
         this.templateMapper = templateMapper;
         this.recordMapper = recordMapper;
@@ -301,6 +316,8 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         this.deliveryService = deliveryService;
         this.smtpEmailSender = smtpEmailSender;
         this.deliveryProperties = deliveryProperties;
+        this.enabledTemplateCacheReader = enabledTemplateCacheReader;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
     }
 
     /**
@@ -310,6 +327,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 发件账户分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<EmailAccountResponse> pageAccounts(EmailAccountQuery query) {
         EmailAccountQuery safeQuery = query == null ? new EmailAccountQuery() : query;
         Page<EmailAccountDO> page = accountMapper.selectPage(
@@ -326,6 +344,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 不包含 SMTP 密码明文的账户详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public EmailAccountResponse getAccount(Long id) {
         return toAccountResponse(requireAccount(id));
     }
@@ -482,6 +501,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 查询得到的业务对象、分页结果或空结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<EmailTemplateResponse> pageTemplates(EmailTemplateQuery query) {
         EmailTemplateQuery safeQuery = query == null ? new EmailTemplateQuery() : query;
         Page<EmailTemplateDO> page = templateMapper.selectPage(
@@ -498,8 +518,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 模板详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public EmailTemplateResponse getTemplate(Long id) {
-        return toTemplateResponse(requireTemplate(id));
+        EmailTemplateDO row = requireTemplate(id);
+        if (Integer.valueOf(ENABLED).equals(row.getStatus())) {
+            enabledTemplateCacheReader.findEnabled(row.getTemplateCode(), row.getLocale());
+        }
+        return toTemplateResponse(row);
     }
 
     /**
@@ -507,8 +532,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      *
      * @param request 模板主题、正文、变量定义和语言
      * @return 创建后的模板详情
-     */
+    */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public EmailTemplateResponse createTemplate(EmailTemplateSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
         EmailTemplateDO row = new EmailTemplateDO();
@@ -519,6 +546,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         row.setCreateTime(now);
         row.setDeleted(NOT_DELETED);
         ensureTemplateUnique(row.getTemplateCode(), row.getLocale(), null);
+        prepareEnabledTemplateInvalidation(row.getTemplateCode(), row.getLocale());
         templateMapper.insert(row);
         return toTemplateResponse(row);
     }
@@ -529,8 +557,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @param id 邮件模板主键
      * @param request 模板更新请求
      * @return 更新后的模板详情
-     */
+    */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public EmailTemplateResponse updateTemplate(Long id, EmailTemplateSaveRequest request) {
         EmailTemplateDO row = requireTemplate(id);
         String oldCode = row.getTemplateCode();
@@ -540,6 +570,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
             ensureTemplateUnique(row.getTemplateCode(), row.getLocale(), id);
         }
         row.setVersionNo(defaultIfNull(row.getVersionNo(), 1) + 1);
+        prepareEnabledTemplateInvalidations(oldCode, oldLocale, row.getTemplateCode(), row.getLocale());
         templateMapper.updateById(row);
         return toTemplateResponse(row);
     }
@@ -549,8 +580,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      *
      * @param id 源邮件模板主键
      * @return 新建的模板副本
-     */
+    */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public EmailTemplateResponse copyTemplate(Long id) {
         EmailTemplateDO source = requireTemplate(id);
         EmailTemplateDO row = new EmailTemplateDO();
@@ -573,6 +606,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         row.setCreateTime(LocalDateTime.now());
         row.setUpdateTime(LocalDateTime.now());
         row.setDeleted(NOT_DELETED);
+        prepareEnabledTemplateInvalidation(row.getTemplateCode(), row.getLocale());
         templateMapper.insert(row);
         return toTemplateResponse(row);
     }
@@ -583,13 +617,16 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @param id 邮件模板主键
      * @param status 目标状态
      * @return 更新后的模板详情
-     */
+    */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public EmailTemplateResponse updateTemplateStatus(Long id, Integer status) {
         EmailTemplateDO row = requireTemplate(id);
         row.setStatus(normalizeStatus(status));
         row.setUpdateBy(currentOperatorName());
         row.setUpdateTime(LocalDateTime.now());
+        prepareEnabledTemplateInvalidation(row.getTemplateCode(), row.getLocale());
         templateMapper.updateById(row);
         return toTemplateResponse(row);
     }
@@ -598,13 +635,16 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * 逻辑删除指定邮件模板。
      *
      * @param id 邮件模板主键
-     */
+    */
     @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
     public void deleteTemplate(Long id) {
         EmailTemplateDO row = requireTemplate(id);
         row.setDeleted(row.getId());
         row.setUpdateBy(currentOperatorName());
         row.setUpdateTime(LocalDateTime.now());
+        prepareEnabledTemplateInvalidation(row.getTemplateCode(), row.getLocale());
         templateMapper.updateById(row);
     }
 
@@ -635,6 +675,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 邮件发送记录分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<EmailRecordResponse> pageRecords(EmailRecordQuery query) {
         EmailRecordQuery safeQuery = query == null ? new EmailRecordQuery() : query;
         Page<EmailSendRecordDO> page = recordMapper.selectPage(
@@ -651,6 +692,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 发送记录详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public EmailRecordResponse getRecord(Long id) {
         return toRecordResponse(requireRecord(id));
     }
@@ -1404,16 +1446,47 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private EmailTemplateDO requireEnabledTemplate(String templateCode, String locale) {
-        EmailTemplateDO row = templateMapper.selectOne(Wrappers.<EmailTemplateDO>lambdaQuery()
-                .eq(EmailTemplateDO::getTemplateCode, trimUpper(templateCode))
-                .eq(EmailTemplateDO::getLocale, locale)
-                .eq(EmailTemplateDO::getStatus, ENABLED)
-                .eq(EmailTemplateDO::getDeleted, NOT_DELETED)
-                .last("LIMIT 1"));
-        if (row == null) {
+        EnabledEmailTemplateSnapshot snapshot = enabledTemplateCacheReader.findEnabled(
+                trimUpper(templateCode),
+                locale
+        );
+        if (snapshot == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "启用邮件模板不存在");
         }
+        EmailTemplateDO row = new EmailTemplateDO();
+        row.setId(snapshot.getId());
+        row.setTemplateCode(snapshot.getTemplateCode());
+        row.setTemplateName(snapshot.getTemplateName());
+        row.setAppCode(snapshot.getAppCode());
+        row.setSceneCode(snapshot.getSceneCode());
+        row.setLocale(snapshot.getLocale());
+        row.setSubjectTemplate(snapshot.getSubjectTemplate());
+        row.setContentType(snapshot.getContentType());
+        row.setContentTemplate(snapshot.getContentTemplate());
+        row.setVariableSchema(snapshot.getVariableSchema());
+        row.setSensitiveVariableNames(snapshot.getSensitiveVariableNames());
+        row.setStatus(ENABLED);
         return row;
+    }
+
+    /** 在当前业务事务内登记指定已启用邮件模板快照的可靠失效。 */
+    private void prepareEnabledTemplateInvalidation(String templateCode, String locale) {
+        cacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.EMAIL_TEMPLATE_ENABLED,
+                EmailTemplateCacheKey.of(templateCode, locale));
+    }
+
+    /** 模板身份未变化时协调器自动去重，发生变化时同时登记新旧精确业务键。 */
+    private void prepareEnabledTemplateInvalidations(String previousCode,
+                                                      String previousLocale,
+                                                      String currentCode,
+                                                      String currentLocale) {
+        String previousKey = EmailTemplateCacheKey.of(previousCode, previousLocale);
+        String currentKey = EmailTemplateCacheKey.of(currentCode, currentLocale);
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.EMAIL_TEMPLATE_ENABLED, previousKey);
+        if (!previousKey.equals(currentKey)) {
+            cacheInvalidationCoordinator.prepare(PaymentCacheNames.EMAIL_TEMPLATE_ENABLED, currentKey);
+        }
     }
 
     /**

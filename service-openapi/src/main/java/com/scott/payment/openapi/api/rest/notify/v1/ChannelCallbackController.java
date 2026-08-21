@@ -3,7 +3,6 @@ package com.scott.payment.openapi.api.rest.notify.v1;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.model.ApiResult;
 import com.scott.payment.component.core.trace.TraceContext;
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
 import com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport;
@@ -95,16 +94,15 @@ public class ChannelCallbackController {
                                      HttpServletRequest request,
                                      @RequestBody(required = false) String rawBody) {
         long startNanos = System.nanoTime();
-        log.info("event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIp: {} headerSummary: {} bodyLength: {} bodyDigest: {} bodySummary: {}",
+        log.info("event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIp: {} headerCount: {} bodyLength: {} bodyDigest: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 request.getMethod(),
                 request.getRequestURI(),
                 resolveClientIp(request),
-                headers(request),
-                rawBody == null ? 0 : rawBody.length(),
-                digest16(rawBody),
-                safeLength(SensitiveDataMaskUtils.maskJsonSafely(rawBody), 1200));
+                headerCount(request),
+                utf8Length(rawBody),
+                digest16(rawBody));
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
                 callbackSecuritySupport.verifyChannelCallback(channelCode, request, rawBody);
         paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, CHANNEL_CALLBACK_TYPE,
@@ -131,16 +129,15 @@ public class ChannelCallbackController {
                                             HttpServletRequest request,
                                             @RequestBody(required = false) String rawBody) {
         long startNanos = System.nanoTime();
-        log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIp: {} headerSummary: {} bodyLength: {} bodyDigest: {} bodySummary: {}",
+        log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIp: {} headerCount: {} bodyLength: {} bodyDigest: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 request.getMethod(),
                 request.getRequestURI(),
                 resolveClientIp(request),
-                headers(request),
-                rawBody == null ? 0 : rawBody.length(),
-                digest16(rawBody),
-                safeLength(SensitiveDataMaskUtils.maskJsonSafely(rawBody), 1200));
+                headerCount(request),
+                utf8Length(rawBody),
+                digest16(rawBody));
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
                 callbackSecuritySupport.verifyChannelCallback(channelCode, request, rawBody);
         paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, THREE_DS_CALLBACK_TYPE,
@@ -228,6 +225,35 @@ public class ChannelCallbackController {
             headers.put(headerName, safeHeaderValue(headerName, request.getHeader(headerName)));
         }
         return headers;
+    }
+
+    /**
+     * 统计回调请求头数量，普通日志只记录数量，不输出任何请求头名称或值。
+     *
+     * @param request 当前 HTTP 请求
+     * @return 非负请求头数量
+     */
+    private int headerCount(HttpServletRequest request) {
+        Enumeration<String> headerNames = request.getHeaderNames();
+        if (headerNames == null) {
+            return 0;
+        }
+        int count = 0;
+        while (headerNames.hasMoreElements()) {
+            headerNames.nextElement();
+            count++;
+        }
+        return count;
+    }
+
+    /**
+     * 计算回调原文的 UTF-8 字节数，避免多字节文本使用字符数造成审计偏差。
+     *
+     * @param value 回调原文
+     * @return UTF-8 字节数；空值返回 0
+     */
+    private int utf8Length(String value) {
+        return value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
     }
 
     /**

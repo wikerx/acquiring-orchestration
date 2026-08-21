@@ -18,6 +18,7 @@ import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.service.ChannelMatchAbnormalService;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -302,8 +304,21 @@ class DefaultTransactionChannelMatchServiceTests {
     }
 
     @Test
-    void shouldNotDuplicateTerminalProgressForRepeatedActiveQuery() {
-        InMemoryRecordService recordService = new InMemoryRecordService(pendingOperation());
+    void shouldNotRescanTerminalTransactionForRepeatedScheduledMatch() {
+        TransactionOperationDO scheduledOperation = pendingOperation();
+        InMemoryRecordService recordService = new InMemoryRecordService(scheduledOperation) {
+            @Override
+            public List<TransactionOperationDO> listPendingChannelMatch(LocalDateTime transactionDateTime,
+                                                                        String channelCode,
+                                                                        LocalDateTime now,
+                                                                        int limit) {
+                if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(scheduledOperation.getTransactionStatus())
+                        || PaymentTransactionStatusEnum.FAILED.getCode().equals(scheduledOperation.getTransactionStatus())) {
+                    return List.of();
+                }
+                return super.listPendingChannelMatch(transactionDateTime, channelCode, now, limit);
+            }
+        };
         QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
         CapturingMatchResultTransactionService resultTransactionService = new CapturingMatchResultTransactionService(recordService);
         DefaultTransactionChannelMatchService matchService = matchService(recordService, invokeService, resultTransactionService);
@@ -312,16 +327,113 @@ class DefaultTransactionChannelMatchServiceTests {
         TransactionChannelMatchResultDTO second = matchService.matchDue(matchCommand());
 
         assertThat(first.getMatchedCount()).isEqualTo(1);
-        assertThat(second.getPendingCount()).isEqualTo(1);
+        assertThat(second.getScannedCount()).isZero();
         assertThat(recordService.successfulTerminalCount).isEqualTo(1);
-        assertThat(recordService.completeAttemptCount).isEqualTo(2);
+        assertThat(recordService.completeAttemptCount).isEqualTo(1);
+        assertThat(invokeService.queryInvokeCount()).isEqualTo(1);
         assertThat(invokeService.paymentInvokeCount()).isZero();
+    }
+
+    /** 主动查询异常只能保存稳定异常类型，禁止把渠道异常正文写入勾兑记录。 */
+    @Test
+    void shouldPersistOnlyExceptionTypeWhenActiveQueryFails() {
+        InMemoryRecordService recordService = new InMemoryRecordService(pendingOperation());
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS)
+                .withFailure(new IllegalStateException("secretKey=must-not-be-persisted"));
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+
+        TransactionChannelMatchResultDTO resultDTO = matchService(
+                recordService, invokeService, resultTransactionService).matchDue(matchCommand());
+
+        assertThat(resultDTO.getFailedCount()).isEqualTo(1);
+        assertThat(recordService.lastMatchResult).isEqualTo("QUERY_EXCEPTION");
+        assertThat(recordService.lastFailReason).isEqualTo("IllegalStateException");
+    }
+
+    @Test
+    void matchOneShouldRejectNotRequiredAndMatchedStatusesBeforeChannelQuery() {
+        for (String status : List.of("NOT_REQUIRED", "MATCHED")) {
+            TransactionOperationDO operation = pendingOperation();
+            operation.setChannelMatchStatus(status);
+            InMemoryRecordService recordService = new InMemoryRecordService(operation);
+            QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+
+            assertThatThrownBy(() -> matchService(
+                    recordService,
+                    invokeService,
+                    new CapturingMatchResultTransactionService(recordService))
+                    .matchOne(operation.getTransactionId(), TRANSACTION_TIME))
+                    .isInstanceOf(ServiceException.class)
+                    .hasMessageContaining("does not allow requery");
+            assertThat(invokeService.queryInvokeCount()).isZero();
+        }
+    }
+
+    @Test
+    void matchOneShouldOnlyMarkTerminalSummaryWhenPlatformAndChannelStatusesMatch() {
+        TransactionOperationDO operation = pendingOperation();
+        operation.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        InMemoryRecordService recordService = new InMemoryRecordService(operation);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+
+        TransactionChannelMatchResultDTO result = matchService(
+                recordService,
+                invokeService,
+                new CapturingMatchResultTransactionService(recordService))
+                .matchOne(operation.getTransactionId(), TRANSACTION_TIME);
+
+        assertThat(result.getMatchedCount()).isEqualTo(1);
+        assertThat(recordService.lastMatchStatus).isEqualTo("MATCHED");
+        assertThat(operation.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(recordService.completeAttemptCount).isZero();
+    }
+
+    @Test
+    void matchOneShouldMarkMismatchWithoutOverwritingTerminalTransaction() {
+        TransactionOperationDO operation = pendingOperation();
+        operation.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        InMemoryRecordService recordService = new InMemoryRecordService(operation);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.FAILED);
+
+        TransactionChannelMatchResultDTO result = matchService(
+                recordService,
+                invokeService,
+                new CapturingMatchResultTransactionService(recordService))
+                .matchOne(operation.getTransactionId(), TRANSACTION_TIME);
+
+        assertThat(result.getFailedCount()).isEqualTo(1);
+        assertThat(recordService.lastMatchStatus).isEqualTo("MISMATCHED");
+        assertThat(recordService.lastFailReason).isEqualTo(ChannelMatchAbnormalTypeEnum.STATUS_MISMATCH.getCode());
+        assertThat(operation.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(recordService.completeAttemptCount).isZero();
+    }
+
+    @Test
+    void matchOneShouldKeepTerminalTransactionWhenChannelQueryThrows() {
+        TransactionOperationDO operation = pendingOperation();
+        operation.setTransactionStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+        InMemoryRecordService recordService = new InMemoryRecordService(operation);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS)
+                .withFailure(new IllegalStateException("sensitive-detail"));
+
+        TransactionChannelMatchResultDTO result = matchService(
+                recordService,
+                invokeService,
+                new CapturingMatchResultTransactionService(recordService))
+                .matchOne(operation.getTransactionId(), TRANSACTION_TIME);
+
+        assertThat(result.getFailedCount()).isEqualTo(1);
+        assertThat(recordService.lastMatchStatus).isEqualTo("PENDING");
+        assertThat(recordService.lastFailReason).isEqualTo("IllegalStateException");
+        assertThat(operation.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
     }
 
     @Test
     void shouldLetCasKeepOnlyOneTerminalWhenCallbackAndQueryRace() {
         InMemoryRecordService recordService = new InMemoryRecordService(pendingOperation());
         recordService.operation.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        recordService.terminalUpdateShouldSucceed = false;
         QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.FAILED);
         CapturingMatchResultTransactionService resultTransactionService = new CapturingMatchResultTransactionService(recordService);
 
@@ -442,6 +554,7 @@ class DefaultTransactionChannelMatchServiceTests {
         operationDO.setChannelOrderNo("ORDER-MPGS-001");
         operationDO.setChannelTransactionId("CH-MPGS-001");
         operationDO.setChannelMatchCount(0);
+        operationDO.setChannelMatchStatus("PENDING");
         operationDO.setLastChannelMatchRequestId("CR-ORIGINAL-001");
         operationDO.setTransactionDateTime(TRANSACTION_TIME);
         operationDO.setVersion(0);
@@ -507,6 +620,7 @@ class DefaultTransactionChannelMatchServiceTests {
         private ChannelPaymentRequest lastRequest;
         private String channelCurrency;
         private BigDecimal channelAmount;
+        private RuntimeException failure;
 
         private QueryCaptureInvokeService(ChannelTradeStatus queryStatus) {
             this.queryStatus = queryStatus;
@@ -515,6 +629,11 @@ class DefaultTransactionChannelMatchServiceTests {
         private QueryCaptureInvokeService withChannelMoney(String currency, BigDecimal amount) {
             this.channelCurrency = currency;
             this.channelAmount = amount;
+            return this;
+        }
+
+        private QueryCaptureInvokeService withFailure(RuntimeException failure) {
+            this.failure = failure;
             return this;
         }
 
@@ -541,6 +660,9 @@ class DefaultTransactionChannelMatchServiceTests {
                                                     String transactionId,
                                                     PaymentPreparedChannelRequestDTO preparedChannelRequest) {
             queryInvokeCount.incrementAndGet();
+            if (failure != null) {
+                throw failure;
+            }
             ChannelPaymentRequest request = new ChannelPaymentRequest();
             request.setChannelCode(routeResult.getChannelCode());
             request.setOperationId(operationId);
@@ -649,6 +771,26 @@ class DefaultTransactionChannelMatchServiceTests {
                     resolution.getChannelResponseMessage());
         }
 
+        @Override
+        public boolean updateTerminalByQuery(TransactionOperationDO operationDO,
+                                             TransactionChannelRequestDO originalRequestDO,
+                                             PaymentChannelInvokeResultDTO invokeResultDTO,
+                                             String matchStatus,
+                                             String matchResult,
+                                             LocalDateTime matchTime,
+                                             String failReason) {
+            recordService.updateOriginalChannelRequestByQuery(
+                    operationDO, originalRequestDO, invokeResultDTO, matchResult, failReason);
+            return recordService.updateTerminalChannelMatch(
+                    operationDO,
+                    matchStatus,
+                    matchResult,
+                    originalRequestDO == null ? null : originalRequestDO.getRequestId(),
+                    matchTime,
+                    null,
+                    failReason);
+        }
+
         /**
          * 记录一次仍待匹配的查询，并保存下次匹配时间及失败原因。
          */
@@ -666,6 +808,16 @@ class DefaultTransactionChannelMatchServiceTests {
                     invokeResultDTO,
                     matchResult,
                     failReason);
+            if (isTerminal(operationDO)) {
+                return recordService.updateTerminalChannelMatch(
+                        operationDO,
+                        "PENDING",
+                        matchResult,
+                        originalRequestDO == null ? null : originalRequestDO.getRequestId(),
+                        matchTime,
+                        nextMatchTime,
+                        failReason);
+            }
             return recordService.updateChannelMatch(
                     operationDO,
                     "PENDING",
@@ -691,6 +843,16 @@ class DefaultTransactionChannelMatchServiceTests {
                     invokeResultDTO,
                     matchResult,
                     failReason);
+            if (isTerminal(operationDO)) {
+                return recordService.updateTerminalChannelMatch(
+                        operationDO,
+                        matchStatus,
+                        matchResult,
+                        originalRequestDO == null ? null : originalRequestDO.getRequestId(),
+                        matchTime,
+                        nextMatchTime,
+                        failReason);
+            }
             return recordService.updateChannelMatch(
                     operationDO,
                     matchStatus,
@@ -699,6 +861,11 @@ class DefaultTransactionChannelMatchServiceTests {
                     matchTime,
                     nextMatchTime,
                     failReason);
+        }
+
+        private boolean isTerminal(TransactionOperationDO operationDO) {
+            return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
+                    || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus());
         }
     }
 
@@ -773,6 +940,8 @@ class DefaultTransactionChannelMatchServiceTests {
          * </p>
          */
         private boolean completeShouldSucceed = true;
+
+        private boolean terminalUpdateShouldSucceed = true;
 
         /**
          * completed Status，表示当前记录在业务流程中的处理状态。
@@ -1029,6 +1198,28 @@ class DefaultTransactionChannelMatchServiceTests {
             lastMatchResult = matchResult;
             lastFailReason = failReason;
             lastNextMatchTime = nextMatchTime;
+            return true;
+        }
+
+        @Override
+        public boolean updateTerminalChannelMatch(TransactionOperationDO operationDO,
+                                                  String matchStatus,
+                                                  String matchResult,
+                                                  String requestId,
+                                                  LocalDateTime matchTime,
+                                                  LocalDateTime nextMatchTime,
+                                                  String failReason) {
+            if (!terminalUpdateShouldSucceed
+                    || !(PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operation.getTransactionStatus())
+                    || PaymentTransactionStatusEnum.FAILED.getCode().equals(operation.getTransactionStatus()))) {
+                return false;
+            }
+            lastMatchStatus = matchStatus;
+            lastMatchResult = matchResult;
+            lastFailReason = failReason;
+            lastNextMatchTime = nextMatchTime;
+            operation.setChannelMatchStatus(matchStatus);
+            operation.setVersion(operation.getVersion() + 1);
             return true;
         }
 

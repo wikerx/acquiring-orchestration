@@ -4,6 +4,8 @@ import com.scott.payment.admin.client.payment.PaymentInternalClient;
 import com.scott.payment.admin.client.payment.dto.PaymentTransactionActionClientRequestDTO;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryRequest;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
@@ -50,6 +52,34 @@ class AdminTransactionApplicationServiceTests {
             LocalDateTime.of(2026, 7, 14, 12, 30, 45);
     private static final LocalDateTime ROOT_TRANSACTION_DATE_TIME =
             LocalDateTime.of(2026, 4, 10, 9, 15, 30);
+
+    @Test
+    void channelMatchRequeryShouldPassThroughRealShardTime() {
+        PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient);
+        ChannelMatchRequeryRequest request = new ChannelMatchRequeryRequest();
+        request.setTransactionDateTime(TRANSACTION_DATE_TIME);
+        ChannelMatchRequeryResponse expected = new ChannelMatchRequeryResponse();
+        expected.setScannedCount(1);
+        expected.setMatchedCount(1);
+        when(paymentInternalClient.requeryChannelMatch("TX202607140001", request)).thenReturn(expected);
+
+        ChannelMatchRequeryResponse actual = service.requeryChannelMatch("TX202607140001", request);
+
+        assertThat(actual).isSameAs(expected);
+        verify(paymentInternalClient).requeryChannelMatch("TX202607140001", request);
+    }
+
+    @Test
+    void channelMatchRequeryShouldRejectMissingShardTime() {
+        PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient);
+
+        assertThatThrownBy(() -> service.requeryChannelMatch(
+                "TX202607140001", new ChannelMatchRequeryRequest()))
+                .isInstanceOf(ApiException.class);
+        verifyNoInteractions(paymentInternalClient);
+    }
 
     /**
      * 退款动作应回填原交易上下文，并生成后台幂等请求号后调用支付核心。

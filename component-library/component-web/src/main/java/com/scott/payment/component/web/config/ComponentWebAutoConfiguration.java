@@ -2,6 +2,7 @@ package com.scott.payment.component.web.config;
 
 import com.scott.payment.component.web.handler.GlobalExceptionHandler;
 import com.scott.payment.component.web.handler.UnifiedErrorController;
+import com.scott.payment.component.web.internal.InternalServiceRequestBodyFilter;
 import com.scott.payment.component.web.trace.HttpTrafficLoggingFilter;
 import com.scott.payment.component.web.trace.TraceIdFilter;
 import com.scott.payment.component.web.trace.TraceIdRestTemplateCustomizer;
@@ -77,6 +78,17 @@ public class ComponentWebAutoConfiguration {
     @ConditionalOnMissingBean
     public HttpTrafficLoggingFilter httpTrafficLoggingFilter() {
         return new HttpTrafficLoggingFilter();
+    }
+
+    /**
+     * 注册内部服务请求体摘要与回放过滤器。
+     *
+     * @return 内部请求体过滤器
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public InternalServiceRequestBodyFilter internalServiceRequestBodyFilter() {
+        return new InternalServiceRequestBodyFilter();
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.base;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -17,6 +18,7 @@ import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
@@ -26,6 +28,7 @@ import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -304,6 +307,7 @@ public class AdminBaseCardBinApplicationService {
      * @param request 查询请求
      * @return 卡 BIN 分页数据
      */
+    @DS(DataSourceName.SLAVE)
     public PageResult<CardBinDTOs.CardBinResponse> page(CardBinDTOs.CardBinQueryRequest request) {
         CardBinDTOs.CardBinQueryRequest query = request == null ? new CardBinDTOs.CardBinQueryRequest() : request;
         LambdaQueryWrapper<CardBinEntities.BaseCardBinRangeDO> wrapper = buildListQuery(query);
@@ -326,6 +330,7 @@ public class AdminBaseCardBinApplicationService {
      * @param id 主键 ID
      * @return 卡 BIN 详情
      */
+    @DS(DataSourceName.SLAVE)
     public CardBinDTOs.CardBinResponse detail(Long id) {
         return toResponse(getActiveRow(id), loadDictLabels());
     }
@@ -337,7 +342,11 @@ public class AdminBaseCardBinApplicationService {
      * @return 保存后的卡 BIN 数据
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
+    @DS(DataSourceName.MASTER)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
+    })
     public CardBinDTOs.CardBinResponse create(CardBinDTOs.CardBinSaveRequest request) {
         NormalizedBinRange range = normalizeRange(request.getCardBinStart(), request.getCardBinEnd());
         assertDictValue(CARD_BRAND_DICT, request.getCardBrand(), "卡品牌不存在或已停用");
@@ -367,7 +376,11 @@ public class AdminBaseCardBinApplicationService {
      * @return 更新后的卡 BIN 数据
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
+    @DS(DataSourceName.MASTER)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
+    })
     public CardBinDTOs.CardBinResponse update(Long id, CardBinDTOs.CardBinSaveRequest request) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         NormalizedBinRange range = normalizeRange(request.getCardBinStart(), request.getCardBinEnd());
@@ -391,7 +404,11 @@ public class AdminBaseCardBinApplicationService {
      * @param id 主键 ID
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
+    @DS(DataSourceName.MASTER)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
+    })
     public void remove(Long id) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         row.setStatus(STATUS_DISABLED);
@@ -409,7 +426,11 @@ public class AdminBaseCardBinApplicationService {
      * @return 更新后的卡 BIN 数据
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
+    @DS(DataSourceName.MASTER)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
+    })
     public CardBinDTOs.CardBinResponse updateStatus(Long id, CardBinDTOs.CardBinStatusRequest request) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         Integer targetStatus = normalizeStatus(request.getStatus(), null);
@@ -478,7 +499,11 @@ public class AdminBaseCardBinApplicationService {
      * @return 本次导入批次结果
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
+    @DS(DataSourceName.MASTER)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
+    })
     public CardBinDTOs.CardBinImportBatchResponse initFromLegacyDb() {
         String batchNo = "INIT_DB_IMPORT_" + BATCH_TIME_FORMATTER.format(LocalDateTime.now());
         CardBinEntities.BaseCardBinImportBatchDO batch = new CardBinEntities.BaseCardBinImportBatchDO();
@@ -535,6 +560,7 @@ public class AdminBaseCardBinApplicationService {
      * @param request 查询请求
      * @param response HTTP 响应
      */
+    @DS(DataSourceName.SLAVE)
     public void export(CardBinDTOs.CardBinQueryRequest request, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         DictLabels labels = loadDictLabels();
@@ -563,6 +589,7 @@ public class AdminBaseCardBinApplicationService {
      *
      * @return 页面下拉选项聚合响应
      */
+    @DS(DataSourceName.SLAVE)
     public CardBinDTOs.CardBinOptionsResponse options() {
         CardBinDTOs.CardBinOptionsResponse response = new CardBinDTOs.CardBinOptionsResponse();
         response.setCardBrandOptions(dictOptions(CARD_BRAND_DICT));

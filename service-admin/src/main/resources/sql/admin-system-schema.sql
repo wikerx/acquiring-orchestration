@@ -3570,3 +3570,28 @@ ON DUPLICATE KEY UPDATE
     template_name = VALUES(template_name), subject_template = VALUES(subject_template),
     content_template = VALUES(content_template), variable_schema = VALUES(variable_schema),
     status = 1, system_builtin = 1, update_by = 'system', deleted = 0;
+
+-- 新环境初始化时直接使用与系统既有邮件一致的蓝白主题。
+UPDATE msg_email_template template
+SET template.content_template = CONCAT(
+        '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;">',
+        '<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;">',
+        '<div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Merchant</div>',
+        '<div style="margin-top:6px;font-size:22px;font-weight:700;">', template.template_name, '</div></div>',
+        '<div style="padding:28px;line-height:1.7;font-size:14px;"><div style="padding:18px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;word-break:break-word;">',
+        template.content_template,
+        '</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">',
+        CASE WHEN template.locale = 'zh-CN' THEN '此邮件由系统自动发送，请勿直接回复。'
+             ELSE 'This is an automated message. Please do not reply.' END,
+        '</div></div></div>'
+    ),
+    template.version_no = GREATEST(template.version_no, 2),
+    template.update_by = 'system',
+    template.update_time = CURRENT_TIMESTAMP(3)
+WHERE template.system_builtin = 1
+  AND template.deleted = 0
+  AND template.template_code IN (
+      'MERCHANT_SOURCE_URL_APPROVED', 'MERCHANT_SOURCE_URL_REJECTED',
+      'MERCHANT_IP_WHITELIST_APPROVED', 'MERCHANT_IP_WHITELIST_REJECTED'
+  )
+  AND template.content_template NOT LIKE '%data-template-theme="vexra-blue-white-v1"%';

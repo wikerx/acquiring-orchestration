@@ -880,7 +880,7 @@ public class MpgsApiClient {
                             String url,
                             MpgsRequestPayload payload) {
         log.info("MPGS渠道请求上下文，context: {}", JsonUtils.toJsonString(new RequestLogContext(
-                httpMethod, operation, url, request.getOperationId(), request.getTransactionId(),
+                httpMethod, operation, host(url), path(url), request.getOperationId(), request.getTransactionId(),
                 request.getChannelOrderNo(), request.getChannelTransactionId(),
                 request.getMerchantId(), request.getMerchantOrderNo(), request.getMerchantOrderId(), request.getTransactionType(),
                 String.valueOf(request.getAmount()), request.getCurrency()
@@ -904,12 +904,6 @@ public class MpgsApiClient {
                                      String url,
                                      long startNanos,
                                      Exception exception) {
-        log.warn("MPGS渠道请求异常，method: {}, operation: {}, url: {}, operationId: {}, transactionId: {}, "
-                        + "channelOrderNo: {}, channelTransactionId: {}, merchantOrderNo: {}, durationMillis: {}, errorType: {}, errorMessage: {}",
-                httpMethod, operation, url, safeOperationId(request), safeTransactionId(request),
-                safeChannelOrderNo(request), safeChannelTransactionId(request), safeMerchantOrderNo(request),
-                elapsedMillis(startNanos), exception.getClass().getSimpleName(),
-                exception.getMessage(), exception);
         log.warn("event: CHANNEL_REQUEST_FAILED traceId: {} channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} durationMs: {} exceptionType: {}",
                 TraceContext.getTraceId(),
                 request == null ? null : request.getChannelCode(),
@@ -1048,7 +1042,11 @@ public class MpgsApiClient {
         if (!StringUtils.hasText(url)) {
             return null;
         }
-        return URI.create(url).getHost();
+        try {
+            return URI.create(url).getHost();
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
     }
 
     /**
@@ -1063,7 +1061,11 @@ public class MpgsApiClient {
         if (!StringUtils.hasText(url)) {
             return null;
         }
-        return URI.create(url).getPath();
+        try {
+            return URI.create(url).getPath();
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
     }
 
     /**
@@ -1291,15 +1293,19 @@ public class MpgsApiClient {
                                      String url,
                                      long startNanos,
                                      Exception exception) {
-        log.warn("MPGS 3DS请求异常，method: {}, operation: {}, url: {}, operationId: {}, transactionId: {}, "
-                        + "channelOrderNo: {}, authenticationTransactionId: {}, merchantOrderNo: {}, durationMillis: {}, errorType: {}, errorMessage: {}",
-                HTTP_METHOD_PUT, operation, url, request == null ? null : request.getOperationId(),
+        log.warn("event: CHANNEL_3DS_REQUEST_FAILED traceId: {} channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} transactionId: {} operationId: {} channelOrderNo: {} authenticationTransactionId: {} merchantOrderNo: {} durationMs: {} exceptionType: {}",
+                TraceContext.getTraceId(),
+                request == null ? null : request.getChannelCode(),
+                operation,
+                host(url),
+                path(url),
+                HTTP_METHOD_PUT,
                 request == null ? null : request.getTransactionId(),
+                request == null ? null : request.getOperationId(),
                 request == null ? null : request.getChannelOrderNo(),
                 request == null ? null : request.getAuthenticationTransactionId(),
                 request == null ? null : request.getMerchantOrderNo(),
-                elapsedMillis(startNanos), exception.getClass().getSimpleName(),
-                exception.getMessage(), exception);
+                elapsedMillis(startNanos), exception.getClass().getSimpleName());
     }
 
     /**
@@ -1421,7 +1427,8 @@ public class MpgsApiClient {
 
     private record RequestLogContext(String method,
                                      String operation,
-                                     String url,
+                                     String endpointHost,
+                                     String endpointPath,
                                      String operationId,
                                      String transactionId,
                                      String channelOrderNo,

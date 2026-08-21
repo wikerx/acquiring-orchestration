@@ -13,6 +13,7 @@ import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -156,8 +157,20 @@ class ReferenceDataLookupServiceImplTest {
 
     @Test
     void shouldRouteReferenceDataLookupsToSlaveDataSource() {
-        DS dataSource = ReferenceDataLookupServiceImpl.class.getAnnotation(DS.class);
+        assertThat(ReferenceDataLookupServiceImpl.class.getAnnotation(DS.class)).isNull();
 
+        assertSlaveMethod("lookupIp", String.class);
+        assertSlaveMethod("lookupCardBin", String.class);
+    }
+
+    private void assertSlaveMethod(String methodName, Class<?>... parameterTypes) {
+        Method method;
+        try {
+            method = ReferenceDataLookupServiceImpl.class.getMethod(methodName, parameterTypes);
+        } catch (NoSuchMethodException exception) {
+            throw new AssertionError(exception);
+        }
+        DS dataSource = method.getAnnotation(DS.class);
         assertThat(dataSource).isNotNull();
         assertThat(dataSource.value()).isEqualTo(DataSourceName.SLAVE);
     }

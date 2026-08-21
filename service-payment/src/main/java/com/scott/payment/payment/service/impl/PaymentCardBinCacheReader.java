@@ -1,16 +1,19 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.entity.PaymentCardBinRangeDO;
 import com.scott.payment.payment.mapper.PaymentCardBinRangeMapper;
 import com.scott.payment.payment.model.PaymentCardBinCacheEntry;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/** 使用 Spring Cache 按 11 位卡号前缀保存永久 BIN 查询结果。 */
+/** 使用 Spring Cache 按 11 位卡号前缀分别保存有限期 BIN 命中与未命中结果。 */
 @Service
 public class PaymentCardBinCacheReader {
 
@@ -23,7 +26,13 @@ public class PaymentCardBinCacheReader {
         this.cardBinRangeMapper = cardBinRangeMapper;
     }
 
-    @Cacheable(cacheNames = PaymentCacheNames.CARD_BIN, key = "#p0")
+    @Caching(cacheable = {
+            @Cacheable(cacheNames = PaymentCacheNames.CARD_BIN, key = "#p0",
+                    unless = "#result == null || !#result.matched"),
+            @Cacheable(cacheNames = PaymentCacheNames.CARD_BIN_MISS, key = "#p0",
+                    unless = "#result == null || #result.matched")
+    })
+    @DS(DataSourceName.MASTER)
     public PaymentCardBinCacheEntry findByPrefix(String cardBinPrefix) {
         long numericValue = Long.parseLong(cardBinPrefix);
         PaymentCardBinRangeDO matched = cardBinRangeMapper.selectBestMatch(

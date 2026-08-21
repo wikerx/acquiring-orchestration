@@ -56,7 +56,6 @@ import java.util.Objects;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultVoidTransactionPreparationService implements VoidTransactionPreparationService {
 
     /**
@@ -247,6 +246,7 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
      * @return 新建或幂等命中的撤销准备结果
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public VoidPreparationResultDTO prepareVoid(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
         if (transactionRecordService == null) {

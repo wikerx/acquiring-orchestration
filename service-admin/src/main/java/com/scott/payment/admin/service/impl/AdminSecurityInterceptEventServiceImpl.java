@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -108,6 +110,7 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
      * @return 分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SecurityInterceptEventResponse> pageEvents(SecurityInterceptEventQuery query) {
         SecurityInterceptEventQuery condition = query == null ? new SecurityInterceptEventQuery() : query;
         IPage<SecurityInterceptEventDO> page = eventMapper.selectPage(
@@ -126,6 +129,7 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
      * @return 事件列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SecurityInterceptEventResponse> listEvents(SecurityInterceptEventQuery query) {
         SecurityInterceptEventQuery condition = query == null ? new SecurityInterceptEventQuery() : query;
         LambdaQueryWrapper<SecurityInterceptEventDO> wrapper = buildWrapper(condition)
@@ -142,6 +146,7 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
      * @return 事件详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public SecurityInterceptEventResponse getEvent(Long id) {
         return toResponse(requireEvent(id));
     }

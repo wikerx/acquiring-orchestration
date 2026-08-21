@@ -104,12 +104,10 @@ public class RedisCacheMissMarkerStore implements CacheMissMarkerStore {
                     metrics.classifyFallback(exception)
             );
             log.warn(
-                    "event: REDIS_CACHE_MISS_MARKER_READ_FAILED domain: {} business: {} "
-                            + "exceptionType: {} reason: {}",
+                    "event: REDIS_CACHE_MISS_MARKER_READ_FAILED domain: {} business: {} exceptionType: {}",
                     domain,
                     business,
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage()
+                    exception.getClass().getSimpleName()
             );
             return LookupStatus.UNAVAILABLE;
         }

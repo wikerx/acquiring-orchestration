@@ -644,9 +644,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                       AND operation_record.deleted = 0
                       AND notification.deleted = 0
                       AND (
-                            notification.notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')
-                            OR (notification.notify_status = 'INIT'
-                                AND notification.next_retry_time IS NOT NULL)
+                            notification.notify_status IN ('SUCCESS', 'CLOSED')
+                            OR (notification.notify_status = 'FAILED'
+                                AND notification.next_retry_time IS NULL)
                           )
                 )
                 """, new MapSqlParameterSource()

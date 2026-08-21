@@ -79,6 +79,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String CHANNEL_MATCH_DUE_PATH = "/internal/payment/transactions/channel-match/match-due";
 
+    /** 收银台未提交订单超时关闭内部接口。 */
+    private static final String CHECKOUT_EXPIRE_DUE_PATH = "/internal/payment/checkout/session/expire-due";
+
     /**
      * direct Rest Template，用于定位邮件、通知或渠道参数模板。
      * <p>
@@ -140,6 +143,23 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return unwrapData(result);
     }
 
+    /**
+     * 调用支付核心关闭超过付款截止时间且从未提交的收银台订单。
+     *
+     * @param limit 单次扫描上限
+     * @return 实际超时关闭数量
+     */
+    @Override
+    public int expireDueCheckoutSessions(int limit) {
+        CommonResult<Integer> result = post(
+                servicePaymentUrl(CHECKOUT_EXPIRE_DUE_PATH) + "?limit=" + limit,
+                null,
+                new TypeReference<CommonResult<Integer>>() {
+                });
+        Integer expiredCount = unwrapData(result);
+        return expiredCount == null ? 0 : expiredCount;
+    }
+
     private <T> T post(String url, Object body, TypeReference<T> typeReference) {
         URI uri = URI.create(url);
         try {
@@ -149,8 +169,10 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException(uri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-payment compensation call failed, targetUri: {}", uri, exception);
-            throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-payment compensation call failed", exception);
+            log.warn("service-payment compensation call failed, targetPath: {}, exceptionType: {}",
+                    uri.getPath(), exception.getClass().getSimpleName());
+            throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
+                    "service-payment compensation call failed");
         }
     }
 
@@ -179,12 +201,14 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
         String caller = properties.getInternalCaller();
+        String requestBody = body == null ? null : JsonUtils.toJsonString(body);
         String signature = InternalServiceSignature.sign(
                 HttpMethod.POST.name(),
-                uri.getPath(),
+                InternalServiceSignature.requestTarget(uri.getRawPath(), uri.getRawQuery()),
                 timestamp,
                 nonce,
                 caller,
+                InternalServiceSignature.payloadSha256(requestBody),
                 properties.getInternalSecret()
         );
         HttpHeaders headers = new HttpHeaders();
@@ -193,7 +217,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
         headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
         headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
-        return new HttpEntity<>(body == null ? null : JsonUtils.toJsonString(body), headers);
+        return new HttpEntity<>(requestBody, headers);
     }
 
     /**
@@ -239,10 +263,10 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private ServiceException translateHttpException(URI uri, HttpStatusCodeException exception) {
-        log.warn("service-payment compensation call returned non-success status, targetUri: {}, status: {}",
-                uri,
+        log.warn("service-payment compensation call returned non-success status, targetPath: {}, status: {}, exceptionType: {}",
+                uri.getPath(),
                 exception.getStatusCode().value(),
-                exception);
+                exception.getClass().getSimpleName());
         if (exception.getStatusCode().value() == 401) {
             return new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "service-payment call unauthorized");
         }

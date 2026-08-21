@@ -34,6 +34,9 @@ import org.springframework.util.StringUtils;
 )
 public class AdminEmailDeliveryConsumer implements RocketMQListener<String> {
 
+    /** 管理端邮件消息固定应用边界。 */
+    private static final String APP_CODE = "ADMIN";
+
     /** Admin 邮件投递状态机服务。 */
     private final AdminEmailDeliveryService deliveryService;
 
@@ -46,9 +49,12 @@ public class AdminEmailDeliveryConsumer implements RocketMQListener<String> {
     @Override
     public void onMessage(String payload) {
         EmailDeliveryMessage message = parse(payload);
-        if (message == null) {
-            log.warn("event: ADMIN_EMAIL_DELIVERY_INVALID payloadLength: {}", payload == null ? 0 : payload.length());
-            return;
+        if (message == null || !StringUtils.hasText(message.getMessageId())
+                || message.getRecordId() == null || message.getRecordId() <= 0
+                || !StringUtils.hasText(message.getEmailNo())
+                || !APP_CODE.equalsIgnoreCase(message.getAppCode())) {
+            log.error("event: ADMIN_EMAIL_DELIVERY_INVALID payloadLength: {}", payload == null ? 0 : payload.length());
+            throw new IllegalArgumentException("admin email delivery message required fields are missing");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
@@ -63,14 +69,14 @@ public class AdminEmailDeliveryConsumer implements RocketMQListener<String> {
     /** 安全解析消息，只记录失败载荷长度和异常类型。 */
     private EmailDeliveryMessage parse(String payload) {
         if (!StringUtils.hasText(payload)) {
-            return null;
+            throw new IllegalArgumentException("admin email delivery payload is empty");
         }
         try {
             return JsonUtils.parseObject(payload, EmailDeliveryMessage.class);
         } catch (RuntimeException exception) {
-            log.warn("event: ADMIN_EMAIL_DELIVERY_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
+            log.error("event: ADMIN_EMAIL_DELIVERY_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
                     payload.length(), exception.getClass().getSimpleName());
-            return null;
+            throw new IllegalArgumentException("admin email delivery payload is invalid", exception);
         }
     }
 }

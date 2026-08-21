@@ -26,21 +26,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Slf4j
 class TransactionMerchantNotificationConsumerTests {
 
-    /** 单笔任务成功时不应继续扫描同分表。 */
+    /** 普通终态事件不得绕过五秒延时命令直接访问商户端点。 */
     @Test
-    void shouldNotifyTransactionWithoutFallbackWhenTaskSucceeds() {
-        log.info("测试商户通知事件精确触发，关键输入: 单笔通知成功");
+    void shouldIgnoreTerminalEventUntilInitialDeliveryBecomesDue() {
+        log.info("测试商户通知事件延时边界，关键输入: 普通终态事件");
         InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(true);
         TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
 
         consumer.onMessage(JsonUtils.toJsonString(message()));
 
-        assertThat(deliveryService.notifyTransactionCalled).isTrue();
+        assertThat(deliveryService.notifyTransactionCalled).isFalse();
+        assertThat(deliveryService.retryDueCalled).isFalse();
         assertThat(deliveryService.notifyDueCalled).isFalse();
-        assertThat(deliveryService.transactionId).isEqualTo("TX202608011600000000001");
-        assertThat(deliveryService.transactionDateTime)
-                .isEqualTo(LocalDateTime.of(2026, 8, 1, 16, 0, 0, 255_000_000));
-        log.info("商户通知事件精确触发测试完成，结果: 未执行补偿扫描");
+        log.info("商户通知事件延时边界测试完成，结果: 未提前发起 HTTP 回调");
     }
 
     /** 终态事件精确任务未命中时不得顺带投递其他交易，补偿由独立 Job 负责。 */
@@ -52,7 +50,7 @@ class TransactionMerchantNotificationConsumerTests {
 
         consumer.onMessage(JsonUtils.toJsonString(message()));
 
-        assertThat(deliveryService.notifyTransactionCalled).isTrue();
+        assertThat(deliveryService.notifyTransactionCalled).isFalse();
         assertThat(deliveryService.notifyDueCalled).isFalse();
         log.info("商户通知事件精确边界测试完成，结果: 未投递其他交易");
     }
@@ -89,18 +87,20 @@ class TransactionMerchantNotificationConsumerTests {
         log.info("非终态通知边界测试完成，结果: 未访问通知任务");
     }
 
-    /** 畸形 JSON 不应访问数据库投递服务。 */
+    /** 畸形 JSON 必须触发 Broker 重试且不访问数据库投递服务。 */
     @Test
     void shouldSkipMalformedPayloadWithoutDelivery() {
         log.info("测试商户通知畸形消息，关键输入: 非法 JSON");
         InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(false);
         TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
 
-        consumer.onMessage("{invalid-json");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> consumer.onMessage("{invalid-json"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("merchant notification payload is invalid");
 
         assertThat(deliveryService.notifyTransactionCalled).isFalse();
         assertThat(deliveryService.notifyDueCalled).isFalse();
-        log.info("商户通知畸形消息测试完成，结果: 未访问通知数据库");
+        log.info("商户通知畸形消息测试完成，结果: 已拒绝且未访问通知数据库");
     }
 
     /** 第一版事件缺少真实分片时间时必须拒绝消费，不允许解析交易号或全分片检索。 */
@@ -163,6 +163,28 @@ class TransactionMerchantNotificationConsumerTests {
         assertThat(deliveryService.expectedVersion).isEqualTo(3);
         assertThat(deliveryService.attemptNo).isEqualTo(2);
         assertThat(deliveryService.retryTransactionCalled).isFalse();
+    }
+
+    /** 自动重试命令缺少 CAS 版本时必须触发 Broker 重试。 */
+    @Test
+    void shouldRejectAutomaticRetryWithoutExpectedVersion() {
+        InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(true);
+        TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
+        MerchantNotificationRetryDueMessage retryMessage = new MerchantNotificationRetryDueMessage();
+        retryMessage.setMessageId("MNR-DUE-INVALID");
+        retryMessage.setEventType(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE);
+        retryMessage.setNotifyId("NOTIFY-INVALID");
+        retryMessage.setTransactionId("TX202608011600000000001");
+        retryMessage.setTransactionDateTime(LocalDateTime.of(2026, 8, 1, 16, 0));
+        retryMessage.setAttemptNo(2);
+        retryMessage.setDeliverAt(LocalDateTime.of(2026, 8, 1, 16, 1));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> consumer.onMessage(JsonUtils.toJsonString(retryMessage)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("merchant notification retry due fields are missing");
+
+        assertThat(deliveryService.retryDueCalled).isFalse();
     }
 
     /** 创建仅处理消息对应交易的消费者。 */

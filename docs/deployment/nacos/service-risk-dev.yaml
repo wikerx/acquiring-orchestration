@@ -11,6 +11,8 @@ internal-service:
     secret: ${INTERNAL_SERVICE_AUTH_SECRET:dev-internal-service-secret}
     # 参数说明：内部请求签名允许的客户端与服务端时钟偏差，使用 Spring Duration（如 5m 或 PT5M）。
     allowed-clock-skew: 5m
+    # nonce 记录必须覆盖完整时钟偏差窗口；Redis 异常时内部请求失败关闭。
+    nonce-ttl: 10m
     whitelist:
       # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
       - /risk/health

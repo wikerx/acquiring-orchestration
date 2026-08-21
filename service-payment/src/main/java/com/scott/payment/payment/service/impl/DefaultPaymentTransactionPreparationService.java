@@ -66,7 +66,6 @@ import java.util.Objects;
  */
 @Service
 @Slf4j
-@DS(DataSourceName.TRANSACTION)
 public class DefaultPaymentTransactionPreparationService implements PaymentTransactionPreparationService {
 
     /**
@@ -262,6 +261,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      * @return 本地准备结果
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public PaymentInitialPreparationResultDTO prepareInitialTransaction(PaymentCreateCommandDTO commandDTO, String transactionType) {
         long startNanos = System.nanoTime();

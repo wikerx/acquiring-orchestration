@@ -97,5 +97,17 @@ public class DataMerchantNotificationConfig {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "merchant callback JWT TTL must be between 1 and 300 seconds");
         }
+        if (properties.getSecurityMaterialCacheTtl() == null
+                || properties.getSecurityMaterialCacheTtl().isZero()
+                || properties.getSecurityMaterialCacheTtl().isNegative()
+                || properties.getSecurityMaterialCacheTtl().compareTo(java.time.Duration.ofMinutes(10)) > 0) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "merchant callback security material cache TTL must be between 1 nanosecond and 10 minutes");
+        }
+        if (properties.getSecurityMaterialCacheMaxEntries() <= 0
+                || properties.getSecurityMaterialCacheMaxEntries() > 100_000) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "merchant callback security material cache max entries must be between 1 and 100000");
+        }
     }
 }

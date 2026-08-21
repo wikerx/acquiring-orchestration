@@ -27,7 +27,7 @@ import java.util.Map;
  * @classname : MerchantNotificationRetryJob
  * @date : 2026-07-15 00:00
  * @email : scott_x@163.com
- * @description : 商户通知低频对账任务，默认驱动 service-data 将到期任务重新可靠入 MQ，并保留直接投递回退模式。
+ * @description : 商户通知低频对账任务，驱动 service-data 将到期任务重新可靠入 MQ，所有兼容模式均禁止直接访问商户端点。
  * @status : create
  */
 @Component
@@ -52,9 +52,9 @@ public class MerchantNotificationRetryJob implements JobHandler {
 
     /** 延迟 MQ 主链路模式。 */
     private static final String MODE_MQ = "MQ";
-    /** 原 Job 直接投递紧急回退模式。 */
+    /** 兼容旧任务参数的显式季度补偿模式，内部接口仍只负责重新入 MQ。 */
     private static final String MODE_JOB = "JOB";
-    /** 灰度期同时补发 MQ 并保留直接扫描的模式。 */
+    /** 兼容旧任务参数的组合补偿模式，两条内部链路均只负责重新入 MQ。 */
     private static final String MODE_HYBRID = "HYBRID";
 
     /**
@@ -90,7 +90,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
      * 执行商户通知补偿。
      *
      * @param context 任务执行上下文
-     * @return 执行结果，包含每个分表时间点的成功通知数量
+     * @return 执行结果，包含每个分表时间点的可靠入队数量
      */
     @Override
     public JobExecuteResult execute(JobExecuteContext context) {

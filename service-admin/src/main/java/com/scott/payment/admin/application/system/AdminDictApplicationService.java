@@ -163,6 +163,11 @@ public class AdminDictApplicationService {
         adminDictService.deleteDictType(dictType);
     }
 
+    /** 清空管理端与商户端共享的启用字典下拉快照。 */
+    public void refreshOptionCache() {
+        adminDictService.refreshOptionCache();
+    }
+
     /**
      * 保存字典数据。
      *

@@ -234,7 +234,7 @@ public class OpenApiCallbackSecuritySupport {
                 ? ApiResultEnum.INTERNAL_SERVER_ERROR
                 : ApiResultEnum.UNAUTHORIZED;
         return recordAndReturnChannelException(request, eventType, riskLevel, hitRuleCode,
-                exception.getMessage(), result);
+                exception.getReason().name(), result);
     }
 
     /**

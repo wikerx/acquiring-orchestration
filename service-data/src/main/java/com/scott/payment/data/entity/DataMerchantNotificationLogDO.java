@@ -22,6 +22,12 @@ public class DataMerchantNotificationLogDO {
     /** 稳定通知 ID，不允许为空。 */
     private String notifyId;
 
+    /** 本次回调协议事件号；人工回调必须使用 MQ 消息号且不允许为空。 */
+    private String callbackEventId;
+
+    /** 投递模式：AUTO 表示系统计划，MANUAL 表示管理后台人工命令。 */
+    private String deliveryMode;
+
     /** 平台交易 ID，不允许为空。 */
     private String transactionId;
 

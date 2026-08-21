@@ -35,6 +35,28 @@ public interface TransactionChannelMatchResultTransactionService {
                             LocalDateTime matchTime);
 
     /**
+     * 保存平台终态交易的渠道勾兑摘要，不修改交易终态、金额或商户通知状态。
+     *
+     * @param operationDO 原交易动作单
+     * @param originalRequestDO 原资金动作渠道请求记录，可为空
+     * @param invokeResultDTO 渠道查询调用结果，可为空
+     * @param matchStatus MATCHED、MISMATCHED、PENDING 或 FAILED
+     * @param matchResult 渠道解析结果摘要
+     * @param matchTime 本次查询时间
+     * @param failReason 失败或不一致原因，可为空
+     * @return true 表示终态摘要 CAS 更新成功
+     */
+    default boolean updateTerminalByQuery(TransactionOperationDO operationDO,
+                                          TransactionChannelRequestDO originalRequestDO,
+                                          PaymentChannelInvokeResultDTO invokeResultDTO,
+                                          String matchStatus,
+                                          String matchResult,
+                                          LocalDateTime matchTime,
+                                          String failReason) {
+        return false;
+    }
+
+    /**
      * 在独立事务中记录主动查询仍需恢复的结果。
      *
      * @param operationDO 原交易动作单

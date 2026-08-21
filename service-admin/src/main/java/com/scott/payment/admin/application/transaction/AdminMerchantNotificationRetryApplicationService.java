@@ -52,8 +52,8 @@ public class AdminMerchantNotificationRetryApplicationService {
     /**
      * 将人工重发请求冻结为可靠 MQ 事件。
      *
-     * <p>该方法不读取密钥、不构造 JWT、不访问商户 URL。消息提交后由 service-data 读取通知任务快照，
-     * 并以事件号作为回调 JWT eventId/jti 和 Header 事件 ID。</p>
+     * <p>该方法不读取密钥、不构造 JWT、不访问商户 URL。消息提交后由 service-data 立即消费并执行一次
+     * 独立人工回调，以事件号作为回调 JWT eventId/jti 和 Header 事件 ID；该操作不进入自动五次计划。</p>
      *
      * @param request 交易号、真实分片时间和可选请求号
      * @param operator 当前后台操作人摘要

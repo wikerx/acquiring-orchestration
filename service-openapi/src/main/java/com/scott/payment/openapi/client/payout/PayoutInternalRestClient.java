@@ -12,6 +12,7 @@ import com.scott.payment.openapi.config.PayoutClientProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -138,24 +139,27 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
      * @param requestDTO 创建代付内部请求
      * @return 带签名头的请求实体
      */
-    private HttpEntity<PayoutCreateClientRequestDTO> buildSignedEntity(URI uri, PayoutCreateClientRequestDTO requestDTO) {
+    private HttpEntity<String> buildSignedEntity(URI uri, PayoutCreateClientRequestDTO requestDTO) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
         String caller = payoutClientProperties.getInternalCaller();
+        String requestBody = JsonUtils.toJsonString(requestDTO);
         String signature = InternalServiceSignature.sign(
                 "POST",
-                uri.getPath(),
+                InternalServiceSignature.requestTarget(uri.getRawPath(), uri.getRawQuery()),
                 timestamp,
                 nonce,
                 caller,
+                InternalServiceSignature.payloadSha256(requestBody),
                 payoutClientProperties.getInternalSecret()
         );
         HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
         headers.add(InternalServiceSignature.HEADER_CALLER, caller);
         headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
         headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
         headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
-        return new HttpEntity<>(requestDTO, headers);
+        return new HttpEntity<>(requestBody, headers);
     }
 
     /**

@@ -278,9 +278,11 @@ public class JobDispatchService {
         } catch (TimeoutException exception) {
             future.cancel(true);
             markTimeout(runLog);
-            logJobEnd(context, Duration.between(start, Instant.now()).toMillis(), JobRunStatusEnum.TIMEOUT.name(), exception.getMessage());
+            logJobEnd(context, Duration.between(start, Instant.now()).toMillis(),
+                    JobRunStatusEnum.TIMEOUT.name(), exception.getClass().getSimpleName());
         } catch (Exception exception) {
-            JobExecuteResult result = JobExecuteResult.failed(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), exception.getMessage());
+            JobExecuteResult result = JobExecuteResult.failed(
+                    ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), exception.getClass().getSimpleName());
             finishSuccessOrFailure(task, runLog, context, result, start);
         } finally {
             jobFutureRegistry.unregister(context.getRunId());
@@ -302,7 +304,8 @@ public class JobDispatchService {
             try {
                 if (throwable != null) {
                     finishSuccessOrFailure(task, runLog, context,
-                            JobExecuteResult.failed(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), throwable.getMessage()),
+                            JobExecuteResult.failed(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                                    throwable.getClass().getSimpleName()),
                             start);
                     return;
                 }
@@ -351,7 +354,7 @@ public class JobDispatchService {
                     if (throwable != null) {
                         JobExecuteResult failedResult = JobExecuteResult.failed(
                                 ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
-                                throwable.getMessage()
+                                throwable.getClass().getSimpleName()
                         );
                         finishSuccessOrFailure(task, runLog, context, failedResult, start);
                         return;
@@ -438,7 +441,7 @@ public class JobDispatchService {
                     context.getShardTotal()));
             return true;
         } catch (RuntimeException exception) {
-            runWithTrace(context, () -> log.error("event: JOB_RETRY_SCHEDULE_FAILED traceId: {} jobId: {} handler: {} runId: {} retryIndex: {} nextRetryIndex: {} nodeId: {}",
+            runWithTrace(context, () -> log.error("event: JOB_RETRY_SCHEDULE_FAILED traceId: {} jobId: {} handler: {} runId: {} retryIndex: {} nextRetryIndex: {} nodeId: {} exceptionType: {}",
                     context.getTraceId(),
                     context.getJobId(),
                     context.getHandlerCode(),
@@ -446,7 +449,7 @@ public class JobDispatchService {
                     context.getRetryIndex(),
                     retryIndex,
                     jobNodeContext.nodeId(),
-                    exception));
+                    exception.getClass().getSimpleName()));
             return false;
         }
     }

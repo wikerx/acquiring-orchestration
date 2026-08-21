@@ -56,7 +56,6 @@ import java.util.Objects;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultCaptureTransactionPreparationService implements CaptureTransactionPreparationService {
 
     /**
@@ -245,6 +244,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
      * @return 新建或幂等命中的请款准备结果
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public CapturePreparationResultDTO prepareCapture(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
         return prepareCapture(commandDTO, idempotencyKey, PaymentTransactionTypeEnum.CAPTURE);
@@ -256,6 +256,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
      * <p>事务内锁定原订单，重新计算规范请求指纹，并在创建动作前校验可请款金额和冲突中的资金动作。</p>
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public CapturePreparationResultDTO prepareCapture(PaymentCreateCommandDTO commandDTO,
                                                       String idempotencyKey,

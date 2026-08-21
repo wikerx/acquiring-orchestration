@@ -15,6 +15,7 @@ import com.scott.payment.admin.service.AdminDictService;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
+import com.scott.payment.component.db.mcc.service.MccOptionCacheInvalidator;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
@@ -155,6 +156,10 @@ class AdminBaseMccApplicationServiceTest {
      */
     private ExcelLocaleResolver excelLocaleResolver;
 
+    /** MCC 公共选项缓存失效器。 */
+    @Mock
+    private MccOptionCacheInvalidator mccOptionCacheInvalidator;
+
     /**
      * service 依赖，用于 Admin Base MCC Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -178,7 +183,8 @@ class AdminBaseMccApplicationServiceTest {
                 merchantInfoMapper,
                 excelExportService,
                 excelI18nMessageResolver,
-                excelLocaleResolver
+                excelLocaleResolver,
+                mccOptionCacheInvalidator
         );
     }
 

@@ -1737,7 +1737,7 @@ CREATE TABLE `payment_checkout_session` (
   `request_fingerprint` varchar(128) NOT NULL COMMENT '创建收银台明文业务参数摘要，用于识别同幂等键但请求内容不一致。',
   `payment_action` varchar(32) NOT NULL DEFAULT 'PAYMENT' COMMENT '支付动作，V1 固定 PAYMENT，后续可扩展 AUTHORIZATION。',
   `integration_type` varchar(32) NOT NULL DEFAULT 'HOSTED_CHECKOUT' COMMENT '接入类型，固定 HOSTED_CHECKOUT。',
-  `checkout_status` varchar(32) NOT NULL COMMENT '收银台会话状态：PAYABLE、PAYING、AUTHENTICATING、PROCESSING、PAYABLE_FAILED_RETRYABLE、SUCCEEDED、FAILED_FINAL、EXPIRED、CANCELLED、BLOCKED。',
+  `checkout_status` varchar(32) NOT NULL COMMENT '支付状态：PENDING待处理、PROCESSING处理中、SUCCESS成功、FAILED失败。',
   `process_stage` varchar(64) NOT NULL COMMENT '内部处理阶段，如 SESSION_CREATED、WAITING_PAYER、CARD_SUBMITTED、WAITING_3DS、WAITING_CHANNEL、RESULT_RENDERED。',
   `last_status_time` datetime(3) NOT NULL COMMENT '最近一次收银台状态更新时间。',
   `operation_id` varchar(64) DEFAULT NULL COMMENT '支付提交后关联的交易生命周期ID；付款人未提交前为空。',
@@ -1794,7 +1794,7 @@ CREATE TABLE `payment_checkout_session` (
   KEY `idx_latest_transaction_time` (`latest_transaction_id`,`transaction_date_time`),
   KEY `idx_operation_time` (`operation_id`,`transaction_date_time`),
   KEY `idx_channel_match_next` (`checkout_status`,`next_channel_match_time`),
-  KEY `idx_checkout_expire_scan` (`checkout_status`,`expire_time`,`deleted`)
+  KEY `idx_checkout_expire_scan` (`checkout_status`,`process_stage`,`last_submit_time`,`deleted`,`expire_time`,`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=37 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Hosted Checkout 会话主表，保存收银台订单意向、展示快照、状态和交易关联，不保存卡敏感信息。';
 
 -- ----------------------------
@@ -1811,7 +1811,7 @@ CREATE TABLE `payment_checkout_token` (
   `token_key_version` varchar(32) NOT NULL COMMENT '令牌摘要 pepper 或密钥版本，用于后续轮换。',
   `token_status` varchar(32) NOT NULL COMMENT '令牌状态：ACTIVE、REVOKED、EXPIRED。',
   `issue_reason` varchar(32) NOT NULL COMMENT '签发原因：CREATE、IDEMPOTENT_REISSUE、ROTATE、RISK_REISSUE。',
-  `expire_time` datetime(3) NOT NULL COMMENT '令牌过期时间，不得晚于 checkout session 过期时间。',
+  `expire_time` datetime(3) DEFAULT NULL COMMENT '令牌可选失效时间；NULL 表示未撤销前允许持续查询结果，不代表允许继续支付。',
   `first_used_time` datetime(3) DEFAULT NULL COMMENT '首次被付款人打开或查询时间。',
   `last_used_time` datetime(3) DEFAULT NULL COMMENT '最近一次使用时间。',
   `use_count` int NOT NULL DEFAULT '0' COMMENT '累计使用次数，用于异常访问识别。',
@@ -6175,7 +6175,7 @@ CREATE TABLE `transaction_event_outbox` (
   `merchant_order_no` varchar(128) DEFAULT NULL COMMENT '商户订单号，用于商户侧查询和补偿排查。',
   `transaction_type` varchar(32) DEFAULT NULL COMMENT '交易类型，对齐字典 transaction_type。',
   `event_type` varchar(64) NOT NULL COMMENT '事件类型，如 PAYMENT_CREATED、STATUS_CHANGED、CALLBACK_PROCESSED。',
-  `event_status` varchar(32) NOT NULL COMMENT '事件发布状态：INIT、SENT、FAILED、CLOSED。',
+  `event_status` varchar(32) NOT NULL COMMENT '事件发布状态：INIT、PROCESSING、SENT、FAILED、CLOSED。',
   `topic` varchar(128) NOT NULL COMMENT 'RocketMQ Topic。',
   `tag` varchar(128) DEFAULT NULL COMMENT 'RocketMQ Tag。',
   `message_key` varchar(128) NOT NULL COMMENT 'MQ消息Key，下游消费幂等使用。',
@@ -6198,6 +6198,7 @@ CREATE TABLE `transaction_event_outbox` (
   UNIQUE KEY `uk_event_no` (`event_no`),
   UNIQUE KEY `uk_message_key` (`message_key`),
   KEY `idx_event_status_retry` (`event_status`,`next_retry_time`),
+  KEY `idx_event_status_update` (`event_status`,`update_time`),
   KEY `idx_aggregate` (`aggregate_type`,`aggregate_no`),
   KEY `idx_transaction_event` (`transaction_id`,`transaction_date_time`,`event_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易本地事务内写入事件，事务提交后可靠投递 RocketMQ。';
@@ -6217,7 +6218,7 @@ CREATE TABLE `transaction_event_outbox_202603` (
   `merchant_order_no` varchar(128) DEFAULT NULL COMMENT '商户订单号，用于商户侧查询和补偿排查。',
   `transaction_type` varchar(32) DEFAULT NULL COMMENT '交易类型，对齐字典 transaction_type。',
   `event_type` varchar(64) NOT NULL COMMENT '事件类型，如 PAYMENT_CREATED、STATUS_CHANGED、CALLBACK_PROCESSED。',
-  `event_status` varchar(32) NOT NULL COMMENT '事件发布状态：INIT、SENT、FAILED、CLOSED。',
+  `event_status` varchar(32) NOT NULL COMMENT '事件发布状态：INIT、PROCESSING、SENT、FAILED、CLOSED。',
   `topic` varchar(128) NOT NULL COMMENT 'RocketMQ Topic。',
   `tag` varchar(128) DEFAULT NULL COMMENT 'RocketMQ Tag。',
   `message_key` varchar(128) NOT NULL COMMENT 'MQ消息Key，下游消费幂等使用。',
@@ -6240,6 +6241,7 @@ CREATE TABLE `transaction_event_outbox_202603` (
   UNIQUE KEY `uk_event_no` (`event_no`),
   UNIQUE KEY `uk_message_key` (`message_key`),
   KEY `idx_event_status_retry` (`event_status`,`next_retry_time`),
+  KEY `idx_event_status_update` (`event_status`,`update_time`),
   KEY `idx_aggregate` (`aggregate_type`,`aggregate_no`),
   KEY `idx_transaction_event` (`transaction_id`,`transaction_date_time`,`event_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202603000000001796 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易本地事务内写入事件，事务提交后可靠投递 RocketMQ。';
@@ -6259,7 +6261,7 @@ CREATE TABLE `transaction_event_outbox_202604` (
   `merchant_order_no` varchar(128) DEFAULT NULL COMMENT '商户订单号，用于商户侧查询和补偿排查。',
   `transaction_type` varchar(32) DEFAULT NULL COMMENT '交易类型，对齐字典 transaction_type。',
   `event_type` varchar(64) NOT NULL COMMENT '事件类型，如 PAYMENT_CREATED、STATUS_CHANGED、CALLBACK_PROCESSED。',
-  `event_status` varchar(32) NOT NULL COMMENT '事件发布状态：INIT、SENT、FAILED、CLOSED。',
+  `event_status` varchar(32) NOT NULL COMMENT '事件发布状态：INIT、PROCESSING、SENT、FAILED、CLOSED。',
   `topic` varchar(128) NOT NULL COMMENT 'RocketMQ Topic。',
   `tag` varchar(128) DEFAULT NULL COMMENT 'RocketMQ Tag。',
   `message_key` varchar(128) NOT NULL COMMENT 'MQ消息Key，下游消费幂等使用。',
@@ -6282,6 +6284,7 @@ CREATE TABLE `transaction_event_outbox_202604` (
   UNIQUE KEY `uk_event_no` (`event_no`),
   UNIQUE KEY `uk_message_key` (`message_key`),
   KEY `idx_event_status_retry` (`event_status`,`next_retry_time`),
+  KEY `idx_event_status_update` (`event_status`,`update_time`),
   KEY `idx_aggregate` (`aggregate_type`,`aggregate_no`),
   KEY `idx_transaction_event` (`transaction_id`,`transaction_date_time`,`event_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202604000000000001 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易本地事务内写入事件，事务提交后可靠投递 RocketMQ。';
@@ -6722,10 +6725,12 @@ CREATE TABLE `transaction_merchant_notification` (
   `payload_json_masked` mediumtext COMMENT '脱敏通知载荷 JSON。',
   `sign_type` varchar(32) DEFAULT NULL COMMENT '商户通知签名方式。',
   `last_attempt_no` int NOT NULL DEFAULT '0' COMMENT '最近一次通知尝试次数。',
-  `max_retry_count` int NOT NULL DEFAULT '10' COMMENT '最大重试次数。',
+  `max_retry_count` int NOT NULL DEFAULT '5' COMMENT '自动通知最大投递次数，当前协议固定为5次。',
   `next_retry_time` datetime(3) DEFAULT NULL COMMENT '下一次重试时间。',
   `success_time` datetime(3) DEFAULT NULL COMMENT '通知成功时间。',
   `fail_reason` varchar(512) DEFAULT NULL COMMENT '最近失败原因。',
+  `processing_mode` varchar(16) DEFAULT NULL COMMENT '当前执行模式：AUTO 自动投递、MANUAL 人工立即重发。',
+  `processing_event_id` varchar(128) DEFAULT NULL COMMENT '当前人工 MQ 事件号；自动投递为空。',
   `transaction_date_time` datetime(3) NOT NULL COMMENT '交易业务时间。',
   `transaction_utc_time` datetime(3) NOT NULL COMMENT '交易业务时间对应 UTC 时间。',
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
@@ -6738,6 +6743,7 @@ CREATE TABLE `transaction_merchant_notification` (
   UNIQUE KEY `uk_notify_idempotency` (`merchant_id`,`transaction_id`,`notify_type`,`event_type`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
   KEY `idx_notify_status_retry` (`notify_status`,`next_retry_time`),
+  KEY `idx_processing_event` (`processing_event_id`,`transaction_date_time`),
   KEY `idx_merchant_time` (`merchant_id`,`transaction_date_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='保存给商户异步通知的任务当前状态、重试计划和成功记录。';
 
@@ -6763,10 +6769,12 @@ CREATE TABLE `transaction_merchant_notification_202603` (
   `payload_json_masked` mediumtext COMMENT '脱敏通知载荷 JSON。',
   `sign_type` varchar(32) DEFAULT NULL COMMENT '商户通知签名方式。',
   `last_attempt_no` int NOT NULL DEFAULT '0' COMMENT '最近一次通知尝试次数。',
-  `max_retry_count` int NOT NULL DEFAULT '10' COMMENT '最大重试次数。',
+  `max_retry_count` int NOT NULL DEFAULT '5' COMMENT '自动通知最大投递次数，当前协议固定为5次。',
   `next_retry_time` datetime(3) DEFAULT NULL COMMENT '下一次重试时间。',
   `success_time` datetime(3) DEFAULT NULL COMMENT '通知成功时间。',
   `fail_reason` varchar(512) DEFAULT NULL COMMENT '最近失败原因。',
+  `processing_mode` varchar(16) DEFAULT NULL COMMENT '当前执行模式：AUTO 自动投递、MANUAL 人工立即重发。',
+  `processing_event_id` varchar(128) DEFAULT NULL COMMENT '当前人工 MQ 事件号；自动投递为空。',
   `transaction_date_time` datetime(3) NOT NULL COMMENT '交易业务时间。',
   `transaction_utc_time` datetime(3) NOT NULL COMMENT '交易业务时间对应 UTC 时间。',
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
@@ -6779,6 +6787,7 @@ CREATE TABLE `transaction_merchant_notification_202603` (
   UNIQUE KEY `uk_notify_idempotency` (`merchant_id`,`transaction_id`,`notify_type`,`event_type`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
   KEY `idx_notify_status_retry` (`notify_status`,`next_retry_time`),
+  KEY `idx_processing_event` (`processing_event_id`,`transaction_date_time`),
   KEY `idx_merchant_time` (`merchant_id`,`transaction_date_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202603000000001079 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='保存给商户异步通知的任务当前状态、重试计划和成功记录。';
 
@@ -6804,10 +6813,12 @@ CREATE TABLE `transaction_merchant_notification_202604` (
   `payload_json_masked` mediumtext COMMENT '脱敏通知载荷 JSON。',
   `sign_type` varchar(32) DEFAULT NULL COMMENT '商户通知签名方式。',
   `last_attempt_no` int NOT NULL DEFAULT '0' COMMENT '最近一次通知尝试次数。',
-  `max_retry_count` int NOT NULL DEFAULT '10' COMMENT '最大重试次数。',
+  `max_retry_count` int NOT NULL DEFAULT '5' COMMENT '自动通知最大投递次数，当前协议固定为5次。',
   `next_retry_time` datetime(3) DEFAULT NULL COMMENT '下一次重试时间。',
   `success_time` datetime(3) DEFAULT NULL COMMENT '通知成功时间。',
   `fail_reason` varchar(512) DEFAULT NULL COMMENT '最近失败原因。',
+  `processing_mode` varchar(16) DEFAULT NULL COMMENT '当前执行模式：AUTO 自动投递、MANUAL 人工立即重发。',
+  `processing_event_id` varchar(128) DEFAULT NULL COMMENT '当前人工 MQ 事件号；自动投递为空。',
   `transaction_date_time` datetime(3) NOT NULL COMMENT '交易业务时间。',
   `transaction_utc_time` datetime(3) NOT NULL COMMENT '交易业务时间对应 UTC 时间。',
   `transaction_time_zone` varchar(64) NOT NULL DEFAULT 'Asia/Shanghai' COMMENT '交易业务时间所属 IANA 时区。',
@@ -6820,6 +6831,7 @@ CREATE TABLE `transaction_merchant_notification_202604` (
   UNIQUE KEY `uk_notify_idempotency` (`merchant_id`,`transaction_id`,`notify_type`,`event_type`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
   KEY `idx_notify_status_retry` (`notify_status`,`next_retry_time`),
+  KEY `idx_processing_event` (`processing_event_id`,`transaction_date_time`),
   KEY `idx_merchant_time` (`merchant_id`,`transaction_date_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202604000000000001 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='保存给商户异步通知的任务当前状态、重试计划和成功记录。';
 
@@ -6831,6 +6843,8 @@ CREATE TABLE `transaction_merchant_notification_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '物理表主键ID。',
   `notify_log_id` varchar(64) NOT NULL COMMENT '商户通知日志ID。',
   `notify_id` varchar(64) NOT NULL COMMENT '商户通知任务ID。',
+  `callback_event_id` varchar(128) DEFAULT NULL COMMENT '人工重发 MQ 稳定事件号；自动投递为空。',
+  `delivery_mode` varchar(16) NOT NULL DEFAULT 'AUTO' COMMENT '投递模式：AUTO 自动计划、MANUAL 人工立即重发。',
   `transaction_id` varchar(64) NOT NULL COMMENT '平台交易生命周期唯一标识。',
   `operation_id` varchar(64) DEFAULT NULL COMMENT '交易动作ID。',
   `merchant_id` varchar(64) NOT NULL COMMENT '平台商户号。',
@@ -6851,6 +6865,7 @@ CREATE TABLE `transaction_merchant_notification_log` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_notify_log_id` (`notify_log_id`),
   UNIQUE KEY `uk_notify_attempt` (`notify_id`,`attempt_no`),
+  UNIQUE KEY `uk_callback_event` (`callback_event_id`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
   KEY `idx_notify_time` (`notify_id`,`notify_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='保存每一次商户通知请求/响应日志。';
@@ -6863,6 +6878,8 @@ CREATE TABLE `transaction_merchant_notification_log_202603` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '物理表主键ID。',
   `notify_log_id` varchar(64) NOT NULL COMMENT '商户通知日志ID。',
   `notify_id` varchar(64) NOT NULL COMMENT '商户通知任务ID。',
+  `callback_event_id` varchar(128) DEFAULT NULL COMMENT '人工重发 MQ 稳定事件号；自动投递为空。',
+  `delivery_mode` varchar(16) NOT NULL DEFAULT 'AUTO' COMMENT '投递模式：AUTO 自动计划、MANUAL 人工立即重发。',
   `transaction_id` varchar(64) NOT NULL COMMENT '平台交易生命周期唯一标识。',
   `operation_id` varchar(64) DEFAULT NULL COMMENT '交易动作ID。',
   `merchant_id` varchar(64) NOT NULL COMMENT '平台商户号。',
@@ -6883,6 +6900,7 @@ CREATE TABLE `transaction_merchant_notification_log_202603` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_notify_log_id` (`notify_log_id`),
   UNIQUE KEY `uk_notify_attempt` (`notify_id`,`attempt_no`),
+  UNIQUE KEY `uk_callback_event` (`callback_event_id`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
   KEY `idx_notify_time` (`notify_id`,`notify_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202603000000000965 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='保存每一次商户通知请求/响应日志。';
@@ -6895,6 +6913,8 @@ CREATE TABLE `transaction_merchant_notification_log_202604` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '物理表主键ID。',
   `notify_log_id` varchar(64) NOT NULL COMMENT '商户通知日志ID。',
   `notify_id` varchar(64) NOT NULL COMMENT '商户通知任务ID。',
+  `callback_event_id` varchar(128) DEFAULT NULL COMMENT '人工重发 MQ 稳定事件号；自动投递为空。',
+  `delivery_mode` varchar(16) NOT NULL DEFAULT 'AUTO' COMMENT '投递模式：AUTO 自动计划、MANUAL 人工立即重发。',
   `transaction_id` varchar(64) NOT NULL COMMENT '平台交易生命周期唯一标识。',
   `operation_id` varchar(64) DEFAULT NULL COMMENT '交易动作ID。',
   `merchant_id` varchar(64) NOT NULL COMMENT '平台商户号。',
@@ -6915,6 +6935,7 @@ CREATE TABLE `transaction_merchant_notification_log_202604` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_notify_log_id` (`notify_log_id`),
   UNIQUE KEY `uk_notify_attempt` (`notify_id`,`attempt_no`),
+  UNIQUE KEY `uk_callback_event` (`callback_event_id`),
   KEY `idx_transaction_time` (`transaction_id`,`transaction_date_time`),
   KEY `idx_notify_time` (`notify_id`,`notify_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202604000000000001 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='保存每一次商户通知请求/响应日志。';
@@ -7141,7 +7162,8 @@ CREATE TABLE `transaction_operation` (
   KEY `idx_source_transaction` (`source_transaction_id`,`transaction_date_time`),
   KEY `idx_merchant_order_id` (`merchant_id`,`merchant_order_id`,`transaction_type`),
   KEY `idx_refund_type_time` (`transaction_type`,`transaction_date_time`,`id`),
-  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`)
+  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`),
+  KEY `idx_pending_fund_balance` (`merchant_id`,`transaction_status`,`settlement_status`,`transaction_type`,`transaction_date_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易动作单；授权、增量授权、请款、退款、Void、拒付等每一个动作一条记录。';
 
 -- ----------------------------
@@ -7232,7 +7254,8 @@ CREATE TABLE `transaction_operation_202603` (
   KEY `idx_source_transaction` (`source_transaction_id`,`transaction_date_time`),
   KEY `idx_merchant_order_id` (`merchant_id`,`merchant_order_id`,`transaction_type`),
   KEY `idx_refund_type_time` (`transaction_type`,`transaction_date_time`,`id`),
-  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`)
+  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`),
+  KEY `idx_pending_fund_balance` (`merchant_id`,`transaction_status`,`settlement_status`,`transaction_type`,`transaction_date_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202603000000001230 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易动作单；授权、增量授权、请款、退款、Void、拒付等每一个动作一条记录。';
 
 -- ----------------------------
@@ -7323,7 +7346,8 @@ CREATE TABLE `transaction_operation_202604` (
   KEY `idx_source_transaction` (`source_transaction_id`,`transaction_date_time`),
   KEY `idx_merchant_order_id` (`merchant_id`,`merchant_order_id`,`transaction_type`),
   KEY `idx_refund_type_time` (`transaction_type`,`transaction_date_time`,`id`),
-  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`)
+  KEY `idx_refund_merchant_time` (`merchant_id`,`transaction_type`,`transaction_date_time`,`id`),
+  KEY `idx_pending_fund_balance` (`merchant_id`,`transaction_status`,`settlement_status`,`transaction_type`,`transaction_date_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=202604000000000001 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易动作单；授权、增量授权、请款、退款、Void、拒付等每一个动作一条记录。';
 
 -- ----------------------------

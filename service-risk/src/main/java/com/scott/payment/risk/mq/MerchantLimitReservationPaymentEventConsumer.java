@@ -15,7 +15,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * 以支付终态事件确认或撤销商户累计限额预占。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantLimitReservationPaymentEventConsumer
+ * @date : 2026-08-20 23:45
+ * @email : scott_x@163.com
+ * @description : 消费支付状态事件并以数据库状态机确认或释放商户累计限额预占，畸形消息交由 MQ 重试和死信处理
+ * @status : create
  */
 @Slf4j
 @Component
@@ -34,8 +40,14 @@ import org.springframework.util.StringUtils;
 public class MerchantLimitReservationPaymentEventConsumer
         implements RocketMQListener<String> {
 
+    /** 商户累计限额预占生命周期编排服务。 */
     private final MerchantLimitReservationLifecycleCoordinator coordinator;
 
+    /**
+     * 创建商户累计限额预占事件消费者。
+     *
+     * @param coordinator 预占生命周期编排服务
+     */
     public MerchantLimitReservationPaymentEventConsumer(
             MerchantLimitReservationLifecycleCoordinator coordinator) {
         this.coordinator = coordinator;
@@ -43,14 +55,13 @@ public class MerchantLimitReservationPaymentEventConsumer
 
     @Override
     public void onMessage(String payload) {
-        RiskPaymentTransactionEventMessage message =
-                JsonUtils.parseObject(payload, RiskPaymentTransactionEventMessage.class);
+        RiskPaymentTransactionEventMessage message = parseMessage(payload);
         if (message == null
                 || !StringUtils.hasText(message.getTransactionId())
                 || !StringUtils.hasText(message.getTransactionStatus())) {
-            log.warn("event: RISK_MERCHANT_LIMIT_PAYMENT_EVENT_SKIPPED reason=messageInvalid payloadLength: {}",
+            log.error("event: RISK_MERCHANT_LIMIT_PAYMENT_EVENT_INVALID reason=requiredFieldMissing payloadLength: {}",
                     payload == null ? 0 : payload.length());
-            return;
+            throw new IllegalArgumentException("risk payment event required fields are missing");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
@@ -70,6 +81,20 @@ public class MerchantLimitReservationPaymentEventConsumer
                     summary.conflicted());
         } finally {
             TraceContext.clear();
+        }
+    }
+
+    /** 解析支付事件；失败时不记录原始消息，交由 RocketMQ 重试和死信处理。 */
+    private RiskPaymentTransactionEventMessage parseMessage(String payload) {
+        if (!StringUtils.hasText(payload)) {
+            throw new IllegalArgumentException("risk payment event payload is invalid");
+        }
+        try {
+            return JsonUtils.parseObject(payload, RiskPaymentTransactionEventMessage.class);
+        } catch (RuntimeException exception) {
+            log.error("event: RISK_MERCHANT_LIMIT_PAYMENT_EVENT_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
+                    payload.length(), exception.getClass().getSimpleName());
+            throw new IllegalArgumentException("risk payment event payload is invalid", exception);
         }
     }
 }

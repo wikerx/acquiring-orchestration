@@ -59,6 +59,9 @@ class ReliableMqOutboxRelayServiceTests {
         ReliableMqOutboxDO event = event();
         when(store.findByEventId("MSG-OUTBOX-001")).thenReturn(event);
         when(store.claim(eq(1L), eq(0), any(LocalDateTime.class))).thenReturn(1);
+        when(store.markFailed(
+                eq(1L), eq(1), eq("RETRY_WAIT"), any(LocalDateTime.class),
+                eq("IllegalStateException"), any(LocalDateTime.class))).thenReturn(1);
         doThrow(new IllegalStateException("internal endpoint detail"))
                 .when(producer).sendSerialized(any(), any(), any(), any(), eq(0), any());
         ReliableMqOutboxRelayService service = new ReliableMqOutboxRelayService(

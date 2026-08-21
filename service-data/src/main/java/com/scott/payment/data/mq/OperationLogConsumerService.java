@@ -60,9 +60,6 @@ public class OperationLogConsumerService {
     public void consume(OperationLogSource source, String payload) {
         long startNanos = System.nanoTime();
         OperationLogMessage message = parseMessage(source, payload);
-        if (message == null) {
-            return;
-        }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
             String idempotentKey = resolveIdempotentKey(message);
@@ -72,9 +69,13 @@ public class OperationLogConsumerService {
                     properties.getConsumeIdempotentTtlSeconds()
             );
             if (acquireResult == IdempotentAcquireResult.DUPLICATE) {
-                log.info("event: DATA_OPERATION_LOG_DUPLICATE source: {} traceId: {} messageId: {} durationMs: {}",
-                        source, TraceContext.getTraceId(), message.getMessageId(), elapsedMillis(startNanos));
-                return;
+                if (persistenceService.existsByIdempotentKey(idempotentKey)) {
+                    log.info("event: DATA_OPERATION_LOG_DUPLICATE source: {} traceId: {} messageId: {} durationMs: {}",
+                            source, TraceContext.getTraceId(), message.getMessageId(), elapsedMillis(startNanos));
+                    return;
+                }
+                log.warn("event: DATA_OPERATION_LOG_STALE_REDIS_CLAIM source: {} traceId: {} messageId: {} action: continueToDatabaseUniqueConstraint",
+                        source, TraceContext.getTraceId(), message.getMessageId());
             }
             if (acquireResult == IdempotentAcquireResult.FALLBACK) {
                 log.warn("event: DATA_OPERATION_LOG_IDEMPOTENT_FALLBACK source: {} traceId: {} messageId: {} action: continueToDatabaseUniqueConstraint",
@@ -105,19 +106,19 @@ public class OperationLogConsumerService {
      *
      * @param source  操作日志来源系统
      * @param payload RocketMQ JSON 消息体
-     * @return 消息对象；空载荷返回 null
+     * @return 消息对象
      */
     private OperationLogMessage parseMessage(OperationLogSource source, String payload) {
         if (!StringUtils.hasText(payload)) {
-            log.warn("event: DATA_OPERATION_LOG_INVALID source: {} reason: emptyPayload", source);
-            return null;
+            log.error("event: DATA_OPERATION_LOG_INVALID source: {} reason: emptyPayload", source);
+            throw new IllegalArgumentException("operation log payload is empty");
         }
         try {
             return JsonUtils.parseObject(payload, OperationLogMessage.class);
         } catch (RuntimeException exception) {
             log.error("event: DATA_OPERATION_LOG_INVALID source: {} payloadLength: {} exceptionType: {}",
                     source, payload.length(), exception.getClass().getSimpleName());
-            return null;
+            throw new IllegalArgumentException("operation log payload is invalid", exception);
         }
     }
 

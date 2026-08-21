@@ -6,6 +6,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
+import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchRequeryCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
 import com.scott.payment.payment.service.TransactionCallbackService;
@@ -349,6 +350,21 @@ public class PaymentTransactionApplicationService {
      */
     public TransactionChannelMatchResultDTO matchDueChannelTransactions(TransactionChannelMatchCommandDTO commandDTO) {
         return transactionChannelMatchService.matchDue(commandDTO);
+    }
+
+    /**
+     * 使用真实交易分片时间主动重查并勾兑单笔交易。
+     *
+     * @param transactionId 平台交易号
+     * @param commandDTO 单笔重查命令
+     * @return 本次单笔勾兑处理结果
+     */
+    public TransactionChannelMatchResultDTO requeryChannelMatch(
+            String transactionId,
+            TransactionChannelMatchRequeryCommandDTO commandDTO) {
+        return transactionChannelMatchService.matchOne(
+                transactionId,
+                commandDTO == null ? null : commandDTO.getTransactionDateTime());
     }
 
     /**

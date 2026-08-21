@@ -38,10 +38,10 @@ public class DataMerchantNotificationInternalController {
     }
 
     /**
-     * 触发指定交易时间分表的到期商户通知补偿。
+     * 将指定交易时间分表的到期商户通知补偿命令重新可靠入 MQ。
      *
      * @param commandDTO 补偿命令
-     * @return 成功通知数量
+     * @return 可靠入队数量
      */
     @PostMapping("/notify-due")
     public CommonResult<Integer> notifyDue(@RequestBody MerchantNotificationNotifyDueCommandDTO commandDTO) {
@@ -49,10 +49,10 @@ public class DataMerchantNotificationInternalController {
     }
 
     /**
-     * 使用交易号和显式交易时间精确重试一条通知。
+     * 使用交易号和显式交易时间精确补发一条通知 MQ 命令。
      *
      * @param commandDTO 单笔补偿命令
-     * @return true 表示商户端点返回 2xx
+     * @return true 表示通知命令已可靠入队
      */
     @PostMapping("/notify-transaction")
     public CommonResult<Boolean> notifyTransaction(@RequestBody MerchantNotificationNotifyCommandDTO commandDTO) {

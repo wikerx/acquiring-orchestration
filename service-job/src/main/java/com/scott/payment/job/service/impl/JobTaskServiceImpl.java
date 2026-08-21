@@ -1,5 +1,7 @@
 package com.scott.payment.job.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -96,6 +98,7 @@ public class JobTaskServiceImpl implements JobTaskService {
      * @return 按分组和任务编码升序排列的分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SysJobTaskDO> pageTasks(JobTaskQueryRequest request) {
         JobTaskQueryRequest query = request == null ? new JobTaskQueryRequest() : request;
         Page<SysJobTaskDO> page = sysJobTaskMapper.selectPage(
@@ -216,6 +219,7 @@ public class JobTaskServiceImpl implements JobTaskService {
      * @throws ServiceException 任务不存在或已删除时抛出
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public SysJobTaskDO getRequiredTask(Long taskId) {
         SysJobTaskDO task = sysJobTaskMapper.selectById(taskId);
         if (task == null || task.getDeleted() != null && task.getDeleted() != NOT_DELETED) {
@@ -232,6 +236,7 @@ public class JobTaskServiceImpl implements JobTaskService {
      * @return 到期任务列表
      */
     @Override
+    @DS(DataSourceName.MASTER)
     public List<SysJobTaskDO> selectDueTasks(LocalDateTime triggerTime, int limit) {
         return sysJobTaskMapper.selectDueTasks(triggerTime, limit);
     }

@@ -11,6 +11,7 @@ import com.scott.payment.payment.mapper.TransactionAuthenticationInfoMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -22,10 +23,14 @@ class DefaultPaymentAuthenticationRecordServiceTests {
 
     @Test
     void shouldRouteThreeDsAuditWritesToTransactionLogicalDataSource() {
-        DS dataSource = DefaultPaymentAuthenticationRecordService.class.getAnnotation(DS.class);
+        assertThat(DefaultPaymentAuthenticationRecordService.class.getAnnotation(DS.class)).isNull();
 
-        assertThat(dataSource).isNotNull();
-        assertThat(dataSource.value()).isEqualTo(DataSourceName.TRANSACTION);
+        assertTransactionMethod("recordChannelResult",
+                ChannelThreeDsAuthenticationRequest.class, ChannelThreeDsAuthenticationResponse.class);
+        assertTransactionMethod("recordChannelFailure", ChannelThreeDsAuthenticationRequest.class,
+                ChannelThreeDsStatus.class, String.class);
+        assertTransactionMethod("recordTimeout",
+                com.scott.payment.payment.entity.PaymentCheckoutAttemptDO.class);
     }
 
     @Test
@@ -162,5 +167,17 @@ class DefaultPaymentAuthenticationRecordServiceTests {
         request.setAuthenticationTransactionId("3DSTX-001");
         request.setRedirectResponseUrl("https://checkout.example.test/bridge?threeDsReturnToken=secret");
         return request;
+    }
+
+    private void assertTransactionMethod(String methodName, Class<?>... parameterTypes) {
+        Method method;
+        try {
+            method = DefaultPaymentAuthenticationRecordService.class.getMethod(methodName, parameterTypes);
+        } catch (NoSuchMethodException exception) {
+            throw new AssertionError(exception);
+        }
+        DS dataSource = method.getAnnotation(DS.class);
+        assertThat(dataSource).isNotNull();
+        assertThat(dataSource.value()).isEqualTo(DataSourceName.TRANSACTION);
     }
 }

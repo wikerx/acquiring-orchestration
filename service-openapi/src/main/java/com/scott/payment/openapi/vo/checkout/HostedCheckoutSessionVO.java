@@ -160,6 +160,9 @@ public class HostedCheckoutSessionVO implements Serializable {
         /** 带时区偏移的会话过期时间。 */
         private OffsetDateTime expireTime;
 
+        /** 带时区偏移的支付服务响应时间，用于校准浏览器倒计时。 */
+        private OffsetDateTime serverTime;
+
         /** 当前会话是否允许支付失败后重试。 */
         private Boolean retryAllowed;
 

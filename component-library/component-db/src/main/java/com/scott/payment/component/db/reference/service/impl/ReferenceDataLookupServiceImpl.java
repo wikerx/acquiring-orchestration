@@ -34,7 +34,6 @@ import java.util.stream.IntStream;
  * @status : create
  */
 @Service
-@DS(DataSourceName.SLAVE)
 public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupService {
 
     private static final String IPV4 = "IPV4";
@@ -71,6 +70,7 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
      * @return IP 归属查询结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public IpLookupResult lookupIp(String ipAddress) {
         IpAddressNormalizer.NormalizedIp normalizedIp = IpAddressNormalizer.normalizeExact(ipAddress);
         String ipType = normalizedIp.ipv4() ? IPV4 : IPV6;
@@ -108,6 +108,7 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
      * @return 卡 BIN 归属查询结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public CardBinLookupResult lookupCardBin(String cardBin) {
         if (cardBin == null || !cardBin.matches("^[0-9]{6,11}$")) {
             throw new IllegalArgumentException("cardBin must be 6 to 11 digits");

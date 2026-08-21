@@ -8,9 +8,13 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.entity.base.MccEntities;
+import com.scott.payment.admin.entity.fee.FeeEntities.FeePlanDO;
+import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundAccountDO;
 import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
+import com.scott.payment.admin.mapper.FeePlanMapper;
+import com.scott.payment.admin.mapper.MerchantFundAccountMapper;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantResponseKeyDO;
@@ -21,10 +25,16 @@ import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoor
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
+import com.scott.payment.component.core.iso.IsoCountryInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
+import com.scott.payment.component.db.mcc.model.MccOptionSnapshot;
+import com.scott.payment.component.db.mcc.service.MccOptionCacheReader;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -131,6 +141,14 @@ class AdminMerchantInfoServiceImplTest {
      */
     @Mock
     private IsoCurrencyMapper isoCurrencyMapper;
+
+    /** 公共 MCC 三级选项缓存读取器。 */
+    @Mock
+    private MccOptionCacheReader mccOptionCacheReader;
+
+    /** 公共 ISO 国家和币种缓存服务。 */
+    @Mock
+    private IsoDictionaryService isoDictionaryService;
     /**
      * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
@@ -146,6 +164,22 @@ class AdminMerchantInfoServiceImplTest {
     /** 密钥元数据永久缓存可靠失效协调器。 */
     @Mock
     private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
+    /** 商户资金账户开户及结算币种一致性服务。 */
+    @Mock
+    private AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
+
+    /** 商户详情登录状态查询组件。 */
+    @Mock
+    private SysAccountMapper sysAccountMapper;
+
+    /** 商户详情资金账户查询组件。 */
+    @Mock
+    private MerchantFundAccountMapper fundAccountMapper;
+
+    /** 商户详情当前费率查询组件。 */
+    @Mock
+    private FeePlanMapper feePlanMapper;
 
     /**
      * service 依赖，用于 Admin Merchant Info Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
@@ -170,15 +204,16 @@ class AdminMerchantInfoServiceImplTest {
                 jwtKeyMapper,
                 platformPayloadKeyMapper,
                 responseKeyMapper,
-                mccLevel1Mapper,
-                mccLevel2Mapper,
-                mccCodeMapper,
-                isoCountryMapper,
-                isoCurrencyMapper,
+                mccOptionCacheReader,
+                isoDictionaryService,
                 keyMaterialFactory,
                 merchantRuntimeProfileCacheService,
                 cacheInvalidationCoordinator,
                 mock(AdminMerchantPrimaryAccountProvisioningService.class),
+                fundAccountProvisioningService,
+                sysAccountMapper,
+                fundAccountMapper,
+                feePlanMapper,
                 mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
                 mock(AdminMerchantSecurityNotificationService.class),
                 mock(AdminMerchantStatusLifecycleService.class)
@@ -187,11 +222,9 @@ class AdminMerchantInfoServiceImplTest {
 
     @Test
     void shouldReturnMerchantFormOptionsFromBaseData() {
-        when(mccLevel1Mapper.selectList(any())).thenReturn(List.of(level1()));
-        when(mccLevel2Mapper.selectList(any())).thenReturn(List.of(level2()));
-        when(mccCodeMapper.selectList(any())).thenReturn(List.of(mccCode()));
-        when(isoCountryMapper.selectList(any())).thenReturn(List.of(country()));
-        when(isoCurrencyMapper.selectList(any())).thenReturn(List.of(currency()));
+        when(mccOptionCacheReader.listOptions()).thenReturn(List.of(mccOptionTree()));
+        when(isoDictionaryService.listCountries()).thenReturn(List.of(countryInfo()));
+        when(isoDictionaryService.listCurrencies()).thenReturn(List.of(currencyInfo()));
 
         AdminMerchantFormOptionsDTO options = service.getFormOptions();
 
@@ -279,6 +312,24 @@ class AdminMerchantInfoServiceImplTest {
         log.info("管理端编辑商户缓存一致性完成，结果: 失效意图早于主表更新");
     }
 
+    /** 商户结算币种变化时，应在商户资料落库前同步资金账户币种。 */
+    @Test
+    void shouldSynchronizeFundAccountBeforeUpdatingSettlementCurrency() {
+        log.info("测试商户结算币种同步，关键输入: merchantId=200045, USD->EUR");
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+        AdminMerchantSaveRequest request = validRequest("200045");
+        request.setSettlementCurrency("eur");
+
+        service.updateMerchant(1L, request);
+
+        InOrder order = inOrder(fundAccountProvisioningService, merchantInfoMapper);
+        order.verify(fundAccountProvisioningService)
+                .synchronizeSettlementCurrency("200045", "eur");
+        order.verify(merchantInfoMapper).updateById(argThat((BaseMerchantInfoDO row) ->
+                row != null && "EUR".equals(row.getSettlementCurrency())));
+        log.info("商户结算币种同步完成，结果: 资金账户先同步，商户资料后落库");
+    }
+
     /** 管理端停用商户应先阻止交易服务继续命中旧状态。 */
     @Test
     void shouldPrepareInvalidationBeforeUpdatingMerchantStatus() {
@@ -314,7 +365,7 @@ class AdminMerchantInfoServiceImplTest {
                 .hasMessageContaining("状态");
     }
 
-    /** 删除商户应同时登记资料、密钥和路由三类永久缓存失效。 */
+    /** 删除商户应同时登记全部商户维度永久缓存失效。 */
     @Test
     void shouldPrepareAllPersistentCacheInvalidationsBeforeDeletingMerchant() {
         log.info("测试管理端删除商户缓存一致性，关键输入: merchantId=200045");
@@ -333,9 +384,15 @@ class AdminMerchantInfoServiceImplTest {
         order.verify(cacheInvalidationCoordinator).prepare(
                 com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_ROUTE,
                 "200045");
+        order.verify(cacheInvalidationCoordinator).prepare(
+                com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
+                "200045");
+        order.verify(cacheInvalidationCoordinator).prepare(
+                com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_ACTIVE_FEE,
+                "200045");
         order.verify(merchantInfoMapper).update(eq(null), any());
         order.verify(merchantRuntimeProfileCacheService).evictRuntimeProfile("200045");
-        log.info("管理端删除商户缓存一致性完成，结果: 三类永久缓存均已登记可靠失效");
+        log.info("管理端删除商户缓存一致性完成，结果: 五类商户维度永久缓存均已登记可靠失效");
     }
 
     @Test
@@ -347,6 +404,41 @@ class AdminMerchantInfoServiceImplTest {
 
         assertThat(jsonNode.get("id").isTextual()).isTrue();
         assertThat(jsonNode.get("id").asText()).isEqualTo("2076595876878270466");
+    }
+
+    /** 历史商户没有登录账号、资金账户或费率时，详情必须明确返回未初始化状态。 */
+    @Test
+    void shouldExposeUninitializedOperationalFoundationForHistoricalMerchant() {
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+        when(sysAccountMapper.selectCount(any())).thenReturn(0L);
+
+        AdminMerchantInfoDTO result = service.getMerchant(1L);
+
+        assertThat(result.getLoginInitialized()).isFalse();
+        assertThat(result.getFundAccountNo()).isNull();
+        assertThat(result.getFundAccountStatus()).isNull();
+        assertThat(result.getCurrentFeeVersionNo()).isNull();
+    }
+
+    /** 已初始化商户详情应返回当前单结算币种账户和已生效费率版本。 */
+    @Test
+    void shouldExposeFundAccountAndCurrentFeeVersionInMerchantDetail() {
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+        when(sysAccountMapper.selectCount(any())).thenReturn(1L);
+        MerchantFundAccountDO fundAccount = new MerchantFundAccountDO();
+        fundAccount.setAccountNo("FA200045USD");
+        fundAccount.setAccountStatus("NORMAL");
+        when(fundAccountMapper.selectOne(any())).thenReturn(fundAccount);
+        FeePlanDO feePlan = new FeePlanDO();
+        feePlan.setCurrentVersionNo(3);
+        when(feePlanMapper.selectOne(any())).thenReturn(feePlan);
+
+        AdminMerchantInfoDTO result = service.getMerchant(1L);
+
+        assertThat(result.getLoginInitialized()).isTrue();
+        assertThat(result.getFundAccountNo()).isEqualTo("FA200045USD");
+        assertThat(result.getFundAccountStatus()).isEqualTo("NORMAL");
+        assertThat(result.getCurrentFeeVersionNo()).isEqualTo(3);
     }
 
     private MccEntities.BaseMccLevel1DO level1() {
@@ -407,6 +499,42 @@ class AdminMerchantInfoServiceImplTest {
         row.setStatus(1);
         row.setDeleted(0);
         return row;
+    }
+
+    /** 构造公共 MCC 缓存返回的三级选项树。 */
+    private MccOptionSnapshot mccOptionTree() {
+        MccOptionSnapshot leaf = new MccOptionSnapshot();
+        leaf.setValue("5411");
+        leaf.setLabel("5411 — 食品杂货店 / Grocery Stores");
+        leaf.setNameCn("食品杂货店");
+        leaf.setNameEn("Grocery Stores");
+        MccOptionSnapshot level2 = new MccOptionSnapshot();
+        level2.setValue("L2:11");
+        level2.setLabel("GROCERY — 食品杂货 / Grocery");
+        level2.setNameCn("食品杂货");
+        level2.setNameEn("Grocery");
+        level2.setChildren(List.of(leaf));
+        MccOptionSnapshot level1 = new MccOptionSnapshot();
+        level1.setValue("L1:1");
+        level1.setLabel("RETAIL — 零售 / Retail");
+        level1.setNameCn("零售");
+        level1.setNameEn("Retail");
+        level1.setChildren(List.of(level2));
+        return level1;
+    }
+
+    /** 构造公共 ISO 国家缓存结果。 */
+    private IsoCountryInfo countryInfo() {
+        return new IsoCountryInfo(
+                "US", "USA", "840", "United States", "United States", "美国",
+                "NA", "北美洲", null, "en", "English", "英语", "USD");
+    }
+
+    /** 构造公共 ISO 币种缓存结果。 */
+    private IsoCurrencyInfo currencyInfo() {
+        return new IsoCurrencyInfo(
+                "USD", "840", "US Dollar", "美元", 2, 100L,
+                new BigDecimal("0.01"), "$");
     }
 
     /** 构造管理端新增或编辑商户的合法请求。 */

@@ -26,7 +26,6 @@ import java.util.UUID;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 @ConditionalOnProperty(prefix = "data.card-vault", name = "enabled", havingValue = "true")
 public class CheckoutCardVaultPersistenceService {
 
@@ -54,6 +53,7 @@ public class CheckoutCardVaultPersistenceService {
      * @param plaintext 当前消费调用栈内解密的无 CVV 卡资料
      * @return true 表示首次插入，false 表示幂等命中
      */
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public boolean persist(CheckoutCardVaultStoreMessage message,
                            DataCheckoutCardVaultTransferService.CardVaultPlaintext plaintext) {

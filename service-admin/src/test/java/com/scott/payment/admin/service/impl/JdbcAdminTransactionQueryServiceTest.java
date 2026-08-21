@@ -339,7 +339,10 @@ class JdbcAdminTransactionQueryServiceTest {
                 .contains("operation_record.transaction_date_time = :transactionDateTime")
                 .contains("notification.transaction_date_time = operation_record.transaction_date_time")
                 .contains("operation_record.transaction_status IN ('SUCCESS', 'FAILED')")
-                .contains("notification.notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')")
+                .contains("notification.notify_status IN ('SUCCESS', 'CLOSED')")
+                .contains("notification.notify_status = 'FAILED'")
+                .contains("notification.next_retry_time IS NULL")
+                .doesNotContain("notification.notify_status = 'INIT'")
                 .doesNotContain("${");
         assertThat(paramsCaptor.getValue().getValue("transactionDateTime")).isEqualTo(transactionTime);
     }

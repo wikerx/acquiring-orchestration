@@ -9,6 +9,8 @@ import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import com.scott.payment.component.web.operation.dto.OperationLogRecord;
 import com.scott.payment.component.web.operation.service.OperationLogPublisher;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -245,11 +247,11 @@ public class OperationLogAspect {
         }
         if (failure instanceof ServiceException serviceException) {
             record.setErrorCode(serviceException.getCode());
-            record.setErrorMsg(truncate(serviceException.getMessage()));
+            record.setErrorMsg(failure.getClass().getSimpleName());
             return;
         }
         record.setErrorCode(failure.getClass().getSimpleName());
-        record.setErrorMsg(truncate(failure.getMessage()));
+        record.setErrorMsg(failure.getClass().getSimpleName());
     }
 
     /**
@@ -407,7 +409,8 @@ public class OperationLogAspect {
      */
     private boolean loggableArgument(Object argument) {
         return Objects.nonNull(argument)
-                && !(argument instanceof HttpServletRequest)
+                && !(argument instanceof ServletRequest)
+                && !(argument instanceof ServletResponse)
                 && !(argument instanceof MultipartFile);
     }
 

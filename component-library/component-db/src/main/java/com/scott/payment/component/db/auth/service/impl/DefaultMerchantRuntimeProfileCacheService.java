@@ -188,10 +188,8 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_READ_FAILED "
-                            + "exceptionType: {} reason: {}",
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage()
+                    "event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_READ_FAILED exceptionType: {}",
+                    exception.getClass().getSimpleName()
             );
             return CacheMissMarkerStore.LookupStatus.UNAVAILABLE;
         }
@@ -219,10 +217,8 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_WRITE_FAILED "
-                            + "exceptionType: {} reason: {}",
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage()
+                    "event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_WRITE_FAILED exceptionType: {}",
+                    exception.getClass().getSimpleName()
             );
         }
     }
@@ -252,11 +248,9 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: SECURITY_CACHE_GUARD_CHECK_FAILED cacheName: {} "
-                            + "exceptionType: {} reason: {}",
+                    "event: SECURITY_CACHE_GUARD_CHECK_FAILED cacheName: {} exceptionType: {}",
                     PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage()
+                    exception.getClass().getSimpleName()
             );
             return true;
         }

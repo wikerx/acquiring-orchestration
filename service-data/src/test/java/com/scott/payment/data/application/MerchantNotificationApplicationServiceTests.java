@@ -4,7 +4,6 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyCommandDTO;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyDueCommandDTO;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationReconcileCommandDTO;
-import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import com.scott.payment.data.service.impl.MerchantNotificationRetryReconciliationService;
 import org.junit.jupiter.api.Test;
 
@@ -21,42 +20,44 @@ import static org.mockito.Mockito.when;
 class MerchantNotificationApplicationServiceTests {
 
     @Test
-    void notifyDueShouldCapSynchronousBatchAtFive() {
-        MerchantNotificationDeliveryService deliveryService = mock(MerchantNotificationDeliveryService.class);
+    void notifyDueShouldCapMqReconciliationBatchAtFive() {
+        MerchantNotificationRetryReconciliationService reconciliationService =
+                mock(MerchantNotificationRetryReconciliationService.class);
         MerchantNotificationApplicationService service = new MerchantNotificationApplicationService(
-                deliveryService, mock(MerchantNotificationRetryReconciliationService.class));
+                reconciliationService);
         LocalDateTime transactionDateTime = LocalDateTime.of(2026, 8, 3, 3, 17, 58);
         MerchantNotificationNotifyDueCommandDTO command = new MerchantNotificationNotifyDueCommandDTO();
         command.setTransactionDateTime(transactionDateTime);
         command.setLimit(100);
-        when(deliveryService.notifyDue(transactionDateTime, 5)).thenReturn(2);
+        when(reconciliationService.reconcile(5, List.of(transactionDateTime))).thenReturn(2);
 
         assertThat(service.notifyDue(command)).isEqualTo(2);
 
-        verify(deliveryService).notifyDue(transactionDateTime, 5);
+        verify(reconciliationService).reconcile(5, List.of(transactionDateTime));
     }
 
     @Test
     void notifyTransactionShouldForwardExplicitShardTimeAndTransactionId() {
-        MerchantNotificationDeliveryService deliveryService = mock(MerchantNotificationDeliveryService.class);
+        MerchantNotificationRetryReconciliationService reconciliationService =
+                mock(MerchantNotificationRetryReconciliationService.class);
         MerchantNotificationApplicationService service = new MerchantNotificationApplicationService(
-                deliveryService, mock(MerchantNotificationRetryReconciliationService.class));
+                reconciliationService);
         LocalDateTime transactionDateTime = LocalDateTime.of(2026, 8, 3, 3, 17, 58);
         MerchantNotificationNotifyCommandDTO command = new MerchantNotificationNotifyCommandDTO();
         command.setTransactionId("202608030317582640931");
         command.setTransactionDateTime(transactionDateTime);
-        when(deliveryService.notifyTransaction(transactionDateTime, command.getTransactionId())).thenReturn(true);
+        when(reconciliationService.reconcileTransaction(
+                command.getTransactionId(), transactionDateTime)).thenReturn(true);
 
         assertThat(service.notifyTransaction(command)).isTrue();
 
-        verify(deliveryService).notifyTransaction(transactionDateTime, command.getTransactionId());
+        verify(reconciliationService).reconcileTransaction(command.getTransactionId(), transactionDateTime);
     }
 
     @Test
     void notifyTransactionShouldRejectMissingShardTime() {
         MerchantNotificationApplicationService service =
                 new MerchantNotificationApplicationService(
-                        mock(MerchantNotificationDeliveryService.class),
                         mock(MerchantNotificationRetryReconciliationService.class));
         MerchantNotificationNotifyCommandDTO command = new MerchantNotificationNotifyCommandDTO();
         command.setTransactionId("202608030317582640931");
@@ -68,11 +69,10 @@ class MerchantNotificationApplicationServiceTests {
 
     @Test
     void reconcileDueShouldUseMqReconciliationAndCapEachQuarterAtFive() {
-        MerchantNotificationDeliveryService deliveryService = mock(MerchantNotificationDeliveryService.class);
         MerchantNotificationRetryReconciliationService reconciliationService =
                 mock(MerchantNotificationRetryReconciliationService.class);
         MerchantNotificationApplicationService service =
-                new MerchantNotificationApplicationService(deliveryService, reconciliationService);
+                new MerchantNotificationApplicationService(reconciliationService);
         MerchantNotificationReconcileCommandDTO command = new MerchantNotificationReconcileCommandDTO();
         LocalDateTime quarter = LocalDateTime.of(2026, 4, 1, 0, 0);
         command.setTransactionDateTimes(List.of(quarter));
@@ -82,6 +82,5 @@ class MerchantNotificationApplicationServiceTests {
         assertThat(service.reconcileDue(command)).isEqualTo(2);
 
         verify(reconciliationService).reconcile(5, List.of(quarter));
-        org.mockito.Mockito.verifyNoInteractions(deliveryService);
     }
 }

@@ -37,7 +37,7 @@ import java.util.Set;
  * @classname : DefaultTransactionChannelMatchService
  * @date : 2026-07-19 22:30
  * @email : scott_x@163.com
- * @description : 默认渠道交易查询勾兑服务，位于 service-payment 服务实现层，按原动作单保存的渠道和 MID 快照发起 QUERY；仅在渠道查询确认 SUCCESS/FAILED 时推进终态，网络和解析异常只保留待下次勾兑。
+ * @description : 默认渠道交易查询勾兑服务，位于 service-payment 服务实现层，按原动作单保存的渠道和 MID 快照发起 QUERY；非终态交易仅在渠道确认终态时推进，平台终态交易只更新勾兑摘要。
  * @status : create
  */
 @Service
@@ -71,6 +71,13 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     /** 已明确离开 INIT 阶段的资金请求允许直接进入渠道状态查询。 */
     private static final Set<String> QUERYABLE_ORIGINAL_REQUEST_STATUSES = Set.of(
             "SENT", "SUCCESS", "TIMEOUT", "FAILED");
+
+    /** 管理端允许主动重查的勾兑状态；空值、无需勾兑和已匹配均禁止重复发起。 */
+    private static final Set<String> REQUERYABLE_CHANNEL_MATCH_STATUSES = Set.of(
+            "PENDING", "REVIEW_REQUIRED", "MISMATCHED", "FAILED");
+
+    private static final String CHANNEL_MATCH_MATCHED = "MATCHED";
+    private static final String CHANNEL_MATCH_MISMATCHED = "MISMATCHED";
 
     /**
      * transaction Record Service 依赖，用于 Default Transaction Channel Match Service 调用对应的数据访问、远程调用或领域服务能力。
@@ -200,7 +207,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
     /**
-     * 使用交易号和真实分片时间主动查询单笔非终态动作。
+     * 使用交易号和真实分片时间主动查询单笔可勾兑动作。
      *
      * @param transactionId 平台交易号
      * @param transactionDateTime 动作真实分片时间
@@ -213,14 +220,14 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(
                 transactionId, transactionDateTime);
         if (operationDO == null) {
-            throw new com.scott.payment.component.core.exception.ServiceException(
-                    com.scott.payment.component.core.enums.ApiResultEnum.ORDER_NOT_FOUND);
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         resultDTO.setScannedCount(1);
-        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
-                || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus())) {
-            resultDTO.setMatchedCount(1);
-            return resultDTO;
+        String channelMatchStatus = operationDO.getChannelMatchStatus();
+        if (!StringUtils.hasText(channelMatchStatus)
+                || !REQUERYABLE_CHANNEL_MATCH_STATUSES.contains(channelMatchStatus.trim().toUpperCase(java.util.Locale.ROOT))) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "current channel match status does not allow requery");
         }
         processOne(operationDO, LocalDateTime.now(), resultDTO);
         return resultDTO;
@@ -279,6 +286,10 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             }
             if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resolution.getTargetStatus())
                     || PaymentTransactionStatusEnum.FAILED.getCode().equals(resolution.getTargetStatus())) {
+                if (isTerminalTransaction(operationDO)) {
+                    reconcileTerminal(operationDO, originalRequestDO, invokeResultDTO, resolution, now, resultDTO);
+                    return;
+                }
                 if (complete(operationDO, originalRequestDO, invokeResultDTO, resolution, now)) {
                     resultDTO.setMatchedCount(resultDTO.getMatchedCount() + 1);
                     return;
@@ -289,10 +300,68 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
             markPending(operationDO, originalRequestDO, now, invokeResultDTO, resolution.getTargetStatus());
             resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
         } catch (RuntimeException exception) {
-            // 查询异常无法证明渠道失败，资金动作必须保持非终态，等待下一次查询或回调确认。
-            markPending(operationDO, originalRequestDO, now, null, "QUERY_EXCEPTION", exception.getMessage());
+            // 查询异常无法证明渠道失败，不得据此改变平台交易状态，等待下一次查询或回调确认。
+            markPending(operationDO, originalRequestDO, now, null,
+                    "QUERY_EXCEPTION", exception.getClass().getSimpleName());
             resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
         }
+    }
+
+    /**
+     * 对平台已终态交易只更新勾兑摘要；一致时关闭异常案件，不一致时建人工复核案件。
+     */
+    private void reconcileTerminal(TransactionOperationDO operationDO,
+                                   TransactionChannelRequestDO originalRequestDO,
+                                   PaymentChannelInvokeResultDTO invokeResultDTO,
+                                   ChannelTransactionStatusResolution resolution,
+                                   LocalDateTime now,
+                                   TransactionChannelMatchResultDTO resultDTO) {
+        boolean statusMatched = operationDO.getTransactionStatus().equals(resolution.getTargetStatus());
+        String matchStatus = statusMatched ? CHANNEL_MATCH_MATCHED : CHANNEL_MATCH_MISMATCHED;
+        String failReason = statusMatched ? null : ChannelMatchAbnormalTypeEnum.STATUS_MISMATCH.getCode();
+        boolean updated = matchResultTransactionService.updateTerminalByQuery(
+                operationDO,
+                originalRequestDO,
+                invokeResultDTO,
+                matchStatus,
+                resolution.getTargetStatus(),
+                now,
+                failReason);
+        if (!updated) {
+            resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
+            return;
+        }
+        ChannelMatchAbnormalService abnormalService = abnormalService();
+        if (statusMatched) {
+            resultDTO.setMatchedCount(resultDTO.getMatchedCount() + 1);
+            if (abnormalService != null) {
+                abnormalService.autoResolve(
+                        operationDO.getTransactionId(),
+                        operationDO.getTransactionDateTime(),
+                        originalRequestDO == null ? null : originalRequestDO.getRequestId(),
+                        now);
+            }
+            return;
+        }
+        resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
+        if (abnormalService != null) {
+            String mismatch = "platformStatus=" + operationDO.getTransactionStatus()
+                    + ", channelStatus=" + resolution.getTargetStatus();
+            abnormalService.recordReviewRequired(
+                    operationDO,
+                    ChannelMatchAbnormalTypeEnum.STATUS_MISMATCH.getCode(),
+                    mismatch,
+                    resolution.getTargetStatus(),
+                    originalRequestDO == null ? null : originalRequestDO.getRequestId(),
+                    invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse(),
+                    now);
+        }
+    }
+
+    private boolean isTerminalTransaction(TransactionOperationDO operationDO) {
+        return operationDO != null
+                && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
+                || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus()));
     }
 
     private boolean isQueryableOriginalRequest(TransactionChannelRequestDO originalRequestDO,

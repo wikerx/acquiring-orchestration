@@ -3,6 +3,7 @@ package com.scott.payment.data.mapper;
 import com.scott.payment.component.mq.message.RiskAuditHitMessage;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -17,6 +18,19 @@ import java.time.LocalDateTime;
  * @status : create
  */
 public interface DataRiskAuditMapper {
+
+    /**
+     * 按风控评估流水号查询已经提交的主记录数量。
+     *
+     * @param riskRecordNo 风控评估流水号
+     * @return 0 或 1
+     */
+    @Select("""
+            SELECT COUNT(1)
+            FROM risk_evaluation_record
+            WHERE risk_record_no = #{riskRecordNo}
+            """)
+    int countByRiskRecordNo(@Param("riskRecordNo") String riskRecordNo);
 
     /**
      * 插入风控评估主审计记录。

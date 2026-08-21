@@ -300,6 +300,39 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                            @Param("failReason") String failReason);
 
     /**
+     * 使用分片时间、版本和当前勾兑状态 CAS 更新终态动作的勾兑摘要。
+     *
+     * @return 影响行数；该更新不修改交易状态、金额或通知状态
+     */
+    @Update("""
+            UPDATE transaction_operation
+            SET channel_match_status = #{matchStatus},
+                channel_match_result = #{matchResult},
+                channel_match_count = COALESCE(channel_match_count, 0) + 1,
+                last_channel_match_request_id = #{requestId},
+                last_channel_match_time = #{matchTime},
+                next_channel_match_time = #{nextMatchTime},
+                channel_match_fail_reason = #{failReason},
+                version = version + 1,
+                update_time = #{matchTime}
+            WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')
+              AND transaction_status IN ('SUCCESS', 'FAILED')
+              AND deleted = 0
+            """)
+    int updateTerminalChannelMatch(@Param("id") Long id,
+                                   @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                   @Param("expectedVersion") Integer expectedVersion,
+                                   @Param("matchStatus") String matchStatus,
+                                   @Param("matchResult") String matchResult,
+                                   @Param("requestId") String requestId,
+                                   @Param("matchTime") LocalDateTime matchTime,
+                                   @Param("nextMatchTime") LocalDateTime nextMatchTime,
+                                   @Param("failReason") String failReason);
+
+    /**
      * 统计半开时间范围内同一生命周期的动作数。
      *
      * @param operationId 平台内部生命周期关联标识

@@ -36,7 +36,6 @@ import java.util.regex.Pattern;
  * @status : create
  */
 @Service
-@DS(DataSourceName.TRANSACTION)
 public class DefaultPaymentAuthenticationRecordService implements PaymentAuthenticationRecordService {
 
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
@@ -56,6 +55,7 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
     }
 
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void recordChannelResult(ChannelThreeDsAuthenticationRequest request,
                                     ChannelThreeDsAuthenticationResponse response) {
         ChannelThreeDsPhase phase = response != null && response.getPhase() != null
@@ -67,6 +67,7 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
     }
 
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void recordChannelFailure(ChannelThreeDsAuthenticationRequest request,
                                      ChannelThreeDsStatus status,
                                      String failureCode) {
@@ -75,6 +76,7 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
     }
 
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void recordTimeout(PaymentCheckoutAttemptDO attemptDO) {
         if (attemptDO == null) {
             return;

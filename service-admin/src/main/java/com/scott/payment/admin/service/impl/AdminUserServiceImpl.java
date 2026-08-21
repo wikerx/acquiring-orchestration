@@ -21,7 +21,6 @@ import com.scott.payment.admin.service.AdminUserService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
-import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -56,8 +55,6 @@ import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserPostMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -318,11 +315,6 @@ public class AdminUserServiceImpl implements AdminUserService {
      */
     @Override
     @DS(DataSourceName.MASTER)
-    @Cacheable(
-            cacheNames = PaymentCacheNames.ADMIN_USER_PROFILE,
-            key = "#p0",
-            condition = "#p0 != null and #p0 > 0"
-    )
     public AdminUserProfileDTO getUserProfile(Long accountId) {
         if (accountId == null || accountId <= 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "accountId is invalid");
@@ -427,7 +419,6 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.ADMIN_USER_PROFILE, key = "#p0.accountId")
     public SysUserAccountDTO updateUser(SysUserAccountUpdateRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -469,7 +460,6 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.ADMIN_USER_PROFILE, key = "#p0.accountId")
     public void updateStatus(SysUserAccountStatusRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -545,7 +535,6 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.ADMIN_USER_PROFILE, key = "#p0.accountId")
     public void grantRoles(SysUserRoleGrantRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -591,7 +580,6 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.ADMIN_USER_PROFILE, allEntries = true)
     public void removeUsers(List<Long> accountIds) {
         List<Long> normalizedIds = normalizeIds(accountIds);
         if (normalizedIds.isEmpty()) {

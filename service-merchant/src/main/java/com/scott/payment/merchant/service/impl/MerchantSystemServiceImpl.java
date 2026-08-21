@@ -2039,7 +2039,8 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
             log.warn("merchant mfa notice send failed, accountId: {}, templateCode: {}, exceptionType: {}",
                     account.getId(), templateCode, exception.getClass().getSimpleName());
             SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
-            recordMfaLog(app, account, mfa, "SEND_NOTICE", MFA_RESULT_FAILED, exception.getMessage(),
+            recordMfaLog(app, account, mfa, "SEND_NOTICE", MFA_RESULT_FAILED,
+                    exception.getClass().getSimpleName(),
                     mfa.getMfaPolicy(), mfa.getMfaStatus(), currentOperator(), null);
         }
     }

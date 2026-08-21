@@ -1,6 +1,8 @@
 package com.scott.payment.admin.client.payment;
 
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryRequest;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryResponse;
 import com.scott.payment.admin.client.payment.dto.PaymentTransactionActionClientRequestDTO;
 
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.ApprovalClientRequest;
@@ -37,6 +39,9 @@ public interface PaymentInternalClient {
 
     /** 批量重新勾兑。 */
     BatchRequeryResult batchRequeryChannelMatchAbnormalities(BatchRequeryCommand command);
+
+    /** 使用交易真实分片时间主动重查并勾兑单笔交易。 */
+    ChannelMatchRequeryResponse requeryChannelMatch(String transactionId, ChannelMatchRequeryRequest request);
 
     /** 关闭或忽略勾兑异常案件。 */
     AbnormalRecord resolveChannelMatchAbnormality(String eventId, ResolveCommand command);

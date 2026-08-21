@@ -61,9 +61,9 @@ public class CheckoutCardVaultConsumer implements RocketMQListener<String> {
     public void onMessage(String payload) {
         CheckoutCardVaultStoreMessage message = parse(payload);
         if (message == null || !StringUtils.hasText(message.getMessageId())) {
-            log.warn("event: DATA_CARD_VAULT_MESSAGE_INVALID payloadLength: {}",
+            log.error("event: DATA_CARD_VAULT_MESSAGE_INVALID payloadLength: {}",
                     payload == null ? 0 : payload.length());
-            return;
+            throw new IllegalArgumentException("card vault message required fields are missing");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
@@ -79,14 +79,14 @@ public class CheckoutCardVaultConsumer implements RocketMQListener<String> {
 
     private CheckoutCardVaultStoreMessage parse(String payload) {
         if (!StringUtils.hasText(payload)) {
-            return null;
+            throw new IllegalArgumentException("card vault payload is empty");
         }
         try {
             return JsonUtils.parseObject(payload, CheckoutCardVaultStoreMessage.class);
         } catch (RuntimeException exception) {
-            log.warn("event: DATA_CARD_VAULT_MESSAGE_PARSE_FAILED payloadLength: {} exceptionType: {}",
+            log.error("event: DATA_CARD_VAULT_MESSAGE_PARSE_FAILED payloadLength: {} exceptionType: {}",
                     payload.length(), exception.getClass().getSimpleName());
-            return null;
+            throw new IllegalArgumentException("card vault payload is invalid", exception);
         }
     }
 }

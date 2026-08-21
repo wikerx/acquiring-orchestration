@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -97,8 +99,9 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      *
      * @param request 系统参数配置保存请求
      * @return 保存后的配置
-     */
+    */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public SysConfigDTO saveConfig(SysConfigSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
@@ -166,6 +169,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * @return 系统参数配置列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<SysConfigDTO> pageConfigs(SysConfigQueryRequest request) {
         SysConfigQueryRequest query = request == null ? new SysConfigQueryRequest() : request;
         Page<SysConfigDO> page = sysConfigMapper.selectPage(
@@ -187,6 +191,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * @return 按统一查询排序返回的配置列表
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public List<SysConfigDTO> listConfigs(SysConfigQueryRequest request) {
         SysConfigQueryRequest query = request == null ? new SysConfigQueryRequest() : request;
         return sysConfigMapper.selectList(buildConfigQueryWrapper(query))
@@ -218,8 +223,9 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * 永久缓存一致性策略。</p>
      *
      * @param configKey 参数键名
-     */
+    */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void deleteConfig(String configKey) {
         String normalizedConfigKey = normalizeConfigKey(configKey);

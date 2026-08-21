@@ -5,6 +5,7 @@ import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import jakarta.validation.constraints.NotNull;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -414,6 +415,43 @@ public final class AdminTransactionDTOs {
         /** 被操作交易所属生命周期根主单的真实分片时间。 */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
+    }
+
+    /**
+     * 管理端单笔渠道勾兑请求。
+     */
+    @Data
+    public static class ChannelMatchRequeryRequest implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 被勾兑交易的真实分片时间，必须来自交易列表，禁止根据交易号推断。
+         */
+        @NotNull
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime transactionDateTime;
+    }
+
+    /**
+     * 管理端单笔渠道勾兑结果。
+     */
+    @Data
+    public static class ChannelMatchRequeryResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /** 本次定位并尝试勾兑的交易数量，单笔接口固定为 1。 */
+        private int scannedCount;
+
+        /** 渠道终态与平台状态一致，或非终态交易成功推进的数量。 */
+        private int matchedCount;
+
+        /** 渠道结果仍不明确或 CAS 未命中的数量。 */
+        private int pendingCount;
+
+        /** 查询异常、身份缺失或渠道与平台结果不一致的数量。 */
+        private int failedCount;
     }
 
     /**

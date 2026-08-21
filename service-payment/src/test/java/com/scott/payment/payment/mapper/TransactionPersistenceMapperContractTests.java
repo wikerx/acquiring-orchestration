@@ -21,6 +21,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Transactional;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
@@ -203,11 +204,21 @@ class TransactionPersistenceMapperContractTests {
                 DefaultTransactionCallbackService.class);
 
         assertThat(transactionTypes).allSatisfy(type -> {
-            DS annotation = type.getAnnotation(DS.class);
-            assertThat(annotation)
-                    .as("%s must select transaction before @Transactional opens", type.getSimpleName())
-                    .isNotNull();
-            assertThat(annotation.value()).isEqualTo(DataSourceName.TRANSACTION);
+            assertThat(type.getAnnotation(DS.class)).isNull();
+            List<Method> transactionMethods = Arrays.stream(type.getDeclaredMethods())
+                    .filter(method -> method.isAnnotationPresent(Transactional.class))
+                    .toList();
+            assertThat(transactionMethods)
+                    .as("%s must expose a transactional entry", type.getSimpleName())
+                    .isNotEmpty()
+                    .allSatisfy(method -> {
+                        DS annotation = method.getAnnotation(DS.class);
+                        assertThat(annotation)
+                                .as("%s.%s must select transaction before @Transactional opens",
+                                        type.getSimpleName(), method.getName())
+                                .isNotNull();
+                        assertThat(annotation.value()).isEqualTo(DataSourceName.TRANSACTION);
+                    });
         });
     }
 
@@ -220,10 +231,17 @@ class TransactionPersistenceMapperContractTests {
                 TransactionChannelInteractionLogMapper.class,
                 TransactionChannelRequestMapper.class,
                 TransactionAuthenticationInfoMapper.class,
+                TransactionMerchantSnapshotMapper.class,
+                TransactionPayerInfoMapper.class,
+                TransactionBillingInfoMapper.class,
+                TransactionShippingInfoMapper.class,
+                TransactionProductItemMapper.class,
                 TransactionEventOutboxMapper.class,
+                TransactionFinanceStateMapper.class,
                 TransactionFlowEventMapper.class,
                 TransactionMerchantApiInteractionLogMapper.class,
                 TransactionMerchantNotificationMapper.class,
+                TransactionAbnormalEventMapper.class,
                 TransactionOperationMapper.class,
                 TransactionOrderMapper.class,
                 TransactionPaymentMethodInfoMapper.class,
@@ -494,6 +512,8 @@ class TransactionPersistenceMapperContractTests {
                 TransactionOperationMapper.class, "selectPendingChannelMatch"), Select.class);
         String updateSql = annotationValue(methodNamed(
                 TransactionOperationMapper.class, "updateChannelMatch"), Update.class);
+        String terminalUpdateSql = annotationValue(methodNamed(
+                TransactionOperationMapper.class, "updateTerminalChannelMatch"), Update.class);
         String orderUpdateSql = annotationValue(methodNamed(
                 TransactionOrderMapper.class, "updateLatestChannelMatch"), Update.class);
 
@@ -507,6 +527,13 @@ class TransactionPersistenceMapperContractTests {
         assertThat(updateSql).contains(
                 "channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')");
         assertThat(updateSql).contains("transaction_status NOT IN ('SUCCESS', 'FAILED')");
+        assertThat(terminalUpdateSql).contains("id = #{id}");
+        assertThat(terminalUpdateSql).contains("transaction_date_time = #{transactionDateTime}");
+        assertThat(terminalUpdateSql).contains("version = #{expectedVersion}");
+        assertThat(terminalUpdateSql).contains(
+                "channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')");
+        assertThat(terminalUpdateSql).contains("transaction_status IN ('SUCCESS', 'FAILED')");
+        assertThat(terminalUpdateSql).doesNotContain("SET transaction_status", "complete_time");
         assertThat(orderUpdateSql).contains("latest_transaction_id = #{latestTransactionId}");
         assertThat(orderUpdateSql).contains(
                 "channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')");

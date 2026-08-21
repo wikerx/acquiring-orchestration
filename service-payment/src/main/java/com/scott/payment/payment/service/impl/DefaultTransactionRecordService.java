@@ -80,7 +80,6 @@ import java.util.Objects;
  */
 @Service
 @Slf4j
-@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionRecordService implements TransactionRecordService {
 
     /**
@@ -403,6 +402,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     /** 首次交易请求幂等和商户订单流守卫状态同步服务。 */
     private final TransactionIdempotencyService transactionIdempotencyService;
 
+    /** 终态通知首次五秒延时事件调度服务。 */
+    private final MerchantNotificationInitialDeliveryService merchantNotificationInitialDeliveryService;
+
     /**
      * 创建交易事实记录服务默认实现。
      *
@@ -438,7 +440,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                            TransactionShardingKeyParser transactionShardingKeyParser,
                                            TransactionShardingProperties transactionShardingProperties,
                                            MerchantNotificationProperties merchantNotificationProperties,
-                                           TransactionIdempotencyService transactionIdempotencyService) {
+                                           TransactionIdempotencyService transactionIdempotencyService,
+                                           MerchantNotificationInitialDeliveryService merchantNotificationInitialDeliveryService) {
         this.transactionOrderMapper = transactionOrderMapper;
         this.transactionOperationMapper = transactionOperationMapper;
         this.transactionStatusHistoryMapper = transactionStatusHistoryMapper;
@@ -455,6 +458,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         this.transactionShardingProperties = transactionShardingProperties;
         this.merchantNotificationProperties = merchantNotificationProperties;
         this.transactionIdempotencyService = transactionIdempotencyService;
+        this.merchantNotificationInitialDeliveryService = merchantNotificationInitialDeliveryService;
     }
 
     /** 测试构造入口，使用与生产默认值一致的有界通知策略。 */
@@ -514,6 +518,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 transactionShardingKeyParser,
                 transactionShardingProperties,
                 new MerchantNotificationProperties(),
+                null,
                 null);
     }
 
@@ -528,6 +533,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param currencyExponent 交易币种默认小数位
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void recordInitialTransaction(PaymentCreateCommandDTO commandDTO,
                                          PaymentRouteResultDTO routeResultDTO,
                                          PaymentChannelInvokeResultDTO channelInvokeResultDTO,
@@ -589,6 +595,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param currencyExponent 交易币种默认小数位
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
                                              PaymentRouteResultDTO routeResultDTO,
                                              PaymentChannelInvokeResultDTO channelInvokeResultDTO,
@@ -613,6 +620,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return true 表示动作状态由本次结果成功推进
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean completeInitialChannelResultAndReport(
             PaymentCreateCommandDTO commandDTO,
             PaymentRouteResultDTO routeResultDTO,
@@ -666,6 +674,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * 通过数据库状态抢占保证一次已准备交易只会发起一次外部资金请求。
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean claimInitialChannelSubmission(String requestId, LocalDateTime transactionDateTime) {
         if (!StringUtils.hasText(requestId) || transactionDateTime == null) {
             return false;
@@ -676,6 +685,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
 
     /** 通过 INIT 状态抢占 3DS 等渠道调用前失败收敛。 */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean claimInitialPreChannelFailure(String requestId, LocalDateTime transactionDateTime) {
         if (!StringUtils.hasText(requestId) || transactionDateTime == null) {
             return false;
@@ -688,6 +698,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * 更新通用交易支付工具表中的 3DS 使用标识，不依赖收银台过程表。
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public int markThreeDsIndicator(String transactionId,
                                     LocalDateTime transactionDateTime,
                                     String indicator) {
@@ -708,6 +719,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 交易生命周期主单
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId) {
         if (transactionDateTime == null || !StringUtils.hasText(operationId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time and operation_id are required");
@@ -717,6 +729,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
 
     /** {@inheritDoc} */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public TransactionPaymentMethodInfoDO findPaymentMethodInfo(
             String transactionId,
             LocalDateTime transactionDateTime) {
@@ -734,6 +747,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 加锁后的交易生命周期主单
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
         if (transactionDateTime == null || !StringUtils.hasText(operationId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time and operation_id are required");
@@ -753,6 +767,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 原交易生命周期主单
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId) {
         TransactionOperationDO sourceOperationDO = findSourceOperationByTransactionId(sourceTransactionId);
         if (sourceOperationDO == null || !StringUtils.hasText(sourceOperationDO.getOperationId())) {
@@ -778,6 +793,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 原交易生命周期主单
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId,
                                                              LocalDateTime sourceTransactionDateTime,
                                                              LocalDateTime rootTransactionDateTime) {
@@ -800,6 +816,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 原交易动作单
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
         LocalDateTime sourceTransactionDateTime = parseTransactionDateTime(sourceTransactionId);
         return findSourceOperationByTransactionId(sourceTransactionId, sourceTransactionDateTime);
@@ -813,6 +830,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 原交易动作单
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public TransactionOperationDO findSourceOperationByTransactionId(
             String sourceTransactionId,
             LocalDateTime sourceTransactionDateTime) {
@@ -836,6 +854,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 交易动作单列表
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
                                                                       String merchantOrderNo,
                                                                       String transactionId,
@@ -868,6 +887,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 首次起点动作单列表
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
         if (!StringUtils.hasText(merchantId) || !StringUtils.hasText(merchantOrderNo)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -888,6 +908,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 未终态 Capture 动作列表
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
                                                                 String operationId,
                                                                 String sourceTransactionId,
@@ -914,6 +935,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 未终态 Refund 动作列表
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public List<TransactionOperationDO> findNonTerminalRefunds(String merchantId,
                                                                String operationId,
                                                                LocalDateTime beginTime,
@@ -938,6 +960,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 未终态 Void 动作列表
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public List<TransactionOperationDO> findNonTerminalVoids(String merchantId,
                                                              String operationId,
                                                              LocalDateTime beginTime,
@@ -962,6 +985,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 未终态 Incremental Authorization 动作列表
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public List<TransactionOperationDO> findNonTerminalIncrementalAuthorizations(String merchantId,
                                                                                  String operationId,
                                                                                  LocalDateTime beginTime,
@@ -984,6 +1008,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 动作单
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId) {
         if (!StringUtils.hasText(channelOrderNo) || !StringUtils.hasText(channelTransactionId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "channel_order_no and channel_transaction_id are required");
@@ -1007,6 +1032,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 待勾兑动作单列表
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public List<TransactionOperationDO> listPendingChannelMatch(LocalDateTime transactionDateTime,
                                                                 String channelCode,
                                                                 LocalDateTime now,
@@ -1033,6 +1059,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return 原资金动作渠道请求记录，不存在时返回 null
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
         if (operationDO == null || operationDO.getTransactionDateTime() == null) {
             return null;
@@ -1071,6 +1098,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param recordDTO 后续交易动作记录上下文
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
         validateFollowUpRecord(recordDTO);
         LocalDateTime now = LocalDateTime.now();
@@ -1127,6 +1155,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return true 表示请款动作状态成功推进；false 表示终态或并发冲突
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean completeCaptureChannelResult(TransactionOperationDO operationDO,
                                                 TransactionOrderDO sourceOrderDO,
                                                 PaymentCreateCommandDTO commandDTO,
@@ -1156,6 +1185,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return true 表示退款动作状态成功推进；false 表示终态或并发冲突
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean completeRefundChannelResult(TransactionOperationDO operationDO,
                                                TransactionOrderDO sourceOrderDO,
                                                PaymentCreateCommandDTO commandDTO,
@@ -1188,6 +1218,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return true 表示动作终态 CAS 成功
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean terminateRefundBeforeChannel(TransactionOperationDO operationDO,
                                                 String reasonCode,
                                                 String reasonMessage,
@@ -1246,6 +1277,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return true 表示撤销动作状态成功推进；false 表示终态或并发冲突
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean completeVoidChannelResult(TransactionOperationDO operationDO,
                                              TransactionOrderDO sourceOrderDO,
                                              PaymentCreateCommandDTO commandDTO,
@@ -1286,6 +1318,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return true 表示状态或金额累计实际发生变更
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean completeIncrementalAuthorizationChannelResult(TransactionOperationDO operationDO,
                                                                  TransactionOrderDO sourceOrderDO,
                                                                  PaymentCreateCommandDTO commandDTO,
@@ -1324,6 +1357,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return true 表示推进成功
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean completeByChannelCallback(TransactionOperationDO operationDO,
                                              TransactionOrderDO orderDO,
                                              String callbackId,
@@ -1412,6 +1446,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return true 表示更新成功
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean updateChannelMatch(TransactionOperationDO operationDO,
                                       String matchStatus,
                                       String matchResult,
@@ -1448,6 +1483,46 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 更新平台终态交易的渠道勾兑摘要；交易终态、金额和通知状态保持不变。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public boolean updateTerminalChannelMatch(TransactionOperationDO operationDO,
+                                              String matchStatus,
+                                              String matchResult,
+                                              String requestId,
+                                              LocalDateTime matchTime,
+                                              LocalDateTime nextMatchTime,
+                                              String failReason) {
+        if (operationDO == null || operationDO.getId() == null || operationDO.getTransactionDateTime() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        LocalDateTime actualMatchTime = matchTime == null ? LocalDateTime.now() : matchTime;
+        int updated = transactionOperationMapper.updateTerminalChannelMatch(
+                operationDO.getId(),
+                operationDO.getTransactionDateTime(),
+                operationDO.getVersion(),
+                matchStatus,
+                safeLength(matchResult, 256),
+                requestId,
+                actualMatchTime,
+                nextMatchTime,
+                safeLength(failReason, 512));
+        if (updated == 1) {
+            transactionOrderMapper.updateLatestChannelMatch(
+                    operationDO.getOperationId(),
+                    operationDO.getTransactionDateTime(),
+                    operationDO.getTransactionId(),
+                    matchStatus,
+                    safeLength(matchResult, 256),
+                    actualMatchTime,
+                    nextMatchTime,
+                    safeLength(failReason, 512));
+        }
+        return updated == 1;
+    }
+
+    /**
      * 根据主动查询结果回写原资金动作渠道请求。
      *
      * @param operationDO 待恢复交易动作单
@@ -1458,6 +1533,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return true 表示更新成功或没有可更新原请求
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean updateOriginalChannelRequestByQuery(TransactionOperationDO operationDO,
                                                        TransactionChannelRequestDO originalRequestDO,
                                                        PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -1499,6 +1575,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return true 表示命中并更新日志，false 表示未找到对应记录
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateCommandDTO commandDTO) {
         if (commandDTO == null
                 || !StringUtils.hasText(commandDTO.getTransactionId())
@@ -2808,16 +2885,27 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                               String failReasonCode,
                                               String failReasonMessage,
                                               LocalDateTime now) {
+        TransactionMerchantNotificationDO pendingNotification =
+                transactionMerchantNotificationMapper.selectPendingActivation(
+                        operationDO.getTransactionId(), operationDO.getTransactionDateTime(), INITIAL_VERSION);
         String callbackPayloadJson = JsonUtils.toJsonString(
                 merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode));
+        LocalDateTime firstDeliveryTime = now.plusSeconds(
+                MerchantNotificationInitialDeliveryService.INITIAL_DELIVERY_DELAY_SECONDS);
         int affectedRows = transactionMerchantNotificationMapper.activateByTransactionId(
                 operationDO.getTransactionId(),
                 operationDO.getTransactionDateTime(),
                 INITIAL_VERSION,
                 callbackPayloadJson,
                 SensitiveDataMaskUtils.maskJsonSafely(callbackPayloadJson),
-                now,
+                firstDeliveryTime,
                 now);
+        if (affectedRows == 1
+                && pendingNotification != null
+                && merchantNotificationInitialDeliveryService != null) {
+            merchantNotificationInitialDeliveryService.schedule(
+                    pendingNotification, INITIAL_VERSION + 1, now);
+        }
         log.info("event: PAYMENT_MERCHANT_NOTIFY_ACTIVATED stage=NOTIFY_CREATE traceId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} platformStatus: {} logicalTable: {} affectedRows: {} willNotify: {}",
                 TraceContext.getTraceId(),
                 operationDO.getTransactionId(),
@@ -3963,21 +4051,27 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         notificationDO.setPayloadJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(callbackPayloadJson));
         notificationDO.setLastAttemptNo(0);
         notificationDO.setMaxRetryCount(merchantNotificationProperties.getMaxRetryCount());
-        notificationDO.setNextRetryTime(isNonTerminal(resultDTO) ? null : now);
+        boolean terminal = !isNonTerminal(resultDTO);
+        notificationDO.setNextRetryTime(terminal
+                ? now.plusSeconds(MerchantNotificationInitialDeliveryService.INITIAL_DELIVERY_DELAY_SECONDS)
+                : null);
         fillTransactionTime(notificationDO, commandDTO.getTransactionDateTime());
         notificationDO.setVersion(INITIAL_VERSION);
         notificationDO.setDeleted(NOT_DELETED);
         notificationDO.setCreateTime(now);
         notificationDO.setUpdateTime(now);
         int affectedRows = transactionMerchantNotificationMapper.insertLogical(notificationDO);
-        log.info("event: PAYMENT_MERCHANT_NOTIFY_CREATED stage=NOTIFY_CREATE traceId: {} notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} callbackUrl: {} notifyStatus: {} nextRetryTime: {} logicalTable: {} affectedRows: {}",
+        if (affectedRows == 1 && terminal && merchantNotificationInitialDeliveryService != null) {
+            merchantNotificationInitialDeliveryService.schedule(notificationDO, INITIAL_VERSION, now);
+        }
+        log.info("event: PAYMENT_MERCHANT_NOTIFY_CREATED stage=NOTIFY_CREATE traceId: {} notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} targetUrlHash: {} notifyStatus: {} nextRetryTime: {} logicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
                 notificationDO.getNotifyId(),
                 notificationDO.getTransactionId(),
                 notificationDO.getOperationId(),
                 notificationDO.getMerchantId(),
                 notificationDO.getMerchantOrderNo(),
-                notificationDO.getTargetUrlMasked(),
+                notificationDO.getTargetUrlHash(),
                 notificationDO.getNotifyStatus(),
                 notificationDO.getNextRetryTime(),
                 TRANSACTION_MERCHANT_NOTIFICATION_TABLE,

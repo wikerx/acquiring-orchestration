@@ -598,6 +598,11 @@ public final class PaymentCheckoutClientDTOs {
         private LocalDateTime expireTime;
 
         /**
+         * service-payment 生成响应时的系统时间，用于浏览器校准付款倒计时。
+         */
+        private LocalDateTime serverTime;
+
+        /**
          * 是否允许失败后重新付款。
          */
         private Boolean retryAllowed;
