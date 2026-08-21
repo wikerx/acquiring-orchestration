@@ -87,16 +87,34 @@ public class AdminFeeApplicationService {
         return feeService.getTemplate(id);
     }
 
-    /** 新建模板待审核版本。 */
+    /** 新建费用模板并保存 v1 草稿。 */
     public FeePlanDetailResponse createTemplate(FeeTemplateCreateRequest request) {
         Operator operator = currentOperator();
         return feeService.createTemplate(request, operator.id(), operator.name());
     }
 
-    /** 创建模板新版本。 */
+    /** 创建模板新版本草稿。 */
     public FeePlanDetailResponse createTemplateVersion(Long id, FeeVersionSaveRequest request) {
         Operator operator = currentOperator();
         return feeService.createTemplateVersion(id, request, operator.id(), operator.name());
+    }
+
+    /** 更新尚未提交审核的模板草稿。 */
+    public FeePlanDetailResponse updateTemplateDraft(Long planId, Long versionId, FeeVersionSaveRequest request) {
+        Operator operator = currentOperator();
+        return feeService.updateTemplateDraft(planId, versionId, request, operator.id(), operator.name());
+    }
+
+    /** 将模板草稿提交审核。 */
+    public FeePlanDetailResponse submitTemplateVersion(Long versionId) {
+        Operator operator = currentOperator();
+        return feeService.submitTemplateVersion(versionId, operator.id(), operator.name());
+    }
+
+    /** 由当前提交人撤回待审核模板。 */
+    public FeePlanDetailResponse withdrawTemplateVersion(Long versionId) {
+        Operator operator = currentOperator();
+        return feeService.withdrawTemplateVersion(versionId, operator.id(), operator.name());
     }
 
     /** 启用或禁用模板。 */
@@ -136,6 +154,7 @@ public class AdminFeeApplicationService {
         versionRequest.setChangeReason(request.getChangeReason());
         versionRequest.setPlanName(request.getPlanName());
         versionRequest.setRemark(request.getRemark());
+        versionRequest.setSettlementCurrency(request.getSettlementCurrency());
         Operator operator = currentOperator();
         return feeService.createMerchantVersion(merchantId, versionRequest, operator.id(), operator.name());
     }
@@ -263,6 +282,7 @@ public class AdminFeeApplicationService {
         row.setTransactionType(source.getTransactionType());
         row.setPaymentType(source.getPaymentType());
         row.setPaymentMethod(source.getPaymentMethod());
+        row.setRiskServiceType(source.getRiskServiceType());
         row.setLabelAmount(source.getLabelAmount());
         row.setLabelCurrency(source.getLabelCurrency());
         row.setFinalFeeUsd(source.getFinalFeeUsd());

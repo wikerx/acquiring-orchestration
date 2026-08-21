@@ -1,6 +1,7 @@
 package com.scott.payment.data.service;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.security.entity.SecurityInterceptEventDO;
 import com.scott.payment.component.db.security.mapper.SecurityInterceptEventMapper;
@@ -8,6 +9,7 @@ import com.scott.payment.component.mq.message.SecurityInterceptAuditMessage;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
@@ -52,6 +54,21 @@ public class SecurityInterceptAuditPersistenceService {
         } catch (DuplicateKeyException exception) {
             // event_no 唯一索引是最终幂等依据，命中即表示该审计事实已持久化。
         }
+    }
+
+    /**
+     * 在主库核对安全拦截事件是否已经完成提交。
+     *
+     * @param eventNo 安全事件业务编号
+     * @return true 表示数据库中已经存在对应安全事件
+     */
+    @DS(DataSourceName.MASTER)
+    public boolean existsByEventNo(String eventNo) {
+        if (!StringUtils.hasText(eventNo)) {
+            return false;
+        }
+        return eventMapper.selectCount(Wrappers.<SecurityInterceptEventDO>lambdaQuery()
+                .eq(SecurityInterceptEventDO::getEventNo, eventNo.trim())) > 0;
     }
 
     /**

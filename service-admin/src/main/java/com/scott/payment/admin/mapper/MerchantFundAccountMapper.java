@@ -25,11 +25,11 @@ public interface MerchantFundAccountMapper extends BaseMapper<MerchantFundAccoun
     @Insert("""
             INSERT IGNORE INTO merchant_fund_account (
                 account_no, merchant_id, settlement_currency, available_balance,
-                account_status, reverse_restricted, account_version, create_by, create_time,
+                account_status, account_version, create_by, create_time,
                 update_by, update_time, deleted
             ) VALUES (
                 #{account.accountNo}, #{account.merchantId}, #{account.settlementCurrency}, 0,
-                'NORMAL', 0, 0, #{account.createBy}, #{account.createTime},
+                'NORMAL', 0, #{account.createBy}, #{account.createTime},
                 #{account.updateBy}, #{account.updateTime}, 0
             )
             """)

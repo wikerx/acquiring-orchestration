@@ -26,6 +26,11 @@ data:
     # 单季度每次只读取有界超时候选，再逐条执行带分片键、版本和状态的 CAS。
     # 环境说明：环境变量：DATA_MERCHANT_NOTIFICATION_RECOVERY_BATCH_LIMIT，dev 默认值为 "100"；有效范围 1-500。
     recovery-batch-limit: ${DATA_MERCHANT_NOTIFICATION_RECOVERY_BATCH_LIMIT:100}
+    # 回调 JWT 有效期只覆盖单次 HTTP 请求，最大 300 秒。
+    callback-jwt-ttl-seconds: ${DATA_MERCHANT_NOTIFICATION_CALLBACK_JWT_TTL_SECONDS:180}
+    # JWT Secret 和响应公钥正文只在当前 JVM 短时驻留，禁止写入 Redis。
+    security-material-cache-ttl: ${DATA_MERCHANT_NOTIFICATION_SECURITY_MATERIAL_CACHE_TTL:2m}
+    security-material-cache-max-entries: ${DATA_MERCHANT_NOTIFICATION_SECURITY_MATERIAL_CACHE_MAX_ENTRIES:2048}
     # 默认只允许 HTTPS 公网地址。隔离 dev 使用本地 SDK 回调服务时，必须通过环境变量显式开启并在验收后关闭。
     allow-http: ${DATA_MERCHANT_NOTIFICATION_ALLOW_HTTP:false}
     allow-private-network: ${DATA_MERCHANT_NOTIFICATION_ALLOW_PRIVATE_NETWORK:false}
@@ -41,6 +46,8 @@ internal-service:
     secret: ${DATA_INTERNAL_SECRET:dev-internal-service-secret}
     # 参数说明：内部请求签名允许的客户端与服务端时钟偏差，使用 Spring Duration（如 5m 或 PT5M）。
     allowed-clock-skew: 5m
+    # nonce 记录必须覆盖完整时钟偏差窗口；Redis 异常时内部请求失败关闭。
+    nonce-ttl: 10m
     whitelist:
       # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
       - /actuator/health/**

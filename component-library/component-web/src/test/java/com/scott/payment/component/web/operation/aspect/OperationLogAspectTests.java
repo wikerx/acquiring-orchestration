@@ -1,5 +1,7 @@
 package com.scott.payment.component.web.operation.aspect;
 
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.web.operation.dto.OperationLogRecord;
 import com.scott.payment.component.web.operation.service.OperationLogPublisher;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
@@ -41,6 +43,25 @@ class OperationLogAspectTests {
         assertThat(businessArgumentLoggable).isTrue();
         assertThat(new MockHttpServletRequest()).isInstanceOf(ServletRequest.class);
         assertThat(new MockHttpServletResponse()).isInstanceOf(ServletResponse.class);
+    }
+
+    @Test
+    void shouldNotPersistSensitiveServiceExceptionMessage() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<OperationLogPublisher> publisherProvider = mock(ObjectProvider.class);
+        OperationLogAspect aspect = new OperationLogAspect(publisherProvider);
+        OperationLogRecord record = new OperationLogRecord();
+        ServiceException failure = new ServiceException(
+                "F500",
+                "payment failed, cardNo=4111111111111111, secretKey=plain-text-secret");
+
+        ReflectionTestUtils.invokeMethod(aspect, "fillFailure", record, failure);
+
+        assertThat(record.getErrorCode()).isEqualTo("F500");
+        assertThat(record.getErrorMsg()).isEqualTo(ServiceException.class.getSimpleName());
+        assertThat(record.getErrorMsg())
+                .doesNotContain("4111111111111111")
+                .doesNotContain("plain-text-secret");
     }
 
     private record ExportQuery(String merchantId) {

@@ -122,12 +122,12 @@ public class DataInternalRestClient implements DataInternalClient {
             log.warn("service-data compensation call rejected, targetPath: {}, httpStatus: {}",
                     uri.getPath(), exception.getStatusCode().value());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
-                    "service-data compensation call rejected", exception);
+                    "service-data compensation call rejected");
         } catch (RestClientException exception) {
             log.warn("service-data compensation call failed, targetPath: {}, exceptionType: {}",
                     uri.getPath(), exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
-                    "service-data compensation call failed", exception);
+                    "service-data compensation call failed");
         }
     }
 
@@ -142,12 +142,14 @@ public class DataInternalRestClient implements DataInternalClient {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
         String caller = properties.getInternalCaller();
+        String requestBody = body == null ? null : JsonUtils.toJsonString(body);
         String signature = InternalServiceSignature.sign(
                 HttpMethod.POST.name(),
-                uri.getPath(),
+                InternalServiceSignature.requestTarget(uri.getRawPath(), uri.getRawQuery()),
                 timestamp,
                 nonce,
                 caller,
+                InternalServiceSignature.payloadSha256(requestBody),
                 properties.getInternalSecret());
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -155,7 +157,7 @@ public class DataInternalRestClient implements DataInternalClient {
         headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
         headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
         headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
-        return new HttpEntity<>(body == null ? null : JsonUtils.toJsonString(body), headers);
+        return new HttpEntity<>(requestBody, headers);
     }
 
     /**

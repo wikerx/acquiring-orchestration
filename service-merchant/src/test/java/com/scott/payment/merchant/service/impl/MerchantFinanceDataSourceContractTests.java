@@ -26,18 +26,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MerchantFinanceDataSourceContractTests {
 
     /**
-     * 验证商户财务服务不声明类级主库路由，所有只读接口固定使用 SLAVE。
+     * 验证商户财务服务不声明类级主库路由，普通只读接口固定使用 SLAVE。
      *
      * @throws NoSuchMethodException 方法签名变化时由测试显式失败
      */
     @Test
-    void shouldRouteAllMerchantFinanceQueriesToSlave() throws NoSuchMethodException {
-        System.out.println("数据源契约：验证商户费率、账户和流水查询全部使用 SLAVE");
+    void shouldRouteOrdinaryMerchantFinanceQueriesToSlave() throws NoSuchMethodException {
+        System.out.println("数据源契约：验证商户账户和流水普通查询使用 SLAVE");
         assertThat(MerchantFinanceServiceImpl.class.getAnnotation(DS.class)).isNull();
-        assertDataSource(List.of(
-                method("getCurrentFee", String.class),
+        assertDataSource(DataSourceName.SLAVE, List.of(
                 method("getFundAccount", String.class),
                 method("pageLedgers", String.class, DetailQuery.class)
+        ));
+    }
+
+    /**
+     * 验证商户当前费率常驻缓存未命中时固定回源 MASTER，避免复制延迟缓存旧费率。
+     *
+     * @throws NoSuchMethodException 方法签名变化时由测试显式失败
+     */
+    @Test
+    void shouldRoutePersistentActiveFeeCacheMissToMaster() throws NoSuchMethodException {
+        System.out.println("数据源契约：验证商户当前费率缓存未命中使用 MASTER 权威回源");
+        assertDataSource(DataSourceName.MASTER, List.of(
+                method("getCurrentFee", String.class)
         ));
     }
 
@@ -66,7 +78,7 @@ class MerchantFinanceDataSourceContractTests {
         return MerchantFinanceServiceImpl.class.getMethod(name, parameterTypes);
     }
 
-    private void assertDataSource(List<Method> methods) {
+    private void assertDataSource(String expected, List<Method> methods) {
         for (Method method : methods) {
             DS dataSource = method.getAnnotation(DS.class);
             assertThat(dataSource)
@@ -74,7 +86,7 @@ class MerchantFinanceDataSourceContractTests {
                     .isNotNull();
             assertThat(dataSource.value())
                     .as("method %s data source", method.getName())
-                    .isEqualTo(DataSourceName.SLAVE);
+                    .isEqualTo(expected);
         }
     }
 }

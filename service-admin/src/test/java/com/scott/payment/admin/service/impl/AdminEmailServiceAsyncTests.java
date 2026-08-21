@@ -10,6 +10,8 @@ import com.scott.payment.admin.mapper.EmailSendRecordMapper;
 import com.scott.payment.admin.mapper.EmailTemplateMapper;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.component.mq.email.EmailPayloadCrypto;
+import com.scott.payment.component.db.email.model.EnabledEmailTemplateSnapshot;
+import com.scott.payment.component.db.email.service.EnabledEmailTemplateCacheReader;
 import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
 import com.scott.payment.component.mq.properties.EmailDeliveryProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +46,7 @@ class AdminEmailServiceAsyncTests {
     private EmailPayloadCrypto payloadCrypto;
     /** 被测 Admin 邮件服务。 */
     private AdminEmailServiceImpl emailService;
+    private EnabledEmailTemplateCacheReader enabledTemplateCacheReader;
 
     @BeforeEach
     void setUp() {
@@ -53,17 +56,21 @@ class AdminEmailServiceAsyncTests {
         deliveryService = mock(AdminEmailDeliveryService.class);
         smtpEmailSender = mock(AdminSmtpEmailSender.class);
         payloadCrypto = mock(EmailPayloadCrypto.class);
+        enabledTemplateCacheReader = mock(EnabledEmailTemplateCacheReader.class);
         AdminConfigService configService = mock(AdminConfigService.class);
         when(configService.enabledConfigValues(any())).thenReturn(Map.of());
         EmailDeliveryProperties properties = new EmailDeliveryProperties();
         properties.setDefaultMaxRetryCount(3);
         emailService = new AdminEmailServiceImpl(accountMapper, templateMapper, recordMapper, configService,
-                payloadCrypto, deliveryService, smtpEmailSender, properties);
+                payloadCrypto, deliveryService, smtpEmailSender, properties,
+                enabledTemplateCacheReader,
+                mock(com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator.class));
     }
 
     @Test
     void shouldPersistEncryptedPendingRecordAndEnqueueWithoutSmtp() {
-        when(templateMapper.selectOne(any())).thenReturn(template());
+        when(enabledTemplateCacheReader.findEnabled("LOGIN_NOTICE", "zh-CN"))
+                .thenReturn(templateSnapshot());
         when(accountMapper.selectOne(any())).thenReturn(account());
         when(payloadCrypto.encrypt("Hello 123456")).thenReturn("cipher-content");
         doAnswer(invocation -> {
@@ -101,6 +108,23 @@ class AdminEmailServiceAsyncTests {
         template.setStatus(1);
         template.setDeleted(0L);
         return template;
+    }
+
+    private EnabledEmailTemplateSnapshot templateSnapshot() {
+        EmailTemplateDO template = template();
+        EnabledEmailTemplateSnapshot snapshot = new EnabledEmailTemplateSnapshot();
+        snapshot.setId(template.getId());
+        snapshot.setTemplateCode(template.getTemplateCode());
+        snapshot.setTemplateName(template.getTemplateName());
+        snapshot.setAppCode(template.getAppCode());
+        snapshot.setSceneCode(template.getSceneCode());
+        snapshot.setLocale(template.getLocale());
+        snapshot.setSubjectTemplate(template.getSubjectTemplate());
+        snapshot.setContentType(template.getContentType());
+        snapshot.setContentTemplate(template.getContentTemplate());
+        snapshot.setVariableSchema(template.getVariableSchema());
+        snapshot.setSensitiveVariableNames(template.getSensitiveVariableNames());
+        return snapshot;
     }
 
     private EmailAccountDO account() {

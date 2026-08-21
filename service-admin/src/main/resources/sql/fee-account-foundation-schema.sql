@@ -25,24 +25,25 @@ CREATE TABLE IF NOT EXISTS fee_plan (
     PRIMARY KEY (id),
     UNIQUE KEY uk_fee_plan_code_deleted (plan_code, deleted),
     UNIQUE KEY uk_fee_plan_merchant_deleted (plan_type, merchant_id, deleted),
-    KEY idx_fee_plan_type_status (plan_type, status, deleted),
-    KEY idx_fee_plan_source_template (source_template_id, source_template_version_no)
+    KEY idx_fee_plan_type_list (plan_type, deleted, update_time, id),
+    KEY idx_fee_plan_type_status (plan_type, status, deleted, update_time, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='费用模板和商户费用方案主表';
 
 CREATE TABLE IF NOT EXISTS fee_plan_version (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     plan_id BIGINT NOT NULL COMMENT '费用方案ID',
     version_no INT NOT NULL COMMENT '版本号，提交后即占用且不复用',
-    version_status VARCHAR(24) NOT NULL COMMENT '版本状态：PENDING_REVIEW、ACTIVE、REJECTED、SUPERSEDED',
+    version_status VARCHAR(24) NOT NULL COMMENT '版本状态：DRAFT、PENDING_REVIEW、ACTIVE、REJECTED、SUPERSEDED',
     change_type VARCHAR(32) NOT NULL COMMENT '变更类型：CREATED、UPDATED、TEMPLATE_ASSIGNED、CUSTOMIZED',
     source_template_id BIGINT NULL COMMENT '该版本复制或调整所基于的模板ID',
     source_template_version_no INT NULL COMMENT '该版本复制或调整所基于的模板版本号',
     origin_type VARCHAR(32) NOT NULL DEFAULT 'INDEPENDENT' COMMENT '该版本来源：TEMPLATE、TEMPLATE_CUSTOMIZED、INDEPENDENT',
     reserve_rate DECIMAL(12,8) NOT NULL DEFAULT 0 COMMENT '滚动保证金比例，例如10表示10%',
-    reserve_delay_days INT NOT NULL DEFAULT 180 COMMENT '滚动保证金D+N留存自然日天数，最小1',
-    initial_delay_unit CHAR(1) NOT NULL DEFAULT 'T' COMMENT '首次结算周期单位：T工作日、D自然日',
+    reserve_delay_unit CHAR(1) NOT NULL DEFAULT 'D' COMMENT '滚动保证金留存周期单位：T工作日、D自然日',
+    reserve_delay_days INT NOT NULL DEFAULT 180 COMMENT '滚动保证金T/D+N留存天数，最小1',
+    settlement_currency CHAR(3) NULL COMMENT '商户待生效结算币种快照；模板版本为空',
+    initial_delay_unit CHAR(1) NOT NULL DEFAULT 'T' COMMENT '首次和常规结算周期共用单位：T工作日、D自然日',
     initial_delay_days INT NOT NULL DEFAULT 1 COMMENT '首次结算周期天数，最小1',
-    regular_delay_unit CHAR(1) NOT NULL DEFAULT 'T' COMMENT '常规结算周期单位：T工作日、D自然日',
     regular_delay_days INT NOT NULL DEFAULT 1 COMMENT '常规结算周期天数，最小1',
     settlement_frequency VARCHAR(16) NOT NULL DEFAULT 'DAILY' COMMENT '结算频率：DAILY、WEEKLY、BIWEEKLY、MONTHLY',
     frequency_day INT NULL COMMENT '周结为1至7，月结为1至28；日结为空',
@@ -61,18 +62,29 @@ CREATE TABLE IF NOT EXISTS fee_plan_version (
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识',
     PRIMARY KEY (id),
     UNIQUE KEY uk_fee_plan_version_deleted (plan_id, version_no, deleted),
-    KEY idx_fee_version_review (version_status, submit_time, deleted),
-    KEY idx_fee_version_effective (plan_id, effective_time, deleted)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='费用方案不可变版本表';
+    KEY idx_fee_version_review (version_status, deleted, submit_time, id),
+    KEY idx_fee_version_history (plan_id, deleted, version_no, id),
+    KEY idx_fee_version_effective (plan_id, deleted, effective_time, id),
+    CONSTRAINT chk_fee_version_reserve CHECK (reserve_rate BETWEEN 0 AND 100 AND reserve_delay_unit IN ('T', 'D') AND reserve_delay_days >= 1),
+    CONSTRAINT chk_fee_version_settlement_cycle CHECK (initial_delay_unit IN ('T', 'D') AND initial_delay_days >= 1 AND regular_delay_days >= 1),
+    CONSTRAINT chk_fee_version_frequency CHECK (
+        (settlement_frequency = 'DAILY' AND frequency_day IS NULL)
+        OR (settlement_frequency IN ('WEEKLY', 'BIWEEKLY') AND frequency_day BETWEEN 1 AND 7)
+        OR (settlement_frequency = 'MONTHLY' AND frequency_day BETWEEN 1 AND 28)
+    )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='费用方案版本表；草稿可编辑，提交审核后不可变';
 
 CREATE TABLE IF NOT EXISTS fee_rule (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     plan_version_id BIGINT NOT NULL COMMENT '费用方案版本ID',
-    fee_category VARCHAR(32) NOT NULL DEFAULT 'TRANSACTION_FEE' COMMENT '费用分类：TRANSACTION_FEE、REFUND_FEE、RISK_FEE、DISPUTE_FEE',
+    rule_group_code VARCHAR(64) NULL COMMENT '逻辑规则分组编码；同一次多选展开共享，历史数据可空',
+    fee_category VARCHAR(32) NOT NULL DEFAULT 'TRANSACTION_FEE' COMMENT '费用分类：交易、退款、风控、争议、结算换汇',
     rule_name VARCHAR(128) NOT NULL COMMENT '规则名称',
     transaction_type VARCHAR(64) NOT NULL COMMENT '交易动作，例如PAYMENT、CAPTURE、REFUND',
     payment_type VARCHAR(64) NOT NULL COMMENT '支付类型，复用acquiring_payment_method字典',
     payment_method VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '具体支付方式或品牌；ALL表示全部',
+    risk_service_type VARCHAR(16) NOT NULL DEFAULT 'NONE' COMMENT '风控类型：INTERNAL、EXTERNAL、THREE_DS；非风控为NONE',
+    charge_trigger VARCHAR(32) NOT NULL DEFAULT 'NOT_APPLICABLE' COMMENT '收费触发：NO_CHARGE、SUCCESS、SUCCESS_OR_FAILURE、ON_CALL',
     fee_mode VARCHAR(16) NOT NULL DEFAULT 'STANDARD' COMMENT '计费模式：STANDARD、TIER',
     percentage_rate DECIMAL(12,8) NOT NULL DEFAULT 0 COMMENT '百分比费率，例如2.3表示2.3%',
     fixed_amount_usd DECIMAL(24,8) NOT NULL DEFAULT 0 COMMENT '固定费用，币种固定USD',
@@ -85,8 +97,14 @@ CREATE TABLE IF NOT EXISTS fee_rule (
     create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_fee_rule_dimension_deleted (plan_version_id, fee_category, transaction_type, payment_type, payment_method, deleted),
-    KEY idx_fee_rule_version (plan_version_id, sort_no, deleted)
+    UNIQUE KEY uk_fee_rule_dimension_deleted (plan_version_id, fee_category, risk_service_type, transaction_type, payment_type, payment_method, deleted),
+    KEY idx_fee_rule_version (plan_version_id, deleted, sort_no, id),
+    CONSTRAINT chk_fee_rule_amount CHECK (
+        percentage_rate >= 0 AND fixed_amount_usd >= 0
+        AND (minimum_amount_usd IS NULL OR minimum_amount_usd >= 0)
+        AND (maximum_amount_usd IS NULL OR maximum_amount_usd >= 0)
+        AND (minimum_amount_usd IS NULL OR maximum_amount_usd IS NULL OR maximum_amount_usd >= minimum_amount_usd)
+    )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='费用方案版本规则表';
 
 CREATE TABLE IF NOT EXISTS fee_rule_tier (
@@ -103,7 +121,14 @@ CREATE TABLE IF NOT EXISTS fee_rule_tier (
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识',
     PRIMARY KEY (id),
     UNIQUE KEY uk_fee_tier_lower_deleted (fee_rule_id, lower_bound, deleted),
-    KEY idx_fee_tier_rule (fee_rule_id, sort_no, deleted)
+    KEY idx_fee_tier_rule (fee_rule_id, deleted, sort_no, id),
+    CONSTRAINT chk_fee_tier_range CHECK (lower_bound >= 0 AND (upper_bound IS NULL OR upper_bound > lower_bound)),
+    CONSTRAINT chk_fee_tier_amount CHECK (
+        percentage_rate >= 0 AND fixed_amount_usd >= 0
+        AND (minimum_amount_usd IS NULL OR minimum_amount_usd >= 0)
+        AND (maximum_amount_usd IS NULL OR maximum_amount_usd >= 0)
+        AND (minimum_amount_usd IS NULL OR maximum_amount_usd IS NULL OR maximum_amount_usd >= minimum_amount_usd)
+    )
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='月累计阶梯费率档位表';
 
 CREATE TABLE IF NOT EXISTS fee_simulation_record (
@@ -115,6 +140,7 @@ CREATE TABLE IF NOT EXISTS fee_simulation_record (
     transaction_type VARCHAR(64) NOT NULL COMMENT '交易动作',
     payment_type VARCHAR(64) NOT NULL COMMENT '支付类型',
     payment_method VARCHAR(64) NOT NULL COMMENT '支付方式',
+    risk_service_type VARCHAR(16) NOT NULL DEFAULT 'NONE' COMMENT '风控类型：INTERNAL、EXTERNAL、THREE_DS；非风控为NONE',
     label_amount DECIMAL(24,8) NOT NULL COMMENT '标签金额',
     label_currency CHAR(3) NOT NULL COMMENT '标签币种',
     label_to_usd_rate DECIMAL(24,12) NOT NULL COMMENT '系统解析的标签币种到USD正向结算汇率',
@@ -137,9 +163,12 @@ CREATE TABLE IF NOT EXISTS fee_simulation_record (
     create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '试算时间',
     PRIMARY KEY (id),
     UNIQUE KEY uk_fee_simulation_no (simulation_no),
-    KEY idx_fee_simulation_plan_time (plan_version_id, create_time),
-    KEY idx_fee_simulation_merchant_time (merchant_id, create_time),
-    KEY idx_fee_simulation_rate (settlement_rate_id, rate_valuation_time)
+    KEY idx_fee_simulation_create_time (create_time, id),
+    KEY idx_fee_simulation_plan_time (plan_version_id, create_time, id),
+    KEY idx_fee_simulation_merchant_time (merchant_id, create_time, id),
+    KEY idx_fee_simulation_transaction_time (transaction_type, create_time, id),
+    KEY idx_fee_simulation_rate (settlement_rate_id, rate_valuation_time),
+    CONSTRAINT chk_fee_simulation_risk_type CHECK (risk_service_type IN ('NONE', 'INTERNAL', 'EXTERNAL', 'THREE_DS'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='费用试算记录表';
 
 CREATE TABLE IF NOT EXISTS merchant_fund_account (
@@ -148,8 +177,7 @@ CREATE TABLE IF NOT EXISTS merchant_fund_account (
     merchant_id VARCHAR(64) NOT NULL COMMENT '商户号',
     settlement_currency CHAR(3) NOT NULL COMMENT '结算币种；当前每个商户只允许一个',
     available_balance DECIMAL(24,8) NOT NULL DEFAULT 0 COMMENT '账户余额，允许为负数',
-    account_status VARCHAR(24) NOT NULL DEFAULT 'NORMAL' COMMENT '人工状态：NORMAL、FROZEN、CLOSED；负余额限制由reverse_restricted表达',
-    reverse_restricted TINYINT NOT NULL DEFAULT 0 COMMENT '是否暂停产生资金流出的主动逆向交易',
+    account_status VARCHAR(24) NOT NULL DEFAULT 'NORMAL' COMMENT '人工状态：NORMAL、FROZEN、CLOSED；负余额限制由可用余额实时派生',
     account_version BIGINT NOT NULL DEFAULT 0 COMMENT '账户并发版本号',
     create_by VARCHAR(64) NOT NULL COMMENT '创建人',
     create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
@@ -159,7 +187,9 @@ CREATE TABLE IF NOT EXISTS merchant_fund_account (
     PRIMARY KEY (id),
     UNIQUE KEY uk_fund_account_no_deleted (account_no, deleted),
     UNIQUE KEY uk_fund_account_merchant_currency_deleted (merchant_id, settlement_currency, deleted),
-    KEY idx_fund_account_status (account_status, deleted)
+    KEY idx_fund_account_list (deleted, update_time, id),
+    KEY idx_fund_account_status (account_status, deleted, update_time, id),
+    CONSTRAINT chk_fund_account_status CHECK (account_status IN ('NORMAL', 'FROZEN', 'CLOSED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户资金账户表';
 
 CREATE TABLE IF NOT EXISTS merchant_fund_ledger (
@@ -168,7 +198,6 @@ CREATE TABLE IF NOT EXISTS merchant_fund_ledger (
     ledger_group_no VARCHAR(64) NULL COMMENT '同一业务产生的关联流水组号',
     account_id BIGINT NOT NULL COMMENT '资金账户ID',
     merchant_id VARCHAR(64) NOT NULL COMMENT '商户号',
-    balance_type VARCHAR(16) NOT NULL COMMENT '余额类型：AVAILABLE、RESERVE',
     business_type VARCHAR(64) NOT NULL COMMENT '业务类型',
     summary VARCHAR(500) NOT NULL COMMENT '变动摘要',
     business_no VARCHAR(128) NOT NULL COMMENT '关联业务单号',
@@ -203,13 +232,19 @@ CREATE TABLE IF NOT EXISTS merchant_fund_ledger (
     UNIQUE KEY uk_fund_ledger_no (ledger_no),
     UNIQUE KEY uk_fund_ledger_idempotency (idempotency_key),
     UNIQUE KEY uk_fund_ledger_account_sequence (account_id, account_sequence),
-    KEY idx_fund_ledger_merchant_time (merchant_id, posted_time),
+    KEY idx_fund_ledger_account_time (account_id, merchant_id, posted_time, id),
+    KEY idx_fund_ledger_merchant_time (merchant_id, posted_time, id),
     KEY idx_fund_ledger_posted_time (posted_time, id),
-    KEY idx_fund_ledger_business_time (business_type, posted_time),
+    KEY idx_fund_ledger_business_time (business_type, posted_time, id),
     KEY idx_fund_ledger_business (business_type, business_no),
     KEY idx_fund_ledger_batch (settlement_batch_no),
-    KEY idx_fund_ledger_reversal (reversal_of_ledger_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户余额和保证金不可变流水表';
+    KEY idx_fund_ledger_reversal (reversal_of_ledger_id),
+    CONSTRAINT chk_fund_ledger_balance CHECK (
+        amount > 0 AND direction IN ('CREDIT', 'DEBIT')
+        AND ((direction = 'CREDIT' AND balance_after = balance_before + amount)
+            OR (direction = 'DEBIT' AND balance_after = balance_before - amount))
+    )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户可用余额不可变流水表';
 
 CREATE TABLE IF NOT EXISTS merchant_reserve_item (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -228,8 +263,11 @@ CREATE TABLE IF NOT EXISTS merchant_reserve_item (
     update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
     PRIMARY KEY (id),
     UNIQUE KEY uk_reserve_no (reserve_no),
-    KEY idx_reserve_merchant_status (merchant_id, reserve_status, expected_release_date),
-    KEY idx_reserve_source (source_transaction_id, source_business_no)
+    UNIQUE KEY uk_reserve_merchant_source_business (merchant_id, source_business_no),
+    KEY idx_reserve_account_status_release (account_id, merchant_id, reserve_status, expected_release_date, id),
+    KEY idx_reserve_status_release (reserve_status, expected_release_date, account_id, id),
+    KEY idx_reserve_source (source_transaction_id, source_business_no),
+    CONSTRAINT chk_reserve_amount CHECK (retained_amount > 0 AND released_amount >= 0 AND released_amount <= retained_amount)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户保证金留存和释放明细表';
 
 CREATE TABLE IF NOT EXISTS merchant_fund_recharge (
@@ -267,10 +305,59 @@ CREATE TABLE IF NOT EXISTS merchant_fund_recharge (
     UNIQUE KEY uk_fund_recharge_no (recharge_no),
     UNIQUE KEY uk_fund_recharge_request (request_id),
     UNIQUE KEY uk_fund_recharge_ledger (ledger_no),
-    KEY idx_fund_recharge_status_time (recharge_status, create_time),
-    KEY idx_fund_recharge_merchant_time (merchant_id, create_time),
-    KEY idx_fund_recharge_account_time (account_id, create_time)
+    KEY idx_fund_recharge_list (deleted, create_time, id),
+    KEY idx_fund_recharge_status_time (recharge_status, deleted, create_time, id),
+    KEY idx_fund_recharge_merchant_time (merchant_id, deleted, create_time, id),
+    KEY idx_fund_recharge_account_time (account_id, deleted, create_time, id),
+    CONSTRAINT chk_fund_recharge_amount CHECK (amount BETWEEN 100 AND 100000000)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户资金账户充值申请和审批表';
+
+CREATE TABLE IF NOT EXISTS merchant_fund_deduction (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    deduction_no VARCHAR(64) NOT NULL COMMENT '账户扣减申请号',
+    account_id BIGINT NOT NULL COMMENT '资金账户ID',
+    merchant_id VARCHAR(64) NOT NULL COMMENT '商户号',
+    currency CHAR(3) NOT NULL COMMENT '账户结算币种',
+    amount DECIMAL(24,8) NOT NULL COMMENT '扣减金额，必须大于0且不超过100000000',
+    deduction_category VARCHAR(32) NOT NULL COMMENT '扣减类型：ACCOUNT_CORRECTION、EXTRA_FEE、PENALTY、OTHER',
+    deduction_status VARCHAR(24) NOT NULL COMMENT '状态：PENDING_AUDIT、PENDING_RECHECK、POSTED、REJECTED',
+    reason VARCHAR(500) NOT NULL COMMENT '商户可见的完整扣减说明',
+    submit_by_id BIGINT NULL COMMENT '提交人账号ID',
+    submit_by_name VARCHAR(128) NOT NULL COMMENT '提交人名称快照',
+    submit_login_account VARCHAR(128) NULL COMMENT '提交人登录账号快照，用于admin自审边界审计',
+    submit_time DATETIME(3) NOT NULL COMMENT '提交时间',
+    audit_by_id BIGINT NULL COMMENT '审核人账号ID',
+    audit_by_name VARCHAR(128) NULL COMMENT '审核人名称快照',
+    audit_comment VARCHAR(500) NULL COMMENT '审核意见',
+    audit_time DATETIME(3) NULL COMMENT '审核时间',
+    recheck_by_id BIGINT NULL COMMENT '复核人账号ID',
+    recheck_by_name VARCHAR(128) NULL COMMENT '复核人名称快照',
+    recheck_comment VARCHAR(500) NULL COMMENT '复核意见',
+    recheck_time DATETIME(3) NULL COMMENT '复核时间',
+    reject_by_id BIGINT NULL COMMENT '驳回人账号ID',
+    reject_by_name VARCHAR(128) NULL COMMENT '驳回人名称快照',
+    reject_comment VARCHAR(500) NULL COMMENT '驳回原因',
+    reject_time DATETIME(3) NULL COMMENT '驳回时间',
+    request_id VARCHAR(64) NOT NULL COMMENT '客户端唯一请求号',
+    ledger_no VARCHAR(64) NULL COMMENT '最终扣减余额流水号',
+    posted_time DATETIME(3) NULL COMMENT '最终入账时间',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_fund_deduction_no (deduction_no),
+    UNIQUE KEY uk_fund_deduction_request (request_id),
+    UNIQUE KEY uk_fund_deduction_ledger (ledger_no),
+    KEY idx_fund_deduction_list (deleted, create_time, id),
+    KEY idx_fund_deduction_status_time (deduction_status, deleted, create_time, id),
+    KEY idx_fund_deduction_category_time (deduction_category, deleted, create_time, id),
+    KEY idx_fund_deduction_merchant_time (merchant_id, deleted, create_time, id),
+    KEY idx_fund_deduction_account_time (account_id, deleted, create_time, id),
+    CONSTRAINT chk_fund_deduction_amount CHECK (amount > 0 AND amount <= 100000000),
+    CONSTRAINT chk_fund_deduction_category CHECK (
+        deduction_category IN ('ACCOUNT_CORRECTION', 'EXTRA_FEE', 'PENALTY', 'OTHER')
+    )
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户资金账户扣减申请和审批表';
 
 CREATE TABLE IF NOT EXISTS settlement_calendar_year (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -309,7 +396,7 @@ CREATE TABLE IF NOT EXISTS settlement_holiday_calendar (
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识',
     PRIMARY KEY (id),
     UNIQUE KEY uk_settlement_calendar_date (calendar_date, deleted),
-    KEY idx_settlement_calendar_year_date (calendar_year_id, calendar_date, deleted),
+    KEY idx_settlement_calendar_year_date (calendar_year_id, deleted, calendar_date),
     KEY idx_settlement_calendar_type_date (day_type, calendar_date, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='全局中国大陆结算节假日日历明细表';
 
@@ -327,20 +414,15 @@ PREPARE stmt FROM @drop_old_fund_account_uk;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- 账户人工状态只保留 NORMAL、FROZEN、CLOSED；负余额通过独立限制标识表达。
+-- 账户人工状态只保留 NORMAL、FROZEN、CLOSED；负余额限制由可用余额实时派生。
 ALTER TABLE merchant_fund_account
     MODIFY COLUMN account_status VARCHAR(24) NOT NULL DEFAULT 'NORMAL'
-        COMMENT '人工状态：NORMAL、FROZEN、CLOSED；负余额限制由reverse_restricted表达';
+        COMMENT '人工状态：NORMAL、FROZEN、CLOSED；负余额限制由可用余额实时派生';
 
 UPDATE merchant_fund_account
 SET account_status = 'NORMAL',
-    reverse_restricted = CASE WHEN available_balance < 0 THEN 1 ELSE 0 END,
     update_time = CURRENT_TIMESTAMP(3)
 WHERE account_status = 'NEGATIVE_BALANCE';
-
-UPDATE merchant_fund_account
-SET reverse_restricted = CASE WHEN available_balance < 0 THEN 1 ELSE 0 END
-WHERE reverse_restricted <> CASE WHEN available_balance < 0 THEN 1 ELSE 0 END;
 
 -- 保证金余额由留存明细实时汇总，删除旧稿中的冗余账户余额列，避免双事实源。
 SET @drop_fund_account_reserve_balance := (
@@ -395,7 +477,32 @@ PREPARE stmt FROM @add_fund_account_currency_uk;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- 兼容已执行第一阶段旧稿的环境：补齐滚动保证金、费用分类和试算结果字段。
+-- 兼容已执行第一阶段旧稿的环境：补齐模板草稿语义、滚动保证金、费用分类和试算结果字段。
+SET @update_fee_version_status_comment := (
+    SELECT IF(column_comment = '版本状态：DRAFT、PENDING_REVIEW、ACTIVE、REJECTED、SUPERSEDED',
+        'SELECT 1',
+        'ALTER TABLE fee_plan_version MODIFY COLUMN version_status VARCHAR(24) NOT NULL COMMENT ''版本状态：DRAFT、PENDING_REVIEW、ACTIVE、REJECTED、SUPERSEDED''')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'fee_plan_version'
+      AND column_name = 'version_status'
+);
+PREPARE stmt FROM @update_fee_version_status_comment;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @update_fee_version_table_comment := (
+    SELECT IF(table_comment = '费用方案版本表；草稿可编辑，提交审核后不可变',
+        'SELECT 1',
+        'ALTER TABLE fee_plan_version COMMENT = ''费用方案版本表；草稿可编辑，提交审核后不可变''')
+    FROM information_schema.tables
+    WHERE table_schema = DATABASE()
+      AND table_name = 'fee_plan_version'
+);
+PREPARE stmt FROM @update_fee_version_table_comment;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 SET @add_fee_version_reserve_rate := (
     SELECT IF(COUNT(*) = 0,
         'ALTER TABLE fee_plan_version ADD COLUMN reserve_rate DECIMAL(12,8) NOT NULL DEFAULT 0 COMMENT ''滚动保证金比例，例如10表示10%'' AFTER origin_type',
@@ -418,6 +525,54 @@ PREPARE stmt FROM @add_fee_version_reserve_days;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @add_fee_version_reserve_unit := (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE fee_plan_version ADD COLUMN reserve_delay_unit CHAR(1) NOT NULL DEFAULT ''D'' COMMENT ''滚动保证金留存周期单位：T工作日、D自然日'' AFTER reserve_rate',
+        'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'fee_plan_version' AND column_name = 'reserve_delay_unit'
+);
+PREPARE stmt FROM @add_fee_version_reserve_unit;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @add_fee_version_settlement_currency := (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE fee_plan_version ADD COLUMN settlement_currency CHAR(3) NULL COMMENT ''商户待生效结算币种快照；模板版本为空'' AFTER reserve_delay_days',
+        'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'fee_plan_version' AND column_name = 'settlement_currency'
+);
+PREPARE stmt FROM @add_fee_version_settlement_currency;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 旧稿曾将版本结算币种定义为必填；模板版本不持有结算币种，需兼容调整为可空。
+SET @allow_template_settlement_currency_null := (
+    SELECT IF(COUNT(*) > 0,
+        'ALTER TABLE fee_plan_version MODIFY COLUMN settlement_currency CHAR(3) NULL COMMENT ''商户待生效结算币种快照；模板版本为空''',
+        'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'fee_plan_version'
+      AND column_name = 'settlement_currency'
+      AND is_nullable = 'NO'
+);
+PREPARE stmt FROM @allow_template_settlement_currency_null;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @add_fee_rule_group_code := (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE fee_rule ADD COLUMN rule_group_code VARCHAR(64) NULL COMMENT ''逻辑规则分组编码；同一次多选展开共享，历史数据可空'' AFTER plan_version_id',
+        'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'fee_rule' AND column_name = 'rule_group_code'
+);
+PREPARE stmt FROM @add_fee_rule_group_code;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 SET @add_fee_rule_category := (
     SELECT IF(COUNT(*) = 0,
         'ALTER TABLE fee_rule ADD COLUMN fee_category VARCHAR(32) NOT NULL DEFAULT ''TRANSACTION_FEE'' COMMENT ''费用分类'' AFTER plan_version_id',
@@ -426,6 +581,28 @@ SET @add_fee_rule_category := (
     WHERE table_schema = DATABASE() AND table_name = 'fee_rule' AND column_name = 'fee_category'
 );
 PREPARE stmt FROM @add_fee_rule_category;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @add_fee_rule_risk_service_type := (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE fee_rule ADD COLUMN risk_service_type VARCHAR(16) NOT NULL DEFAULT ''NONE'' COMMENT ''风控类型：INTERNAL、EXTERNAL、THREE_DS；非风控为NONE'' AFTER payment_method',
+        'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'fee_rule' AND column_name = 'risk_service_type'
+);
+PREPARE stmt FROM @add_fee_rule_risk_service_type;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @add_fee_rule_charge_trigger := (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE fee_rule ADD COLUMN charge_trigger VARCHAR(32) NOT NULL DEFAULT ''NOT_APPLICABLE'' COMMENT ''收费触发：NO_CHARGE、SUCCESS、SUCCESS_OR_FAILURE、ON_CALL'' AFTER risk_service_type',
+        'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'fee_rule' AND column_name = 'charge_trigger'
+);
+PREPARE stmt FROM @add_fee_rule_charge_trigger;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
@@ -438,27 +615,21 @@ SET fee_category = CASE
 END
 WHERE deleted = 0;
 
-SET @drop_fee_rule_dimension_uk := (
-    SELECT IF(COUNT(*) > 0,
-        'ALTER TABLE fee_rule DROP INDEX uk_fee_rule_dimension_deleted',
-        'SELECT 1')
+-- 仅当唯一索引维度不一致时重建，避免脚本重复执行时无意义地锁表。
+SET @ensure_fee_rule_dimension_uk := (
+    SELECT CASE
+        WHEN COALESCE(GROUP_CONCAT(column_name ORDER BY seq_in_index SEPARATOR ','), '') =
+             'plan_version_id,fee_category,risk_service_type,transaction_type,payment_type,payment_method,deleted'
+            THEN 'SELECT 1'
+        WHEN COUNT(*) = 0
+            THEN 'ALTER TABLE fee_rule ADD UNIQUE KEY uk_fee_rule_dimension_deleted (plan_version_id, fee_category, risk_service_type, transaction_type, payment_type, payment_method, deleted)'
+        ELSE 'ALTER TABLE fee_rule DROP INDEX uk_fee_rule_dimension_deleted, ADD UNIQUE KEY uk_fee_rule_dimension_deleted (plan_version_id, fee_category, risk_service_type, transaction_type, payment_type, payment_method, deleted)'
+    END
     FROM information_schema.statistics
     WHERE table_schema = DATABASE() AND table_name = 'fee_rule'
       AND index_name = 'uk_fee_rule_dimension_deleted'
 );
-PREPARE stmt FROM @drop_fee_rule_dimension_uk;
-EXECUTE stmt;
-DEALLOCATE PREPARE stmt;
-
-SET @add_fee_rule_dimension_uk := (
-    SELECT IF(COUNT(*) = 0,
-        'ALTER TABLE fee_rule ADD UNIQUE KEY uk_fee_rule_dimension_deleted (plan_version_id, fee_category, transaction_type, payment_type, payment_method, deleted)',
-        'SELECT 1')
-    FROM information_schema.statistics
-    WHERE table_schema = DATABASE() AND table_name = 'fee_rule'
-      AND index_name = 'uk_fee_rule_dimension_deleted'
-);
-PREPARE stmt FROM @add_fee_rule_dimension_uk;
+PREPARE stmt FROM @ensure_fee_rule_dimension_uk;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
@@ -470,6 +641,17 @@ SET @add_fee_simulation_category := (
     WHERE table_schema = DATABASE() AND table_name = 'fee_simulation_record' AND column_name = 'fee_category'
 );
 PREPARE stmt FROM @add_fee_simulation_category;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @add_fee_simulation_risk_service_type := (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE fee_simulation_record ADD COLUMN risk_service_type VARCHAR(16) NOT NULL DEFAULT ''NONE'' COMMENT ''风控类型：INTERNAL、EXTERNAL、THREE_DS；非风控为NONE'' AFTER payment_method',
+        'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'fee_simulation_record' AND column_name = 'risk_service_type'
+);
+PREPARE stmt FROM @add_fee_simulation_risk_service_type;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
@@ -515,12 +697,12 @@ START TRANSACTION;
 -- 已有商户只回填当前结算币种的零余额账户，不创建登录账号、角色、MFA 或默认费率。
 INSERT INTO merchant_fund_account (
     account_no, merchant_id, settlement_currency, available_balance,
-    account_status, reverse_restricted, account_version, create_by, create_time,
+    account_status, account_version, create_by, create_time,
     update_by, update_time, deleted
 )
 SELECT CONCAT('FA', merchant.merchant_id, UPPER(TRIM(merchant.settlement_currency))),
        merchant.merchant_id, UPPER(TRIM(merchant.settlement_currency)), 0,
-       'NORMAL', 0, 0, 'fee-account-migration', CURRENT_TIMESTAMP(3),
+       'NORMAL', 0, 'fee-account-migration', CURRENT_TIMESTAMP(3),
        'fee-account-migration', CURRENT_TIMESTAMP(3), 0
 FROM base_merchant_info merchant
 WHERE merchant.deleted = 0
@@ -548,6 +730,22 @@ WHERE app.app_code = 'ADMIN' AND app.deleted = 0
   AND NOT EXISTS (
       SELECT 1 FROM sys_menu existing
       WHERE existing.app_id = app.id AND existing.menu_code = 'admin_fund_recharge_v1' AND existing.deleted = 0
+  );
+
+INSERT INTO sys_menu (
+    app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
+    permission_code, icon, visible, keep_alive, external_link, sort_no, status, deleted
+)
+SELECT app.id, parent.id, 'admin_fund_deduction_v1', '账户扣减', 'MENU', '/fund/deduction', 'fund/deduction',
+       'fund:deduction:list', 'RemoveFilled', 1, 1, 0, 44, 1, 0
+FROM sys_app app
+JOIN sys_menu parent ON parent.app_id = app.id
+                    AND parent.menu_code = 'merchant_manage'
+                    AND parent.deleted = 0
+WHERE app.app_code = 'ADMIN' AND app.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu existing
+      WHERE existing.app_id = app.id AND existing.menu_code = 'admin_fund_deduction_v1' AND existing.deleted = 0
   );
 
 INSERT INTO sys_menu (
@@ -700,7 +898,7 @@ INSERT INTO sys_menu (
 )
 SELECT app.id, parent.id, 'admin_fund_ledger_all_v1', '余额明细', 'MENU',
        '/fund/ledger', 'fund/ledger', 'fund:ledger:all:list', 'NotebookTabs',
-       1, 1, 0, 44, 1, 0
+       1, 1, 0, 45, 1, 0
 FROM sys_app app
 JOIN sys_menu parent ON parent.app_id = app.id
                     AND parent.menu_code = 'merchant_manage'
@@ -730,7 +928,7 @@ SET ledger_menu.parent_id = parent.id,
     ledger_menu.visible = 1,
     ledger_menu.keep_alive = 1,
     ledger_menu.external_link = 0,
-    ledger_menu.sort_no = 44,
+    ledger_menu.sort_no = 45,
     ledger_menu.status = 1
 WHERE ledger_menu.menu_code = 'admin_fund_ledger_all_v1'
   AND ledger_menu.deleted = 0;
@@ -746,10 +944,12 @@ FROM sys_app app
 JOIN (
     SELECT 'admin_fee_template_v1' parent_code, 'admin_fee_template_detail_v1' menu_code, '费用模板详情' menu_name, 'fee:template:detail' permission_code, 101 sort_no
     UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_add_v1', '新增费用模板', 'fee:template:add', 102
-    UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_edit_v1', '提交模板新版本', 'fee:template:edit', 103
-    UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_status_v1', '费用模板启停', 'fee:template:status', 104
-    UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_archive_v1', '费用模板归档', 'fee:template:archive', 105
-    UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_export_v1', '费用模板导出', 'fee:template:export', 106
+    UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_edit_v1', '编辑费用模板草稿', 'fee:template:edit', 103
+    UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_submit_v1', '提交费用模板复核', 'fee:template:submit', 104
+    UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_withdraw_v1', '撤回费用模板复核', 'fee:template:withdraw', 105
+    UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_status_v1', '费用模板启停', 'fee:template:status', 106
+    UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_archive_v1', '费用模板归档', 'fee:template:archive', 107
+    UNION ALL SELECT 'admin_fee_template_v1', 'admin_fee_template_export_v1', '费用模板导出', 'fee:template:export', 108
     UNION ALL SELECT 'admin_fee_merchant_v1', 'admin_fee_merchant_detail_v1', '商户费率详情', 'fee:merchant:detail', 101
     UNION ALL SELECT 'admin_fee_merchant_v1', 'admin_fee_merchant_template_assign_v1', '商户选择费率模板', 'fee:merchant:template:assign', 102
     UNION ALL SELECT 'admin_fee_merchant_v1', 'admin_fee_merchant_configure_v1', '商户独立或调整费率', 'fee:merchant:configure', 103
@@ -773,6 +973,12 @@ JOIN (
     UNION ALL SELECT 'admin_fund_recharge_v1', 'admin_fund_recharge_recheck_v1', '复核充值入账', 'fund:recharge:recheck', 103
     UNION ALL SELECT 'admin_fund_recharge_v1', 'admin_fund_recharge_reject_v1', '驳回充值申请', 'fund:recharge:reject', 104
     UNION ALL SELECT 'admin_fund_recharge_v1', 'admin_fund_recharge_export_v1', '充值申请导出', 'fund:recharge:export', 105
+    UNION ALL SELECT 'admin_fund_deduction_v1', 'admin_fund_deduction_detail_v1', '账户扣减详情', 'fund:deduction:detail', 101
+    UNION ALL SELECT 'admin_fund_deduction_v1', 'admin_fund_deduction_add_v1', '提交扣减申请', 'fund:deduction:add', 102
+    UNION ALL SELECT 'admin_fund_deduction_v1', 'admin_fund_deduction_audit_v1', '审核扣减申请', 'fund:deduction:audit', 103
+    UNION ALL SELECT 'admin_fund_deduction_v1', 'admin_fund_deduction_recheck_v1', '复核扣减入账', 'fund:deduction:recheck', 104
+    UNION ALL SELECT 'admin_fund_deduction_v1', 'admin_fund_deduction_reject_v1', '驳回扣减申请', 'fund:deduction:reject', 105
+    UNION ALL SELECT 'admin_fund_deduction_v1', 'admin_fund_deduction_export_v1', '扣减申请导出', 'fund:deduction:export', 106
     UNION ALL SELECT 'system_holiday_calendar_v1', 'system_holiday_calendar_initialize_v1', '初始化年度日历', 'system:calendar:initialize', 101
     UNION ALL SELECT 'system_holiday_calendar_v1', 'system_holiday_calendar_edit_v1', '维护节假日日历', 'system:calendar:edit', 102
     UNION ALL SELECT 'system_holiday_calendar_v1', 'system_holiday_calendar_confirm_v1', '确认年度日历', 'system:calendar:confirm', 103
@@ -784,6 +990,34 @@ WHERE app.app_code = 'ADMIN' AND app.deleted = 0
       SELECT 1 FROM sys_menu existing
       WHERE existing.app_id = app.id AND existing.menu_code = item.menu_code AND existing.deleted = 0
   );
+
+-- 同步旧环境中已存在的模板按钮名称与排序。
+UPDATE sys_menu menu
+JOIN sys_app app ON app.id = menu.app_id AND app.app_code = 'ADMIN' AND app.deleted = 0
+SET menu.menu_name = CASE menu.menu_code
+        WHEN 'admin_fee_template_edit_v1' THEN '编辑费用模板草稿'
+        WHEN 'admin_fee_template_submit_v1' THEN '提交费用模板复核'
+        WHEN 'admin_fee_template_withdraw_v1' THEN '撤回费用模板复核'
+        ELSE menu.menu_name
+    END,
+    menu.sort_no = CASE menu.menu_code
+        WHEN 'admin_fee_template_detail_v1' THEN 101
+        WHEN 'admin_fee_template_add_v1' THEN 102
+        WHEN 'admin_fee_template_edit_v1' THEN 103
+        WHEN 'admin_fee_template_submit_v1' THEN 104
+        WHEN 'admin_fee_template_withdraw_v1' THEN 105
+        WHEN 'admin_fee_template_status_v1' THEN 106
+        WHEN 'admin_fee_template_archive_v1' THEN 107
+        WHEN 'admin_fee_template_export_v1' THEN 108
+        ELSE menu.sort_no
+    END
+WHERE menu.menu_code IN (
+    'admin_fee_template_detail_v1', 'admin_fee_template_add_v1',
+    'admin_fee_template_edit_v1', 'admin_fee_template_submit_v1',
+    'admin_fee_template_withdraw_v1', 'admin_fee_template_status_v1',
+    'admin_fee_template_archive_v1', 'admin_fee_template_export_v1'
+)
+  AND menu.deleted = 0;
 
 -- 商户端财务目录只展示当前商户已生效费率和账户数据，不暴露平台模板库。
 INSERT INTO sys_menu (
@@ -853,8 +1087,10 @@ FROM sys_app app
 JOIN (
     SELECT 'admin_fee_template_v1' menu_code, 'fee:template:list' permission_code, '费用模板查询' permission_name, 'MENU' permission_type, 'POST' resource_method, '/admin/fees/templates/search' resource_path, '分页查询费用模板' description
     UNION ALL SELECT 'admin_fee_template_detail_v1', 'fee:template:detail', '费用模板详情', 'BUTTON', 'GET', '/admin/fees/templates/*', '查询费用模板版本历史'
-    UNION ALL SELECT 'admin_fee_template_add_v1', 'fee:template:add', '费用模板新增', 'BUTTON', 'POST', '/admin/fees/templates', '新建模板并提交审核'
-    UNION ALL SELECT 'admin_fee_template_edit_v1', 'fee:template:edit', '费用模板修改', 'BUTTON', 'POST', '/admin/fees/templates/*/versions', '提交费用模板新版本'
+    UNION ALL SELECT 'admin_fee_template_add_v1', 'fee:template:add', '费用模板新增', 'BUTTON', 'POST', '/admin/fees/templates', '新建费用模板并保存v1草稿'
+    UNION ALL SELECT 'admin_fee_template_edit_v1', 'fee:template:edit', '费用模板草稿编辑', 'BUTTON', 'POST', '/admin/fees/templates/*/versions', '创建新版本草稿或编辑未提交草稿'
+    UNION ALL SELECT 'admin_fee_template_submit_v1', 'fee:template:submit', '费用模板提交复核', 'BUTTON', 'PUT', '/admin/fees/versions/*/submit', '提交模板草稿并进入待复核状态'
+    UNION ALL SELECT 'admin_fee_template_withdraw_v1', 'fee:template:withdraw', '费用模板撤回复核', 'BUTTON', 'PUT', '/admin/fees/versions/*/withdraw', '原提交人撤回待复核模板并恢复为草稿'
     UNION ALL SELECT 'admin_fee_template_status_v1', 'fee:template:status', '费用模板启停', 'BUTTON', 'PUT', '/admin/fees/templates/*/status', '启停模板后续选择能力'
     UNION ALL SELECT 'admin_fee_template_archive_v1', 'fee:template:archive', '费用模板归档', 'BUTTON', 'PUT', '/admin/fees/templates/*/archive', '归档模板并保留历史'
     UNION ALL SELECT 'admin_fee_template_export_v1', 'fee:template:export', '费用模板导出', 'BUTTON', 'POST', '/admin/fees/templates/export', '按当前筛选条件导出费用模板'
@@ -887,6 +1123,13 @@ JOIN (
     UNION ALL SELECT 'admin_fund_recharge_recheck_v1', 'fund:recharge:recheck', '复核充值入账', 'BUTTON', 'POST', '/admin/fund-accounts/recharges/*/recheck', '复核通过并原子入账'
     UNION ALL SELECT 'admin_fund_recharge_reject_v1', 'fund:recharge:reject', '驳回充值申请', 'BUTTON', 'POST', '/admin/fund-accounts/recharges/*/reject', '驳回充值申请'
     UNION ALL SELECT 'admin_fund_recharge_export_v1', 'fund:recharge:export', '充值申请导出', 'BUTTON', 'POST', '/admin/fund-accounts/recharges/export', '按筛选条件导出全部充值申请'
+    UNION ALL SELECT 'admin_fund_deduction_v1', 'fund:deduction:list', '账户扣减查询', 'MENU', 'POST', '/admin/fund-accounts/deductions/search', '分页查询账户扣减申请'
+    UNION ALL SELECT 'admin_fund_deduction_detail_v1', 'fund:deduction:detail', '账户扣减详情', 'BUTTON', 'GET', '/admin/fund-accounts/deductions/*', '查询账户扣减完整审批快照'
+    UNION ALL SELECT 'admin_fund_deduction_add_v1', 'fund:deduction:add', '提交扣减申请', 'BUTTON', 'POST', '/admin/fund-accounts/deductions', '提交待审核账户扣减申请'
+    UNION ALL SELECT 'admin_fund_deduction_audit_v1', 'fund:deduction:audit', '审核扣减申请', 'BUTTON', 'POST', '/admin/fund-accounts/deductions/*/audit', '审核账户扣减申请'
+    UNION ALL SELECT 'admin_fund_deduction_recheck_v1', 'fund:deduction:recheck', '复核扣减入账', 'BUTTON', 'POST', '/admin/fund-accounts/deductions/*/recheck', '复核通过并原子扣减可用余额'
+    UNION ALL SELECT 'admin_fund_deduction_reject_v1', 'fund:deduction:reject', '驳回扣减申请', 'BUTTON', 'POST', '/admin/fund-accounts/deductions/*/reject', '驳回账户扣减申请'
+    UNION ALL SELECT 'admin_fund_deduction_export_v1', 'fund:deduction:export', '扣减申请导出', 'BUTTON', 'POST', '/admin/fund-accounts/deductions/export', '按筛选条件导出全部账户扣减申请'
     UNION ALL SELECT 'system_holiday_calendar_v1', 'system:calendar:list', '节假日日历查询', 'MENU', 'GET', '/admin/system/holiday-calendar', '查询中国大陆结算日历月视图'
     UNION ALL SELECT 'system_holiday_calendar_initialize_v1', 'system:calendar:initialize', '初始化年度日历', 'BUTTON', 'POST', '/admin/system/holiday-calendar/years', '初始化年度基础日历'
     UNION ALL SELECT 'system_holiday_calendar_edit_v1', 'system:calendar:edit', '维护节假日日历', 'BUTTON', 'PUT', '/admin/system/holiday-calendar/days', '批量维护或导入日期'
@@ -899,6 +1142,22 @@ WHERE app.app_code = 'ADMIN' AND app.deleted = 0
       SELECT 1 FROM sys_permission existing
       WHERE existing.app_id = app.id AND existing.permission_code = item.permission_code AND existing.deleted = 0
   );
+
+-- 同步旧环境中已存在的模板新增和编辑权限说明。
+UPDATE sys_permission permission
+JOIN sys_app app ON app.id = permission.app_id AND app.app_code = 'ADMIN' AND app.deleted = 0
+SET permission.permission_name = CASE permission.permission_code
+        WHEN 'fee:template:add' THEN '费用模板新增'
+        WHEN 'fee:template:edit' THEN '费用模板草稿编辑'
+        ELSE permission.permission_name
+    END,
+    permission.description = CASE permission.permission_code
+        WHEN 'fee:template:add' THEN '新建费用模板并保存v1草稿'
+        WHEN 'fee:template:edit' THEN '创建新版本草稿或编辑未提交草稿'
+        ELSE permission.description
+    END
+WHERE permission.permission_code IN ('fee:template:add', 'fee:template:edit')
+  AND permission.deleted = 0;
 
 INSERT INTO sys_permission (
     app_id, menu_id, permission_code, permission_name, permission_type,
@@ -1014,6 +1273,7 @@ SELECT item.dict_name, item.dict_type, 'fund', 1, 0, 1, 0
 FROM (
     SELECT '余额流水业务类型' dict_name, 'fund_ledger_business_type' dict_type
     UNION ALL SELECT '余额流水方向', 'fund_direction'
+    UNION ALL SELECT '账户扣减类型', 'fund_deduction_category'
 ) item
 WHERE NOT EXISTS (
     SELECT 1 FROM sys_dict_type existing
@@ -1038,12 +1298,22 @@ FROM (
     UNION ALL SELECT 'fund_ledger_business_type', '提现', 'WITHDRAWAL', 'zh-CN', 4, 'danger', 0
     UNION ALL SELECT 'fund_ledger_business_type', '人工调账', 'MANUAL_ADJUSTMENT', 'zh-CN', 5, 'warning', 0
     UNION ALL SELECT 'fund_ledger_business_type', '流水冲正', 'REVERSAL', 'zh-CN', 6, 'info', 0
+    UNION ALL SELECT 'fund_ledger_business_type', '账户扣减', 'BALANCE_DEDUCTION', 'zh-CN', 7, 'danger', 0
     UNION ALL SELECT 'fund_ledger_business_type', 'Recharge', 'RECHARGE', 'en-US', 1, 'success', 1
     UNION ALL SELECT 'fund_ledger_business_type', 'Transaction settlement', 'TRANSACTION_SETTLEMENT', 'en-US', 2, 'primary', 0
     UNION ALL SELECT 'fund_ledger_business_type', 'Reserve settlement', 'RESERVE_SETTLEMENT', 'en-US', 3, 'warning', 0
     UNION ALL SELECT 'fund_ledger_business_type', 'Withdrawal', 'WITHDRAWAL', 'en-US', 4, 'danger', 0
     UNION ALL SELECT 'fund_ledger_business_type', 'Manual adjustment', 'MANUAL_ADJUSTMENT', 'en-US', 5, 'warning', 0
     UNION ALL SELECT 'fund_ledger_business_type', 'Ledger reversal', 'REVERSAL', 'en-US', 6, 'info', 0
+    UNION ALL SELECT 'fund_ledger_business_type', 'Balance deduction', 'BALANCE_DEDUCTION', 'en-US', 7, 'danger', 0
+    UNION ALL SELECT 'fund_deduction_category', '账务更正', 'ACCOUNT_CORRECTION', 'zh-CN', 1, 'primary', 1
+    UNION ALL SELECT 'fund_deduction_category', '额外费用', 'EXTRA_FEE', 'zh-CN', 2, 'warning', 0
+    UNION ALL SELECT 'fund_deduction_category', '罚金', 'PENALTY', 'zh-CN', 3, 'danger', 0
+    UNION ALL SELECT 'fund_deduction_category', '其他', 'OTHER', 'zh-CN', 4, 'info', 0
+    UNION ALL SELECT 'fund_deduction_category', 'Account correction', 'ACCOUNT_CORRECTION', 'en-US', 1, 'primary', 1
+    UNION ALL SELECT 'fund_deduction_category', 'Extra fee', 'EXTRA_FEE', 'en-US', 2, 'warning', 0
+    UNION ALL SELECT 'fund_deduction_category', 'Penalty', 'PENALTY', 'en-US', 3, 'danger', 0
+    UNION ALL SELECT 'fund_deduction_category', 'Other', 'OTHER', 'en-US', 4, 'info', 0
 ) item
 WHERE NOT EXISTS (
     SELECT 1 FROM sys_dict_data existing
@@ -1148,5 +1418,34 @@ WHERE NOT EXISTS (
     SELECT 1 FROM msg_email_template existing
     WHERE existing.template_code = item.template_code AND existing.locale = item.locale AND existing.deleted = 0
 );
+
+-- 新环境初始化时直接使用与系统既有邮件一致的蓝白主题。
+UPDATE msg_email_template template
+SET template.content_template = CONCAT(
+        '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;">',
+        '<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;">',
+        '<div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">',
+        CASE WHEN template.app_code = 'MERCHANT' THEN 'Vexra Merchant' ELSE 'Vexra Admin' END,
+        '</div><div style="margin-top:6px;font-size:22px;font-weight:700;">', template.template_name,
+        '</div></div><div style="padding:28px;line-height:1.7;font-size:14px;">',
+        '<div style="padding:18px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;word-break:break-word;">',
+        template.content_template,
+        '</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">',
+        CASE WHEN template.locale = 'zh-CN' THEN '此邮件由系统自动发送，请勿直接回复。'
+             ELSE 'This is an automated message. Please do not reply.' END,
+        '</div></div></div>'
+    ),
+    template.version_no = GREATEST(template.version_no, 2),
+    template.update_by = 'system',
+    template.update_time = CURRENT_TIMESTAMP(3)
+WHERE template.system_builtin = 1
+  AND template.deleted = 0
+  AND template.template_code IN (
+      'FEE_CONFIG_PENDING_REVIEW', 'FEE_CONFIG_REJECTED', 'FEE_RULE_MISSING',
+      'SETTLEMENT_RATE_MISSING', 'NEGATIVE_BALANCE_INTERNAL', 'NEGATIVE_BALANCE_MERCHANT',
+      'BALANCE_RESTORED', 'HOLIDAY_CALENDAR_MISSING', 'FUND_RECHARGE_POSTED',
+      'FUND_RECHARGE_REJECTED'
+  )
+  AND template.content_template NOT LIKE '%data-template-theme="vexra-blue-white-v1"%';
 
 COMMIT;

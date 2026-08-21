@@ -51,11 +51,17 @@ public final class PaymentRedisSerializerFactory {
     private static final String MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME =
             "com.scott.payment.openapi.security.MerchantOpenApiAccessPolicy";
 
-    private static final String ADMIN_USER_PROFILE_CLASS_NAME =
-            "com.scott.payment.admin.dto.AdminUserProfileDTO";
-
     private static final String PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME =
             "com.scott.payment.payment.model.PaymentCardBinCacheEntry";
+
+    private static final String DICTIONARY_OPTION_SNAPSHOT_CLASS_NAME =
+            "com.scott.payment.component.db.dictionary.model.DictionaryOptionSnapshot";
+
+    private static final String ENABLED_EMAIL_TEMPLATE_SNAPSHOT_CLASS_NAME =
+            "com.scott.payment.component.db.email.model.EnabledEmailTemplateSnapshot";
+
+    private static final String MCC_OPTION_SNAPSHOT_CLASS_NAME =
+            "com.scott.payment.component.db.mcc.model.MccOptionSnapshot";
 
     private static final String SYSTEM_CONFIG_SNAPSHOT_CLASS_NAME =
             "com.scott.payment.component.db.systemconfig.model.SystemConfigSnapshot";
@@ -93,11 +99,17 @@ public final class PaymentRedisSerializerFactory {
     private static final Pattern MERCHANT_OPENAPI_ACCESS_POLICY = Pattern.compile(
             "^" + Pattern.quote(MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME) + "$");
 
-    private static final Pattern ADMIN_USER_PROFILE = Pattern.compile(
-            "^" + Pattern.quote(ADMIN_USER_PROFILE_CLASS_NAME) + "$");
-
     private static final Pattern PAYMENT_CARD_BIN_CACHE_ENTRY = Pattern.compile(
             "^" + Pattern.quote(PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME) + "$");
+
+    private static final Pattern DICTIONARY_OPTION_SNAPSHOT = Pattern.compile(
+            "^" + Pattern.quote(DICTIONARY_OPTION_SNAPSHOT_CLASS_NAME) + "$");
+
+    private static final Pattern ENABLED_EMAIL_TEMPLATE_SNAPSHOT = Pattern.compile(
+            "^" + Pattern.quote(ENABLED_EMAIL_TEMPLATE_SNAPSHOT_CLASS_NAME) + "$");
+
+    private static final Pattern MCC_OPTION_SNAPSHOT = Pattern.compile(
+            "^" + Pattern.quote(MCC_OPTION_SNAPSHOT_CLASS_NAME) + "$");
 
     private static final Pattern SYSTEM_CONFIG_SNAPSHOT = Pattern.compile(
             "^" + Pattern.quote(SYSTEM_CONFIG_SNAPSHOT_CLASS_NAME) + "$");
@@ -136,8 +148,10 @@ public final class PaymentRedisSerializerFactory {
             MERCHANT_ROUTE_PROFILE_CLASS_NAME,
             MERCHANT_ROUTE_OPTION_CLASS_NAME,
             MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME,
-            ADMIN_USER_PROFILE_CLASS_NAME,
             PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME,
+            DICTIONARY_OPTION_SNAPSHOT_CLASS_NAME,
+            ENABLED_EMAIL_TEMPLATE_SNAPSHOT_CLASS_NAME,
+            MCC_OPTION_SNAPSHOT_CLASS_NAME,
             SYSTEM_CONFIG_SNAPSHOT_CLASS_NAME,
             HOLIDAY_CALENDAR_MONTH_CLASS_NAME,
             HOLIDAY_CALENDAR_YEAR_CLASS_NAME,
@@ -189,8 +203,10 @@ public final class PaymentRedisSerializerFactory {
                 .allowIfSubType(MERCHANT_ROUTE_PROFILE)
                 .allowIfSubType(MERCHANT_ROUTE_OPTION)
                 .allowIfSubType(MERCHANT_OPENAPI_ACCESS_POLICY)
-                .allowIfSubType(ADMIN_USER_PROFILE)
                 .allowIfSubType(PAYMENT_CARD_BIN_CACHE_ENTRY)
+                .allowIfSubType(DICTIONARY_OPTION_SNAPSHOT)
+                .allowIfSubType(ENABLED_EMAIL_TEMPLATE_SNAPSHOT)
+                .allowIfSubType(MCC_OPTION_SNAPSHOT)
                 .allowIfSubType(SYSTEM_CONFIG_SNAPSHOT)
                 .allowIfSubType(HOLIDAY_CALENDAR_MONTH)
                 .allowIfSubType(HOLIDAY_CALENDAR_YEAR)

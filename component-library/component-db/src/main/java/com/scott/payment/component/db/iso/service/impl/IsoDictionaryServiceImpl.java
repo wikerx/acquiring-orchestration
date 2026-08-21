@@ -9,6 +9,9 @@ import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.cache.PaymentRedisKeyResolver;
+import com.scott.payment.component.core.cache.CacheInvalidationGuard;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
@@ -68,6 +71,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     private static final String CURRENCY_CACHE_BUSINESS = "currency";
 
+    /** 受管 ISO 快照的固定业务键。 */
+    private static final String SNAPSHOT_BUSINESS_KEY = "all";
+
     /**
      * 国家地区 Mapper，用于读取 base_iso_country。
      */
@@ -88,6 +94,12 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     private final PaymentRedisKeyResolver keyResolver;
 
+    /** 永久缓存失效门禁；未启用 Redis 组件时允许为空并直接回源数据库。 */
+    private final CacheInvalidationGuard invalidationGuard;
+
+    /** 事务缓存可靠失效协调器；独立使用 component-db 时允许为空。 */
+    private final ManagedCacheInvalidationCoordinator invalidationCoordinator;
+
     /**
      * 创建 ISO 字典服务实现。
      *
@@ -95,15 +107,22 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @param currencyMapper              币种 Mapper
      * @param stringRedisTemplateProvider Redis 模板提供器
      * @param keyResolverProvider         统一 Redis Key 解析器提供器
+     * @param invalidationGuardProvider   永久缓存失效门禁提供器
+     * @param invalidationCoordinatorProvider 事务缓存可靠失效协调器提供器
      */
     public IsoDictionaryServiceImpl(IsoCountryMapper countryMapper,
                                     IsoCurrencyMapper currencyMapper,
                                     ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-                                    ObjectProvider<PaymentRedisKeyResolver> keyResolverProvider) {
+                                    ObjectProvider<PaymentRedisKeyResolver> keyResolverProvider,
+                                    ObjectProvider<CacheInvalidationGuard> invalidationGuardProvider,
+                                    ObjectProvider<ManagedCacheInvalidationCoordinator>
+                                            invalidationCoordinatorProvider) {
         this.countryMapper = countryMapper;
         this.currencyMapper = currencyMapper;
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         this.keyResolver = keyResolverProvider.getIfAvailable();
+        this.invalidationGuard = invalidationGuardProvider.getIfAvailable();
+        this.invalidationCoordinator = invalidationCoordinatorProvider.getIfAvailable();
     }
 
     /**
@@ -112,9 +131,10 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 启用国家地区列表
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public List<IsoCountryInfo> listCountries() {
         return loadFromCache(
+                PaymentCacheNames.ISO_COUNTRY,
                 newCacheKey(COUNTRY_CACHE_BUSINESS),
                 new TypeReference<List<IsoCountryInfo>>() {
                 },
@@ -130,7 +150,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 命中的国家地区列表
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public List<IsoCountryInfo> searchCountries(String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return listCountries();
@@ -149,7 +169,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 命中的国家地区
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public Optional<IsoCountryInfo> getCountry(String value) {
         if (!StringUtils.hasText(value)) {
             return Optional.empty();
@@ -168,7 +188,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 指定大洲下的国家地区列表
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public List<IsoCountryInfo> listCountriesByContinent(String continentCode) {
         if (!StringUtils.hasText(continentCode)) {
             return listCountries();
@@ -187,7 +207,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 默认使用该币种的国家地区列表
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public List<IsoCountryInfo> listCountriesByCurrency(String currencyAlpha3Code) {
         if (!StringUtils.hasText(currencyAlpha3Code)) {
             return listCountries();
@@ -205,9 +225,10 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 启用币种列表
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public List<IsoCurrencyInfo> listCurrencies() {
         return loadFromCache(
+                PaymentCacheNames.ISO_CURRENCY,
                 newCacheKey(CURRENCY_CACHE_BUSINESS),
                 new TypeReference<List<IsoCurrencyInfo>>() {
                 },
@@ -223,7 +244,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 命中的币种列表
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public List<IsoCurrencyInfo> searchCurrencies(String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return listCurrencies();
@@ -242,7 +263,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 命中的币种信息
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public Optional<IsoCurrencyInfo> getCurrency(String value) {
         if (!StringUtils.hasText(value)) {
             return Optional.empty();
@@ -262,7 +283,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return true 表示金额小数位合法
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public boolean isCurrencyFractionValid(BigDecimal amount, String currencyValue) {
         return getCurrency(currencyValue)
                 .map(currency -> IsoCurrencyResolver.isValidFraction(amount, currency))
@@ -277,7 +298,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @return 最小辅币单位金额
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public long toMinorUnit(BigDecimal amount, String currencyValue) {
         IsoCurrencyInfo currency = getCurrency(currencyValue)
                 .orElseThrow(() -> new IllegalArgumentException("currency can not be resolved"));
@@ -292,7 +313,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     @Override
     public void evictCountries() {
-        evictCache(newCacheKey(COUNTRY_CACHE_BUSINESS));
+        invalidate(PaymentCacheNames.ISO_COUNTRY, newCacheKey(COUNTRY_CACHE_BUSINESS));
     }
 
     /**
@@ -303,7 +324,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     @Override
     public void evictCurrencies() {
-        evictCache(newCacheKey(CURRENCY_CACHE_BUSINESS));
+        invalidate(PaymentCacheNames.ISO_CURRENCY, newCacheKey(CURRENCY_CACHE_BUSINESS));
     }
 
     /**
@@ -312,6 +333,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * <p>只有数据库成功返回非空结果时才写入 Redis。数据库为空或不可用时返回内置
      * ISO 数据服务当前请求，但不写缓存，避免临时兜底长期覆盖管理端维护的数据。</p>
      *
+     * @param cacheName      受管缓存名称
      * @param cacheKey       常驻缓存 Key；未配置统一解析器时允许为空
      * @param typeReference  缓存 JSON 反序列化类型
      * @param databaseLoader DB 加载器
@@ -319,26 +341,31 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @param <T>            字典数据类型
      * @return 字典列表
      */
-    private <T> List<T> loadFromCache(String cacheKey,
+    private <T> List<T> loadFromCache(String cacheName,
+                                      String cacheKey,
                                       TypeReference<List<T>> typeReference,
                                       Supplier<List<T>> databaseLoader,
                                       Supplier<List<T>> fallbackLoader) {
-        List<T> cachedValues = readCache(cacheKey, typeReference);
-        if (!cachedValues.isEmpty()) {
-            return cachedValues;
+        boolean cacheReadAllowed = isCacheReadAllowed(cacheName);
+        if (cacheReadAllowed) {
+            List<T> cachedValues = readCache(cacheKey, typeReference);
+            if (!cachedValues.isEmpty()) {
+                return cachedValues;
+            }
         }
         try {
             List<T> databaseValues = databaseLoader.get();
             if (!databaseValues.isEmpty()) {
-                writeCache(cacheKey, databaseValues);
+                if (cacheReadAllowed) {
+                    writeCache(cacheKey, databaseValues);
+                }
                 return databaseValues;
             }
             log.warn("ISO 字典数据库结果为空，临时使用内置 ISO 数据兜底且不写入常驻缓存");
         } catch (DataAccessException exception) {
             log.warn(
-                    "ISO 字典数据库读取失败，临时使用内置 ISO 数据兜底且不写入常驻缓存，异常类型: {}，原因: {}",
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage()
+                    "ISO 字典数据库读取失败，临时使用内置 ISO 数据兜底且不写入常驻缓存，异常类型: {}",
+                    exception.getClass().getSimpleName()
             );
         }
         return fallbackLoader.get();
@@ -361,7 +388,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             List<T> values = JsonUtils.parseObject(cachedJson, typeReference);
             return values == null ? List.of() : values;
         } catch (RuntimeException exception) {
-            log.warn("读取 ISO 字典 Redis 缓存失败，cacheKey: {}，原因: {}", cacheKey, exception.getMessage());
+            log.warn("读取 ISO 字典 Redis 缓存失败，cacheKey: {}，异常类型: {}",
+                    cacheKey, exception.getClass().getSimpleName());
             return List.of();
         }
     }
@@ -383,7 +411,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         try {
             stringRedisTemplate.opsForValue().set(cacheKey, JsonUtils.toJsonString(values));
         } catch (RuntimeException exception) {
-            log.warn("写入 ISO 字典 Redis 缓存失败，cacheKey: {}，原因: {}", cacheKey, exception.getMessage());
+            log.warn("写入 ISO 字典 Redis 缓存失败，cacheKey: {}，异常类型: {}",
+                    cacheKey, exception.getClass().getSimpleName());
         }
     }
 
@@ -391,10 +420,48 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * 构造新命名规则的 ISO 字典 Key。
      *
      * @param business 国家或币种业务用途
-     * @return acquiring:{environment}:iso:{business}；解析器未配置时返回 null
+     * @return acquiring:{environment}:iso:{business}:all；解析器未配置时返回 null
      */
     private String newCacheKey(String business) {
-        return keyResolver == null ? null : keyResolver.businessKey(ISO_CACHE_DOMAIN, business);
+        return keyResolver == null
+                ? null
+                : keyResolver.businessKey(ISO_CACHE_DOMAIN, business, SNAPSHOT_BUSINESS_KEY);
+    }
+
+    /**
+     * 判断永久 ISO 快照是否允许读取和回写。
+     *
+     * @param cacheName 受管缓存名称
+     * @return 门禁明确空闲时返回 {@code true}
+     */
+    private boolean isCacheReadAllowed(String cacheName) {
+        if (invalidationGuard == null) {
+            return true;
+        }
+        try {
+            return !invalidationGuard.isPending(cacheName, SNAPSHOT_BUSINESS_KEY);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "ISO 字典缓存门禁状态读取失败，cacheName: {}，异常类型: {}",
+                    cacheName,
+                    exception.getClass().getSimpleName()
+            );
+            return false;
+        }
+    }
+
+    /**
+     * 在管理端事务中登记可靠失效；独立组件环境没有协调器时执行直接删除。
+     *
+     * @param cacheName 受管缓存名称
+     * @param cacheKey Redis 物理键
+     */
+    private void invalidate(String cacheName, String cacheKey) {
+        if (invalidationCoordinator != null) {
+            invalidationCoordinator.prepare(cacheName, SNAPSHOT_BUSINESS_KEY);
+            return;
+        }
+        evictCache(cacheKey);
     }
 
     /**
@@ -411,10 +478,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             stringRedisTemplate.delete(cacheKey);
         } catch (RuntimeException exception) {
             log.warn(
-                    "ISO 字典 Redis 缓存失效失败，cacheKey: {}，异常类型: {}，原因: {}",
+                    "ISO 字典 Redis 缓存失效失败，cacheKey: {}，异常类型: {}",
                     cacheKey,
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage()
+                    exception.getClass().getSimpleName()
             );
             throw exception;
         }

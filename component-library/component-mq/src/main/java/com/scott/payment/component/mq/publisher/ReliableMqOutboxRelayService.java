@@ -67,8 +67,13 @@ public class ReliableMqOutboxRelayService {
                     event.getTraceId(),
                     event.getRetryCount(),
                     event.getPayloadJson());
-            return outboxStore.markSent(event.getId(), claimedVersion, LocalDateTime.now()) == 1
+            boolean sent = outboxStore.markSent(event.getId(), claimedVersion, LocalDateTime.now()) == 1
                     || alreadySent(eventId);
+            if (!sent) {
+                log.error("event: RELIABLE_MQ_MARK_SENT_CAS_FAILED eventId: {} topic: {} expectedVersion: {}",
+                        event.getEventId(), event.getTopic(), claimedVersion);
+            }
+            return sent;
         } catch (RuntimeException exception) {
             recordFailure(event, claimedVersion, exception);
             return false;
@@ -102,16 +107,21 @@ public class ReliableMqOutboxRelayService {
         boolean exhausted = nextRetryCount >= event.getMaxRetryCount();
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime nextRetryTime = exhausted ? null : now.plusSeconds(retryDelaySeconds(nextRetryCount));
-        outboxStore.markFailed(
+        int affectedRows = outboxStore.markFailed(
                 event.getId(),
                 claimedVersion,
                 exhausted ? "CLOSED" : "RETRY_WAIT",
                 nextRetryTime,
                 exception.getClass().getSimpleName(),
                 now);
-        log.warn("event: RELIABLE_MQ_RELAY_FAILED eventId: {} topic: {} retryCount: {} closed: {} exceptionType: {}",
+        if (affectedRows != 1) {
+            log.error("event: RELIABLE_MQ_MARK_FAILED_CAS_FAILED eventId: {} topic: {} expectedVersion: {} exceptionType: {}",
+                    event.getEventId(), event.getTopic(), claimedVersion,
+                    exception.getClass().getSimpleName());
+        }
+        log.warn("event: RELIABLE_MQ_RELAY_FAILED eventId: {} topic: {} retryCount: {} closed: {} exceptionType: {} stateRecorded: {}",
                 event.getEventId(), event.getTopic(), nextRetryCount, exhausted,
-                exception.getClass().getSimpleName());
+                exception.getClass().getSimpleName(), affectedRows == 1);
     }
 
     /** 计算受限指数退避秒数。 */

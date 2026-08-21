@@ -63,7 +63,6 @@ public class AdminMerchantFundAccountProvisioningService {
         account.setSettlementCurrency(merchant.getSettlementCurrency().trim().toUpperCase(Locale.ROOT));
         account.setAvailableBalance(BigDecimal.ZERO);
         account.setAccountStatus("NORMAL");
-        account.setReverseRestricted(0);
         account.setAccountVersion(0L);
         account.setCreateBy("merchant-onboarding");
         account.setCreateTime(now);
@@ -84,6 +83,20 @@ public class AdminMerchantFundAccountProvisioningService {
      * @throws ServiceException 账户已有资金或明细、存在多个活动账户或参数非法时抛出
      */
     public void synchronizeSettlementCurrency(String merchantId, String settlementCurrency) {
+        synchronizeSettlementCurrency(merchantId, settlementCurrency, "merchant-profile");
+    }
+
+    /**
+     * 在商户资料或费用审核事务中同步资金账户结算币种并记录实际操作人。
+     *
+     * @param merchantId 商户号，不允许为空
+     * @param settlementCurrency 新结算币种，ISO 4217 三位代码
+     * @param operatorName 实际操作人或受控业务来源
+     * @throws ServiceException 账户已有资金或明细、存在多个活动账户或参数非法时抛出
+     */
+    public void synchronizeSettlementCurrency(String merchantId,
+                                              String settlementCurrency,
+                                              String operatorName) {
         if (!StringUtils.hasText(merchantId) || !StringUtils.hasText(settlementCurrency)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "merchant and settlement currency are required for fund account synchronization");
@@ -116,7 +129,7 @@ public class AdminMerchantFundAccountProvisioningService {
                     "资金账户已有余额或资金明细，禁止直接修改商户结算币种");
         }
         account.setSettlementCurrency(normalizedCurrency);
-        account.setUpdateBy("merchant-profile");
+        account.setUpdateBy(StringUtils.hasText(operatorName) ? operatorName.trim() : "merchant-profile");
         account.setUpdateTime(LocalDateTime.now());
         accountMapper.updateById(account);
     }

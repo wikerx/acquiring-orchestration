@@ -295,7 +295,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
                 requestDTO == null ? null : requestDTO.getTransactionType(),
                 uri.getHost(),
-                uri.getPath(),
+                InternalServiceSignature.requestTarget(uri.getRawPath(), uri.getRawQuery()),
                 requestSummary(requestDTO));
         try {
             ResponseEntity<String> responseEntity = chooseRestTemplate(targetUrl).postForEntity(
@@ -767,12 +767,14 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
         String caller = paymentClientProperties.getInternalCaller();
+        String requestBody = JsonUtils.toJsonString(requestDTO);
         String signature = InternalServiceSignature.sign(
                 "POST",
                 uri.getPath(),
                 timestamp,
                 nonce,
                 caller,
+                InternalServiceSignature.payloadSha256(requestBody),
                 paymentClientProperties.getInternalSecret()
         );
         HttpHeaders headers = new HttpHeaders();
@@ -781,7 +783,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
         headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
         headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
-        return new HttpEntity<>(JsonUtils.toJsonString(requestDTO), headers);
+        return new HttpEntity<>(requestBody, headers);
     }
 
     /**

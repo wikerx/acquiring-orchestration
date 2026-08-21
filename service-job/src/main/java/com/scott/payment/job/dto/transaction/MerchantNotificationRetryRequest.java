@@ -39,6 +39,6 @@ public class MerchantNotificationRetryRequest implements Serializable {
      */
     private Integer limit;
 
-    /** 自动补偿模式：MQ 为默认主链路，JOB 为紧急直接回调模式。 */
+    /** 自动补偿模式；MQ 为默认全季度对账，JOB/HYBRID 仅兼容旧任务参数且同样只重新入 MQ。 */
     private String mode;
 }

@@ -74,9 +74,9 @@ public class RiskEvaluationAuditConsumer implements RocketMQListener<String> {
         long startNanos = System.nanoTime();
         RiskEvaluationAuditMessage message = parseMessage(payload);
         if (message == null || !StringUtils.hasText(message.getRiskRecordNo())) {
-            log.warn("event: DATA_RISK_AUDIT_INVALID traceId: {} payloadLength: {}",
+            log.error("event: DATA_RISK_AUDIT_INVALID traceId: {} payloadLength: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length());
-            return;
+            throw new IllegalArgumentException("risk audit message required fields are missing");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
@@ -87,9 +87,13 @@ public class RiskEvaluationAuditConsumer implements RocketMQListener<String> {
                     properties.getConsumeIdempotentTtlSeconds()
             );
             if (acquireResult == IdempotentAcquireResult.DUPLICATE) {
-                log.info("event: DATA_RISK_AUDIT_DUPLICATE traceId: {} riskRecordNo: {} messageId: {} durationMs: {}",
-                        TraceContext.getTraceId(), message.getRiskRecordNo(), message.getMessageId(), elapsedMillis(startNanos));
-                return;
+                if (persistenceService.existsByRiskRecordNo(message.getRiskRecordNo())) {
+                    log.info("event: DATA_RISK_AUDIT_DUPLICATE traceId: {} riskRecordNo: {} messageId: {} durationMs: {}",
+                            TraceContext.getTraceId(), message.getRiskRecordNo(), message.getMessageId(), elapsedMillis(startNanos));
+                    return;
+                }
+                log.warn("event: DATA_RISK_AUDIT_STALE_REDIS_CLAIM traceId: {} riskRecordNo: {} messageId: {} action: continueToDatabaseUniqueConstraint",
+                        TraceContext.getTraceId(), message.getRiskRecordNo(), message.getMessageId());
             }
             if (acquireResult == IdempotentAcquireResult.FALLBACK) {
                 log.warn("event: DATA_RISK_AUDIT_IDEMPOTENT_FALLBACK traceId: {} riskRecordNo: {} messageId: {} action: continueToDatabaseUniqueConstraint",
@@ -117,14 +121,14 @@ public class RiskEvaluationAuditConsumer implements RocketMQListener<String> {
     /** 解析风控审计消息，畸形载荷不输出原文。 */
     private RiskEvaluationAuditMessage parseMessage(String payload) {
         if (!StringUtils.hasText(payload)) {
-            return null;
+            throw new IllegalArgumentException("risk audit payload is empty");
         }
         try {
             return JsonUtils.parseObject(payload, RiskEvaluationAuditMessage.class);
         } catch (RuntimeException exception) {
             log.error("event: DATA_RISK_AUDIT_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
                     payload.length(), exception.getClass().getSimpleName());
-            return null;
+            throw new IllegalArgumentException("risk audit payload is invalid", exception);
         }
     }
 

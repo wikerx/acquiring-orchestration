@@ -5,8 +5,12 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,8 +51,9 @@ class InternalServiceAuthInterceptorTest {
      */
     @Test
     void shouldAllowRequestWhenSignatureIsValid() throws Exception {
-        InternalServiceAuthInterceptor interceptor = new InternalServiceAuthInterceptor(properties());
-        MockHttpServletRequest request = signedRequest(InternalServiceSignature.currentTimeMillis());
+        InternalServiceAuthInterceptor interceptor = interceptorWithInMemoryReplayGuard();
+        MockHttpServletRequest request = signedRequest(
+                InternalServiceSignature.currentTimeMillis(), UUID.randomUUID().toString(), "limit=120", "{}");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         boolean allowed = interceptor.preHandle(request, response, new Object());
@@ -64,7 +69,7 @@ class InternalServiceAuthInterceptorTest {
      */
     @Test
     void shouldRejectRequestWhenSignatureHeadersAreMissing() throws Exception {
-        InternalServiceAuthInterceptor interceptor = new InternalServiceAuthInterceptor(properties());
+        InternalServiceAuthInterceptor interceptor = interceptorWithInMemoryReplayGuard();
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/internal/payment/authorization");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -82,8 +87,10 @@ class InternalServiceAuthInterceptorTest {
      */
     @Test
     void shouldRejectRequestWhenTimestampIsExpired() throws Exception {
-        InternalServiceAuthInterceptor interceptor = new InternalServiceAuthInterceptor(properties());
-        MockHttpServletRequest request = signedRequest(InternalServiceSignature.currentTimeMillis() - Duration.ofMinutes(10).toMillis());
+        InternalServiceAuthInterceptor interceptor = interceptorWithInMemoryReplayGuard();
+        MockHttpServletRequest request = signedRequest(
+                InternalServiceSignature.currentTimeMillis() - Duration.ofMinutes(10).toMillis(),
+                UUID.randomUUID().toString(), null, "{}");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         boolean allowed = interceptor.preHandle(request, response, new Object());
@@ -93,6 +100,77 @@ class InternalServiceAuthInterceptorTest {
         assertThat(response.getContentAsString()).contains("internal service signature timestamp is expired");
     }
 
+    /** 验证请求体摘要发生变化时，原签名不能继续使用。 */
+    @Test
+    void shouldRejectRequestWhenPayloadDigestIsTampered() throws Exception {
+        InternalServiceAuthInterceptor interceptor = interceptorWithInMemoryReplayGuard();
+        MockHttpServletRequest request = signedRequest(
+                InternalServiceSignature.currentTimeMillis(), UUID.randomUUID().toString(), null, "{\"limit\":120}");
+        request.setAttribute(InternalServiceRequestBodyFilter.BODY_SHA256_ATTRIBUTE,
+                InternalServiceSignature.payloadSha256("{\"limit\":121}"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean allowed = interceptor.preHandle(request, response, new Object());
+
+        assertThat(allowed).isFalse();
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+        assertThat(response.getContentAsString()).contains("internal service signature is invalid");
+    }
+
+    /** 验证查询参数发生变化时，原签名不能继续使用。 */
+    @Test
+    void shouldRejectRequestWhenQueryStringIsTampered() throws Exception {
+        InternalServiceAuthInterceptor interceptor = interceptorWithInMemoryReplayGuard();
+        long timestamp = InternalServiceSignature.currentTimeMillis();
+        String nonce = UUID.randomUUID().toString();
+        MockHttpServletRequest request = signedRequest(timestamp, nonce, "limit=120", "");
+        request.setQueryString("limit=121");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean allowed = interceptor.preHandle(request, response, new Object());
+
+        assertThat(allowed).isFalse();
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+        assertThat(response.getContentAsString()).contains("internal service signature is invalid");
+    }
+
+    /** 验证同一调用方和 nonce 的第二次请求会被拒绝。 */
+    @Test
+    void shouldRejectRequestWhenNonceIsReplayed() throws Exception {
+        InternalServiceAuthInterceptor interceptor = interceptorWithInMemoryReplayGuard();
+        long timestamp = InternalServiceSignature.currentTimeMillis();
+        String nonce = UUID.randomUUID().toString();
+        MockHttpServletRequest firstRequest = signedRequest(timestamp, nonce, null, "{}");
+        MockHttpServletRequest repeatedRequest = signedRequest(timestamp, nonce, null, "{}");
+
+        assertThat(interceptor.preHandle(firstRequest, new MockHttpServletResponse(), new Object())).isTrue();
+        MockHttpServletResponse repeatedResponse = new MockHttpServletResponse();
+        assertThat(interceptor.preHandle(repeatedRequest, repeatedResponse, new Object())).isFalse();
+        assertThat(repeatedResponse.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+        assertThat(repeatedResponse.getContentAsString()).contains("internal service request is replayed");
+    }
+
+    /** nonce TTL 配置过短时必须提升到两倍时钟偏差，完整覆盖签名可重放窗口。 */
+    @Test
+    void shouldEnforceNonceTtlSafetyFloor() throws Exception {
+        InternalServiceAuthProperties properties = properties();
+        properties.setNonceTtl(Duration.ofMinutes(1));
+        AtomicReference<Duration> actualTtl = new AtomicReference<>();
+        InternalServiceAuthInterceptor interceptor = new InternalServiceAuthInterceptor(
+                properties,
+                (caller, nonce, ttl) -> {
+                    actualTtl.set(ttl);
+                    return true;
+                });
+        MockHttpServletRequest request = signedRequest(
+                InternalServiceSignature.currentTimeMillis(), UUID.randomUUID().toString(), null, "{}");
+
+        boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
+
+        assertThat(allowed).isTrue();
+        assertThat(actualTtl.get()).isEqualTo(Duration.ofMinutes(10));
+    }
+
     private InternalServiceAuthProperties properties() {
         InternalServiceAuthProperties properties = new InternalServiceAuthProperties();
         properties.setSecret(SECRET);
@@ -100,17 +178,28 @@ class InternalServiceAuthInterceptorTest {
         return properties;
     }
 
-    private MockHttpServletRequest signedRequest(long timestamp) {
+    private InternalServiceAuthInterceptor interceptorWithInMemoryReplayGuard() {
+        Set<String> acquiredNonces = new HashSet<>();
+        return new InternalServiceAuthInterceptor(properties(),
+                (caller, nonce, ttl) -> acquiredNonces.add(caller + ':' + nonce));
+    }
+
+    private MockHttpServletRequest signedRequest(long timestamp, String nonce, String query, String body) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/internal/payment/authorization");
-        String nonce = UUID.randomUUID().toString();
+        request.setQueryString(query);
+        byte[] payload = body.getBytes(StandardCharsets.UTF_8);
+        request.setContent(payload);
+        String payloadSha256 = InternalServiceSignature.payloadSha256(payload);
         String signature = InternalServiceSignature.sign(
                 request.getMethod(),
-                request.getRequestURI(),
+                InternalServiceSignature.requestTarget(request.getRequestURI(), request.getQueryString()),
                 timestamp,
                 nonce,
                 CALLER,
+                payloadSha256,
                 SECRET
         );
+        request.setAttribute(InternalServiceRequestBodyFilter.BODY_SHA256_ATTRIBUTE, payloadSha256);
         request.addHeader(InternalServiceSignature.HEADER_CALLER, CALLER);
         request.addHeader(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
         request.addHeader(InternalServiceSignature.HEADER_NONCE, nonce);

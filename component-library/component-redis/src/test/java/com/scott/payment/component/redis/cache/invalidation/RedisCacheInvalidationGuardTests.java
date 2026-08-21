@@ -23,7 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 受管永久缓存失效 Redis 门禁测试。
+ * 受管共享缓存失效 Redis 门禁测试。
  */
 @Slf4j
 class RedisCacheInvalidationGuardTests {
@@ -114,12 +114,9 @@ class RedisCacheInvalidationGuardTests {
         log.info("永久缓存短门禁 Key 测试完成，结果: 两个命名空间均符合 acquiring:test 短格式");
     }
 
-    /**
-     * 验证后台用户资料使用独立的 admin 命名空间门禁 Key。
-     */
+    /** 验证节假日月视图使用规范化月份作为失效门禁键。 */
     @Test
-    void shouldBuildAdminUserProfileGateKey() {
-        log.info("测试后台用户资料失效门禁，关键输入: accountId=10001");
+    void shouldBuildHolidayCalendarMonthGateKey() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
@@ -132,8 +129,8 @@ class RedisCacheInvalidationGuardTests {
         );
 
         guard.acquire(
-                PaymentCacheNames.ADMIN_USER_PROFILE,
-                "10001",
+                PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH,
+                "2026-08",
                 Duration.ofHours(2)
         );
 
@@ -144,8 +141,113 @@ class RedisCacheInvalidationGuardTests {
                 eq(Duration.ofHours(2))
         );
         assertThat(keyCaptor.getValue())
-                .isEqualTo("acquiring:test:admin:user:profile:pending:10001");
-        log.info("后台用户资料失效门禁验证完成，结果: 使用独立 admin 命名空间");
+                .isEqualTo("acquiring:test:settlement:calendar:month:pending:2026-08");
+    }
+
+    /**
+     * 验证商户生效费率使用独立门禁，支持按商户号精确保护缓存重建窗口。
+     */
+    @Test
+    void shouldBuildMerchantActiveFeeGateKey() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofHours(2))))
+                .thenReturn(true);
+        RedisCacheInvalidationGuard guard = new RedisCacheInvalidationGuard(
+                redisTemplate,
+                redisProperties()
+        );
+
+        guard.acquire(
+                PaymentCacheNames.MERCHANT_ACTIVE_FEE,
+                "200045",
+                Duration.ofHours(2)
+        );
+
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(valueOperations).setIfAbsent(
+                keyCaptor.capture(),
+                anyString(),
+                eq(Duration.ofHours(2))
+        );
+        assertThat(keyCaptor.getValue())
+                .isEqualTo("acquiring:test:merchant:activeFee:pending:200045");
+    }
+
+    /** ISO 国家和币种永久快照必须使用相互隔离的固定业务键门禁。 */
+    @Test
+    void shouldBuildIsoSnapshotGateKeys() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofHours(2))))
+                .thenReturn(true);
+        RedisCacheInvalidationGuard guard = new RedisCacheInvalidationGuard(
+                redisTemplate,
+                redisProperties()
+        );
+
+        guard.acquire(PaymentCacheNames.ISO_COUNTRY, "all", Duration.ofHours(2));
+        guard.acquire(PaymentCacheNames.ISO_CURRENCY, "all", Duration.ofHours(2));
+
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(valueOperations, org.mockito.Mockito.times(2)).setIfAbsent(
+                keyCaptor.capture(),
+                anyString(),
+                eq(Duration.ofHours(2))
+        );
+        assertThat(keyCaptor.getAllValues()).containsExactly(
+                "acquiring:test:iso:country:pending:all",
+                "acquiring:test:iso:currency:pending:all"
+        );
+    }
+
+    /** MCC、邮件模板与字典快照必须使用隔离门禁，复合业务键只以摘要进入物理键。 */
+    @Test
+    void shouldBuildMccAndEmailTemplateGateKeys() {
+        log.info("测试 MCC 与邮件模板缓存门禁，关键输入: all 与 FUND_RECHARGE_POSTED:zh-CN");
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(anyString(), anyString(), eq(Duration.ofHours(2))))
+                .thenReturn(true);
+        RedisCacheInvalidationGuard guard = new RedisCacheInvalidationGuard(
+                redisTemplate,
+                redisProperties()
+        );
+
+        guard.acquire(PaymentCacheNames.MCC_OPTIONS, "all", Duration.ofHours(2));
+        guard.acquire(
+                PaymentCacheNames.EMAIL_TEMPLATE_ENABLED,
+                "FUND_RECHARGE_POSTED:zh-CN",
+                Duration.ofHours(2)
+        );
+        guard.acquire(
+                PaymentCacheNames.SYSTEM_DICT_OPTIONS,
+                "payment_type:zh-CN",
+                Duration.ofHours(2)
+        );
+
+        ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(valueOperations, org.mockito.Mockito.times(3)).setIfAbsent(
+                keyCaptor.capture(),
+                anyString(),
+                eq(Duration.ofHours(2))
+        );
+        assertThat(keyCaptor.getAllValues()).containsExactly(
+                "acquiring:test:mcc:options:pending:all",
+                "acquiring:test:email:template:enabledPending:"
+                        + com.scott.payment.component.redis.support.RedisKeyDigest
+                        .sha256("FUND_RECHARGE_POSTED:zh-CN"),
+                "acquiring:test:system:dict:optionsPending:"
+                        + com.scott.payment.component.redis.support.RedisKeyDigest
+                        .sha256("payment_type:zh-CN")
+        );
+        log.info("MCC 与邮件模板缓存门禁测试完成，结果: MCC 使用短键，邮件身份仅保存摘要");
     }
 
     /**

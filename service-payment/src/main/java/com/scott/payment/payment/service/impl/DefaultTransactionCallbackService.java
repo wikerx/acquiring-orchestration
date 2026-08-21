@@ -39,9 +39,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -306,7 +310,8 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     public TransactionChannelCallbackResultDTO recordChannelCallback(TransactionChannelCallbackCommandDTO commandDTO) {
         validate(commandDTO);
         long startNanos = System.nanoTime();
-        log.info("event: PAYMENT_CHANNEL_CALLBACK_START stage=CALLBACK traceId: {} channelCode: {} callbackType: {} requestUri: {} sourceIp: {} signatureValid: {} ipAllowed: {} bodySummary: {}",
+        CallbackBodyLogMetadata bodyLogMetadata = callbackBodyLogMetadata(commandDTO.getRequestBody());
+        log.info("event: PAYMENT_CHANNEL_CALLBACK_START stage=CALLBACK traceId: {} channelCode: {} callbackType: {} requestUri: {} sourceIp: {} signatureValid: {} ipAllowed: {} bodyLength: {} bodySha256: {}",
                 TraceContext.getTraceId(),
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 resolveCallbackType(commandDTO),
@@ -314,7 +319,8 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 commandDTO.getSourceIp(),
                 commandDTO.getSignatureValid(),
                 commandDTO.getIpAllowed(),
-                safeLength(SensitiveDataMaskUtils.maskJsonSafely(commandDTO.getRequestBody()), 1200));
+                bodyLogMetadata.length(),
+                bodyLogMetadata.sha256());
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime receivedTime = commandDTO.getReceivedTime() == null ? now : commandDTO.getReceivedTime();
         ChannelCallbackResult channelCallbackResult = parseByChannelHandler(commandDTO);
@@ -1238,18 +1244,18 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
-    /**
-     * 截断日志摘要文本。
-     *
-     * @param value 原始摘要文本
-     * @param maxLength 最大保留字符数
-     * @return 长度受控的摘要文本
-     */
-    private String safeLength(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
+    /** 将不可信渠道回调正文转换为 UTF-8 字节长度和不可逆 SHA-256 日志元数据。 */
+    private CallbackBodyLogMetadata callbackBodyLogMetadata(String requestBody) {
+        byte[] bodyBytes = requestBody == null
+                ? new byte[0]
+                : requestBody.getBytes(StandardCharsets.UTF_8);
+        try {
+            String sha256 = HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(bodyBytes));
+            return new CallbackBodyLogMetadata(bodyBytes.length, sha256);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 algorithm is unavailable", exception);
         }
-        return value.substring(0, maxLength);
     }
 
     /**
@@ -1272,6 +1278,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
             }
         }
         return null;
+    }
+
+    /** 渠道回调正文的安全日志元数据，不保留任何可逆原文。 */
+    private record CallbackBodyLogMetadata(int length, String sha256) {
     }
 
     /**

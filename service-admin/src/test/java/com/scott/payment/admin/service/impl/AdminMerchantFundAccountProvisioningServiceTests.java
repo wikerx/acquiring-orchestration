@@ -46,7 +46,6 @@ class AdminMerchantFundAccountProvisioningServiceTests {
             assertThat(account.getSettlementCurrency()).isEqualTo("USD");
             assertThat(account.getAvailableBalance()).isZero();
             assertThat(account.getAccountStatus()).isEqualTo("NORMAL");
-            assertThat(account.getReverseRestricted()).isZero();
             return true;
         }));
     }

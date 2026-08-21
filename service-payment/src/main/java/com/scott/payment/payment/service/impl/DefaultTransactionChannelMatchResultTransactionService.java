@@ -5,6 +5,7 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
+import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.service.TransactionChannelMatchResultTransactionService;
 import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
@@ -104,6 +105,33 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
         return statusChanged;
     }
 
+    /** 保存平台终态交易的渠道查询摘要，不进入交易状态机。 */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public boolean updateTerminalByQuery(TransactionOperationDO operationDO,
+                                         TransactionChannelRequestDO originalRequestDO,
+                                         PaymentChannelInvokeResultDTO invokeResultDTO,
+                                         String matchStatus,
+                                         String matchResult,
+                                         LocalDateTime matchTime,
+                                         String failReason) {
+        transactionRecordService.updateOriginalChannelRequestByQuery(
+                operationDO,
+                originalRequestDO,
+                invokeResultDTO,
+                matchResult,
+                failReason);
+        return transactionRecordService.updateTerminalChannelMatch(
+                operationDO,
+                matchStatus,
+                matchResult,
+                originalRequestDO == null ? null : originalRequestDO.getRequestId(),
+                matchTime,
+                null,
+                failReason);
+    }
+
     /**
      * 在独立事务中记录主动查询仍需恢复的结果。
      *
@@ -149,6 +177,16 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 invokeResultDTO,
                 matchResult,
                 failReason);
+        if (isTerminal(operationDO)) {
+            return transactionRecordService.updateTerminalChannelMatch(
+                    operationDO,
+                    matchStatus,
+                    matchResult,
+                    originalRequestDO == null ? null : originalRequestDO.getRequestId(),
+                    matchTime,
+                    persistedNextMatchTime,
+                    failReason);
+        }
         return transactionRecordService.updateChannelMatch(
                 operationDO,
                 matchStatus,
@@ -157,5 +195,11 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 matchTime,
                 persistedNextMatchTime,
                 failReason);
+    }
+
+    private boolean isTerminal(TransactionOperationDO operationDO) {
+        return operationDO != null
+                && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
+                || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus()));
     }
 }

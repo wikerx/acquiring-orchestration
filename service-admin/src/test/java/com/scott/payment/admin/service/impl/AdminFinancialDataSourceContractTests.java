@@ -9,6 +9,8 @@ import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeVersionSaveRequest;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.MerchantFeeVersionSaveRequest;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundAccountQuery;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDetailQuery;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionCreateRequest;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionQuery;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundRechargeCreateRequest;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundRechargeQuery;
 import com.scott.payment.admin.dto.system.HolidayCalendarDTOs.CalendarBatchSaveRequest;
@@ -71,13 +73,13 @@ class AdminFinancialDataSourceContractTests {
     }
 
     /**
-     * 验证管理端纯查询固定路由 SLAVE，避免账户列表和明细查询占用主库。
+     * 验证管理端普通纯查询固定路由 SLAVE，避免账户列表和明细查询占用主库。
      *
      * @throws NoSuchMethodException 方法签名变化时由测试显式失败
      */
     @Test
     void shouldRouteFinancialQueriesToSlave() throws NoSuchMethodException {
-        System.out.println("数据源契约：验证费用、资金和日历只读查询使用 SLAVE");
+        System.out.println("数据源契约：验证费用、资金和日历普通只读查询使用 SLAVE");
         assertDataSource(DataSourceName.SLAVE, List.of(
                 method(AdminFeeServiceImpl.class, "pageTemplates", FeePlanQuery.class),
                 method(AdminFeeServiceImpl.class, "getTemplate", Long.class),
@@ -90,8 +92,22 @@ class AdminFinancialDataSourceContractTests {
                 method(AdminFundAccountServiceImpl.class, "pageLedgers", Long.class, FundDetailQuery.class),
                 method(AdminFundAccountServiceImpl.class, "pageAllLedgers", FundDetailQuery.class),
                 method(AdminFundAccountServiceImpl.class, "pageRecharges", FundRechargeQuery.class),
-                method(AdminHolidayCalendarServiceImpl.class, "getMonth", int.class, int.class),
+                method(AdminFundAccountServiceImpl.class, "pageDeductions", FundDeductionQuery.class),
+                method(AdminFundAccountServiceImpl.class, "getDeduction", Long.class),
                 method(AdminHolidayCalendarServiceImpl.class, "isWorkingDay", LocalDate.class)
+        ));
+    }
+
+    /**
+     * 验证常驻日历缓存未命中时固定回源 MASTER，避免复制延迟把旧数据写入长期缓存。
+     *
+     * @throws NoSuchMethodException 方法签名变化时由测试显式失败
+     */
+    @Test
+    void shouldRoutePersistentCalendarCacheMissToMaster() throws NoSuchMethodException {
+        System.out.println("数据源契约：验证常驻日历缓存未命中使用 MASTER 权威回源");
+        assertDataSource(DataSourceName.MASTER, List.of(
+                method(AdminHolidayCalendarServiceImpl.class, "getMonth", int.class, int.class)
         ));
     }
 
@@ -108,6 +124,12 @@ class AdminFinancialDataSourceContractTests {
                         Long.class, String.class),
                 method(AdminFeeServiceImpl.class, "createTemplateVersion", Long.class,
                         FeeVersionSaveRequest.class, Long.class, String.class),
+                method(AdminFeeServiceImpl.class, "updateTemplateDraft", Long.class, Long.class,
+                        FeeVersionSaveRequest.class, Long.class, String.class),
+                method(AdminFeeServiceImpl.class, "submitTemplateVersion", Long.class,
+                        Long.class, String.class),
+                method(AdminFeeServiceImpl.class, "withdrawTemplateVersion", Long.class,
+                        Long.class, String.class),
                 method(AdminFeeServiceImpl.class, "createMerchantVersion", String.class,
                         MerchantFeeVersionSaveRequest.class, Long.class, String.class),
                 method(AdminFeeServiceImpl.class, "approveVersion", Long.class, String.class,
@@ -119,6 +141,14 @@ class AdminFinancialDataSourceContractTests {
                 method(AdminFundAccountServiceImpl.class, "createRecharge", FundRechargeCreateRequest.class,
                         Long.class, String.class, String.class),
                 method(AdminFundAccountServiceImpl.class, "recheckRecharge", Long.class, String.class,
+                        Long.class, String.class, String.class),
+                method(AdminFundAccountServiceImpl.class, "createDeduction", FundDeductionCreateRequest.class,
+                        Long.class, String.class, String.class),
+                method(AdminFundAccountServiceImpl.class, "auditDeduction", Long.class, String.class,
+                        Long.class, String.class, String.class),
+                method(AdminFundAccountServiceImpl.class, "recheckDeduction", Long.class, String.class,
+                        Long.class, String.class, String.class),
+                method(AdminFundAccountServiceImpl.class, "rejectDeduction", Long.class, String.class,
                         Long.class, String.class, String.class),
                 method(AdminFundAccountServiceImpl.class, "changeAccountStatus", Long.class, Long.class,
                         String.class, String.class, Long.class, String.class),

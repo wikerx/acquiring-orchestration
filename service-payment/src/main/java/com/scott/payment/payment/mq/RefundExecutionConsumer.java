@@ -42,17 +42,17 @@ public class RefundExecutionConsumer implements RocketMQListener<String> {
     }
 
     /**
-     * 消费退款执行消息；无法定位业务身份的毒消息记录摘要后丢弃，业务异常抛出交由 RocketMQ 重试。
+     * 消费退款执行消息；无法定位业务身份的毒消息抛出后交由 RocketMQ 重试和死信处理。
      *
      * @param payload 不含卡数据和渠道凭据的 JSON 消息
      */
     @Override
     public void onMessage(String payload) {
         RefundExecutionMessage message = parse(payload);
-        if (message == null || !StringUtils.hasText(message.getMessageId())) {
-            log.warn("event: REFUND_EXECUTION_MESSAGE_SKIPPED traceId: {} reason=messageInvalid payloadLength: {}",
+        if (!isValid(message)) {
+            log.error("event: REFUND_EXECUTION_MESSAGE_INVALID traceId: {} reason=requiredFieldMissing payloadLength: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length());
-            return;
+            throw new IllegalArgumentException("refund execution message required fields are missing");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
@@ -67,12 +67,25 @@ public class RefundExecutionConsumer implements RocketMQListener<String> {
 
     private RefundExecutionMessage parse(String payload) {
         if (!StringUtils.hasText(payload)) {
-            return null;
+            throw new IllegalArgumentException("refund execution payload is empty");
         }
         try {
             return JsonUtils.parseObject(payload, RefundExecutionMessage.class);
         } catch (RuntimeException exception) {
-            return null;
+            log.error("event: REFUND_EXECUTION_MESSAGE_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
+                    payload.length(), exception.getClass().getSimpleName());
+            throw new IllegalArgumentException("refund execution payload is invalid", exception);
         }
+    }
+
+    /** 校验退款执行状态机所需的完整定位和版本字段。 */
+    private boolean isValid(RefundExecutionMessage message) {
+        return message != null
+                && StringUtils.hasText(message.getMessageId())
+                && StringUtils.hasText(message.getApprovalId())
+                && StringUtils.hasText(message.getRefundTransactionId())
+                && message.getRefundTransactionDateTime() != null
+                && message.getExpectedOperationVersion() != null
+                && MqTag.REFUND_EXECUTION_REQUESTED.equals(message.getEventType());
     }
 }

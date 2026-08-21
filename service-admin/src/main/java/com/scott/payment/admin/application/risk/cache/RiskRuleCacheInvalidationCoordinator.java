@@ -90,9 +90,9 @@ public class RiskRuleCacheInvalidationCoordinator {
                     relayService.publish(event.getEventId());
                 } catch (RuntimeException exception) {
                     log.warn(
-                            "event: RISK_CACHE_INVALIDATION_AFTER_COMMIT_FAILED eventId: {} reason: {}",
+                            "event: RISK_CACHE_INVALIDATION_AFTER_COMMIT_FAILED eventId: {} exceptionType: {}",
                             event.getEventId(),
-                            exception.getMessage()
+                            exception.getClass().getSimpleName()
                     );
                 }
             }
@@ -105,9 +105,9 @@ public class RiskRuleCacheInvalidationCoordinator {
                     }
                 } catch (RuntimeException exception) {
                     log.warn(
-                            "event: RISK_CACHE_INVALIDATION_ABORT_FAILED eventId: {} reason: {}",
+                            "event: RISK_CACHE_INVALIDATION_ABORT_FAILED eventId: {} exceptionType: {}",
                             event.getEventId(),
-                            exception.getMessage()
+                            exception.getClass().getSimpleName()
                     );
                 } finally {
                     if (TransactionSynchronizationManager.hasResource(transactionResourceKey)) {

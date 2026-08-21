@@ -1,5 +1,6 @@
 package com.scott.payment.payout.config;
 
+import com.scott.payment.component.core.security.InternalRequestReplayGuard;
 import com.scott.payment.component.web.internal.InternalServiceAuthInterceptor;
 import com.scott.payment.component.web.internal.InternalServiceAuthProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -25,13 +26,19 @@ public class PayoutInternalAuthWebMvcConfig implements WebMvcConfigurer {
      */
     private final InternalServiceAuthProperties internalServiceAuthProperties;
 
+    /** Redis nonce 防重放守卫。 */
+    private final InternalRequestReplayGuard replayGuard;
+
     /**
      * 创建代付内部服务鉴权配置。
      *
      * @param internalServiceAuthProperties 内部服务签名配置
+     * @param replayGuard Redis nonce 防重放守卫
      */
-    public PayoutInternalAuthWebMvcConfig(InternalServiceAuthProperties internalServiceAuthProperties) {
+    public PayoutInternalAuthWebMvcConfig(InternalServiceAuthProperties internalServiceAuthProperties,
+                                          InternalRequestReplayGuard replayGuard) {
         this.internalServiceAuthProperties = internalServiceAuthProperties;
+        this.replayGuard = replayGuard;
     }
 
     /**
@@ -41,7 +48,7 @@ public class PayoutInternalAuthWebMvcConfig implements WebMvcConfigurer {
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new InternalServiceAuthInterceptor(internalServiceAuthProperties))
+        registry.addInterceptor(new InternalServiceAuthInterceptor(internalServiceAuthProperties, replayGuard))
                 .addPathPatterns("/internal/**");
     }
 }

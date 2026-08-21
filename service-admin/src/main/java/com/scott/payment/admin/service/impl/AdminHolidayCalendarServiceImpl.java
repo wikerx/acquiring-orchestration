@@ -15,8 +15,8 @@ import com.scott.payment.admin.service.AdminHolidayCalendarService;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +29,7 @@ import java.time.Year;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -51,19 +52,33 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
 
     private final SettlementCalendarYearMapper yearMapper;
     private final SettlementHolidayCalendarMapper dayMapper;
+    private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+    private final HolidayCalendarCachePolicy cachePolicy;
 
-    /** 构造结算节假日日历服务。 */
+    /**
+     * 构造结算节假日日历服务。
+     *
+     * @param yearMapper 日历年度数据访问组件
+     * @param dayMapper 日历日期数据访问组件
+     * @param cacheInvalidationCoordinator 事务缓存可靠失效协调器
+     * @param cachePolicy 月视图缓存读取策略
+     */
     public AdminHolidayCalendarServiceImpl(SettlementCalendarYearMapper yearMapper,
-                                           SettlementHolidayCalendarMapper dayMapper) {
+                                           SettlementHolidayCalendarMapper dayMapper,
+                                           ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
+                                           HolidayCalendarCachePolicy cachePolicy) {
         this.yearMapper = yearMapper;
         this.dayMapper = dayMapper;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
+        this.cachePolicy = cachePolicy;
     }
 
     /** {@inheritDoc} */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     @Cacheable(cacheNames = PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH,
-            key = "#p0 + '-' + #p1")
+            key = "@holidayCalendarCachePolicy.monthKey(#p0, #p1)",
+            condition = "@holidayCalendarCachePolicy.isCacheReadAllowed(#p0, #p1)")
     public CalendarMonthResponse getMonth(int year, int month) {
         validateYearMonth(year, month);
         CalendarYearDO calendarYear = findYear(year);
@@ -88,7 +103,6 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH, allEntries = true)
     public CalendarYearResponse initializeYear(int year, String operatorName) {
         validateYear(year);
         CalendarYearDO existing = yearMapper.selectByYearForUpdate(year);
@@ -127,6 +141,7 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
             dayMapper.insert(day);
             date = date.plusDays(1);
         }
+        invalidateYear(year);
         return toYear(calendarYear);
     }
 
@@ -134,7 +149,6 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH, allEntries = true)
     public CalendarMonthResponse saveDays(CalendarBatchSaveRequest request, String operatorName) {
         if (request == null || request.getDays() == null || request.getDays().isEmpty()) {
             throw invalid("日历批量维护数据不能为空");
@@ -149,8 +163,11 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         if (calendarYear == null) {
             throw invalid("请先初始化 " + year + " 年日历");
         }
+        boolean yearStatusChanged = !"DRAFT".equals(calendarYear.getYearStatus());
+        Set<YearMonth> affectedMonths = new LinkedHashSet<>();
         LocalDateTime now = LocalDateTime.now();
         for (CalendarDaySaveRequest item : request.getDays()) {
+            affectedMonths.add(YearMonth.from(item.getCalendarDate()));
             String dayType = item.getDayType().trim().toUpperCase(Locale.ROOT);
             if (!Set.of("WORKDAY", "HOLIDAY").contains(dayType)) {
                 throw invalid("日期类型只允许 WORKDAY 或 HOLIDAY");
@@ -182,6 +199,11 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         calendarYear.setUpdateBy(operatorName);
         calendarYear.setUpdateTime(now);
         yearMapper.updateById(calendarYear);
+        if (yearStatusChanged) {
+            invalidateYear(year);
+        } else {
+            invalidateMonths(affectedMonths);
+        }
         LocalDate firstDate = request.getDays().get(0).getCalendarDate();
         return uncachedMonth(firstDate.getYear(), firstDate.getMonthValue());
     }
@@ -190,7 +212,6 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH, allEntries = true)
     public CalendarYearResponse confirmYear(int year, String operatorName) {
         validateYear(year);
         CalendarYearDO calendarYear = yearMapper.selectByYearForUpdate(year);
@@ -210,6 +231,7 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
         calendarYear.setUpdateBy(operatorName);
         calendarYear.setUpdateTime(now);
         yearMapper.updateById(calendarYear);
+        invalidateYear(year);
         return toYear(calendarYear);
     }
 
@@ -244,6 +266,26 @@ public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarServ
                 .map(this::toDay)
                 .collect(Collectors.toCollection(ArrayList::new)));
         return response;
+    }
+
+    /** 登记指定年度全部月视图的可靠失效。 */
+    private void invalidateYear(int year) {
+        for (int month = 1; month <= 12; month++) {
+            invalidateMonth(YearMonth.of(year, month));
+        }
+    }
+
+    /** 按顺序登记批量维护涉及月视图的可靠失效。 */
+    private void invalidateMonths(Set<YearMonth> months) {
+        months.forEach(this::invalidateMonth);
+    }
+
+    /** 在当前数据库事务内登记单个月视图的精确失效意图。 */
+    private void invalidateMonth(YearMonth month) {
+        cacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH,
+                cachePolicy.monthKey(month.getYear(), month.getMonthValue())
+        );
     }
 
     private CalendarYearDO findYear(int year) {

@@ -33,20 +33,6 @@ public class PaymentCheckoutProperties {
     private int coverBytes = 9;
 
     /**
-     * 默认会话有效分钟数。
-     */
-    private int defaultExpireMinutes = 1440;
-
-    /** 支付期限结束后，链接继续用于订单结果查询的天数。 */
-    private int resultAccessDays = 30;
-
-    /** 是否启用收银台到期扫描。 */
-    private boolean expirationEnabled = true;
-
-    /** 单次到期扫描最大处理数量。 */
-    private int expirationBatchSize = 200;
-
-    /**
      * 前端轮询基础间隔秒数。
      */
     private int pollingIntervalSeconds = 3;

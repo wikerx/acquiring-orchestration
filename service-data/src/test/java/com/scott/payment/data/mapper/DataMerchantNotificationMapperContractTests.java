@@ -86,6 +86,7 @@ class DataMerchantNotificationMapperContractTests {
                 String.class,
                 LocalDateTime.class,
                 Integer.class,
+                Integer.class,
                 LocalDateTime.class));
 
         assertThat(readySql)
@@ -101,12 +102,15 @@ class DataMerchantNotificationMapperContractTests {
                 .contains("notify_id = #{notifyId}")
                 .contains("transaction_date_time = #{transactionDateTime}")
                 .contains("version = #{expectedVersion}")
+                .contains("#{attemptNo} = 1 AND notify_status = 'INIT'")
+                .contains("#{attemptNo} BETWEEN 2 AND 5")
                 .contains("notify_status = 'FAILED'")
+                .contains("last_attempt_no < LEAST(max_retry_count, 5)")
                 .contains("next_retry_time <= #{now}")
                 .doesNotContain("${");
     }
 
-    /** 人工重发必须显式排除 PROCESSING，并保持精确分片、版本 CAS 和有界补偿预算。 */
+    /** 人工重发必须显式排除仍在执行的自动五次计划，并保持精确分片和版本 CAS。 */
     @Test
     void manualRetryShouldUseExactShardAndControlledStates() throws NoSuchMethodException {
         String retryableSql = selectSql(DataMerchantNotificationMapper.class.getMethod(
@@ -118,19 +122,22 @@ class DataMerchantNotificationMapperContractTests {
                 Long.class,
                 LocalDateTime.class,
                 Integer.class,
+                String.class,
                 LocalDateTime.class));
 
         assertThat(retryableSql)
                 .contains("transaction_id = #{transactionId}")
                 .contains("transaction_date_time = #{transactionDateTime}")
-                .contains("notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')")
-                .contains("notify_status = 'INIT' AND next_retry_time IS NOT NULL")
+                .contains("notify_status IN ('SUCCESS', 'CLOSED')")
+                .contains("notify_status = 'FAILED' AND next_retry_time IS NULL")
                 .doesNotContain("notify_status = 'PROCESSING'")
                 .doesNotContain("${");
-        assertCas(claimSql, "notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')");
+        assertCas(claimSql, "notify_status IN ('SUCCESS', 'CLOSED')");
         assertThat(claimSql)
-                .contains("notify_status = 'INIT' AND next_retry_time IS NOT NULL")
-                .contains("max_retry_count = GREATEST")
+                .contains("notify_status = 'FAILED' AND next_retry_time IS NULL")
+                .contains("processing_mode = 'MANUAL'")
+                .contains("processing_event_id = #{callbackEventId}")
+                .doesNotContain("max_retry_count = GREATEST")
                 .doesNotContain("AND notify_status = 'PROCESSING'");
     }
 

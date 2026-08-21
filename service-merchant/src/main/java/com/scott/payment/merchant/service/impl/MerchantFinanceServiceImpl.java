@@ -37,9 +37,12 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -56,6 +59,8 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
 
     private static final String NORMAL = "NORMAL";
     private static final String FROZEN = "FROZEN";
+    private static final String ALL = "ALL";
+    private static final String BANK_CARD = "BANK_CARD";
 
     private final MerchantFeePlanMapper planMapper;
     private final MerchantFeePlanVersionMapper versionMapper;
@@ -98,9 +103,10 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
 
     /** {@inheritDoc} */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     @Cacheable(cacheNames = PaymentCacheNames.MERCHANT_ACTIVE_FEE,
             key = "#p0",
+            condition = "@merchantActiveFeeCachePolicy.isCacheReadAllowed(#p0)",
             unless = "#result == null")
     public CurrentFeeResponse getCurrentFee(String merchantId) {
         FeePlanDO plan = planMapper.selectOne(Wrappers.<FeePlanDO>lambdaQuery()
@@ -129,7 +135,7 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         response.setReserveDelayDays(version.getReserveDelayDays());
         response.setInitialDelayUnit(version.getInitialDelayUnit());
         response.setInitialDelayDays(version.getInitialDelayDays());
-        response.setRegularDelayUnit(version.getRegularDelayUnit());
+        response.setRegularDelayUnit(version.getInitialDelayUnit());
         response.setRegularDelayDays(version.getRegularDelayDays());
         response.setSettlementFrequency(version.getSettlementFrequency());
         response.setFrequencyDay(version.getFrequencyDay());
@@ -151,10 +157,12 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         FundAccountDO account = requireAccount(merchantId);
         DetailQuery query = request == null ? new DetailQuery() : request;
         validatePostedRange(query);
+        if (requestsUnsupportedBalanceType(query.getBalanceType())) {
+            return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
+        }
         var wrapper = Wrappers.<FundLedgerDO>lambdaQuery()
                 .eq(FundLedgerDO::getMerchantId, merchantId)
                 .eq(FundLedgerDO::getAccountId, account.getId())
-                .eq(StringUtils.hasText(query.getBalanceType()), FundLedgerDO::getBalanceType, upper(query.getBalanceType()))
                 .eq(StringUtils.hasText(query.getBusinessType()), FundLedgerDO::getBusinessType, upper(query.getBusinessType()))
                 .ge(query.getPostedStartTime() != null, FundLedgerDO::getPostedTime, query.getPostedStartTime())
                 .le(query.getPostedEndTime() != null, FundLedgerDO::getPostedTime, query.getPostedEndTime())
@@ -173,7 +181,7 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
     }
 
     /**
-     * 加载当前费用版本下的规则和阶梯，保持规则排序稳定。
+     * 加载当前费用版本下的规则和阶梯，并将多选配置展开的原子规则还原为逻辑规则。
      *
      * @param versionId 当前生效费用版本主键
      * @return 当前版本规则列表
@@ -182,16 +190,55 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         List<FeeRuleDO> rules = ruleMapper.selectList(Wrappers.<FeeRuleDO>lambdaQuery()
                 .eq(FeeRuleDO::getPlanVersionId, versionId)
                 .eq(FeeRuleDO::getDeleted, 0L)
-                .orderByAsc(FeeRuleDO::getSortNo));
+                .orderByAsc(FeeRuleDO::getSortNo)
+                .orderByAsc(FeeRuleDO::getId));
         if (rules.isEmpty()) return new ArrayList<>();
         Map<Long, List<FeeRuleTierDO>> tiers = tierMapper.selectList(Wrappers.<FeeRuleTierDO>lambdaQuery()
                         .in(FeeRuleTierDO::getFeeRuleId, rules.stream().map(FeeRuleDO::getId).toList())
                         .eq(FeeRuleTierDO::getDeleted, 0L)
                         .orderByAsc(FeeRuleTierDO::getSortNo)).stream()
-                .collect(Collectors.groupingBy(FeeRuleTierDO::getFeeRuleId));
-        return rules.stream()
-                .map(rule -> toRule(rule, tiers.getOrDefault(rule.getId(), List.of())))
+                .collect(Collectors.groupingBy(FeeRuleTierDO::getFeeRuleId,
+                        LinkedHashMap::new, Collectors.toList()));
+        return toLogicalRules(rules, tiers);
+    }
+
+    /**
+     * 按服务端规则分组编码恢复多选配置；无分组编码的历史规则保持独立，避免错误补出匹配组合。
+     */
+    private List<FeeRuleResponse> toLogicalRules(List<FeeRuleDO> rules,
+                                                 Map<Long, List<FeeRuleTierDO>> tiersByRule) {
+        Map<RuleGroupingKey, List<FeeRuleDO>> groups = new LinkedHashMap<>();
+        for (FeeRuleDO rule : rules) {
+            RuleGroupingKey key = StringUtils.hasText(rule.getRuleGroupCode())
+                    ? new RuleGroupingKey(rule.getRuleGroupCode(), null)
+                    : new RuleGroupingKey(null, rule.getId());
+            groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(rule);
+        }
+        return groups.values().stream()
+                .map(group -> toLogicalRule(group, tiersByRule))
                 .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    /** 将一组同源原子规则转换为商户可见的多选逻辑规则。 */
+    private FeeRuleResponse toLogicalRule(List<FeeRuleDO> rules,
+                                          Map<Long, List<FeeRuleTierDO>> tiersByRule) {
+        FeeRuleDO first = rules.get(0);
+        FeeRuleResponse response = toRule(first, tiersByRule.getOrDefault(first.getId(), List.of()));
+        List<String> paymentTypes = distinctRuleValues(rules, FeeRuleDO::getPaymentType);
+        response.setTransactionTypes(distinctRuleValues(rules, FeeRuleDO::getTransactionType));
+        response.setPaymentTypes(paymentTypes);
+        response.setPaymentMethods(paymentTypes.contains(BANK_CARD)
+                ? distinctRuleValues(rules.stream()
+                        .filter(rule -> BANK_CARD.equals(rule.getPaymentType())).toList(), FeeRuleDO::getPaymentMethod)
+                : new ArrayList<>(List.of(ALL)));
+        return response;
+    }
+
+    /** 按数据库稳定顺序提取规则维度并去重。 */
+    private List<String> distinctRuleValues(List<FeeRuleDO> rules, Function<FeeRuleDO, String> extractor) {
+        LinkedHashSet<String> values = rules.stream().map(extractor).filter(StringUtils::hasText)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return new ArrayList<>(values);
     }
 
     /** 将费用规则持久化模型转换为商户可见响应，不暴露内部模板来源。 */
@@ -199,7 +246,8 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         FeeRuleResponse response = new FeeRuleResponse();
         response.setId(row.getId()); response.setFeeCategory(row.getFeeCategory()); response.setRuleName(row.getRuleName());
         response.setTransactionType(row.getTransactionType()); response.setPaymentType(row.getPaymentType());
-        response.setPaymentMethod(row.getPaymentMethod()); response.setFeeMode(row.getFeeMode());
+        response.setPaymentMethod(row.getPaymentMethod()); response.setRiskServiceType(row.getRiskServiceType());
+        response.setChargeTrigger(row.getChargeTrigger()); response.setFeeMode(row.getFeeMode());
         response.setPercentageRate(row.getPercentageRate()); response.setFixedAmountUsd(row.getFixedAmountUsd());
         response.setMinimumAmountUsd(row.getMinimumAmountUsd()); response.setMaximumAmountUsd(row.getMaximumAmountUsd());
         response.setTierMetric(row.getTierMetric()); response.setTierPeriod(row.getTierPeriod());
@@ -207,6 +255,10 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
                 .map(this::toTier)
                 .collect(Collectors.toCollection(ArrayList::new)));
         return response;
+    }
+
+    /** 逻辑规则分组键；历史规则使用原子规则主键保持独立。 */
+    private record RuleGroupingKey(String ruleGroupCode, Long legacyRuleId) {
     }
 
     /** 将规则阶梯转换为商户可见响应。 */
@@ -233,7 +285,7 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         BigDecimal reserveBalance = reserveMapper.sumHeldBalance(account.getId(), account.getMerchantId());
         response.setReserveBalance(reserveBalance == null ? BigDecimal.ZERO : reserveBalance);
         response.setAccountStatus(normalizeManualStatus(account.getAccountStatus()));
-        response.setReverseRestricted(account.getReverseRestricted());
+        response.setReverseRestricted(account.getAvailableBalance().signum() < 0 ? 1 : 0);
         response.setUpdateTime(account.getUpdateTime());
         response.setPendingBalances(pendingBalances(account.getMerchantId()));
         applyAccountCapabilities(response);
@@ -262,12 +314,14 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
     /** 将不可变余额流水转换为商户核对响应。 */
     private FundLedgerResponse toLedger(FundLedgerDO row) {
         FundLedgerResponse response = new FundLedgerResponse();
-        response.setId(row.getId()); response.setLedgerNo(row.getLedgerNo()); response.setBalanceType(row.getBalanceType());
+        response.setId(row.getId()); response.setLedgerNo(row.getLedgerNo()); response.setBalanceType("AVAILABLE");
         response.setBusinessType(row.getBusinessType()); response.setSummary(row.getSummary()); response.setBusinessNo(row.getBusinessNo());
         response.setTransactionId(row.getTransactionId()); response.setCurrency(row.getCurrency()); response.setDirection(row.getDirection());
         response.setAmount(row.getAmount()); response.setBalanceBefore(row.getBalanceBefore()); response.setBalanceAfter(row.getBalanceAfter());
         response.setAccountSequence(row.getAccountSequence()); response.setOperatorName(row.getOperatorName());
-        response.setReviewerName(row.getReviewerName()); response.setBusinessTime(row.getBusinessTime()); response.setPostedTime(row.getPostedTime());
+        response.setReviewerName(row.getReviewerName()); response.setOperationReason(row.getOperationReason());
+        response.setReviewComment(row.getReviewComment()); response.setBusinessTime(row.getBusinessTime());
+        response.setPostedTime(row.getPostedTime());
         return response;
     }
 
@@ -289,7 +343,7 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         return account;
     }
 
-    /** 将历史负余额状态归一为正常人工状态，负余额限制由独立标识表达。 */
+    /** 将历史负余额状态归一为正常人工状态，负余额限制由可用余额实时派生。 */
     private String normalizeManualStatus(String status) {
         return "NEGATIVE_BALANCE".equals(status) ? NORMAL : status;
     }
@@ -321,6 +375,11 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
                 && query.getPostedEndTime().isBefore(query.getPostedStartTime())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "入账结束时间不能早于开始时间");
         }
+    }
+
+    /** 兼容历史余额类型查询参数；当前流水只记录可用余额变动。 */
+    private boolean requestsUnsupportedBalanceType(String balanceType) {
+        return StringUtils.hasText(balanceType) && !"AVAILABLE".equals(upper(balanceType));
     }
 
     /** 将枚举型查询条件转换为大写标准值，空值保持为空。 */

@@ -26,10 +26,15 @@ import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
+import com.scott.payment.component.core.iso.IsoCountryInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
+import com.scott.payment.component.db.mcc.model.MccOptionSnapshot;
+import com.scott.payment.component.db.mcc.service.MccOptionCacheReader;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -136,6 +141,14 @@ class AdminMerchantInfoServiceImplTest {
      */
     @Mock
     private IsoCurrencyMapper isoCurrencyMapper;
+
+    /** 公共 MCC 三级选项缓存读取器。 */
+    @Mock
+    private MccOptionCacheReader mccOptionCacheReader;
+
+    /** 公共 ISO 国家和币种缓存服务。 */
+    @Mock
+    private IsoDictionaryService isoDictionaryService;
     /**
      * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
@@ -191,11 +204,8 @@ class AdminMerchantInfoServiceImplTest {
                 jwtKeyMapper,
                 platformPayloadKeyMapper,
                 responseKeyMapper,
-                mccLevel1Mapper,
-                mccLevel2Mapper,
-                mccCodeMapper,
-                isoCountryMapper,
-                isoCurrencyMapper,
+                mccOptionCacheReader,
+                isoDictionaryService,
                 keyMaterialFactory,
                 merchantRuntimeProfileCacheService,
                 cacheInvalidationCoordinator,
@@ -212,11 +222,9 @@ class AdminMerchantInfoServiceImplTest {
 
     @Test
     void shouldReturnMerchantFormOptionsFromBaseData() {
-        when(mccLevel1Mapper.selectList(any())).thenReturn(List.of(level1()));
-        when(mccLevel2Mapper.selectList(any())).thenReturn(List.of(level2()));
-        when(mccCodeMapper.selectList(any())).thenReturn(List.of(mccCode()));
-        when(isoCountryMapper.selectList(any())).thenReturn(List.of(country()));
-        when(isoCurrencyMapper.selectList(any())).thenReturn(List.of(currency()));
+        when(mccOptionCacheReader.listOptions()).thenReturn(List.of(mccOptionTree()));
+        when(isoDictionaryService.listCountries()).thenReturn(List.of(countryInfo()));
+        when(isoDictionaryService.listCurrencies()).thenReturn(List.of(currencyInfo()));
 
         AdminMerchantFormOptionsDTO options = service.getFormOptions();
 
@@ -357,7 +365,7 @@ class AdminMerchantInfoServiceImplTest {
                 .hasMessageContaining("状态");
     }
 
-    /** 删除商户应同时登记资料、密钥和路由三类永久缓存失效。 */
+    /** 删除商户应同时登记全部商户维度永久缓存失效。 */
     @Test
     void shouldPrepareAllPersistentCacheInvalidationsBeforeDeletingMerchant() {
         log.info("测试管理端删除商户缓存一致性，关键输入: merchantId=200045");
@@ -376,9 +384,15 @@ class AdminMerchantInfoServiceImplTest {
         order.verify(cacheInvalidationCoordinator).prepare(
                 com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_ROUTE,
                 "200045");
+        order.verify(cacheInvalidationCoordinator).prepare(
+                com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
+                "200045");
+        order.verify(cacheInvalidationCoordinator).prepare(
+                com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_ACTIVE_FEE,
+                "200045");
         order.verify(merchantInfoMapper).update(eq(null), any());
         order.verify(merchantRuntimeProfileCacheService).evictRuntimeProfile("200045");
-        log.info("管理端删除商户缓存一致性完成，结果: 三类永久缓存均已登记可靠失效");
+        log.info("管理端删除商户缓存一致性完成，结果: 五类商户维度永久缓存均已登记可靠失效");
     }
 
     @Test
@@ -485,6 +499,42 @@ class AdminMerchantInfoServiceImplTest {
         row.setStatus(1);
         row.setDeleted(0);
         return row;
+    }
+
+    /** 构造公共 MCC 缓存返回的三级选项树。 */
+    private MccOptionSnapshot mccOptionTree() {
+        MccOptionSnapshot leaf = new MccOptionSnapshot();
+        leaf.setValue("5411");
+        leaf.setLabel("5411 — 食品杂货店 / Grocery Stores");
+        leaf.setNameCn("食品杂货店");
+        leaf.setNameEn("Grocery Stores");
+        MccOptionSnapshot level2 = new MccOptionSnapshot();
+        level2.setValue("L2:11");
+        level2.setLabel("GROCERY — 食品杂货 / Grocery");
+        level2.setNameCn("食品杂货");
+        level2.setNameEn("Grocery");
+        level2.setChildren(List.of(leaf));
+        MccOptionSnapshot level1 = new MccOptionSnapshot();
+        level1.setValue("L1:1");
+        level1.setLabel("RETAIL — 零售 / Retail");
+        level1.setNameCn("零售");
+        level1.setNameEn("Retail");
+        level1.setChildren(List.of(level2));
+        return level1;
+    }
+
+    /** 构造公共 ISO 国家缓存结果。 */
+    private IsoCountryInfo countryInfo() {
+        return new IsoCountryInfo(
+                "US", "USA", "840", "United States", "United States", "美国",
+                "NA", "北美洲", null, "en", "English", "英语", "USD");
+    }
+
+    /** 构造公共 ISO 币种缓存结果。 */
+    private IsoCurrencyInfo currencyInfo() {
+        return new IsoCurrencyInfo(
+                "USD", "840", "US Dollar", "美元", 2, 100L,
+                new BigDecimal("0.01"), "$");
     }
 
     /** 构造管理端新增或编辑商户的合法请求。 */

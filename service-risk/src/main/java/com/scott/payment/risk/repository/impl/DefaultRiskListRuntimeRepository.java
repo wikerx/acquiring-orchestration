@@ -808,8 +808,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                         requestDTO.getTransactionId(),
                         lifecycleManaged,
                         "merchant cumulative limit baseline failed");
-                log.warn("event: RISK_MERCHANT_LIMIT_BASELINE_FAILED merchantId: {} ruleId: {} limitType: {} reason: {}",
-                        merchantId, rule.getRuleId(), rule.getHitElement(), exception.getMessage());
+                log.warn("event: RISK_MERCHANT_LIMIT_BASELINE_FAILED merchantId: {} ruleId: {} limitType: {} exceptionType: {}",
+                        merchantId, rule.getRuleId(), rule.getHitElement(), exception.getClass().getSimpleName());
                 details.add(cumulativeLimitUnavailable(rule, "merchant cumulative limit baseline is unavailable"));
                 return new MerchantLimitEvaluation(details, List.of());
             }
@@ -841,8 +841,9 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                             requestDTO.getTransactionId(),
                             true,
                             "reservation prepare failed");
-                    log.error("event: RISK_MERCHANT_LIMIT_PREPARE_FAILED merchantId: {} transactionId: {} ruleId: {} reason: {}",
-                            merchantId, requestDTO.getTransactionId(), rule.getRuleId(), exception.getMessage());
+                    log.error("event: RISK_MERCHANT_LIMIT_PREPARE_FAILED merchantId: {} transactionId: {} ruleId: {} exceptionType: {}",
+                            merchantId, requestDTO.getTransactionId(), rule.getRuleId(),
+                            exception.getClass().getSimpleName());
                     details.add(cumulativeLimitUnavailable(rule, "merchant cumulative limit lifecycle is unavailable"));
                     return new MerchantLimitEvaluation(details, List.of());
                 }
@@ -2376,8 +2377,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     RedisBusinessMetrics.Script.RISK_FREQUENCY_FIXED,
                     metrics.classifyFailure(exception)
             );
-            log.warn("event: RISK_FREQUENCY_COUNTER_FAILED counterKeyDigest: {} reason: {}",
-                    RedisKeyDigest.sha256(keys.get(0)), exception.getMessage());
+            log.warn("event: RISK_FREQUENCY_COUNTER_FAILED counterKeyDigest: {} exceptionType: {}",
+                    RedisKeyDigest.sha256(keys.get(0)), exception.getClass().getSimpleName());
             return Optional.empty();
         }
     }
@@ -2614,8 +2615,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     RedisBusinessMetrics.Script.RISK_CUMULATIVE_RESERVE,
                     metrics.classifyFailure(exception)
             );
-            log.warn("event: RISK_MERCHANT_LIMIT_RESERVE_FAILED aggregateKeyDigest: {} reason: {}",
-                    RedisKeyDigest.sha256(reservation.aggregateKey()), exception.getMessage());
+            log.warn("event: RISK_MERCHANT_LIMIT_RESERVE_FAILED aggregateKeyDigest: {} exceptionType: {}",
+                    RedisKeyDigest.sha256(reservation.aggregateKey()), exception.getClass().getSimpleName());
             return Optional.empty();
         }
     }
@@ -2730,8 +2731,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                         RedisBusinessMetrics.Script.RISK_CUMULATIVE_ROLLBACK,
                         metrics.classifyFailure(exception)
                 );
-                log.error("event: RISK_MERCHANT_LIMIT_ROLLBACK_FAILED aggregateKeyDigest: {} reason: {}",
-                        RedisKeyDigest.sha256(reservation.aggregateKey()), exception.getMessage());
+                log.error("event: RISK_MERCHANT_LIMIT_ROLLBACK_FAILED aggregateKeyDigest: {} exceptionType: {}",
+                        RedisKeyDigest.sha256(reservation.aggregateKey()), exception.getClass().getSimpleName());
             }
         }
         return successful;
@@ -2918,7 +2919,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             );
             return Optional.of(new RuleCacheKeys(List.of(cacheKey), List.of(cacheKey)));
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_RULE_CACHE_GENERATION_FAILED reason: {}", exception.getMessage());
+            log.warn("event: RISK_RULE_CACHE_GENERATION_FAILED exceptionType: {}",
+                    exception.getClass().getSimpleName());
             return Optional.empty();
         }
     }
@@ -2959,7 +2961,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 }
             }
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_RUNTIME_CACHE_READ_FAILED cacheKey: {} reason: {}", cacheKey, exception.getMessage());
+            log.warn("event: RISK_RUNTIME_CACHE_READ_FAILED cacheKeyDigest: {} exceptionType: {}",
+                    RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
         }
         return CachedMatchLookup.notCached();
     }
@@ -2999,7 +3002,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                         Duration.ofSeconds(properties.getCacheMissTtlSeconds()));
             }
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_RUNTIME_CACHE_WRITE_FAILED cacheKey: {} reason: {}", cacheKey, exception.getMessage());
+            log.warn("event: RISK_RUNTIME_CACHE_WRITE_FAILED cacheKeyDigest: {} exceptionType: {}",
+                    RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
         }
     }
 
@@ -3040,7 +3044,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     return Optional.of(value);
                 }
             } catch (RuntimeException exception) {
-                log.warn("event: RISK_RUNTIME_CACHE_READ_FAILED cacheKey: {} reason: {}", cacheKey, exception.getMessage());
+                log.warn("event: RISK_RUNTIME_CACHE_READ_FAILED cacheKeyDigest: {} exceptionType: {}",
+                        RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
             }
         }
         return Optional.empty();
@@ -3072,7 +3077,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             long ttlSeconds = value ? properties.getCacheHitTtlSeconds() : properties.getCacheMissTtlSeconds();
             redisStringService.set(cacheKey, String.valueOf(value), Duration.ofSeconds(ttlSeconds));
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_RUNTIME_CACHE_WRITE_FAILED cacheKey: {} reason: {}", cacheKey, exception.getMessage());
+            log.warn("event: RISK_RUNTIME_CACHE_WRITE_FAILED cacheKeyDigest: {} exceptionType: {}",
+                    RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
         }
     }
 
@@ -3116,7 +3122,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     }
                 }
             } catch (RuntimeException exception) {
-                log.warn("event: RISK_RUNTIME_CACHE_READ_FAILED cacheKey: {} reason: {}", cacheKey, exception.getMessage());
+                log.warn("event: RISK_RUNTIME_CACHE_READ_FAILED cacheKeyDigest: {} exceptionType: {}",
+                        RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
             }
         }
         return CachedListLookup.notCached();
@@ -3154,7 +3161,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     Duration.ofSeconds(ttlSeconds)
             );
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_RUNTIME_CACHE_WRITE_FAILED cacheKey: {} reason: {}", cacheKey, exception.getMessage());
+            log.warn("event: RISK_RUNTIME_CACHE_WRITE_FAILED cacheKeyDigest: {} exceptionType: {}",
+                    RedisKeyDigest.sha256(cacheKey), exception.getClass().getSimpleName());
         }
     }
 

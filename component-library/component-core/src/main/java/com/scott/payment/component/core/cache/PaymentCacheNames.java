@@ -6,12 +6,13 @@ package com.scott.payment.component.core.cache;
  * @classname : PaymentCacheNames
  * @date : 2026-07-30 00:00
  * @email : scott_x@163.com
- * @description : 公共组件层 Spring Cache 名称注册常量，限定可跨服务共享的永久 Redis 业务读模型
+ * @description : 公共组件层 Spring Cache 名称注册常量，限定可跨服务共享的 Redis 业务读模型
  * @status : update
  *
  * <p>Cache Name 会直接参与 Redis 物理 Key，统一保持
  * {@code acquiring:{environment}:{domain}:{dataset}:{businessKey}} 的短命名格式。
- * 这里登记的缓存均为数据库数据的常驻读模型，不能替代数据库事实源。</p>
+ * 这里登记的缓存包含常驻快照和有限期读模型；具体生命周期由 component-redis 统一注册，
+ * 所有缓存都不能替代数据库事实源。</p>
  */
 public final class PaymentCacheNames {
 
@@ -51,19 +52,15 @@ public final class PaymentCacheNames {
     public static final String SYSTEM_CONFIG = "system:config";
 
     /**
-     * 运营后台用户维护资料缓存，物理 Key 示例：
-     * {@code acquiring:dev:admin:user:profile:10001}。
-     *
-     * <p>Value 只允许保存用户维护页面需要的资料和关联主键，禁止保存密码哈希、Salt、
-     * TOTP Secret、登录失败次数、Session Token 或其他鉴权事实。</p>
-     */
-    public static final String ADMIN_USER_PROFILE = "admin:user:profile";
-
-    /**
-     * 按卡号前 11 位保存的卡 BIN 匹配结果，物理 Key 示例：
+     * 按卡号前 11 位保存的卡 BIN 正向匹配结果，物理 Key 示例：
      * {@code acquiring:dev:cardBin:51234500000}。
      */
     public static final String CARD_BIN = "cardBin";
+
+    /**
+     * 按卡号前 11 位保存的 Card BIN 未匹配短期标记；TTL 必须短于正向匹配缓存。
+     */
+    public static final String CARD_BIN_MISS = "cardBin:miss";
 
     /**
      * 全局中国大陆结算日历月视图缓存，业务键为 {@code yyyy-MM}。
@@ -76,6 +73,33 @@ public final class PaymentCacheNames {
      * 管理端审核新版本成功后统一失效，模板启停不影响已经复制到商户的版本。
      */
     public static final String MERCHANT_ACTIVE_FEE = "merchant:activeFee";
+
+    /**
+     * 全局启用国家地区快照，固定业务键为 {@code all}。
+     */
+    public static final String ISO_COUNTRY = "iso:country";
+
+    /**
+     * 全局启用币种快照，固定业务键为 {@code all}。
+     */
+    public static final String ISO_CURRENCY = "iso:currency";
+
+    /**
+     * 跨系统共享的启用 MCC 三级选项快照，固定业务键为 {@code all}。
+     */
+    public static final String MCC_OPTIONS = "mcc:options";
+
+    /**
+     * 跨 Admin 与 Merchant Portal 共享的启用数据字典下拉快照，
+     * 业务键为 {@code dictType:locale}。
+     */
+    public static final String SYSTEM_DICT_OPTIONS = "system:dict:options";
+
+    /**
+     * 跨 Admin 与 Merchant Portal 共享的已启用邮件模板快照，
+     * 业务键为 {@code templateCode:locale}，不得包含 SMTP 账号密钥。
+     */
+    public static final String EMAIL_TEMPLATE_ENABLED = "email:template:enabled";
 
     private PaymentCacheNames() {
     }

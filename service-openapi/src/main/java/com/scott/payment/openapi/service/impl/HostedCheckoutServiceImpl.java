@@ -550,6 +550,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         }
         HostedCheckoutSessionVO.CheckoutVO target = new HostedCheckoutSessionVO.CheckoutVO();
         target.setExpireTime(toOffsetDateTime(source.getExpireTime()));
+        target.setServerTime(toOffsetDateTime(source.getServerTime()));
         target.setRetryAllowed(source.getRetryAllowed());
         target.setPollingIntervalSeconds(source.getPollingIntervalSeconds());
         return target;

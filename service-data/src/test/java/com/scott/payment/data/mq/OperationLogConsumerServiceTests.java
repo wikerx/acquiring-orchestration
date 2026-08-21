@@ -47,12 +47,50 @@ class OperationLogConsumerServiceTests {
     void shouldSkipRedisDuplicate() {
         log.info("测试异步操作日志重复消费，关键输入: MERCHANT、Redis DUPLICATE");
         Fixture fixture = fixture(OperationLogSource.MERCHANT, "MERCHANT-LOG-001", IdempotentAcquireResult.DUPLICATE);
+        when(fixture.persistenceService().existsByIdempotentKey("MERCHANT-LOG-001")).thenReturn(true);
 
         fixture.service().consume(OperationLogSource.MERCHANT, fixture.payload());
 
         verify(fixture.persistenceService(), never()).persist(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString());
         log.info("异步操作日志重复消费完成，结果: 未访问数据库");
+    }
+
+    /** Redis 残留重复标记没有对应数据库事实时必须继续写库，避免审计消息丢失。 */
+    @Test
+    void shouldPersistWhenRedisDuplicateHasNoDatabaseFact() {
+        Fixture fixture = fixture(OperationLogSource.ADMIN, "ADMIN-LOG-STALE", IdempotentAcquireResult.DUPLICATE);
+        when(fixture.persistenceService().existsByIdempotentKey("ADMIN-LOG-STALE")).thenReturn(false);
+
+        fixture.service().consume(OperationLogSource.ADMIN, fixture.payload());
+
+        verify(fixture.persistenceService()).persist(fixture.message(), "ADMIN-LOG-STALE");
+    }
+
+    /** 无法反序列化的消息必须抛出，让 RocketMQ 重试并最终进入死信队列。 */
+    @Test
+    void shouldRejectMalformedPayload() {
+        Fixture fixture = fixture(OperationLogSource.ADMIN, "ADMIN-LOG-BAD", IdempotentAcquireResult.ACQUIRED);
+
+        assertThatThrownBy(() -> fixture.service().consume(OperationLogSource.ADMIN, "{invalid-json"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("operation log payload is invalid");
+
+        verify(fixture.persistenceService(), never()).persist(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString());
+    }
+
+    /** 空消息必须触发 MQ 重试，不能被 Broker 静默确认。 */
+    @Test
+    void shouldRejectEmptyPayload() {
+        Fixture fixture = fixture(OperationLogSource.ADMIN, "ADMIN-LOG-EMPTY", IdempotentAcquireResult.ACQUIRED);
+
+        assertThatThrownBy(() -> fixture.service().consume(OperationLogSource.ADMIN, " "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("operation log payload is empty");
+
+        verify(fixture.persistenceService(), never()).persist(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString());
     }
 
     /** Redis 不可用时必须继续依赖数据库唯一键，不能丢弃审计消息。 */

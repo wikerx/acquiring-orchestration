@@ -3,6 +3,8 @@ package com.scott.payment.admin.api.transaction;
 import com.scott.payment.admin.application.transaction.AdminTransactionApplicationService;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryRequest;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelMatchRequeryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
@@ -15,6 +17,7 @@ import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -142,6 +145,22 @@ public class AdminTransactionOperationController {
     public CommonResult<TransactionActionResponse> voidPayment(@PathVariable("transactionId") String transactionId,
                                                                @RequestBody(required = false) TransactionActionRequest request) {
         return success(transactionApplicationService.voidPayment(transactionId, request));
+    }
+
+    /**
+     * 主动重查并勾兑单笔交易。
+     *
+     * @param transactionId 平台交易号
+     * @param request 真实交易分片时间
+     * @return 单笔勾兑结果
+     */
+    @PostMapping("/{transactionId}/channel-match/requery")
+    @RequiresPermission("transaction:match-abnormal:requery")
+    @OperationLog(moduleName = "交易管理", businessType = OperationTypeConstants.UPDATE, operation = "单笔交易渠道勾兑")
+    public CommonResult<ChannelMatchRequeryResponse> requeryChannelMatch(
+            @PathVariable("transactionId") String transactionId,
+            @Valid @RequestBody ChannelMatchRequeryRequest request) {
+        return success(transactionApplicationService.requeryChannelMatch(transactionId, request));
     }
 
     /**

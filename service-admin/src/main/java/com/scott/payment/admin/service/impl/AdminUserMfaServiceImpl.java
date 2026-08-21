@@ -640,7 +640,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
                     account.getId(), templateCode, exception.getClass().getSimpleName());
             SysAppDO app = getAdminApp();
             SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
-            recordLog(app, account, mfa, "SEND_NOTICE", RESULT_FAILED, exception.getMessage(), mfa.getMfaPolicy(), mfa.getMfaStatus(), currentOperator(), clientIpFallback(), null);
+            recordLog(app, account, mfa, "SEND_NOTICE", RESULT_FAILED,
+                    exception.getClass().getSimpleName(), mfa.getMfaPolicy(), mfa.getMfaStatus(),
+                    currentOperator(), clientIpFallback(), null);
         }
     }
 

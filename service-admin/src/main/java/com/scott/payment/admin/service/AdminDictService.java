@@ -110,4 +110,7 @@ public interface AdminDictService {
      * @param locale    语言区域
      */
     void deleteDictData(String dictType, String dictValue, String locale);
+
+    /** 主动清空管理端与商户端共享的启用字典下拉快照。 */
+    void refreshOptionCache();
 }

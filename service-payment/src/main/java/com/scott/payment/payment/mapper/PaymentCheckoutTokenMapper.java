@@ -31,7 +31,8 @@ public interface PaymentCheckoutTokenMapper extends BaseMapper<PaymentCheckoutTo
     /**
      * 原子记录一次有效令牌使用。
      *
-     * <p>SQL 同时校验 ACTIVE 状态和有效期，返回 0 表示令牌不可用，调用方不得继续访问会话。</p>
+     * <p>SQL 同时校验 ACTIVE 状态和可选有效期。有效期为空表示令牌在未被撤销前可持续查询订单结果，
+     * 不代表允许继续发起支付。</p>
      *
      * @param tokenHash     不透明访问令牌摘要
      * @param clientIpHash  客户端 IP 摘要
@@ -50,7 +51,7 @@ public interface PaymentCheckoutTokenMapper extends BaseMapper<PaymentCheckoutTo
                 update_time = #{now}
             WHERE token_hash = #{tokenHash}
               AND token_status = 'ACTIVE'
-              AND expire_time > #{now}
+              AND (expire_time IS NULL OR expire_time > #{now})
               AND deleted = 0
             """)
     int markUsed(@Param("tokenHash") String tokenHash,

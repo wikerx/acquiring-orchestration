@@ -25,6 +25,24 @@ public interface MqProducer {
     void send(String topic, String tag, BaseMqMessage message);
 
     /**
+     * 按业务分组键发送顺序消息。
+     *
+     * <p>同一个分组键的消息固定选择同一 RocketMQ 队列，消费者仍需使用数据库幂等和状态机
+     * 处理重复投递，不能把队列顺序当作最终一致性保证。</p>
+     *
+     * @param topic RocketMQ Topic
+     * @param tag RocketMQ Tag，可为空
+     * @param message 不含敏感明文的消息体
+     * @param messageGroup 非空业务分组键，例如交易号
+     */
+    default void sendOrderly(String topic,
+                             String tag,
+                             BaseMqMessage message,
+                             String messageGroup) {
+        throw new UnsupportedOperationException("orderly mq delivery is not supported");
+    }
+
+    /**
      * 按绝对时间发送 RocketMQ 5.x 定时消息。
      *
      * @param topic RocketMQ Topic

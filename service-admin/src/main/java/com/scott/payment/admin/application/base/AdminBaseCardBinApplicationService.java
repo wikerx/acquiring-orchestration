@@ -28,6 +28,7 @@ import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -341,7 +342,11 @@ public class AdminBaseCardBinApplicationService {
      * @return 保存后的卡 BIN 数据
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
+    @DS(DataSourceName.MASTER)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
+    })
     public CardBinDTOs.CardBinResponse create(CardBinDTOs.CardBinSaveRequest request) {
         NormalizedBinRange range = normalizeRange(request.getCardBinStart(), request.getCardBinEnd());
         assertDictValue(CARD_BRAND_DICT, request.getCardBrand(), "卡品牌不存在或已停用");
@@ -371,7 +376,11 @@ public class AdminBaseCardBinApplicationService {
      * @return 更新后的卡 BIN 数据
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
+    @DS(DataSourceName.MASTER)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
+    })
     public CardBinDTOs.CardBinResponse update(Long id, CardBinDTOs.CardBinSaveRequest request) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         NormalizedBinRange range = normalizeRange(request.getCardBinStart(), request.getCardBinEnd());
@@ -395,7 +404,11 @@ public class AdminBaseCardBinApplicationService {
      * @param id 主键 ID
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
+    @DS(DataSourceName.MASTER)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
+    })
     public void remove(Long id) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         row.setStatus(STATUS_DISABLED);
@@ -413,7 +426,11 @@ public class AdminBaseCardBinApplicationService {
      * @return 更新后的卡 BIN 数据
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
+    @DS(DataSourceName.MASTER)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
+    })
     public CardBinDTOs.CardBinResponse updateStatus(Long id, CardBinDTOs.CardBinStatusRequest request) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         Integer targetStatus = normalizeStatus(request.getStatus(), null);
@@ -482,7 +499,11 @@ public class AdminBaseCardBinApplicationService {
      * @return 本次导入批次结果
      */
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true)
+    @DS(DataSourceName.MASTER)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
+            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
+    })
     public CardBinDTOs.CardBinImportBatchResponse initFromLegacyDb() {
         String batchNo = "INIT_DB_IMPORT_" + BATCH_TIME_FORMATTER.format(LocalDateTime.now());
         CardBinEntities.BaseCardBinImportBatchDO batch = new CardBinEntities.BaseCardBinImportBatchDO();

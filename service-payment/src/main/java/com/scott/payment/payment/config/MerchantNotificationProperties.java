@@ -21,9 +21,9 @@ import org.springframework.validation.annotation.Validated;
 public class MerchantNotificationProperties {
 
     /**
-     * 单个商户通知任务的最大投递次数；只影响新建任务，不回写已有任务快照。
+     * 单个商户通知任务的自动投递次数，当前协议固定为五次。
      */
-    @Min(1)
-    @Max(100)
-    private int maxRetryCount = 10;
+    @Min(5)
+    @Max(5)
+    private int maxRetryCount = 5;
 }

@@ -178,8 +178,7 @@ class PaymentRedisCacheAutoConfigurationTests {
         for (String cacheName : List.of(
                 PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
                 PaymentCacheNames.SYSTEM_CONFIG,
-                PaymentCacheNames.ADMIN_USER_PROFILE,
-                PaymentCacheNames.CARD_BIN)) {
+                PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH)) {
             TransactionAwareCacheDecorator cacheDecorator = (TransactionAwareCacheDecorator) cacheManager
                     .getCache(cacheName);
             RedisCache redisCache = (RedisCache) cacheDecorator.getTargetCache();
@@ -191,6 +190,23 @@ class PaymentRedisCacheAutoConfigurationTests {
                     .isZero();
         }
         log.info("常驻业务缓存测试完成，结果: 物理 TTL 为零且未应用随机抖动");
+    }
+
+    /** Card BIN 命中与未命中缓存必须采用不同的有限生命周期。 */
+    @Test
+    void shouldUseShorterTtlForCardBinMisses() {
+        PaymentCacheProperties properties = new PaymentCacheProperties();
+        RedisCacheManager cacheManager = (RedisCacheManager) autoConfiguration.redisCacheManager(
+                mock(RedisConnectionFactory.class),
+                properties
+        );
+        cacheManager.afterPropertiesSet();
+
+        Duration positiveTtl = cacheConfiguration(cacheManager, PaymentCacheNames.CARD_BIN).getTtl();
+        Duration missTtl = cacheConfiguration(cacheManager, PaymentCacheNames.CARD_BIN_MISS).getTtl();
+        assertThat(positiveTtl).isBetween(Duration.ofMinutes(27), Duration.ofMinutes(33));
+        assertThat(missTtl).isBetween(Duration.ofSeconds(108), Duration.ofSeconds(132));
+        assertThat(positiveTtl).isGreaterThan(missTtl);
     }
 
     /** 未登记的普通缓存按全局默认 TTL 动态创建，不要求每次使用 @Cacheable 都修改 Registry。 */
@@ -233,19 +249,6 @@ class PaymentRedisCacheAutoConfigurationTests {
     }
 
     /**
-     * 后台用户资料缓存必须显式登记为不携带物理过期时间的常驻读模型。
-     */
-    @Test
-    void shouldRegisterAdminUserProfileAsPersistentCache() {
-        log.info("测试后台用户资料缓存生命周期，关键输入: cacheName=admin:user:profile");
-
-        assertThat(PaymentCacheRegistry.defaultTtls())
-                .containsEntry("admin:user:profile", Duration.ZERO);
-
-        log.info("后台用户资料缓存生命周期验证完成，结果: 已登记为 Duration.ZERO");
-    }
-
-    /**
      * 风控时间线和未使用的 Spring Cache 声明必须退出 Registry，防止继续创建无收益缓存。
      */
     @Test
@@ -253,7 +256,8 @@ class PaymentRedisCacheAutoConfigurationTests {
         assertThat(PaymentCacheRegistry.defaultTtls())
                 .doesNotContainKeys(
                         "risk:evaluation:detail",
-                        "risk:runtime:rule"
+                        "risk:runtime:rule",
+                        "admin:user:profile"
                 );
     }
 
@@ -353,6 +357,8 @@ class PaymentRedisCacheAutoConfigurationTests {
         when(securityCache.getName()).thenReturn(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE);
         Cache systemConfigCache = mock(Cache.class);
         when(systemConfigCache.getName()).thenReturn(PaymentCacheNames.SYSTEM_CONFIG);
+        Cache activeFeeCache = mock(Cache.class);
+        when(activeFeeCache.getName()).thenReturn(PaymentCacheNames.MERCHANT_ACTIVE_FEE);
         Cache ordinaryCache = mock(Cache.class);
         when(ordinaryCache.getName()).thenReturn("ordinary:query");
         CacheErrorHandler errorHandler = autoConfiguration.paymentCacheErrorHandler(
@@ -378,6 +384,9 @@ class PaymentRedisCacheAutoConfigurationTests {
         assertThatThrownBy(() ->
                 errorHandler.handleCacheEvictError(redisFailure, systemConfigCache, "system.name"))
                 .isSameAs(redisFailure);
+        assertThatThrownBy(() ->
+                errorHandler.handleCacheEvictError(redisFailure, activeFeeCache, "200045"))
+                .isSameAs(redisFailure);
         assertThatCode(() ->
                 errorHandler.handleCacheEvictError(redisFailure, ordinaryCache, "system.name"))
                 .doesNotThrowAnyException();
@@ -393,6 +402,15 @@ class PaymentRedisCacheAutoConfigurationTests {
                 .as("Redis dev Nacos configuration must exist")
                 .isTrue();
         return modulePath;
+    }
+
+    /** 获取事务感知 Redis Cache 的实际配置。 */
+    private RedisCacheConfiguration cacheConfiguration(RedisCacheManager cacheManager,
+                                                       String cacheName) {
+        TransactionAwareCacheDecorator decorator =
+                (TransactionAwareCacheDecorator) cacheManager.getCache(cacheName);
+        assertThat(decorator).isNotNull();
+        return ((RedisCache) decorator.getTargetCache()).getCacheConfiguration();
     }
 
     /**

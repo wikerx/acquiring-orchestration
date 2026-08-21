@@ -1,5 +1,6 @@
 package com.scott.payment.data.config;
 
+import com.scott.payment.component.core.security.InternalRequestReplayGuard;
 import com.scott.payment.component.web.internal.InternalServiceAuthInterceptor;
 import com.scott.payment.component.web.internal.InternalServiceAuthProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -23,13 +24,19 @@ public class DataInternalAuthWebMvcConfig implements WebMvcConfigurer {
     /** 内部服务签名、时间窗和白名单配置。 */
     private final InternalServiceAuthProperties properties;
 
+    /** Redis nonce 防重放守卫。 */
+    private final InternalRequestReplayGuard replayGuard;
+
     /**
      * 创建 service-data 内部接口鉴权配置。
      *
      * @param properties 内部服务签名配置
+     * @param replayGuard Redis nonce 防重放守卫
      */
-    public DataInternalAuthWebMvcConfig(InternalServiceAuthProperties properties) {
+    public DataInternalAuthWebMvcConfig(InternalServiceAuthProperties properties,
+                                        InternalRequestReplayGuard replayGuard) {
         this.properties = properties;
+        this.replayGuard = replayGuard;
     }
 
     /**
@@ -39,7 +46,7 @@ public class DataInternalAuthWebMvcConfig implements WebMvcConfigurer {
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new InternalServiceAuthInterceptor(properties))
+        registry.addInterceptor(new InternalServiceAuthInterceptor(properties, replayGuard))
                 .addPathPatterns("/internal/**");
     }
 }

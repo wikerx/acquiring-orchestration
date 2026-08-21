@@ -19,10 +19,12 @@ import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
+import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchRequeryCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -91,9 +93,15 @@ public class PaymentInternalController {
         return success(paymentCheckoutApplicationService.querySession(commandDTO));
     }
 
-    /** 内部调度补偿：关闭超过付款期限的收银台订单。 */
+    /**
+     * 执行收银台付款期限补偿扫描，处理中交易由应用服务保持原状态。
+     *
+     * @param limit 单次扫描上限，未传时默认处理 200 条
+     * @return 本次关闭的超时收银台订单数量
+     */
     @PostMapping("/checkout/session/expire-due")
-    public CommonResult<Integer> expireDueCheckoutSessions(@RequestParam(defaultValue = "200") int limit) {
+    public CommonResult<Integer> expireDueCheckoutSessions(
+            @RequestParam(value = "limit", defaultValue = "200") int limit) {
         return success(paymentCheckoutApplicationService.expireDue(LocalDateTime.now(), limit));
     }
 
@@ -261,6 +269,20 @@ public class PaymentInternalController {
     public CommonResult<TransactionChannelMatchResultDTO> matchDueChannelTransactions(
             @RequestBody TransactionChannelMatchCommandDTO commandDTO) {
         return success(paymentTransactionApplicationService.matchDueChannelTransactions(commandDTO));
+    }
+
+    /**
+     * 主动重查并勾兑单笔交易。
+     *
+     * @param transactionId 平台交易号
+     * @param commandDTO 真实交易分片时间
+     * @return 单笔勾兑处理结果
+     */
+    @PostMapping("/channel-match/{transactionId}/requery")
+    public CommonResult<TransactionChannelMatchResultDTO> requeryChannelMatch(
+            @PathVariable("transactionId") String transactionId,
+            @Valid @RequestBody TransactionChannelMatchRequeryCommandDTO commandDTO) {
+        return success(paymentTransactionApplicationService.requeryChannelMatch(transactionId, commandDTO));
     }
 
     /**

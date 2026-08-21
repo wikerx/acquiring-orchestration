@@ -99,8 +99,9 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      *
      * @param request 系统参数配置保存请求
      * @return 保存后的配置
-     */
+    */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public SysConfigDTO saveConfig(SysConfigSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
@@ -222,8 +223,9 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * 永久缓存一致性策略。</p>
      *
      * @param configKey 参数键名
-     */
+    */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void deleteConfig(String configKey) {
         String normalizedConfigKey = normalizeConfigKey(configKey);

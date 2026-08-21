@@ -29,9 +29,6 @@ public class RiskCacheInvalidationRelayService {
     /** 原发布凭证过期后重新申请的短期恢复门禁有效期。 */
     private static final Duration RECOVERY_GATE_TTL = Duration.ofSeconds(30);
 
-    /** Outbox 失败原因允许持久化的最大字符数。 */
-    private static final int FAILURE_REASON_MAX_LENGTH = 512;
-
     /** 查询并以乐观锁更新风控缓存失效事件。 */
     private final RiskCacheInvalidationOutboxMapper outboxMapper;
 
@@ -165,11 +162,11 @@ public class RiskCacheInvalidationRelayService {
             );
             log.warn(
                     "event: RISK_CACHE_INVALIDATION_PUBLISH_FAILED eventId: {} retryCount: {} "
-                            + "nextRetryTime: {} reason: {}",
+                            + "nextRetryTime: {} exceptionType: {}",
                     event.getEventId(),
                     event.getRetryCount(),
                     nextRetryTime,
-                    exception.getMessage()
+                    exception.getClass().getSimpleName()
             );
             return false;
         }
@@ -247,12 +244,7 @@ public class RiskCacheInvalidationRelayService {
      * @return 最多 512 个字符的非空失败原因
      */
     private String failureReason(RuntimeException exception) {
-        String reason = exception.getMessage();
-        if (!StringUtils.hasText(reason)) {
-            reason = exception.getClass().getSimpleName();
-        }
-        return reason.length() <= FAILURE_REASON_MAX_LENGTH
-                ? reason
-                : reason.substring(0, FAILURE_REASON_MAX_LENGTH);
+        String failureType = exception.getClass().getSimpleName();
+        return StringUtils.hasText(failureType) ? failureType : "RiskCachePublishException";
     }
 }

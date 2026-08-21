@@ -6,12 +6,15 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.redis.config.PaymentRedisSerializerFactory;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.CurrentFeeResponse;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.DetailQuery;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.FundAccountResponse;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.FundLedgerResponse;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.FeePlanDO;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.FeePlanVersionDO;
+import com.scott.payment.merchant.entity.MerchantFinanceEntities.FeeRuleDO;
+import com.scott.payment.merchant.entity.MerchantFinanceEntities.FeeRuleTierDO;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.FundAccountDO;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.FundLedgerDO;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.PendingBalanceAggregate;
@@ -26,6 +29,7 @@ import com.scott.payment.merchant.service.MerchantPendingBalanceQueryService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.serializer.RedisSerializer;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -56,6 +60,8 @@ class MerchantFinanceServiceImplTests {
         assistant.setCurrentNamespace(getClass().getName());
         TableInfoHelper.initTableInfo(assistant, FeePlanDO.class);
         TableInfoHelper.initTableInfo(assistant, FeePlanVersionDO.class);
+        TableInfoHelper.initTableInfo(assistant, FeeRuleDO.class);
+        TableInfoHelper.initTableInfo(assistant, FeeRuleTierDO.class);
         TableInfoHelper.initTableInfo(assistant, FundAccountDO.class);
         TableInfoHelper.initTableInfo(assistant, FundLedgerDO.class);
     }
@@ -93,6 +99,69 @@ class MerchantFinanceServiceImplTests {
         assertThat(response.getDisplayName()).isEqualTo("当前商户费率");
         assertThat(hasParams(planQuery.get(), "M10001", "MERCHANT", "ENABLED")).isTrue();
         assertThat(hasParams(versionQuery.get(), 21L, 11L, "ACTIVE")).isTrue();
+    }
+
+    /** 同一多选配置展开的原子规则必须还原为一条商户可读逻辑规则。 */
+    @Test
+    void shouldRestoreGroupedFeeRulesForMerchantDisplay() {
+        Fixture fixture = new Fixture();
+        FeePlanDO plan = new FeePlanDO();
+        plan.setId(11L);
+        plan.setPlanName("卡支付交易手续费");
+        plan.setCurrentVersionId(21L);
+        FeePlanVersionDO version = new FeePlanVersionDO();
+        version.setId(21L);
+        version.setPlanId(11L);
+        version.setVersionNo(1);
+        version.setVersionStatus("ACTIVE");
+        when(fixture.planMapper.selectOne(any())).thenReturn(plan);
+        when(fixture.versionMapper.selectOne(any())).thenReturn(version);
+        when(fixture.ruleMapper.selectList(any())).thenReturn(List.of(
+                feeRule(31L, "FRG_CARD_FEE", "AUTHORIZATION", "VISA"),
+                feeRule(32L, "FRG_CARD_FEE", "AUTHORIZATION", "MASTERCARD"),
+                feeRule(33L, "FRG_CARD_FEE", "PAYMENT", "VISA"),
+                feeRule(34L, "FRG_CARD_FEE", "PAYMENT", "MASTERCARD")
+        ));
+        when(fixture.tierMapper.selectList(any())).thenReturn(List.of());
+
+        CurrentFeeResponse response = fixture.service.getCurrentFee("M10001");
+
+        System.out.println("商户费率规则聚合：验证四条原子规则还原为一条多选逻辑规则");
+        assertThat(response.getRules()).singleElement().satisfies(rule -> {
+            assertThat(rule.getRuleName()).isEqualTo("卡支付交易手续费");
+            assertThat(rule.getTransactionTypes()).containsExactly("AUTHORIZATION", "PAYMENT");
+            assertThat(rule.getPaymentTypes()).containsExactly("BANK_CARD");
+            assertThat(rule.getPaymentMethods()).containsExactly("VISA", "MASTERCARD");
+        });
+    }
+
+    /** 多选规则聚合后的当前费率必须能够写入项目统一 Redis 缓存。 */
+    @Test
+    void shouldRoundTripGroupedCurrentFeeThroughRegisteredRedisSerializer() {
+        Fixture fixture = new Fixture();
+        FeePlanDO plan = new FeePlanDO();
+        plan.setId(11L);
+        plan.setPlanName("卡支付交易手续费");
+        plan.setCurrentVersionId(21L);
+        FeePlanVersionDO version = new FeePlanVersionDO();
+        version.setId(21L);
+        version.setPlanId(11L);
+        version.setVersionNo(1);
+        version.setVersionStatus("ACTIVE");
+        when(fixture.planMapper.selectOne(any())).thenReturn(plan);
+        when(fixture.versionMapper.selectOne(any())).thenReturn(version);
+        when(fixture.ruleMapper.selectList(any())).thenReturn(List.of(
+                feeRule(31L, "FRG_CARD_FEE", "AUTHORIZATION", "VISA"),
+                feeRule(32L, "FRG_CARD_FEE", "PAYMENT", "MASTERCARD")
+        ));
+        when(fixture.tierMapper.selectList(any())).thenReturn(List.of());
+        CurrentFeeResponse response = fixture.service.getCurrentFee("M10001");
+        RedisSerializer<Object> serializer = PaymentRedisSerializerFactory.create();
+
+        Object restored = serializer.deserialize(serializer.serialize(response));
+
+        System.out.println("商户费率缓存：验证多选规则聚合结果可通过统一 Redis 序列化器往返处理");
+        assertThat(restored).usingRecursiveComparison().isEqualTo(response);
     }
 
     /** 余额流水查询必须同时限定认证商户号和该商户账户ID。 */
@@ -190,8 +259,24 @@ class MerchantFinanceServiceImplTests {
         account.setSettlementCurrency("USD");
         account.setAvailableBalance(BigDecimal.ZERO);
         account.setAccountStatus("NORMAL");
-        account.setReverseRestricted(0);
         return account;
+    }
+
+    private static FeeRuleDO feeRule(Long id, String groupCode, String transactionType, String paymentMethod) {
+        FeeRuleDO rule = new FeeRuleDO();
+        rule.setId(id);
+        rule.setPlanVersionId(21L);
+        rule.setRuleGroupCode(groupCode);
+        rule.setFeeCategory("TRANSACTION_FEE");
+        rule.setRuleName("卡支付交易手续费");
+        rule.setTransactionType(transactionType);
+        rule.setPaymentType("BANK_CARD");
+        rule.setPaymentMethod(paymentMethod);
+        rule.setFeeMode("STANDARD");
+        rule.setPercentageRate(new BigDecimal("2.3"));
+        rule.setFixedAmountUsd(new BigDecimal("1.3"));
+        rule.setSortNo(1);
+        return rule;
     }
 
     private static PendingBalanceAggregate pendingBalance(String currency, String amount) {

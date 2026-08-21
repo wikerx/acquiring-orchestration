@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * @classname : FeeEntities
  * @date : 2026-08-18 00:00
  * @email : scott_x@163.com
- * @description : 费用方案、不可变版本、规则、阶梯和试算记录的持久化模型集合。
+ * @description : 费用方案、可编辑草稿、审核后不可变版本、规则、阶梯和试算记录的持久化模型集合。
  * @status : create
  */
 public final class FeeEntities {
@@ -54,7 +54,7 @@ public final class FeeEntities {
         private Long deleted;
     }
 
-    /** 费用方案提交审核后形成的不可变版本。 */
+    /** 费用方案版本；草稿可编辑，提交审核后保持不可变。 */
     @Data
     @TableName("fee_plan_version")
     public static class FeePlanVersionDO {
@@ -63,7 +63,7 @@ public final class FeeEntities {
         private Long planId;
         /** 方案内从 1 递增且不复用的版本号。 */
         private Integer versionNo;
-        /** PENDING_REVIEW、ACTIVE、REJECTED 或 SUPERSEDED。 */
+        /** DRAFT、PENDING_REVIEW、ACTIVE、REJECTED 或 SUPERSEDED。 */
         private String versionStatus;
         private String changeType;
         private Long sourceTemplateId;
@@ -71,12 +71,16 @@ public final class FeeEntities {
         private String originType;
         /** 滚动保证金比例，例如 10 表示 10%。 */
         private BigDecimal reserveRate;
-        /** 滚动保证金 D+N 留存自然日天数。 */
+        /** 滚动保证金留存周期单位：T 工作日、D 自然日。 */
+        private String reserveDelayUnit;
+        /** 滚动保证金 T/D+N 留存天数。 */
         private Integer reserveDelayDays;
+        /** 商户单一结算币种快照；模板版本为空，商户版本使用 ISO 4217 三位代码。 */
+        private String settlementCurrency;
+        /** 首次与常规结算周期共用的单位。 */
         private String initialDelayUnit;
         /** 首次结算延迟天数，最小为 1。 */
         private Integer initialDelayDays;
-        private String regularDelayUnit;
         /** 常规结算延迟天数，最小为 1。 */
         private Integer regularDelayDays;
         /** DAILY、WEEKLY、BIWEEKLY 或 MONTHLY。 */
@@ -84,9 +88,11 @@ public final class FeeEntities {
         /** 周结为 1 至 7，月结为 1 至 28，日结为空。 */
         private Integer frequencyDay;
         private String changeReason;
+        /** 草稿阶段为最后保存账号，提交后为本次提交账号。 */
         private Long submitById;
+        /** 草稿阶段为最后保存人，提交后为本次提交人名称快照。 */
         private String submitByName;
-        /** 提交审核的系统时间，不等同于生效时间。 */
+        /** 草稿阶段为最后保存时间，提交后为提交审核时间，不等同于生效时间。 */
         private LocalDateTime submitTime;
         /** 审核账号 ID；待审核时为空，且不能等于提交账号。 */
         private Long reviewById;
@@ -110,12 +116,18 @@ public final class FeeEntities {
         @TableId(type = IdType.AUTO)
         private Long id;
         private Long planVersionId;
-        /** TRANSACTION_FEE、REFUND_FEE、RISK_FEE 或 DISPUTE_FEE。 */
+        /** 同一条页面多选规则展开后的分组编码；历史原子规则允许为空。 */
+        private String ruleGroupCode;
+        /** TRANSACTION_FEE、REFUND_FEE、RISK_FEE、DISPUTE_FEE 或 SETTLEMENT_FX_FEE。 */
         private String feeCategory;
         private String ruleName;
         private String transactionType;
         private String paymentType;
         private String paymentMethod;
+        /** INTERNAL、EXTERNAL、THREE_DS；非风控费用使用 NONE。 */
+        private String riskServiceType;
+        /** NO_CHARGE、SUCCESS、SUCCESS_OR_FAILURE、ON_CALL；非风控费用使用 NOT_APPLICABLE。 */
+        private String chargeTrigger;
         private String feeMode;
         /** 百分比数值，例如 2.3 表示 2.3%，按标签币种金额计提。 */
         private BigDecimal percentageRate;
@@ -172,6 +184,8 @@ public final class FeeEntities {
         private String transactionType;
         private String paymentType;
         private String paymentMethod;
+        /** INTERNAL、EXTERNAL、THREE_DS；非风控费用试算使用 NONE。 */
+        private String riskServiceType;
         /** 试算标签金额，币种由 labelCurrency 指定，不做展示层舍入。 */
         private BigDecimal labelAmount;
         /** 标签金额 ISO 4217 三位币种代码。 */

@@ -100,4 +100,16 @@ class SecurityInterceptEventRecorderTests {
                 null, null, null, null)).doesNotThrowAnyException();
         log.info("安全审计发布失败隔离完成，结果: 原始安全处置不受审计故障影响");
     }
+
+    /** 异常原因只能返回稳定分类，禁止把任意异常正文带入安全审计 MQ。 */
+    @Test
+    void shouldUseExceptionTypeAsSecurityReasonMessage() {
+        SecurityInterceptEventRecorder recorder = new SecurityInterceptEventRecorder(
+                mock(IndependentReliableMqPublisher.class), new SecurityAuditMqProperties());
+
+        String reason = recorder.reasonMessage(
+                new IllegalArgumentException("secretKey=must-not-enter-security-audit"));
+
+        assertThat(reason).isEqualTo("IllegalArgumentException");
+    }
 }

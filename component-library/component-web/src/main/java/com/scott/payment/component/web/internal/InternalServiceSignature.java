@@ -108,6 +108,44 @@ public final class InternalServiceSignature {
     }
 
     /**
+     * 构造内部调用签名使用的原始请求目标。
+     *
+     * @param rawPath 原始 URI 路径
+     * @param rawQuery 原始查询字符串，允许为空
+     * @return 原始路径，存在查询参数时追加问号和原始查询字符串
+     */
+    public static String requestTarget(String rawPath, String rawQuery) {
+        String path = rawPath == null || rawPath.isBlank() ? "/" : rawPath;
+        return rawQuery == null || rawQuery.isBlank() ? path : path + "?" + rawQuery;
+    }
+
+    /**
+     * 计算实际 HTTP 请求体字节的 SHA-256 摘要。
+     *
+     * @param payload 原始请求体字节；空正文使用零字节摘要
+     * @return 64 位小写十六进制 SHA-256 摘要
+     */
+    public static String payloadSha256(byte[] payload) {
+        try {
+            byte[] source = payload == null ? new byte[0] : payload;
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(source));
+        } catch (GeneralSecurityException exception) {
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "internal service payload digest can not be calculated");
+        }
+    }
+
+    /**
+     * 按 UTF-8 计算字符串请求体的 SHA-256 摘要。
+     *
+     * @param payload 已完成最终序列化的请求体；null 表示空正文
+     * @return 64 位小写十六进制 SHA-256 摘要
+     */
+    public static String payloadSha256(String payload) {
+        return payloadSha256(payload == null ? new byte[0] : payload.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
      * 规范化hmacsha256，返回当前业务步骤需要的业务值。
      * <p>
      * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。

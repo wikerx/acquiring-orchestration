@@ -63,12 +63,12 @@ public class DefaultMerchantLimitReservationCounterService
                 }
             } catch (RuntimeException exception) {
                 successful = false;
-                log.error("event: RISK_MERCHANT_LIMIT_LIFECYCLE_ROLLBACK_FAILED transactionId: {} ruleId: {} path: {} aggregateKeyDigest: {} reason: {}",
+                log.error("event: RISK_MERCHANT_LIMIT_LIFECYCLE_ROLLBACK_FAILED transactionId: {} ruleId: {} path: {} aggregateKeyDigest: {} exceptionType: {}",
                         reservation == null ? null : reservation.getTransactionId(),
                         reservation == null ? null : reservation.getRuleId(),
                         projection.path(),
                         RedisKeyDigest.sha256(projection.aggregateKey()),
-                        exception.getMessage());
+                        exception.getClass().getSimpleName());
             }
         }
         return successful;
@@ -87,10 +87,10 @@ public class DefaultMerchantLimitReservationCounterService
             }
             return found ? RedisReservationMarkerState.PRESENT : RedisReservationMarkerState.ABSENT;
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_MERCHANT_LIMIT_MARKER_CHECK_FAILED transactionId: {} ruleId: {} reason: {}",
+            log.warn("event: RISK_MERCHANT_LIMIT_MARKER_CHECK_FAILED transactionId: {} ruleId: {} exceptionType: {}",
                     reservation == null ? null : reservation.getTransactionId(),
                     reservation == null ? null : reservation.getRuleId(),
-                    exception.getMessage());
+                    exception.getClass().getSimpleName());
             return RedisReservationMarkerState.UNKNOWN;
         }
     }

@@ -40,7 +40,7 @@ public interface DataMerchantNotificationMapper {
               AND notify_status IN ('INIT', 'FAILED')
               AND next_retry_time IS NOT NULL
               AND next_retry_time <= #{now}
-              AND last_attempt_no < max_retry_count
+              AND last_attempt_no < LEAST(max_retry_count, 5)
             ORDER BY next_retry_time ASC, id ASC
             LIMIT #{limit}
             """)
@@ -69,7 +69,7 @@ public interface DataMerchantNotificationMapper {
               AND notify_status IN ('INIT', 'FAILED')
               AND next_retry_time IS NOT NULL
               AND next_retry_time <= #{now}
-              AND last_attempt_no < max_retry_count
+              AND last_attempt_no < LEAST(max_retry_count, 5)
             ORDER BY next_retry_time ASC, id ASC
             LIMIT 1
             """)
@@ -90,10 +90,16 @@ public interface DataMerchantNotificationMapper {
               AND transaction_date_time = #{transactionDateTime}
               AND version = #{expectedVersion}
               AND deleted = 0
-              AND notify_status = 'FAILED'
+              AND (
+                    (#{attemptNo} = 1 AND notify_status = 'INIT' AND last_attempt_no = 0)
+                    OR
+                    (#{attemptNo} BETWEEN 2 AND 5
+                     AND notify_status = 'FAILED'
+                     AND last_attempt_no = #{attemptNo} - 1)
+                  )
               AND next_retry_time IS NOT NULL
               AND next_retry_time <= #{now}
-              AND last_attempt_no < max_retry_count
+              AND last_attempt_no < LEAST(max_retry_count, 5)
             LIMIT 1
             """)
     DataMerchantNotificationTaskDO selectReadyByRetryEvent(
@@ -101,13 +107,14 @@ public interface DataMerchantNotificationMapper {
             @Param("notifyId") String notifyId,
             @Param("transactionDateTime") LocalDateTime transactionDateTime,
             @Param("expectedVersion") Integer expectedVersion,
+            @Param("attemptNo") Integer attemptNo,
             @Param("now") LocalDateTime now);
 
     /**
      * 查询一条可由后台人工重发的通知任务。
      *
-     * <p>SUCCESS、FAILED、CLOSED 和已经设置重试时间的 INIT 可重发；PROCESSING 必须由超时恢复流程处理，
-     * 禁止人工请求绕过正在执行的 CAS 锁。</p>
+     * <p>人工重发只处理自动计划已经结束的 SUCCESS、CLOSED 或无下次时间的 FAILED 任务。
+     * 自动计划中的 INIT、FAILED 及 PROCESSING 必须继续由到期 MQ 和超时恢复流程处理，防止人工操作截断五次计划。</p>
      *
      * @param transactionId 平台交易 ID
      * @param transactionDateTime 交易分片时间
@@ -123,13 +130,34 @@ public interface DataMerchantNotificationMapper {
               AND transaction_date_time = #{transactionDateTime}
               AND deleted = 0
               AND (
-                    notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')
-                    OR (notify_status = 'INIT' AND next_retry_time IS NOT NULL)
+                    notify_status IN ('SUCCESS', 'CLOSED')
+                    OR (notify_status = 'FAILED' AND next_retry_time IS NULL)
                   )
             ORDER BY id DESC
             LIMIT 1
             """)
     DataMerchantNotificationTaskDO selectRetryableByTransactionId(
+            @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
+     * 查询人工重发竞争判断所需的当前任务状态。
+     *
+     * @param transactionId 平台交易 ID
+     * @param transactionDateTime 交易分片时间
+     * @return 当前任务状态投影；任务不存在时返回 null
+     */
+    @Select("""
+            SELECT id, notify_status, next_retry_time, processing_mode, processing_event_id,
+                   transaction_date_time, version
+            FROM transaction_merchant_notification
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND deleted = 0
+            ORDER BY id DESC
+            LIMIT 1
+            """)
+    DataMerchantNotificationTaskDO selectCurrentStateByTransactionId(
             @Param("transactionId") String transactionId,
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
@@ -147,6 +175,8 @@ public interface DataMerchantNotificationMapper {
             SET notify_status = 'PROCESSING',
                 last_attempt_no = last_attempt_no + 1,
                 next_retry_time = NULL,
+                processing_mode = 'AUTO',
+                processing_event_id = NULL,
                 version = version + 1,
                 update_time = #{now}
             WHERE id = #{id}
@@ -161,19 +191,18 @@ public interface DataMerchantNotificationMapper {
                        @Param("now") LocalDateTime now);
 
     /**
-     * 使用分片时间、版本和允许状态抢占后台人工重发，并为本次失败保留一次自动补偿预算。
+     * 使用分片时间、版本和允许状态抢占后台人工重发；人工操作不恢复已经结束的自动计划。
      *
+     * @param callbackEventId 人工 MQ 事件号
      * @return 1 表示抢占成功，0 表示任务状态或版本已经变化
      */
     @Update("""
             UPDATE transaction_merchant_notification
             SET notify_status = 'PROCESSING',
-                max_retry_count = GREATEST(
-                    COALESCE(max_retry_count, 0),
-                    COALESCE(last_attempt_no, 0) + 2
-                ),
                 last_attempt_no = COALESCE(last_attempt_no, 0) + 1,
                 next_retry_time = NULL,
+                processing_mode = 'MANUAL',
+                processing_event_id = #{callbackEventId},
                 version = version + 1,
                 update_time = #{now}
             WHERE id = #{id}
@@ -181,13 +210,14 @@ public interface DataMerchantNotificationMapper {
               AND version = #{expectedVersion}
               AND deleted = 0
               AND (
-                    notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')
-                    OR (notify_status = 'INIT' AND next_retry_time IS NOT NULL)
+                    notify_status IN ('SUCCESS', 'CLOSED')
+                    OR (notify_status = 'FAILED' AND next_retry_time IS NULL)
                   )
             """)
     int markProcessingForManualRetry(@Param("id") Long id,
                                      @Param("transactionDateTime") LocalDateTime transactionDateTime,
                                      @Param("expectedVersion") Integer expectedVersion,
+                                     @Param("callbackEventId") String callbackEventId,
                                      @Param("now") LocalDateTime now);
 
     /**
@@ -205,6 +235,8 @@ public interface DataMerchantNotificationMapper {
                 success_time = #{successTime},
                 next_retry_time = NULL,
                 fail_reason = NULL,
+                processing_mode = NULL,
+                processing_event_id = NULL,
                 version = version + 1,
                 update_time = #{successTime}
             WHERE id = #{id}
@@ -235,6 +267,8 @@ public interface DataMerchantNotificationMapper {
             SET notify_status = #{nextStatus},
                 next_retry_time = #{nextRetryTime},
                 fail_reason = #{failReason},
+                processing_mode = NULL,
+                processing_event_id = NULL,
                 version = version + 1,
                 update_time = #{now}
             WHERE id = #{id}
@@ -261,7 +295,7 @@ public interface DataMerchantNotificationMapper {
      * @return 携带主键、分片时间和版本号的候选任务
      */
     @Select("""
-            SELECT id, transaction_date_time, version
+            SELECT id, processing_mode, processing_event_id, transaction_date_time, version
             FROM transaction_merchant_notification
             WHERE transaction_date_time >= #{beginTime}
               AND transaction_date_time < #{endTimeExclusive}
@@ -284,10 +318,21 @@ public interface DataMerchantNotificationMapper {
      */
     @Update("""
             UPDATE transaction_merchant_notification
-            SET notify_status = 'FAILED',
+            SET notify_status = CASE
+                    WHEN processing_mode = 'MANUAL' THEN 'CLOSED'
+                    ELSE 'FAILED'
+                END,
                 last_attempt_no = GREATEST(last_attempt_no - 1, 0),
-                next_retry_time = #{now},
-                fail_reason = 'processing timeout recovered',
+                next_retry_time = CASE
+                    WHEN processing_mode = 'MANUAL' THEN NULL
+                    ELSE #{now}
+                END,
+                fail_reason = CASE
+                    WHEN processing_mode = 'MANUAL' THEN 'manual callback processing timeout recovered'
+                    ELSE 'processing timeout recovered'
+                END,
+                processing_mode = NULL,
+                processing_event_id = NULL,
                 version = version + 1,
                 update_time = #{now}
             WHERE id = #{id}

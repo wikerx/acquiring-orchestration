@@ -17,7 +17,13 @@ import org.springframework.util.StringUtils;
 import java.util.Locale;
 
 /**
- * 根据支付终态确认或释放频控成功名额的独立 MQ 消费者。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : FrequencySuccessReservationPaymentEventConsumer
+ * @date : 2026-08-20 23:45
+ * @email : scott_x@163.com
+ * @description : 消费支付终态并幂等确认或释放频控成功名额，畸形消息交由 MQ 重试和死信处理
+ * @status : create
  */
 @Slf4j
 @Component
@@ -36,12 +42,20 @@ import java.util.Locale;
 public class FrequencySuccessReservationPaymentEventConsumer
         implements RocketMQListener<String> {
 
+    /** 支付成功终态。 */
     private static final String PAYMENT_SUCCESS = "SUCCESS";
 
+    /** 支付失败终态。 */
     private static final String PAYMENT_FAILED = "FAILED";
 
+    /** 频控成功名额预占服务。 */
     private final FrequencySuccessReservationService reservationService;
 
+    /**
+     * 创建频控成功名额事件消费者。
+     *
+     * @param reservationService 频控成功名额预占服务
+     */
     public FrequencySuccessReservationPaymentEventConsumer(
             FrequencySuccessReservationService reservationService) {
         this.reservationService = reservationService;
@@ -54,15 +68,14 @@ public class FrequencySuccessReservationPaymentEventConsumer
      */
     @Override
     public void onMessage(String payload) {
-        RiskPaymentTransactionEventMessage message =
-                JsonUtils.parseObject(payload, RiskPaymentTransactionEventMessage.class);
+        RiskPaymentTransactionEventMessage message = parseMessage(payload);
         if (message == null
                 || !StringUtils.hasText(message.getMerchantId())
                 || !StringUtils.hasText(message.getTransactionId())
                 || !StringUtils.hasText(message.getTransactionStatus())) {
-            log.warn("event: RISK_FREQUENCY_SUCCESS_PAYMENT_EVENT_SKIPPED reason=messageInvalid payloadLength: {}",
+            log.error("event: RISK_FREQUENCY_SUCCESS_PAYMENT_EVENT_INVALID reason=requiredFieldMissing payloadLength: {}",
                     payload == null ? 0 : payload.length());
-            return;
+            throw new IllegalArgumentException("risk payment event required fields are missing");
         }
         String status = message.getTransactionStatus().trim().toUpperCase(Locale.ROOT);
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
@@ -85,6 +98,20 @@ public class FrequencySuccessReservationPaymentEventConsumer
                     summary.conflicted());
         } finally {
             TraceContext.clear();
+        }
+    }
+
+    /** 解析支付事件；失败时不记录原始消息，交由 RocketMQ 重试和死信处理。 */
+    private RiskPaymentTransactionEventMessage parseMessage(String payload) {
+        if (!StringUtils.hasText(payload)) {
+            throw new IllegalArgumentException("risk payment event payload is invalid");
+        }
+        try {
+            return JsonUtils.parseObject(payload, RiskPaymentTransactionEventMessage.class);
+        } catch (RuntimeException exception) {
+            log.error("event: RISK_FREQUENCY_SUCCESS_PAYMENT_EVENT_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
+                    payload.length(), exception.getClass().getSimpleName());
+            throw new IllegalArgumentException("risk payment event payload is invalid", exception);
         }
     }
 }

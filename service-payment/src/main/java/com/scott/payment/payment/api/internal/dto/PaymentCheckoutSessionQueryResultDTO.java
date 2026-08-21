@@ -148,6 +148,8 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
 
         /** 会话失效时间。 */
         private LocalDateTime expireTime;
+        /** 支付服务生成响应时的系统时间，用于前端校准付款倒计时。 */
+        private LocalDateTime serverTime;
         /** 当前会话是否允许失败后重试。 */
         private Boolean retryAllowed;
         /** 建议状态轮询间隔，单位秒。 */

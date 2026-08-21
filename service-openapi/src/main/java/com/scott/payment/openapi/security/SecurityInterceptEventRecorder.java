@@ -149,10 +149,10 @@ public class SecurityInterceptEventRecorder {
      * 从异常中提取待脱敏的原因说明。
      *
      * @param exception 异常
-     * @return 原始原因说明；仅允许交给 recordBlocked 脱敏后记录
+     * @return 稳定异常类型；不返回可能携带认证信息或请求正文的异常消息
      */
     public String reasonMessage(Throwable exception) {
-        return exception == null ? null : exception.getMessage();
+        return exception == null ? null : exception.getClass().getSimpleName();
     }
 
     /**

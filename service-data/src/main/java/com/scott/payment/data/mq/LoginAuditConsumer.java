@@ -40,15 +40,15 @@ public class LoginAuditConsumer implements RocketMQListener<String> {
         this.persistenceService = persistenceService;
     }
 
-    /** 消费登录审计消息，畸形消息不输出原文。 */
+    /** 消费登录审计消息，畸形消息抛出后由 RocketMQ 重试和死信处理。 */
     @Override
     public void onMessage(String payload) {
         LoginAuditMessage message = parse(payload);
         if (message == null || !StringUtils.hasText(message.getMessageId())
                 || message.getAppId() == null || message.getLoginStatus() == null) {
-            log.warn("event: DATA_LOGIN_AUDIT_INVALID payloadLength: {}",
+            log.error("event: DATA_LOGIN_AUDIT_INVALID payloadLength: {}",
                     payload == null ? 0 : payload.length());
-            return;
+            throw new IllegalArgumentException("login audit message required fields are missing");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
@@ -64,14 +64,14 @@ public class LoginAuditConsumer implements RocketMQListener<String> {
     /** 解析消息，失败时只记录长度和异常类型。 */
     private LoginAuditMessage parse(String payload) {
         if (!StringUtils.hasText(payload)) {
-            return null;
+            throw new IllegalArgumentException("login audit payload is empty");
         }
         try {
             return JsonUtils.parseObject(payload, LoginAuditMessage.class);
         } catch (RuntimeException exception) {
-            log.warn("event: DATA_LOGIN_AUDIT_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
+            log.error("event: DATA_LOGIN_AUDIT_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
                     payload.length(), exception.getClass().getSimpleName());
-            return null;
+            throw new IllegalArgumentException("login audit payload is invalid", exception);
         }
     }
 }

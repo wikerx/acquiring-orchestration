@@ -162,6 +162,24 @@ acquiring:
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
+        # 退款审批执行独立消费进度，数据库审批/执行状态机承担最终幂等。
+        - name: service-payment-refund-execution
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        # 风险累计限额预占生命周期独立消费进度。
+        - name: acquiring-risk-merchant-limit-lifecycle-consumer
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        # 风险成功频控预占生命周期独立消费进度。
+        - name: acquiring-risk-frequency-success-lifecycle-consumer
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
     outbox:
       relay-enabled: true
       batch-size: 100

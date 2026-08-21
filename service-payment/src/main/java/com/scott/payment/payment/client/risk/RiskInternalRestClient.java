@@ -127,7 +127,7 @@ public class RiskInternalRestClient implements RiskInternalClient {
                 requestDTO == null ? null : requestDTO.getCurrency(),
                 requestDTO == null ? null : requestDTO.getAmount(),
                 uri.getHost(),
-                uri.getPath(),
+                InternalServiceSignature.requestTarget(uri.getRawPath(), uri.getRawQuery()),
                 requestSummary(requestDTO));
         try {
             String responseBody = chooseRestTemplate(SERVICE_RISK_EVALUATE_URL).postForObject(
@@ -166,7 +166,7 @@ public class RiskInternalRestClient implements RiskInternalClient {
                     uri.getPath(),
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
-            throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-risk call failed", exception);
+            throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-risk call failed");
         }
     }
 
@@ -195,8 +195,10 @@ public class RiskInternalRestClient implements RiskInternalClient {
             }
             return result.getData();
         } catch (RestClientException exception) {
+            log.warn("service-risk 3DS policy call failed, targetPath: {}, exceptionType: {}",
+                    uri.getPath(), exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
-                    "service-risk 3DS policy call failed", exception);
+                    "service-risk 3DS policy call failed");
         }
     }
 
@@ -231,10 +233,11 @@ public class RiskInternalRestClient implements RiskInternalClient {
             }
             return result.getData();
         } catch (RestClientException exception) {
+            log.warn("service-risk reservation cancellation failed, targetPath: {}, exceptionType: {}",
+                    uri.getPath(), exception.getClass().getSimpleName());
             throw new ServiceException(
                     ApiResultEnum.BAD_GATEWAY.getCode(),
-                    "service-risk reservation cancellation failed",
-                    exception);
+                    "service-risk reservation cancellation failed");
         }
     }
 
@@ -274,6 +277,7 @@ public class RiskInternalRestClient implements RiskInternalClient {
                 timestamp,
                 nonce,
                 caller,
+                InternalServiceSignature.payloadSha256(requestBody),
                 riskClientProperties.getInternalSecret()
         );
         HttpHeaders headers = new HttpHeaders();

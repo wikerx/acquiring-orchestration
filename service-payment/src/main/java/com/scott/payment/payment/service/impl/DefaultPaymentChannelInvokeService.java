@@ -203,7 +203,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setResponseTime(responseTime);
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
             resultDTO.setExceptionType(exception.getClass().getSimpleName());
-            resultDTO.setExceptionMessage(exception.getMessage());
+            resultDTO.setExceptionMessage(resultDTO.getExceptionType());
             resultDTO.setOutcomeUncertain(exception.isOutcomeUncertain());
             log.warn("event: PAYMENT_CHANNEL_REQUEST_FAILED stage=CHANNEL_CALL traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} endpointHost: {} endpointPath: {} requestStatus: {} exceptionType: {} outcomeUncertain: {} durationMs: {}",
                     TraceContext.getTraceId(),
@@ -666,7 +666,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
          * @param cause        原始渠道异常
          */
         public PaymentChannelInvokeException(PaymentChannelInvokeResultDTO invokeResult, Throwable cause) {
-            super(cause == null ? null : cause.getMessage(), cause);
+            super(cause == null ? null : cause.getClass().getSimpleName(), cause);
             this.invokeResult = invokeResult;
         }
 

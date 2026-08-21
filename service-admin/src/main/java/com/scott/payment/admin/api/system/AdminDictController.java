@@ -146,6 +146,7 @@ public class AdminDictController {
     @RequiresPermission("system:dict:refresh")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.UPDATE, operation = "刷新字典缓存")
     public CommonResult<Void> refreshCache() {
+        adminDictApplicationService.refreshOptionCache();
         return success();
     }
 

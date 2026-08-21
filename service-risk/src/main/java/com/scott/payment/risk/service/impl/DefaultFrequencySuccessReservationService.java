@@ -85,11 +85,11 @@ public class DefaultFrequencySuccessReservationService
             };
             return new FrequencySuccessReservationResult(outcome, currentCount);
         } catch (RuntimeException exception) {
-            log.warn("event: RISK_FREQUENCY_SUCCESS_RESERVE_FAILED merchantDigest: {} transactionDigest: {} ruleId: {} reason: {}",
+            log.warn("event: RISK_FREQUENCY_SUCCESS_RESERVE_FAILED merchantDigest: {} transactionDigest: {} ruleId: {} exceptionType: {}",
                     RedisKeyDigest.sha256(merchantId.trim()),
                     RedisKeyDigest.sha256(transactionId.trim()),
                     ruleId,
-                    exception.getMessage());
+                    exception.getClass().getSimpleName());
             return FrequencySuccessReservationResult.unavailable();
         }
     }

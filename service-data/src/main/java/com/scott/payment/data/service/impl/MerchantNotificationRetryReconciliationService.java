@@ -114,6 +114,33 @@ public class MerchantNotificationRetryReconciliationService {
         return queued;
     }
 
+    /**
+     * 精确补发一条已经到期的通知 MQ 命令，不在内部接口线程访问商户端点。
+     *
+     * @param transactionId 平台交易 ID
+     * @param transactionDateTime 交易分片时间
+     * @return true 表示找到到期任务并可靠入队，false 表示任务不存在或尚未到期
+     */
+    @DS(DataSourceName.TRANSACTION)
+    public boolean reconcileTransaction(String transactionId, LocalDateTime transactionDateTime) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        DataMerchantNotificationTaskDO task;
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            task = notificationMapper.selectReadyByTransactionId(transactionId, transactionDateTime, now);
+        }
+        if (task == null) {
+            return false;
+        }
+        reliableMqPublisher.publish(
+                MqTopic.PAYMENT_EVENT,
+                MqTag.MERCHANT_NOTIFICATION_RETRY_DUE,
+                retryMessage(task, now));
+        log.info("event: DATA_MERCHANT_NOTIFY_RECONCILE_TRANSACTION_END traceId: {} transactionId: {} notifyId: {} expectedVersion: {} attemptNo: {}",
+                TraceContext.getTraceId(), task.getTransactionId(), task.getNotifyId(), task.getVersion(),
+                task.getLastAttemptNo() == null ? 1 : task.getLastAttemptNo() + 1);
+        return true;
+    }
+
     /** 逐条 CAS 恢复当前季度超时 PROCESSING 任务。 */
     private void recoverStale(LocalDateTime quarter, LocalDateTime now) {
         LocalDateTime staleBefore = now.minusSeconds(processingTimeoutSeconds);

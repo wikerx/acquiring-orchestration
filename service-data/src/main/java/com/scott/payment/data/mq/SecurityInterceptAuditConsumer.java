@@ -74,9 +74,9 @@ public class SecurityInterceptAuditConsumer implements RocketMQListener<String> 
         long startNanos = System.nanoTime();
         SecurityInterceptAuditMessage message = parseMessage(payload);
         if (!isValid(message)) {
-            log.warn("event: DATA_SECURITY_AUDIT_INVALID traceId: {} payloadLength: {}",
+            log.error("event: DATA_SECURITY_AUDIT_INVALID traceId: {} payloadLength: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length());
-            return;
+            throw new IllegalArgumentException("security audit message required fields are missing");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
@@ -87,9 +87,13 @@ public class SecurityInterceptAuditConsumer implements RocketMQListener<String> 
                     properties.getConsumeIdempotentTtlSeconds()
             );
             if (acquireResult == IdempotentAcquireResult.DUPLICATE) {
-                log.info("event: DATA_SECURITY_AUDIT_DUPLICATE traceId: {} eventNo: {} messageId: {} durationMs: {}",
-                        TraceContext.getTraceId(), message.getEventNo(), message.getMessageId(), elapsedMillis(startNanos));
-                return;
+                if (persistenceService.existsByEventNo(message.getEventNo())) {
+                    log.info("event: DATA_SECURITY_AUDIT_DUPLICATE traceId: {} eventNo: {} messageId: {} durationMs: {}",
+                            TraceContext.getTraceId(), message.getEventNo(), message.getMessageId(), elapsedMillis(startNanos));
+                    return;
+                }
+                log.warn("event: DATA_SECURITY_AUDIT_STALE_REDIS_CLAIM traceId: {} eventNo: {} messageId: {} action: continueToDatabaseUniqueConstraint",
+                        TraceContext.getTraceId(), message.getEventNo(), message.getMessageId());
             }
             if (acquireResult == IdempotentAcquireResult.FALLBACK) {
                 log.warn("event: DATA_SECURITY_AUDIT_IDEMPOTENT_FALLBACK traceId: {} eventNo: {} messageId: {} action: continueToDatabaseUniqueConstraint",
@@ -116,14 +120,14 @@ public class SecurityInterceptAuditConsumer implements RocketMQListener<String> 
     /** 解析安全审计消息，畸形载荷只记录长度和异常类型。 */
     private SecurityInterceptAuditMessage parseMessage(String payload) {
         if (!StringUtils.hasText(payload)) {
-            return null;
+            throw new IllegalArgumentException("security audit payload is empty");
         }
         try {
             return JsonUtils.parseObject(payload, SecurityInterceptAuditMessage.class);
         } catch (RuntimeException exception) {
             log.error("event: DATA_SECURITY_AUDIT_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
                     payload.length(), exception.getClass().getSimpleName());
-            return null;
+            throw new IllegalArgumentException("security audit payload is invalid", exception);
         }
     }
 

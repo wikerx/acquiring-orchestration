@@ -18,7 +18,7 @@ import java.util.List;
  * @classname : AdminFundAccountDTOs
  * @date : 2026-08-18 00:00
  * @email : scott_x@163.com
- * @description : 管理端商户资金账户、余额流水和充值审核模型；在途与保证金仅返回余额汇总。
+ * @description : 管理端商户资金账户、余额流水、充值和扣减审核模型；在途与保证金仅返回余额汇总。
  * @status : create
  */
 public final class AdminFundAccountDTOs {
@@ -142,6 +142,69 @@ public final class AdminFundAccountDTOs {
     /** 充值驳回意见。 */
     @Data
     public static class FundRechargeRejectRequest {
+        /** 驳回原因，不允许为空，最长 500 字符。 */
+        @NotBlank
+        @Size(max = 500)
+        private String comment;
+    }
+
+    /** 账户扣减申请分页条件。 */
+    @Data
+    public static class FundDeductionQuery {
+        /** 页码，从 1 开始。 */
+        private int pageNo = 1;
+        /** 每页条数，服务端限制为 1 至 200。 */
+        private int pageSize = 10;
+        /** 扣减申请号、请求号或商户号关键字，允许为空。 */
+        private String keyword;
+        /** 精确匹配的商户号，允许为空。 */
+        private String merchantId;
+        /** ACCOUNT_CORRECTION、EXTRA_FEE、PENALTY 或 OTHER，允许为空。 */
+        private String deductionCategory;
+        /** PENDING_AUDIT、PENDING_RECHECK、POSTED 或 REJECTED，允许为空。 */
+        private String deductionStatus;
+
+        /** @return 修正为至少 1 的页码。 */
+        public int safePageNo() { return Math.max(pageNo, 1); }
+        /** @return 修正到 1 至 200 范围内的每页条数。 */
+        public int safePageSize() { return Math.min(Math.max(pageSize, 1), 200); }
+    }
+
+    /** 管理端账户扣减申请输入。 */
+    @Data
+    public static class FundDeductionCreateRequest {
+        /** 待扣减资金账户主键，不允许为空。 */
+        @NotNull
+        private Long accountId;
+        /** 扣减类型：ACCOUNT_CORRECTION、EXTRA_FEE、PENALTY 或 OTHER。 */
+        @NotBlank
+        private String deductionCategory;
+        /** 扣减金额使用账户结算币种，必须大于零且不超过 100,000,000。 */
+        @NotNull
+        @DecimalMin(value = "0", inclusive = false)
+        @DecimalMax("100000000")
+        private BigDecimal amount;
+        /** 客户端请求唯一标识，用于防止重复提交。 */
+        @NotBlank
+        @Size(max = 64)
+        private String requestId;
+        /** 商户可见的完整扣减说明，不允许为空，最长 500 字符。 */
+        @NotBlank
+        @Size(max = 500)
+        private String reason;
+    }
+
+    /** 账户扣减审核或复核意见。 */
+    @Data
+    public static class FundDeductionReviewRequest {
+        /** 审核或复核意见，允许为空，最长 500 字符。 */
+        @Size(max = 500)
+        private String comment;
+    }
+
+    /** 账户扣减驳回意见。 */
+    @Data
+    public static class FundDeductionRejectRequest {
         /** 驳回原因，不允许为空，最长 500 字符。 */
         @NotBlank
         @Size(max = 500)
@@ -275,6 +338,8 @@ public final class AdminFundAccountDTOs {
         private Long reversalOfLedgerId;
         /** 充值流水关联的完整充值审批快照；非充值流水为空。 */
         private FundRechargeResponse rechargeDetail;
+        /** 账户扣减流水关联的完整审批快照；非扣减流水为空。 */
+        private FundDeductionResponse deductionDetail;
     }
 
     /** 充值申请、审核、复核和入账审计快照。 */
@@ -339,6 +404,73 @@ public final class AdminFundAccountDTOs {
         /** 充值申请创建系统时间。 */
         private LocalDateTime createTime;
         /** 充值申请最近修改系统时间。 */
+        private LocalDateTime updateTime;
+    }
+
+    /** 账户扣减申请、审核、复核和入账审计快照。 */
+    @Data
+    public static class FundDeductionResponse {
+        /** 账户扣减申请数据库主键。 */
+        private Long id;
+        /** 平台唯一账户扣减申请号。 */
+        private String deductionNo;
+        /** 扣减目标资金账户主键。 */
+        private Long accountId;
+        /** 扣减目标资金账户号。 */
+        private String accountNo;
+        /** 账户所属商户号。 */
+        private String merchantId;
+        /** 商户名称，仅用于管理端展示。 */
+        private String merchantName;
+        /** 扣减账户 ISO 4217 三位结算币种。 */
+        private String currency;
+        /** 扣减金额，单位为 currency，始终为正数。 */
+        private BigDecimal amount;
+        /** ACCOUNT_CORRECTION、EXTRA_FEE、PENALTY 或 OTHER。 */
+        private String deductionCategory;
+        /** PENDING_AUDIT、PENDING_RECHECK、POSTED 或 REJECTED。 */
+        private String deductionStatus;
+        /** 商户可见的完整扣减说明。 */
+        private String reason;
+        /** 提交人账号主键。 */
+        private Long submitById;
+        /** 提交人名称快照。 */
+        private String submitByName;
+        /** 提交系统时间。 */
+        private LocalDateTime submitTime;
+        /** 审核人账号主键，待审核时为空。 */
+        private Long auditById;
+        /** 审核人名称快照，待审核时为空。 */
+        private String auditByName;
+        /** 审核意见，允许为空。 */
+        private String auditComment;
+        /** 审核系统时间，待审核时为空。 */
+        private LocalDateTime auditTime;
+        /** 复核人账号主键，未复核时为空。 */
+        private Long recheckById;
+        /** 复核人名称快照，未复核时为空。 */
+        private String recheckByName;
+        /** 复核意见，允许为空。 */
+        private String recheckComment;
+        /** 复核系统时间，未复核时为空。 */
+        private LocalDateTime recheckTime;
+        /** 驳回人账号主键，非驳回状态为空。 */
+        private Long rejectById;
+        /** 驳回人名称快照，非驳回状态为空。 */
+        private String rejectByName;
+        /** 驳回原因，非驳回状态为空。 */
+        private String rejectComment;
+        /** 驳回系统时间，非驳回状态为空。 */
+        private LocalDateTime rejectTime;
+        /** 客户端唯一请求号，用于防止重复提交。 */
+        private String requestId;
+        /** 最终扣减余额流水号，未完成复核时为空。 */
+        private String ledgerNo;
+        /** 最终入账系统时间，未完成复核时为空。 */
+        private LocalDateTime postedTime;
+        /** 扣减申请创建系统时间。 */
+        private LocalDateTime createTime;
+        /** 扣减申请最近修改系统时间。 */
         private LocalDateTime updateTime;
     }
 

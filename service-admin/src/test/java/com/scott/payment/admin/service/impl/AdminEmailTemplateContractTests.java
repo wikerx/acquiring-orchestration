@@ -74,7 +74,30 @@ class AdminEmailTemplateContractTests {
             "MERCHANT_MFA_EXEMPT_NOTICE",
             "CHANNEL_ALERT_DEFAULT",
             "MERCHANT_FROZEN",
-            "MERCHANT_UNFROZEN"
+            "MERCHANT_UNFROZEN",
+            "FEE_CONFIG_PENDING_REVIEW",
+            "FEE_CONFIG_REJECTED",
+            "FEE_RULE_MISSING",
+            "SETTLEMENT_RATE_MISSING",
+            "NEGATIVE_BALANCE_INTERNAL",
+            "NEGATIVE_BALANCE_MERCHANT",
+            "BALANCE_RESTORED",
+            "HOLIDAY_CALENDAR_MISSING",
+            "FUND_RECHARGE_POSTED",
+            "FUND_RECHARGE_REJECTED",
+            "MERCHANT_SOURCE_URL_APPROVED",
+            "MERCHANT_SOURCE_URL_REJECTED",
+            "MERCHANT_IP_WHITELIST_APPROVED",
+            "MERCHANT_IP_WHITELIST_REJECTED"
+    );
+
+    private static final Set<String> RECENT_SYSTEM_TEMPLATE_CODES = Set.of(
+            "FEE_CONFIG_PENDING_REVIEW", "FEE_CONFIG_REJECTED", "FEE_RULE_MISSING",
+            "SETTLEMENT_RATE_MISSING", "NEGATIVE_BALANCE_INTERNAL", "NEGATIVE_BALANCE_MERCHANT",
+            "BALANCE_RESTORED", "HOLIDAY_CALENDAR_MISSING", "FUND_RECHARGE_POSTED",
+            "FUND_RECHARGE_REJECTED", "MERCHANT_SOURCE_URL_APPROVED",
+            "MERCHANT_SOURCE_URL_REJECTED", "MERCHANT_IP_WHITELIST_APPROVED",
+            "MERCHANT_IP_WHITELIST_REJECTED"
     );
 
     @Test
@@ -302,6 +325,38 @@ class AdminEmailTemplateContractTests {
                 .containsExactlyInAnyOrderElementsOf(ACTIVE_TEMPLATE_CODES);
         assertThat(deleteStatement).contains("system_builtin = 1");
         assertThat(migration).doesNotContain("DELETE FROM msg_email_send_record");
+    }
+
+    /** 近期新增系统模板必须使用蓝白主题，并提供有边界的可回滚迁移。 */
+    @Test
+    void shouldMigrateRecentSystemTemplatesToBlueWhiteThemeWithRollback() throws IOException {
+        String migration = readRepositoryFile(
+                "service-admin/src/main/resources/sql/system-email-template-blue-white-migration.sql");
+        String rollback = readRepositoryFile(
+                "service-admin/src/main/resources/sql/system-email-template-blue-white-rollback.sql");
+        String foundation = readRepositoryFile(
+                "service-admin/src/main/resources/sql/fee-account-foundation-schema.sql");
+        String schema = readRepositoryFile("service-admin/src/main/resources/sql/admin-system-schema.sql");
+        String accessMigration = readRepositoryFile(
+                "service-admin/src/main/resources/sql/merchant-access-config-approval-migration.sql");
+
+        assertThat(migration).contains(RECENT_SYSTEM_TEMPLATE_CODES.toArray(String[]::new));
+        assertThat(migration).contains(
+                "template.system_builtin = 1",
+                "template.locale IN ('zh-CN', 'en-US')",
+                "data-template-theme=\"vexra-blue-white-v1\"",
+                "template.version_no = template.version_no + 1",
+                "msg_email_template_blue_white_backup_20260820");
+        assertThat(rollback).contains(
+                "JOIN msg_email_template_blue_white_backup_20260820",
+                "data-template-theme=\"vexra-blue-white-v1\"",
+                "DROP TABLE msg_email_template_blue_white_backup_20260820");
+        for (String token : THEME_TOKENS) {
+            assertThat(migration).contains(token);
+            assertThat(foundation).contains(token);
+            assertThat(schema).contains(token);
+            assertThat(accessMigration).contains(token);
+        }
     }
 
     @Test

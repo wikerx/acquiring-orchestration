@@ -17,8 +17,10 @@ import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
+import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
+import com.scott.payment.component.db.mcc.service.MccOptionCacheReader;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.MerchantJwtKey;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.RsaKeyMaterial;
@@ -88,11 +90,8 @@ class AdminMerchantKeyMetadataInvalidationTests {
                 jwtKeyMapper,
                 platformPayloadKeyMapper,
                 responseKeyMapper,
-                mock(BaseMccLevel1Mapper.class),
-                mock(BaseMccLevel2Mapper.class),
-                mock(BaseMccCodeMapper.class),
-                mock(IsoCountryMapper.class),
-                mock(IsoCurrencyMapper.class),
+                mock(MccOptionCacheReader.class),
+                mock(IsoDictionaryService.class),
                 keyMaterialFactory,
                 mock(MerchantRuntimeProfileCacheService.class),
                 cacheInvalidationCoordinator,

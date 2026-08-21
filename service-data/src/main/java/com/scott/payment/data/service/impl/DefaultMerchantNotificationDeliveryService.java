@@ -5,14 +5,12 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
 import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.entity.DataMerchantNotificationLogDO;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
-import com.scott.payment.data.mapper.DataMerchantNotificationLogMapper;
 import com.scott.payment.data.mapper.DataMerchantNotificationMapper;
 import com.scott.payment.data.model.MerchantCallbackHttpRequest;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
@@ -27,10 +25,14 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,20 +65,14 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
     /** 达到最大尝试次数后的关闭终态。 */
     private static final String STATUS_CLOSED = "CLOSED";
 
-    /** 线性重试退避的基础秒数。 */
-    private static final long BASE_RETRY_DELAY_SECONDS = 60L;
+    /** 自动商户回调协议允许的最大投递次数。 */
+    private static final int AUTOMATIC_DELIVERY_LIMIT = 5;
 
     /** 数据库失败原因字段最大长度。 */
     private static final int MAX_FAIL_REASON_LENGTH = 512;
 
-    /** 审计响应摘要最大长度，防止异常商户响应形成大字段。 */
-    private static final int MAX_RESPONSE_SUMMARY_LENGTH = 1_200;
-
     /** 商户通知任务数据访问入口。 */
     private final DataMerchantNotificationMapper notificationMapper;
-
-    /** 商户通知尝试日志数据访问入口。 */
-    private final DataMerchantNotificationLogMapper notificationLogMapper;
 
     /** 具备有界超时的商户通知 HTTP 客户端。 */
     private final RestTemplate restTemplate;
@@ -90,33 +86,33 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
     /** 回调出站协议和网络边界校验器。 */
     private final MerchantCallbackTargetValidator targetValidator;
 
-    /** 失败状态与自动重试 Outbox 的同事务持久化边界。 */
-    private final MerchantNotificationRetryStateService retryStateService;
+    /** 尝试日志、任务结果与自动重试 Outbox 的原子事务提交边界。 */
+    private final MerchantNotificationAttemptCommitService attemptCommitService;
 
     /**
      * 创建商户通知投递服务。
      *
      * @param notificationMapper 通知任务 Mapper
-     * @param notificationLogMapper 通知日志 Mapper
      * @param restTemplate 商户通知 HTTP 客户端
      * @param properties 商户通知执行参数
+     * @param requestFactory 回调协议请求构造器
+     * @param targetValidator 回调目标校验器
+     * @param attemptCommitService 回调结果原子提交服务
      */
     @Autowired
     public DefaultMerchantNotificationDeliveryService(
             DataMerchantNotificationMapper notificationMapper,
-            DataMerchantNotificationLogMapper notificationLogMapper,
             @Qualifier("dataMerchantNotificationRestTemplate") RestTemplate restTemplate,
             DataMerchantNotificationProperties properties,
             MerchantCallbackRequestFactory requestFactory,
             MerchantCallbackTargetValidator targetValidator,
-            MerchantNotificationRetryStateService retryStateService) {
+            MerchantNotificationAttemptCommitService attemptCommitService) {
         this.notificationMapper = notificationMapper;
-        this.notificationLogMapper = notificationLogMapper;
         this.restTemplate = restTemplate;
         this.properties = properties;
         this.requestFactory = requestFactory;
         this.targetValidator = targetValidator;
-        this.retryStateService = retryStateService;
+        this.attemptCommitService = attemptCommitService;
     }
 
     /**
@@ -186,7 +182,21 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         }
         DataMerchantNotificationTaskDO task;
         try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            Integer committedOutcome = attemptCommitService.findManualOutcome(
+                    callbackEventId, transactionDateTime);
+            if (committedOutcome != null) {
+                log.info("event: DATA_MERCHANT_NOTIFY_MANUAL_DUPLICATE traceId: {} callbackEventId: {} transactionId: {} success: {}",
+                        TraceContext.getTraceId(), callbackEventId, transactionId, committedOutcome == 1);
+                return committedOutcome == 1;
+            }
             task = notificationMapper.selectRetryableByTransactionId(transactionId, transactionDateTime);
+            if (task == null) {
+                DataMerchantNotificationTaskDO current = notificationMapper.selectCurrentStateByTransactionId(
+                        transactionId, transactionDateTime);
+                if (current != null && "PROCESSING".equals(current.getNotifyStatus())) {
+                    throw new IllegalStateException("merchant notification manual retry is processing");
+                }
+            }
         }
         boolean notified = task != null && notifySingle(task, callbackEventId, true);
         log.info("event: DATA_MERCHANT_NOTIFY_MANUAL_RETRY_END traceId: {} callbackEventId: {} transactionId: {} taskFound: {} notified: {} routeTable: {}",
@@ -216,7 +226,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         DataMerchantNotificationTaskDO task;
         try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
             task = notificationMapper.selectReadyByRetryEvent(
-                    transactionId, notifyId, transactionDateTime, expectedVersion, LocalDateTime.now());
+                    transactionId, notifyId, transactionDateTime, expectedVersion, attemptNo, LocalDateTime.now());
         }
         int expectedAttempt = task == null || task.getLastAttemptNo() == null
                 ? 1
@@ -256,7 +266,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         LocalDateTime beginTime = LocalDateTime.now();
         int claimed = manualRetry
                 ? notificationMapper.markProcessingForManualRetry(
-                        task.getId(), task.getTransactionDateTime(), task.getVersion(), beginTime)
+                        task.getId(), task.getTransactionDateTime(), task.getVersion(), callbackEventId, beginTime)
                 : notificationMapper.markProcessing(
                         task.getId(), task.getTransactionDateTime(), task.getVersion(), beginTime);
         if (claimed != 1) {
@@ -270,14 +280,13 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         }
         int processingVersion = task.getVersion() == null ? 1 : task.getVersion() + 1;
         int attemptNo = task.getLastAttemptNo() == null ? 1 : task.getLastAttemptNo() + 1;
-        log.info("event: DATA_MERCHANT_NOTIFY_ATTEMPT_START traceId: {} notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} callbackUrl: {} targetUrlHash: {} attemptNo: {} maxRetryCount: {} payloadLength: {} signType: {}",
+        log.info("event: DATA_MERCHANT_NOTIFY_ATTEMPT_START traceId: {} notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} targetUrlHash: {} attemptNo: {} maxRetryCount: {} payloadLength: {} signType: {}",
                 TraceContext.getTraceId(),
                 task.getNotifyId(),
                 task.getTransactionId(),
                 task.getOperationId(),
                 task.getMerchantId(),
                 task.getMerchantOrderNo(),
-                safeCallbackUrl(task.getTargetUrlMasked(), resolveTargetUrl(task)),
                 task.getTargetUrlHash(),
                 attemptNo,
                 safeMaxRetry(task),
@@ -286,14 +295,10 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
 
         NotifyAttemptResult result = executeHttpNotify(task, attemptNo, callbackEventId, beginTime);
         LocalDateTime finishedTime = LocalDateTime.now();
-        insertNotifyLog(task, attemptNo, result, beginTime, finishedTime);
+        DataMerchantNotificationLogDO attemptLog = buildNotifyLog(
+                task, attemptNo, result, callbackEventId, manualRetry, beginTime, finishedTime);
         if (result.success()) {
-            int affectedRows = notificationMapper.markSuccess(
-                    task.getId(), task.getTransactionDateTime(), processingVersion, finishedTime);
-            requireSingleStateUpdate(
-                    affectedRows,
-                    task,
-                    "SUCCESS");
+            attemptCommitService.recordSuccess(task, processingVersion, attemptLog, finishedTime);
             log.info("event: DATA_MERCHANT_NOTIFY_ATTEMPT_END traceId: {} notifyId: {} transactionId: {} merchantId: {} attemptNo: {} httpStatus: {} success: true responseSummary: {} durationMs: {}",
                     TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
                     attemptNo, result.httpStatus(), responseSummary(result.responseBody()),
@@ -301,20 +306,19 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
             return true;
         }
 
-        int effectiveMaxRetry = manualRetry
-                ? Math.max(safeMaxRetry(task), attemptNo + 1)
-                : safeMaxRetry(task);
+        int effectiveMaxRetry = safeMaxRetry(task);
         boolean exhausted = attemptNo >= effectiveMaxRetry;
-        String nextStatus = exhausted ? STATUS_CLOSED : STATUS_FAILED;
-        LocalDateTime nextRetryTime = exhausted ? null : nextRetryTime(finishedTime, attemptNo);
-        retryStateService.recordFailure(
+        String nextStatus = manualRetry || exhausted ? STATUS_CLOSED : STATUS_FAILED;
+        LocalDateTime nextRetryTime = manualRetry || exhausted ? null : nextRetryTime(finishedTime, attemptNo);
+        attemptCommitService.recordFailure(
                 task,
                 processingVersion,
                 nextStatus,
                 nextRetryTime,
                 safeLength(result.errorMessage(), MAX_FAIL_REASON_LENGTH),
                 finishedTime,
-                attemptNo);
+                attemptNo,
+                attemptLog);
         log.warn("event: DATA_MERCHANT_NOTIFY_ATTEMPT_END traceId: {} notifyId: {} transactionId: {} merchantId: {} attemptNo: {} httpStatus: {} success: false nextStatus: {} exhausted: {} nextRetryTime: {} failureReason: {} durationMs: {}",
                 TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
                 attemptNo, result.httpStatus(), nextStatus, exhausted, nextRetryTime,
@@ -361,9 +365,9 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
                     eventId(request),
                     auditBody(request));
         } catch (RestClientException exception) {
-            log.warn("event: DATA_MERCHANT_NOTIFY_HTTP_FAILED traceId: {} notifyId: {} transactionId: {} merchantId: {} callbackUrl: {} exceptionType: {} durationMs: {}",
+            log.warn("event: DATA_MERCHANT_NOTIFY_HTTP_FAILED traceId: {} notifyId: {} transactionId: {} merchantId: {} targetUrlHash: {} exceptionType: {} durationMs: {}",
                     TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
-                    safeCallbackUrl(task.getTargetUrlMasked(), targetUrl), exception.getClass().getSimpleName(),
+                    task.getTargetUrlHash(), exception.getClass().getSimpleName(),
                     durationMillis(beginTime, LocalDateTime.now()));
             return new NotifyAttemptResult(false, null, null,
                     "merchant callback transport error: " + exception.getClass().getSimpleName(),
@@ -400,23 +404,29 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
     }
 
     /**
-     * 写入一次脱敏通知尝试日志；写库异常必须上抛，防止消息被错误确认。
+     * 构造一次脱敏通知尝试日志，由独立事务服务与任务状态和重试 Outbox 原子提交。
      */
-    private void insertNotifyLog(DataMerchantNotificationTaskDO task,
-                                 int attemptNo,
-                                 NotifyAttemptResult result,
-                                 LocalDateTime beginTime,
-                                 LocalDateTime finishedTime) {
+    private DataMerchantNotificationLogDO buildNotifyLog(DataMerchantNotificationTaskDO task,
+                                                          int attemptNo,
+                                                          NotifyAttemptResult result,
+                                                          String callbackEventId,
+                                                          boolean manualRetry,
+                                                          LocalDateTime beginTime,
+                                                          LocalDateTime finishedTime) {
         DataMerchantNotificationLogDO logDO = new DataMerchantNotificationLogDO();
         logDO.setNotifyLogId(PaymentOrderNoGenerator.nextOrderNo(NOTIFICATION_LOG_PREFIX, task.getTransactionDateTime()));
         logDO.setNotifyId(task.getNotifyId());
+        logDO.setCallbackEventId(manualRetry ? callbackEventId : null);
+        logDO.setDeliveryMode(manualRetry ? "MANUAL" : "AUTO");
         logDO.setTransactionId(task.getTransactionId());
         logDO.setOperationId(task.getOperationId());
         logDO.setMerchantId(task.getMerchantId());
         logDO.setAttemptNo(attemptNo);
         logDO.setTargetUrlHash(task.getTargetUrlHash());
         logDO.setHttpStatus(result.httpStatus());
-        logDO.setRequestHeaderJsonMasked(JsonUtils.toJsonString(auditHeaders(task, attemptNo, result.eventId())));
+        logDO.setRequestHeaderJsonMasked(JsonUtils.toJsonString(
+                auditHeaders(task, attemptNo,
+                        StringUtils.hasText(callbackEventId) ? callbackEventId : result.eventId())));
         logDO.setRequestBodyJsonMasked(result.auditRequestBody());
         logDO.setResponseBodyJsonMasked(result.responseBody());
         logDO.setSuccess(result.success() ? 1 : 0);
@@ -425,10 +435,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         logDO.setDurationMillis(durationMillis(beginTime, finishedTime));
         fillTransactionTime(logDO, task.getTransactionDateTime());
         logDO.setCreateTime(finishedTime);
-        int affectedRows = notificationLogMapper.insert(logDO);
-        if (affectedRows != 1) {
-            throw new IllegalStateException("merchant notification attempt log was not inserted");
-        }
+        return logDO;
     }
 
     /**
@@ -473,38 +480,49 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         }
     }
 
-    /**
-     * 要求状态 CAS 恰好更新一行；HTTP 已执行但状态推进失败时上抛，交由补偿机制恢复。
-     */
-    private void requireSingleStateUpdate(int affectedRows,
-                                          DataMerchantNotificationTaskDO task,
-                                          String targetStatus) {
-        if (affectedRows != 1) {
-            log.error("event: DATA_MERCHANT_NOTIFY_STATE_CONFLICT traceId: {} notifyId: {} transactionId: {} merchantId: {} targetStatus: {} affectedRows: {}",
-                    TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
-                    targetStatus, affectedRows);
-            throw new IllegalStateException("merchant notification state transition conflict");
-        }
-    }
-
     /** 读取商户回调地址明文；调用方仍只允许记录脱敏摘要。 */
     private String resolveTargetUrl(DataMerchantNotificationTaskDO task) {
         return task == null ? null : task.getCallbackUrl();
     }
 
-    /** 计算线性退避后的下一次通知时间。 */
+    /** 按协议计算当前自动尝试失败后的下一次通知时间。 */
     private LocalDateTime nextRetryTime(LocalDateTime baseTime, int attemptNo) {
-        return baseTime.plusSeconds(BASE_RETRY_DELAY_SECONDS * Math.max(1, Math.min(attemptNo, 30)));
+        return baseTime.plus(retryDelayAfterAttempt(attemptNo));
     }
 
-    /** 返回任务有效最大尝试次数，脏数据按一次处理。 */
+    /** 返回任务有效最大自动尝试次数，历史大值也强制收敛到协议上限。 */
     private int safeMaxRetry(DataMerchantNotificationTaskDO task) {
-        return task.getMaxRetryCount() == null || task.getMaxRetryCount() <= 0 ? 1 : task.getMaxRetryCount();
+        return task.getMaxRetryCount() == null || task.getMaxRetryCount() <= 0
+                ? 1
+                : Math.min(task.getMaxRetryCount(), AUTOMATIC_DELIVERY_LIMIT);
     }
 
-    /** 对响应执行二次脱敏和长度限制。 */
+    /** 返回第 1 至第 4 次失败后的固定等待时长，第 5 次失败不再调用此方法。 */
+    static Duration retryDelayAfterAttempt(int attemptNo) {
+        return switch (attemptNo) {
+            case 1 -> Duration.ofMinutes(1);
+            case 2 -> Duration.ofMinutes(5);
+            case 3 -> Duration.ofMinutes(10);
+            case 4 -> Duration.ofMinutes(30);
+            default -> throw new IllegalArgumentException("merchant notification attempt has no next retry");
+        };
+    }
+
+    /**
+     * 将不可信商户响应转换为不可逆审计摘要。
+     *
+     * <p>成功确认词属于协议常量，可以保留；其他正文可能包含商户密钥、令牌或业务数据，
+     * 因此只记录 UTF-8 字节长度和 SHA-256。</p>
+     */
     private String safeMaskedResponse(String responseBody) {
-        return safeLength(SensitiveDataMaskUtils.maskJsonSafely(responseBody), MAX_RESPONSE_SUMMARY_LENGTH);
+        if (responseBody == null || responseBody.isEmpty()) {
+            return responseBody;
+        }
+        if ("succeed".equals(responseBody.trim())) {
+            return "succeed";
+        }
+        byte[] responseBytes = responseBody.getBytes(StandardCharsets.UTF_8);
+        return "length=" + responseBytes.length + ",sha256=" + sha256(responseBytes);
     }
 
     /** 返回适合结构化日志的商户响应摘要。 */
@@ -512,24 +530,13 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         return safeMaskedResponse(responseBody);
     }
 
-    /** 返回候选值中的第一个非空白文本。 */
-    private String firstText(String... values) {
-        for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value;
-            }
+    /** 计算不可信响应的 SHA-256；JDK 必须提供该标准算法。 */
+    private String sha256(byte[] value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 algorithm is unavailable", exception);
         }
-        return null;
-    }
-
-    /** 移除 URL 查询参数值，防止商户令牌进入日志。 */
-    private String safeCallbackUrl(String... values) {
-        String url = firstText(values);
-        if (!StringUtils.hasText(url)) {
-            return null;
-        }
-        int queryIndex = url.indexOf('?');
-        return queryIndex < 0 ? url : url.substring(0, queryIndex) + "?...";
     }
 
     /** 填充通知日志的业务时间、UTC 时间和时区。 */

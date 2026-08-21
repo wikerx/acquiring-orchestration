@@ -1,6 +1,5 @@
 package com.scott.payment.admin.service.impl;
 
-import com.scott.payment.component.core.cache.PaymentCacheNames;
 import org.junit.jupiter.api.Test;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.core.annotation.AnnotatedElementUtils;
@@ -20,16 +19,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class AdminFeeCacheAnnotationsTests {
 
-    /** 审核通过会改变生效版本，必须清空跨商户的当前费率缓存。 */
+    /** 费率审核必须由事务 Outbox 精确失效，禁止注解清空全部商户缓存。 */
     @Test
-    void shouldEvictActiveMerchantFeeCacheAfterApproval() throws Exception {
+    void shouldNotClearAllMerchantFeeCachesAfterApproval() throws Exception {
         Method method = AdminFeeServiceImpl.class.getMethod(
                 "approveVersion", Long.class, String.class, Long.class, String.class);
         CacheEvict eviction = AnnotatedElementUtils.findMergedAnnotation(method, CacheEvict.class);
 
-        assertThat(eviction).isNotNull();
-        assertThat(eviction.cacheNames()).containsExactly(PaymentCacheNames.MERCHANT_ACTIVE_FEE);
-        assertThat(eviction.allEntries()).isTrue();
-        assertThat(eviction.beforeInvocation()).isFalse();
+        assertThat(eviction).isNull();
     }
 }

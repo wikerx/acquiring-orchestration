@@ -32,19 +32,22 @@ public class FeeSimulationExportRow {
     /** 支付方式字典值，非卡支付通常为 ALL。 */
     @ExcelExportColumn(order = 5, headerKey = "excel.fee.paymentMethod", width = 18)
     private String paymentMethod;
+    /** 风控服务类型；非风控费用固定为 NONE。 */
+    @ExcelExportColumn(order = 6, headerKey = "excel.fee.riskServiceType", width = 18)
+    private String riskServiceType;
     /** 商户上送标签金额，精度以数据库值为准。 */
-    @ExcelExportColumn(order = 6, headerKey = "excel.fee.labelAmount", width = 18)
+    @ExcelExportColumn(order = 7, headerKey = "excel.fee.labelAmount", width = 18)
     private BigDecimal labelAmount;
     /** 标签金额 ISO 4217 三位币种。 */
-    @ExcelExportColumn(order = 7, headerKey = "excel.fee.labelCurrency", width = 14)
+    @ExcelExportColumn(order = 8, headerKey = "excel.fee.labelCurrency", width = 14)
     private String labelCurrency;
     /** 应用固定费用和上下限后的 USD 试算费用。 */
-    @ExcelExportColumn(order = 8, headerKey = "excel.fee.finalFeeUsd", width = 18)
+    @ExcelExportColumn(order = 9, headerKey = "excel.fee.finalFeeUsd", width = 18)
     private BigDecimal finalFeeUsd;
     /** 执行试算的管理端操作人姓名快照。 */
-    @ExcelExportColumn(order = 9, headerKey = "excel.fee.operator", width = 18)
+    @ExcelExportColumn(order = 10, headerKey = "excel.fee.operator", width = 18)
     private String operatorName;
     /** 试算记录创建时间。 */
-    @ExcelExportColumn(order = 10, headerKey = "excel.fee.createTime", width = 22)
+    @ExcelExportColumn(order = 11, headerKey = "excel.fee.createTime", width = 22)
     private LocalDateTime createTime;
 }

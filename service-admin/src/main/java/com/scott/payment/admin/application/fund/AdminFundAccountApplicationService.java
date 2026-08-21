@@ -4,11 +4,15 @@ import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundAccountQuery;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundAccountResponse;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundAccountStatusRequest;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDetailQuery;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionCreateRequest;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionQuery;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionResponse;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundLedgerResponse;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundRechargeCreateRequest;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundRechargeQuery;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundRechargeResponse;
 import com.scott.payment.admin.dto.export.FundAccountExportRow;
+import com.scott.payment.admin.dto.export.FundDeductionExportRow;
 import com.scott.payment.admin.dto.export.FundLedgerExportRow;
 import com.scott.payment.admin.dto.export.FundRechargeExportRow;
 import com.scott.payment.admin.service.AdminFundAccountService;
@@ -35,7 +39,7 @@ import java.util.Locale;
  * @classname : AdminFundAccountApplicationService
  * @date : 2026-08-18 00:00
  * @email : scott_x@163.com
- * @description : 管理端资金账户、余额明细导出和充值审批应用服务。
+ * @description : 管理端资金账户、余额明细导出、充值和扣减审批应用服务。
  * @status : create
  */
 @Service
@@ -52,7 +56,7 @@ public class AdminFundAccountApplicationService {
     /**
      * 构造资金账户应用服务。
      *
-     * @param accountService 资金账户和充值审批领域服务
+     * @param accountService 资金账户、充值和扣减审批领域服务
      * @param excelExportService 分页 Excel 导出服务
      * @param excelI18nMessageResolver Excel 国际化标题解析器
      * @param excelLocaleResolver 当前请求语言解析器
@@ -304,6 +308,54 @@ public class AdminFundAccountApplicationService {
                         + ", rechargeStatus=" + query.getRechargeStatus(), response);
     }
 
+    /** 分页查询账户扣减申请及审批状态。 */
+    public PageResult<FundDeductionResponse> pageDeductions(FundDeductionQuery query) {
+        return accountService.pageDeductions(query);
+    }
+
+    /** 查询账户扣减申请详情。 */
+    public FundDeductionResponse getDeduction(Long id) {
+        return accountService.getDeduction(id);
+    }
+
+    /** 使用当前登录账号创建待审核账户扣减申请。 */
+    public FundDeductionResponse createDeduction(FundDeductionCreateRequest request) {
+        Operator operator = currentOperator();
+        return accountService.createDeduction(request, operator.id(), operator.name(), operator.loginAccount());
+    }
+
+    /** 使用当前登录账号审核账户扣减申请。 */
+    public FundDeductionResponse auditDeduction(Long id, String comment) {
+        Operator operator = currentOperator();
+        return accountService.auditDeduction(id, comment, operator.id(), operator.name(), operator.loginAccount());
+    }
+
+    /** 使用当前登录账号复核账户扣减申请并原子入账。 */
+    public FundDeductionResponse recheckDeduction(Long id, String comment) {
+        Operator operator = currentOperator();
+        return accountService.recheckDeduction(id, comment, operator.id(), operator.name(), operator.loginAccount());
+    }
+
+    /** 使用当前登录账号驳回账户扣减申请。 */
+    public FundDeductionResponse rejectDeduction(Long id, String comment) {
+        Operator operator = currentOperator();
+        return accountService.rejectDeduction(id, comment, operator.id(), operator.name(), operator.loginAccount());
+    }
+
+    /** 按筛选条件导出全部账户扣减申请及审批信息。 */
+    public void exportDeductions(FundDeductionQuery request, HttpServletResponse response) {
+        FundDeductionQuery query = request == null ? new FundDeductionQuery() : request;
+        exportPaged("excel.fund.deductionTitle", FundDeductionExportRow.class,
+                pageNo -> {
+                    query.setPageNo(pageNo);
+                    query.setPageSize(EXPORT_PAGE_SIZE);
+                    return accountService.pageDeductions(query).getRecords().stream()
+                            .map(this::toDeductionExportRow).toList();
+                }, "keyword=" + query.getKeyword() + ", merchantId=" + query.getMerchantId()
+                        + ", deductionCategory=" + query.getDeductionCategory()
+                        + ", deductionStatus=" + query.getDeductionStatus(), response);
+    }
+
     /** 将账户基础信息映射为导出行，不触发派生余额查询。 */
     private FundAccountExportRow toExportRow(FundAccountResponse source) {
         FundAccountExportRow row = new FundAccountExportRow();
@@ -366,6 +418,29 @@ public class AdminFundAccountApplicationService {
         row.setCurrency(source.getCurrency());
         row.setRechargeStatus(source.getRechargeStatus());
         row.setRemark(source.getRemark());
+        row.setSubmitByName(source.getSubmitByName());
+        row.setSubmitTime(source.getSubmitTime());
+        row.setAuditByName(source.getAuditByName());
+        row.setAuditTime(source.getAuditTime());
+        row.setRecheckByName(source.getRecheckByName());
+        row.setRecheckTime(source.getRecheckTime());
+        row.setLedgerNo(source.getLedgerNo());
+        row.setPostedTime(source.getPostedTime());
+        return row;
+    }
+
+    /** 将扣减申请和完整审批快照映射为导出行。 */
+    private FundDeductionExportRow toDeductionExportRow(FundDeductionResponse source) {
+        FundDeductionExportRow row = new FundDeductionExportRow();
+        row.setDeductionNo(source.getDeductionNo());
+        row.setMerchantId(source.getMerchantId());
+        row.setMerchantName(source.getMerchantName());
+        row.setAccountNo(source.getAccountNo());
+        row.setDeductionCategory(source.getDeductionCategory());
+        row.setAmount(source.getAmount());
+        row.setCurrency(source.getCurrency());
+        row.setDeductionStatus(source.getDeductionStatus());
+        row.setReason(source.getReason());
         row.setSubmitByName(source.getSubmitByName());
         row.setSubmitTime(source.getSubmitTime());
         row.setAuditByName(source.getAuditByName());

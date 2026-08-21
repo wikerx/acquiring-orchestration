@@ -3,6 +3,7 @@ package com.scott.payment.component.web.internal;
 import com.alibaba.fastjson2.JSON;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.security.InternalRequestReplayGuard;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
@@ -13,6 +14,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.regex.Pattern;
 
 /**
  * @author : scott
@@ -24,6 +26,12 @@ import java.time.Duration;
  * @status : create
  */
 public class InternalServiceAuthInterceptor implements HandlerInterceptor {
+
+    /** 调用方服务标识允许的格式。 */
+    private static final Pattern CALLER_PATTERN = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,63}");
+
+    /** nonce 允许的格式和长度。 */
+    private static final Pattern NONCE_PATTERN = Pattern.compile("[A-Za-z0-9_-]{16,128}");
 
     /**
      * PATH MATCHER，表示接口路径、资源路径或路由匹配路径。
@@ -40,13 +48,19 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
      */
     private final InternalServiceAuthProperties properties;
 
+    /** 跨实例 nonce 防重放守卫。 */
+    private final InternalRequestReplayGuard replayGuard;
+
     /**
      * 创建内部服务签名拦截器。
      *
      * @param properties 内部服务签名配置
+     * @param replayGuard Redis nonce 防重放守卫
      */
-    public InternalServiceAuthInterceptor(InternalServiceAuthProperties properties) {
+    public InternalServiceAuthInterceptor(InternalServiceAuthProperties properties,
+                                          InternalRequestReplayGuard replayGuard) {
         this.properties = properties;
+        this.replayGuard = replayGuard;
     }
 
     /**
@@ -74,6 +88,10 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
             writeError(response, ApiResultEnum.UNAUTHORIZED.getCode(), "internal service signature headers are required");
             return false;
         }
+        if (!CALLER_PATTERN.matcher(caller).matches() || !NONCE_PATTERN.matcher(nonce).matches()) {
+            writeError(response, ApiResultEnum.UNAUTHORIZED.getCode(), "internal service signature identity is invalid");
+            return false;
+        }
         long timestamp = parseTimestamp(timestampText, response);
         if (timestamp < 0) {
             return false;
@@ -82,16 +100,26 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
             writeError(response, ApiResultEnum.UNAUTHORIZED.getCode(), "internal service signature timestamp is expired");
             return false;
         }
+        Object payloadDigestAttribute = request.getAttribute(InternalServiceRequestBodyFilter.BODY_SHA256_ATTRIBUTE);
+        if (!(payloadDigestAttribute instanceof String payloadSha256) || !StringUtils.hasText(payloadSha256)) {
+            writeError(response, ApiResultEnum.UNAUTHORIZED.getCode(), "internal service payload digest is required");
+            return false;
+        }
         String expectedSignature = InternalServiceSignature.sign(
                 request.getMethod(),
-                request.getRequestURI(),
+                InternalServiceSignature.requestTarget(request.getRequestURI(), request.getQueryString()),
                 timestamp,
                 nonce,
                 caller,
+                payloadSha256,
                 properties.getSecret()
         );
         if (!InternalServiceSignature.matches(expectedSignature, signature)) {
             writeError(response, ApiResultEnum.UNAUTHORIZED.getCode(), "internal service signature is invalid");
+            return false;
+        }
+        if (!replayGuard.tryAcquire(caller, nonce, effectiveNonceTtl())) {
+            writeError(response, ApiResultEnum.UNAUTHORIZED.getCode(), "internal service request is replayed");
             return false;
         }
         return true;
@@ -117,9 +145,37 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
      * @return 与当前时间差超过配置窗口时返回 {@code true}
      */
     private boolean isExpired(long timestamp) {
-        Duration allowedClockSkew = properties.getAllowedClockSkew();
-        long skewMillis = allowedClockSkew == null ? Duration.ofMinutes(5).toMillis() : allowedClockSkew.toMillis();
+        long skewMillis = requirePositiveDuration(
+                properties.getAllowedClockSkew(), "internal service allowed clock skew").toMillis();
         return Math.abs(InternalServiceSignature.currentTimeMillis() - timestamp) > skewMillis;
+    }
+
+    /**
+     * 计算安全的 nonce 占用时间，至少覆盖时间戳从窗口最前端到最末端的完整可重放区间。
+     *
+     * @return 不小于两倍允许时钟偏差的有效 TTL
+     */
+    private Duration effectiveNonceTtl() {
+        Duration allowedClockSkew = requirePositiveDuration(
+                properties.getAllowedClockSkew(), "internal service allowed clock skew");
+        Duration configuredNonceTtl = requirePositiveDuration(
+                properties.getNonceTtl(), "internal service nonce ttl");
+        Duration minimumNonceTtl;
+        try {
+            minimumNonceTtl = allowedClockSkew.multipliedBy(2);
+        } catch (ArithmeticException exception) {
+            throw new IllegalStateException("internal service allowed clock skew is too large", exception);
+        }
+        return configuredNonceTtl.compareTo(minimumNonceTtl) >= 0
+                ? configuredNonceTtl : minimumNonceTtl;
+    }
+
+    /** 校验内部认证时间配置，禁止零值、负值或缺失配置削弱认证边界。 */
+    private Duration requirePositiveDuration(Duration value, String propertyName) {
+        if (value == null || value.isZero() || value.isNegative()) {
+            throw new IllegalStateException(propertyName + " must be positive");
+        }
+        return value;
     }
 
     /**

@@ -170,8 +170,8 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
      * 缓存未命中和安全绕过入口都必须显式路由到主库。
      */
     @Test
-    void shouldRouteNormalLoadsToSlaveAndForcedRefreshToMaster() throws NoSuchMethodException {
-        assertDataSourceRoute("findCached", DataSourceName.SLAVE);
+    void shouldRouteAllPermanentCacheLoadsToMaster() throws NoSuchMethodException {
+        assertDataSourceRoute("findCached", DataSourceName.MASTER);
         assertDataSourceRoute("findFresh", DataSourceName.MASTER);
         assertDataSourceRoute("refresh", DataSourceName.MASTER);
     }

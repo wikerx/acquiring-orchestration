@@ -1,6 +1,7 @@
 package com.scott.payment.admin.application.fund;
 
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundRechargeCreateRequest;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionCreateRequest;
 import com.scott.payment.admin.service.AdminFundAccountService;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -47,5 +48,21 @@ class AdminFundAccountApplicationServiceTests {
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("登录账号上下文缺失");
         verify(accountService, never()).createRecharge(any(), any(), any(), any());
+    }
+
+    /** 缺少认证账号时必须拒绝创建账户扣减，不能产生匿名资金申请。 */
+    @Test
+    void shouldRejectDeductionWhenAuthenticationContextIsMissing() {
+        AdminFundAccountService accountService = mock(AdminFundAccountService.class);
+        AdminFundAccountApplicationService applicationService = new AdminFundAccountApplicationService(
+                accountService,
+                mock(ExcelExportService.class),
+                mock(ExcelI18nMessageResolver.class),
+                mock(ExcelLocaleResolver.class));
+
+        assertThatThrownBy(() -> applicationService.createDeduction(new FundDeductionCreateRequest()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("登录账号上下文缺失");
+        verify(accountService, never()).createDeduction(any(), any(), any(), any());
     }
 }

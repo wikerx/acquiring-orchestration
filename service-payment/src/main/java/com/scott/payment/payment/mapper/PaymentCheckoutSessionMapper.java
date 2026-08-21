@@ -116,7 +116,9 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                 version = version + 1,
                 update_time = #{now}
             WHERE checkout_session_id = #{checkoutSessionId}
-              AND checkout_status IN ('PAYABLE', 'PAYABLE_FAILED_RETRYABLE')
+              AND checkout_status IN ('PENDING', 'FAILED')
+              AND (checkout_status = 'PENDING' OR retry_allowed = 1)
+              AND expire_time > #{now}
               AND version = #{version}
               AND deleted = 0
             """)
@@ -148,7 +150,7 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
               AND last_attempt_id = #{lastAttemptId}
               AND latest_transaction_id = #{expectedTransactionId}
               AND operation_id = #{expectedOperationId}
-              AND checkout_status IN ('PAYING', 'AUTHENTICATING', 'PROCESSING')
+              AND checkout_status = 'PROCESSING'
               AND success_attempt_id IS NULL
               AND deleted = 0
             """)
@@ -172,7 +174,7 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
      */
     @Update("""
             UPDATE payment_checkout_session
-            SET checkout_status = 'SUCCEEDED',
+            SET checkout_status = 'SUCCESS',
                 process_stage = #{processStage},
                 success_attempt_id = #{successAttemptId},
                 latest_transaction_id = #{latestTransactionId},
@@ -183,7 +185,7 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                 version = version + 1,
                 update_time = #{now}
             WHERE checkout_session_id = #{checkoutSessionId}
-              AND checkout_status IN ('PAYING', 'AUTHENTICATING', 'PROCESSING')
+              AND checkout_status = 'PROCESSING'
               AND success_attempt_id IS NULL
               AND version = #{version}
               AND deleted = 0
@@ -208,13 +210,13 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
      */
     @Update("""
             UPDATE payment_checkout_session
-            SET checkout_status = 'AUTHENTICATING',
+            SET checkout_status = 'PROCESSING',
                 process_stage = #{processStage},
                 last_status_time = #{now},
                 version = version + 1,
                 update_time = #{now}
             WHERE checkout_session_id = #{checkoutSessionId}
-              AND checkout_status IN ('PAYING', 'PROCESSING')
+              AND checkout_status = 'PROCESSING'
               AND success_attempt_id IS NULL
               AND version = #{version}
               AND deleted = 0
@@ -241,7 +243,7 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                 version = version + 1,
                 update_time = #{now}
             WHERE checkout_session_id = #{checkoutSessionId}
-              AND checkout_status IN ('PAYING', 'AUTHENTICATING', 'PROCESSING')
+              AND checkout_status = 'PROCESSING'
               AND success_attempt_id IS NULL
               AND version = #{version}
               AND deleted = 0
@@ -269,7 +271,7 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
                 version = version + 1,
                 update_time = #{now}
             WHERE checkout_session_id = #{checkoutSessionId}
-              AND checkout_status IN ('PAYING', 'AUTHENTICATING', 'PROCESSING')
+              AND checkout_status = 'PROCESSING'
               AND success_attempt_id IS NULL
               AND version = #{version}
               AND deleted = 0
@@ -284,9 +286,10 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
     @Select("""
             SELECT *
             FROM payment_checkout_session
-            WHERE expire_time <= #{now}
-              AND checkout_status IN ('PAYABLE', 'PAYABLE_FAILED_RETRYABLE')
-              AND success_attempt_id IS NULL
+            WHERE checkout_status = 'PENDING'
+              AND process_stage = 'WAITING_PAYER'
+              AND last_submit_time IS NULL
+              AND expire_time <= #{now}
               AND deleted = 0
             ORDER BY expire_time ASC, id ASC
             LIMIT #{limit}
@@ -294,25 +297,26 @@ public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckout
     List<PaymentCheckoutSessionDO> selectExpireDue(@Param("now") LocalDateTime now,
                                                    @Param("limit") int limit);
 
-    /** 将未支付会话按版本 CAS 推进到过期失败状态。 */
+    /** 将从未提交支付的会话按版本 CAS 推进到超时失败状态。 */
     @Update("""
             UPDATE payment_checkout_session
-            SET checkout_status = 'EXPIRED',
+            SET checkout_status = 'FAILED',
                 process_stage = 'RESULT_RENDERED',
                 result_snapshot = #{resultSnapshot},
                 last_status_time = #{now},
                 version = version + 1,
                 update_time = #{now}
             WHERE checkout_session_id = #{checkoutSessionId}
+              AND checkout_status = 'PENDING'
+              AND process_stage = 'WAITING_PAYER'
+              AND last_submit_time IS NULL
               AND expire_time <= #{now}
-              AND checkout_status IN ('PAYABLE', 'PAYABLE_FAILED_RETRYABLE')
-              AND success_attempt_id IS NULL
               AND version = #{version}
               AND deleted = 0
             """)
-    int markExpiredCas(@Param("checkoutSessionId") String checkoutSessionId,
-                       @Param("resultSnapshot") String resultSnapshot,
-                       @Param("version") Integer version,
-                       @Param("now") LocalDateTime now);
+    int markPaymentTimeoutCas(@Param("checkoutSessionId") String checkoutSessionId,
+                              @Param("resultSnapshot") String resultSnapshot,
+                              @Param("version") Integer version,
+                              @Param("now") LocalDateTime now);
 
 }

@@ -414,7 +414,8 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("get", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job get call failed, targetUri: {}", targetUri, exception);
+            log.warn("service-job get call failed, targetUri: {}, exceptionType: {}",
+                    targetUri, exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job get call failed");
         }
     }
@@ -443,7 +444,8 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("post", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job post call failed, targetUri: {}", targetUri, exception);
+            log.warn("service-job post call failed, targetUri: {}, exceptionType: {}",
+                    targetUri, exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job post call failed");
         }
     }
@@ -462,7 +464,8 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("put", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job put call failed, targetUri: {}", targetUri, exception);
+            log.warn("service-job put call failed, targetUri: {}, exceptionType: {}",
+                    targetUri, exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job put call failed");
         }
     }
@@ -480,7 +483,8 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("delete", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job delete call failed, targetUri: {}", targetUri, exception);
+            log.warn("service-job delete call failed, targetUri: {}, exceptionType: {}",
+                    targetUri, exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job delete call failed");
         }
     }
@@ -533,11 +537,11 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
      * @return 平台异常
      */
     private ApiException translateHttpException(String method, URI targetUri, HttpStatusCodeException exception) {
-        log.warn("service-job {} call returned non-success status, targetUri: {}, status: {}",
+        log.warn("service-job {} call returned non-success status, targetUri: {}, status: {}, exceptionType: {}",
                 method,
                 targetUri,
                 exception.getStatusCode().value(),
-                exception);
+                exception.getClass().getSimpleName());
         if (exception.getStatusCode().value() == 401) {
             return new ApiException(ApiResultEnum.UNAUTHORIZED, "service-job " + method + " call unauthorized");
         }

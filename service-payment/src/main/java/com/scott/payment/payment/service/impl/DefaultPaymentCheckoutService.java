@@ -1,12 +1,14 @@
 package com.scott.payment.payment.service.impl;
 
 import com.alibaba.fastjson2.TypeReference;
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
@@ -112,7 +114,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private static final String EVENT_PRE_CHANNEL_FAILED = "PRE_CHANNEL_FAILED";
     /** 浏览器查询支付状态事件类型。 */
     private static final String EVENT_PAYMENT_STATUS_QUERIED = "PAYMENT_STATUS_QUERIED";
-    /** 未在付款期限内完成的会话到期事件类型。 */
+    /** 未在付款期限内提交支付的会话到期事件类型。 */
     private static final String EVENT_SESSION_EXPIRED = "SESSION_EXPIRED";
     /** 浏览器 3DS 回跳到达事件类型。 */
     private static final String EVENT_THREE_DS_RETURNED = "THREE_DS_RETURNED";
@@ -145,6 +147,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private static final String REQUEST_SOURCE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
     /** 单次 3DS 挑战最长等待时间，单位秒。 */
     private static final int THREE_DS_TIMEOUT_SECONDS = 600;
+    /** 收银台首次支付和失败重试的统一提交窗口上限，固定为 24 小时。 */
+    private static final int PAYMENT_SUBMISSION_DEADLINE_MINUTES = 24 * 60;
     /** 兼容历史非空列；支付资格判断不读取该值，实际边界由重试策略和会话有效期控制。 */
     private static final int LEGACY_UNBOUNDED_MAX_ATTEMPT_COUNT = Integer.MAX_VALUE;
 
@@ -174,6 +178,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private final TransactionMerchantNotificationMapper merchantNotificationMapper;
     /** 商户通知最大重试次数配置。 */
     private final MerchantNotificationProperties merchantNotificationProperties;
+    /** 收银台超时通知首次五秒延时事件调度服务。 */
+    private MerchantNotificationInitialDeliveryService merchantNotificationInitialDeliveryService;
     /** 商户 MID 能力聚合与 BIN 品牌解析服务。 */
     private PaymentCheckoutCardCapabilityService cardCapabilityService;
     /** 浏览器卡数据密文解密与一次性 nonce 防重放服务。 */
@@ -202,6 +208,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                          PaymentCheckoutCardCapabilityService cardCapabilityService,
                                          PaymentCheckoutCardEnvelopeService cardEnvelopeService,
                                          PaymentCheckoutCardVaultPublisher cardVaultPublisher,
+                                         MerchantNotificationInitialDeliveryService merchantNotificationInitialDeliveryService,
                                          PlatformTransactionManager transactionManager) {
         this.sessionMapper = sessionMapper;
         this.tokenMapper = tokenMapper;
@@ -218,6 +225,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         this.cardCapabilityService = cardCapabilityService;
         this.cardEnvelopeService = cardEnvelopeService;
         this.cardVaultPublisher = cardVaultPublisher;
+        this.merchantNotificationInitialDeliveryService = merchantNotificationInitialDeliveryService;
         this.transactionOperations = new TransactionTemplate(transactionManager);
     }
 
@@ -291,6 +299,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      * @return 新建或幂等命中的会话结果
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public PaymentCheckoutSessionCreateResultDTO createSession(PaymentCheckoutSessionCreateCommandDTO commandDTO) {
         LocalDateTime now = LocalDateTime.now();
@@ -325,6 +334,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      * @return 可公开展示、过期或阻断页面结果
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public PaymentCheckoutSessionQueryResultDTO querySession(PaymentCheckoutSessionQueryCommandDTO commandDTO) {
         LocalDateTime now = LocalDateTime.now();
@@ -349,13 +359,14 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         sessionMapper.markOpened(sessionDO.getCheckoutSessionId(), now);
         insertEvent(event(sessionDO, null, EVENT_SESSION_OPENED, PaymentCheckoutProcessStageEnum.WAITING_PAYER,
                 PaymentCheckoutEventResultEnum.SUCCESS, commandDTO.getTraceId(), null, now));
-        return sessionResult(sessionDO);
+        return sessionResult(sessionDO, now);
     }
 
     /**
      * 批量推进超过付款期限的未支付会话；CAS 使调度重入和多实例并发保持幂等。
      */
     @Override
+    @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public int expireDue(LocalDateTime now, int limit) {
         LocalDateTime effectiveNow = now == null ? LocalDateTime.now() : now;
@@ -780,7 +791,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         sessionDO.setRequestFingerprint(commandDTO.getRequestFingerprint());
         sessionDO.setPaymentAction(defaultIfBlank(commandDTO.getPaymentAction(), properties.getDefaultPaymentAction()));
         sessionDO.setIntegrationType(properties.getIntegrationType());
-        sessionDO.setCheckoutStatus(PaymentCheckoutSessionStatusEnum.PAYABLE.getCode());
+        sessionDO.setCheckoutStatus(PaymentCheckoutSessionStatusEnum.PENDING.getCode());
         sessionDO.setProcessStage(PaymentCheckoutProcessStageEnum.WAITING_PAYER.getCode());
         sessionDO.setLastStatusTime(now);
         sessionDO.setTransactionDateTime(now);
@@ -836,9 +847,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         tokenDO.setTokenKeyVersion(properties.getTokenKeyVersion());
         tokenDO.setTokenStatus(PaymentCheckoutTokenStatusEnum.ACTIVE.getCode());
         tokenDO.setIssueReason(issueReason);
-        LocalDateTime resultAccessExpireTime = now.plusDays(Math.max(1, properties.getResultAccessDays()));
-        tokenDO.setExpireTime(sessionExpireTime != null && sessionExpireTime.isAfter(resultAccessExpireTime)
-                ? sessionExpireTime : resultAccessExpireTime);
+        tokenDO.setExpireTime(null);
         tokenDO.setUseCount(0);
         tokenDO.setVersion(0);
         tokenDO.setDeleted(0);
@@ -903,7 +912,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         attemptDO.setBrowserInfoJson(SensitiveDataMaskUtils.maskJsonSafely(commandDTO.getBrowserInfoJson()));
         attemptDO.setDeviceInfoJson(SensitiveDataMaskUtils.maskJsonSafely(commandDTO.getDeviceInfoJson()));
         attemptDO.setSubmitTime(now);
-        attemptDO.setResultSnapshot("{\"pageState\":\"PAYING\"}");
+        attemptDO.setResultSnapshot("{\"pageState\":\"PROCESSING\"}");
         attemptDO.setVersion(0);
         attemptDO.setDeleted(0);
         attemptDO.setCreateTime(now);
@@ -912,7 +921,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     }
 
     /**
-     * 在本地事务内创建付款尝试并 CAS 标记会话为 PAYING，避免重复点击生成多笔资金交易。
+     * 在本地事务内创建付款尝试并 CAS 标记会话为 PROCESSING，避免重复点击生成多笔资金交易。
      */
     private PaymentSubmissionContext createPaymentSubmission(PaymentCheckoutPaymentSubmitCommandDTO commandDTO) {
         LocalDateTime now = LocalDateTime.now();
@@ -932,7 +941,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         PaymentCheckoutAttemptDO attemptDO = buildAttempt(sessionDO, commandDTO, now);
         attemptMapper.insert(attemptDO);
         int updated = sessionMapper.markSubmittedCas(sessionDO.getCheckoutSessionId(),
-                PaymentCheckoutSessionStatusEnum.PAYING.getCode(),
+                PaymentCheckoutSessionStatusEnum.PROCESSING.getCode(),
                 PaymentCheckoutProcessStageEnum.CARD_SUBMITTED.getCode(),
                 attemptDO.getTransactionId(),
                 attemptDO.getOperationId(),
@@ -1230,11 +1239,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     }
 
     private String safeLogReason(RuntimeException exception) {
-        if (exception == null || !StringUtils.hasText(exception.getMessage())) {
-            return "-";
-        }
-        String reason = exception.getMessage().replace('\r', ' ').replace('\n', ' ').trim();
-        return reason.length() <= 256 ? reason : reason.substring(0, 256);
+        return exception == null ? "-" : exception.getClass().getSimpleName();
     }
 
     /**
@@ -1403,7 +1408,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     /**
      * 组装收银台展示视图，使用创建时快照，避免商户后续配置变更影响已创建会话。
      */
-    private PaymentCheckoutSessionQueryResultDTO sessionResult(PaymentCheckoutSessionDO sessionDO) {
+    private PaymentCheckoutSessionQueryResultDTO sessionResult(PaymentCheckoutSessionDO sessionDO, LocalDateTime serverTime) {
         PaymentCheckoutSessionQueryResultDTO resultDTO = new PaymentCheckoutSessionQueryResultDTO();
         resultDTO.setCheckoutSessionId(sessionDO.getCheckoutSessionId());
         resultDTO.setPageState(toPageState(sessionDO).getCode());
@@ -1423,6 +1428,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         resultDTO.setPaymentMethods(parsePaymentMethods(sessionDO.getAllowedPaymentMethodsJson()));
         PaymentCheckoutSessionQueryResultDTO.CheckoutDTO checkoutDTO = new PaymentCheckoutSessionQueryResultDTO.CheckoutDTO();
         checkoutDTO.setExpireTime(sessionDO.getExpireTime());
+        checkoutDTO.setServerTime(serverTime);
         checkoutDTO.setRetryAllowed(mayStartPayment(sessionDO));
         checkoutDTO.setPollingIntervalSeconds(properties.getPollingIntervalSeconds());
         resultDTO.setCheckout(checkoutDTO);
@@ -1431,7 +1437,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         resultDTO.setBillingInfo(parseCheckoutSnapshot(
                 sessionDO.getBillingInfoJson(), PaymentCheckoutSessionQueryResultDTO.BillingInfoDTO.class));
         PaymentCheckoutAttemptDO latestAttempt = resolveAttempt(sessionDO, null);
-        if (latestAttempt != null || !PaymentCheckoutSessionStatusEnum.PAYABLE.getCode().equals(sessionDO.getCheckoutStatus())) {
+        if (latestAttempt != null || !PaymentCheckoutSessionStatusEnum.PENDING.getCode().equals(sessionDO.getCheckoutStatus())) {
             resultDTO.setPaymentResult(paymentResult(sessionDO, latestAttempt));
         }
         if (cardEnvelopeService != null && mayStartPayment(sessionDO)) {
@@ -1442,11 +1448,17 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
 
     /** 只有仍可新建支付尝试的页面状态才下发一次性卡数据 nonce。 */
     private boolean mayStartPayment(PaymentCheckoutSessionDO sessionDO) {
-        String status = sessionDO.getCheckoutStatus();
-        if (PaymentCheckoutSessionStatusEnum.PAYABLE.getCode().equals(status)) {
-            return true;
+        if (sessionDO == null || sessionDO.getExpireTime() == null
+                || !sessionDO.getExpireTime().isAfter(LocalDateTime.now())) {
+            return false;
         }
-        return PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE.getCode().equals(status)
+        String status = sessionDO.getCheckoutStatus();
+        if (PaymentCheckoutSessionStatusEnum.PENDING.getCode().equals(status)) {
+            return sessionDO.getLastSubmitTime() == null
+                    && PaymentCheckoutProcessStageEnum.WAITING_PAYER.getCode().equals(sessionDO.getProcessStage());
+        }
+        return PaymentCheckoutSessionStatusEnum.FAILED.getCode().equals(status)
+                && sessionDO.getLastSubmitTime() != null
                 && Integer.valueOf(1).equals(sessionDO.getRetryAllowed());
     }
 
@@ -1525,7 +1537,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         }
         PaymentCheckoutPaymentResultDTO.FailureDTO failureDTO = new PaymentCheckoutPaymentResultDTO.FailureDTO();
         if (attemptDO == null || attemptDO.getFailureReasonCode() == null) {
-            if (!PaymentCheckoutSessionStatusEnum.EXPIRED.getCode().equals(sessionDO.getCheckoutStatus())) {
+            if (!isPaymentTimeout(sessionDO)) {
                 return null;
             }
             failureDTO.setReasonCode("PAYMENT_TIMEOUT");
@@ -1679,12 +1691,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         if (sessionDO == null) {
             return sourceSessionDO;
         }
-        PaymentCheckoutSessionStatusEnum nextStatus = sessionDO.getRetryAllowed() != null
-                && sessionDO.getRetryAllowed() == 1
-                ? PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE
-                : PaymentCheckoutSessionStatusEnum.FAILED_FINAL;
         sessionMapper.markFailedCas(sessionDO.getCheckoutSessionId(),
-                nextStatus.getCode(),
+                PaymentCheckoutSessionStatusEnum.FAILED.getCode(),
                 PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode(),
                 sessionDO.getVersion(),
                 now);
@@ -1908,19 +1916,27 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         if (sessionDO == null) {
             throw new ServiceException(ApiResultEnum.QUERY_RESULT_NOT_FOUND);
         }
-        if (sessionDO.getExpireTime() != null && !sessionDO.getExpireTime().isAfter(now)) {
+        if (sessionDO.getExpireTime() == null || !sessionDO.getExpireTime().isAfter(now)) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND.getCode(), "checkout session expired");
         }
         String status = sessionDO.getCheckoutStatus();
-        if (!PaymentCheckoutSessionStatusEnum.PAYABLE.getCode().equals(status)
-                && !PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE.getCode().equals(status)) {
+        boolean initialSubmission = PaymentCheckoutSessionStatusEnum.PENDING.getCode().equals(status)
+                && sessionDO.getLastSubmitTime() == null
+                && PaymentCheckoutProcessStageEnum.WAITING_PAYER.getCode().equals(sessionDO.getProcessStage());
+        boolean retrySubmission = PaymentCheckoutSessionStatusEnum.FAILED.getCode().equals(status)
+                && sessionDO.getLastSubmitTime() != null
+                && Integer.valueOf(1).equals(sessionDO.getRetryAllowed());
+        if (!initialSubmission && !retrySubmission) {
             throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(), "checkout session is not payable");
         }
     }
 
     /** 查询时惰性补偿到期状态，避免调度延迟导致页面仍展示付款表单。 */
     private PaymentCheckoutSessionDO expireSessionIfDue(PaymentCheckoutSessionDO sessionDO, LocalDateTime now) {
-        if (sessionDO == null || sessionDO.getExpireTime() == null || sessionDO.getExpireTime().isAfter(now)) {
+        if (sessionDO == null || sessionDO.getExpireTime() == null || sessionDO.getExpireTime().isAfter(now)
+                || !PaymentCheckoutSessionStatusEnum.PENDING.getCode().equals(sessionDO.getCheckoutStatus())
+                || !PaymentCheckoutProcessStageEnum.WAITING_PAYER.getCode().equals(sessionDO.getProcessStage())
+                || sessionDO.getLastSubmitTime() != null) {
             return sessionDO;
         }
         markSessionExpired(sessionDO, now);
@@ -1934,10 +1950,17 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             return false;
         }
         String snapshot = "{\"pageState\":\"EXPIRED\",\"failureCode\":\"PAYMENT_TIMEOUT\"}";
-        int updated = sessionMapper.markExpiredCas(sessionDO.getCheckoutSessionId(), snapshot, sessionDO.getVersion(), now);
+        int updated = sessionMapper.markPaymentTimeoutCas(
+                sessionDO.getCheckoutSessionId(), snapshot, sessionDO.getVersion(), now);
         if (updated != 1) {
             return false;
         }
+        sessionDO.setCheckoutStatus(PaymentCheckoutSessionStatusEnum.FAILED.getCode());
+        sessionDO.setProcessStage(PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode());
+        sessionDO.setResultSnapshot(snapshot);
+        sessionDO.setLastStatusTime(now);
+        sessionDO.setUpdateTime(now);
+        sessionDO.setVersion(sessionDO.getVersion() + 1);
         insertEvent(event(sessionDO, null, EVENT_SESSION_EXPIRED,
                 PaymentCheckoutProcessStageEnum.RESULT_RENDERED, PaymentCheckoutEventResultEnum.FAILED,
                 null, null, now));
@@ -1976,7 +1999,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         notificationDO.setPayloadJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(payloadJson));
         notificationDO.setLastAttemptNo(0);
         notificationDO.setMaxRetryCount(merchantNotificationProperties.getMaxRetryCount());
-        notificationDO.setNextRetryTime(now);
+        notificationDO.setNextRetryTime(now.plusSeconds(
+                MerchantNotificationInitialDeliveryService.INITIAL_DELIVERY_DELAY_SECONDS));
         notificationDO.setTransactionDateTime(now);
         notificationDO.setTransactionUtcTime(now.atZone(ZoneId.of(DEFAULT_TIME_ZONE))
                 .withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime());
@@ -1985,7 +2009,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         notificationDO.setDeleted(0);
         notificationDO.setCreateTime(now);
         notificationDO.setUpdateTime(now);
-        merchantNotificationMapper.insertLogical(notificationDO);
+        int inserted = merchantNotificationMapper.insertLogical(notificationDO);
+        if (inserted == 1 && merchantNotificationInitialDeliveryService != null) {
+            merchantNotificationInitialDeliveryService.schedule(notificationDO, 0, now);
+        }
     }
 
     /** 构造与交易回调同一层级结构的收银台超时载荷。 */
@@ -2067,8 +2094,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     private boolean isUsableToken(PaymentCheckoutTokenDO tokenDO, LocalDateTime now) {
         return tokenDO != null
                 && PaymentCheckoutTokenStatusEnum.ACTIVE.getCode().equals(tokenDO.getTokenStatus())
-                && tokenDO.getExpireTime() != null
-                && tokenDO.getExpireTime().isAfter(now);
+                && (tokenDO.getExpireTime() == null || tokenDO.getExpireTime().isAfter(now));
     }
 
     /**
@@ -2079,16 +2105,26 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
             return PaymentCheckoutPageStateEnum.BLOCKED;
         }
         return switch (sessionDO.getCheckoutStatus()) {
-            case "PAYABLE" -> PaymentCheckoutPageStateEnum.PAYABLE;
-            case "PAYING", "PROCESSING" -> PaymentCheckoutPageStateEnum.PROCESSING;
-            case "AUTHENTICATING" -> PaymentCheckoutPageStateEnum.THREE_DS_REQUIRED;
-            case "PAYABLE_FAILED_RETRYABLE" -> PaymentCheckoutPageStateEnum.FAILED_RETRYABLE;
-            case "SUCCEEDED" -> PaymentCheckoutPageStateEnum.SUCCEEDED;
-            case "FAILED_FINAL" -> PaymentCheckoutPageStateEnum.FAILED_FINAL;
-            case "EXPIRED" -> PaymentCheckoutPageStateEnum.EXPIRED;
-            case "CANCELLED" -> PaymentCheckoutPageStateEnum.CANCELLED;
+            case "PENDING" -> PaymentCheckoutPageStateEnum.PAYABLE;
+            case "PROCESSING" -> PaymentCheckoutPageStateEnum.PROCESSING;
+            case "SUCCESS" -> PaymentCheckoutPageStateEnum.SUCCEEDED;
+            case "FAILED" -> isPaymentTimeout(sessionDO)
+                    ? PaymentCheckoutPageStateEnum.EXPIRED
+                    : mayStartPayment(sessionDO)
+                    ? PaymentCheckoutPageStateEnum.FAILED_RETRYABLE
+                    : PaymentCheckoutPageStateEnum.FAILED_FINAL;
             default -> PaymentCheckoutPageStateEnum.BLOCKED;
         };
+    }
+
+    /** 未创建支付尝试且由截止时间任务置为失败时，页面展示链接已过期而不新增业务状态。 */
+    private boolean isPaymentTimeout(PaymentCheckoutSessionDO sessionDO) {
+        return sessionDO != null
+                && PaymentCheckoutSessionStatusEnum.FAILED.getCode().equals(sessionDO.getCheckoutStatus())
+                && sessionDO.getLastSubmitTime() == null
+                && PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode().equals(sessionDO.getProcessStage())
+                && sessionDO.getResultSnapshot() != null
+                && sessionDO.getResultSnapshot().contains("PAYMENT_TIMEOUT");
     }
 
     /**
@@ -2250,13 +2286,14 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     }
 
     /**
-     * 解析会话过期时间，非法或过去时间按平台默认有效期处理。
+     * 解析付款提交截止时间；非法或过去时间使用 24 小时，内部调用也不能放大该窗口。
      */
     private LocalDateTime resolveExpireTime(LocalDateTime input, LocalDateTime now) {
-        if (input != null && input.isAfter(now)) {
-            return input;
+        LocalDateTime deadline = now.plusMinutes(PAYMENT_SUBMISSION_DEADLINE_MINUTES);
+        if (input == null || !input.isAfter(now)) {
+            return deadline;
         }
-        return now.plusMinutes(properties.getDefaultExpireMinutes());
+        return input.isAfter(deadline) ? deadline : input;
     }
 
     /**

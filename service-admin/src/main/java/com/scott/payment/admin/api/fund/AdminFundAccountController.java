@@ -5,6 +5,11 @@ import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundAccountQuery;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundAccountResponse;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundAccountStatusRequest;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDetailQuery;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionCreateRequest;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionQuery;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionRejectRequest;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionResponse;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionReviewRequest;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundLedgerResponse;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundRechargeCreateRequest;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundRechargeQuery;
@@ -34,7 +39,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : AdminFundAccountController
  * @date : 2026-08-18 00:00
  * @email : scott_x@163.com
- * @description : 管理端资金账户、不可变余额流水和充值审批接口；在途与保证金只展示汇总余额。
+ * @description : 管理端资金账户、不可变余额流水、充值和扣减审批接口；在途与保证金只展示汇总余额。
  * @status : create
  */
 @RestController
@@ -46,7 +51,7 @@ public class AdminFundAccountController {
     /**
      * 构造资金账户接口。
      *
-     * @param applicationService 资金账户查询、导出和充值审批应用服务
+     * @param applicationService 资金账户查询、导出、充值和扣减审批应用服务
      */
     public AdminFundAccountController(AdminFundAccountApplicationService applicationService) {
         this.applicationService = applicationService;
@@ -296,5 +301,68 @@ public class AdminFundAccountController {
     public void exportRecharges(@RequestBody(required = false) FundRechargeQuery query,
                                 HttpServletResponse response) {
         applicationService.exportRecharges(query, response);
+    }
+
+    /** 分页查询账户扣减申请及完整审批信息。 */
+    @PostMapping("/deductions/search")
+    @RequiresPermission("fund:deduction:list")
+    public CommonResult<PageResult<FundDeductionResponse>> pageDeductions(
+            @RequestBody(required = false) FundDeductionQuery query) {
+        return success(applicationService.pageDeductions(query));
+    }
+
+    /** 查询指定账户扣减申请的完整审批快照。 */
+    @GetMapping("/deductions/{id}")
+    @RequiresPermission("fund:deduction:detail")
+    public CommonResult<FundDeductionResponse> getDeduction(@PathVariable("id") Long id) {
+        return success(applicationService.getDeduction(id));
+    }
+
+    /** 创建待审核账户扣减申请，客户端请求号用于幂等保护。 */
+    @PostMapping("/deductions")
+    @RequiresPermission("fund:deduction:add")
+    @OperationLog(moduleName = "账户扣减", businessType = OperationTypeConstants.CREATE, operation = "提交扣减申请")
+    public CommonResult<FundDeductionResponse> createDeduction(
+            @Valid @RequestBody FundDeductionCreateRequest request) {
+        return success(applicationService.createDeduction(request));
+    }
+
+    /** 审核账户扣减申请并转为待复核。 */
+    @PostMapping("/deductions/{id}/audit")
+    @RequiresPermission("fund:deduction:audit")
+    @OperationLog(moduleName = "账户扣减", businessType = OperationTypeConstants.UPDATE, operation = "审核扣减申请")
+    public CommonResult<FundDeductionResponse> auditDeduction(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody(required = false) FundDeductionReviewRequest request) {
+        return success(applicationService.auditDeduction(id, request == null ? null : request.getComment()));
+    }
+
+    /** 复核账户扣减申请，并在同一事务中锁定账户、减少可用余额和写入流水。 */
+    @PostMapping("/deductions/{id}/recheck")
+    @RequiresPermission("fund:deduction:recheck")
+    @OperationLog(moduleName = "账户扣减", businessType = OperationTypeConstants.UPDATE, operation = "复核扣减并入账")
+    public CommonResult<FundDeductionResponse> recheckDeduction(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody(required = false) FundDeductionReviewRequest request) {
+        return success(applicationService.recheckDeduction(id, request == null ? null : request.getComment()));
+    }
+
+    /** 驳回待审核或待复核账户扣减申请，不产生余额变动。 */
+    @PostMapping("/deductions/{id}/reject")
+    @RequiresPermission("fund:deduction:reject")
+    @OperationLog(moduleName = "账户扣减", businessType = OperationTypeConstants.UPDATE, operation = "驳回扣减申请")
+    public CommonResult<FundDeductionResponse> rejectDeduction(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody FundDeductionRejectRequest request) {
+        return success(applicationService.rejectDeduction(id, request.getComment()));
+    }
+
+    /** 按筛选条件导出全部账户扣减申请及审批信息。 */
+    @PostMapping("/deductions/export")
+    @RequiresPermission("fund:deduction:export")
+    @OperationLog(moduleName = "账户扣减", businessType = OperationTypeConstants.EXPORT, operation = "导出扣减申请")
+    public void exportDeductions(@RequestBody(required = false) FundDeductionQuery query,
+                                 HttpServletResponse response) {
+        applicationService.exportDeductions(query, response);
     }
 }

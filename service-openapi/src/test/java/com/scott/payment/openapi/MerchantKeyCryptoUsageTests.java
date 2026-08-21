@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.jdbc.Sql;
 
@@ -34,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         classes = OpenApiApplication.class,
         properties = "spring.cloud.nacos.discovery.enabled=false"
 )
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
 class MerchantKeyCryptoUsageTests {

@@ -190,7 +190,7 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
             result.setAuthenticationTransactionId(request.getAuthenticationTransactionId());
             result.setChannelOrderNo(request.getChannelOrderNo());
             result.setFailureCode(exception.getClass().getSimpleName());
-            result.setFailureMessage(exception.getMessage());
+            result.setFailureMessage(exception.getClass().getSimpleName());
             return routeResult(result, routeResultDTO, policy, null);
         }
     }

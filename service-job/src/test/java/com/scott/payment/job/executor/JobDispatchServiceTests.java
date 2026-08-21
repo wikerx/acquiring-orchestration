@@ -1,5 +1,8 @@
 package com.scott.payment.job.executor;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.job.enums.JobRunStatusEnum;
 import com.scott.payment.component.job.executor.JobExecuteContext;
@@ -15,6 +18,7 @@ import com.scott.payment.job.service.JobTaskTimingService;
 import com.scott.payment.job.support.JobNodeContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
@@ -134,6 +138,39 @@ class JobDispatchServiceTests {
                 .finishAsFailed(eq(99L), any(Long.class), eq("failed"));
         verify(fixture.jobTaskService(), timeout(2_000))
                 .finishTaskRun(eq(14L), eq(JobRunStatusEnum.FAILED), eq("job-node"));
+    }
+
+    /** 重试调度异常可能携带任务参数，结构化日志不得附加完整 Throwable。 */
+    @Test
+    void rejectedRetryScheduleShouldLogExceptionTypeWithoutThrowable() {
+        Fixture fixture = fixture(failingHandler());
+        fixture.task().setRetryCount(1);
+        delayScheduler.shutdown();
+        when(fixture.jobTaskService().tryAcquireLock(eq(fixture.task()), eq("job-node"), any()))
+                .thenReturn(true);
+
+        Logger logger = (Logger) LoggerFactory.getLogger(JobDispatchService.class);
+        boolean additive = logger.isAdditive();
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.setAdditive(false);
+        logger.addAppender(appender);
+        try {
+            fixture.service().triggerManual(14L, new JobManualTriggerRequest());
+            verify(fixture.jobTaskService(), timeout(2_000))
+                    .finishTaskRun(eq(14L), eq(JobRunStatusEnum.FAILED), eq("job-node"));
+
+            ILoggingEvent failureEvent = appender.list.stream()
+                    .filter(event -> event.getFormattedMessage().contains("JOB_RETRY_SCHEDULE_FAILED"))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(failureEvent.getThrowableProxy()).isNull();
+            assertThat(failureEvent.getFormattedMessage()).contains("exceptionType:");
+        } finally {
+            logger.detachAppender(appender);
+            logger.setAdditive(additive);
+            appender.stop();
+        }
     }
 
     private Fixture fixture(JobHandler handler) {

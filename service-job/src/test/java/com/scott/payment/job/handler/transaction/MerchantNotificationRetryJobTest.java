@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 class MerchantNotificationRetryJobTest {
 
     /**
-     * 多个交易时间点应分别触发补偿请求，并汇总成功通知数量。
+     * 多个交易时间点应分别触发补偿请求，并汇总可靠入队数量。
      */
     @Test
     void executeShouldRequeueDueRetriesThroughMqForAllRequestedQuarters() {
@@ -108,9 +108,9 @@ class MerchantNotificationRetryJobTest {
                 .isInstanceOf(ServiceException.class);
     }
 
-    /** JOB 模式保留旧的直接 HTTP 扫描，作为 MQ 改造的紧急回退开关。 */
+    /** JOB 兼容模式只调用显式季度补偿接口，该接口仍只重新入 MQ。 */
     @Test
-    void executeShouldUseDirectDeliveryOnlyInJobMode() {
+    void executeShouldRequeueExplicitQuarterThroughLegacyJobMode() {
         DataInternalClient dataInternalClient = mock(DataInternalClient.class);
         when(dataInternalClient.notifyDueMerchantNotifications(org.mockito.ArgumentMatchers.any())).thenReturn(1);
         MerchantNotificationRetryJob job = new MerchantNotificationRetryJob(dataInternalClient);

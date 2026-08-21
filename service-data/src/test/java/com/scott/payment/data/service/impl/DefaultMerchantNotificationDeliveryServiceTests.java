@@ -19,6 +19,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -83,7 +84,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         DataMerchantNotificationTaskDO task = fixture.task();
         when(fixture.notificationMapper().selectReadyByRetryEvent(
                 eq(task.getTransactionId()), eq(task.getNotifyId()), eq(task.getTransactionDateTime()),
-                eq(0), any())).thenReturn(task);
+                eq(0), eq(1), any())).thenReturn(task);
         when(fixture.notificationMapper().markSuccess(
                 eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), any())).thenReturn(1);
 
@@ -94,6 +95,24 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         verify(fixture.requestFactory()).create(task, 1);
         verify(fixture.requestFactory(), never()).create(
                 any(DataMerchantNotificationTaskDO.class), anyInt(), anyString());
+    }
+
+    /** 自动回调的协议事件号只用于 Header，不得占用人工重发的数据库幂等键。 */
+    @Test
+    void automaticAttemptShouldNotPersistProtocolEventIdAsManualIdempotencyKey() {
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
+        DataMerchantNotificationTaskDO task = fixture.task();
+        when(fixture.notificationMapper().markSuccess(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), any())).thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(task.getTransactionDateTime(), 10)).isEqualTo(1);
+
+        ArgumentCaptor<DataMerchantNotificationLogDO> logCaptor =
+                ArgumentCaptor.forClass(DataMerchantNotificationLogDO.class);
+        verify(fixture.logMapper()).insert(logCaptor.capture());
+        assertThat(logCaptor.getValue().getCallbackEventId()).isNull();
+        assertThat(logCaptor.getValue().getRequestHeaderJsonMasked()).contains("EVENT-1");
+        assertThat(logCaptor.getValue().getDeliveryMode()).isEqualTo("AUTO");
     }
 
     /** 失败重试 CAS 必须携带任务交易分片时间。 */
@@ -139,22 +158,25 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 .selectStaleProcessing(any(), any(), any(), anyInt());
     }
 
-    /** 后台人工重发应重新抢占终态通知，并把 MQ 消息号固定为回调协议事件 ID。 */
+    /** 后台人工重发不受自动五次上限限制，并把 MQ 消息号固定为回调协议事件 ID。 */
     @Test
-    void shouldManuallyRetryTerminalNotificationWithStableEventId() {
-        log.info("测试后台人工重发终态通知，关键输入: SUCCESS 任务和稳定 MQ 事件号");
+    void shouldManuallyRetryBeyondAutomaticAttemptLimitWithStableEventId() {
+        log.info("测试后台人工重发终态通知，关键输入: 已超过自动五次上限的任务和稳定 MQ 事件号");
         Fixture fixture = fixture(HttpStatus.OK, "succeed");
         LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
+        fixture.task().setLastAttemptNo(7);
+        fixture.task().setMaxRetryCount(5);
+        fixture.task().setVersion(11);
         when(fixture.notificationMapper().selectRetryableByTransactionId(
                 fixture.task().getTransactionId(), transactionDateTime)).thenReturn(fixture.task());
         when(fixture.notificationMapper().markProcessingForManualRetry(
-                eq(1L), eq(transactionDateTime), eq(0), any())).thenReturn(1);
-        when(fixture.notificationMapper().markSuccess(eq(1L), eq(transactionDateTime), eq(1), any()))
+                eq(1L), eq(transactionDateTime), eq(11), eq("MNR-20260804-0001"), any())).thenReturn(1);
+        when(fixture.notificationMapper().markSuccess(eq(1L), eq(transactionDateTime), eq(12), any()))
                 .thenReturn(1);
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth("test-token-not-a-real-secret");
         when(fixture.requestFactory().create(
-                fixture.task(), 1, "MNR-20260804-0001"))
+                fixture.task(), 8, "MNR-20260804-0001"))
                 .thenReturn(new MerchantCallbackHttpRequest(
                         "MNR-20260804-0001", headers, "{\"data\":\"encrypted\"}", "{\"data\":\"***\"}"));
 
@@ -167,9 +189,46 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         verify(fixture.notificationMapper()).selectRetryableByTransactionId(
                 fixture.task().getTransactionId(), transactionDateTime);
         verify(fixture.notificationMapper()).markProcessingForManualRetry(
-                eq(1L), eq(transactionDateTime), eq(0), any());
-        verify(fixture.requestFactory()).create(fixture.task(), 1, "MNR-20260804-0001");
-        log.info("后台人工重发终态通知测试完成，结果: 精确分片 CAS 和稳定事件 ID 均已使用");
+                eq(1L), eq(transactionDateTime), eq(11), eq("MNR-20260804-0001"), any());
+        verify(fixture.requestFactory()).create(fixture.task(), 8, "MNR-20260804-0001");
+        log.info("后台人工重发终态通知测试完成，结果: 自动次数上限未阻断人工 MQ 指令");
+    }
+
+    /** 人工回调失败只关闭本次状态，不得生成自动重试 Outbox。 */
+    @Test
+    void shouldCloseFailedManualAttemptWithoutAutomaticRetryOutbox() {
+        log.info("测试后台人工回调失败，关键输入: HTTP 500 且自动五次计划已经结束");
+        Fixture fixture = fixture(HttpStatus.INTERNAL_SERVER_ERROR, "failed");
+        LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
+        fixture.task().setLastAttemptNo(5);
+        fixture.task().setMaxRetryCount(5);
+        fixture.task().setVersion(9);
+        when(fixture.notificationMapper().selectRetryableByTransactionId(
+                fixture.task().getTransactionId(), transactionDateTime)).thenReturn(fixture.task());
+        when(fixture.notificationMapper().markProcessingForManualRetry(
+                eq(1L), eq(transactionDateTime), eq(9), eq("MNR-20260804-MANUAL-FAILED"), any())).thenReturn(1);
+        when(fixture.notificationMapper().markFailed(
+                eq(1L), eq(transactionDateTime), eq(10), eq("CLOSED"),
+                eq(null), anyString(), any())).thenReturn(1);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth("test-token-not-a-real-secret");
+        when(fixture.requestFactory().create(
+                fixture.task(), 6, "MNR-20260804-MANUAL-FAILED"))
+                .thenReturn(new MerchantCallbackHttpRequest(
+                        "MNR-20260804-MANUAL-FAILED", headers,
+                        "{\"data\":\"encrypted\"}", "{\"data\":\"***\"}"));
+
+        boolean notified = fixture.service().retryTransaction(
+                transactionDateTime,
+                fixture.task().getTransactionId(),
+                "MNR-20260804-MANUAL-FAILED");
+
+        assertThat(notified).isFalse();
+        verify(fixture.notificationMapper()).markFailed(
+                eq(1L), eq(transactionDateTime), eq(10), eq("CLOSED"),
+                eq(null), anyString(), any());
+        verify(fixture.outboxMapper(), never()).insert(any());
+        log.info("后台人工回调失败测试完成，结果: 本次状态关闭且未生成自动重试事件");
     }
 
     /** 人工重发抢占冲突必须上抛，让 RocketMQ 重投该事件而不是静默确认。 */
@@ -180,7 +239,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         when(fixture.notificationMapper().selectRetryableByTransactionId(
                 fixture.task().getTransactionId(), transactionDateTime)).thenReturn(fixture.task());
         when(fixture.notificationMapper().markProcessingForManualRetry(
-                eq(1L), eq(transactionDateTime), eq(0), any())).thenReturn(0);
+                eq(1L), eq(transactionDateTime), eq(0), eq("MNR-20260804-CONFLICT"), any())).thenReturn(0);
 
         assertThatThrownBy(() -> fixture.service().retryTransaction(
                 transactionDateTime,
@@ -188,6 +247,49 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 "MNR-20260804-CONFLICT"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("merchant notification manual retry claim conflict");
+
+        assertThat(fixture.restTemplate().postCount).isZero();
+        verifyNoInteractions(fixture.requestFactory());
+    }
+
+    /** 已完成提交的人工 MQ 事件重复消费时必须复用原结果，不得再次请求商户。 */
+    @Test
+    void shouldReturnCommittedManualOutcomeWithoutDuplicateHttpDelivery() {
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
+        LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
+        when(fixture.logMapper().selectManualOutcome("MNR-20260804-COMMITTED", transactionDateTime))
+                .thenReturn(1);
+
+        boolean notified = fixture.service().retryTransaction(
+                transactionDateTime,
+                fixture.task().getTransactionId(),
+                "MNR-20260804-COMMITTED");
+
+        assertThat(notified).isTrue();
+        assertThat(fixture.restTemplate().postCount).isZero();
+        verify(fixture.notificationMapper(), never())
+                .selectRetryableByTransactionId(anyString(), any(LocalDateTime.class));
+        verifyNoInteractions(fixture.requestFactory());
+    }
+
+    /** 人工事件尚未提交且任务仍在执行时必须上抛，使原 MQ 消息继续重投。 */
+    @Test
+    void shouldRequestMqRedeliveryWhileManualAttemptIsStillProcessing() {
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
+        LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
+        DataMerchantNotificationTaskDO current = new DataMerchantNotificationTaskDO();
+        current.setNotifyStatus("PROCESSING");
+        when(fixture.notificationMapper().selectRetryableByTransactionId(
+                fixture.task().getTransactionId(), transactionDateTime)).thenReturn(null);
+        when(fixture.notificationMapper().selectCurrentStateByTransactionId(
+                fixture.task().getTransactionId(), transactionDateTime)).thenReturn(current);
+
+        assertThatThrownBy(() -> fixture.service().retryTransaction(
+                transactionDateTime,
+                fixture.task().getTransactionId(),
+                "MNR-20260804-PROCESSING"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("merchant notification manual retry is processing");
 
         assertThat(fixture.restTemplate().postCount).isZero();
         verifyNoInteractions(fixture.requestFactory());
@@ -304,6 +406,25 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         assertThat(logCaptor.getValue().getHttpStatus()).isEqualTo(500);
     }
 
+    /** 商户任意失败响应不得以明文进入通知日志，只保留长度和不可逆摘要。 */
+    @Test
+    void shouldPersistOnlyDigestForUntrustedCallbackResponse() {
+        Fixture fixture = fixture(HttpStatus.OK, "secretKey=must-not-be-persisted");
+        when(fixture.notificationMapper().markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("FAILED"), any(), anyString(), any())).thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10)).isZero();
+
+        ArgumentCaptor<DataMerchantNotificationLogDO> logCaptor =
+                ArgumentCaptor.forClass(DataMerchantNotificationLogDO.class);
+        verify(fixture.logMapper()).insert(logCaptor.capture());
+        assertThat(logCaptor.getValue().getResponseBodyJsonMasked())
+                .startsWith("length=")
+                .contains(",sha256=")
+                .doesNotContain("must-not-be-persisted");
+    }
+
     /** 网络异常发生在请求构造后时，也必须保留回调事件审计上下文。 */
     @Test
     void shouldPersistCallbackAuditContextWhenTransportFails() {
@@ -392,6 +513,47 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("商户通知状态冲突测试完成，结果: 异常上抛并保留补偿机会");
     }
 
+    /** 自动回调失败后的等待时长必须严格遵循 1、5、10、30 分钟四档协议。 */
+    @Test
+    void shouldUseFixedRetryDelayPlan() {
+        assertThat(DefaultMerchantNotificationDeliveryService.retryDelayAfterAttempt(1))
+                .isEqualTo(Duration.ofMinutes(1));
+        assertThat(DefaultMerchantNotificationDeliveryService.retryDelayAfterAttempt(2))
+                .isEqualTo(Duration.ofMinutes(5));
+        assertThat(DefaultMerchantNotificationDeliveryService.retryDelayAfterAttempt(3))
+                .isEqualTo(Duration.ofMinutes(10));
+        assertThat(DefaultMerchantNotificationDeliveryService.retryDelayAfterAttempt(4))
+                .isEqualTo(Duration.ofMinutes(30));
+        assertThatThrownBy(() -> DefaultMerchantNotificationDeliveryService.retryDelayAfterAttempt(5))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** 第五次失败必须关闭任务，且不得再写第六次自动重试 Outbox。 */
+    @Test
+    void shouldCloseAfterFifthFailureWithoutAnotherRetryEvent() {
+        Fixture fixture = fixture(HttpStatus.INTERNAL_SERVER_ERROR, "failed");
+        DataMerchantNotificationTaskDO task = fixture.task();
+        task.setLastAttemptNo(4);
+        task.setMaxRetryCount(10);
+        task.setVersion(8);
+        when(fixture.notificationMapper().selectReadyByRetryEvent(
+                eq(task.getTransactionId()), eq(task.getNotifyId()), eq(task.getTransactionDateTime()),
+                eq(8), eq(5), any())).thenReturn(task);
+        when(fixture.notificationMapper().markProcessing(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(8), any())).thenReturn(1);
+        when(fixture.notificationMapper().markFailed(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(9), eq("CLOSED"),
+                eq(null), anyString(), any())).thenReturn(1);
+
+        assertThat(fixture.service().retryDue(
+                task.getTransactionDateTime(), task.getTransactionId(), task.getNotifyId(), 8, 5)).isFalse();
+
+        verify(fixture.notificationMapper()).markFailed(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(9), eq("CLOSED"),
+                eq(null), anyString(), any());
+        verify(fixture.outboxMapper(), never()).insert(any());
+    }
+
     /** 创建商户通知服务测试夹具。 */
     private Fixture fixture(HttpStatus status, String body) {
         return fixture(new StubRestTemplate(status, body));
@@ -413,6 +575,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         when(notificationMapper.selectStaleProcessing(any(), any(), any(), anyInt())).thenReturn(List.of());
         when(notificationMapper.markProcessing(eq(1L), eq(task.getTransactionDateTime()), eq(0), any()))
                 .thenReturn(1);
+        when(logMapper.selectManualOutcome(anyString(), any(LocalDateTime.class))).thenReturn(null);
         when(logMapper.insert(any(DataMerchantNotificationLogDO.class))).thenReturn(1);
         when(outboxMapper.insert(any())).thenReturn(1);
         DataMerchantNotificationProperties properties = new DataMerchantNotificationProperties();
@@ -425,13 +588,13 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                         "EVENT-1", headers, "{\"data\":\"encrypted\"}", "{\"data\":\"***\"}"));
         DefaultMerchantNotificationDeliveryService service = new DefaultMerchantNotificationDeliveryService(
                 notificationMapper,
-                logMapper,
                 restTemplate,
                 properties,
                 requestFactory,
                 targetValidator,
-                new MerchantNotificationRetryStateService(notificationMapper, outboxMapper));
-        return new Fixture(service, notificationMapper, logMapper, task, restTemplate, requestFactory);
+                new MerchantNotificationAttemptCommitService(
+                        notificationMapper, logMapper, outboxMapper));
+        return new Fixture(service, notificationMapper, logMapper, outboxMapper, task, restTemplate, requestFactory);
     }
 
     /** 构造不含卡数据和密钥的通知任务。 */
@@ -449,7 +612,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         task.setTargetUrlHash("callback-url-sha256");
         task.setPayloadJsonMasked("{\"transactionId\":\"TX202608011600000000001\"}");
         task.setLastAttemptNo(0);
-        task.setMaxRetryCount(3);
+        task.setMaxRetryCount(5);
         task.setTransactionDateTime(LocalDateTime.of(2026, 8, 1, 16, 0));
         task.setVersion(0);
         return task;
@@ -470,6 +633,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     private record Fixture(DefaultMerchantNotificationDeliveryService service,
                            DataMerchantNotificationMapper notificationMapper,
                            DataMerchantNotificationLogMapper logMapper,
+                           DataMerchantNotificationRetryOutboxMapper outboxMapper,
                            DataMerchantNotificationTaskDO task,
                            StubRestTemplate restTemplate,
                            MerchantCallbackRequestFactory requestFactory) {

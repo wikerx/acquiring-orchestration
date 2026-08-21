@@ -33,11 +33,36 @@ class SecurityInterceptAuditConsumerTests {
     void shouldSkipRedisDuplicate() {
         log.info("测试安全审计重复消费，关键输入: Redis DUPLICATE");
         Fixture fixture = fixture(IdempotentAcquireResult.DUPLICATE);
+        when(fixture.persistenceService().existsByEventNo("SIE202608010001")).thenReturn(true);
 
         fixture.consumer().onMessage(fixture.payload());
 
         verify(fixture.persistenceService(), never()).persist(fixture.message());
         log.info("安全审计重复消费完成，结果: 未访问数据库");
+    }
+
+    /** Redis 残留标记没有对应数据库事件时必须继续写库。 */
+    @Test
+    void shouldPersistWhenRedisDuplicateHasNoDatabaseFact() {
+        Fixture fixture = fixture(IdempotentAcquireResult.DUPLICATE);
+        when(fixture.persistenceService().existsByEventNo("SIE202608010001")).thenReturn(false);
+
+        fixture.consumer().onMessage(fixture.payload());
+
+        verify(fixture.persistenceService()).persist(fixture.message());
+    }
+
+    /** 畸形 JSON 必须触发 MQ 重试，不能静默丢弃安全审计事件。 */
+    @Test
+    void shouldRejectMalformedPayload() {
+        Fixture fixture = fixture(IdempotentAcquireResult.ACQUIRED);
+
+        assertThatThrownBy(() -> fixture.consumer().onMessage("{invalid-json"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("security audit payload is invalid");
+
+        verify(fixture.persistenceService(), never()).persist(
+                org.mockito.ArgumentMatchers.any(SecurityInterceptAuditMessage.class));
     }
 
     /** Redis 不可用时应继续依赖数据库唯一键。 */
@@ -75,7 +100,7 @@ class SecurityInterceptAuditConsumerTests {
 
     /** 缺少最小事件字段的消息不得进入 Redis 或数据库。 */
     @Test
-    void shouldSkipInvalidMessage() {
+    void shouldRejectInvalidMessage() {
         log.info("测试安全审计畸形消息，关键输入: 缺少 eventNo");
         SecurityInterceptAuditPersistenceService persistenceService =
                 mock(SecurityInterceptAuditPersistenceService.class);
@@ -83,14 +108,16 @@ class SecurityInterceptAuditConsumerTests {
         SecurityInterceptAuditConsumer consumer = new SecurityInterceptAuditConsumer(
                 persistenceService, idempotentService, new SecurityAuditMqProperties());
 
-        consumer.onMessage("{\"eventType\":\"OPENAPI_JWT_INVALID\"}");
+        assertThatThrownBy(() -> consumer.onMessage("{\"eventType\":\"OPENAPI_JWT_INVALID\"}"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("security audit message required fields are missing");
 
         verify(persistenceService, never()).persist(org.mockito.ArgumentMatchers.any());
         verify(idempotentService, never()).acquireMq(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyLong());
-        log.info("安全审计畸形消息测试完成，结果: 已忽略且未进入持久化链路");
+        log.info("安全审计畸形消息测试完成，结果: 已拒绝且未进入持久化链路");
     }
 
     /** 创建指定 Redis 获取结果的消费者测试夹具。 */

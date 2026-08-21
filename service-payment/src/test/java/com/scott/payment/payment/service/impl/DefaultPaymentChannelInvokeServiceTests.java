@@ -191,6 +191,25 @@ class DefaultPaymentChannelInvokeServiceTests {
         log.info("渠道超时分类验证完成：requestStatus=TIMEOUT，outcomeUncertain=true");
     }
 
+    /** 渠道异常只允许以稳定类型进入交互日志上下文，原始正文可能包含认证或卡数据。 */
+    @Test
+    void shouldKeepOnlyExceptionTypeInPersistableInvokeResult() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        when(executor.execute(any(ChannelPaymentRequest.class)))
+                .thenThrow(new ChannelTimeoutException("secretKey=must-not-be-persisted"));
+        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
+
+        PaymentChannelInvokeException exception = catchThrowableOfType(
+                PaymentChannelInvokeException.class,
+                () -> invokeService.invoke(followUpCommand(), routeResult(),
+                        "OP260714180001", "TX260714180002", "TX260714180001"));
+
+        assertThat(exception.getInvokeResult().getExceptionMessage()).isEqualTo("ChannelTimeoutException");
+        assertThat(exception.getMessage()).isEqualTo("ChannelTimeoutException");
+        assertThat(exception.getInvokeResult().getExceptionMessage())
+                .doesNotContain("must-not-be-persisted");
+    }
+
     /**
      * 请求发送前的本地配置失败可确定渠道未受理，调用结果不得进入待勾兑状态。
      */

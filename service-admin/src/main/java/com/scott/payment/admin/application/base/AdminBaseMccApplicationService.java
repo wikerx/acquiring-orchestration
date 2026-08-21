@@ -27,6 +27,7 @@ import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
+import com.scott.payment.component.db.mcc.service.MccOptionCacheInvalidator;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -270,6 +271,9 @@ public class AdminBaseMccApplicationService {
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
+    /** MCC 公共选项常驻缓存失效器。 */
+    private final MccOptionCacheInvalidator mccOptionCacheInvalidator;
+
     /**
      * 创建 MCC 管理后台应用服务。
      */
@@ -283,7 +287,8 @@ public class AdminBaseMccApplicationService {
                                           BaseMerchantInfoMapper merchantInfoMapper,
                                           ExcelExportService excelExportService,
                                           ExcelI18nMessageResolver excelI18nMessageResolver,
-                                          ExcelLocaleResolver excelLocaleResolver) {
+                                          ExcelLocaleResolver excelLocaleResolver,
+                                          MccOptionCacheInvalidator mccOptionCacheInvalidator) {
         this.level1Mapper = level1Mapper;
         this.level2Mapper = level2Mapper;
         this.codeMapper = codeMapper;
@@ -295,6 +300,7 @@ public class AdminBaseMccApplicationService {
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
+        this.mccOptionCacheInvalidator = mccOptionCacheInvalidator;
     }
 
     /**
@@ -329,9 +335,11 @@ public class AdminBaseMccApplicationService {
     /**
      * 新增或编辑 MCC 一级、二级分类。
      */
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccTreeNodeVO saveCategory(MccRequests.MccCategorySaveRequest request) {
         String nodeType = normalizeRequired(request.getNodeType(), "nodeType is required");
+        mccOptionCacheInvalidator.evictOptions();
         return switch (nodeType) {
             case LEVEL1 -> toLevel1Node(saveLevel1(request));
             case LEVEL2 -> toLevel2Node(saveLevel2(request));
@@ -342,6 +350,7 @@ public class AdminBaseMccApplicationService {
     /**
      * 删除 MCC 分类。存在下级分类或 MCC Code 时不允许删除。
      */
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void deleteCategory(MccRequests.MccDeleteRequest request) {
         String nodeType = normalizeRequired(request.getNodeType(), "nodeType is required");
@@ -351,6 +360,7 @@ public class AdminBaseMccApplicationService {
                 throw badRequest("一级分类下存在二级分类，不能删除");
             }
             MccEntities.BaseMccLevel1DO row = getLevel1(request.getId());
+            mccOptionCacheInvalidator.evictOptions();
             softDeleteLevel1(row);
             return;
         }
@@ -360,6 +370,7 @@ public class AdminBaseMccApplicationService {
                 throw badRequest("当前二级分类下存在 MCC 编码，不允许删除");
             }
             MccEntities.BaseMccLevel2DO row = getLevel2(request.getId());
+            mccOptionCacheInvalidator.evictOptions();
             softDeleteLevel2(row);
             return;
         }
@@ -369,11 +380,13 @@ public class AdminBaseMccApplicationService {
     /**
      * 更新分类或 MCC 编码状态。
      */
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(MccRequests.MccStatusUpdateRequest request) {
         int status = validStatus(request.getStatus());
         String nodeType = normalizeRequired(request.getNodeType(), "nodeType is required");
         LocalDateTime now = LocalDateTime.now();
+        mccOptionCacheInvalidator.evictOptions();
         if (LEVEL1.equals(nodeType)) {
             MccEntities.BaseMccLevel1DO row = getLevel1(request.getId());
             row.setStatus(status);
@@ -397,12 +410,14 @@ public class AdminBaseMccApplicationService {
     /**
      * 新增 MCC 编码。
      */
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccCodeVO createCode(MccRequests.MccCodeSaveRequest request) {
         validateCodeRequest(request, true);
         if (existsMccCode(request.getMccCode(), null)) {
             throw badRequest("MCC 编码已存在");
         }
+        mccOptionCacheInvalidator.evictOptions();
         MccEntities.BaseMccCodeDO row = new MccEntities.BaseMccCodeDO();
         fillCode(row, request);
         row.setCreateTime(LocalDateTime.now());
@@ -415,6 +430,7 @@ public class AdminBaseMccApplicationService {
     /**
      * 编辑 MCC 编码。编码本身创建后不允许修改，避免破坏风险策略和商户资料引用。
      */
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccCodeVO updateCode(MccRequests.MccCodeSaveRequest request) {
         if (request.getId() == null) {
@@ -425,6 +441,7 @@ public class AdminBaseMccApplicationService {
             throw badRequest("编辑 MCC 时不允许修改 MCC 编码");
         }
         validateCodeRequest(request, false);
+        mccOptionCacheInvalidator.evictOptions();
         fillCode(row, request);
         row.setUpdateTime(LocalDateTime.now());
         codeMapper.updateById(row);
@@ -442,6 +459,7 @@ public class AdminBaseMccApplicationService {
     /**
      * 删除 MCC 编码。存在风险策略或商户资料引用时不允许删除。
      */
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public void deleteCode(MccRequests.MccDeleteRequest request) {
         MccEntities.BaseMccCodeDO row = getCodeById(request.getId());
@@ -456,6 +474,7 @@ public class AdminBaseMccApplicationService {
         if (merchantCount != null && merchantCount > 0) {
             throw badRequest("当前 MCC 编码已被风险策略或商户信息引用，不允许删除");
         }
+        mccOptionCacheInvalidator.evictOptions();
         row.setStatus(DISABLED);
         row.setDeleted(row.getId());
         row.setUpdateTime(LocalDateTime.now());

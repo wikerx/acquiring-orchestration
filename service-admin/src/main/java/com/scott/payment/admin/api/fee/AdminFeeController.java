@@ -75,23 +75,50 @@ public class AdminFeeController {
         return success(applicationService.getTemplate(id));
     }
 
-    /** 新建模板并提交审核。 */
+    /** 新建费用模板并保存 v1 草稿。 */
     @PostMapping("/templates")
     @RequiresPermission("fee:template:add")
-    @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.CREATE, operation = "新建费用模板版本")
+    @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.CREATE, operation = "新建费用模板草稿")
     public CommonResult<FeePlanDetailResponse> createTemplate(
             @Valid @RequestBody FeeTemplateCreateRequest request) {
         return success(applicationService.createTemplate(request));
     }
 
-    /** 创建模板新版本并提交审核。 */
+    /** 基于当前配置创建模板新版本草稿。 */
     @PostMapping("/templates/{id}/versions")
     @RequiresPermission("fee:template:edit")
-    @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "提交费用模板新版本")
+    @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "创建费用模板草稿")
     public CommonResult<FeePlanDetailResponse> createTemplateVersion(
             @PathVariable("id") Long id,
             @Valid @RequestBody FeeVersionSaveRequest request) {
         return success(applicationService.createTemplateVersion(id, request));
+    }
+
+    /** 原地更新尚未提交审核的模板草稿。 */
+    @PutMapping("/templates/{planId}/versions/{versionId}")
+    @RequiresPermission("fee:template:edit")
+    @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "编辑费用模板草稿")
+    public CommonResult<FeePlanDetailResponse> updateTemplateDraft(
+            @PathVariable("planId") Long planId,
+            @PathVariable("versionId") Long versionId,
+            @Valid @RequestBody FeeVersionSaveRequest request) {
+        return success(applicationService.updateTemplateDraft(planId, versionId, request));
+    }
+
+    /** 提交模板草稿，提交后进入双人审核且不可继续编辑。 */
+    @PutMapping("/versions/{id}/submit")
+    @RequiresPermission("fee:template:submit")
+    @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "提交费用模板审核")
+    public CommonResult<FeePlanDetailResponse> submitTemplateVersion(@PathVariable("id") Long id) {
+        return success(applicationService.submitTemplateVersion(id));
+    }
+
+    /** 原提交人撤回待审核模板并恢复为草稿。 */
+    @PutMapping("/versions/{id}/withdraw")
+    @RequiresPermission("fee:template:withdraw")
+    @OperationLog(moduleName = "费用模板", businessType = OperationTypeConstants.UPDATE, operation = "撤回费用模板审核")
+    public CommonResult<FeePlanDetailResponse> withdrawTemplateVersion(@PathVariable("id") Long id) {
+        return success(applicationService.withdrawTemplateVersion(id));
     }
 
     /** 启用或禁用模板，只影响后续商户选择。 */

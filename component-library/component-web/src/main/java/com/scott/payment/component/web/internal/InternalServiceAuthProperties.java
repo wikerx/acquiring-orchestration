@@ -40,6 +40,11 @@ public class InternalServiceAuthProperties {
     private Duration allowedClockSkew = Duration.ofMinutes(5);
 
     /**
+     * nonce 防重放记录有效期；必须覆盖正负时钟偏差窗口，默认十分钟。
+     */
+    private Duration nonceTtl = Duration.ofMinutes(10);
+
+    /**
      * 不需要内部签名的路径，主要用于健康检查或基础探针。
      */
     private List<String> whitelist = List.of("/actuator/health/**", "/error");

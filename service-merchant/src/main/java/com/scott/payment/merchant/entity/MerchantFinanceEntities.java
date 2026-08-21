@@ -47,7 +47,6 @@ public final class MerchantFinanceEntities {
         private Integer reserveDelayDays;
         private String initialDelayUnit;
         private Integer initialDelayDays;
-        private String regularDelayUnit;
         private Integer regularDelayDays;
         private String settlementFrequency;
         private Integer frequencyDay;
@@ -60,11 +59,15 @@ public final class MerchantFinanceEntities {
     public static class FeeRuleDO {
         @TableId(type = IdType.AUTO) private Long id;
         private Long planVersionId;
+        /** 同一条页面多选规则展开后的分组编码；历史原子规则允许为空。 */
+        private String ruleGroupCode;
         private String feeCategory;
         private String ruleName;
         private String transactionType;
         private String paymentType;
         private String paymentMethod;
+        private String riskServiceType;
+        private String chargeTrigger;
         private String feeMode;
         /** 百分比数值，例如 2.3 表示 2.3%，按标签金额计提。 */
         private BigDecimal percentageRate;
@@ -116,8 +119,6 @@ public final class MerchantFinanceEntities {
         private BigDecimal availableBalance;
         /** 人工账户状态：NORMAL、FROZEN 或 CLOSED。 */
         private String accountStatus;
-        /** 1 表示负余额限制主动逆向交易，0 表示未限制。 */
-        private Integer reverseRestricted;
         /** 账户并发版本号，商户端仅展示不修改。 */
         private Long accountVersion;
         /** 账户创建系统时间。 */
@@ -139,8 +140,6 @@ public final class MerchantFinanceEntities {
         private String merchantId;
         /** 流水所属资金账户主键。 */
         private Long accountId;
-        /** AVAILABLE 或 RESERVE。 */
-        private String balanceType;
         /** 余额变动业务类型。 */
         private String businessType;
         /** 面向商户核对的变动摘要。 */
@@ -165,6 +164,10 @@ public final class MerchantFinanceEntities {
         private String operatorName;
         /** 最终复核人名称快照，自动入账时允许为空。 */
         private String reviewerName;
+        /** 人工余额变动的完整业务原因，自动入账时允许为空。 */
+        private String operationReason;
+        /** 审核和复核意见摘要，自动入账时允许为空。 */
+        private String reviewComment;
         /** 来源业务事件发生系统时间。 */
         private LocalDateTime businessTime;
         /** 可用余额实际发生变化的系统时间。 */

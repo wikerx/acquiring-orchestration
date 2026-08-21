@@ -173,7 +173,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException(HttpMethod.POST, uri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-payment post call failed, targetUri: {}", uri, exception);
+            log.warn("service-payment post call failed, targetPath: {}, exceptionType: {}",
+                    uri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment post call failed");
         }
     }
@@ -204,12 +205,14 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
         String caller = properties.getInternalCaller();
+        String requestBody = body == null ? null : JsonUtils.toJsonString(body);
         String signature = InternalServiceSignature.sign(
                 method.name(),
-                uri.getPath(),
+                InternalServiceSignature.requestTarget(uri.getRawPath(), uri.getRawQuery()),
                 timestamp,
                 nonce,
                 caller,
+                InternalServiceSignature.payloadSha256(requestBody),
                 properties.getInternalSecret()
         );
         HttpHeaders headers = new HttpHeaders();
@@ -218,7 +221,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
         headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
         headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
-        return new HttpEntity<>(body == null ? null : JsonUtils.toJsonString(body), headers);
+        return new HttpEntity<>(requestBody, headers);
     }
 
     /**
@@ -268,11 +271,11 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private ApiException translateHttpException(HttpMethod method, URI uri, HttpStatusCodeException exception) {
-        log.warn("service-payment {} call returned non-success status, targetUri: {}, status: {}",
+        log.warn("service-payment {} call returned non-success status, targetPath: {}, status: {}, exceptionType: {}",
                 method.name(),
-                uri,
+                uri.getPath(),
                 exception.getStatusCode().value(),
-                exception);
+                exception.getClass().getSimpleName());
         if (exception.getStatusCode().value() == 401) {
             return new ApiException(ApiResultEnum.UNAUTHORIZED, "service-payment call unauthorized");
         }

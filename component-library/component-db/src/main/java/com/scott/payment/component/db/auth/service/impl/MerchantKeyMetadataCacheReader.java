@@ -20,6 +20,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Objects;
+import java.time.LocalDateTime;
 
 /**
  * @author : scott
@@ -104,7 +105,8 @@ public class MerchantKeyMetadataCacheReader {
 
     /** 从三类当前启用密钥记录构造不含密钥正文的版本快照。 */
     private MerchantKeyMetadata load(String merchantId) {
-        BaseMerchantJwtKeyDO jwtKey = selectJwtKey(merchantId);
+        LocalDateTime now = LocalDateTime.now();
+        BaseMerchantJwtKeyDO jwtKey = selectJwtKey(merchantId, now);
         BasePlatformPayloadKeyDO platformKey = selectPlatformKey(merchantId);
         BaseMerchantResponseKeyDO responseKey = selectResponseKey(merchantId);
         if (jwtKey == null && platformKey == null && responseKey == null) {
@@ -118,6 +120,7 @@ public class MerchantKeyMetadataCacheReader {
             metadata.setJwtAlgorithm(jwtKey.getAlgorithm());
             metadata.setJwtExpiresSeconds(jwtKey.getExpiresSeconds());
             metadata.setJwtEffectiveTime(jwtKey.getEffectiveTime());
+            metadata.setJwtExpireTime(jwtKey.getExpireTime());
             metadata.setJwtModifiedTime(jwtKey.getGmtModified());
         }
         if (platformKey != null) {
@@ -137,13 +140,15 @@ public class MerchantKeyMetadataCacheReader {
     }
 
     /** 查询当前启用 JWT 密钥的非敏感字段。 */
-    private BaseMerchantJwtKeyDO selectJwtKey(String merchantId) {
+    private BaseMerchantJwtKeyDO selectJwtKey(String merchantId, LocalDateTime now) {
         return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>query()
                 .select("id", "merchant_id", "key_version", "algorithm", "expires_seconds",
-                        "effective_time", "gmt_modified")
+                        "effective_time", "expire_time", "gmt_modified")
                 .eq("merchant_id", merchantId)
                 .eq("enabled", ENABLED)
                 .eq("deleted", NOT_DELETED)
+                .and(wrapper -> wrapper.isNull("effective_time").or().le("effective_time", now))
+                .and(wrapper -> wrapper.isNull("expire_time").or().gt("expire_time", now))
                 .orderByDesc("effective_time")
                 .last("LIMIT 1"));
     }
@@ -180,6 +185,8 @@ public class MerchantKeyMetadataCacheReader {
                 Objects.toString(metadata.getMerchantId(), ""),
                 Objects.toString(metadata.getJwtKeyId(), ""),
                 Objects.toString(metadata.getJwtKeyVersion(), ""),
+                Objects.toString(metadata.getJwtEffectiveTime(), ""),
+                Objects.toString(metadata.getJwtExpireTime(), ""),
                 Objects.toString(metadata.getJwtModifiedTime(), ""),
                 Objects.toString(metadata.getPlatformKeyId(), ""),
                 Objects.toString(metadata.getPlatformModifiedTime(), ""),

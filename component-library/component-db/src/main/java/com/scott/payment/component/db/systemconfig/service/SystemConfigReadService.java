@@ -78,10 +78,8 @@ public class SystemConfigReadService {
             return invalidationGuard.isPending(PaymentCacheNames.SYSTEM_CONFIG, configKey);
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: SYSTEM_CONFIG_CACHE_GUARD_CHECK_FAILED "
-                            + "exceptionType: {} reason: {}",
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage()
+                    "event: SYSTEM_CONFIG_CACHE_GUARD_CHECK_FAILED exceptionType: {}",
+                    exception.getClass().getSimpleName()
             );
             return true;
         }

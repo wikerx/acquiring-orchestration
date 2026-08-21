@@ -69,6 +69,14 @@ public final class MerchantFinanceDTOs {
         private String transactionType;
         private String paymentType;
         private String paymentMethod;
+        /** 同一逻辑规则覆盖的交易类型，用于商户端按配置维度展示。 */
+        private List<String> transactionTypes = new ArrayList<>();
+        /** 同一逻辑规则覆盖的支付类型，用于商户端按配置维度展示。 */
+        private List<String> paymentTypes = new ArrayList<>();
+        /** 同一逻辑规则覆盖的支付方式，用于商户端按配置维度展示。 */
+        private List<String> paymentMethods = new ArrayList<>();
+        private String riskServiceType;
+        private String chargeTrigger;
         private String feeMode;
         /** 百分比数值，例如 2.3 表示 2.3%，按标签金额计提。 */
         private BigDecimal percentageRate;
@@ -175,6 +183,10 @@ public final class MerchantFinanceDTOs {
         private String operatorName;
         /** 最终复核人名称快照，自动入账时允许为空。 */
         private String reviewerName;
+        /** 人工余额变动的完整业务原因，自动入账时允许为空。 */
+        private String operationReason;
+        /** 审核和复核意见摘要，自动入账时允许为空。 */
+        private String reviewComment;
         /** 来源业务事件发生系统时间。 */
         private LocalDateTime businessTime;
         /** 可用余额实际发生变化的系统时间。 */

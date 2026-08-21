@@ -6,14 +6,17 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundRechargeCreateRequest;
+import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDeductionCreateRequest;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundAccountQuery;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundAccountResponse;
 import com.scott.payment.admin.dto.fund.AdminFundAccountDTOs.FundDetailQuery;
 import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundAccountDO;
+import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundDeductionDO;
 import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundLedgerDO;
 import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundRechargeDO;
 import com.scott.payment.admin.entity.fund.FundAccountEntities.PendingBalanceAggregate;
 import com.scott.payment.admin.mapper.MerchantFundAccountMapper;
+import com.scott.payment.admin.mapper.MerchantFundDeductionMapper;
 import com.scott.payment.admin.mapper.MerchantFundLedgerMapper;
 import com.scott.payment.admin.mapper.MerchantFundRechargeMapper;
 import com.scott.payment.admin.mapper.MerchantReserveItemMapper;
@@ -48,7 +51,7 @@ import static org.mockito.Mockito.when;
  * @classname : AdminFundAccountServiceImplTests
  * @date : 2026-08-18 00:00
  * @email : scott_x@163.com
- * @description : 资金账户测试，验证在途聚合、充值人员隔离、账户锁和重复入账保护。
+ * @description : 资金账户测试，验证在途聚合、充值扣减人员隔离、账户锁和重复入账保护。
  * @status : create
  */
 class AdminFundAccountServiceImplTests {
@@ -59,6 +62,7 @@ class AdminFundAccountServiceImplTests {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
         assistant.setCurrentNamespace(getClass().getName());
         TableInfoHelper.initTableInfo(assistant, MerchantFundAccountDO.class);
+        TableInfoHelper.initTableInfo(assistant, MerchantFundDeductionDO.class);
         TableInfoHelper.initTableInfo(assistant, MerchantFundLedgerDO.class);
         TableInfoHelper.initTableInfo(assistant, MerchantFundRechargeDO.class);
         TableInfoHelper.initTableInfo(assistant, BaseMerchantInfoDO.class);
@@ -157,7 +161,6 @@ class AdminFundAccountServiceImplTests {
         Fixture fixture = new Fixture();
         MerchantFundAccountDO account = account();
         account.setAvailableBalance(new BigDecimal("-1.00"));
-        account.setReverseRestricted(1);
         when(fixture.accountMapper.selectOne(any())).thenReturn(account);
         when(fixture.merchantInfoMapper.selectList(any())).thenReturn(List.of(merchant()));
         when(fixture.transactionFundQueryService.sumPendingBalances("M10001")).thenReturn(List.of());
@@ -203,7 +206,7 @@ class AdminFundAccountServiceImplTests {
         fixture.service.pageAllLedgers(query);
 
         assertThat(hasParams(accountQuery.get(), "FA10001", 0L)).isTrue();
-        assertThat(hasParams(ledgerQuery.get(), "M10001", 100L, "USD", "AVAILABLE", "RECHARGE",
+        assertThat(hasParams(ledgerQuery.get(), "M10001", 100L, "USD", "RECHARGE",
                 "CREDIT", start, end)).isTrue();
         System.out.println("全局余额明细：验证商户、账户、币种、业务类型、方向和入账闭区间组合筛选");
     }
@@ -387,6 +390,58 @@ class AdminFundAccountServiceImplTests {
         System.out.println("充值重复复核：验证已完成申请不会再次增加余额或写入流水");
     }
 
+    /** 内置 admin 可完成扣减审核复核，余额允许扣成负数且流水使用正金额借方语义。 */
+    @Test
+    void shouldAllowBuiltinAdminToPostDeductionIntoNegativeBalance() {
+        Fixture fixture = new Fixture();
+        MerchantFundDeductionDO deduction = deduction("PENDING_AUDIT", 10L, null);
+        MerchantFundAccountDO account = account();
+        when(fixture.deductionMapper.selectByIdForUpdate(1L)).thenReturn(deduction);
+        when(fixture.accountMapper.selectOne(any())).thenReturn(account);
+        when(fixture.accountMapper.selectByIdForUpdate(100L)).thenReturn(account);
+        when(fixture.ledgerMapper.selectMaxAccountSequence(100L)).thenReturn(7L);
+        when(fixture.merchantInfoMapper.selectList(any())).thenReturn(List.of(merchant()));
+
+        fixture.service.auditDeduction(1L, "审核通过", 10L, "管理员", "admin");
+        fixture.service.recheckDeduction(1L, "复核通过", 10L, "管理员", "admin");
+
+        assertThat(account.getAvailableBalance()).isEqualByComparingTo("-200.00");
+        assertThat(account.getAccountVersion()).isEqualTo(4L);
+        ArgumentCaptor<MerchantFundLedgerDO> captor = ArgumentCaptor.forClass(MerchantFundLedgerDO.class);
+        verify(fixture.ledgerMapper).insert(captor.capture());
+        MerchantFundLedgerDO ledger = captor.getValue();
+        assertThat(ledger.getBusinessType()).isEqualTo("BALANCE_DEDUCTION");
+        assertThat(ledger.getDirection()).isEqualTo("DEBIT");
+        assertThat(ledger.getAmount()).isEqualByComparingTo("1200.00");
+        assertThat(ledger.getBalanceBefore()).isEqualByComparingTo("1000.00");
+        assertThat(ledger.getBalanceAfter()).isEqualByComparingTo("-200.00");
+        assertThat(ledger.getOperationReason()).isEqualTo("商户违规罚金");
+        assertThat(ledger.getIdempotencyKey()).isEqualTo("FUND_DEDUCTION:FD10001");
+        assertThat(deduction.getDeductionStatus()).isEqualTo("POSTED");
+        verify(fixture.deductionMapper, times(2)).updateById(deduction);
+        System.out.println("账户扣减：admin 完成审核复核后原子扣减，允许负余额并写入 DEBIT 不可变流水");
+    }
+
+    /** 账户关闭后，即使申请此前已审核也必须阻止复核扣减。 */
+    @Test
+    void shouldRejectDeductionRecheckWhenAccountIsClosed() {
+        Fixture fixture = new Fixture();
+        MerchantFundDeductionDO deduction = deduction("PENDING_RECHECK", 10L, 20L);
+        MerchantFundAccountDO account = account();
+        account.setAccountStatus("CLOSED");
+        when(fixture.deductionMapper.selectByIdForUpdate(1L)).thenReturn(deduction);
+        when(fixture.accountMapper.selectByIdForUpdate(100L)).thenReturn(account);
+
+        assertThatThrownBy(() -> fixture.service.recheckDeduction(
+                1L, "复核通过", 30L, "复核人", "checker"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("已关闭");
+
+        verify(fixture.accountMapper, never()).updateById(any(MerchantFundAccountDO.class));
+        verify(fixture.ledgerMapper, never()).insert(any(MerchantFundLedgerDO.class));
+        System.out.println("账户扣减：复核时二次检查账户状态，关闭账户不产生余额变动");
+    }
+
     private static void assertStatusTransition(String currentStatus, String targetStatus) {
         Fixture fixture = statusFixture(currentStatus);
 
@@ -425,7 +480,6 @@ class AdminFundAccountServiceImplTests {
         account.setSettlementCurrency("USD");
         account.setAvailableBalance(new BigDecimal("1000.00"));
         account.setAccountStatus("NORMAL");
-        account.setReverseRestricted(0);
         account.setAccountVersion(3L);
         account.setUpdateTime(LocalDateTime.of(2026, 8, 18, 10, 0));
         account.setDeleted(0L);
@@ -453,6 +507,28 @@ class AdminFundAccountServiceImplTests {
         return recharge;
     }
 
+    private static MerchantFundDeductionDO deduction(String status, Long submitById, Long auditById) {
+        MerchantFundDeductionDO deduction = new MerchantFundDeductionDO();
+        deduction.setId(1L);
+        deduction.setDeductionNo("FD10001");
+        deduction.setAccountId(100L);
+        deduction.setMerchantId("M10001");
+        deduction.setCurrency("USD");
+        deduction.setAmount(new BigDecimal("1200.00"));
+        deduction.setDeductionCategory("PENALTY");
+        deduction.setDeductionStatus(status);
+        deduction.setReason("商户违规罚金");
+        deduction.setSubmitById(submitById);
+        deduction.setSubmitByName("提交人");
+        deduction.setSubmitTime(LocalDateTime.of(2026, 8, 20, 9, 0));
+        deduction.setAuditById(auditById);
+        deduction.setAuditByName(auditById == null ? null : "审核人");
+        deduction.setAuditComment(auditById == null ? null : "审核通过");
+        deduction.setRequestId("DED-REQ-10001");
+        deduction.setDeleted(0L);
+        return deduction;
+    }
+
     private static MerchantFundLedgerDO rechargeLedger() {
         MerchantFundLedgerDO ledger = new MerchantFundLedgerDO();
         ledger.setId(200L);
@@ -460,7 +536,6 @@ class AdminFundAccountServiceImplTests {
         ledger.setLedgerGroupNo("RC10001");
         ledger.setAccountId(100L);
         ledger.setMerchantId("M10001");
-        ledger.setBalanceType("AVAILABLE");
         ledger.setBusinessType("RECHARGE");
         ledger.setSummary("管理端充值入账");
         ledger.setBusinessNo("RC10001");
@@ -488,6 +563,16 @@ class AdminFundAccountServiceImplTests {
         return request;
     }
 
+    private static FundDeductionCreateRequest deductionRequest(String amount) {
+        FundDeductionCreateRequest request = new FundDeductionCreateRequest();
+        request.setAccountId(100L);
+        request.setDeductionCategory("PENALTY");
+        request.setAmount(new BigDecimal(amount));
+        request.setRequestId("DED-REQ-10001");
+        request.setReason("商户违规罚金");
+        return request;
+    }
+
     private static PendingBalanceAggregate pending(String merchantId, String currency, String amount) {
         PendingBalanceAggregate aggregate = new PendingBalanceAggregate();
         aggregate.setMerchantId(merchantId);
@@ -512,12 +597,13 @@ class AdminFundAccountServiceImplTests {
         private final MerchantFundAccountMapper accountMapper = mock(MerchantFundAccountMapper.class);
         private final MerchantFundLedgerMapper ledgerMapper = mock(MerchantFundLedgerMapper.class);
         private final MerchantFundRechargeMapper rechargeMapper = mock(MerchantFundRechargeMapper.class);
+        private final MerchantFundDeductionMapper deductionMapper = mock(MerchantFundDeductionMapper.class);
         private final AdminTransactionFundQueryService transactionFundQueryService =
                 mock(AdminTransactionFundQueryService.class);
         private final MerchantReserveItemMapper reserveMapper = mock(MerchantReserveItemMapper.class);
         private final BaseMerchantInfoMapper merchantInfoMapper = mock(BaseMerchantInfoMapper.class);
         private final AdminFundAccountServiceImpl service = new AdminFundAccountServiceImpl(
-                accountMapper, ledgerMapper, rechargeMapper, transactionFundQueryService,
+                accountMapper, ledgerMapper, rechargeMapper, deductionMapper, transactionFundQueryService,
                 reserveMapper, merchantInfoMapper);
     }
 }

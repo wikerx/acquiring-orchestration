@@ -1,6 +1,7 @@
 package com.scott.payment.openapi.support;
 
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.channel.payment.api.PaymentChannelCallbackVerifier;
 import com.scott.payment.channel.payment.exception.ChannelCallbackVerificationException;
 import com.scott.payment.channel.payment.registry.PaymentChannelCallbackVerifierRegistry;
@@ -112,7 +113,12 @@ class OpenApiCallbackSecuritySupportTests {
         assertThatThrownBy(() -> support.verifyChannelCallback(CHANNEL_CODE, request,
                 "{\"result\":\"SUCCESS\",\"response\":{\"acquirerCode\":\"05\"}}"))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("channel callback signature is invalid");
+                .satisfies(throwable -> {
+                    ApiException exception = (ApiException) throwable;
+                    assertThat(exception.getCode()).isEqualTo(ApiResultEnum.UNAUTHORIZED.getCode());
+                    assertThat(exception.getMessage()).isEqualTo("Unauthorized:SIGNATURE_INVALID");
+                    assertThat(exception.getMessage()).doesNotContain("channel callback signature is invalid");
+                });
     }
 
     /**
@@ -147,7 +153,12 @@ class OpenApiCallbackSecuritySupportTests {
         assertThatThrownBy(() -> support.verifyChannelCallback(EVENT_CHANNEL_CODE, request,
                 "{\"eventType\":\"sentForSettlement\",\"paymentId\":\"WP-PAY-002\"}"))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("channel callback event signature is invalid");
+                .satisfies(throwable -> {
+                    ApiException exception = (ApiException) throwable;
+                    assertThat(exception.getCode()).isEqualTo(ApiResultEnum.UNAUTHORIZED.getCode());
+                    assertThat(exception.getMessage()).isEqualTo("Unauthorized:SIGNATURE_INVALID");
+                    assertThat(exception.getMessage()).doesNotContain("channel callback event signature is invalid");
+                });
     }
 
     /** Provider 内部加密故障必须映射为 F500，不能伪装成外部未授权请求。 */

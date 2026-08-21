@@ -98,6 +98,33 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
             @Param("limit") int limit);
 
     /**
+     * 使用分片键和版本号抢占一条待投递事件。
+     *
+     * @param id 主键 ID
+     * @param transactionDateTime 交易分片时间
+     * @param version 当前版本号
+     * @param now 抢占时间
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE transaction_event_outbox
+            SET event_status = 'PROCESSING',
+                version = version + 1,
+                update_time = #{now}
+            WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{version}
+              AND deleted = 0
+              AND event_status IN ('INIT', 'FAILED')
+              AND retry_count < max_retry_count
+              AND (next_retry_time IS NULL OR next_retry_time <= #{now})
+            """)
+    int claimForPublishLogical(@Param("id") Long id,
+                               @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                               @Param("version") Integer version,
+                               @Param("now") LocalDateTime now);
+
+    /**
      * 使用分片时间和版本 CAS 标记逻辑表事件已投递。
      *
      * @param id 主键 ID
@@ -117,7 +144,7 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
               AND transaction_date_time = #{transactionDateTime}
               AND version = #{version}
               AND deleted = 0
-              AND event_status IN ('INIT', 'FAILED')
+              AND event_status = 'PROCESSING'
             """)
     int markSentLogical(@Param("id") Long id,
                         @Param("transactionDateTime") LocalDateTime transactionDateTime,
@@ -137,9 +164,15 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
      */
     @Update("""
             UPDATE transaction_event_outbox
-            SET event_status = 'FAILED',
+            SET event_status = CASE
+                    WHEN retry_count + 1 >= max_retry_count THEN 'CLOSED'
+                    ELSE 'FAILED'
+                END,
                 retry_count = retry_count + 1,
-                next_retry_time = #{nextRetryTime},
+                next_retry_time = CASE
+                    WHEN retry_count + 1 >= max_retry_count THEN NULL
+                    ELSE #{nextRetryTime}
+                END,
                 fail_reason = #{failReason},
                 version = version + 1,
                 update_time = #{now}
@@ -147,7 +180,7 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
               AND transaction_date_time = #{transactionDateTime}
               AND version = #{version}
               AND deleted = 0
-              AND event_status IN ('INIT', 'FAILED')
+              AND event_status = 'PROCESSING'
               AND retry_count < max_retry_count
             """)
     int markFailedLogical(@Param("id") Long id,
@@ -156,6 +189,40 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
                           @Param("nextRetryTime") LocalDateTime nextRetryTime,
                           @Param("failReason") String failReason,
                           @Param("now") LocalDateTime now);
+
+    /**
+     * 恢复单季度中超时 PROCESSING 事件；达到最大次数时直接关闭等待人工处理。
+     *
+     * @param beginTime 季度开始时间
+     * @param endTimeExclusive 下一季度开始时间
+     * @param staleBefore PROCESSING 超时边界
+     * @param now 恢复时间
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE transaction_event_outbox
+            SET event_status = CASE
+                    WHEN retry_count + 1 >= max_retry_count THEN 'CLOSED'
+                    ELSE 'FAILED'
+                END,
+                retry_count = retry_count + 1,
+                next_retry_time = CASE
+                    WHEN retry_count + 1 >= max_retry_count THEN NULL
+                    ELSE #{now}
+                END,
+                fail_reason = 'relay processing timeout',
+                version = version + 1,
+                update_time = #{now}
+            WHERE transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+              AND event_status = 'PROCESSING'
+              AND update_time < #{staleBefore}
+              AND deleted = 0
+            """)
+    int recoverStaleProcessingLogical(@Param("beginTime") LocalDateTime beginTime,
+                                      @Param("endTimeExclusive") LocalDateTime endTimeExclusive,
+                                      @Param("staleBefore") LocalDateTime staleBefore,
+                                      @Param("now") LocalDateTime now);
 
     /**
      * 将已投递或耗尽重试的稳定退款执行事件恢复为待投递状态。

@@ -1,6 +1,8 @@
 package com.scott.payment.merchant.service.impl;
 
 import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.db.constant.DataSourceName;
+import com.baomidou.dynamic.datasource.annotation.DS;
 import org.junit.jupiter.api.Test;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.annotation.AnnotatedElementUtils;
@@ -29,7 +31,12 @@ class MerchantFinanceCacheAnnotationsTests {
         assertThat(cacheable).isNotNull();
         assertThat(cacheable.cacheNames()).containsExactly(PaymentCacheNames.MERCHANT_ACTIVE_FEE);
         assertThat(cacheable.key()).isEqualTo("#p0");
+        assertThat(cacheable.condition())
+                .isEqualTo("@merchantActiveFeeCachePolicy.isCacheReadAllowed(#p0)");
         assertThat(cacheable.unless()).isEqualTo("#result == null");
         assertThat(cacheable.sync()).isFalse();
+        DS dataSource = AnnotatedElementUtils.findMergedAnnotation(method, DS.class);
+        assertThat(dataSource).isNotNull();
+        assertThat(dataSource.value()).isEqualTo(DataSourceName.MASTER);
     }
 }

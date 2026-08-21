@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : AdminMerchantInfoServiceDataSourceContractTests
  * @date : 2026-08-01 13:00
  * @email : scott_x@163.com
- * @description : 验证管理端商户普通查询路由只读库，新增、修改、状态和密钥变更固定路由主库
+ * @description : 验证管理端商户普通查询路由只读库，缓存重建及事实变更固定路由主库
  * @status : create
  */
 class AdminMerchantInfoServiceDataSourceContractTests {
@@ -31,11 +31,16 @@ class AdminMerchantInfoServiceDataSourceContractTests {
     @Test
     void shouldRouteMerchantQueriesToSlave() throws NoSuchMethodException {
         assertDataSource(DataSourceName.SLAVE, List.of(
-                method("getFormOptions"),
                 method("pageMerchants", AdminMerchantQueryRequest.class),
                 method("getMerchant", Long.class),
                 method("getMerchantKeys", String.class)
         ));
+    }
+
+    /** 商户表单选项缓存重建必须使用主库，避免主从延迟把已失效旧值重新写入缓存。 */
+    @Test
+    void shouldRebuildMerchantFormOptionsFromMaster() throws NoSuchMethodException {
+        assertDataSource(DataSourceName.MASTER, List.of(method("getFormOptions")));
     }
 
     /**

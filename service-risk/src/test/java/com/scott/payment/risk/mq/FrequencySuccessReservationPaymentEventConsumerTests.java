@@ -6,6 +6,7 @@ import com.scott.payment.risk.mq.message.RiskPaymentTransactionEventMessage;
 import com.scott.payment.risk.service.FrequencySuccessReservationService;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,6 +35,20 @@ class FrequencySuccessReservationPaymentEventConsumerTests {
         verify(service).confirm("M001", "TX001");
         verify(service).release("M001", "TX001");
         verify(service, never()).confirm("M001", "TX-PENDING");
+        verifyNoMoreInteractions(service);
+    }
+
+    /** 畸形支付事件必须抛出以触发 RocketMQ 重试，不能静默确认。 */
+    @Test
+    void shouldRejectMalformedPaymentEvent() {
+        FrequencySuccessReservationService service = mock(FrequencySuccessReservationService.class);
+        FrequencySuccessReservationPaymentEventConsumer consumer =
+                new FrequencySuccessReservationPaymentEventConsumer(service);
+
+        assertThatThrownBy(() -> consumer.onMessage("{invalid-json"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("risk payment event payload is invalid");
+
         verifyNoMoreInteractions(service);
     }
 

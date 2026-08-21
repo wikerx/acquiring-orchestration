@@ -3,6 +3,8 @@ package com.scott.payment.data.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -30,6 +32,12 @@ public class DataMerchantNotificationProperties {
 
     /** 平台签发回调 JWT 的有效期，单位秒，最大 300 秒。 */
     private long callbackJwtTtlSeconds = 180L;
+
+    /** 商户回调敏感材料在单实例内的最长驻留时间，默认两分钟。 */
+    private Duration securityMaterialCacheTtl = Duration.ofMinutes(2);
+
+    /** 单个 service-data 实例允许缓存的商户密钥版本条目上限。 */
+    private int securityMaterialCacheMaxEntries = 2048;
 
     /** 是否允许明文 HTTP，仅限隔离开发环境显式开启。 */
     private boolean allowHttp;

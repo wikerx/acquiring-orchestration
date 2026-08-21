@@ -26,6 +26,7 @@ import com.scott.payment.payment.domain.state.PaymentCheckoutProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentCheckoutSessionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.PaymentCheckoutAttemptDO;
+import com.scott.payment.payment.entity.PaymentCheckoutEventDO;
 import com.scott.payment.payment.entity.PaymentCheckoutSecurityEventDO;
 import com.scott.payment.payment.entity.PaymentCheckoutSessionDO;
 import com.scott.payment.payment.entity.PaymentCheckoutTokenDO;
@@ -112,6 +113,9 @@ class DefaultPaymentCheckoutServiceTests {
     /** 商户通知任务 Mapper 测试替身。 */
     private TransactionMerchantNotificationMapper merchantNotificationMapper;
 
+    /** 商户通知首次五秒延时调度测试替身。 */
+    private MerchantNotificationInitialDeliveryService merchantNotificationInitialDeliveryService;
+
     /** Hosted Checkout TTL、重试次数和轮询间隔测试配置。 */
     private PaymentCheckoutProperties properties;
 
@@ -129,6 +133,7 @@ class DefaultPaymentCheckoutServiceTests {
         paymentTransactionService = mock(PaymentTransactionService.class);
         authenticationRecordService = mock(PaymentAuthenticationRecordService.class);
         merchantNotificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        merchantNotificationInitialDeliveryService = mock(MerchantNotificationInitialDeliveryService.class);
         transactionOperations = new TrackingTransactionOperations();
         properties = new PaymentCheckoutProperties();
         properties.setTokenPepper("unit-test-hosted-checkout-token-pepper");
@@ -159,6 +164,8 @@ class DefaultPaymentCheckoutServiceTests {
                 new MerchantNotificationProperties(),
                 authenticationRecordService,
                 transactionOperations);
+        ReflectionTestUtils.setField(service, "merchantNotificationInitialDeliveryService",
+                merchantNotificationInitialDeliveryService);
     }
 
     @Test
@@ -180,7 +187,7 @@ class DefaultPaymentCheckoutServiceTests {
         PaymentCheckoutTokenDO tokenDO = tokenCaptor.getValue();
         assertThat(resultDTO.getCheckoutUrl()).startsWith("https://pay.example.com/checkout/");
         assertThat(resultDTO.getIdempotentHit()).isFalse();
-        assertThat(sessionDO.getCheckoutStatus()).isEqualTo(PaymentCheckoutSessionStatusEnum.PAYABLE.getCode());
+        assertThat(sessionDO.getCheckoutStatus()).isEqualTo(PaymentCheckoutSessionStatusEnum.PENDING.getCode());
         assertThat(sessionDO.getAllowedPaymentMethodsJson()).contains("\"paymentMethod\":\"BANK_CARD\"");
         assertThat(sessionDO.getChannelCode()).isNull();
         assertThat(sessionDO.getSubMerchantInfoJson()).contains("SUB-1001");
@@ -193,8 +200,27 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(tokenDO.getTokenKeyVersion()).isEqualTo("test-v1");
         assertThat(tokenDO.getIssueReason()).isEqualTo("SESSION_CREATE");
         assertThat(sessionDO.getExpireTime()).isAfter(LocalDateTime.now().plusHours(23));
-        assertThat(tokenDO.getExpireTime()).isAfter(sessionDO.getExpireTime().plusDays(28));
+        assertThat(tokenDO.getExpireTime()).isNull();
         assertThat(resultDTO.getCheckoutUrl()).doesNotContain(tokenDO.getTokenHash());
+    }
+
+    /** 内部调用即使传入更晚时间，也不能把付款提交窗口放大到 24 小时之外。 */
+    @Test
+    void shouldCapPaymentSubmissionDeadlineAtTwentyFourHours() {
+        log.info("用例开始：校验内部创建命令不能把付款提交截止时间放大到 24 小时之外");
+        LocalDateTime callStartedAt = LocalDateTime.now();
+        PaymentCheckoutSessionCreateCommandDTO commandDTO = createCommand();
+        commandDTO.setExpireTime(callStartedAt.plusDays(2));
+        ArgumentCaptor<PaymentCheckoutSessionDO> sessionCaptor =
+                ArgumentCaptor.forClass(PaymentCheckoutSessionDO.class);
+
+        service.createSession(commandDTO);
+
+        LocalDateTime callFinishedAt = LocalDateTime.now();
+        verify(sessionMapper).insert(sessionCaptor.capture());
+        assertThat(sessionCaptor.getValue().getExpireTime())
+                .isBetween(callStartedAt.plusHours(24), callFinishedAt.plusHours(24));
+        log.info("用例结果：两天后的输入截止时间已收敛到服务端创建时间后 24 小时");
     }
 
     @Test
@@ -307,7 +333,7 @@ class DefaultPaymentCheckoutServiceTests {
     void shouldConvergeTimedOutPreChannelThreeDsProcessingDuringStatusPolling() {
         PaymentCheckoutSessionDO processingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutSessionDO retryableSession = sessionWithStatus(
-                PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+                PaymentCheckoutSessionStatusEnum.FAILED);
         retryableSession.setProcessStage(PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode());
         retryableSession.setVersion(2);
         PaymentCheckoutAttemptDO processingAttempt = processingAttempt(processingSession);
@@ -340,7 +366,7 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.FAILED_RETRYABLE.getCode());
         assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo("THREE_DS_AUTHENTICATION_FAILED");
         verify(sessionMapper).markFailedCas(eq(processingSession.getCheckoutSessionId()),
-                eq(PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE.getCode()),
+                eq(PaymentCheckoutSessionStatusEnum.FAILED.getCode()),
                 eq(PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode()), any(), any());
         verify(paymentTransactionService).failPreparedTransaction(
                 any(), eq("THREE_DS_AUTHENTICATION_TIMEOUT"), anyString());
@@ -352,7 +378,7 @@ class DefaultPaymentCheckoutServiceTests {
     void shouldConvergeTimedOutCoreTransactionOnlyAfterCheckoutTransactionCommits() {
         PaymentCheckoutSessionDO processingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutSessionDO retryableSession = sessionWithStatus(
-                PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+                PaymentCheckoutSessionStatusEnum.FAILED);
         PaymentCheckoutAttemptDO processingAttempt = processingAttempt(processingSession);
         processingAttempt.setThreeDsRequired(1);
         processingAttempt.setAuthenticationStartTime(LocalDateTime.now().minusSeconds(601));
@@ -391,7 +417,7 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldRetryCoreConvergenceForPreviouslyPersistedThreeDsTimeout() {
         PaymentCheckoutSessionDO failedSession = sessionWithStatus(
-                PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+                PaymentCheckoutSessionStatusEnum.FAILED);
         PaymentCheckoutAttemptDO failedAttempt = attemptWithStatus(failedSession,
                 PaymentCheckoutAttemptStatusEnum.FAILED,
                 PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
@@ -518,7 +544,7 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldIssueNewCardEncryptionMetadataAfterPreviousAttemptLimitWasReached() {
         PaymentCheckoutSessionDO sessionDO = sessionWithStatus(
-                PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+                PaymentCheckoutSessionStatusEnum.FAILED);
         sessionDO.setAttemptCount(3);
         when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(sessionDO));
         when(sessionMapper.selectByCheckoutSessionId(sessionDO.getCheckoutSessionId())).thenReturn(sessionDO);
@@ -540,8 +566,12 @@ class DefaultPaymentCheckoutServiceTests {
 
     @Test
     void shouldRenderFullOrderAfterPaymentDeadlineExpires() {
-        PaymentCheckoutSessionDO sessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.EXPIRED);
+        log.info("用例开始：校验超时订单仍可通过长期链接查询完整结果且不可再次支付");
+        PaymentCheckoutSessionDO sessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.FAILED);
         sessionDO.setExpireTime(LocalDateTime.now().minusMinutes(1));
+        sessionDO.setLastSubmitTime(null);
+        sessionDO.setProcessStage(PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode());
+        sessionDO.setResultSnapshot("{\"pageState\":\"EXPIRED\",\"failureCode\":\"PAYMENT_TIMEOUT\"}");
         PaymentCheckoutTokenDO tokenDO = activeToken(sessionDO);
         tokenDO.setExpireTime(LocalDateTime.now().plusDays(30));
         when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(tokenDO);
@@ -557,10 +587,12 @@ class DefaultPaymentCheckoutServiceTests {
         assertThat(resultDTO.getCheckout().getRetryAllowed()).isFalse();
         assertThat(resultDTO.getPaymentResult().getFailure().getRetryAllowed()).isFalse();
         assertThat(resultDTO.getCardEncryption()).isNull();
+        log.info("用例结果：超时页面保留商户与订单数据，未下发重试资格及卡加密元数据");
     }
 
     @Test
     void shouldExpireDuePayableSessionsWithCas() {
+        log.info("用例开始：校验任务仅对 CAS 成功的未提交订单写入超时事件和商户通知");
         LocalDateTime now = LocalDateTime.now();
         PaymentCheckoutSessionDO first = payableSession();
         first.setExpireTime(now.minusMinutes(5));
@@ -569,22 +601,33 @@ class DefaultPaymentCheckoutServiceTests {
         second.setCheckoutSessionId("2607271200000000000099");
         second.setExpireTime(now.minusMinutes(1));
         when(sessionMapper.selectExpireDue(now, 100)).thenReturn(List.of(first, second));
-        when(sessionMapper.markExpiredCas(anyString(), anyString(), eq(0), eq(now))).thenReturn(1, 0);
+        when(sessionMapper.markPaymentTimeoutCas(anyString(), anyString(), eq(0), eq(now))).thenReturn(1, 0);
+        when(merchantNotificationMapper.insertLogical(any())).thenReturn(1);
 
         int expired = service.expireDue(now, 100);
 
         assertThat(expired).isEqualTo(1);
-        verify(eventMapper).insert(any(com.scott.payment.payment.entity.PaymentCheckoutEventDO.class));
-        verify(merchantNotificationMapper).insertLogical(any(com.scott.payment.payment.entity.TransactionMerchantNotificationDO.class));
+        ArgumentCaptor<PaymentCheckoutEventDO> eventCaptor = ArgumentCaptor.forClass(PaymentCheckoutEventDO.class);
+        verify(eventMapper).insert(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getCheckoutStatusAfter())
+                .isEqualTo(PaymentCheckoutSessionStatusEnum.FAILED.getCode());
+        ArgumentCaptor<com.scott.payment.payment.entity.TransactionMerchantNotificationDO> notificationCaptor =
+                ArgumentCaptor.forClass(com.scott.payment.payment.entity.TransactionMerchantNotificationDO.class);
+        verify(merchantNotificationMapper).insertLogical(notificationCaptor.capture());
+        assertThat(notificationCaptor.getValue().getNextRetryTime()).isEqualTo(now.plusSeconds(5));
+        assertThat(notificationCaptor.getValue().getMaxRetryCount()).isEqualTo(5);
+        verify(merchantNotificationInitialDeliveryService).schedule(
+                eq(notificationCaptor.getValue()), eq(0), eq(now));
+        log.info("用例结果：两个候选中仅一个 CAS 成功，审计状态为 FAILED 且生成一条通知任务");
     }
 
     @Test
     void shouldSubmitNonThreeDsPaymentUsingThePolicyRouteIdentity() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
         attachMerchantCheckoutSnapshots(sessionDO);
-        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutSessionDO processingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
-        PaymentCheckoutSessionDO succeededSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutSessionDO succeededSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCESS);
         attachMerchantCheckoutSnapshots(payingSessionDO);
         attachMerchantCheckoutSnapshots(processingSessionDO);
         attachMerchantCheckoutSnapshots(succeededSessionDO);
@@ -649,7 +692,7 @@ class DefaultPaymentCheckoutServiceTests {
 
     @Test
     void shouldReturnNineFieldPostActionOnlyForTerminalTransactionWithRedirectUrl() {
-        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCESS);
         succeededSession.setRedirectUrl("https://merchant.example/result");
         PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(succeededSession,
                 PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
@@ -691,7 +734,7 @@ class DefaultPaymentCheckoutServiceTests {
 
     @Test
     void shouldStayOnResultPageWhenRedirectUrlWasNotProvided() {
-        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCESS);
         PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(succeededSession,
                 PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
                 PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
@@ -711,10 +754,10 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldFailRetryablyWhenRouteFailsBeforeChannelSubmission() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
-        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         payingSessionDO.setAttemptCount(3);
         PaymentCheckoutSessionDO retryableSessionDO = sessionWithStatus(
-                PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+                PaymentCheckoutSessionStatusEnum.FAILED);
         PaymentCheckoutAttemptDO failedAttempt = attemptWithStatus(sessionDO,
                 PaymentCheckoutAttemptStatusEnum.FAILED,
                 PaymentCheckoutProcessStageEnum.RESULT_RENDERED);
@@ -741,7 +784,7 @@ class DefaultPaymentCheckoutServiceTests {
                 isNull(), isNull(), isNull(), eq("ROUTE_FAILED"), isNull(),
                 eq("Payment could not be completed. Please try another card or contact your bank."),
                 anyString(), eq(0), any());
-        verify(sessionMapper).markFailedCas(anyString(), eq("PAYABLE_FAILED_RETRYABLE"),
+        verify(sessionMapper).markFailedCas(anyString(), eq("FAILED"),
                 eq("RESULT_RENDERED"), eq(0), any());
         verify(paymentTransactionService).preparePayment(any());
         verify(paymentTransactionService).failPreparedTransaction(any(), eq("ROUTE_FAILED"), anyString());
@@ -750,7 +793,7 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldNotReopenPaymentWhenCoreFailsAfterChannelSubmissionWasMarked() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
-        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutAttemptDO submittedAttempt = attemptWithStatus(sessionDO,
                 PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
                 PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
@@ -780,7 +823,7 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldReturnThreeDsHtmlWithoutSubmittingFundsBeforeAuthenticationPasses() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
-        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutSessionDO processingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutAttemptDO channelSubmittedAttempt = attemptWithStatus(sessionDO,
                 PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
@@ -823,8 +866,8 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldSubmitFundsOnlyAfterServerConfirmedThreeDsPass() {
         PaymentCheckoutSessionDO sessionDO = payableSession();
-        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
-        PaymentCheckoutSessionDO succeededSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutSessionDO succeededSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCESS);
         PaymentCheckoutAttemptDO passedAttempt = attemptWithStatus(sessionDO,
                 PaymentCheckoutAttemptStatusEnum.THREE_DS_PASSED,
                 PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
@@ -875,9 +918,9 @@ class DefaultPaymentCheckoutServiceTests {
 
     @Test
     void shouldCreateNewTransactionAfterPreviousAttemptLimitWasReached() {
-        PaymentCheckoutSessionDO failedSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+        PaymentCheckoutSessionDO failedSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.FAILED);
         failedSessionDO.setAttemptCount(3);
-        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
+        PaymentCheckoutSessionDO payingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutSessionDO processingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutAttemptDO channelSubmittedAttempt = newRetryAttempt(failedSessionDO,
                 PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
@@ -915,7 +958,7 @@ class DefaultPaymentCheckoutServiceTests {
 
     @Test
     void shouldRejectNewPaymentAttemptAfterSessionExpires() {
-        PaymentCheckoutSessionDO expiredSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.EXPIRED);
+        PaymentCheckoutSessionDO expiredSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.FAILED);
         expiredSessionDO.setExpireTime(LocalDateTime.now().minusMinutes(1));
         when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(expiredSessionDO));
         when(sessionMapper.selectByCheckoutSessionId(expiredSessionDO.getCheckoutSessionId()))
@@ -927,6 +970,25 @@ class DefaultPaymentCheckoutServiceTests {
         verify(attemptMapper, never()).insert(any(PaymentCheckoutAttemptDO.class));
         verify(sessionMapper, never()).markSubmittedCas(anyString(), anyString(), anyString(), anyString(),
                 any(), any(), any(), any(), any());
+    }
+
+    /** 从未点击付款的订单到达截止时间后，同样必须在创建支付尝试前被拒绝。 */
+    @Test
+    void shouldRejectFirstPaymentAttemptAfterSessionExpires() {
+        log.info("用例开始：校验从未点击付款的订单在截止时间后不能创建首次支付尝试");
+        PaymentCheckoutSessionDO expiredSessionDO = payableSession();
+        expiredSessionDO.setExpireTime(LocalDateTime.now().minusMinutes(1));
+        when(tokenMapper.selectByTokenHash("token-hash")).thenReturn(activeToken(expiredSessionDO));
+        when(sessionMapper.selectByCheckoutSessionId(expiredSessionDO.getCheckoutSessionId()))
+                .thenReturn(expiredSessionDO);
+
+        assertThatThrownBy(() -> service.submitPayment(submitCommand()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("checkout session expired");
+        verify(attemptMapper, never()).insert(any(PaymentCheckoutAttemptDO.class));
+        verify(sessionMapper, never()).markSubmittedCas(anyString(), anyString(), anyString(), anyString(),
+                any(), any(), any(), any(), any());
+        log.info("用例结果：过期首次提交在写支付尝试和状态 CAS 之前已被拒绝");
     }
 
     @Test
@@ -954,8 +1016,8 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setThreeDsReturnTokenHash("return-token-hash");
         commandDTO.setCardInfo(submitCommand().getCardInfo());
 
-        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
-        PaymentCheckoutSessionDO retryableSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYABLE_FAILED_RETRYABLE);
+        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutSessionDO retryableSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.FAILED);
         PaymentCheckoutAttemptDO challengeAttempt = attemptWithStatus(authenticatingSession,
                 PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED,
                 PaymentCheckoutProcessStageEnum.WAITING_3DS);
@@ -1013,7 +1075,7 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setCheckoutSessionId("2607271200000000000010");
         commandDTO.setCheckoutAttemptId("2607271200000000000038");
         commandDTO.setThreeDsReturnTokenHash("return-token-hash");
-        PaymentCheckoutSessionDO sessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
+        PaymentCheckoutSessionDO sessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutSessionDO processingSessionDO = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutAttemptDO attemptDO = processingAttempt(sessionDO);
         attemptDO.setAttemptStatus(PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED.getCode());
@@ -1060,7 +1122,7 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setCardInfo(submitCommand().getCardInfo());
         commandDTO.setBillingCardHolderInfo(submitCommand().getBillingCardHolderInfo());
 
-        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
+        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutAttemptDO methodAttempt = attemptWithStatus(authenticatingSession,
                 PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED,
                 PaymentCheckoutProcessStageEnum.WAITING_3DS);
@@ -1113,9 +1175,9 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setCardInfo(submitCommand().getCardInfo());
         commandDTO.setBillingCardHolderInfo(submitCommand().getBillingCardHolderInfo());
 
-        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
-        PaymentCheckoutSessionDO payingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
-        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutSessionDO payingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCESS);
         PaymentCheckoutAttemptDO challengeAttempt = attemptWithStatus(authenticatingSession,
                 PaymentCheckoutAttemptStatusEnum.THREE_DS_REQUIRED,
                 PaymentCheckoutProcessStageEnum.WAITING_3DS);
@@ -1182,7 +1244,7 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setCardInfo(submitCommand().getCardInfo());
         commandDTO.setBillingCardHolderInfo(submitCommand().getBillingCardHolderInfo());
 
-        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
+        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutAttemptDO returnedAttempt = attemptWithStatus(authenticatingSession,
                 PaymentCheckoutAttemptStatusEnum.THREE_DS_RETURNED,
                 PaymentCheckoutProcessStageEnum.WAITING_CHANNEL);
@@ -1212,7 +1274,7 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setThreeDsReturnTokenHash("return-token-hash");
         commandDTO.setCardInfo(submitCommand().getCardInfo());
 
-        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
+        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
         PaymentCheckoutAttemptDO returnedAttempt = attemptWithStatus(authenticatingSession,
                 PaymentCheckoutAttemptStatusEnum.THREE_DS_RETURNED,
                 PaymentCheckoutProcessStageEnum.AUTHENTICATE_PAYER);
@@ -1241,9 +1303,9 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setCardInfo(submitCommand().getCardInfo());
         commandDTO.setBillingCardHolderInfo(submitCommand().getBillingCardHolderInfo());
 
-        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.AUTHENTICATING);
-        PaymentCheckoutSessionDO payingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
-        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutSessionDO authenticatingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutSessionDO payingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCESS);
         PaymentCheckoutAttemptDO passedAttempt = attemptWithStatus(authenticatingSession,
                 PaymentCheckoutAttemptStatusEnum.THREE_DS_PASSED,
                 PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
@@ -1297,8 +1359,8 @@ class DefaultPaymentCheckoutServiceTests {
         commandDTO.setCardInfo(submitCommand().getCardInfo());
         commandDTO.setBillingCardHolderInfo(submitCommand().getBillingCardHolderInfo());
 
-        PaymentCheckoutSessionDO payingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PAYING);
-        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCEEDED);
+        PaymentCheckoutSessionDO payingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCESS);
         PaymentCheckoutAttemptDO submittedAttempt = attemptWithStatus(payingSession,
                 PaymentCheckoutAttemptStatusEnum.CHANNEL_SUBMITTED,
                 PaymentCheckoutProcessStageEnum.SUBMIT_CHANNEL);
@@ -1433,7 +1495,7 @@ class DefaultPaymentCheckoutServiceTests {
         sessionDO.setMerchantOrderNo("M202607270001");
         sessionDO.setMerchantRequestId("REQ-001");
         sessionDO.setRequestFingerprint("fp-001");
-        sessionDO.setCheckoutStatus(PaymentCheckoutSessionStatusEnum.PAYABLE.getCode());
+        sessionDO.setCheckoutStatus(PaymentCheckoutSessionStatusEnum.PENDING.getCode());
         sessionDO.setProcessStage("WAITING_PAYER");
         sessionDO.setLabelAmount(new BigDecimal("49.97"));
         sessionDO.setLabelCurrency("USD");
@@ -1456,12 +1518,18 @@ class DefaultPaymentCheckoutServiceTests {
     private PaymentCheckoutSessionDO sessionWithStatus(PaymentCheckoutSessionStatusEnum statusEnum) {
         PaymentCheckoutSessionDO sessionDO = payableSession();
         sessionDO.setCheckoutStatus(statusEnum.getCode());
-        sessionDO.setProcessStage(statusEnum == PaymentCheckoutSessionStatusEnum.AUTHENTICATING
-                ? PaymentCheckoutProcessStageEnum.WAITING_3DS.getCode()
-                : PaymentCheckoutProcessStageEnum.WAITING_CHANNEL.getCode());
+        sessionDO.setProcessStage(statusEnum == PaymentCheckoutSessionStatusEnum.PENDING
+                ? PaymentCheckoutProcessStageEnum.WAITING_PAYER.getCode()
+                : statusEnum == PaymentCheckoutSessionStatusEnum.PROCESSING
+                ? PaymentCheckoutProcessStageEnum.WAITING_CHANNEL.getCode()
+                : PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode());
         sessionDO.setAttemptCount(1);
         sessionDO.setLastAttemptId("2607271200000000000038");
         sessionDO.setLatestTransactionId("2607271200000000000047");
+        if (statusEnum == PaymentCheckoutSessionStatusEnum.FAILED
+                || statusEnum == PaymentCheckoutSessionStatusEnum.SUCCESS) {
+            sessionDO.setLastSubmitTime(LocalDateTime.now().minusMinutes(1));
+        }
         return sessionDO;
     }
 

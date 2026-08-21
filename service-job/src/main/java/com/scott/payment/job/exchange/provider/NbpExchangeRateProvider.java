@@ -93,11 +93,11 @@ public class NbpExchangeRateProvider implements ExchangeRateProvider {
             return items;
         } catch (IOException exception) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
-                    "NBP exchange rate API request failed: " + exception.getMessage());
+                    "NBP exchange rate API request failed: " + exception.getClass().getSimpleName());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
-                    "NBP exchange rate API request interrupted: " + exception.getMessage());
+                    "NBP exchange rate API request interrupted: " + exception.getClass().getSimpleName());
         }
     }
 }

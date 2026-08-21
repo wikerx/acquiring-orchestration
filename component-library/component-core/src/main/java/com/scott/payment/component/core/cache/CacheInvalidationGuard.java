@@ -8,8 +8,8 @@ import java.time.Duration;
  * @classname : CacheInvalidationGuard
  * @date : 2026-07-30 00:00
  * @email : scott_x@163.com
- * @description : 公共组件层永久缓存失效门禁契约，向管理端写链路和业务读取端暴露窄化的租约协调能力
- * @status : create
+ * @description : 公共组件层受管缓存失效门禁契约，向写链路和业务读取端暴露窄化的租约协调能力
+ * @status : update
  */
 public interface CacheInvalidationGuard {
 

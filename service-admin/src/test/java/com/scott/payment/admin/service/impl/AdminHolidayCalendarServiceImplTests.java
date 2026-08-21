@@ -7,10 +7,10 @@ import com.scott.payment.admin.entity.system.HolidayCalendarEntities.CalendarYea
 import com.scott.payment.admin.mapper.SettlementCalendarYearMapper;
 import com.scott.payment.admin.mapper.SettlementHolidayCalendarMapper;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 
@@ -22,8 +22,10 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -108,29 +110,53 @@ class AdminHolidayCalendarServiceImplTests {
         verify(fixture.yearMapper).updateById(calendarYear);
     }
 
-    /** 月查询使用项目统一缓存，初始化、维护和确认必须清空所有月视图。 */
+    /** 月查询必须使用规范键、门禁策略和主库可靠重建。 */
     @Test
-    void shouldDeclareHolidayMonthCacheAndMutationEvictions() throws Exception {
+    void shouldDeclareGuardedHolidayMonthCache() throws Exception {
         Method reader = AdminHolidayCalendarServiceImpl.class.getMethod("getMonth", int.class, int.class);
         Cacheable cacheable = AnnotatedElementUtils.findMergedAnnotation(reader, Cacheable.class);
 
         assertThat(cacheable).isNotNull();
         assertThat(cacheable.cacheNames()).containsExactly(PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH);
-        assertThat(cacheable.key()).isEqualTo("#p0 + '-' + #p1");
-
-        assertAllEntriesEviction("initializeYear", int.class, String.class);
-        assertAllEntriesEviction("saveDays",
-                com.scott.payment.admin.dto.system.HolidayCalendarDTOs.CalendarBatchSaveRequest.class,
-                String.class);
-        assertAllEntriesEviction("confirmYear", int.class, String.class);
+        assertThat(cacheable.key())
+                .isEqualTo("@holidayCalendarCachePolicy.monthKey(#p0, #p1)");
+        assertThat(cacheable.condition())
+                .isEqualTo("@holidayCalendarCachePolicy.isCacheReadAllowed(#p0, #p1)");
     }
 
-    private void assertAllEntriesEviction(String methodName, Class<?>... parameterTypes) throws Exception {
-        Method method = AdminHolidayCalendarServiceImpl.class.getMethod(methodName, parameterTypes);
-        CacheEvict eviction = AnnotatedElementUtils.findMergedAnnotation(method, CacheEvict.class);
-        assertThat(eviction).isNotNull();
-        assertThat(eviction.cacheNames()).containsExactly(PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH);
-        assertThat(eviction.allEntries()).isTrue();
+    /** 初始化和确认改变整年状态，必须精确失效该年度十二个月键。 */
+    @Test
+    void shouldInvalidateAllMonthsAfterYearInitializationAndConfirmation() {
+        Fixture initializeFixture = new Fixture();
+        when(initializeFixture.yearMapper.selectByYearForUpdate(2027)).thenReturn(null);
+        doAnswer(invocation -> {
+            CalendarYearDO row = invocation.getArgument(0);
+            row.setId(27L);
+            return 1;
+        }).when(initializeFixture.yearMapper).insert(any(CalendarYearDO.class));
+
+        initializeFixture.service.initializeYear(2027, "日历管理员");
+
+        verify(initializeFixture.cacheInvalidationCoordinator, times(12)).prepare(
+                org.mockito.ArgumentMatchers.eq(PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+
+        Fixture confirmFixture = new Fixture();
+        CalendarYearDO calendarYear = calendarYear(2026, 365);
+        when(confirmFixture.yearMapper.selectByYearForUpdate(2026)).thenReturn(calendarYear);
+        when(confirmFixture.dayMapper.selectCount(any())).thenReturn(365L);
+
+        confirmFixture.service.confirmYear(2026, "复核人");
+
+        verify(confirmFixture.cacheInvalidationCoordinator, times(12)).prepare(
+                org.mockito.ArgumentMatchers.eq(PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+        verify(confirmFixture.cacheInvalidationCoordinator).prepare(
+                PaymentCacheNames.SETTLEMENT_HOLIDAY_MONTH,
+                "2026-08"
+        );
     }
 
     private static CalendarYearDO calendarYear(int year, int totalDays) {
@@ -150,7 +176,23 @@ class AdminHolidayCalendarServiceImplTests {
     private static final class Fixture {
         private final SettlementCalendarYearMapper yearMapper = mock(SettlementCalendarYearMapper.class);
         private final SettlementHolidayCalendarMapper dayMapper = mock(SettlementHolidayCalendarMapper.class);
+        private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator =
+                mock(ManagedCacheInvalidationCoordinator.class);
+        private final HolidayCalendarCachePolicy cachePolicy = mock(HolidayCalendarCachePolicy.class);
         private final AdminHolidayCalendarServiceImpl service =
-                new AdminHolidayCalendarServiceImpl(yearMapper, dayMapper);
+                new AdminHolidayCalendarServiceImpl(
+                        yearMapper,
+                        dayMapper,
+                        cacheInvalidationCoordinator,
+                        cachePolicy
+                );
+
+        private Fixture() {
+            when(cachePolicy.monthKey(anyInt(), anyInt()))
+                    .thenAnswer(invocation -> java.time.YearMonth.of(
+                            invocation.<Integer>getArgument(0),
+                            invocation.<Integer>getArgument(1)
+                    ).toString());
+        }
     }
 }

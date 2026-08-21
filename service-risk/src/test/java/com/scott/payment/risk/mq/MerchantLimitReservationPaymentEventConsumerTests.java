@@ -6,6 +6,7 @@ import com.scott.payment.risk.mq.message.RiskPaymentTransactionEventMessage;
 import com.scott.payment.risk.service.MerchantLimitReservationLifecycleCoordinator;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -41,6 +42,24 @@ class MerchantLimitReservationPaymentEventConsumerTests {
         verify(coordinator, never()).cancel(
                 org.mockito.ArgumentMatchers.eq("TX1001"),
                 org.mockito.ArgumentMatchers.contains("PENDING"));
+    }
+
+    /** 畸形支付事件必须抛出以触发 RocketMQ 重试，不能静默确认。 */
+    @Test
+    void shouldRejectMalformedPaymentEvent() {
+        MerchantLimitReservationLifecycleCoordinator coordinator =
+                mock(MerchantLimitReservationLifecycleCoordinator.class);
+        MerchantLimitReservationPaymentEventConsumer consumer =
+                new MerchantLimitReservationPaymentEventConsumer(coordinator);
+
+        assertThatThrownBy(() -> consumer.onMessage("{invalid-json"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("risk payment event payload is invalid");
+
+        verify(coordinator, never()).applyPaymentStatus(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
     }
 
     private String payload(String status) {

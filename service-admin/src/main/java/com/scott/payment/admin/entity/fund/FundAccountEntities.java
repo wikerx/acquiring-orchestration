@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * @classname : FundAccountEntities
  * @date : 2026-08-18 00:00
  * @email : scott_x@163.com
- * @description : 商户可用余额、保证金和不可变流水持久化模型，以及从交易数据实时计算的在途余额投影。
+ * @description : 商户可用余额、保证金、充值扣减审批和不可变流水持久化模型，以及实时在途余额投影。
  * @status : create
  */
 public final class FundAccountEntities {
@@ -38,10 +38,8 @@ public final class FundAccountEntities {
         private String settlementCurrency;
         /** 商户可提现的可用余额，单位为 settlementCurrency，允许为负。 */
         private BigDecimal availableBalance;
-        /** NORMAL、FROZEN 或 CLOSED；负余额限制不混入人工状态。 */
+        /** NORMAL、FROZEN 或 CLOSED；负余额限制由可用余额实时派生。 */
         private String accountStatus;
-        /** 1 表示负余额触发主动逆向交易限制，0 表示不限制。 */
-        private Integer reverseRestricted;
         /** 资金变更乐观锁版本号。 */
         private Long accountVersion;
         /** 开户操作人名称快照。 */
@@ -56,7 +54,7 @@ public final class FundAccountEntities {
         private Long deleted;
     }
 
-    /** 可用余额或保证金的不可变变动明细。 */
+    /** 可用余额的不可变变动明细。 */
     @Data
     @TableName("merchant_fund_ledger")
     public static class MerchantFundLedgerDO {
@@ -71,8 +69,6 @@ public final class FundAccountEntities {
         private Long accountId;
         /** 流水所属商户号。 */
         private String merchantId;
-        /** AVAILABLE 或 RESERVE。 */
-        private String balanceType;
         /** 余额变动业务类型。 */
         private String businessType;
         /** 面向财务核对的变动摘要。 */
@@ -243,6 +239,75 @@ public final class FundAccountEntities {
         /** 充值申请创建系统时间。 */
         private LocalDateTime createTime;
         /** 充值申请最近修改系统时间。 */
+        private LocalDateTime updateTime;
+        /** 逻辑删除标识，零表示有效。 */
+        private Long deleted;
+    }
+
+    /** 管理端账户扣减申请及三段式审批记录。 */
+    @Data
+    @TableName("merchant_fund_deduction")
+    public static class MerchantFundDeductionDO {
+        /** 账户扣减申请数据库主键。 */
+        @TableId(type = IdType.AUTO)
+        private Long id;
+        /** 平台唯一账户扣减申请号。 */
+        private String deductionNo;
+        /** 扣减目标资金账户主键。 */
+        private Long accountId;
+        /** 账户所属商户号。 */
+        private String merchantId;
+        /** 扣减账户 ISO 4217 三位结算币种。 */
+        private String currency;
+        /** 扣减金额，单位为 currency，始终为正数。 */
+        private BigDecimal amount;
+        /** ACCOUNT_CORRECTION、EXTRA_FEE、PENALTY 或 OTHER。 */
+        private String deductionCategory;
+        /** PENDING_AUDIT、PENDING_RECHECK、POSTED 或 REJECTED。 */
+        private String deductionStatus;
+        /** 商户可见的完整扣减说明。 */
+        private String reason;
+        /** 提交人账号主键。 */
+        private Long submitById;
+        /** 提交人名称快照。 */
+        private String submitByName;
+        /** 提交人登录账号快照，仅用于内置 admin 自审边界审计。 */
+        private String submitLoginAccount;
+        /** 提交系统时间。 */
+        private LocalDateTime submitTime;
+        /** 审核人账号主键，待审核时为空。 */
+        private Long auditById;
+        /** 审核人名称快照，待审核时为空。 */
+        private String auditByName;
+        /** 审核意见，允许为空。 */
+        private String auditComment;
+        /** 审核系统时间，待审核时为空。 */
+        private LocalDateTime auditTime;
+        /** 复核人账号主键，未复核时为空。 */
+        private Long recheckById;
+        /** 复核人名称快照，未复核时为空。 */
+        private String recheckByName;
+        /** 复核意见，允许为空。 */
+        private String recheckComment;
+        /** 复核系统时间，未复核时为空。 */
+        private LocalDateTime recheckTime;
+        /** 驳回人账号主键，非驳回状态为空。 */
+        private Long rejectById;
+        /** 驳回人名称快照，非驳回状态为空。 */
+        private String rejectByName;
+        /** 驳回原因，非驳回状态为空。 */
+        private String rejectComment;
+        /** 驳回系统时间，非驳回状态为空。 */
+        private LocalDateTime rejectTime;
+        /** 客户端唯一请求号，数据库唯一键防止重复提交。 */
+        private String requestId;
+        /** 最终扣减余额流水号，未完成复核时为空。 */
+        private String ledgerNo;
+        /** 最终入账系统时间，未完成复核时为空。 */
+        private LocalDateTime postedTime;
+        /** 扣减申请创建系统时间。 */
+        private LocalDateTime createTime;
+        /** 扣减申请最近修改系统时间。 */
         private LocalDateTime updateTime;
         /** 逻辑删除标识，零表示有效。 */
         private Long deleted;

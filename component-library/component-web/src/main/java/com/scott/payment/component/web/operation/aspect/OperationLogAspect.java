@@ -247,11 +247,11 @@ public class OperationLogAspect {
         }
         if (failure instanceof ServiceException serviceException) {
             record.setErrorCode(serviceException.getCode());
-            record.setErrorMsg(truncate(serviceException.getMessage()));
+            record.setErrorMsg(failure.getClass().getSimpleName());
             return;
         }
         record.setErrorCode(failure.getClass().getSimpleName());
-        record.setErrorMsg(truncate(failure.getMessage()));
+        record.setErrorMsg(failure.getClass().getSimpleName());
     }
 
     /**

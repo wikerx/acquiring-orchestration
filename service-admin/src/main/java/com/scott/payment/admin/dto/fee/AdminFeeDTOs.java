@@ -77,21 +77,36 @@ public final class AdminFeeDTOs {
     /** 费用规则输入，匹配维度不包含渠道编码。 */
     @Data
     public static class FeeRuleRequest {
-        /** 费用分类：TRANSACTION_FEE、REFUND_FEE、RISK_FEE 或 DISPUTE_FEE。 */
+        /** 费用分类：交易、退款、风控、争议或结算货币兑换费。 */
         @NotBlank
         private String feeCategory = "TRANSACTION_FEE";
-        @NotBlank
+        /** 可选配置名称；为空时由服务端按原子匹配维度生成。 */
         @Size(max = 128)
         private String ruleName;
-        @NotBlank
+        /** 兼容旧版单选请求；多选数组存在时优先使用数组。 */
         @Size(max = 64)
         private String transactionType;
-        @NotBlank
+        /** 兼容旧版单选请求；多选数组存在时优先使用数组。 */
         @Size(max = 64)
         private String paymentType;
-        @NotBlank
+        /** 兼容旧版单选请求；多选数组存在时优先使用数组。 */
         @Size(max = 64)
         private String paymentMethod = "ALL";
+        /** 待展开的交易类型集合，最多选择 32 项。 */
+        @Size(max = 32)
+        private List<@Size(max = 64) String> transactionTypes = new ArrayList<>();
+        /** 待展开的支付类型集合，最多选择 32 项。 */
+        @Size(max = 32)
+        private List<@Size(max = 64) String> paymentTypes = new ArrayList<>();
+        /** 银行卡支付方式集合；非银行卡支付类型统一保存为 ALL。 */
+        @Size(max = 32)
+        private List<@Size(max = 64) String> paymentMethods = new ArrayList<>();
+        /** 风控服务类型：INTERNAL、EXTERNAL、THREE_DS；其他费用为空。 */
+        @Size(max = 16)
+        private String riskServiceType;
+        /** 风控收费触发方式；取值范围由服务层按风险服务类型校验。 */
+        @Size(max = 32)
+        private String chargeTrigger;
         @NotBlank
         private String feeMode = "STANDARD";
         /** 百分比数值，例如 2.3 表示 2.3%，按标签金额计提。 */
@@ -117,23 +132,30 @@ public final class AdminFeeDTOs {
         private List<FeeRuleTierRequest> tiers = new ArrayList<>();
     }
 
-    /** 新版本共同配置；保存即提交审核，不存在可原地修改的生效版本。 */
+    /** 新版本共同配置；模板草稿可原地保存，提交审核后和已生效版本均不可修改。 */
     @Data
     public static class FeeVersionSaveRequest {
         /** 滚动保证金比例，例如 10 表示按交易金额留存 10%。 */
         @NotNull
         @DecimalMin("0")
         private BigDecimal reserveRate = BigDecimal.ZERO;
-        /** 保证金留存自然日天数；到期后进入下一次保证金结算。 */
+        /** 保证金留存周期单位：T 工作日、D 自然日。 */
+        @NotBlank
+        private String reserveDelayUnit = "D";
+        /** 保证金留存天数；到期后进入下一次保证金结算。 */
         @NotNull
         @Min(1)
         private Integer reserveDelayDays = 180;
+        /** 商户待生效结算币种；模板版本为空，商户版本由服务层补齐并校验。 */
+        @Size(min = 3, max = 3)
+        private String settlementCurrency;
+        /** 首次与常规结算周期共用单位；regularDelayUnit 仅用于兼容历史接口。 */
         @NotBlank
         private String initialDelayUnit = "T";
         @NotNull
         @Min(1)
         private Integer initialDelayDays = 1;
-        @NotBlank
+        /** 兼容字段；新提交版本由服务层强制与 initialDelayUnit 保持一致。 */
         private String regularDelayUnit = "T";
         @NotNull
         @Min(1)
@@ -143,14 +165,14 @@ public final class AdminFeeDTOs {
         @Min(1)
         @Max(28)
         private Integer frequencyDay;
-        @NotBlank
+        /** 首次配置允许为空，后续版本由服务层按业务上下文强制校验。 */
         @Size(max = 500)
         private String changeReason;
         @Valid
         private List<FeeRuleRequest> rules = new ArrayList<>();
     }
 
-    /** 新建费用模板并提交 v1 审核。 */
+    /** 新建费用模板并保存 v1 草稿。 */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class FeeTemplateCreateRequest extends FeeVersionSaveRequest {
@@ -184,13 +206,16 @@ public final class AdminFeeDTOs {
     public static class MerchantTemplateAssignRequest {
         @NotNull
         private Long templateId;
-        @NotBlank
+        /** 首次绑定模板允许为空，后续重新绑定必须填写。 */
         @Size(max = 500)
         private String changeReason;
         @Size(max = 128)
         private String planName;
         @Size(max = 500)
         private String remark;
+        /** 商户待生效结算币种；未传时沿用商户当前币种。 */
+        @Size(min = 3, max = 3)
+        private String settlementCurrency;
     }
 
     /** 审核意见。 */
@@ -214,6 +239,8 @@ public final class AdminFeeDTOs {
         private String paymentType;
         @NotBlank
         private String paymentMethod = "ALL";
+        /** 风控费用必填 INTERNAL、EXTERNAL 或 THREE_DS；其他费用由服务层归一为 NONE。 */
+        private String riskServiceType;
         /** 试算标签金额，单位由 labelCurrency 指定，不做展示层舍入。 */
         @NotNull
         @DecimalMin("0.00000001")
@@ -258,6 +285,7 @@ public final class AdminFeeDTOs {
         private String planType;
         private String merchantId;
         private String merchantName;
+        private String settlementCurrency;
         private Long sourceTemplateId;
         private Integer sourceTemplateVersionNo;
         private String originType;
@@ -265,7 +293,14 @@ public final class AdminFeeDTOs {
         private Integer currentVersionNo;
         private String status;
         private String remark;
+        /** 当前草稿或待审核版本主键；不存在处理中的版本时为空。 */
+        private Long pendingVersionId;
+        /** 当前草稿或待审核版本号；不存在处理中的版本时为空。 */
+        private Integer pendingVersionNo;
+        /** DRAFT 或 PENDING_REVIEW；不存在处理中的版本时为空。 */
         private String pendingVersionStatus;
+        /** 草稿最后保存人或待审核提交人账号 ID。 */
+        private Long pendingSubmitById;
         private LocalDateTime createTime;
         private LocalDateTime updateTime;
     }
@@ -292,6 +327,14 @@ public final class AdminFeeDTOs {
         private String transactionType;
         private String paymentType;
         private String paymentMethod;
+        /** 编辑回显使用的逻辑规则交易类型集合。 */
+        private List<String> transactionTypes = new ArrayList<>();
+        /** 编辑回显使用的逻辑规则支付类型集合。 */
+        private List<String> paymentTypes = new ArrayList<>();
+        /** 编辑回显使用的逻辑规则支付方式集合。 */
+        private List<String> paymentMethods = new ArrayList<>();
+        private String riskServiceType;
+        private String chargeTrigger;
         private String feeMode;
         private BigDecimal percentageRate;
         private BigDecimal fixedAmountUsd;
@@ -316,7 +359,9 @@ public final class AdminFeeDTOs {
         private Integer sourceTemplateVersionNo;
         private String originType;
         private BigDecimal reserveRate;
+        private String reserveDelayUnit;
         private Integer reserveDelayDays;
+        private String settlementCurrency;
         private String initialDelayUnit;
         private Integer initialDelayDays;
         private String regularDelayUnit;
@@ -410,6 +455,7 @@ public final class AdminFeeDTOs {
         private String transactionType;
         private String paymentType;
         private String paymentMethod;
+        private String riskServiceType;
         private BigDecimal labelAmount;
         private String labelCurrency;
         private BigDecimal labelToUsdRate;

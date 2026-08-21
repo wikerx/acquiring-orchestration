@@ -49,6 +49,7 @@ class MerchantKeyMetadataCacheReaderTests {
 
         assertThat(metadata.getMerchantId()).isEqualTo("200045");
         assertThat(metadata.getJwtKeyVersion()).isEqualTo("jwt-v3");
+        assertThat(metadata.getJwtExpireTime()).isEqualTo(LocalDateTime.of(2026, 9, 1, 15, 0));
         assertThat(metadata.getRevision()).isNotBlank();
         String json = JsonUtils.toJsonString(metadata);
         assertThat(json)
@@ -71,6 +72,7 @@ class MerchantKeyMetadataCacheReaderTests {
         row.setAlgorithm("HS256");
         row.setExpiresSeconds(180L);
         row.setEffectiveTime(LocalDateTime.of(2026, 8, 1, 15, 0));
+        row.setExpireTime(LocalDateTime.of(2026, 9, 1, 15, 0));
         row.setGmtModified(LocalDateTime.of(2026, 8, 1, 15, 0));
         return row;
     }

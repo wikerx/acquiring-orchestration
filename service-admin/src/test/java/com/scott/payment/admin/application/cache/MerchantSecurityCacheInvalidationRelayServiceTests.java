@@ -87,7 +87,7 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
                 eq(1L),
                 eq(0),
                 retryTime.capture(),
-                eq("redis unavailable"),
+                eq("IllegalStateException"),
                 any()
         );
         assertThat(retryTime.getValue()).isAfter(LocalDateTime.now());
@@ -116,7 +116,7 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
                 PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
                 "200045"
         );
-        verify(mapper).markFailed(eq(1L), eq(0), any(), eq("redis timeout"), any());
+        verify(mapper).markFailed(eq(1L), eq(0), any(), eq("IllegalStateException"), any());
         log.info("永久缓存门禁释放失败重试测试完成，结果: 缓存已删除且 Outbox 保持可重试");
     }
 

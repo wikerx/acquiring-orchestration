@@ -204,11 +204,10 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         try {
             paymentInternalClient.updateMerchantApiResponseLog(requestDTO);
         } catch (RuntimeException exception) {
-            log.warn("event: OPENAPI_RESPONSE_LOG_UPDATE_FAILED stage=RESPONSE_LOG traceId: {} transactionId: {} exceptionType: {} reason: {}",
+            log.warn("event: OPENAPI_RESPONSE_LOG_UPDATE_FAILED stage=RESPONSE_LOG traceId: {} transactionId: {} exceptionType: {}",
                     TraceContext.getTraceId(),
                     transactionInfo.getTransactionId(),
-                    exception.getClass().getSimpleName(),
-                    exception.getMessage());
+                    exception.getClass().getSimpleName());
         }
     }
 

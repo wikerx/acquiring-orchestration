@@ -34,6 +34,7 @@ class PendingBalanceSchemaContractTests {
                 "SELECT COUNT(1) INTO legacy_row_count FROM merchant_pending_fund_item",
                 "SIGNAL SQLSTATE '45000'",
                 "idx_pending_fund_balance",
-                "merchant_id`,`transaction_status`,`settlement_status`,`transaction_type`,`transaction_date_time");
+                "merchant_id`,`transaction_status`,`settlement_status`,`deleted`",
+                "transaction_type`,`transaction_date_time`,`label_currency");
     }
 }

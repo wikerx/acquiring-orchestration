@@ -78,6 +78,18 @@ public class RiskAuditPersistenceService {
     }
 
     /**
+     * 在主库核对风控审计主记录是否已经完成提交。
+     *
+     * @param riskRecordNo 风控评估流水号
+     * @return true 表示数据库中已经存在对应审计主记录
+     */
+    @DS(DataSourceName.MASTER)
+    public boolean existsByRiskRecordNo(String riskRecordNo) {
+        return StringUtils.hasText(riskRecordNo)
+                && riskAuditMapper.countByRiskRecordNo(riskRecordNo.trim()) > 0;
+    }
+
+    /**
      * 判断命中明细是否具备稳定的模块和功能标识。
      *
      * @param hit MQ 命中明细

@@ -505,6 +505,28 @@ public interface TransactionRecordService {
                                String failReason);
 
     /**
+     * 使用版本 CAS 更新平台终态交易的渠道勾兑摘要，不修改交易状态或金额。
+     *
+     * @param operationDO 被勾兑的终态动作单
+     * @param matchStatus 勾兑状态
+     * @param matchResult 勾兑结果摘要
+     * @param requestId 最近一次渠道查询请求 ID
+     * @param matchTime 最近一次查询时间
+     * @param nextMatchTime 下一次查询时间
+     * @param failReason 失败原因
+     * @return true 表示更新成功
+     */
+    default boolean updateTerminalChannelMatch(TransactionOperationDO operationDO,
+                                               String matchStatus,
+                                               String matchResult,
+                                               String requestId,
+                                               LocalDateTime matchTime,
+                                               LocalDateTime nextMatchTime,
+                                               String failReason) {
+        return false;
+    }
+
+    /**
      * 根据主动查询结果回写原资金动作渠道请求记录。
      *
      * @param operationDO 待恢复交易动作单

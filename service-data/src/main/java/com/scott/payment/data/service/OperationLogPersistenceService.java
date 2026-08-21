@@ -1,6 +1,7 @@
 package com.scott.payment.data.service;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.mq.message.OperationLogMessage;
 import com.scott.payment.data.entity.DataOperationLogDO;
@@ -66,6 +67,21 @@ public class OperationLogPersistenceService {
             }
             // 数据库唯一索引是最终幂等依据，命中即表示该审计事实已完成持久化。
         }
+    }
+
+    /**
+     * 在主库核对操作日志幂等事实是否已经提交。
+     *
+     * @param idempotentKey 消费幂等键
+     * @return true 表示数据库中已经存在对应操作日志
+     */
+    @DS(DataSourceName.MASTER)
+    public boolean existsByIdempotentKey(String idempotentKey) {
+        if (!StringUtils.hasText(idempotentKey)) {
+            return false;
+        }
+        return operationLogMapper.selectCount(Wrappers.<DataOperationLogDO>lambdaQuery()
+                .eq(DataOperationLogDO::getIdempotentKey, idempotentKey.trim())) > 0;
     }
 
     /**

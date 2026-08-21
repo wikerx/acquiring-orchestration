@@ -40,6 +40,9 @@ public class MerchantKeyMetadata implements Serializable {
     /** JWT 密钥生效时间，精度为毫秒。 */
     private LocalDateTime jwtEffectiveTime;
 
+    /** JWT 密钥失效时间，精度为毫秒；长期有效时允许为空。 */
+    private LocalDateTime jwtExpireTime;
+
     /** JWT 密钥记录最后更新时间，参与 revision 计算。 */
     private LocalDateTime jwtModifiedTime;
 

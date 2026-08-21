@@ -11,6 +11,7 @@ import com.scott.payment.admin.mapper.EmailSendRecordMapper;
 import com.scott.payment.admin.mapper.EmailTemplateMapper;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.component.mq.email.EmailPayloadCrypto;
+import com.scott.payment.component.db.email.service.EnabledEmailTemplateCacheReader;
 import com.scott.payment.component.mq.properties.EmailDeliveryProperties;
 import org.junit.jupiter.api.Test;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -57,7 +58,9 @@ class AdminEmailTemplatePaginationTests {
                 mock(EmailPayloadCrypto.class),
                 mock(AdminEmailDeliveryService.class),
                 mock(AdminSmtpEmailSender.class),
-                new EmailDeliveryProperties()
+                new EmailDeliveryProperties(),
+                mock(EnabledEmailTemplateCacheReader.class),
+                mock(com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator.class)
         );
 
         service.pageTemplates(new EmailTemplateQuery());

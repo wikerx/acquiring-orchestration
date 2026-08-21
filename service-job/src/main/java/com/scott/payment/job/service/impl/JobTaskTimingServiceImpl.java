@@ -2,7 +2,6 @@ package com.scott.payment.job.service.impl;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
-import com.scott.payment.component.job.enums.JobMisfireStrategyEnum;
 import com.scott.payment.component.job.enums.JobStatusEnum;
 import com.scott.payment.job.entity.SysJobTaskDO;
 import com.scott.payment.job.service.JobTaskTimingService;
@@ -27,8 +26,8 @@ public class JobTaskTimingServiceImpl implements JobTaskTimingService {
     /**
      * 根据任务状态、Cron 和错过执行策略计算下一触发时间。
      * <p>
-     * 禁用任务或未配置 Cron 时不再调度；FIRE_ONCE 且旧触发点已过期时以当前时间前一秒为
-     * 基线，使 Cron 立即给出下一次可执行时刻。
+     * 禁用任务或未配置 Cron 时不再调度；任务被抢占执行后必须以实际触发时间为基准推进，
+     * 避免扫描延迟不足一秒时再次计算出刚刚已经执行的 Cron 时刻。
      * </p>
      *
      * @param task        任务定义
@@ -50,12 +49,6 @@ public class JobTaskTimingServiceImpl implements JobTaskTimingService {
         } catch (IllegalArgumentException exception) {
             throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "invalid cron expression");
         }
-        LocalDateTime baseline = referenceAt;
-        if (JobMisfireStrategyEnum.FIRE_ONCE.name().equals(task.getMisfireStrategy())
-                && task.getNextTriggerTime() != null
-                && task.getNextTriggerTime().isBefore(referenceAt)) {
-            baseline = referenceAt.minusSeconds(1);
-        }
-        return cronExpression.next(baseline);
+        return cronExpression.next(referenceAt);
     }
 }

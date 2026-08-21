@@ -94,10 +94,12 @@ public class BocExchangeRateProvider implements ExchangeRateProvider {
             }
             return parser.parse(response.body());
         } catch (IOException e) {
-            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "BOC exchange rate page request failed: " + e.getMessage());
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "BOC exchange rate page request failed: " + e.getClass().getSimpleName());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "BOC exchange rate page request interrupted: " + e.getMessage());
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "BOC exchange rate page request interrupted: " + e.getClass().getSimpleName());
         }
     }
 }

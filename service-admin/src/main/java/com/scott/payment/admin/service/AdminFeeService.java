@@ -30,12 +30,22 @@ public interface AdminFeeService {
     /** 查询费用模板详情和版本历史。 */
     FeePlanDetailResponse getTemplate(Long id);
 
-    /** 新建模板并提交 v1 审核。 */
+    /** 新建费用模板并保存可编辑的 v1 草稿。 */
     FeePlanDetailResponse createTemplate(FeeTemplateCreateRequest request, Long operatorId, String operatorName);
 
-    /** 基于当前配置创建新的模板待审核版本。 */
+    /** 基于当前配置创建新的模板草稿版本。 */
     FeePlanDetailResponse createTemplateVersion(Long id, FeeVersionSaveRequest request,
                                                 Long operatorId, String operatorName);
+
+    /** 原地更新尚未提交审核的模板草稿，已提交或已生效版本不可修改。 */
+    FeePlanDetailResponse updateTemplateDraft(Long planId, Long versionId, FeeVersionSaveRequest request,
+                                              Long operatorId, String operatorName);
+
+    /** 将模板草稿提交审核，提交后配置保持不可变。 */
+    FeePlanDetailResponse submitTemplateVersion(Long versionId, Long operatorId, String operatorName);
+
+    /** 由原提交人撤回待审核模板并恢复为草稿。 */
+    FeePlanDetailResponse withdrawTemplateVersion(Long versionId, Long operatorId, String operatorName);
 
     /** 启用或禁用模板，只控制后续商户是否可以选择。 */
     void updateTemplateStatus(Long id, boolean enabled, String operatorName);

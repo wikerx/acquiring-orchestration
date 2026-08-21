@@ -1,6 +1,8 @@
 package com.scott.payment.component.db.iso.service.impl;
 
 import com.scott.payment.component.core.cache.PaymentRedisKeyResolver;
+import com.scott.payment.component.core.cache.CacheInvalidationGuard;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -42,9 +44,9 @@ class IsoDictionaryServiceImplTests {
      */
     @Test
     void shouldReadPermanentCountrySnapshotWithoutLegacyLookup() {
-        log.info("测试 ISO 国家字典常驻快照，关键输入: acquiring:dev:iso:country 命中");
+        log.info("测试 ISO 国家字典常驻快照，关键输入: acquiring:dev:iso:country:all 命中");
         Fixture fixture = fixture();
-        when(fixture.valueOperations().get("acquiring:dev:iso:country"))
+        when(fixture.valueOperations().get("acquiring:dev:iso:country:all"))
                 .thenReturn(JsonUtils.toJsonString(List.of(countryInfo())));
 
         List<IsoCountryInfo> countries = fixture.service().listCountries();
@@ -70,11 +72,11 @@ class IsoDictionaryServiceImplTests {
 
         assertThat(countries).containsExactly(countryInfo());
         verify(fixture.valueOperations()).set(
-                org.mockito.ArgumentMatchers.eq("acquiring:dev:iso:country"),
+                org.mockito.ArgumentMatchers.eq("acquiring:dev:iso:country:all"),
                 anyString()
         );
         verify(fixture.valueOperations(), never()).set(
-                org.mockito.ArgumentMatchers.eq("acquiring:dev:iso:country"),
+                org.mockito.ArgumentMatchers.eq("acquiring:dev:iso:country:all"),
                 anyString(),
                 any(java.time.Duration.class)
         );
@@ -95,7 +97,7 @@ class IsoDictionaryServiceImplTests {
 
         fixture.service().evictCountries();
 
-        verify(fixture.redisTemplate()).delete("acquiring:dev:iso:country");
+        verify(fixture.redisTemplate()).delete("acquiring:dev:iso:country:all");
         verify(fixture.redisTemplate(), never()).delete("payment:iso:country:all");
         log.info("ISO 国家字典显式失效测试完成，结果: 仅当前短 Key 被精确删除");
     }
@@ -107,7 +109,7 @@ class IsoDictionaryServiceImplTests {
     void shouldNotCacheFallbackWhenDatabaseReturnsEmpty() {
         log.info("测试 ISO 字典空库兜底边界，关键输入: Redis 未命中、数据库返回空列表");
         Fixture fixture = fixture();
-        when(fixture.valueOperations().get("acquiring:dev:iso:country")).thenReturn(null);
+        when(fixture.valueOperations().get("acquiring:dev:iso:country:all")).thenReturn(null);
         when(fixture.countryMapper().selectList(any())).thenReturn(List.of());
 
         List<IsoCountryInfo> countries = fixture.service().listCountries();
@@ -124,7 +126,7 @@ class IsoDictionaryServiceImplTests {
     void shouldNotCacheFallbackWhenDatabaseReadFails() {
         log.info("测试 ISO 字典数据库故障兜底，关键输入: 国家 Mapper 抛出数据访问异常");
         Fixture fixture = fixture();
-        when(fixture.valueOperations().get("acquiring:dev:iso:country")).thenReturn(null);
+        when(fixture.valueOperations().get("acquiring:dev:iso:country:all")).thenReturn(null);
         when(fixture.countryMapper().selectList(any()))
                 .thenThrow(new DataAccessResourceFailureException("database unavailable"));
 
@@ -140,7 +142,7 @@ class IsoDictionaryServiceImplTests {
      */
     @Test
     void shouldReadPermanentCurrencySnapshotFromConciseKey() {
-        log.info("测试 ISO 币种字典常驻快照，关键输入: acquiring:dev:iso:currency 命中");
+        log.info("测试 ISO 币种字典常驻快照，关键输入: acquiring:dev:iso:currency:all 命中");
         Fixture fixture = fixture();
         IsoCurrencyInfo currency = new IsoCurrencyInfo(
                 "USD",
@@ -152,7 +154,7 @@ class IsoDictionaryServiceImplTests {
                 new BigDecimal("0.01"),
                 "$"
         );
-        when(fixture.valueOperations().get("acquiring:dev:iso:currency"))
+        when(fixture.valueOperations().get("acquiring:dev:iso:currency:all"))
                 .thenReturn(JsonUtils.toJsonString(List.of(currency)));
 
         assertThat(fixture.service().listCurrencies()).containsExactly(currency);
@@ -174,18 +176,23 @@ class IsoDictionaryServiceImplTests {
         PaymentRedisKeyResolver keyResolver = mock(PaymentRedisKeyResolver.class);
         ObjectProvider<StringRedisTemplate> redisProvider = mock(ObjectProvider.class);
         ObjectProvider<PaymentRedisKeyResolver> keyResolverProvider = mock(ObjectProvider.class);
+        ObjectProvider<CacheInvalidationGuard> invalidationGuardProvider = mock(ObjectProvider.class);
+        ObjectProvider<ManagedCacheInvalidationCoordinator> invalidationCoordinatorProvider =
+                mock(ObjectProvider.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(redisProvider.getIfAvailable()).thenReturn(redisTemplate);
         when(keyResolverProvider.getIfAvailable()).thenReturn(keyResolver);
-        when(keyResolver.businessKey("iso", "country"))
-                .thenReturn("acquiring:dev:iso:country");
-        when(keyResolver.businessKey("iso", "currency"))
-                .thenReturn("acquiring:dev:iso:currency");
+        when(keyResolver.businessKey("iso", "country", "all"))
+                .thenReturn("acquiring:dev:iso:country:all");
+        when(keyResolver.businessKey("iso", "currency", "all"))
+                .thenReturn("acquiring:dev:iso:currency:all");
         IsoDictionaryServiceImpl service = new IsoDictionaryServiceImpl(
                 countryMapper,
                 currencyMapper,
                 redisProvider,
-                keyResolverProvider
+                keyResolverProvider,
+                invalidationGuardProvider,
+                invalidationCoordinatorProvider
         );
         return new Fixture(countryMapper, redisTemplate, valueOperations, service);
     }

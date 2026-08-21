@@ -38,9 +38,9 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.stereotype.Service;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -50,6 +50,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -74,10 +76,19 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     private static final long NOT_DELETED = 0L;
     private static final String TEMPLATE = "TEMPLATE";
     private static final String MERCHANT = "MERCHANT";
+    private static final String DRAFT = "DRAFT";
     private static final String PENDING_REVIEW = "PENDING_REVIEW";
     private static final String ACTIVE = "ACTIVE";
     private static final String REJECTED = "REJECTED";
     private static final String SUPERSEDED = "SUPERSEDED";
+    private static final String ALL = "ALL";
+    private static final String BANK_CARD = "BANK_CARD";
+    private static final String RISK_FEE = "RISK_FEE";
+    private static final String SETTLEMENT_FX_FEE = "SETTLEMENT_FX_FEE";
+    private static final String SETTLEMENT_FX_FEE_NAME = "结算货币兑换费";
+    private static final String NONE = "NONE";
+    private static final String NOT_APPLICABLE = "NOT_APPLICABLE";
+    private static final int MAX_EXPANDED_RULES = 200;
 
     private final FeePlanMapper planMapper;
     private final FeePlanVersionMapper versionMapper;
@@ -87,6 +98,8 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     private final BaseMerchantInfoMapper merchantInfoMapper;
     private final AdminFeeSimulationCalculator simulationCalculator;
     private final AdminSettlementRateResolver settlementRateResolver;
+    private final AdminMerchantSettlementCurrencyService merchantSettlementCurrencyService;
+    private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
     /** 构造费用配置服务。 */
     public AdminFeeServiceImpl(FeePlanMapper planMapper,
@@ -96,7 +109,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                FeeSimulationRecordMapper simulationRecordMapper,
                                BaseMerchantInfoMapper merchantInfoMapper,
                                AdminFeeSimulationCalculator simulationCalculator,
-                               AdminSettlementRateResolver settlementRateResolver) {
+                               AdminSettlementRateResolver settlementRateResolver,
+                               AdminMerchantSettlementCurrencyService merchantSettlementCurrencyService,
+                               ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.planMapper = planMapper;
         this.versionMapper = versionMapper;
         this.ruleMapper = ruleMapper;
@@ -105,6 +120,8 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         this.merchantInfoMapper = merchantInfoMapper;
         this.simulationCalculator = simulationCalculator;
         this.settlementRateResolver = settlementRateResolver;
+        this.merchantSettlementCurrencyService = merchantSettlementCurrencyService;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
     }
 
     /** {@inheritDoc} */
@@ -141,7 +158,8 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     public FeePlanDetailResponse createTemplate(FeeTemplateCreateRequest request,
                                                 Long operatorId,
                                                 String operatorName) {
-        validateVersionRequest(request);
+        request.setSettlementCurrency(null);
+        validateVersionRequest(request, false, "首次创建模板");
         LocalDateTime now = LocalDateTime.now();
         FeePlanDO plan = new FeePlanDO();
         plan.setPlanCode(generateCode("FT"));
@@ -157,7 +175,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         plan.setDeleted(NOT_DELETED);
         planMapper.insert(plan);
         createRequestedVersion(plan, request, "CREATED", null, null,
-                "INDEPENDENT", operatorId, operatorName);
+                "INDEPENDENT", DRAFT, operatorId, operatorName);
         return getPlanDetail(plan);
     }
 
@@ -169,14 +187,90 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                                        FeeVersionSaveRequest request,
                                                        Long operatorId,
                                                        String operatorName) {
-        validateVersionRequest(request);
+        request.setSettlementCurrency(null);
+        validateVersionRequest(request, true, null);
         FeePlanDO plan = requireLockedPlan(id, TEMPLATE);
         if ("ARCHIVED".equals(plan.getStatus())) {
             throw conflict("归档模板不能创建新版本");
         }
-        requireNoPendingVersion(plan.getId());
+        requireNoWorkingVersion(plan.getId());
         createRequestedVersion(plan, request, "UPDATED", null, null,
-                "INDEPENDENT", operatorId, operatorName);
+                "INDEPENDENT", DRAFT, operatorId, operatorName);
+        touchPlan(plan, operatorName);
+        return getPlanDetail(plan);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public FeePlanDetailResponse updateTemplateDraft(Long planId,
+                                                     Long versionId,
+                                                     FeeVersionSaveRequest request,
+                                                     Long operatorId,
+                                                     String operatorName) {
+        FeePlanVersionDO draft = requireLockedVersion(versionId);
+        requirePlanVersion(draft, planId);
+        requireDraft(draft);
+        FeePlanDO plan = requireLockedPlan(planId, TEMPLATE);
+        if ("ARCHIVED".equals(plan.getStatus())) {
+            throw conflict("归档模板不能编辑草稿");
+        }
+        request.setSettlementCurrency(null);
+        validateVersionRequest(request, draft.getVersionNo() > 1, "首次创建模板");
+
+        LocalDateTime now = LocalDateTime.now();
+        applyVersionSettings(draft, request, operatorId, operatorName, now);
+        deleteDraftRules(draft.getId());
+        insertRequestedRules(draft.getId(), request.getRules(), now);
+        versionMapper.updateById(draft);
+        touchPlan(plan, operatorName);
+        return getPlanDetail(plan);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public FeePlanDetailResponse submitTemplateVersion(Long versionId,
+                                                       Long operatorId,
+                                                       String operatorName) {
+        FeePlanVersionDO draft = requireLockedVersion(versionId);
+        requireDraft(draft);
+        FeePlanDO plan = requireLockedPlan(draft.getPlanId(), TEMPLATE);
+        if ("ARCHIVED".equals(plan.getStatus())) {
+            throw conflict("归档模板不能提交审核");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        draft.setVersionStatus(PENDING_REVIEW);
+        draft.setSubmitById(operatorId);
+        draft.setSubmitByName(operatorName);
+        draft.setSubmitTime(now);
+        draft.setUpdateTime(now);
+        versionMapper.updateById(draft);
+        touchPlan(plan, operatorName);
+        return getPlanDetail(plan);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public FeePlanDetailResponse withdrawTemplateVersion(Long versionId,
+                                                         Long operatorId,
+                                                         String operatorName) {
+        FeePlanVersionDO version = requireLockedVersion(versionId);
+        requirePendingReview(version);
+        if (!Objects.equals(version.getSubmitById(), operatorId)) {
+            throw new ServiceException(ApiResultEnum.FORBIDDEN.getCode(), "待审核模板只能由原提交人撤回");
+        }
+        FeePlanDO plan = requireLockedPlan(version.getPlanId(), TEMPLATE);
+        version.setVersionStatus(DRAFT);
+        version.setSubmitById(operatorId);
+        version.setSubmitByName(operatorName);
+        version.setSubmitTime(LocalDateTime.now());
+        version.setUpdateTime(version.getSubmitTime());
+        versionMapper.updateById(version);
         touchPlan(plan, operatorName);
         return getPlanDetail(plan);
     }
@@ -190,7 +284,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         if ("ARCHIVED".equals(plan.getStatus())) {
             throw conflict("归档模板不能变更启停状态");
         }
-        requireNoPendingVersion(plan.getId());
+        requireNoWorkingVersion(plan.getId());
         if (enabled && plan.getCurrentVersionId() == null) {
             throw conflict("模板尚无生效版本，不能启用");
         }
@@ -207,7 +301,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     @Transactional(rollbackFor = Exception.class)
     public void archiveTemplate(Long id, String operatorName) {
         FeePlanDO plan = requireLockedPlan(id, TEMPLATE);
-        requireNoPendingVersion(plan.getId());
+        requireNoWorkingVersion(plan.getId());
         plan.setStatus("ARCHIVED");
         touchPlan(plan, operatorName);
     }
@@ -240,6 +334,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
             FeePlanSummaryResponse response = plan == null ? unconfiguredMerchant(merchant) : toSummary(plan);
             response.setMerchantId(merchant.getMerchantId());
             response.setMerchantName(merchant.getMerchantName());
+            response.setSettlementCurrency(upper(merchant.getSettlementCurrency()));
             return response;
         }).toList();
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), records);
@@ -249,7 +344,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     @Override
     @DS(DataSourceName.SLAVE)
     public FeePlanDetailResponse getMerchantFee(String merchantId) {
-        requireMerchant(merchantId);
+        BaseMerchantInfoDO merchant = requireMerchant(merchantId);
         FeePlanDO plan = planMapper.selectOne(Wrappers.<FeePlanDO>lambdaQuery()
                 .eq(FeePlanDO::getPlanType, MERCHANT)
                 .eq(FeePlanDO::getMerchantId, merchantId)
@@ -259,7 +354,8 @@ public class AdminFeeServiceImpl implements AdminFeeService {
             return null;
         }
         FeePlanDetailResponse response = getPlanDetail(plan);
-        response.setMerchantName(merchantName(merchantId));
+        response.setMerchantName(merchant.getMerchantName());
+        response.setSettlementCurrency(upper(merchant.getSettlementCurrency()));
         return response;
     }
 
@@ -272,11 +368,16 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                                        Long operatorId,
                                                        String operatorName) {
         BaseMerchantInfoDO merchant = requireMerchant(merchantId);
+        String requestedCurrency = StringUtils.hasText(request.getSettlementCurrency())
+                ? request.getSettlementCurrency() : merchant.getSettlementCurrency();
+        request.setSettlementCurrency(
+                merchantSettlementCurrencyService.validateConfiguredCurrency(requestedCurrency));
         FeePlanDO plan = planMapper.selectMerchantPlanForUpdate(merchantId);
+        boolean firstConfiguration = plan == null;
         if (plan == null) {
             plan = createMerchantPlan(merchant, request, operatorName);
         } else {
-            requireNoPendingVersion(plan.getId());
+            requireNoWorkingVersion(plan.getId());
         }
 
         FeePlanDO sourceTemplate = null;
@@ -291,21 +392,24 @@ public class AdminFeeServiceImpl implements AdminFeeService {
 
         boolean copyTemplateExactly = sourceVersion != null && (request.getRules() == null || request.getRules().isEmpty());
         if (copyTemplateExactly) {
+            String changeReason = normalizedChangeReason(
+                    request.getChangeReason(), !firstConfiguration, "首次绑定模板");
             createCopiedVersion(plan, sourceTemplate, sourceVersion, "TEMPLATE_ASSIGNED",
-                    "TEMPLATE", request.getChangeReason(), operatorId, operatorName);
+                    "TEMPLATE", changeReason, request.getSettlementCurrency(), operatorId, operatorName);
         } else {
-            validateVersionRequest(request);
+            validateVersionRequest(request, !firstConfiguration, "首次配置");
             Long sourceTemplateId = sourceTemplate == null ? plan.getSourceTemplateId() : sourceTemplate.getId();
             Integer sourceTemplateVersionNo = sourceVersion == null
                     ? plan.getSourceTemplateVersionNo() : sourceVersion.getVersionNo();
             String originType = sourceTemplateId == null ? "INDEPENDENT" : "TEMPLATE_CUSTOMIZED";
             String changeType = sourceTemplateId == null ? "UPDATED" : "CUSTOMIZED";
             createRequestedVersion(plan, request, changeType, sourceTemplateId,
-                    sourceTemplateVersionNo, originType, operatorId, operatorName);
+                    sourceTemplateVersionNo, originType, PENDING_REVIEW, operatorId, operatorName);
         }
         touchPlan(plan, operatorName);
         FeePlanDetailResponse response = getPlanDetail(plan);
         response.setMerchantName(merchant.getMerchantName());
+        response.setSettlementCurrency(upper(merchant.getSettlementCurrency()));
         return response;
     }
 
@@ -334,7 +438,6 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(cacheNames = PaymentCacheNames.MERCHANT_ACTIVE_FEE, allEntries = true)
     public FeePlanDetailResponse approveVersion(Long versionId,
                                                 String comment,
                                                 Long reviewerId,
@@ -343,6 +446,16 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         requirePendingReview(version);
         requireDifferentReviewer(version, reviewerId, reviewerName);
         FeePlanDO plan = requireLockedPlan(version.getPlanId(), null);
+        if (MERCHANT.equals(plan.getPlanType())) {
+            cacheInvalidationCoordinator.prepare(
+                    PaymentCacheNames.MERCHANT_ACTIVE_FEE,
+                    plan.getMerchantId()
+            );
+        }
+        if (MERCHANT.equals(plan.getPlanType()) && StringUtils.hasText(version.getSettlementCurrency())) {
+            merchantSettlementCurrencyService.synchronizeApprovedCurrency(
+                    plan.getMerchantId(), version.getSettlementCurrency(), reviewerName);
+        }
         LocalDateTime now = LocalDateTime.now();
         boolean firstActivation = plan.getCurrentVersionId() == null;
 
@@ -420,12 +533,16 @@ public class AdminFeeServiceImpl implements AdminFeeService {
             throw conflict("商户当前费率版本未生效");
         }
         String feeCategory = upper(request.getFeeCategory());
+        String riskServiceType = normalizeSimulationRiskServiceType(feeCategory, request.getRiskServiceType());
         List<FeeRuleDO> candidates = ruleMapper.selectList(Wrappers.<FeeRuleDO>lambdaQuery()
                 .eq(FeeRuleDO::getPlanVersionId, version.getId())
                 .eq(FeeRuleDO::getFeeCategory, feeCategory)
+                .eq(FeeRuleDO::getRiskServiceType, riskServiceType)
                 .eq(FeeRuleDO::getTransactionType, upper(request.getTransactionType()))
                 .eq(FeeRuleDO::getPaymentType, upper(request.getPaymentType()))
-                .eq(FeeRuleDO::getDeleted, NOT_DELETED));
+                .eq(FeeRuleDO::getDeleted, NOT_DELETED)
+                .orderByAsc(FeeRuleDO::getSortNo)
+                .orderByAsc(FeeRuleDO::getId));
         String method = upper(request.getPaymentMethod());
         FeeRuleDO rule = candidates.stream()
                 .filter(item -> method.equals(item.getPaymentMethod()))
@@ -506,22 +623,47 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                                     Long sourceTemplateId,
                                                     Integer sourceTemplateVersionNo,
                                                     String originType,
+                                                    String versionStatus,
                                                     Long operatorId,
                                                     String operatorName) {
         LocalDateTime now = LocalDateTime.now();
         FeePlanVersionDO version = baseVersion(plan, changeType, request.getChangeReason(),
-                sourceTemplateId, sourceTemplateVersionNo, originType, operatorId, operatorName, now);
-        version.setReserveRate(request.getReserveRate());
-        version.setReserveDelayDays(request.getReserveDelayDays());
-        version.setInitialDelayUnit(upper(request.getInitialDelayUnit()));
-        version.setInitialDelayDays(request.getInitialDelayDays());
-        version.setRegularDelayUnit(upper(request.getRegularDelayUnit()));
-        version.setRegularDelayDays(request.getRegularDelayDays());
-        version.setSettlementFrequency(upper(request.getSettlementFrequency()));
-        version.setFrequencyDay(normalizedFrequencyDay(request.getSettlementFrequency(), request.getFrequencyDay()));
+                sourceTemplateId, sourceTemplateVersionNo, originType, versionStatus,
+                operatorId, operatorName, now);
+        applyVersionSettings(version, request, operatorId, operatorName, now);
         versionMapper.insert(version);
         insertRequestedRules(version.getId(), request.getRules(), now);
         return version;
+    }
+
+    /**
+     * 将已校验的费率配置写入草稿或新版本，并记录当前保存人快照。
+     *
+     * @param version 目标版本
+     * @param request 已完成业务校验的配置
+     * @param operatorId 当前保存账号 ID
+     * @param operatorName 当前保存人名称
+     * @param now 本次保存系统时间
+     */
+    private void applyVersionSettings(FeePlanVersionDO version,
+                                      FeeVersionSaveRequest request,
+                                      Long operatorId,
+                                      String operatorName,
+                                      LocalDateTime now) {
+        version.setReserveRate(request.getReserveRate());
+        version.setReserveDelayUnit(upper(request.getReserveDelayUnit()));
+        version.setReserveDelayDays(request.getReserveDelayDays());
+        version.setSettlementCurrency(trimUpper(request.getSettlementCurrency()));
+        version.setInitialDelayUnit(upper(request.getInitialDelayUnit()));
+        version.setInitialDelayDays(request.getInitialDelayDays());
+        version.setRegularDelayDays(request.getRegularDelayDays());
+        version.setSettlementFrequency(upper(request.getSettlementFrequency()));
+        version.setFrequencyDay(normalizedFrequencyDay(request.getSettlementFrequency(), request.getFrequencyDay()));
+        version.setChangeReason(request.getChangeReason());
+        version.setSubmitById(operatorId);
+        version.setSubmitByName(operatorName);
+        version.setSubmitTime(now);
+        version.setUpdateTime(now);
     }
 
     private FeePlanVersionDO createCopiedVersion(FeePlanDO plan,
@@ -530,16 +672,20 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                                  String changeType,
                                                  String originType,
                                                  String changeReason,
+                                                 String settlementCurrency,
                                                  Long operatorId,
                                                  String operatorName) {
         LocalDateTime now = LocalDateTime.now();
         FeePlanVersionDO version = baseVersion(plan, changeType, changeReason,
-                template.getId(), source.getVersionNo(), originType, operatorId, operatorName, now);
+                template.getId(), source.getVersionNo(), originType, PENDING_REVIEW,
+                operatorId, operatorName, now);
         version.setReserveRate(source.getReserveRate());
+        version.setReserveDelayUnit(StringUtils.hasText(source.getReserveDelayUnit())
+                ? source.getReserveDelayUnit() : "D");
         version.setReserveDelayDays(source.getReserveDelayDays());
+        version.setSettlementCurrency(trimUpper(settlementCurrency));
         version.setInitialDelayUnit(source.getInitialDelayUnit());
         version.setInitialDelayDays(source.getInitialDelayDays());
-        version.setRegularDelayUnit(source.getRegularDelayUnit());
         version.setRegularDelayDays(source.getRegularDelayDays());
         version.setSettlementFrequency(source.getSettlementFrequency());
         version.setFrequencyDay(source.getFrequencyDay());
@@ -554,13 +700,14 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                          Long sourceTemplateId,
                                          Integer sourceTemplateVersionNo,
                                          String originType,
+                                         String versionStatus,
                                          Long operatorId,
                                          String operatorName,
                                          LocalDateTime now) {
         FeePlanVersionDO version = new FeePlanVersionDO();
         version.setPlanId(plan.getId());
         version.setVersionNo(nextVersionNo(plan.getId()));
-        version.setVersionStatus(PENDING_REVIEW);
+        version.setVersionStatus(versionStatus);
         version.setChangeType(changeType);
         version.setSourceTemplateId(sourceTemplateId);
         version.setSourceTemplateVersionNo(sourceTemplateVersionNo);
@@ -575,15 +722,39 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return version;
     }
 
+    /**
+     * 删除尚未提交草稿的旧规则和阶梯，随后由调用方在同一事务内写入完整新快照。
+     * 审核中、已生效和历史版本不会进入该方法。
+     *
+     * @param versionId 草稿版本主键
+     */
+    private void deleteDraftRules(Long versionId) {
+        List<FeeRuleDO> existingRules = ruleMapper.selectList(Wrappers.<FeeRuleDO>lambdaQuery()
+                .eq(FeeRuleDO::getPlanVersionId, versionId)
+                .eq(FeeRuleDO::getDeleted, NOT_DELETED));
+        if (existingRules.isEmpty()) {
+            return;
+        }
+        List<Long> ruleIds = existingRules.stream().map(FeeRuleDO::getId).toList();
+        tierMapper.delete(Wrappers.<FeeRuleTierDO>lambdaQuery()
+                .in(FeeRuleTierDO::getFeeRuleId, ruleIds));
+        ruleMapper.delete(Wrappers.<FeeRuleDO>lambdaQuery()
+                .eq(FeeRuleDO::getPlanVersionId, versionId));
+    }
+
     private void insertRequestedRules(Long versionId, List<FeeRuleRequest> requests, LocalDateTime now) {
         for (FeeRuleRequest request : requests) {
             FeeRuleDO rule = new FeeRuleDO();
             rule.setPlanVersionId(versionId);
+            rule.setRuleGroupCode(request instanceof ExpandedFeeRuleRequest expanded
+                    ? expanded.ruleGroupCode() : generateCode("FRG"));
             rule.setFeeCategory(upper(request.getFeeCategory()));
             rule.setRuleName(request.getRuleName().trim());
             rule.setTransactionType(upper(request.getTransactionType()));
             rule.setPaymentType(upper(request.getPaymentType()));
             rule.setPaymentMethod(upper(request.getPaymentMethod()));
+            rule.setRiskServiceType(upper(request.getRiskServiceType()));
+            rule.setChargeTrigger(upper(request.getChargeTrigger()));
             rule.setFeeMode(upper(request.getFeeMode()));
             rule.setPercentageRate(request.getPercentageRate());
             rule.setFixedAmountUsd(request.getFixedAmountUsd());
@@ -642,7 +813,9 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
     }
 
-    private void validateVersionRequest(FeeVersionSaveRequest request) {
+    private void validateVersionRequest(FeeVersionSaveRequest request,
+                                        boolean changeReasonRequired,
+                                        String defaultChangeReason) {
         if (request == null) {
             throw invalid("费用版本配置不能为空");
         }
@@ -650,49 +823,115 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                 || request.getReserveRate().compareTo(new BigDecimal("100")) > 0) {
             throw invalid("滚动保证金比例必须在 0 至 100 之间");
         }
+        String reserveUnit = upper(request.getReserveDelayUnit());
+        if (!Set.of("T", "D").contains(reserveUnit)) {
+            throw invalid("保证金留存周期单位只允许 T 或 D");
+        }
+        request.setReserveDelayUnit(reserveUnit);
         if (request.getReserveDelayDays() == null || request.getReserveDelayDays() < 1) {
-            throw invalid("保证金留存周期最低为 D+1");
+            throw invalid("保证金留存周期最低为 T/D+1");
         }
         String initialUnit = upper(request.getInitialDelayUnit());
-        String regularUnit = upper(request.getRegularDelayUnit());
-        if (!Set.of("T", "D").contains(initialUnit) || !Set.of("T", "D").contains(regularUnit)) {
+        if (!Set.of("T", "D").contains(initialUnit)) {
             throw invalid("结算周期单位只允许 T 或 D");
         }
+        request.setInitialDelayUnit(initialUnit);
+        request.setRegularDelayUnit(initialUnit);
         if (request.getInitialDelayDays() == null || request.getInitialDelayDays() < 1
                 || request.getRegularDelayDays() == null || request.getRegularDelayDays() < 1) {
             throw invalid("系统最低支持 T/D+1");
         }
         normalizedFrequencyDay(request.getSettlementFrequency(), request.getFrequencyDay());
-        if (!StringUtils.hasText(request.getChangeReason())) {
-            throw invalid("变更原因不能为空");
-        }
+        request.setChangeReason(normalizedChangeReason(
+                request.getChangeReason(), changeReasonRequired, defaultChangeReason));
         if (request.getRules() == null || request.getRules().isEmpty()) {
             throw invalid("至少配置一条费用规则");
         }
+        long settlementFxFeeCount = request.getRules().stream()
+                .filter(Objects::nonNull)
+                .filter(rule -> SETTLEMENT_FX_FEE.equals(upper(rule.getFeeCategory())))
+                .count();
+        if (settlementFxFeeCount > 1) {
+            throw invalid("同一费用版本的结算货币兑换费只能配置一条");
+        }
+        validateCategoryFeeModes(request.getRules());
+        request.setRules(expandRules(request.getRules()));
         Set<String> dimensions = new HashSet<>();
         request.getRules().forEach(rule -> validateRule(rule, dimensions));
     }
 
-    private void validateRule(FeeRuleRequest rule, Set<String> dimensions) {
-        if (rule == null || !StringUtils.hasText(rule.getRuleName())
-                || !StringUtils.hasText(rule.getTransactionType())
-                || !StringUtils.hasText(rule.getPaymentType())) {
-            throw invalid("费用规则名称和匹配维度不能为空");
+    /**
+     * 同一费用分类统一使用一种计费模式，避免结算匹配时同时出现标准与阶梯口径。
+     */
+    private void validateCategoryFeeModes(List<FeeRuleRequest> rules) {
+        Map<String, String> categoryModes = new HashMap<>();
+        for (FeeRuleRequest rule : rules) {
+            if (rule == null) {
+                continue;
+            }
+            String category = upper(rule.getFeeCategory());
+            if (RISK_FEE.equals(category) || SETTLEMENT_FX_FEE.equals(category)) {
+                continue;
+            }
+            String mode = upper(rule.getFeeMode());
+            if (!Set.of("STANDARD", "TIER").contains(mode)) {
+                continue;
+            }
+            String configuredMode = categoryModes.putIfAbsent(category, mode);
+            if (configuredMode != null && !configuredMode.equals(mode)) {
+                throw invalid("同一费用分类只能选择一种计费模式");
+            }
         }
-        String paymentMethod = StringUtils.hasText(rule.getPaymentMethod()) ? upper(rule.getPaymentMethod()) : "ALL";
-        rule.setPaymentMethod(paymentMethod);
+    }
+
+    private String normalizedChangeReason(String changeReason,
+                                          boolean required,
+                                          String defaultChangeReason) {
+        if (StringUtils.hasText(changeReason)) {
+            return changeReason.trim();
+        }
+        if (required) {
+            throw invalid("变更原因不能为空");
+        }
+        return defaultChangeReason;
+    }
+
+    private void validateRule(FeeRuleRequest rule, Set<String> dimensions) {
+        if (rule == null) {
+            throw invalid("费用规则不能为空");
+        }
         String category = upper(rule.getFeeCategory());
-        if (!Set.of("TRANSACTION_FEE", "REFUND_FEE", "RISK_FEE", "DISPUTE_FEE").contains(category)) {
+        if (!Set.of("TRANSACTION_FEE", "REFUND_FEE", RISK_FEE,
+                "DISPUTE_FEE", SETTLEMENT_FX_FEE).contains(category)) {
             throw invalid("不支持的费用分类");
         }
         rule.setFeeCategory(category);
-        String dimension = category + "|" + upper(rule.getTransactionType()) + "|"
+        if (SETTLEMENT_FX_FEE.equals(category)) {
+            normalizeSettlementFxRule(rule);
+        } else if (!StringUtils.hasText(rule.getTransactionType())
+                || !StringUtils.hasText(rule.getPaymentType())) {
+            throw invalid("费用规则匹配维度不能为空");
+        }
+        String paymentMethod = StringUtils.hasText(rule.getPaymentMethod()) ? upper(rule.getPaymentMethod()) : ALL;
+        rule.setPaymentMethod(paymentMethod);
+        String riskServiceType = normalizeRiskRule(rule, category);
+        String dimension = category + "|" + riskServiceType + "|" + upper(rule.getTransactionType()) + "|"
                 + upper(rule.getPaymentType()) + "|" + paymentMethod;
         if (!dimensions.add(dimension)) {
             throw invalid("同一版本内费用匹配维度不能重复: " + dimension);
         }
         validateAmounts(rule.getPercentageRate(), rule.getFixedAmountUsd(),
                 rule.getMinimumAmountUsd(), rule.getMaximumAmountUsd());
+        if (RISK_FEE.equals(category)) {
+            rule.setFeeMode("STANDARD");
+            rule.setTierMetric(null);
+            rule.setTierPeriod(null);
+            rule.setTiers(new ArrayList<>());
+            return;
+        }
+        if (SETTLEMENT_FX_FEE.equals(category)) {
+            return;
+        }
         String mode = upper(rule.getFeeMode());
         if (!Set.of("STANDARD", "TIER").contains(mode)) {
             throw invalid("计费模式只允许 STANDARD 或 TIER");
@@ -707,6 +946,205 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
         rule.setTierMetric(metric);
         validateTiers(rule.getTiers(), metric);
+    }
+
+    /**
+     * 将结算货币兑换费收敛为无业务匹配维度的标准单笔规则。
+     * 数据库非空维度统一使用 ALL，仅作为内部占位，不参与结算匹配。
+     *
+     * @param rule 待保存的结算货币兑换费规则
+     */
+    private void normalizeSettlementFxRule(FeeRuleRequest rule) {
+        if (!"STANDARD".equals(upper(rule.getFeeMode()))) {
+            throw invalid("结算货币兑换费只支持标准单笔计费");
+        }
+        rule.setRuleName(SETTLEMENT_FX_FEE_NAME);
+        rule.setTransactionType(ALL);
+        rule.setPaymentType(ALL);
+        rule.setPaymentMethod(ALL);
+        rule.setFeeMode("STANDARD");
+        rule.setTierMetric(null);
+        rule.setTierPeriod(null);
+        rule.setTiers(new ArrayList<>());
+    }
+
+    /**
+     * 规范化风控服务类型和收费触发方式，并收敛为固定 USD 单笔费用。
+     *
+     * @param rule 待保存原子规则
+     * @param category 已规范化费用分类
+     * @return 用于唯一匹配维度的风控类型；非风控费用返回 NONE
+     */
+    private String normalizeRiskRule(FeeRuleRequest rule, String category) {
+        if (!RISK_FEE.equals(category)) {
+            rule.setRiskServiceType(NONE);
+            rule.setChargeTrigger(NOT_APPLICABLE);
+            return NONE;
+        }
+        String riskServiceType = upper(rule.getRiskServiceType());
+        if (!Set.of("INTERNAL", "EXTERNAL", "THREE_DS").contains(riskServiceType)) {
+            throw invalid("风控手续费必须选择内风控、外风控或 3DS");
+        }
+        String chargeTrigger = upper(rule.getChargeTrigger());
+        Set<String> allowedTriggers = "INTERNAL".equals(riskServiceType)
+                ? Set.of("NO_CHARGE", "SUCCESS", "SUCCESS_OR_FAILURE")
+                : Set.of("NO_CHARGE", "ON_CALL");
+        if (!allowedTriggers.contains(chargeTrigger)) {
+            throw invalid("风控手续费触发方式与风控类型不匹配");
+        }
+        rule.setRiskServiceType(riskServiceType);
+        rule.setChargeTrigger(chargeTrigger);
+        rule.setPercentageRate(BigDecimal.ZERO);
+        rule.setMinimumAmountUsd(null);
+        rule.setMaximumAmountUsd(null);
+        if ("NO_CHARGE".equals(chargeTrigger)) {
+            rule.setFixedAmountUsd(BigDecimal.ZERO);
+        } else if (rule.getFixedAmountUsd() == null || rule.getFixedAmountUsd().signum() <= 0) {
+            throw invalid("风控手续费实际收费时固定 USD 金额必须大于 0");
+        }
+        return riskServiceType;
+    }
+
+    /**
+     * 归一费用试算的风控服务维度，避免同一交易维度下随机命中内风控、外风控或 3DS 规则。
+     *
+     * @param feeCategory 费用分类
+     * @param requestedRiskServiceType 页面选择的风控服务类型
+     * @return 风控费用的明确服务类型；非风控费用固定返回 NONE
+     */
+    private String normalizeSimulationRiskServiceType(String feeCategory, String requestedRiskServiceType) {
+        if (!"RISK_FEE".equals(feeCategory)) {
+            return "NONE";
+        }
+        String riskServiceType = upper(requestedRiskServiceType);
+        if (!Set.of("INTERNAL", "EXTERNAL", "THREE_DS").contains(riskServiceType)) {
+            throw invalid("风控手续费试算必须选择内风控、外风控或3DS");
+        }
+        return riskServiceType;
+    }
+
+    /**
+     * 将页面批量选择展开为数据库可唯一匹配的原子规则。
+     * 非银行卡支付类型不使用卡品牌维度，统一落为 ALL。
+     */
+    private List<FeeRuleRequest> expandRules(List<FeeRuleRequest> requests) {
+        List<FeeRuleRequest> expanded = new ArrayList<>();
+        for (FeeRuleRequest request : requests) {
+            if (request == null) {
+                throw invalid("费用规则不能为空");
+            }
+            String ruleGroupCode = generateCode("FRG");
+            if (SETTLEMENT_FX_FEE.equals(upper(request.getFeeCategory()))) {
+                FeeRuleRequest settlementFxRule = copyAtomicRule(request, ALL, ALL, ALL, ruleGroupCode);
+                settlementFxRule.setRuleName(SETTLEMENT_FX_FEE_NAME);
+                expanded.add(settlementFxRule);
+                continue;
+            }
+            List<String> transactionTypes = dimensionValues(
+                    request.getTransactionTypes(), request.getTransactionType(), "交易类型");
+            List<String> paymentTypes = dimensionValues(
+                    request.getPaymentTypes(), request.getPaymentType(), "支付类型");
+            List<String> paymentMethods = List.of(ALL);
+            if (paymentTypes.contains(BANK_CARD)) {
+                paymentMethods = dimensionValues(
+                        request.getPaymentMethods(), request.getPaymentMethod(), null);
+                if (paymentMethods.size() > 1 && paymentMethods.contains(ALL)) {
+                    throw invalid("支付方式不能同时选择 ALL 和具体卡品牌");
+                }
+            }
+            for (String transactionType : transactionTypes) {
+                for (String paymentType : paymentTypes) {
+                    List<String> atomicMethods = BANK_CARD.equals(paymentType) ? paymentMethods : List.of(ALL);
+                    for (String paymentMethod : atomicMethods) {
+                        FeeRuleRequest atomicRule = copyAtomicRule(
+                                request, transactionType, paymentType, paymentMethod, ruleGroupCode);
+                        expanded.add(atomicRule);
+                        if (expanded.size() > MAX_EXPANDED_RULES) {
+                            throw invalid("单次提交展开后的费用规则不能超过 " + MAX_EXPANDED_RULES + " 条");
+                        }
+                    }
+                }
+            }
+        }
+        return expanded;
+    }
+
+    /**
+     * 合并批量字段和兼容单值字段，按录入顺序去重并统一为大写。
+     *
+     * @param batchValues 新版页面提交的多选值
+     * @param compatibleValue 旧版接口提交的单值
+     * @param dimensionName 非空时表示该维度禁止使用 ALL
+     * @return 已去重的标准化维度值
+     */
+    private List<String> dimensionValues(List<String> batchValues,
+                                         String compatibleValue,
+                                         String dimensionName) {
+        List<String> source = batchValues == null || batchValues.isEmpty()
+                ? List.of(StringUtils.hasText(compatibleValue) ? compatibleValue : ALL)
+                : batchValues;
+        LinkedHashSet<String> normalized = source.stream()
+                .filter(StringUtils::hasText)
+                .map(this::upper)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (normalized.isEmpty() || dimensionName != null && normalized.contains(ALL)) {
+            throw invalid((dimensionName == null ? "支付方式" : dimensionName) + "不能为空");
+        }
+        return new ArrayList<>(normalized);
+    }
+
+    /**
+     * 将一条页面批量规则复制为单一交易类型、支付类型和支付方式的原子规则。
+     *
+     * @param source 页面批量规则
+     * @param transactionType 单一交易类型
+     * @param paymentType 单一支付类型
+     * @param paymentMethod 单一支付方式
+     * @return 可直接校验并持久化的原子规则
+     */
+    private FeeRuleRequest copyAtomicRule(FeeRuleRequest source,
+                                          String transactionType,
+                                          String paymentType,
+                                          String paymentMethod,
+                                          String ruleGroupCode) {
+        FeeRuleRequest target = new ExpandedFeeRuleRequest(ruleGroupCode);
+        target.setFeeCategory(source.getFeeCategory());
+        target.setRuleName(StringUtils.hasText(source.getRuleName())
+                ? source.getRuleName().trim()
+                : generatedRuleName(source.getFeeCategory(), transactionType, paymentType, paymentMethod));
+        target.setTransactionType(transactionType);
+        target.setPaymentType(paymentType);
+        target.setPaymentMethod(paymentMethod);
+        target.setRiskServiceType(source.getRiskServiceType());
+        target.setChargeTrigger(source.getChargeTrigger());
+        target.setFeeMode(source.getFeeMode());
+        target.setPercentageRate(source.getPercentageRate());
+        target.setFixedAmountUsd(source.getFixedAmountUsd());
+        target.setMinimumAmountUsd(source.getMinimumAmountUsd());
+        target.setMaximumAmountUsd(source.getMaximumAmountUsd());
+        target.setTierMetric(source.getTierMetric());
+        target.setTierPeriod(source.getTierPeriod());
+        target.setSortNo(source.getSortNo());
+        target.setRemark(source.getRemark());
+        target.setTiers(source.getTiers() == null ? new ArrayList<>() : new ArrayList<>(source.getTiers()));
+        return target;
+    }
+
+    /**
+     * 为未填写配置名称的规则生成稳定、可识别的原子规则名称。
+     *
+     * @param feeCategory 费用分类
+     * @param transactionType 交易类型
+     * @param paymentType 支付类型
+     * @param paymentMethod 支付方式
+     * @return 最长 128 个字符的配置名称
+     */
+    private String generatedRuleName(String feeCategory,
+                                     String transactionType,
+                                     String paymentType,
+                                     String paymentMethod) {
+        String name = String.join("-", upper(feeCategory), transactionType, paymentType, paymentMethod);
+        return name.length() <= 128 ? name : name.substring(0, 128);
     }
 
     private void validateTiers(List<FeeRuleTierRequest> tiers, String metric) {
@@ -803,13 +1241,17 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                 .eq(FeePlanVersionDO::getPlanId, plan.getId())
                 .eq(FeePlanVersionDO::getDeleted, NOT_DELETED)
                 .orderByDesc(FeePlanVersionDO::getVersionNo));
-        response.setVersions(versions.stream().map(this::toVersion).toList());
+        Map<Long, List<FeeRuleResponse>> rulesByVersion = loadRulesByVersion(
+                versions.stream().map(FeePlanVersionDO::getId).toList());
+        response.setVersions(versions.stream()
+                .map(version -> toVersion(version, rulesByVersion.getOrDefault(version.getId(), List.of())))
+                .toList());
         response.setCurrentVersion(response.getVersions().stream()
                 .filter(item -> Objects.equals(item.getId(), plan.getCurrentVersionId())).findFirst().orElse(null));
         return response;
     }
 
-    private FeeVersionResponse toVersion(FeePlanVersionDO version) {
+    private FeeVersionResponse toVersion(FeePlanVersionDO version, List<FeeRuleResponse> rules) {
         FeeVersionResponse response = new FeeVersionResponse();
         response.setId(version.getId());
         response.setPlanId(version.getPlanId());
@@ -820,10 +1262,13 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         response.setSourceTemplateVersionNo(version.getSourceTemplateVersionNo());
         response.setOriginType(version.getOriginType());
         response.setReserveRate(version.getReserveRate());
+        response.setReserveDelayUnit(StringUtils.hasText(version.getReserveDelayUnit())
+                ? version.getReserveDelayUnit() : "D");
         response.setReserveDelayDays(version.getReserveDelayDays());
+        response.setSettlementCurrency(version.getSettlementCurrency());
         response.setInitialDelayUnit(version.getInitialDelayUnit());
         response.setInitialDelayDays(version.getInitialDelayDays());
-        response.setRegularDelayUnit(version.getRegularDelayUnit());
+        response.setRegularDelayUnit(version.getInitialDelayUnit());
         response.setRegularDelayDays(version.getRegularDelayDays());
         response.setSettlementFrequency(version.getSettlementFrequency());
         response.setFrequencyDay(version.getFrequencyDay());
@@ -837,25 +1282,145 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         response.setReviewTime(version.getReviewTime());
         response.setEffectiveTime(version.getEffectiveTime());
         response.setSupersededTime(version.getSupersededTime());
-        response.setRules(loadRules(version.getId()));
+        response.setRules(rules);
         return response;
     }
 
-    private List<FeeRuleResponse> loadRules(Long versionId) {
+    /**
+     * 批量加载方案全部版本的规则和阶梯，查询次数不随版本数量增长。
+     *
+     * @param versionIds 方案内版本主键
+     * @return 版本主键到逻辑规则列表的映射
+     */
+    private Map<Long, List<FeeRuleResponse>> loadRulesByVersion(List<Long> versionIds) {
+        if (versionIds.isEmpty()) {
+            return Map.of();
+        }
         List<FeeRuleDO> rules = ruleMapper.selectList(Wrappers.<FeeRuleDO>lambdaQuery()
-                .eq(FeeRuleDO::getPlanVersionId, versionId)
+                .in(FeeRuleDO::getPlanVersionId, versionIds)
                 .eq(FeeRuleDO::getDeleted, NOT_DELETED)
-                .orderByAsc(FeeRuleDO::getSortNo));
+                .orderByAsc(FeeRuleDO::getPlanVersionId)
+                .orderByAsc(FeeRuleDO::getSortNo)
+                .orderByAsc(FeeRuleDO::getId));
         if (rules.isEmpty()) {
-            return List.of();
+            return Map.of();
         }
         List<Long> ruleIds = rules.stream().map(FeeRuleDO::getId).toList();
         Map<Long, List<FeeRuleTierDO>> tiers = tierMapper.selectList(Wrappers.<FeeRuleTierDO>lambdaQuery()
                         .in(FeeRuleTierDO::getFeeRuleId, ruleIds)
                         .eq(FeeRuleTierDO::getDeleted, NOT_DELETED)
+                        .orderByAsc(FeeRuleTierDO::getFeeRuleId)
+                        .orderByAsc(FeeRuleTierDO::getSortNo)
                         .orderByAsc(FeeRuleTierDO::getLowerBound)).stream()
-                .collect(Collectors.groupingBy(FeeRuleTierDO::getFeeRuleId));
-        return rules.stream().map(rule -> toRule(rule, tiers.getOrDefault(rule.getId(), List.of()))).toList();
+                .collect(Collectors.groupingBy(FeeRuleTierDO::getFeeRuleId,
+                        LinkedHashMap::new, Collectors.toList()));
+        Map<Long, List<FeeRuleDO>> atomicRulesByVersion = rules.stream()
+                .collect(Collectors.groupingBy(FeeRuleDO::getPlanVersionId,
+                        LinkedHashMap::new, Collectors.toList()));
+        Map<Long, List<FeeRuleResponse>> result = new HashMap<>();
+        atomicRulesByVersion.forEach((versionId, versionRules) ->
+                result.put(versionId, toLogicalRules(versionRules, tiers)));
+        return result;
+    }
+
+    /**
+     * 将持久化原子规则还原为编辑页逻辑规则。新数据按服务端分组编码聚合；历史数据只有形成完整
+     * 维度组合且全部计费属性一致时才聚合，防止保存时补出原本不存在的匹配组合。
+     */
+    private List<FeeRuleResponse> toLogicalRules(List<FeeRuleDO> rules,
+                                                 Map<Long, List<FeeRuleTierDO>> tiersByRule) {
+        Map<RuleGroupingKey, List<FeeRuleDO>> groups = new LinkedHashMap<>();
+        for (FeeRuleDO rule : rules) {
+            List<FeeRuleTierDO> tiers = tiersByRule.getOrDefault(rule.getId(), List.of());
+            RuleGroupingKey key = StringUtils.hasText(rule.getRuleGroupCode())
+                    ? new RuleGroupingKey(rule.getRuleGroupCode(), null)
+                    : new RuleGroupingKey(null, legacyRuleKey(rule, tiers));
+            groups.computeIfAbsent(key, ignored -> new ArrayList<>()).add(rule);
+        }
+        List<FeeRuleResponse> result = new ArrayList<>();
+        for (Map.Entry<RuleGroupingKey, List<FeeRuleDO>> entry : groups.entrySet()) {
+            List<FeeRuleDO> groupedRules = entry.getValue();
+            if (entry.getKey().ruleGroupCode() != null || isCompleteDimensionProduct(groupedRules)) {
+                result.add(toLogicalRule(groupedRules, tiersByRule));
+            } else {
+                groupedRules.forEach(rule -> result.add(toLogicalRule(List.of(rule), tiersByRule)));
+            }
+        }
+        return result;
+    }
+
+    private LegacyRuleKey legacyRuleKey(FeeRuleDO rule, List<FeeRuleTierDO> tiers) {
+        List<FeeTierSignature> tierSignatures = tiers.stream().map(tier -> new FeeTierSignature(
+                canonicalDecimal(tier.getLowerBound()), canonicalDecimal(tier.getUpperBound()),
+                canonicalDecimal(tier.getPercentageRate()), canonicalDecimal(tier.getFixedAmountUsd()),
+                canonicalDecimal(tier.getMinimumAmountUsd()), canonicalDecimal(tier.getMaximumAmountUsd()),
+                tier.getSortNo())).toList();
+        return new LegacyRuleKey(rule.getFeeCategory(), rule.getRuleName(), rule.getRiskServiceType(),
+                rule.getChargeTrigger(), rule.getFeeMode(), canonicalDecimal(rule.getPercentageRate()),
+                canonicalDecimal(rule.getFixedAmountUsd()), canonicalDecimal(rule.getMinimumAmountUsd()),
+                canonicalDecimal(rule.getMaximumAmountUsd()), rule.getTierMetric(), rule.getTierPeriod(),
+                rule.getSortNo(), rule.getRemark(), tierSignatures);
+    }
+
+    private boolean isCompleteDimensionProduct(List<FeeRuleDO> rules) {
+        LinkedHashSet<String> transactionTypes = new LinkedHashSet<>();
+        LinkedHashSet<String> paymentTypes = new LinkedHashSet<>();
+        LinkedHashSet<String> bankCardMethods = new LinkedHashSet<>();
+        Set<AtomicRuleDimension> actual = new HashSet<>();
+        for (FeeRuleDO rule : rules) {
+            if (!StringUtils.hasText(rule.getTransactionType()) || !StringUtils.hasText(rule.getPaymentType())
+                    || !StringUtils.hasText(rule.getPaymentMethod())) {
+                return false;
+            }
+            transactionTypes.add(rule.getTransactionType());
+            paymentTypes.add(rule.getPaymentType());
+            if (BANK_CARD.equals(rule.getPaymentType())) {
+                bankCardMethods.add(rule.getPaymentMethod());
+            } else if (!ALL.equals(rule.getPaymentMethod())) {
+                return false;
+            }
+            if (!actual.add(new AtomicRuleDimension(rule.getTransactionType(), rule.getPaymentType(),
+                    rule.getPaymentMethod()))) {
+                return false;
+            }
+        }
+        if (paymentTypes.contains(BANK_CARD) && bankCardMethods.isEmpty()) {
+            return false;
+        }
+        Set<AtomicRuleDimension> expected = new HashSet<>();
+        for (String transactionType : transactionTypes) {
+            for (String paymentType : paymentTypes) {
+                List<String> paymentMethods = BANK_CARD.equals(paymentType)
+                        ? new ArrayList<>(bankCardMethods) : List.of(ALL);
+                for (String paymentMethod : paymentMethods) {
+                    expected.add(new AtomicRuleDimension(transactionType, paymentType, paymentMethod));
+                }
+            }
+        }
+        return actual.equals(expected);
+    }
+
+    private FeeRuleResponse toLogicalRule(List<FeeRuleDO> rules,
+                                          Map<Long, List<FeeRuleTierDO>> tiersByRule) {
+        FeeRuleDO first = rules.get(0);
+        FeeRuleResponse response = toRule(first, tiersByRule.getOrDefault(first.getId(), List.of()));
+        List<String> paymentTypes = distinctRuleValues(rules, FeeRuleDO::getPaymentType);
+        response.setTransactionTypes(distinctRuleValues(rules, FeeRuleDO::getTransactionType));
+        response.setPaymentTypes(paymentTypes);
+        response.setPaymentMethods(paymentTypes.contains(BANK_CARD)
+                ? distinctRuleValues(rules.stream()
+                        .filter(rule -> BANK_CARD.equals(rule.getPaymentType())).toList(), FeeRuleDO::getPaymentMethod)
+                : List.of(ALL));
+        return response;
+    }
+
+    private List<String> distinctRuleValues(List<FeeRuleDO> rules, Function<FeeRuleDO, String> extractor) {
+        return rules.stream().map(extractor).filter(StringUtils::hasText)
+                .collect(Collectors.toCollection(LinkedHashSet::new)).stream().toList();
+    }
+
+    private String canonicalDecimal(BigDecimal value) {
+        return value == null ? null : value.stripTrailingZeros().toPlainString();
     }
 
     private FeeRuleResponse toRule(FeeRuleDO rule, List<FeeRuleTierDO> tiers) {
@@ -866,6 +1431,8 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         response.setTransactionType(rule.getTransactionType());
         response.setPaymentType(rule.getPaymentType());
         response.setPaymentMethod(rule.getPaymentMethod());
+        response.setRiskServiceType(rule.getRiskServiceType());
+        response.setChargeTrigger(rule.getChargeTrigger());
         response.setFeeMode(rule.getFeeMode());
         response.setPercentageRate(rule.getPercentageRate());
         response.setFixedAmountUsd(rule.getFixedAmountUsd());
@@ -906,7 +1473,18 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         response.setCurrentVersionNo(plan.getCurrentVersionNo());
         response.setStatus(plan.getStatus());
         response.setRemark(plan.getRemark());
-        response.setPendingVersionStatus(pendingStatus(plan.getId()));
+        FeePlanVersionDO workingVersion = workingVersion(plan.getId());
+        if (workingVersion != null) {
+            response.setPendingVersionId(workingVersion.getId());
+            response.setPendingVersionNo(workingVersion.getVersionNo());
+            response.setPendingVersionStatus(workingVersion.getVersionStatus());
+            response.setPendingSubmitById(workingVersion.getSubmitById());
+            if (plan.getCurrentVersionId() == null) {
+                response.setSourceTemplateId(workingVersion.getSourceTemplateId());
+                response.setSourceTemplateVersionNo(workingVersion.getSourceTemplateVersionNo());
+                response.setOriginType(workingVersion.getOriginType());
+            }
+        }
         response.setCreateTime(plan.getCreateTime());
         response.setUpdateTime(plan.getUpdateTime());
         return response;
@@ -919,6 +1497,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         target.setPlanType(source.getPlanType());
         target.setMerchantId(source.getMerchantId());
         target.setMerchantName(source.getMerchantName());
+        target.setSettlementCurrency(source.getSettlementCurrency());
         target.setSourceTemplateId(source.getSourceTemplateId());
         target.setSourceTemplateVersionNo(source.getSourceTemplateVersionNo());
         target.setOriginType(source.getOriginType());
@@ -926,7 +1505,10 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         target.setCurrentVersionNo(source.getCurrentVersionNo());
         target.setStatus(source.getStatus());
         target.setRemark(source.getRemark());
+        target.setPendingVersionId(source.getPendingVersionId());
+        target.setPendingVersionNo(source.getPendingVersionNo());
         target.setPendingVersionStatus(source.getPendingVersionStatus());
+        target.setPendingSubmitById(source.getPendingSubmitById());
         target.setCreateTime(source.getCreateTime());
         target.setUpdateTime(source.getUpdateTime());
     }
@@ -967,6 +1549,8 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         record.setTransactionType(upper(request.getTransactionType()));
         record.setPaymentType(upper(request.getPaymentType()));
         record.setPaymentMethod(upper(request.getPaymentMethod()));
+        record.setRiskServiceType(normalizeSimulationRiskServiceType(
+                record.getFeeCategory(), request.getRiskServiceType()));
         record.setLabelAmount(request.getLabelAmount());
         record.setLabelCurrency(upper(request.getLabelCurrency()));
         record.setLabelToUsdRate(resolvedRate.rate());
@@ -1000,6 +1584,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         response.setTransactionType(row.getTransactionType());
         response.setPaymentType(row.getPaymentType());
         response.setPaymentMethod(row.getPaymentMethod());
+        response.setRiskServiceType(row.getRiskServiceType());
         response.setLabelAmount(row.getLabelAmount());
         response.setLabelCurrency(row.getLabelCurrency());
         response.setLabelToUsdRate(row.getLabelToUsdRate());
@@ -1021,19 +1606,24 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         FeePlanSummaryResponse response = new FeePlanSummaryResponse();
         response.setMerchantId(merchant.getMerchantId());
         response.setMerchantName(merchant.getMerchantName());
+        response.setSettlementCurrency(upper(merchant.getSettlementCurrency()));
         response.setPlanType(MERCHANT);
         response.setStatus("UNCONFIGURED");
         return response;
     }
 
-    private String pendingStatus(Long planId) {
-        FeePlanVersionDO pending = versionMapper.selectOne(Wrappers.<FeePlanVersionDO>lambdaQuery()
-                .select(FeePlanVersionDO::getId, FeePlanVersionDO::getVersionStatus)
+    private FeePlanVersionDO workingVersion(Long planId) {
+        return versionMapper.selectOne(Wrappers.<FeePlanVersionDO>lambdaQuery()
+                .select(FeePlanVersionDO::getId, FeePlanVersionDO::getVersionNo,
+                        FeePlanVersionDO::getVersionStatus, FeePlanVersionDO::getSubmitById,
+                        FeePlanVersionDO::getSourceTemplateId,
+                        FeePlanVersionDO::getSourceTemplateVersionNo,
+                        FeePlanVersionDO::getOriginType)
                 .eq(FeePlanVersionDO::getPlanId, planId)
-                .eq(FeePlanVersionDO::getVersionStatus, PENDING_REVIEW)
+                .in(FeePlanVersionDO::getVersionStatus, DRAFT, PENDING_REVIEW)
                 .eq(FeePlanVersionDO::getDeleted, NOT_DELETED)
+                .orderByDesc(FeePlanVersionDO::getVersionNo)
                 .last("LIMIT 1"));
-        return pending == null ? null : pending.getVersionStatus();
     }
 
     private int nextVersionNo(Long planId) {
@@ -1046,13 +1636,13 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         return latest == null ? 1 : latest.getVersionNo() + 1;
     }
 
-    private void requireNoPendingVersion(Long planId) {
+    private void requireNoWorkingVersion(Long planId) {
         Long count = versionMapper.selectCount(Wrappers.<FeePlanVersionDO>lambdaQuery()
                 .eq(FeePlanVersionDO::getPlanId, planId)
-                .eq(FeePlanVersionDO::getVersionStatus, PENDING_REVIEW)
+                .in(FeePlanVersionDO::getVersionStatus, DRAFT, PENDING_REVIEW)
                 .eq(FeePlanVersionDO::getDeleted, NOT_DELETED));
         if (count != null && count > 0) {
-            throw conflict("当前方案已有待审核版本，请先完成审核");
+            throw conflict("当前方案已有草稿或待审核版本，请先处理当前版本");
         }
     }
 
@@ -1108,7 +1698,19 @@ public class AdminFeeServiceImpl implements AdminFeeService {
 
     private void requirePendingReview(FeePlanVersionDO version) {
         if (!PENDING_REVIEW.equals(version.getVersionStatus())) {
-            throw conflict("费用版本已完成审核，不能重复处理");
+            throw conflict("只有待审核版本可以执行该操作");
+        }
+    }
+
+    private void requireDraft(FeePlanVersionDO version) {
+        if (!DRAFT.equals(version.getVersionStatus())) {
+            throw conflict("只有草稿版本可以编辑或提交审核");
+        }
+    }
+
+    private void requirePlanVersion(FeePlanVersionDO version, Long planId) {
+        if (!Objects.equals(version.getPlanId(), planId)) {
+            throw notFound("费用模板草稿不存在");
         }
     }
 
@@ -1142,11 +1744,14 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     }
 
     private void copyRuleValues(FeeRuleDO source, FeeRuleDO target) {
+        target.setRuleGroupCode(source.getRuleGroupCode());
         target.setFeeCategory(source.getFeeCategory());
         target.setRuleName(source.getRuleName());
         target.setTransactionType(source.getTransactionType());
         target.setPaymentType(source.getPaymentType());
         target.setPaymentMethod(source.getPaymentMethod());
+        target.setRiskServiceType(source.getRiskServiceType());
+        target.setChargeTrigger(source.getChargeTrigger());
         target.setFeeMode(source.getFeeMode());
         target.setPercentageRate(source.getPercentageRate());
         target.setFixedAmountUsd(source.getFixedAmountUsd());
@@ -1170,6 +1775,50 @@ public class AdminFeeServiceImpl implements AdminFeeService {
 
     private void copySummary(FeePlanSummaryResponse source, FeePlanDetailResponse target) {
         copySummary(source, (FeePlanSummaryResponse) target);
+    }
+
+    private record RuleGroupingKey(String ruleGroupCode, LegacyRuleKey legacyRuleKey) {
+    }
+
+    private record LegacyRuleKey(String feeCategory,
+                                 String ruleName,
+                                 String riskServiceType,
+                                 String chargeTrigger,
+                                 String feeMode,
+                                 String percentageRate,
+                                 String fixedAmountUsd,
+                                 String minimumAmountUsd,
+                                 String maximumAmountUsd,
+                                 String tierMetric,
+                                 String tierPeriod,
+                                 Integer sortNo,
+                                 String remark,
+                                 List<FeeTierSignature> tiers) {
+    }
+
+    private record FeeTierSignature(String lowerBound,
+                                    String upperBound,
+                                    String percentageRate,
+                                    String fixedAmountUsd,
+                                    String minimumAmountUsd,
+                                    String maximumAmountUsd,
+                                    Integer sortNo) {
+    }
+
+    private record AtomicRuleDimension(String transactionType, String paymentType, String paymentMethod) {
+    }
+
+    /** 服务端内部原子规则，分组编码不接受外部请求赋值。 */
+    private static final class ExpandedFeeRuleRequest extends FeeRuleRequest {
+        private final String ruleGroupCode;
+
+        private ExpandedFeeRuleRequest(String ruleGroupCode) {
+            this.ruleGroupCode = ruleGroupCode;
+        }
+
+        private String ruleGroupCode() {
+            return ruleGroupCode;
+        }
     }
 
     private String generateCode(String prefix) {

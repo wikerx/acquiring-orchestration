@@ -402,6 +402,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     /** 首次交易请求幂等和商户订单流守卫状态同步服务。 */
     private final TransactionIdempotencyService transactionIdempotencyService;
 
+    /** 终态通知首次五秒延时事件调度服务。 */
+    private final MerchantNotificationInitialDeliveryService merchantNotificationInitialDeliveryService;
+
     /**
      * 创建交易事实记录服务默认实现。
      *
@@ -437,7 +440,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                            TransactionShardingKeyParser transactionShardingKeyParser,
                                            TransactionShardingProperties transactionShardingProperties,
                                            MerchantNotificationProperties merchantNotificationProperties,
-                                           TransactionIdempotencyService transactionIdempotencyService) {
+                                           TransactionIdempotencyService transactionIdempotencyService,
+                                           MerchantNotificationInitialDeliveryService merchantNotificationInitialDeliveryService) {
         this.transactionOrderMapper = transactionOrderMapper;
         this.transactionOperationMapper = transactionOperationMapper;
         this.transactionStatusHistoryMapper = transactionStatusHistoryMapper;
@@ -454,6 +458,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         this.transactionShardingProperties = transactionShardingProperties;
         this.merchantNotificationProperties = merchantNotificationProperties;
         this.transactionIdempotencyService = transactionIdempotencyService;
+        this.merchantNotificationInitialDeliveryService = merchantNotificationInitialDeliveryService;
     }
 
     /** 测试构造入口，使用与生产默认值一致的有界通知策略。 */
@@ -513,6 +518,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 transactionShardingKeyParser,
                 transactionShardingProperties,
                 new MerchantNotificationProperties(),
+                null,
                 null);
     }
 
@@ -1453,6 +1459,46 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         LocalDateTime actualMatchTime = matchTime == null ? LocalDateTime.now() : matchTime;
         int updated = transactionOperationMapper.updateChannelMatch(
+                operationDO.getId(),
+                operationDO.getTransactionDateTime(),
+                operationDO.getVersion(),
+                matchStatus,
+                safeLength(matchResult, 256),
+                requestId,
+                actualMatchTime,
+                nextMatchTime,
+                safeLength(failReason, 512));
+        if (updated == 1) {
+            transactionOrderMapper.updateLatestChannelMatch(
+                    operationDO.getOperationId(),
+                    operationDO.getTransactionDateTime(),
+                    operationDO.getTransactionId(),
+                    matchStatus,
+                    safeLength(matchResult, 256),
+                    actualMatchTime,
+                    nextMatchTime,
+                    safeLength(failReason, 512));
+        }
+        return updated == 1;
+    }
+
+    /**
+     * 更新平台终态交易的渠道勾兑摘要；交易终态、金额和通知状态保持不变。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public boolean updateTerminalChannelMatch(TransactionOperationDO operationDO,
+                                              String matchStatus,
+                                              String matchResult,
+                                              String requestId,
+                                              LocalDateTime matchTime,
+                                              LocalDateTime nextMatchTime,
+                                              String failReason) {
+        if (operationDO == null || operationDO.getId() == null || operationDO.getTransactionDateTime() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        LocalDateTime actualMatchTime = matchTime == null ? LocalDateTime.now() : matchTime;
+        int updated = transactionOperationMapper.updateTerminalChannelMatch(
                 operationDO.getId(),
                 operationDO.getTransactionDateTime(),
                 operationDO.getVersion(),
@@ -2839,16 +2885,27 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                               String failReasonCode,
                                               String failReasonMessage,
                                               LocalDateTime now) {
+        TransactionMerchantNotificationDO pendingNotification =
+                transactionMerchantNotificationMapper.selectPendingActivation(
+                        operationDO.getTransactionId(), operationDO.getTransactionDateTime(), INITIAL_VERSION);
         String callbackPayloadJson = JsonUtils.toJsonString(
                 merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode));
+        LocalDateTime firstDeliveryTime = now.plusSeconds(
+                MerchantNotificationInitialDeliveryService.INITIAL_DELIVERY_DELAY_SECONDS);
         int affectedRows = transactionMerchantNotificationMapper.activateByTransactionId(
                 operationDO.getTransactionId(),
                 operationDO.getTransactionDateTime(),
                 INITIAL_VERSION,
                 callbackPayloadJson,
                 SensitiveDataMaskUtils.maskJsonSafely(callbackPayloadJson),
-                now,
+                firstDeliveryTime,
                 now);
+        if (affectedRows == 1
+                && pendingNotification != null
+                && merchantNotificationInitialDeliveryService != null) {
+            merchantNotificationInitialDeliveryService.schedule(
+                    pendingNotification, INITIAL_VERSION + 1, now);
+        }
         log.info("event: PAYMENT_MERCHANT_NOTIFY_ACTIVATED stage=NOTIFY_CREATE traceId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} platformStatus: {} logicalTable: {} affectedRows: {} willNotify: {}",
                 TraceContext.getTraceId(),
                 operationDO.getTransactionId(),
@@ -3994,21 +4051,27 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         notificationDO.setPayloadJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(callbackPayloadJson));
         notificationDO.setLastAttemptNo(0);
         notificationDO.setMaxRetryCount(merchantNotificationProperties.getMaxRetryCount());
-        notificationDO.setNextRetryTime(isNonTerminal(resultDTO) ? null : now);
+        boolean terminal = !isNonTerminal(resultDTO);
+        notificationDO.setNextRetryTime(terminal
+                ? now.plusSeconds(MerchantNotificationInitialDeliveryService.INITIAL_DELIVERY_DELAY_SECONDS)
+                : null);
         fillTransactionTime(notificationDO, commandDTO.getTransactionDateTime());
         notificationDO.setVersion(INITIAL_VERSION);
         notificationDO.setDeleted(NOT_DELETED);
         notificationDO.setCreateTime(now);
         notificationDO.setUpdateTime(now);
         int affectedRows = transactionMerchantNotificationMapper.insertLogical(notificationDO);
-        log.info("event: PAYMENT_MERCHANT_NOTIFY_CREATED stage=NOTIFY_CREATE traceId: {} notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} callbackUrl: {} notifyStatus: {} nextRetryTime: {} logicalTable: {} affectedRows: {}",
+        if (affectedRows == 1 && terminal && merchantNotificationInitialDeliveryService != null) {
+            merchantNotificationInitialDeliveryService.schedule(notificationDO, INITIAL_VERSION, now);
+        }
+        log.info("event: PAYMENT_MERCHANT_NOTIFY_CREATED stage=NOTIFY_CREATE traceId: {} notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} targetUrlHash: {} notifyStatus: {} nextRetryTime: {} logicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
                 notificationDO.getNotifyId(),
                 notificationDO.getTransactionId(),
                 notificationDO.getOperationId(),
                 notificationDO.getMerchantId(),
                 notificationDO.getMerchantOrderNo(),
-                notificationDO.getTargetUrlMasked(),
+                notificationDO.getTargetUrlHash(),
                 notificationDO.getNotifyStatus(),
                 notificationDO.getNextRetryTime(),
                 TRANSACTION_MERCHANT_NOTIFICATION_TABLE,

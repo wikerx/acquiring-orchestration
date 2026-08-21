@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.db.email.model.EnabledEmailTemplateSnapshot;
+import com.scott.payment.component.db.email.service.EnabledEmailTemplateCacheReader;
 import com.scott.payment.component.mq.email.EmailPayloadCrypto;
 import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
 import com.scott.payment.component.mq.properties.EmailDeliveryProperties;
@@ -15,7 +17,6 @@ import com.scott.payment.merchant.entity.email.MerchantEmailEntities.MerchantEma
 import com.scott.payment.merchant.entity.email.MerchantEmailEntities.MerchantEmailTemplateDO;
 import com.scott.payment.merchant.mapper.MerchantEmailAccountMapper;
 import com.scott.payment.merchant.mapper.MerchantEmailSendRecordMapper;
-import com.scott.payment.merchant.mapper.MerchantEmailTemplateMapper;
 import com.scott.payment.merchant.service.MerchantTemplateEmailService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -118,15 +119,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
      */
     private final MerchantEmailAccountMapper emailAccountMapper;
     /**
-     * email Template Mapper，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：长度和格式由接口校验约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final MerchantEmailTemplateMapper emailTemplateMapper;
-    /**
      * email Send Record Mapper 依赖，用于 Merchant Template Email Service Impl 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
@@ -150,29 +142,31 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     private final MerchantEmailDeliveryService deliveryService;
     /** 邮件默认重试配置。 */
     private final EmailDeliveryProperties deliveryProperties;
+    /** 跨系统已启用邮件模板快照读取器。 */
+    private final EnabledEmailTemplateCacheReader enabledTemplateCacheReader;
 
     /**
      * 创建商户模板邮件服务。
      *
      * @param emailAccountMapper    发件账户 Mapper
-     * @param emailTemplateMapper   邮件模板 Mapper
      * @param emailSendRecordMapper 邮件发送记录 Mapper
      * @param objectMapper          JSON 序列化工具
+     * @param enabledTemplateCacheReader 已启用邮件模板快照读取器
      */
     public MerchantTemplateEmailServiceImpl(MerchantEmailAccountMapper emailAccountMapper,
-                                            MerchantEmailTemplateMapper emailTemplateMapper,
                                             MerchantEmailSendRecordMapper emailSendRecordMapper,
                                             ObjectMapper objectMapper,
                                             EmailPayloadCrypto payloadCrypto,
                                             MerchantEmailDeliveryService deliveryService,
-                                            EmailDeliveryProperties deliveryProperties) {
+                                            EmailDeliveryProperties deliveryProperties,
+                                            EnabledEmailTemplateCacheReader enabledTemplateCacheReader) {
         this.emailAccountMapper = emailAccountMapper;
-        this.emailTemplateMapper = emailTemplateMapper;
         this.emailSendRecordMapper = emailSendRecordMapper;
         this.objectMapper = objectMapper;
         this.payloadCrypto = payloadCrypto;
         this.deliveryService = deliveryService;
         this.deliveryProperties = deliveryProperties;
+        this.enabledTemplateCacheReader = enabledTemplateCacheReader;
     }
 
     /**
@@ -217,15 +211,25 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
      * @throws IllegalStateException 没有可用模板时抛出
      */
     private MerchantEmailTemplateDO requireEnabledTemplate(String templateCode, String locale) {
-        MerchantEmailTemplateDO row = emailTemplateMapper.selectOne(Wrappers.<MerchantEmailTemplateDO>lambdaQuery()
-                .eq(MerchantEmailTemplateDO::getTemplateCode, trimUpper(templateCode))
-                .eq(MerchantEmailTemplateDO::getLocale, locale)
-                .eq(MerchantEmailTemplateDO::getStatus, ENABLED)
-                .eq(MerchantEmailTemplateDO::getDeleted, NOT_DELETED)
-                .last("LIMIT 1"));
-        if (row == null) {
+        EnabledEmailTemplateSnapshot snapshot = enabledTemplateCacheReader.findEnabled(
+                trimUpper(templateCode),
+                locale
+        );
+        if (snapshot == null) {
             throw new IllegalStateException("enabled merchant email template not found: " + templateCode);
         }
+        MerchantEmailTemplateDO row = new MerchantEmailTemplateDO();
+        row.setId(snapshot.getId());
+        row.setTemplateCode(snapshot.getTemplateCode());
+        row.setTemplateName(snapshot.getTemplateName());
+        row.setAppCode(snapshot.getAppCode());
+        row.setSceneCode(snapshot.getSceneCode());
+        row.setLocale(snapshot.getLocale());
+        row.setSubjectTemplate(snapshot.getSubjectTemplate());
+        row.setContentType(snapshot.getContentType());
+        row.setContentTemplate(snapshot.getContentTemplate());
+        row.setSensitiveVariableNames(snapshot.getSensitiveVariableNames());
+        row.setStatus(ENABLED);
         return row;
     }
 

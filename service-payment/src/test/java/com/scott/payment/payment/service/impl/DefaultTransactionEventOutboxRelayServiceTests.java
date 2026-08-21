@@ -31,7 +31,7 @@ class DefaultTransactionEventOutboxRelayServiceTests {
     @Test
     void shouldPublishDueEventAndMarkSent() {
         InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(event());
-        CapturingMqProducer mqProducer = new CapturingMqProducer(false);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
         DefaultTransactionEventOutboxRelayService relayService = new DefaultTransactionEventOutboxRelayService(
                 eventOutboxService,
                 mqProducer);
@@ -50,7 +50,8 @@ class DefaultTransactionEventOutboxRelayServiceTests {
     @Test
     void shouldMarkFailedWhenMqSendThrowsException() {
         InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(event());
-        CapturingMqProducer mqProducer = new CapturingMqProducer(true);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(
+                new IllegalStateException("send failed, secretKey=must-not-be-persisted"));
         DefaultTransactionEventOutboxRelayService relayService = new DefaultTransactionEventOutboxRelayService(
                 eventOutboxService,
                 mqProducer);
@@ -59,7 +60,8 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
         assertThat(successCount).isZero();
         assertThat(eventOutboxService.eventDO.getEventStatus()).isEqualTo("FAILED");
-        assertThat(eventOutboxService.eventDO.getFailReason()).contains("send failed");
+        assertThat(eventOutboxService.eventDO.getFailReason()).isEqualTo("IllegalStateException");
+        assertThat(eventOutboxService.eventDO.getFailReason()).doesNotContain("must-not-be-persisted");
         assertThat(eventOutboxService.eventDO.getNextRetryTime()).isNotNull();
     }
 
@@ -67,7 +69,7 @@ class DefaultTransactionEventOutboxRelayServiceTests {
     void shouldNotRepublishAlreadySentEventWhenOutboxIsScannedAgain() {
         TransactionEventOutboxDO eventDO = event();
         InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(eventDO);
-        CapturingMqProducer mqProducer = new CapturingMqProducer(false);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
         DefaultTransactionEventOutboxRelayService relayService = new DefaultTransactionEventOutboxRelayService(
                 eventOutboxService,
                 mqProducer);
@@ -99,7 +101,7 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         event.setEventType(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE);
         event.setPayloadJson(JsonUtils.toJsonString(message));
         InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(event);
-        CapturingMqProducer mqProducer = new CapturingMqProducer(false);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
         DefaultTransactionEventOutboxRelayService relayService =
                 new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
 
@@ -110,6 +112,51 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         assertThat(mqProducer.message).isInstanceOf(MerchantNotificationRetryDueMessage.class);
         assertThat(mqProducer.deliverAt).isEqualTo(
                 deliverAt.atZone(ZoneId.of("Asia/Shanghai")).toInstant());
+    }
+
+    @Test
+    void shouldNotSendWhenAnotherInstanceAlreadyClaimedEvent() {
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(event());
+        eventOutboxService.claimAllowed = false;
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(LocalDateTime.of(2026, 7, 12, 10, 0), 10);
+
+        assertThat(successCount).isZero();
+        assertThat(mqProducer.sendCount).isZero();
+    }
+
+    @Test
+    void shouldFailInvalidPayloadWithoutSendingEmptyTransactionEvent() {
+        TransactionEventOutboxDO invalidEvent = event();
+        invalidEvent.setPayloadJson("not-json");
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(invalidEvent);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(invalidEvent.getTransactionDateTime(), 10);
+
+        assertThat(successCount).isZero();
+        assertThat(mqProducer.sendCount).isZero();
+        assertThat(invalidEvent.getEventStatus()).isEqualTo("FAILED");
+    }
+
+    @Test
+    void shouldUseMessageGroupForOrderedTransactionDelivery() {
+        TransactionEventOutboxDO orderedEvent = event();
+        orderedEvent.setMessageGroup("TX202607121000000010001");
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(orderedEvent);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(orderedEvent.getTransactionDateTime(), 10);
+
+        assertThat(successCount).isEqualTo(1);
+        assertThat(mqProducer.messageGroup).isEqualTo("TX202607121000000010001");
     }
 
     private TransactionEventOutboxDO event() {
@@ -132,7 +179,10 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         eventDO.setTag("TRANSACTION_CREATED");
         eventDO.setPayloadJson(JsonUtils.toJsonString(message));
         eventDO.setEventTime(message.getCreatedAt());
+        eventDO.setTransactionDateTime(message.getTransactionDateTime());
         eventDO.setEventStatus("INIT");
+        eventDO.setRetryCount(0);
+        eventDO.setMaxRetryCount(10);
         eventDO.setVersion(0);
         return eventDO;
     }
@@ -147,7 +197,7 @@ class DefaultTransactionEventOutboxRelayServiceTests {
          * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
-        private final boolean fail;
+        private final RuntimeException failure;
 
         /**
          * sent，用于保存 Capturing MQ Producer 中与 sent 相关的业务属性。
@@ -185,8 +235,11 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         /** 捕获的绝对投递时间。 */
         private Instant deliverAt;
 
-        private CapturingMqProducer(boolean fail) {
-            this.fail = fail;
+        /** 捕获的顺序消息分组键。 */
+        private String messageGroup;
+
+        private CapturingMqProducer(RuntimeException failure) {
+            this.failure = failure;
         }
 
         /**
@@ -194,19 +247,26 @@ class DefaultTransactionEventOutboxRelayServiceTests {
          */
         @Override
         public void send(String topic, String tag, BaseMqMessage message) {
-            if (fail) {
-                throw new IllegalStateException("send failed");
+            if (failure != null) {
+                throw failure;
             }
             this.message = message;
             this.sent = true;
             this.sendCount++;
         }
 
+        /** 捕获顺序消息及业务分组键。 */
+        @Override
+        public void sendOrderly(String topic, String tag, BaseMqMessage message, String messageGroup) {
+            send(topic, tag, message);
+            this.messageGroup = messageGroup;
+        }
+
         /** 捕获定时消息及其绝对投递时间。 */
         @Override
         public void sendAt(String topic, String tag, BaseMqMessage message, Instant deliverAt) {
-            if (fail) {
-                throw new IllegalStateException("send failed");
+            if (failure != null) {
+                throw failure;
             }
             this.message = message;
             this.deliverAt = deliverAt;
@@ -228,6 +288,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
          */
         private final TransactionEventOutboxDO eventDO;
 
+        /** 模拟多实例 CAS 抢占是否成功。 */
+        private boolean claimAllowed = true;
+
         private InMemoryEventOutboxService(TransactionEventOutboxDO eventDO) {
             this.eventDO = eventDO;
         }
@@ -247,6 +310,25 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             return "SENT".equals(eventDO.getEventStatus()) || "CLOSED".equals(eventDO.getEventStatus())
                     ? List.of()
                     : List.of(eventDO);
+        }
+
+        /** 不存在超时记录时返回零。 */
+        @Override
+        public int recoverStaleProcessing(LocalDateTime eventTime,
+                                          LocalDateTime staleBefore,
+                                          LocalDateTime now) {
+            return 0;
+        }
+
+        /** 模拟版本 CAS 抢占并推进 PROCESSING。 */
+        @Override
+        public boolean claimForPublish(TransactionEventOutboxDO eventDO, LocalDateTime claimedTime) {
+            if (!claimAllowed) {
+                return false;
+            }
+            eventDO.setEventStatus("PROCESSING");
+            eventDO.setVersion(eventDO.getVersion() + 1);
+            return true;
         }
 
         /**

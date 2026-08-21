@@ -33,11 +33,49 @@ class RiskEvaluationAuditConsumerTests {
     void shouldSkipRedisDuplicate() {
         log.info("测试风控审计重复消费，关键输入: Redis DUPLICATE");
         Fixture fixture = fixture(IdempotentAcquireResult.DUPLICATE);
+        when(fixture.persistenceService().existsByRiskRecordNo("RK202608010001")).thenReturn(true);
 
         fixture.consumer().onMessage(fixture.payload());
 
         verify(fixture.persistenceService(), never()).persist(fixture.message());
         log.info("风控审计重复消费完成，结果: 未访问数据库");
+    }
+
+    /** Redis 残留标记缺少数据库记录时必须继续写库。 */
+    @Test
+    void shouldPersistWhenRedisDuplicateHasNoDatabaseFact() {
+        Fixture fixture = fixture(IdempotentAcquireResult.DUPLICATE);
+        when(fixture.persistenceService().existsByRiskRecordNo("RK202608010001")).thenReturn(false);
+
+        fixture.consumer().onMessage(fixture.payload());
+
+        verify(fixture.persistenceService()).persist(fixture.message());
+    }
+
+    /** 畸形 JSON 必须触发 MQ 重试，不能被当作成功消费。 */
+    @Test
+    void shouldRejectMalformedPayload() {
+        Fixture fixture = fixture(IdempotentAcquireResult.ACQUIRED);
+
+        assertThatThrownBy(() -> fixture.consumer().onMessage("{invalid-json"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("risk audit payload is invalid");
+
+        verify(fixture.persistenceService(), never()).persist(
+                org.mockito.ArgumentMatchers.any(RiskEvaluationAuditMessage.class));
+    }
+
+    /** 缺少数据库幂等键的消息必须触发 Broker 重试。 */
+    @Test
+    void shouldRejectMessageWithoutRiskRecordNo() {
+        Fixture fixture = fixture(IdempotentAcquireResult.ACQUIRED);
+
+        assertThatThrownBy(() -> fixture.consumer().onMessage("{\"messageId\":\"MSG-RISK-BAD\"}"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("risk audit message required fields are missing");
+
+        verify(fixture.persistenceService(), never()).persist(
+                org.mockito.ArgumentMatchers.any(RiskEvaluationAuditMessage.class));
     }
 
     /** Redis 不可用时应继续依赖数据库唯一键。 */

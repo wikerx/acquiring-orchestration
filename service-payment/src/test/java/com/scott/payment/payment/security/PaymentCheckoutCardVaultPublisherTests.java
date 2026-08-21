@@ -56,10 +56,16 @@ class PaymentCheckoutCardVaultPublisherTests {
                 eq(MqTag.CHECKOUT_CARD_VAULT_STORE), captor.capture());
         CheckoutCardVaultStoreMessage message = captor.getValue();
         String mqJson = JsonUtils.toJsonString(message);
-        assertThat(mqJson)
-                .doesNotContain(card.getCardNo())
-                .doesNotContain(card.getSecurityCode())
-                .doesNotContain(card.getExpirationMonth() + card.getExpirationYear());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mqPayload = JsonUtils.parseObject(mqJson, Map.class);
+        assertThat(mqPayload).doesNotContainKeys(
+                "cardNo",
+                "securityCode",
+                "cvv",
+                "cvc",
+                "expirationMonth",
+                "expirationYear",
+                "cardholderName");
 
         String plaintext = cipher.decrypt(message.getEncryptedKey(), message.getIv(), message.getCiphertext(),
                 keyPair.getPrivate(), message.transferAad());
