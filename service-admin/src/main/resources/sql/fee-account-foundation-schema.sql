@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS fee_rule (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     plan_version_id BIGINT NOT NULL COMMENT '费用方案版本ID',
     rule_group_code VARCHAR(64) NULL COMMENT '逻辑规则分组编码；同一次多选展开共享，历史数据可空',
-    fee_category VARCHAR(32) NOT NULL DEFAULT 'TRANSACTION_FEE' COMMENT '费用分类：交易、退款、风控、争议、结算换汇',
+    fee_category VARCHAR(32) NOT NULL DEFAULT 'TRANSACTION_FEE' COMMENT '费用分类：交易、退款、风控、拒付、结算处理、结算换汇',
     rule_name VARCHAR(128) NOT NULL COMMENT '规则名称',
     transaction_type VARCHAR(64) NOT NULL COMMENT '交易动作，例如PAYMENT、CAPTURE、REFUND',
     payment_type VARCHAR(64) NOT NULL COMMENT '支付类型，复用acquiring_payment_method字典',
@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS fee_simulation_record (
     label_amount DECIMAL(24,8) NOT NULL COMMENT '标签金额',
     label_currency CHAR(3) NOT NULL COMMENT '标签币种',
     label_to_usd_rate DECIMAL(24,12) NOT NULL COMMENT '系统解析的标签币种到USD正向结算汇率',
+    label_amount_usd DECIMAL(24,8) NOT NULL DEFAULT 0 COMMENT '标签金额按试算汇率归一后的USD快照',
     settlement_rate_id BIGINT NULL COMMENT '系统业务汇率记录ID；USD恒等汇率为空',
     settlement_rate_source VARCHAR(64) NOT NULL COMMENT '汇率来源编码；USD恒等汇率为SYSTEM_IDENTITY',
     rate_effective_time DATETIME(3) NOT NULL COMMENT '选用汇率的生效时间',
@@ -155,9 +156,11 @@ CREATE TABLE IF NOT EXISTS fee_simulation_record (
     percentage_fee_label DECIMAL(24,8) NOT NULL COMMENT '标签币种百分比费用',
     raw_fee_usd DECIMAL(24,8) NOT NULL COMMENT '应用上下限前的USD费用',
     final_fee_usd DECIMAL(24,8) NOT NULL COMMENT '应用上下限后的USD费用',
+    reserve_rate DECIMAL(12,8) NOT NULL DEFAULT 0 COMMENT '试算使用的滚动保证金比例快照',
     reserve_amount_usd DECIMAL(24,8) NOT NULL DEFAULT 0 COMMENT '本次交易预计滚动保证金USD',
     estimated_net_settlement_usd DECIMAL(24,8) NOT NULL DEFAULT 0 COMMENT '预计净结算金额USD',
     formula_snapshot VARCHAR(1000) NOT NULL COMMENT '试算公式快照',
+    net_settlement_formula_snapshot VARCHAR(1000) NOT NULL DEFAULT '' COMMENT '净结算计算公式快照',
     operator_id BIGINT NULL COMMENT '操作人账号ID',
     operator_name VARCHAR(128) NOT NULL COMMENT '操作人名称快照',
     create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '试算时间',
@@ -170,6 +173,36 @@ CREATE TABLE IF NOT EXISTS fee_simulation_record (
     KEY idx_fee_simulation_rate (settlement_rate_id, rate_valuation_time),
     CONSTRAINT chk_fee_simulation_risk_type CHECK (risk_service_type IN ('NONE', 'INTERNAL', 'EXTERNAL', 'THREE_DS'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='费用试算记录表';
+
+CREATE TABLE IF NOT EXISTS fee_simulation_record_detail (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    simulation_record_id BIGINT NOT NULL COMMENT '费用试算记录ID',
+    line_no INT NOT NULL COMMENT '同一试算内的稳定明细顺序',
+    item_type VARCHAR(16) NOT NULL COMMENT '明细类型：FEE、RESERVE',
+    fee_category VARCHAR(32) NOT NULL COMMENT '费用分类；保证金使用RESERVE',
+    risk_service_type VARCHAR(16) NOT NULL DEFAULT 'NONE' COMMENT '风控类型；非风控使用NONE',
+    calculation_status VARCHAR(24) NOT NULL COMMENT '计算状态：CALCULATED、NOT_APPLICABLE、NOT_CONFIGURED',
+    included_in_fee_total TINYINT NOT NULL DEFAULT 0 COMMENT '是否计入费用合计：0否、1是',
+    charge_trigger VARCHAR(32) NOT NULL DEFAULT 'NOT_APPLICABLE' COMMENT '收费触发快照',
+    rule_name VARCHAR(128) NULL COMMENT '命中规则名称快照',
+    fee_mode VARCHAR(16) NULL COMMENT '命中计费模式快照',
+    matched_rule_id BIGINT NULL COMMENT '命中费用规则ID',
+    matched_tier_id BIGINT NULL COMMENT '命中费用档位ID',
+    percentage_fee_label DECIMAL(24,8) NULL COMMENT '标签币种百分比费用',
+    percentage_fee_currency CHAR(3) NULL COMMENT '百分比费用标签币种',
+    raw_fee_usd DECIMAL(24,8) NULL COMMENT '应用上下限前USD费用',
+    final_fee_usd DECIMAL(24,8) NULL COMMENT '最终USD金额；未计算时为空',
+    applied_limit VARCHAR(16) NOT NULL DEFAULT 'NONE' COMMENT '实际应用的上下限',
+    formula_snapshot VARCHAR(1000) NULL COMMENT '单项计算公式快照',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_fee_simulation_detail_line (simulation_record_id, line_no),
+    KEY idx_fee_simulation_detail_rule (matched_rule_id, matched_tier_id),
+    CONSTRAINT chk_fee_simulation_detail_type CHECK (item_type IN ('FEE', 'RESERVE')),
+    CONSTRAINT chk_fee_simulation_detail_status CHECK (calculation_status IN ('CALCULATED', 'NOT_APPLICABLE', 'NOT_CONFIGURED')),
+    CONSTRAINT chk_fee_simulation_detail_total CHECK (included_in_fee_total IN (0, 1)),
+    CONSTRAINT chk_fee_simulation_detail_risk CHECK (risk_service_type IN ('NONE', 'INTERNAL', 'EXTERNAL', 'THREE_DS'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='费用试算逐项审计快照表';
 
 CREATE TABLE IF NOT EXISTS merchant_fund_account (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -666,6 +699,28 @@ PREPARE stmt FROM @add_fee_simulation_reserve;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @add_fee_simulation_label_amount_usd := (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE fee_simulation_record ADD COLUMN label_amount_usd DECIMAL(24,8) NOT NULL DEFAULT 0 COMMENT ''标签金额按试算汇率归一后的USD快照'' AFTER label_to_usd_rate',
+        'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'fee_simulation_record' AND column_name = 'label_amount_usd'
+);
+PREPARE stmt FROM @add_fee_simulation_label_amount_usd;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @add_fee_simulation_reserve_rate := (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE fee_simulation_record ADD COLUMN reserve_rate DECIMAL(12,8) NOT NULL DEFAULT 0 COMMENT ''试算使用的滚动保证金比例快照'' AFTER final_fee_usd',
+        'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'fee_simulation_record' AND column_name = 'reserve_rate'
+);
+PREPARE stmt FROM @add_fee_simulation_reserve_rate;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 SET @add_fee_simulation_net := (
     SELECT IF(COUNT(*) = 0,
         'ALTER TABLE fee_simulation_record ADD COLUMN estimated_net_settlement_usd DECIMAL(24,8) NOT NULL DEFAULT 0 COMMENT ''预计净结算金额USD'' AFTER reserve_amount_usd',
@@ -674,6 +729,17 @@ SET @add_fee_simulation_net := (
     WHERE table_schema = DATABASE() AND table_name = 'fee_simulation_record' AND column_name = 'estimated_net_settlement_usd'
 );
 PREPARE stmt FROM @add_fee_simulation_net;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @add_fee_simulation_net_formula := (
+    SELECT IF(COUNT(*) = 0,
+        'ALTER TABLE fee_simulation_record ADD COLUMN net_settlement_formula_snapshot VARCHAR(1000) NOT NULL DEFAULT '''' COMMENT ''净结算计算公式快照'' AFTER formula_snapshot',
+        'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'fee_simulation_record' AND column_name = 'net_settlement_formula_snapshot'
+);
+PREPARE stmt FROM @add_fee_simulation_net_formula;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 

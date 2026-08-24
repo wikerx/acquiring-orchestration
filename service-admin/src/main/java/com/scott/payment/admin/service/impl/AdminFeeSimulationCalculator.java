@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.List;
 
@@ -25,6 +26,7 @@ public class AdminFeeSimulationCalculator {
 
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
+    private static final int DISPLAY_SCALE = 2;
 
     /**
      * 兼容不涉及保证金的独立费用计算调用。
@@ -82,7 +84,12 @@ public class AdminFeeSimulationCalculator {
         }
         BigDecimal labelAmountUsd = request.getLabelAmount().multiply(labelToUsdRate, CALCULATION_CONTEXT);
         BigDecimal effectiveReserveRate = zero(reserveRate);
-        BigDecimal reserveAmountUsd = "TRANSACTION_FEE".equalsIgnoreCase(request.getFeeCategory())
+        boolean appliesReserve = "TRANSACTION_FEE".equalsIgnoreCase(request.getFeeCategory());
+        BigDecimal reserveAmountLabel = appliesReserve
+                ? request.getLabelAmount().multiply(effectiveReserveRate, CALCULATION_CONTEXT)
+                        .divide(ONE_HUNDRED, CALCULATION_CONTEXT)
+                : BigDecimal.ZERO;
+        BigDecimal reserveAmountUsd = appliesReserve
                 ? labelAmountUsd.multiply(effectiveReserveRate, CALCULATION_CONTEXT)
                         .divide(ONE_HUNDRED, CALCULATION_CONTEXT)
                 : BigDecimal.ZERO;
@@ -96,6 +103,8 @@ public class AdminFeeSimulationCalculator {
         response.setFinalFeeUsd(finalFeeUsd);
         response.setLabelAmountUsd(labelAmountUsd);
         response.setReserveRate(effectiveReserveRate);
+        response.setReserveAmountLabel(reserveAmountLabel);
+        response.setReserveAmountCurrency(request.getLabelCurrency());
         response.setReserveAmountUsd(reserveAmountUsd);
         response.setEstimatedNetSettlementUsd(labelAmountUsd
                 .subtract(finalFeeUsd, CALCULATION_CONTEXT)
@@ -154,14 +163,33 @@ public class AdminFeeSimulationCalculator {
                                 BigDecimal fixedUsd,
                                 BigDecimal minimumUsd,
                                 BigDecimal maximumUsd) {
-        return request.getLabelCurrency() + " " + request.getLabelAmount().toPlainString()
-                + " * " + percentageRate.toPlainString() + "% * "
-                + labelToUsdRate.toPlainString() + " + USD " + fixedUsd.toPlainString()
-                + "; min=" + valueOrDash(minimumUsd) + "; max=" + valueOrDash(maximumUsd);
+        StringBuilder formula;
+        if (percentageRate.signum() == 0) {
+            formula = new StringBuilder("USD ").append(displayDecimal(fixedUsd));
+        } else {
+            formula = new StringBuilder(request.getLabelCurrency())
+                    .append(" ").append(displayDecimal(request.getLabelAmount()))
+                    .append(" * ").append(displayDecimal(percentageRate)).append("% * ")
+                    .append(displayRate(labelToUsdRate));
+            if (fixedUsd.signum() != 0) {
+                formula.append(" + USD ").append(displayDecimal(fixedUsd));
+            }
+        }
+        if (minimumUsd != null) {
+            formula.append("; min=USD ").append(displayDecimal(minimumUsd));
+        }
+        if (maximumUsd != null) {
+            formula.append("; max=USD ").append(displayDecimal(maximumUsd));
+        }
+        return formula.toString();
     }
 
-    private String valueOrDash(BigDecimal value) {
-        return value == null ? "-" : "USD " + value.toPlainString();
+    private String displayDecimal(BigDecimal value) {
+        return zero(value).setScale(DISPLAY_SCALE, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private String displayRate(BigDecimal value) {
+        return zero(value).stripTrailingZeros().toPlainString();
     }
 
     private BigDecimal zero(BigDecimal value) {

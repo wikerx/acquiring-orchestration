@@ -192,6 +192,8 @@ public final class FeeEntities {
         private String labelCurrency;
         /** 系统选用的标签币种到 USD 正向结算汇率，禁止取反向汇率倒数。 */
         private BigDecimal labelToUsdRate;
+        /** 标签金额按试算汇率归一后的 USD 快照。 */
+        private BigDecimal labelAmountUsd;
         /** 系统业务汇率记录 ID；USD 恒等汇率允许为空。 */
         private Long settlementRateId;
         /** 本次试算选用的汇率来源编码，不包含敏感信息。 */
@@ -212,11 +214,43 @@ public final class FeeEntities {
         private BigDecimal rawFeeUsd;
         /** 应用最低和最高费用后的最终 USD 试算金额。 */
         private BigDecimal finalFeeUsd;
+        /** 试算使用的滚动保证金比例快照。 */
+        private BigDecimal reserveRate;
         private BigDecimal reserveAmountUsd;
         private BigDecimal estimatedNetSettlementUsd;
         private String formulaSnapshot;
+        private String netSettlementFormulaSnapshot;
         private Long operatorId;
         private String operatorName;
+        private LocalDateTime createTime;
+    }
+
+    /** 费用试算逐项计算快照，不通过展示公式反推历史选择或金额。 */
+    @Data
+    @TableName("fee_simulation_record_detail")
+    public static class FeeSimulationRecordDetailDO {
+        @TableId(type = IdType.AUTO)
+        private Long id;
+        private Long simulationRecordId;
+        private Integer lineNo;
+        /** FEE 或 RESERVE。 */
+        private String itemType;
+        private String feeCategory;
+        private String riskServiceType;
+        /** CALCULATED、NOT_APPLICABLE 或 NOT_CONFIGURED。 */
+        private String calculationStatus;
+        private Integer includedInFeeTotal;
+        private String chargeTrigger;
+        private String ruleName;
+        private String feeMode;
+        private Long matchedRuleId;
+        private Long matchedTierId;
+        private BigDecimal percentageFeeLabel;
+        private String percentageFeeCurrency;
+        private BigDecimal rawFeeUsd;
+        private BigDecimal finalFeeUsd;
+        private String appliedLimit;
+        private String formulaSnapshot;
         private LocalDateTime createTime;
     }
 }

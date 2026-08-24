@@ -241,6 +241,9 @@ public final class AdminFeeDTOs {
         private String paymentMethod = "ALL";
         /** 风控费用必填 INTERNAL、EXTERNAL 或 THREE_DS；其他费用由服务层归一为 NONE。 */
         private String riskServiceType;
+        /** 本次交易附加的风控服务，可独立选择 INTERNAL、EXTERNAL 和 THREE_DS。 */
+        @Size(max = 3)
+        private List<@Size(max = 16) String> riskServiceTypes = new ArrayList<>();
         /** 试算标签金额，单位由 labelCurrency 指定，不做展示层舍入。 */
         @NotNull
         @DecimalMin("0.00000001")
@@ -406,6 +409,31 @@ public final class AdminFeeDTOs {
         private LocalDateTime submitTime;
     }
 
+    /** 单项费用试算明细，金额不做展示层舍入。 */
+    @Data
+    public static class FeeSimulationDetailResponse {
+        private Integer lineNo;
+        /** FEE 或 RESERVE。 */
+        private String itemType = "FEE";
+        private String feeCategory;
+        private String riskServiceType;
+        /** CALCULATED、NOT_APPLICABLE 或 NOT_CONFIGURED。 */
+        private String calculationStatus = "CALCULATED";
+        /** 仅实际手续费参与费用合计；保证金和提示项不参与。 */
+        private boolean includedInFeeTotal = true;
+        private String chargeTrigger;
+        private String ruleName;
+        private String feeMode;
+        private Long matchedRuleId;
+        private Long matchedTierId;
+        private BigDecimal percentageFeeLabel;
+        private String percentageFeeCurrency;
+        private BigDecimal rawFeeUsd;
+        private BigDecimal finalFeeUsd;
+        private String appliedLimit = "NONE";
+        private String formulaSnapshot;
+    }
+
     /** 无副作用试算结果，金额不做展示层舍入。 */
     @Data
     public static class FeeSimulationResponse {
@@ -425,6 +453,10 @@ public final class AdminFeeDTOs {
         private BigDecimal labelAmountUsd;
         /** 当前生效版本滚动保证金比例。 */
         private BigDecimal reserveRate;
+        /** 本次交易按标签币种计算的滚动保证金金额。 */
+        private BigDecimal reserveAmountLabel;
+        /** reserveAmountLabel 的 ISO 4217 三位币种代码。 */
+        private String reserveAmountCurrency;
         /** 本次交易预计留存的滚动保证金 USD 金额。 */
         private BigDecimal reserveAmountUsd;
         /** 扣除手续费和滚动保证金后的预计净结算 USD 金额。 */
@@ -442,6 +474,12 @@ public final class AdminFeeDTOs {
         private String feeCurrency = "USD";
         private String appliedLimit = "NONE";
         private String formulaSnapshot;
+        /** 各项实际手续费相加的可审计公式。 */
+        private String feeTotalFormulaSnapshot;
+        /** 交易金额减手续费及保证金的可审计公式。 */
+        private String netSettlementFormulaSnapshot;
+        /** 基础费用及本次选择的风控服务费用明细。 */
+        private List<FeeSimulationDetailResponse> feeDetails = new ArrayList<>();
     }
 
     /** 费用试算记录列表项，保留输入、匹配结果、汇率和操作人审计快照。 */
@@ -459,15 +497,26 @@ public final class AdminFeeDTOs {
         private BigDecimal labelAmount;
         private String labelCurrency;
         private BigDecimal labelToUsdRate;
+        private BigDecimal labelAmountUsd;
         private Long settlementRateId;
         private String settlementRateSource;
         private LocalDateTime rateEffectiveTime;
         private LocalDateTime rateValuationTime;
         private Long matchedRuleId;
         private Long matchedTierId;
+        private BigDecimal rawFeeUsd;
         private BigDecimal finalFeeUsd;
+        private BigDecimal reserveRate;
+        private BigDecimal reserveAmountLabel;
+        private String reserveAmountCurrency;
         private BigDecimal reserveAmountUsd;
         private BigDecimal estimatedNetSettlementUsd;
+        private String formulaSnapshot;
+        private String netSettlementFormulaSnapshot;
+        /** COMPLETE 表示逐项快照完整；LEGACY_INCOMPLETE 表示历史记录缺少逐项快照。 */
+        private String detailSnapshotStatus = "COMPLETE";
+        private List<String> riskServiceTypes = new ArrayList<>();
+        private List<FeeSimulationDetailResponse> feeDetails = new ArrayList<>();
         private String operatorName;
         private LocalDateTime createTime;
     }

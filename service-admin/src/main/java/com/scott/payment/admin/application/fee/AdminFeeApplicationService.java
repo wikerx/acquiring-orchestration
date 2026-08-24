@@ -5,6 +5,7 @@ import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeePlanQuery;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeePlanSummaryResponse;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeReviewResponse;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationRequest;
+import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationDetailResponse;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationRecordQuery;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationRecordResponse;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationResponse;
@@ -22,6 +23,8 @@ import com.scott.payment.admin.service.AdminFeeService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.dictionary.model.DictionaryOptionSnapshot;
+import com.scott.payment.component.db.dictionary.service.DictionaryOptionCacheReader;
 import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -34,7 +37,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 /**
  * @author : scott
@@ -55,16 +60,19 @@ public class AdminFeeApplicationService {
     private final ExcelExportService excelExportService;
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     private final ExcelLocaleResolver excelLocaleResolver;
+    private final DictionaryOptionCacheReader dictionaryOptionCacheReader;
 
     /** 构造费用应用服务。 */
     public AdminFeeApplicationService(AdminFeeService feeService,
                                       ExcelExportService excelExportService,
                                       ExcelI18nMessageResolver excelI18nMessageResolver,
-                                      ExcelLocaleResolver excelLocaleResolver) {
+                                      ExcelLocaleResolver excelLocaleResolver,
+                                      DictionaryOptionCacheReader dictionaryOptionCacheReader) {
         this.feeService = feeService;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
+        this.dictionaryOptionCacheReader = dictionaryOptionCacheReader;
     }
 
     /** 分页查询模板。 */
@@ -210,10 +218,17 @@ public class AdminFeeApplicationService {
     /** 按当前筛选条件分页导出费用试算记录。 */
     public void exportSimulationRecords(FeeSimulationRecordQuery request, HttpServletResponse response) {
         FeeSimulationRecordQuery query = request == null ? new FeeSimulationRecordQuery() : request;
+        Locale locale = excelLocaleResolver.resolveCurrentLocale();
+        Map<String, String> transactionTypes = dictionaryLabels("transaction_type", locale);
+        Map<String, String> paymentTypes = dictionaryLabels("acquiring_payment_method", locale);
+        Map<String, String> paymentMethods = dictionaryLabels("card_brand", locale);
         exportPaged("excel.fee.simulationTitle", FeeSimulationExportRow.class, pageNo -> {
             query.setPageNo(pageNo);
             query.setPageSize(EXPORT_PAGE_SIZE);
-            return feeService.pageSimulationRecords(query).getRecords().stream().map(this::toSimulationExportRow).toList();
+            return feeService.pageSimulationRecords(query).getRecords().stream()
+                    .flatMap(source -> toSimulationExportRows(
+                            source, transactionTypes, paymentTypes, paymentMethods, locale).stream())
+                    .toList();
         }, simulationQuerySummary(query), response);
     }
 
@@ -275,20 +290,101 @@ public class AdminFeeApplicationService {
         return row;
     }
 
-    private FeeSimulationExportRow toSimulationExportRow(FeeSimulationRecordResponse source) {
+    private List<FeeSimulationExportRow> toSimulationExportRows(
+            FeeSimulationRecordResponse source,
+            Map<String, String> transactionTypes,
+            Map<String, String> paymentTypes,
+            Map<String, String> paymentMethods,
+            Locale locale) {
+        List<FeeSimulationDetailResponse> details = source.getFeeDetails().isEmpty()
+                ? List.of(legacyDetail()) : source.getFeeDetails();
+        return details.stream().map(detail -> toSimulationExportRow(
+                source, detail, transactionTypes, paymentTypes, paymentMethods, locale)).toList();
+    }
+
+    private FeeSimulationExportRow toSimulationExportRow(
+            FeeSimulationRecordResponse source,
+            FeeSimulationDetailResponse detail,
+            Map<String, String> transactionTypes,
+            Map<String, String> paymentTypes,
+            Map<String, String> paymentMethods,
+            Locale locale) {
         FeeSimulationExportRow row = new FeeSimulationExportRow();
         row.setSimulationNo(source.getSimulationNo());
+        row.setLineNo(detail.getLineNo());
         row.setMerchantId(source.getMerchantId());
-        row.setTransactionType(source.getTransactionType());
-        row.setPaymentType(source.getPaymentType());
-        row.setPaymentMethod(source.getPaymentMethod());
-        row.setRiskServiceType(source.getRiskServiceType());
+        row.setPlanVersionId(source.getPlanVersionId());
+        row.setTransactionType(dictionaryLabel(transactionTypes, source.getTransactionType()));
+        row.setPaymentType(dictionaryLabel(paymentTypes, source.getPaymentType()));
+        row.setPaymentMethod("ALL".equals(source.getPaymentMethod())
+                ? message("excel.fee.allPaymentMethods", locale)
+                : dictionaryLabel(paymentMethods, source.getPaymentMethod()));
+        row.setSelectedRiskServices(source.getRiskServiceTypes().stream()
+                .map(value -> message("excel.fee.risk." + value, locale))
+                .collect(Collectors.joining(", ")));
         row.setLabelAmount(source.getLabelAmount());
         row.setLabelCurrency(source.getLabelCurrency());
+        row.setLabelToUsdRate(source.getLabelToUsdRate());
+        row.setItemType(localizedCode("excel.fee.itemType.", detail.getItemType(), locale));
+        row.setFeeCategory(localizedCode("excel.fee.category.", detail.getFeeCategory(), locale));
+        row.setCalculationStatus(localizedCode(
+                "excel.fee.calculationStatus.", detail.getCalculationStatus(), locale));
+        row.setIncludedInFeeTotal(message(
+                detail.isIncludedInFeeTotal() ? "excel.common.yes" : "excel.common.no", locale));
+        row.setRiskServiceType("NONE".equals(detail.getRiskServiceType())
+                ? "-" : localizedCode("excel.fee.risk.", detail.getRiskServiceType(), locale));
+        row.setRuleName(detail.getRuleName());
+        row.setFeeMode(localizedCode("excel.fee.feeMode.", detail.getFeeMode(), locale));
+        row.setChargeTrigger(localizedCode("excel.fee.chargeTrigger.", detail.getChargeTrigger(), locale));
+        row.setAppliedLimit("NONE".equals(detail.getAppliedLimit())
+                ? "-" : localizedCode("excel.fee.appliedLimit.", detail.getAppliedLimit(), locale));
+        row.setRawFeeUsd(detail.getRawFeeUsd());
+        row.setDetailFeeUsd(detail.getFinalFeeUsd());
+        row.setDetailFormula(detail.getFormulaSnapshot());
         row.setFinalFeeUsd(source.getFinalFeeUsd());
+        row.setReserveAmountUsd(source.getReserveAmountUsd());
+        row.setNetSettlementUsd(source.getEstimatedNetSettlementUsd());
+        row.setFeeTotalFormula(source.getFormulaSnapshot());
+        row.setNetSettlementFormula(source.getNetSettlementFormulaSnapshot());
+        row.setRateSource(source.getSettlementRateSource());
+        row.setRateEffectiveTime(source.getRateEffectiveTime());
+        row.setRateValuationTime(source.getRateValuationTime());
+        row.setDetailSnapshotStatus(message(
+                "excel.fee.detailSnapshotStatus." + source.getDetailSnapshotStatus(), locale));
         row.setOperatorName(source.getOperatorName());
         row.setCreateTime(source.getCreateTime());
         return row;
+    }
+
+    private FeeSimulationDetailResponse legacyDetail() {
+        FeeSimulationDetailResponse detail = new FeeSimulationDetailResponse();
+        detail.setLineNo(1);
+        detail.setItemType("FEE");
+        detail.setFeeCategory("LEGACY");
+        detail.setRiskServiceType("NONE");
+        detail.setCalculationStatus("LEGACY_INCOMPLETE");
+        detail.setIncludedInFeeTotal(false);
+        return detail;
+    }
+
+    private Map<String, String> dictionaryLabels(String dictType, Locale locale) {
+        return dictionaryOptionCacheReader.findEnabled(dictType, locale.toLanguageTag()).stream()
+                .collect(Collectors.toMap(
+                        DictionaryOptionSnapshot::getDictValue,
+                        DictionaryOptionSnapshot::getDictLabel,
+                        (left, right) -> left));
+    }
+
+    private String dictionaryLabel(Map<String, String> labels, String value) {
+        return labels.getOrDefault(value, value);
+    }
+
+    private String message(String key, Locale locale) {
+        return excelI18nMessageResolver.resolve(key, locale);
+    }
+
+    private String localizedCode(String prefix, String value, Locale locale) {
+        return StringUtils.hasText(value) ? message(prefix + value, locale) : "-";
     }
 
     private String querySummary(FeePlanQuery query) {
