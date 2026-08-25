@@ -75,6 +75,9 @@ payment:
       # 参数说明：控制 Redisson TCP_NODELAY，开启可降低小命令交互延迟。
       tcp-no-delay: true
   transaction:
+    query-cache:
+      # 生命周期顺序事件跨实例推进订单查询缓存 generation；同步交易命令失效不受该开关影响。
+      invalidation-mq-enabled: ${PAYMENT_TRANSACTION_QUERY_CACHE_INVALIDATION_MQ_ENABLED:true}
     merchant-notification:
       # 商户终态回调固定自动投递 5 次：首次 5 秒，失败后依次等待 1、5、10、30 分钟。
       # 环境说明：环境变量 PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT；当前协议只允许 5。
@@ -94,6 +97,18 @@ payment:
       batch-size: ${PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE:100}
       # PROCESSING 超过该时间后允许 CAS 恢复为待重试，必须大于单次 MQ 同步发送超时。
       processing-timeout-seconds: ${PAYMENT_TRANSACTION_OUTBOX_PROCESSING_TIMEOUT_SECONDS:120}
+      # 当前和上一季度保持高频扫描，其他已发布季度进入历史低频任务。
+      recent-quarter-count: ${PAYMENT_TRANSACTION_OUTBOX_RECENT_QUARTER_COUNT:2}
+      recent-fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_RECENT_FIXED_DELAY_MS:5000}
+      historical-initial-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_HISTORICAL_INITIAL_DELAY_MS:60000}
+      historical-fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_HISTORICAL_FIXED_DELAY_MS:300000}
+      # 指标刷新覆盖全部已发布季度，但不跟随高频 Relay 执行。
+      metrics-initial-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_METRICS_INITIAL_DELAY_MS:30000}
+      metrics-fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_METRICS_FIXED_DELAY_MS:60000}
+  card-bin:
+    cache:
+      # 管理端提交后同步切换失败时，由普通可靠消息完成 generation 补偿。
+      invalidation-mq-enabled: ${PAYMENT_CARD_BIN_CACHE_INVALIDATION_MQ_ENABLED:true}
   risk-client:
     # 参数说明：控制是否调用真实远程服务；UAT/生产必须开启并保证服务发现和鉴权可用。
     # 环境说明：环境变量：PAYMENT_RISK_CLIENT_REMOTE_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。

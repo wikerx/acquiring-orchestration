@@ -56,6 +56,9 @@ public final class MqTopic {
      */
     public static final String CHECKOUT_CARD_VAULT = "acquiring_checkout_card_vault_topic";
 
+    /** 跨服务缓存 generation 变更 Topic，只承载命名空间和发布凭证。 */
+    public static final String CACHE_INVALIDATION = "acquiring_cache_invalidation_topic";
+
     private MqTopic() {
     }
 }

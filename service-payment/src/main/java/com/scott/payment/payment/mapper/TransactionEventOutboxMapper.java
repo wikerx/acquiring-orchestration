@@ -2,6 +2,7 @@ package com.scott.payment.payment.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
+import com.scott.payment.payment.model.TransactionEventOutboxMetricsSnapshot;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -254,4 +255,44 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
                                   @Param("transactionDateTime") LocalDateTime transactionDateTime,
                                   @Param("eventType") String eventType,
                                   @Param("now") LocalDateTime now);
+
+    /** 查询单季度交易 Outbox 的低基数运维指标快照。 */
+    @Select("""
+            SELECT
+              COALESCE(SUM(CASE WHEN event_status = 'INIT' THEN 1 ELSE 0 END), 0) AS init_count,
+              COALESCE(SUM(CASE WHEN event_status = 'PROCESSING' THEN 1 ELSE 0 END), 0) AS processing_count,
+              COALESCE(SUM(CASE WHEN event_status = 'FAILED' THEN 1 ELSE 0 END), 0) AS failed_count,
+              COALESCE(SUM(CASE WHEN event_status = 'CLOSED' THEN 1 ELSE 0 END), 0) AS closed_count,
+              MIN(CASE WHEN event_status IN ('INIT', 'PROCESSING', 'FAILED')
+                       THEN create_time ELSE NULL END) AS oldest_pending_time
+            FROM transaction_event_outbox
+            WHERE transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+              AND deleted = 0
+            """)
+    TransactionEventOutboxMetricsSnapshot selectMetricsSnapshotLogical(
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
+
+    /** 使用事件号、分片时间和版本 CAS 将 Outbox CLOSED 恢复为 FAILED 待重试。 */
+    @Update("""
+            UPDATE transaction_event_outbox
+            SET event_status = 'FAILED',
+                retry_count = 0,
+                next_retry_time = #{now},
+                sent_time = NULL,
+                fail_reason = #{recoveryReason},
+                version = version + 1,
+                update_time = #{now}
+            WHERE event_no = #{eventNo}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND event_status = 'CLOSED'
+              AND deleted = 0
+            """)
+    int recoverClosedLogical(@Param("eventNo") String eventNo,
+                             @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                             @Param("expectedVersion") Integer expectedVersion,
+                             @Param("recoveryReason") String recoveryReason,
+                             @Param("now") LocalDateTime now);
 }

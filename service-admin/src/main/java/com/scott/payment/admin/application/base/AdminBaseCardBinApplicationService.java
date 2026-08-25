@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.base;
 
+import com.scott.payment.admin.application.base.cache.CardBinCacheInvalidationCoordinator;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -14,7 +15,6 @@ import com.scott.payment.admin.mapper.BaseCardBinRangeMapper;
 import com.scott.payment.admin.service.AdminDictService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
-import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -27,8 +27,6 @@ import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -274,6 +272,9 @@ public class AdminBaseCardBinApplicationService {
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
+    /** Card BIN 数据变更与 Redis generation、可靠 MQ 的事务协调器。 */
+    private final CardBinCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
     /**
      * 创建卡 BIN 管理应用服务。
      *
@@ -291,7 +292,8 @@ public class AdminBaseCardBinApplicationService {
                                               IsoCountryMapper isoCountryMapper,
                                               ExcelExportService excelExportService,
                                               ExcelI18nMessageResolver excelI18nMessageResolver,
-                                              ExcelLocaleResolver excelLocaleResolver) {
+                                              ExcelLocaleResolver excelLocaleResolver,
+                                              CardBinCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.cardBinRangeMapper = cardBinRangeMapper;
         this.importBatchMapper = importBatchMapper;
         this.adminDictService = adminDictService;
@@ -299,6 +301,7 @@ public class AdminBaseCardBinApplicationService {
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
     }
 
     /**
@@ -343,10 +346,6 @@ public class AdminBaseCardBinApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     @DS(DataSourceName.MASTER)
-    @Caching(evict = {
-            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
-            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
-    })
     public CardBinDTOs.CardBinResponse create(CardBinDTOs.CardBinSaveRequest request) {
         NormalizedBinRange range = normalizeRange(request.getCardBinStart(), request.getCardBinEnd());
         assertDictValue(CARD_BRAND_DICT, request.getCardBrand(), "卡品牌不存在或已停用");
@@ -364,6 +363,7 @@ public class AdminBaseCardBinApplicationService {
         row.setCreateTime(now);
         row.setUpdateTime(now);
         row.setDeleted(NOT_DELETED);
+        cacheInvalidationCoordinator.prepare();
         cardBinRangeMapper.insert(row);
         return toResponse(row, loadDictLabels());
     }
@@ -377,10 +377,6 @@ public class AdminBaseCardBinApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     @DS(DataSourceName.MASTER)
-    @Caching(evict = {
-            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
-            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
-    })
     public CardBinDTOs.CardBinResponse update(Long id, CardBinDTOs.CardBinSaveRequest request) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         NormalizedBinRange range = normalizeRange(request.getCardBinStart(), request.getCardBinEnd());
@@ -394,6 +390,7 @@ public class AdminBaseCardBinApplicationService {
         fillSaveFields(row, request, range, dataSource, status);
         row.setUpdateBy(currentOperatorName());
         row.setUpdateTime(LocalDateTime.now());
+        cacheInvalidationCoordinator.prepare();
         cardBinRangeMapper.updateById(row);
         return toResponse(row, loadDictLabels());
     }
@@ -405,16 +402,13 @@ public class AdminBaseCardBinApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     @DS(DataSourceName.MASTER)
-    @Caching(evict = {
-            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
-            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
-    })
     public void remove(Long id) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         row.setStatus(STATUS_DISABLED);
         row.setDeleted(row.getId());
         row.setUpdateBy(currentOperatorName());
         row.setUpdateTime(LocalDateTime.now());
+        cacheInvalidationCoordinator.prepare();
         cardBinRangeMapper.updateById(row);
     }
 
@@ -427,10 +421,6 @@ public class AdminBaseCardBinApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     @DS(DataSourceName.MASTER)
-    @Caching(evict = {
-            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
-            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
-    })
     public CardBinDTOs.CardBinResponse updateStatus(Long id, CardBinDTOs.CardBinStatusRequest request) {
         CardBinEntities.BaseCardBinRangeDO row = getActiveRow(id);
         Integer targetStatus = normalizeStatus(request.getStatus(), null);
@@ -438,6 +428,7 @@ public class AdminBaseCardBinApplicationService {
         row.setStatus(targetStatus);
         row.setUpdateBy(currentOperatorName());
         row.setUpdateTime(LocalDateTime.now());
+        cacheInvalidationCoordinator.prepare();
         cardBinRangeMapper.updateById(row);
         return toResponse(row, loadDictLabels());
     }
@@ -500,10 +491,6 @@ public class AdminBaseCardBinApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     @DS(DataSourceName.MASTER)
-    @Caching(evict = {
-            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN, allEntries = true),
-            @CacheEvict(cacheNames = PaymentCacheNames.CARD_BIN_MISS, allEntries = true)
-    })
     public CardBinDTOs.CardBinImportBatchResponse initFromLegacyDb() {
         String batchNo = "INIT_DB_IMPORT_" + BATCH_TIME_FORMATTER.format(LocalDateTime.now());
         CardBinEntities.BaseCardBinImportBatchDO batch = new CardBinEntities.BaseCardBinImportBatchDO();
@@ -534,6 +521,7 @@ public class AdminBaseCardBinApplicationService {
         int failedCount = cardBinRangeMapper.countInvalidLegacyRows();
         int successCount = 0;
         int duplicateCount = 0;
+        cacheInvalidationCoordinator.prepare();
         for (Map<String, Object> legacy : cardBinRangeMapper.selectValidLegacyRows()) {
             Long legacyPkId = longValue(legacy.get("legacyPkId"));
             if (legacyPkId == null || existsLegacyRow(legacyPkId)) {

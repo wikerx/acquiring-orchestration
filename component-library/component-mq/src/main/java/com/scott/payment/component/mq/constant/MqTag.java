@@ -47,6 +47,9 @@ public final class MqTag {
     /** 收银台卡资料密文入库标签。 */
     public static final String CHECKOUT_CARD_VAULT_STORE = "CHECKOUT_CARD_VAULT_STORE";
 
+    /** Card BIN 全局 generation 变更标签。 */
+    public static final String CARD_BIN_CACHE_CHANGED = "CARD_BIN_CACHE_CHANGED";
+
     private MqTag() {
     }
 }

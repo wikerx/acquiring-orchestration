@@ -7,10 +7,12 @@ import com.scott.payment.component.redis.cache.invalidation.ImmediateCacheEvicti
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.config.PaymentRedisSerializerFactory;
 import com.scott.payment.component.redis.observability.RedisBusinessMetrics;
+import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -123,6 +125,27 @@ public class PaymentRedisCacheAutoConfiguration {
             CacheManager cacheManager,
             ObjectProvider<CacheMissMarkerStore> missMarkerStoreProvider) {
         return new ImmediateCacheEvictionService(cacheManager, missMarkerStoreProvider);
+    }
+
+    /**
+     * 注册跨服务共享的缓存 generation 存储，供管理端写链路和业务读模型使用同一原子协议。
+     *
+     * @param stringRedisTemplate Redis 字符串模板
+     * @param redisProperties Redis Key 规范配置
+     * @param metricsProvider Redis 指标提供器
+     * @return generation 门禁与切换服务
+     */
+    @Bean
+    @ConditionalOnBean(StringRedisTemplate.class)
+    @ConditionalOnMissingBean(RedisCacheGenerationStore.class)
+    public RedisCacheGenerationStore redisCacheGenerationStore(
+            StringRedisTemplate stringRedisTemplate,
+            PaymentRedisProperties redisProperties,
+            ObjectProvider<RedisBusinessMetrics> metricsProvider) {
+        return new RedisCacheGenerationStore(
+                stringRedisTemplate,
+                redisProperties,
+                metricsProvider.getIfAvailable(RedisBusinessMetrics::noop));
     }
 
     /**

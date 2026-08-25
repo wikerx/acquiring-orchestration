@@ -21,7 +21,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * @author : scott
@@ -157,7 +156,7 @@ public class MerchantNotificationRetryReconciliationService {
     private MerchantNotificationRetryDueMessage retryMessage(DataMerchantNotificationTaskDO task,
                                                               LocalDateTime now) {
         MerchantNotificationRetryDueMessage message = new MerchantNotificationRetryDueMessage();
-        message.setMessageId("MNR-JOB-" + UUID.randomUUID());
+        message.setMessageId("MNR-RECON-" + task.getNotifyId() + "-" + task.getVersion());
         message.setCreatedAt(now);
         message.setTraceId(TraceContext.getOrCreateTraceId());
         message.setRetryCount(0);
@@ -166,7 +165,8 @@ public class MerchantNotificationRetryReconciliationService {
         message.setTransactionDateTime(task.getTransactionDateTime());
         message.setExpectedVersion(task.getVersion());
         message.setAttemptNo(task.getLastAttemptNo() == null ? 1 : task.getLastAttemptNo() + 1);
-        message.setDeliverAt(now);
+        message.setDeliverAt(task.getNextRetryTime() == null
+                ? task.getTransactionDateTime() : task.getNextRetryTime());
         message.setEventType(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE);
         return message;
     }

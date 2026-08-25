@@ -5,6 +5,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mapper.TransactionEventOutboxMapper;
+import com.scott.payment.payment.model.TransactionEventOutboxMetricsSnapshot;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -202,6 +203,47 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         eventOutboxMapper.rearmForRedeliveryLogical(
                 eventNo, transactionDateTime, eventType, now == null ? LocalDateTime.now() : now);
         return true;
+    }
+
+    /** 查询指定季度的 pending、CLOSED 和最老积压时间聚合快照。 */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionEventOutboxMetricsSnapshot metricsSnapshot(LocalDateTime eventTime) {
+        if (eventTime == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "eventTime is required");
+        }
+        LocalDateTime beginTime = quarterBegin(eventTime);
+        return eventOutboxMapper.selectMetricsSnapshotLogical(beginTime, beginTime.plusMonths(3));
+    }
+
+    /**
+     * 使用当前版本 CAS 将一条交易 Outbox CLOSED 事件恢复为 FAILED 待重试。
+     * CLOSED 仅为 Outbox 投递状态，不属于支付交易状态。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public boolean recoverClosed(String eventNo,
+                                 LocalDateTime transactionDateTime,
+                                 Integer expectedVersion,
+                                 String recoveryReason,
+                                 LocalDateTime now) {
+        if (!StringUtils.hasText(eventNo)
+                || transactionDateTime == null
+                || expectedVersion == null
+                || expectedVersion < 0
+                || !StringUtils.hasText(recoveryReason)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        String safeReason = recoveryReason.trim();
+        if (safeReason.length() > 512) {
+            safeReason = safeReason.substring(0, 512);
+        }
+        return eventOutboxMapper.recoverClosedLogical(
+                eventNo,
+                transactionDateTime,
+                expectedVersion,
+                safeReason,
+                now == null ? LocalDateTime.now() : now) == 1;
     }
 
     /**

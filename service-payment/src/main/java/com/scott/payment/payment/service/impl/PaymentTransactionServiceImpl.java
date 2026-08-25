@@ -651,8 +651,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
         resultDTO.setMerchantOrderId(commandDTO.getMerchantOrderId());
         fillQueryOrderSummary(resultDTO, sourceOrderDO);
+        Map<String, TransactionPaymentMethodInfoDO> paymentMethodInfos =
+                transactionRecordService.findPaymentMethodInfos(operations);
         resultDTO.setTransactionInfo(operations.stream()
-                .map(operationDO -> toQueryTransactionInfo(operationDO, sourceOrderDO, operations))
+                .map(operationDO -> toQueryTransactionInfo(
+                        operationDO,
+                        sourceOrderDO,
+                        operations,
+                        paymentMethodInfos == null ? null : paymentMethodInfos.get(operationDO.getTransactionId())))
                 .toList());
         return resultDTO;
     }
@@ -2130,7 +2136,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     private PaymentQueryResultDTO.TransactionInfoDTO toQueryTransactionInfo(TransactionOperationDO operationDO,
                                                                            TransactionOrderDO orderDO,
-                                                                           List<TransactionOperationDO> operations) {
+                                                                           List<TransactionOperationDO> operations,
+                                                                           TransactionPaymentMethodInfoDO paymentMethodInfo) {
         PaymentQueryResultDTO.TransactionInfoDTO target = new PaymentQueryResultDTO.TransactionInfoDTO();
         target.setTransactionId(operationDO.getTransactionId());
         target.setSourceTransactionId(operationDO.getSourceTransactionId());
@@ -2141,8 +2148,6 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         target.setTransactionStatus(operationDO.getTransactionStatus());
         target.setTransactionDateTime(operationDO.getTransactionDateTime());
         target.setRootTransactionDateTime(orderDO.getTransactionDateTime());
-        TransactionPaymentMethodInfoDO paymentMethodInfo = transactionRecordService.findPaymentMethodInfo(
-                operationDO.getTransactionId(), operationDO.getTransactionDateTime());
         target.setPaymentMethod(paymentMethodInfo == null || !StringUtils.hasText(paymentMethodInfo.getPaymentMethod())
                 ? firstText(orderDO.getPaymentMethod(), DEFAULT_PAYMENT_METHOD)
                 : paymentMethodInfo.getPaymentMethod());

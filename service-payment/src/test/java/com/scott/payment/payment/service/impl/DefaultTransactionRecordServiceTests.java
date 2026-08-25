@@ -1101,6 +1101,112 @@ class DefaultTransactionRecordServiceTests {
                 any());
     }
 
+    @Test
+    void shouldAcceptSameSuccessfulChannelRequestResultAfterConcurrentCasMiss() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
+        when(operationMapper.selectByTransactionId(
+                "202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(processingInitialOperation());
+        when(orderMapper.selectByOperationId(
+                "OP202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(processingInitialOrder());
+        when(channelRequestMapper.selectByRequestId(
+                "CR202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(channelRequestFact("SENT", 0), channelRequestFact("SUCCESS", 1));
+        when(channelRequestMapper.updateStatusLogical(anyString(), any(LocalDateTime.class), any(), any(), anyString(),
+                any(), any(), any(), any(), any(), any(), anyString(), any(), any(), any()))
+                .thenReturn(0);
+        when(interactionLogMapper.updateByRequestIdLogical(anyString(), any(LocalDateTime.class), anyString(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(),
+                any(), any(), any(), any(), any(), any(), any(), anyString()))
+                .thenReturn(1);
+        when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(), anyString()))
+                .thenReturn(1);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                mock(TransactionStatusHistoryMapper.class),
+                channelRequestMapper,
+                interactionLogMapper,
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+
+        boolean changed = recordService.completeInitialChannelResultAndReport(
+                baseCommand(),
+                routeResult(),
+                initialResultInvokeResult("SUCCESS", channelResponse()),
+                initialResultDTO(PaymentTransactionStatusEnum.SUCCESS.getCode(), PaymentProcessStageEnum.FINISHED.getCode()),
+                PaymentRiskDecisionEnum.PASS,
+                2);
+
+        assertThat(changed).isTrue();
+        verify(channelRequestMapper, times(2)).selectByRequestId(
+                "CR202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30));
+        verify(operationMapper).completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(),
+                any(), any(), any(), any(), any(), any(), any(), anyString());
+    }
+
+    @Test
+    void shouldRejectConflictingChannelRequestTerminalAfterConcurrentCasMiss() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
+        when(operationMapper.selectByTransactionId(
+                "202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(processingInitialOperation());
+        when(orderMapper.selectByOperationId(
+                "OP202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(processingInitialOrder());
+        TransactionChannelRequestDO concurrentFailure = channelRequestFact("FAILED", 1);
+        concurrentFailure.setPlatformResultCode(PaymentTransactionStatusEnum.FAILED.getCode());
+        when(channelRequestMapper.selectByRequestId(
+                "CR202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(channelRequestFact("SENT", 0), concurrentFailure);
+        when(channelRequestMapper.updateStatusLogical(anyString(), any(LocalDateTime.class), any(), any(), anyString(),
+                any(), any(), any(), any(), any(), any(), anyString(), any(), any(), any()))
+                .thenReturn(0);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                mock(TransactionStatusHistoryMapper.class),
+                channelRequestMapper,
+                interactionLogMapper,
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+
+        assertThatThrownBy(() -> recordService.completeInitialChannelResult(
+                baseCommand(),
+                routeResult(),
+                initialResultInvokeResult("SUCCESS", channelResponse()),
+                initialResultDTO(PaymentTransactionStatusEnum.SUCCESS.getCode(), PaymentProcessStageEnum.FINISHED.getCode()),
+                PaymentRiskDecisionEnum.PASS,
+                2))
+                .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class)
+                .hasMessageContaining("channel request state has changed");
+
+        verify(interactionLogMapper, never()).updateByRequestIdLogical(anyString(), any(LocalDateTime.class), anyString(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationMapper, never()).completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(),
+                any(), any(), any(), any(), any(), any(), any(), any(), anyString());
+    }
+
     /**
      * 渠道结果回写必须复用受理阶段冻结的原始分片时间，不能从交易号重新解析后丢失微秒精度。
      */

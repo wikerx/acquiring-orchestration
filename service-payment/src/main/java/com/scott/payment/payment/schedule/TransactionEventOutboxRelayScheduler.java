@@ -16,7 +16,7 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * 按已发布季度节点持续投递交易 Outbox，不使用固定历史季度窗口截断待补偿事件。
+ * 按已发布季度节点双频投递交易 Outbox：最近季度高频、历史季度低频，并独立刷新全量运维指标。
  */
 @Slf4j
 @Component
@@ -35,6 +35,9 @@ public class TransactionEventOutboxRelayScheduler {
     /** 每个季度分表单次扫描的最大事件数。 */
     private final int batchSize;
 
+    /** 高频扫描覆盖的最近季度数量，默认当前和上一季度。 */
+    private final int recentQuarterCount;
+
     /** 可替换时钟；生产固定使用交易路由时区，测试可注入。 */
     private final Clock clock;
 
@@ -49,8 +52,9 @@ public class TransactionEventOutboxRelayScheduler {
     public TransactionEventOutboxRelayScheduler(
             TransactionEventOutboxRelayService relayService,
             TransactionShardingProperties shardingProperties,
-            @Value("${payment.transaction.outbox.batch-size:100}") int batchSize) {
-        this(relayService, shardingProperties, batchSize,
+            @Value("${payment.transaction.outbox.batch-size:100}") int batchSize,
+            @Value("${payment.transaction.outbox.recent-quarter-count:2}") int recentQuarterCount) {
+        this(relayService, shardingProperties, batchSize, recentQuarterCount,
                 Clock.system(ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID)));
     }
 
@@ -58,9 +62,18 @@ public class TransactionEventOutboxRelayScheduler {
                                           TransactionShardingProperties shardingProperties,
                                           int batchSize,
                                           Clock clock) {
+        this(relayService, shardingProperties, batchSize, 2, clock);
+    }
+
+    TransactionEventOutboxRelayScheduler(TransactionEventOutboxRelayService relayService,
+                                          TransactionShardingProperties shardingProperties,
+                                          int batchSize,
+                                          int recentQuarterCount,
+                                          Clock clock) {
         this.relayService = relayService;
         this.shardingProperties = shardingProperties;
         this.batchSize = Math.max(1, batchSize);
+        this.recentQuarterCount = Math.max(1, recentQuarterCount);
         this.clock = clock;
     }
 
@@ -71,17 +84,39 @@ public class TransactionEventOutboxRelayScheduler {
      */
     @Scheduled(
             initialDelayString = "${payment.transaction.outbox.initial-delay-ms:10000}",
-            fixedDelayString = "${payment.transaction.outbox.fixed-delay-ms:5000}")
-    public void relay() {
+            fixedDelayString = "${payment.transaction.outbox.recent-fixed-delay-ms:${payment.transaction.outbox.fixed-delay-ms:5000}}")
+    public void relayRecent() {
         LocalDateTime now = LocalDateTime.now(clock);
         List<LocalDateTime> publishedQuarters = publishedQuartersNotAfter(now);
+        relayQuarters(publishedQuarters.stream().limit(recentQuarterCount).toList(), "recent");
+    }
+
+    /** 低频扫描最近窗口之外的全部已发布历史季度，保留长期失败事件补偿能力。 */
+    @Scheduled(
+            initialDelayString = "${payment.transaction.outbox.historical-initial-delay-ms:60000}",
+            fixedDelayString = "${payment.transaction.outbox.historical-fixed-delay-ms:300000}")
+    public void relayHistorical() {
+        LocalDateTime now = LocalDateTime.now(clock);
+        List<LocalDateTime> publishedQuarters = publishedQuartersNotAfter(now);
+        relayQuarters(publishedQuarters.stream().skip(recentQuarterCount).toList(), "historical");
+    }
+
+    /** 每分钟汇总全部已发布季度的 pending、CLOSED 和最老积压指标。 */
+    @Scheduled(
+            initialDelayString = "${payment.transaction.outbox.metrics-initial-delay-ms:30000}",
+            fixedDelayString = "${payment.transaction.outbox.metrics-fixed-delay-ms:60000}")
+    public void refreshMetrics() {
+        relayService.refreshMetrics(publishedQuartersNotAfter(LocalDateTime.now(clock)));
+    }
+
+    private void relayQuarters(List<LocalDateTime> quarters, String scanType) {
         int published = 0;
-        for (LocalDateTime quarter : publishedQuarters) {
+        for (LocalDateTime quarter : quarters) {
             published += relayService.publishDueEvents(quarter, batchSize);
         }
         if (published > 0) {
-            log.info("event: TRANSACTION_OUTBOX_RELAY_BATCH published: {} scannedQuarterCount: {} batchSize: {}",
-                    published, publishedQuarters.size(), batchSize);
+            log.info("event: TRANSACTION_OUTBOX_RELAY_BATCH scanType: {} published: {} scannedQuarterCount: {} batchSize: {}",
+                    scanType, published, quarters.size(), batchSize);
         }
     }
 

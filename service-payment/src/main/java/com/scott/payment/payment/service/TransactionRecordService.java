@@ -14,6 +14,7 @@ import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -124,6 +125,17 @@ public interface TransactionRecordService {
             String transactionId,
             LocalDateTime transactionDateTime) {
         return null;
+    }
+
+    /**
+     * 按一次查询涉及的生命周期动作批量读取支付工具脱敏摘要，避免逐动作访问数据库。
+     *
+     * @param operations 已按生命周期查询出的交易动作
+     * @return 以 transactionId 为键的支付工具摘要；没有数据时返回空 Map
+     */
+    default Map<String, TransactionPaymentMethodInfoDO> findPaymentMethodInfos(
+            List<TransactionOperationDO> operations) {
+        return Map.of();
     }
 
     /**

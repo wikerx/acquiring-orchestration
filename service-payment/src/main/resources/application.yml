@@ -25,6 +25,10 @@ payment:
       key-id: ${CHECKOUT_CARD_VAULT_TRANSFER_KEY_ID:checkout-card-vault-v1}
       public-key-x509-base64: ${CHECKOUT_CARD_VAULT_TRANSFER_PUBLIC_KEY_X509_BASE64:}
   transaction:
+    query-cache:
+      # 参数说明：控制交易状态事件是否通过 MQ 跨实例推进查询缓存 generation；同步写后失效仍始终执行。
+      # 环境说明：生产建议保持开启；关闭后只能依赖本实例同步失效和 3 天 + 0～24 小时随机 TTL 收敛。
+      invalidation-mq-enabled: ${PAYMENT_TRANSACTION_QUERY_CACHE_INVALIDATION_MQ_ENABLED:true}
     outbox:
       # 参数说明：控制事务 Outbox Relay 是否运行；关闭会导致已提交事件停止向 MQ 投递。
       # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_RELAY_ENABLED，基础配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
@@ -38,6 +42,22 @@ payment:
       # 参数说明：配置单批处理记录数；增大可提高吞吐，但会增加数据库锁持有时间和单次失败影响。
       # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE，基础配置默认值为 "100"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       batch-size: ${PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE:100}
+      # 参数说明：高频扫描覆盖的最近季度数；默认当前季度和上一季度。
+      recent-quarter-count: ${PAYMENT_TRANSACTION_OUTBOX_RECENT_QUARTER_COUNT:2}
+      # 参数说明：最近季度扫描间隔，单位毫秒；兼容 fixed-delay-ms 旧配置。
+      recent-fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_RECENT_FIXED_DELAY_MS:5000}
+      # 参数说明：历史季度首次扫描延迟，单位毫秒。
+      historical-initial-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_HISTORICAL_INITIAL_DELAY_MS:60000}
+      # 参数说明：历史季度低频扫描间隔，单位毫秒。
+      historical-fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_HISTORICAL_FIXED_DELAY_MS:300000}
+      # 参数说明：交易 Outbox 聚合指标首次刷新延迟，单位毫秒。
+      metrics-initial-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_METRICS_INITIAL_DELAY_MS:30000}
+      # 参数说明：交易 Outbox 聚合指标刷新间隔，单位毫秒。
+      metrics-fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_METRICS_FIXED_DELAY_MS:60000}
+  card-bin:
+    cache:
+      # 参数说明：控制 Card BIN generation 变更补偿消息消费；管理端事务提交后仍会同步切换 generation。
+      invalidation-mq-enabled: ${PAYMENT_CARD_BIN_CACHE_INVALIDATION_MQ_ENABLED:true}
   risk-client:
     # 初始交易必须调用 service-risk；仅单元测试或本地隔离调试才允许显式开启 noop-enabled。
     # 环境说明：环境变量：PAYMENT_RISK_CLIENT_REMOTE_ENABLED，基础配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
@@ -50,3 +70,11 @@ payment:
     # 参数说明：配置内部服务 HMAC-SHA256 共享密钥，调用方与被调用方必须使用同一环境的密钥。
     # 环境说明：环境变量：PAYMENT_RISK_INTERNAL_SECRET；默认值仅供 dev 本地联调，test/uat/prod 必须通过 K8s Secret、CI/CD Secret 或密钥管理系统注入独立高强度密钥。
     internal-secret: ${PAYMENT_RISK_INTERNAL_SECRET:dev-internal-service-secret}
+
+acquiring:
+  mq:
+    outbox:
+      # 参数说明：通用可靠 MQ Outbox 聚合指标首次刷新延迟，单位毫秒。
+      metrics-initial-delay-ms: ${ACQUIRING_MQ_OUTBOX_METRICS_INITIAL_DELAY_MS:30000}
+      # 参数说明：通用可靠 MQ Outbox 聚合指标刷新间隔，单位毫秒。
+      metrics-delay-ms: ${ACQUIRING_MQ_OUTBOX_METRICS_DELAY_MS:60000}

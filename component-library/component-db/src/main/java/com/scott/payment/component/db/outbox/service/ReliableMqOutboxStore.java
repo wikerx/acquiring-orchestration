@@ -4,9 +4,11 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.outbox.entity.ReliableMqOutboxDO;
 import com.scott.payment.component.db.outbox.mapper.ReliableMqOutboxMapper;
+import com.scott.payment.component.db.outbox.model.ReliableMqOutboxMetricsSnapshot;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -80,5 +82,40 @@ public class ReliableMqOutboxStore {
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public int recoverStale(LocalDateTime staleBefore, LocalDateTime now) {
         return mapper.recoverStale(staleBefore, now);
+    }
+
+    /** 查询 pending、CLOSED 和最老积压时间的聚合快照。 */
+    @DS(DataSourceName.MASTER)
+    public ReliableMqOutboxMetricsSnapshot metricsSnapshot() {
+        return mapper.selectMetricsSnapshot();
+    }
+
+    /**
+     * 使用事件号和版本 CAS 人工恢复一条 CLOSED 消息。
+     *
+     * @param eventId 稳定事件号
+     * @param expectedVersion 操作员读取时看到的版本号
+     * @param recoveryReason 不含敏感信息的恢复原因
+     * @param now 恢复时间
+     * @return true 表示恢复成功；状态或版本已变化时返回 false
+     */
+    @DS(DataSourceName.MASTER)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public boolean recoverClosed(String eventId,
+                                 Integer expectedVersion,
+                                 String recoveryReason,
+                                 LocalDateTime now) {
+        if (!StringUtils.hasText(eventId)
+                || expectedVersion == null
+                || expectedVersion < 0
+                || !StringUtils.hasText(recoveryReason)) {
+            throw new IllegalArgumentException("eventId, expectedVersion and recoveryReason are required");
+        }
+        String safeReason = recoveryReason.trim();
+        if (safeReason.length() > 512) {
+            safeReason = safeReason.substring(0, 512);
+        }
+        LocalDateTime recoveryTime = now == null ? LocalDateTime.now() : now;
+        return mapper.recoverClosed(eventId, expectedVersion, safeReason, recoveryTime) == 1;
     }
 }

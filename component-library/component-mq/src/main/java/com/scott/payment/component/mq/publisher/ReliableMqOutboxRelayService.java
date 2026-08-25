@@ -1,13 +1,17 @@
 package com.scott.payment.component.mq.publisher;
 
 import com.scott.payment.component.db.outbox.entity.ReliableMqOutboxDO;
+import com.scott.payment.component.db.outbox.model.ReliableMqOutboxMetricsSnapshot;
 import com.scott.payment.component.db.outbox.service.ReliableMqOutboxStore;
+import com.scott.payment.component.mq.observability.MqOutboxOperationalMetrics;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.component.mq.properties.ReliableMqOutboxProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * @author : scott
@@ -30,14 +34,26 @@ public class ReliableMqOutboxRelayService {
     private final MqProducer mqProducer;
     /** Outbox 配置。 */
     private final ReliableMqOutboxProperties properties;
+    /** Outbox 低基数运维指标。 */
+    private final MqOutboxOperationalMetrics metrics;
 
     /** 创建 Outbox Relay。 */
+    @Autowired
     public ReliableMqOutboxRelayService(ReliableMqOutboxStore outboxStore,
                                         MqProducer mqProducer,
-                                        ReliableMqOutboxProperties properties) {
+                                        ReliableMqOutboxProperties properties,
+                                        MqOutboxOperationalMetrics metrics) {
         this.outboxStore = outboxStore;
         this.mqProducer = mqProducer;
         this.properties = properties;
+        this.metrics = metrics;
+    }
+
+    /** 创建不注册指标的 Relay，供纯单元测试直接构造。 */
+    public ReliableMqOutboxRelayService(ReliableMqOutboxStore outboxStore,
+                                        MqProducer mqProducer,
+                                        ReliableMqOutboxProperties properties) {
+        this(outboxStore, mqProducer, properties, MqOutboxOperationalMetrics.noop());
     }
 
     /**
@@ -82,14 +98,27 @@ public class ReliableMqOutboxRelayService {
 
     /** 扫描并投递一批已到期消息。 */
     public int relayDue() {
+        long startNanos = System.nanoTime();
+        String outcome = "failure";
         LocalDateTime now = LocalDateTime.now();
-        int successCount = 0;
-        for (ReliableMqOutboxDO event : outboxStore.findDue(now, Math.max(properties.getBatchSize(), 1))) {
-            if (relayEvent(event.getEventId())) {
-                successCount++;
+        int batchSize = Math.max(properties.getBatchSize(), 1);
+        try {
+            List<ReliableMqOutboxDO> events = outboxStore.findDue(now, batchSize);
+            metrics.recordBatchSize(MqOutboxOperationalMetrics.RELIABLE_OUTBOX, events.size(), batchSize);
+            int successCount = 0;
+            for (ReliableMqOutboxDO event : events) {
+                if (relayEvent(event.getEventId())) {
+                    successCount++;
+                }
             }
+            outcome = "success";
+            return successCount;
+        } finally {
+            metrics.recordRelayDuration(
+                    MqOutboxOperationalMetrics.RELIABLE_OUTBOX,
+                    outcome,
+                    System.nanoTime() - startNanos);
         }
-        return successCount;
     }
 
     /** 恢复超时 PROCESSING 消息。 */
@@ -97,6 +126,25 @@ public class ReliableMqOutboxRelayService {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime staleBefore = now.minusSeconds(Math.max(properties.getProcessingTimeoutSeconds(), 1L));
         return outboxStore.recoverStale(staleBefore, now);
+    }
+
+    /** 从数据库刷新 pending、CLOSED 和最老积压 Gauge。 */
+    public void refreshMetrics() {
+        ReliableMqOutboxMetricsSnapshot snapshot = outboxStore.metricsSnapshot();
+        if (snapshot == null) {
+            return;
+        }
+        metrics.updateReliable(
+                count(snapshot.getInitCount()),
+                count(snapshot.getProcessingCount()),
+                count(snapshot.getRetryWaitCount()),
+                count(snapshot.getClosedCount()),
+                snapshot.getOldestPendingTime(),
+                LocalDateTime.now());
+    }
+
+    private long count(Long value) {
+        return value == null ? 0L : value;
     }
 
     /** 根据当前失败次数推进 RETRY_WAIT 或 CLOSED。 */

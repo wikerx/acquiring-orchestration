@@ -57,9 +57,12 @@ class MerchantNotificationRetryReconciliationServiceTests {
                 any(), eq(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE), messageCaptor.capture());
         assertThat(messageCaptor.getAllValues()).extracting(MerchantNotificationRetryDueMessage::getNotifyId)
                 .containsExactly("NOTIFY-Q3", "NOTIFY-Q2");
+        assertThat(messageCaptor.getAllValues()).extracting(MerchantNotificationRetryDueMessage::getMessageId)
+                .containsExactly("MNR-RECON-NOTIFY-Q3-4", "MNR-RECON-NOTIFY-Q2-4");
         assertThat(messageCaptor.getAllValues()).allSatisfy(message -> {
             assertThat(message.getExpectedVersion()).isEqualTo(4);
             assertThat(message.getAttemptNo()).isEqualTo(2);
+            assertThat(message.getDeliverAt()).isEqualTo(message.getTransactionDateTime());
         });
         verify(mapper, never()).selectDueForNotify(
                 eq(LocalDateTime.of(2026, 10, 1, 0, 0)), any(), any(), anyInt());
@@ -74,6 +77,8 @@ class MerchantNotificationRetryReconciliationServiceTests {
         sharding.setPhysicalNodes(List.of("202603"));
         LocalDateTime transactionDateTime = LocalDateTime.of(2026, 8, 1, 10, 0);
         DataMerchantNotificationTaskDO task = task("NOTIFY-EXACT", "TX-EXACT", transactionDateTime);
+        LocalDateTime nextRetryTime = LocalDateTime.of(2026, 8, 6, 12, 50);
+        task.setNextRetryTime(nextRetryTime);
         when(mapper.selectReadyByTransactionId(eq("TX-EXACT"), eq(transactionDateTime), any()))
                 .thenReturn(task);
         Clock clock = Clock.fixed(
@@ -87,8 +92,10 @@ class MerchantNotificationRetryReconciliationServiceTests {
                 ArgumentCaptor.forClass(MerchantNotificationRetryDueMessage.class);
         verify(publisher).publish(any(), eq(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE), captor.capture());
         assertThat(captor.getValue().getNotifyId()).isEqualTo("NOTIFY-EXACT");
+        assertThat(captor.getValue().getMessageId()).isEqualTo("MNR-RECON-NOTIFY-EXACT-4");
         assertThat(captor.getValue().getExpectedVersion()).isEqualTo(4);
         assertThat(captor.getValue().getAttemptNo()).isEqualTo(2);
+        assertThat(captor.getValue().getDeliverAt()).isEqualTo(nextRetryTime);
     }
 
     private DataMerchantNotificationTaskDO task(String notifyId,

@@ -1,6 +1,7 @@
 package com.scott.payment.payment.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * @author : scott
@@ -21,4 +22,9 @@ public interface TransactionEventOutboxRelayService {
      * @return 本次成功投递数量
      */
     int publishDueEvents(LocalDateTime eventTime, int limit);
+
+    /** 跨指定已发布季度汇总并刷新交易 Outbox 运维指标。 */
+    default void refreshMetrics(List<LocalDateTime> publishedQuarters) {
+        // 仅默认兼容测试替身；生产实现必须从数据库聚合。
+    }
 }

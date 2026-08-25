@@ -1,6 +1,7 @@
 package com.scott.payment.payment.service;
 
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
+import com.scott.payment.payment.model.TransactionEventOutboxMetricsSnapshot;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -91,6 +92,24 @@ public interface TransactionEventOutboxService {
                                          LocalDateTime transactionDateTime,
                                          String eventType,
                                          LocalDateTime now) {
+        return false;
+    }
+
+    /** 查询指定季度的交易 Outbox 运维聚合快照。 */
+    default TransactionEventOutboxMetricsSnapshot metricsSnapshot(LocalDateTime eventTime) {
+        return null;
+    }
+
+    /**
+     * 使用事件号、分片时间和版本 CAS 人工恢复一条 Outbox CLOSED 事件。
+     *
+     * @return true 表示成功进入 FAILED 待重试；状态或版本变化时返回 false
+     */
+    default boolean recoverClosed(String eventNo,
+                                  LocalDateTime transactionDateTime,
+                                  Integer expectedVersion,
+                                  String recoveryReason,
+                                  LocalDateTime now) {
         return false;
     }
 }

@@ -2,6 +2,7 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mapper.TransactionEventOutboxMapper;
+import com.scott.payment.payment.model.TransactionEventOutboxMetricsSnapshot;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -84,6 +85,36 @@ class DefaultTransactionEventOutboxServiceTests {
 
         verify(mapper).rearmForRedeliveryLogical(
                 "refund-event-1", transactionTime, "REFUND_EXECUTION_REQUESTED", now);
+    }
+
+    @Test
+    void shouldReadMetricsWithinOnlyTheRequestedQuarter() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 24, 20, 0);
+        TransactionEventOutboxMetricsSnapshot snapshot = new TransactionEventOutboxMetricsSnapshot();
+        snapshot.setClosedCount(2L);
+        when(mapper.selectMetricsSnapshotLogical(
+                LocalDateTime.of(2026, 7, 1, 0, 0),
+                LocalDateTime.of(2026, 10, 1, 0, 0))).thenReturn(snapshot);
+
+        assertThat(service.metricsSnapshot(transactionTime)).isSameAs(snapshot);
+    }
+
+    @Test
+    void shouldRecoverClosedEventUsingShardKeyAndVersionCas() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 24, 20, 0);
+        LocalDateTime now = transactionTime.plusMinutes(5);
+        when(mapper.recoverClosedLogical(
+                "event-closed", transactionTime, 7, "operator approved retry", now)).thenReturn(1);
+
+        assertThat(service.recoverClosed(
+                "event-closed", transactionTime, 7, "operator approved retry", now)).isTrue();
+
+        verify(mapper).recoverClosedLogical(
+                "event-closed", transactionTime, 7, "operator approved retry", now);
     }
 
     private TransactionEventOutboxDO event(LocalDateTime transactionTime) {

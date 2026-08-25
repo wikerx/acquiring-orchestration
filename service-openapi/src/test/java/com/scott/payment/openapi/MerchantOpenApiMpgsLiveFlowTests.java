@@ -249,7 +249,8 @@ class MerchantOpenApiMpgsLiveFlowTests {
                 material,
                 platformPublicKey);
         LiveOperationResult voidResult = submitAndWait("/api/rest/payment/v1/void",
-                followUpPlainText(batchPrefix + "V1", batchPrefix + "V1VOID", "103", "void authorization", voidAuthorization.transactionId(), false),
+                voidPlainText(batchPrefix + "V1", batchPrefix + "V1VOID", "void authorization",
+                        voidAuthorization.transactionId()),
                 material,
                 platformPublicKey);
 
@@ -502,9 +503,17 @@ class MerchantOpenApiMpgsLiveFlowTests {
             Map<String, Object> payload = JsonUtils.parseObject(plainResponse, new TypeReference<>() {
             });
             @SuppressWarnings("unchecked")
-            Map<String, Object> checkoutInfo = (Map<String, Object>) payload.get("checkoutInfo");
-            assertThat(checkoutInfo).as(amount + " checkoutInfo").isNotNull();
-            String checkoutUrl = Objects.toString(checkoutInfo.get("checkoutUrl"), "");
+            Map<String, Object> billingInfo = (Map<String, Object>) payload.get("billingCardHolderInfo");
+            assertThat(billingInfo).as(amount + " billingCardHolderInfo").containsAllEntriesOf(Map.of(
+                    "firstName", "Codex",
+                    "lastName", "Tester",
+                    "email", "codex@example.com",
+                    "country", "CHN",
+                    "city", "Shanghai",
+                    "street", "100 Test Street",
+                    "postal", "200000"
+            ));
+            String checkoutUrl = Objects.toString(payload.get("checkoutUrl"), "");
             assertThat(checkoutUrl).as(amount + " checkoutUrl")
                     .startsWith(CHECKOUT_FRONTEND_BASE_URL + "/");
             sessions.add(Map.of(
@@ -829,7 +838,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
         Map<String, Object> payload = basePayload(orderNo, orderId, amount, currency, description, null);
         @SuppressWarnings("unchecked")
         Map<String, Object> transactionInfo = (Map<String, Object>) payload.get("transactionInfo");
-        transactionInfo.put("merchantWebsite", "https://merchant.example.com/checkout");
+        transactionInfo.put("merchantWebsite", "https://vexra-gateway.scott.com/checkout");
         Map<String, Object> cardInfo = new LinkedHashMap<>();
         cardInfo.put("cardNo", card.cardNo());
         cardInfo.put("expirationMonth", TEST_CARD_EXPIRY_MONTH);
@@ -839,7 +848,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
         payload.put("billingCardHolderInfo", billingCardHolderInfo());
         if (includeInvalidThreeDs) {
             payload.put("threeDSInfo", Map.of(
-                    "eci", "212",
+                    "eci", "99",
                     "cavv", "AAABBIIFmAAAAAAAAAAAAAAAAAA=",
                     "dsTransactionId", "b96c957d-daa1-4b7f-b8b4-373fb9dec47b",
                     "threeDsVersion", "2.2.0"
@@ -868,12 +877,26 @@ class MerchantOpenApiMpgsLiveFlowTests {
         Map<String, Object> payload = basePayload(orderNo, orderId, amount, "USD", description, sourceTransactionId);
         if (includeInvalidThreeDs) {
             payload.put("threeDSInfo", Map.of(
-                    "eci", "212",
+                    "eci", "99",
                     "cavv", "AAABBIIFmAAAAAAAAAAAAAAAAAA=",
                     "dsTransactionId", "b96c957d-daa1-4b7f-b8b4-373fb9dec47b",
                     "threeDsVersion", "2.2.0"
             ));
         }
+        return JsonUtils.toJsonString(payload);
+    }
+
+    /** 构造撤销请求；金额和币种由原交易确定，当前契约禁止商户重复上送。 */
+    private String voidPlainText(String orderNo,
+                                 String orderId,
+                                 String description,
+                                 String sourceTransactionId) {
+        Map<String, Object> payload = basePayload(
+                orderNo, orderId, "0", "USD", description, sourceTransactionId);
+        payload.put("orderInfo", Map.of(
+                "orderNo", orderNo,
+                "orderId", orderId
+        ));
         return JsonUtils.toJsonString(payload);
     }
 
@@ -908,55 +931,53 @@ class MerchantOpenApiMpgsLiveFlowTests {
                 "amount", new BigDecimal(amount),
                 "currency", currency
         ));
+        payload.put("payerInfo", Map.of(
+                "payerId", "CODEX-LIVE-TEST",
+                "email", "payer@example.com",
+                "country", "USA",
+                "ipAddress", "203.0.113.10"
+        ));
         payload.put("transactionInfo", transactionInfo);
         return payload;
     }
 
     /** 构造 MPGS Hosted Checkout 浏览器验收会话请求，不包含任何卡数据。 */
     private String hostedCheckoutPlainText(String orderNo, String amount) {
-        Map<String, Object> paymentMethod = new LinkedHashMap<>();
-        paymentMethod.put("paymentMethod", "BANK_CARD");
-        paymentMethod.put("channelCode", "MPGS");
-        paymentMethod.put("brands", List.of("VISA", "MASTERCARD", "JCB"));
-        paymentMethod.put("threeDsMode", "AUTO");
-
-        Map<String, Object> checkoutInfo = new LinkedHashMap<>();
-        checkoutInfo.put("locale", "zh-CN");
-        checkoutInfo.put("expireMinutes", 60);
-        checkoutInfo.put("allowedPaymentMethods", List.of(paymentMethod));
-        checkoutInfo.put("retryAllowed", true);
-        checkoutInfo.put("returnUrl", "https://merchant.example.com/checkout/return");
-        checkoutInfo.put("cancelUrl", "https://merchant.example.com/checkout/cancel");
-        checkoutInfo.put("notifyUrl", "https://merchant.example.com/opgs/callback");
-
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("merchantInfo", merchantInfo());
         payload.put("orderInfo", Map.of(
                 "orderNo", orderNo,
                 "orderId", orderNo + "REQ",
                 "amount", new BigDecimal(amount),
-                "currency", "USD",
-                "subject", "MPGS 3DS boundary validation",
-                "description", "hosted checkout browser validation"
+                "currency", "USD"
         ));
-        payload.put("checkoutInfo", checkoutInfo);
+        payload.put("billingCardHolderInfo", billingCardHolderInfo());
         payload.put("payerInfo", Map.of(
-                "payerId", "CODEX-3DS-TEST",
-                "email", "codex@example.com",
-                "country", "USA"
+                "payerId", "CODEX-HOSTED-CHECKOUT-TEST",
+                "email", "payer@example.com",
+                "country", "USA",
+                "ipAddress", "203.0.113.10"
+        ));
+        payload.put("transactionInfo", Map.of(
+                "description", "MPGS hosted checkout browser validation",
+                "callbackUrl", "https://merchant.example.com/opgs/callback",
+                "redirectUrl", "https://merchant.example.com/checkout/return",
+                "language", "zh-CN"
         ));
         return JsonUtils.toJsonString(payload);
     }
 
     /** 校验一次性收银台 URL 输出文件必须位于系统临时目录。 */
-    private Path checkoutUrlOutputFile() {
+    private Path checkoutUrlOutputFile() throws IOException {
         String configured = System.getProperty(CHECKOUT_URL_FILE_PROPERTY, "").trim();
         assertThat(configured).as(CHECKOUT_URL_FILE_PROPERTY).isNotBlank();
         Path outputFile = Path.of(configured).toAbsolutePath().normalize();
-        Path temporaryDirectory = Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize();
-        assertThat(outputFile).as("checkout URL output file must be under java.io.tmpdir")
-                .startsWith(temporaryDirectory);
         assertThat(outputFile.getParent()).isNotNull();
+        Path temporaryDirectory = Path.of(System.getProperty("java.io.tmpdir")).toRealPath();
+        Path outputParent = outputFile.getParent().toRealPath();
+        assertThat(outputParent.startsWith(temporaryDirectory))
+                .as("checkout URL output file must be under java.io.tmpdir")
+                .isTrue();
         return outputFile;
     }
 

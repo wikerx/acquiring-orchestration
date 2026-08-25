@@ -7,6 +7,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.scott.payment.component.core.cache.CacheMissMarkerStore;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.redis.cache.invalidation.ImmediateCacheEvictionService;
+import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
 import com.scott.payment.component.redis.observability.RedisBusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStringCommands;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.SerializationException;
 
@@ -76,6 +78,23 @@ class PaymentRedisCacheAutoConfigurationTests {
                         .hasSingleBean(ImmediateCacheEvictionService.class));
 
         log.info("Redis Cache 自动装配验证完成，结果: 立即失效服务已注册");
+    }
+
+    /** generation 存储只在 StringRedisTemplate 存在时装配，保持轻量 CacheManager 上下文可启动。 */
+    @Test
+    void shouldConditionallyRegisterCacheGenerationStore() {
+        ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(PaymentRedisCacheAutoConfiguration.class))
+                .withBean(CacheManager.class, () -> mock(CacheManager.class))
+                .withBean(CacheMissMarkerStore.class, () -> mock(CacheMissMarkerStore.class));
+
+        contextRunner.run(context -> assertThat(context)
+                .doesNotHaveBean(RedisCacheGenerationStore.class));
+
+        contextRunner
+                .withBean(StringRedisTemplate.class, () -> mock(StringRedisTemplate.class))
+                .run(context -> assertThat(context)
+                        .hasSingleBean(RedisCacheGenerationStore.class));
     }
 
     /**

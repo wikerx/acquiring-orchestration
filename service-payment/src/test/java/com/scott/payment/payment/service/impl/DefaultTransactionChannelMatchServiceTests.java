@@ -100,10 +100,48 @@ class DefaultTransactionChannelMatchServiceTests {
     }
 
     @Test
+    void shouldNotQueryRecentSentRequestWhileSynchronousChannelCallIsInFlight() {
+        TransactionOperationDO operationDO = pendingOperation();
+        TransactionChannelRequestDO originalRequest = originalRequest(operationDO);
+        originalRequest.setRequestStatus("SENT");
+        originalRequest.setCreateTime(LocalDateTime.now());
+        InMemoryRecordService recordService = new InMemoryRecordService(operationDO, originalRequest);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+
+        TransactionChannelMatchResultDTO resultDTO = matchService(
+                recordService, invokeService, resultTransactionService).matchDue(matchCommand());
+
+        assertThat(resultDTO.getPendingCount()).isEqualTo(1);
+        assertThat(invokeService.queryInvokeCount()).isZero();
+        assertThat(recordService.completedStatus).isNull();
+    }
+
+    @Test
     void shouldQueryStaleInitRequestWhenChannelIdentityAlreadyExists() {
         TransactionOperationDO operationDO = pendingOperation();
         TransactionChannelRequestDO originalRequest = originalRequest(operationDO);
         originalRequest.setRequestStatus("INIT");
+        originalRequest.setCreateTime(LocalDateTime.now().minusMinutes(10));
+        InMemoryRecordService recordService = new InMemoryRecordService(operationDO, originalRequest);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+
+        TransactionChannelMatchResultDTO resultDTO = matchService(
+                recordService, invokeService, resultTransactionService).matchDue(matchCommand());
+
+        assertThat(resultDTO.getMatchedCount()).isEqualTo(1);
+        assertThat(invokeService.queryInvokeCount()).isEqualTo(1);
+        assertThat(recordService.completedStatus).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+    }
+
+    @Test
+    void shouldQueryStaleSentRequestWhenSynchronousChannelCallDidNotFinish() {
+        TransactionOperationDO operationDO = pendingOperation();
+        TransactionChannelRequestDO originalRequest = originalRequest(operationDO);
+        originalRequest.setRequestStatus("SENT");
         originalRequest.setCreateTime(LocalDateTime.now().minusMinutes(10));
         InMemoryRecordService recordService = new InMemoryRecordService(operationDO, originalRequest);
         QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);

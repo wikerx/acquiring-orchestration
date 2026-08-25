@@ -58,6 +58,11 @@ acquiring:
           read-queue-nums: 4
           # 参数说明：配置 RocketMQ Topic 写队列数，必须为正整数并结合生产吞吐设置。
           write-queue-nums: 4
+        # Card BIN 等跨服务 generation 变更使用普通可靠消息，不承载缓存值。
+        - name: acquiring_cache_invalidation_topic
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
         # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
         - name: acquiring_risk_evaluation_audit_topic
           # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
@@ -168,6 +173,18 @@ acquiring:
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
+        # 交易生命周期顺序事件驱动订单查询缓存 generation 失效。
+        - name: service-payment-transaction-query-cache
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        # Card BIN 普通补偿消息驱动跨实例 generation 切换。
+        - name: service-payment-card-bin-cache
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
         # 风险累计限额预占生命周期独立消费进度。
         - name: acquiring-risk-merchant-limit-lifecycle-consumer
           type: CONSUMER_GROUP
@@ -186,6 +203,9 @@ acquiring:
       max-retry-count: 8
       retry-delay-seconds: 10
       processing-timeout-seconds: 120
+      # 聚合查询独立低频执行，避免跟随 1 秒 Relay 扫描访问全表状态。
+      metrics-initial-delay-ms: ${ACQUIRING_MQ_OUTBOX_METRICS_INITIAL_DELAY_MS:30000}
+      metrics-delay-ms: ${ACQUIRING_MQ_OUTBOX_METRICS_DELAY_MS:60000}
   operation-log:
     mq:
       # 管理类系统操作日志 MQ 链路总开关。

@@ -14,6 +14,7 @@ import com.scott.payment.payment.service.TransactionChannelMatchService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.PaymentTransactionService;
 import com.scott.payment.payment.service.TransactionLocatorService;
+import com.scott.payment.payment.service.TransactionQueryCacheService;
 import com.scott.payment.payment.service.MerchantTransactionSnapshotService;
 import com.scott.payment.payment.service.MerchantTransactionResultDetailService;
 import com.scott.payment.payment.service.dto.MerchantTransactionResultDetailDTO;
@@ -61,6 +62,9 @@ public class PaymentTransactionApplicationService {
     /** 平台生成的 3DS 与财务结果读取服务。 */
     private final MerchantTransactionResultDetailService merchantTransactionResultDetailService;
 
+    /** 订单级交易查询 Redis 读模型；Redis 故障时由实现自动回源数据库。 */
+    private final TransactionQueryCacheService transactionQueryCacheService;
+
     /**
      * 创建收单交易应用服务。
      *
@@ -70,6 +74,8 @@ public class PaymentTransactionApplicationService {
      * @param transactionRecordService 交易事实记录服务
      * @param transactionLocatorService 交易固定表定位服务
      * @param merchantTransactionSnapshotService 商户可见交易快照服务
+     * @param merchantTransactionResultDetailService 平台生成的交易结果详情服务
+     * @param transactionQueryCacheService 订单级交易查询缓存服务
      */
     public PaymentTransactionApplicationService(PaymentTransactionService paymentTransactionService,
                                                 TransactionCallbackService transactionCallbackService,
@@ -77,7 +83,8 @@ public class PaymentTransactionApplicationService {
                                                 TransactionRecordService transactionRecordService,
                                                 TransactionLocatorService transactionLocatorService,
                                                 MerchantTransactionSnapshotService merchantTransactionSnapshotService,
-                                                MerchantTransactionResultDetailService merchantTransactionResultDetailService) {
+                                                MerchantTransactionResultDetailService merchantTransactionResultDetailService,
+                                                TransactionQueryCacheService transactionQueryCacheService) {
         this.paymentTransactionService = paymentTransactionService;
         this.transactionCallbackService = transactionCallbackService;
         this.transactionChannelMatchService = transactionChannelMatchService;
@@ -85,6 +92,7 @@ public class PaymentTransactionApplicationService {
         this.transactionLocatorService = transactionLocatorService;
         this.merchantTransactionSnapshotService = merchantTransactionSnapshotService;
         this.merchantTransactionResultDetailService = merchantTransactionResultDetailService;
+        this.transactionQueryCacheService = transactionQueryCacheService;
     }
 
     /**
@@ -94,7 +102,8 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createPayment(PaymentCreateCommandDTO commandDTO) {
-        return enrichInitialResult(commandDTO, paymentTransactionService.createPayment(commandDTO));
+        return invalidateQueryCache(commandDTO,
+                enrichInitialResult(commandDTO, paymentTransactionService.createPayment(commandDTO)));
     }
 
     /**
@@ -104,7 +113,8 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createAuthorization(PaymentCreateCommandDTO commandDTO) {
-        return enrichInitialResult(commandDTO, paymentTransactionService.createAuthorization(commandDTO));
+        return invalidateQueryCache(commandDTO,
+                enrichInitialResult(commandDTO, paymentTransactionService.createAuthorization(commandDTO)));
     }
 
     /**
@@ -114,7 +124,8 @@ public class PaymentTransactionApplicationService {
      * @return 创建交易结果
      */
     public PaymentCreateResultDTO createPreAuthorization(PaymentCreateCommandDTO commandDTO) {
-        return enrichInitialResult(commandDTO, paymentTransactionService.createPreAuthorization(commandDTO));
+        return invalidateQueryCache(commandDTO,
+                enrichInitialResult(commandDTO, paymentTransactionService.createPreAuthorization(commandDTO)));
     }
 
     /**
@@ -125,7 +136,9 @@ public class PaymentTransactionApplicationService {
      */
     public PaymentCreateResultDTO createIncrementalAuthorization(PaymentCreateCommandDTO commandDTO) {
         transactionLocatorService.enrichFollowUpRoute(commandDTO);
-        return enrichFollowUpResult(commandDTO, paymentTransactionService.createIncrementalAuthorization(commandDTO));
+        return invalidateQueryCache(commandDTO,
+                enrichFollowUpResult(commandDTO,
+                        paymentTransactionService.createIncrementalAuthorization(commandDTO)));
     }
 
     /**
@@ -136,7 +149,8 @@ public class PaymentTransactionApplicationService {
      */
     public PaymentCreateResultDTO capture(PaymentCreateCommandDTO commandDTO) {
         transactionLocatorService.enrichFollowUpRoute(commandDTO);
-        return enrichFollowUpResult(commandDTO, paymentTransactionService.capture(commandDTO));
+        return invalidateQueryCache(commandDTO,
+                enrichFollowUpResult(commandDTO, paymentTransactionService.capture(commandDTO)));
     }
 
     /**
@@ -147,7 +161,8 @@ public class PaymentTransactionApplicationService {
      */
     public PaymentCreateResultDTO preAuthCompletion(PaymentCreateCommandDTO commandDTO) {
         transactionLocatorService.enrichFollowUpRoute(commandDTO);
-        return enrichFollowUpResult(commandDTO, paymentTransactionService.preAuthCompletion(commandDTO));
+        return invalidateQueryCache(commandDTO,
+                enrichFollowUpResult(commandDTO, paymentTransactionService.preAuthCompletion(commandDTO)));
     }
 
     /**
@@ -158,7 +173,8 @@ public class PaymentTransactionApplicationService {
      */
     public PaymentCreateResultDTO refund(PaymentCreateCommandDTO commandDTO) {
         transactionLocatorService.enrichFollowUpRoute(commandDTO);
-        return enrichFollowUpResult(commandDTO, paymentTransactionService.refund(commandDTO));
+        return invalidateQueryCache(commandDTO,
+                enrichFollowUpResult(commandDTO, paymentTransactionService.refund(commandDTO)));
     }
 
     /**
@@ -169,7 +185,8 @@ public class PaymentTransactionApplicationService {
      */
     public PaymentCreateResultDTO voidPayment(PaymentCreateCommandDTO commandDTO) {
         transactionLocatorService.enrichFollowUpRoute(commandDTO);
-        return enrichFollowUpResult(commandDTO, paymentTransactionService.voidPayment(commandDTO));
+        return invalidateQueryCache(commandDTO,
+                enrichFollowUpResult(commandDTO, paymentTransactionService.voidPayment(commandDTO)));
     }
 
     /**
@@ -179,6 +196,11 @@ public class PaymentTransactionApplicationService {
      * @return 查询结果
      */
     public PaymentQueryResultDTO query(PaymentCreateCommandDTO commandDTO) {
+        return transactionQueryCacheService.getOrLoad(commandDTO, () -> loadQueryFromDatabase(commandDTO));
+    }
+
+    /** 执行原有完整数据库聚合查询，供缓存 miss 和 Redis 降级路径复用。 */
+    private PaymentQueryResultDTO loadQueryFromDatabase(PaymentCreateCommandDTO commandDTO) {
         transactionLocatorService.enrichQueryRoute(commandDTO);
         PaymentQueryResultDTO resultDTO = paymentTransactionService.query(commandDTO);
         MerchantTransactionSnapshotDTO snapshot = loadSnapshot(commandDTO,
@@ -189,6 +211,16 @@ public class PaymentTransactionApplicationService {
         resultDTO.setPayerInfo(snapshot.getPayerInfo());
         resultDTO.setShippingInfo(snapshot.getShippingInfo());
         enrichQueryResultDetail(commandDTO, resultDTO);
+        return resultDTO;
+    }
+
+    /** 成功完成交易命令后同步推进订单查询缓存 generation；失败不反向影响交易结果。 */
+    private PaymentCreateResultDTO invalidateQueryCache(PaymentCreateCommandDTO commandDTO,
+                                                        PaymentCreateResultDTO resultDTO) {
+        if (commandDTO != null) {
+            transactionQueryCacheService.advanceGeneration(
+                    commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
+        }
         return resultDTO;
     }
 

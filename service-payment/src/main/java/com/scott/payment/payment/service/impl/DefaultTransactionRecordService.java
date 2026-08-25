@@ -68,6 +68,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * @author : scott
@@ -737,6 +738,44 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return null;
         }
         return transactionPaymentMethodInfoMapper.selectByTransactionId(transactionId, transactionDateTime);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public Map<String, TransactionPaymentMethodInfoDO> findPaymentMethodInfos(
+            List<TransactionOperationDO> operations) {
+        if (operations == null || operations.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, TransactionPaymentMethodInfoDO> result = new LinkedHashMap<>();
+        operations.stream()
+                .filter(Objects::nonNull)
+                .filter(operation -> StringUtils.hasText(operation.getOperationId()))
+                .collect(Collectors.groupingBy(TransactionOperationDO::getOperationId))
+                .forEach((operationId, lifecycleOperations) -> {
+                    LocalDateTime beginTime = lifecycleOperations.stream()
+                            .map(TransactionOperationDO::getTransactionDateTime)
+                            .filter(Objects::nonNull)
+                            .min(LocalDateTime::compareTo)
+                            .orElse(null);
+                    LocalDateTime maxTime = lifecycleOperations.stream()
+                            .map(TransactionOperationDO::getTransactionDateTime)
+                            .filter(Objects::nonNull)
+                            .max(LocalDateTime::compareTo)
+                            .orElse(null);
+                    if (beginTime == null || maxTime == null) {
+                        return;
+                    }
+                    transactionPaymentMethodInfoMapper.selectByOperationId(
+                                    operationId, beginTime, maxTime.plusSeconds(1L))
+                            .forEach(info -> {
+                                if (StringUtils.hasText(info.getTransactionId())) {
+                                    result.put(info.getTransactionId(), info);
+                                }
+                            });
+                });
+        return result;
     }
 
     /**
@@ -2307,8 +2346,12 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 && "FAILED".equals(invokeResultDTO.getRequestStatus())
                 && invokeResultDTO.getChannelResponse() == null
                 && PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());
-        if (updated != 1 && !preChannelFailureAlreadyClaimed && isRequestResultConflict(requestDO, resultDTO)) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel request state has changed");
+        if (updated != 1 && !preChannelFailureAlreadyClaimed) {
+            TransactionChannelRequestDO currentRequestDO = transactionChannelRequestMapper.selectByRequestId(
+                    invokeResultDTO.getRequestId(), commandDTO.getTransactionDateTime());
+            if (isRequestResultConflict(currentRequestDO, invokeResultDTO, resultDTO)) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel request state has changed");
+            }
         }
         log.info("event: PAYMENT_CHANNEL_REQUEST_DB_UPDATED stage=CHANNEL_RESULT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} channelCode: {} channelRequestId: {} channelTransactionId: {} requestStatus: {} platformStatus: {} channelResultCode: {} acquirerCode: {} logicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
@@ -2425,12 +2468,19 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
      * @param requestDO request DO 输入值，参与 请求do 的查询、校验、转换、写入或日志摘要
+     * @param invokeResultDTO 渠道调用结果，用于确认本次请求状态也已明确成功
      * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      * @return 条件满足时返回 true，否则返回 false
      */
-    private boolean isRequestResultConflict(TransactionChannelRequestDO requestDO, PaymentCreateResultDTO resultDTO) {
+    private boolean isRequestResultConflict(TransactionChannelRequestDO requestDO,
+                                            PaymentChannelInvokeResultDTO invokeResultDTO,
+                                            PaymentCreateResultDTO resultDTO) {
         return requestDO == null
+                || !"SUCCESS".equals(requestDO.getRequestStatus())
                 || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(requestDO.getPlatformResultCode())
+                || invokeResultDTO == null
+                || !"SUCCESS".equals(invokeResultDTO.getRequestStatus())
+                || resultDTO == null
                 || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
     }
 

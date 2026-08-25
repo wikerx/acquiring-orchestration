@@ -177,6 +177,7 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         eventDO.setMessageKey("TX202607121000000010001");
         eventDO.setTopic("PAYMENT_EVENT");
         eventDO.setTag("TRANSACTION_CREATED");
+        eventDO.setMessageGroup("OP202607121000000010001");
         eventDO.setPayloadJson(JsonUtils.toJsonString(message));
         eventDO.setEventTime(message.getCreatedAt());
         eventDO.setTransactionDateTime(message.getTransactionDateTime());

@@ -45,7 +45,7 @@ class TransactionEventOutboxRelaySchedulerTests {
     }
 
     @Test
-    void shouldRelayEveryPublishedQuarterNotAfterCurrentQuarter() {
+    void shouldRelayOnlyCurrentAndPreviousPublishedQuarterFrequently() {
         TransactionEventOutboxRelayService relayService =
                 mock(TransactionEventOutboxRelayService.class);
         TransactionShardingProperties shardingProperties = verifiedNodes(
@@ -56,20 +56,58 @@ class TransactionEventOutboxRelaySchedulerTests {
         TransactionEventOutboxRelayScheduler scheduler =
                 new TransactionEventOutboxRelayScheduler(relayService, shardingProperties, 50, clock);
 
-        scheduler.relay();
+        scheduler.relayRecent();
 
         verify(relayService).publishDueEvents(
                 LocalDateTime.of(2026, 7, 1, 0, 0), 50);
         verify(relayService).publishDueEvents(
                 LocalDateTime.of(2026, 4, 1, 0, 0), 50);
-        verify(relayService).publishDueEvents(
+        verify(relayService, org.mockito.Mockito.never()).publishDueEvents(
                 LocalDateTime.of(2026, 1, 1, 0, 0), 50);
+        verify(relayService, org.mockito.Mockito.never()).publishDueEvents(
+                LocalDateTime.of(2026, 10, 1, 0, 0), 50);
+    }
+
+    @Test
+    void shouldRelayAllOlderPublishedQuartersAtHistoricalFrequency() {
+        TransactionEventOutboxRelayService relayService = mock(TransactionEventOutboxRelayService.class);
+        TransactionShardingProperties shardingProperties = verifiedNodes(
+                "202501", "202502", "202503", "202504", "202601", "202602", "202603", "202604");
+        Clock clock = Clock.fixed(
+                Instant.parse("2026-07-30T02:00:00Z"),
+                ZoneId.of("Asia/Shanghai"));
+        TransactionEventOutboxRelayScheduler scheduler =
+                new TransactionEventOutboxRelayScheduler(relayService, shardingProperties, 50, clock);
+
+        scheduler.relayHistorical();
+
+        verify(relayService).publishDueEvents(LocalDateTime.of(2026, 1, 1, 0, 0), 50);
         verify(relayService).publishDueEvents(LocalDateTime.of(2025, 10, 1, 0, 0), 50);
         verify(relayService).publishDueEvents(LocalDateTime.of(2025, 7, 1, 0, 0), 50);
         verify(relayService).publishDueEvents(LocalDateTime.of(2025, 4, 1, 0, 0), 50);
         verify(relayService).publishDueEvents(LocalDateTime.of(2025, 1, 1, 0, 0), 50);
         verify(relayService, org.mockito.Mockito.never()).publishDueEvents(
-                LocalDateTime.of(2026, 10, 1, 0, 0), 50);
+                LocalDateTime.of(2026, 7, 1, 0, 0), 50);
+        verify(relayService, org.mockito.Mockito.never()).publishDueEvents(
+                LocalDateTime.of(2026, 4, 1, 0, 0), 50);
+    }
+
+    @Test
+    void shouldRefreshMetricsAcrossEveryPublishedQuarterNotAfterCurrentQuarter() {
+        TransactionEventOutboxRelayService relayService = mock(TransactionEventOutboxRelayService.class);
+        TransactionShardingProperties shardingProperties = verifiedNodes("202601", "202602", "202603", "202604");
+        Clock clock = Clock.fixed(
+                Instant.parse("2026-07-30T02:00:00Z"),
+                ZoneId.of("Asia/Shanghai"));
+        TransactionEventOutboxRelayScheduler scheduler =
+                new TransactionEventOutboxRelayScheduler(relayService, shardingProperties, 50, clock);
+
+        scheduler.refreshMetrics();
+
+        verify(relayService).refreshMetrics(java.util.List.of(
+                LocalDateTime.of(2026, 7, 1, 0, 0),
+                LocalDateTime.of(2026, 4, 1, 0, 0),
+                LocalDateTime.of(2026, 1, 1, 0, 0)));
     }
 
     /**
@@ -85,7 +123,7 @@ class TransactionEventOutboxRelaySchedulerTests {
         TransactionEventOutboxRelayScheduler scheduler =
                 new TransactionEventOutboxRelayScheduler(relayService, shardingProperties, 50, clock);
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(scheduler::relay)
+        org.assertj.core.api.Assertions.assertThatThrownBy(scheduler::relayRecent)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("yyyyQQ");
     }

@@ -68,9 +68,9 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
      */
     private static final long MISSING_IDENTITY_RETRY_HOURS = 24L;
 
-    /** 已明确离开 INIT 阶段的资金请求允许直接进入渠道状态查询。 */
+    /** 已取得同步结果或明确超时/失败的资金请求允许直接进入渠道状态查询。 */
     private static final Set<String> QUERYABLE_ORIGINAL_REQUEST_STATUSES = Set.of(
-            "SENT", "SUCCESS", "TIMEOUT", "FAILED");
+            "SUCCESS", "TIMEOUT", "FAILED");
 
     /** 管理端允许主动重查的勾兑状态；空值、无需勾兑和已匹配均禁止重复发起。 */
     private static final Set<String> REQUERYABLE_CHANNEL_MATCH_STATUSES = Set.of(
@@ -132,7 +132,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     /** 自动异常升级配置。 */
     private final ChannelMatchAbnormalProperties abnormalProperties;
 
-    /** 历史 INIT 请求恢复查询配置。 */
+    /** 历史 INIT/SENT 请求恢复查询配置。 */
     private final ChannelMatchRecoveryProperties recoveryProperties;
 
     /** 延迟获取异常服务，避免人工重查服务与自动勾兑服务形成构造器环。 */
@@ -373,7 +373,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         if (QUERYABLE_ORIGINAL_REQUEST_STATUSES.contains(requestStatus)) {
             return true;
         }
-        if (!"INIT".equals(requestStatus)) {
+        if (!"INIT".equals(requestStatus) && !"SENT".equals(requestStatus)) {
             return false;
         }
         LocalDateTime createTime = originalRequestDO.getCreateTime();
