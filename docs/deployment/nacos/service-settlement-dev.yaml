@@ -1,0 +1,11 @@
+# service-settlement 专属配置：只保留内部接口安全参数，不提供结算业务启停或资金处理规则。
+internal-service:
+  auth:
+    enabled: true
+    # 所有环境必须通过 Secret 注入独立密钥，禁止在 Nacos 或仓库中保存明文密钥。
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+    allowed-clock-skew: ${INTERNAL_SERVICE_AUTH_CLOCK_SKEW:5m}
+    nonce-ttl: ${INTERNAL_SERVICE_AUTH_NONCE_TTL:10m}
+    whitelist:
+      - /actuator/health/**
+      - /error

@@ -12,9 +12,19 @@ package com.scott.payment.component.mq.constant;
 public final class MqTopic {
 
     /**
-     * 收单交易事件主题，用于支付创建、状态变更、通知和对账相关异步消息。
+     * 收单普通消息主题，用于商户通知等不要求交易级顺序的兼容消息。
      */
     public static final String PAYMENT_EVENT = "payment-event";
+
+    /**
+     * 收单交易生命周期专用 RocketMQ 5.x FIFO Topic，同一 operationId 的事件保持顺序。
+     */
+    public static final String PAYMENT_TRANSACTION_FIFO = "acquiring_payment_transaction_fifo_topic";
+
+    /**
+     * 清分异常重试专用 RocketMQ 5.x Delay Topic，不与 FIFO 交易事件 Topic 混用。
+     */
+    public static final String PAYMENT_CLEARING_DELAY = "acquiring_payment_clearing_delay_topic";
 
     /**
      * 代付交易事件主题，用于代付创建、状态变更、通知和对账相关异步消息。

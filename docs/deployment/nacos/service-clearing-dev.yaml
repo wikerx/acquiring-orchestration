@@ -1,0 +1,31 @@
+# service-clearing 专属配置：服务启动即处理全部合法终态事件，只保留容量、安全和调度周期参数。
+clearing:
+  processing-timeout-seconds: ${CLEARING_PROCESSING_TIMEOUT_SECONDS:120}
+  max-retry-count: ${CLEARING_MAX_RETRY_COUNT:8}
+  consumer-min-threads: ${CLEARING_CONSUMER_MIN_THREADS:16}
+  consumer-max-threads: ${CLEARING_CONSUMER_MAX_THREADS:64}
+  internal-allowed-callers: ${CLEARING_INTERNAL_ALLOWED_CALLERS:service-admin,service-job}
+  metrics:
+    # 每个已发布季度各执行两条只读聚合 SELECT，周期可按副本容量调优。
+    initial-delay-ms: ${CLEARING_METRICS_INITIAL_DELAY_MS:30000}
+    fixed-delay-ms: ${CLEARING_METRICS_FIXED_DELAY_MS:60000}
+
+management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        # 为清分处理和阶梯锁等待提供可跨实例聚合的 P95/P99 直方图。
+        clearing.duration: true
+        clearing.tier.lock: true
+
+internal-service:
+  auth:
+    enabled: true
+    caller: service-clearing
+    # dev 也必须显式注入独立密钥，避免自动消费者带共享弱密钥启动。
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+    allowed-clock-skew: 5m
+    nonce-ttl: 10m
+    whitelist:
+      - /actuator/health/**
+      - /error

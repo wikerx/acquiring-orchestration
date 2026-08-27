@@ -18,5 +18,5 @@ Service Port：${server.port}
 System Version：v1.0.0
 Author：scott
 Version Release Time：2026-05-29
-Version Release Note：acquiring orchestration service startup
+Version Release Note：acquiring orchestration[service-openApi] service startup
 *************************************************************************************************************

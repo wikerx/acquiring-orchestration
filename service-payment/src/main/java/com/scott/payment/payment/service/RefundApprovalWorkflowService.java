@@ -357,7 +357,7 @@ public class RefundApprovalWorkflowService {
         outbox.setTransactionType(operation.getTransactionType());
         outbox.setEventType(MqTag.REFUND_EXECUTION_REQUESTED);
         outbox.setEventStatus(EVENT_STATUS_INIT);
-        outbox.setTopic(MqTopic.PAYMENT_EVENT);
+        outbox.setTopic(MqTopic.PAYMENT_TRANSACTION_FIFO);
         outbox.setTag(MqTag.REFUND_EXECUTION_REQUESTED);
         outbox.setMessageKey(eventId);
         outbox.setMessageGroup(operation.getOperationId());

@@ -1,9 +1,9 @@
-# ShardingSphere-JDBC 交易分片非秘密候选配置。
-# 真实 Dry Run 已通过；仍须经 Nacos 发布审批和五服务滚动加载验收后才能生效。
+# ShardingSphere-JDBC 交易清分 28 表非秘密候选配置。
+# 尚未执行真实 Dry Run；必须先完成物理表迁移和 28 表治理校验，才允许提交 Nacos 发布审批。
 transaction-sharding:
   # 第一版直接启用 ShardingSphere 单写，不配置 LEGACY/COMPARE 服务级迁移 mode。
-  rule-version: "2026.08.14-001"
-  rule-checksum: "sha256:1558bdaa3834f1b93035d6fba3e7027f941f179323f18e60279b9c1c87c04331"
+  rule-version: "2026.08.25-002-candidate-clearing-28"
+  rule-checksum: "sha256:8ec98c2d65d9324d758d48c71343606496eebbe7bcd00d1e6adf3c46f63dd15a"
   database-zone-id: Asia/Shanghai
   sharding-column: transaction_date_time
   primary-data-source: master
@@ -11,7 +11,7 @@ transaction-sharding:
     - slave_1
     - slave_2
 
-  # actualDataNodes 只包含 25 张正式表全部通过真实 Dry Run 的季度。
+  # 候选节点仅列出待按 28 张正式表重新完成真实 Dry Run 的季度；当前文件本身不是通过证据。
   physical-nodes:
     - "202603"
     - "202604"
@@ -42,6 +42,9 @@ transaction-sharding:
     - transaction_event_outbox
     - transaction_abnormal_event
     - transaction_card_vault
+    - transaction_clearing_detail
+    - transaction_reserve_clearing_detail
+    - transaction_reserve_clearing_state
 
   direct-access-services:
     - service-payment
@@ -49,6 +52,7 @@ transaction-sharding:
     - service-merchant
     - service-risk
     - service-data
+    - service-clearing
 
   query-budget:
     synchronous-timeout-millis: 5000

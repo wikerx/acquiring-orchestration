@@ -7,21 +7,36 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>component-library</artifactId>
     <packaging>pom</packaging>
+    <name>component-library</name>
+    <description>跨服务复用的通用技术组件聚合模块，不承载任何具体业务流程。</description>
 
+    <!--
+        组件依赖应保持从专用组件指向基础组件，业务服务可以按需组合使用。
+        禁止在此聚合层或任一组件中放入只属于单个服务的业务规则和状态机。
+    -->
     <modules>
+        <!--基础值对象、枚举、异常、缓存契约、卡号脱敏和通用工具。-->
         <module>component-core</module>
+        <!--Excel 导入导出模型、注解和统一处理能力。-->
         <module>component-excel</module>
+        <!--Servlet Web、鉴权上下文、异常处理、链路追踪和内部接口保护。-->
         <module>component-web</module>
+        <!--JWT、签名、加解密、密钥材料和防重放安全能力。-->
         <module>component-security</module>
+        <!--轻量同步 HTTP 客户端及响应模型。-->
         <module>component-http</module>
+        <!--MyBatis、动态数据源、分库分表、实体和 Mapper 基础设施。-->
         <module>component-db</module>
+        <!--Redis 缓存、分布式锁、幂等、防重和 ID 生成能力。-->
         <module>component-redis</module>
+        <!--RocketMQ 消息契约、资源初始化、发送治理和可观测性。-->
         <module>component-mq</module>
+        <!--任务 Handler、执行上下文和调度公共契约。-->
         <module>component-job</module>
     </modules>
 </project>

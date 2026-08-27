@@ -72,4 +72,46 @@ public interface MqProducer {
                                 String payloadJson) {
         throw new UnsupportedOperationException("serialized mq delivery is not supported");
     }
+
+    /**
+     * 按业务分组键发送 Outbox 中已经冻结的 JSON 消息快照。
+     *
+     * @param topic RocketMQ Topic
+     * @param tag RocketMQ Tag，可为空
+     * @param messageId 消息唯一编号
+     * @param traceId 链路追踪号，可为空
+     * @param retryCount Outbox 投递重试次数
+     * @param payloadJson 已脱敏 JSON 消息快照，不得重新序列化
+     * @param messageGroup 非空业务分组键
+     */
+    default void sendSerializedOrderly(String topic,
+                                       String tag,
+                                       String messageId,
+                                       String traceId,
+                                       int retryCount,
+                                       String payloadJson,
+                                       String messageGroup) {
+        throw new UnsupportedOperationException("serialized orderly mq delivery is not supported");
+    }
+
+    /**
+     * 按绝对时间发送 Outbox 中已经冻结的 JSON 消息快照。
+     *
+     * @param topic RocketMQ Topic
+     * @param tag RocketMQ Tag，可为空
+     * @param messageId 消息唯一编号
+     * @param traceId 链路追踪号，可为空
+     * @param retryCount Outbox 投递重试次数
+     * @param payloadJson 已脱敏 JSON 消息快照，不得重新序列化
+     * @param deliverAt 最早投递时间
+     */
+    default void sendSerializedAt(String topic,
+                                  String tag,
+                                  String messageId,
+                                  String traceId,
+                                  int retryCount,
+                                  String payloadJson,
+                                  Instant deliverAt) {
+        throw new UnsupportedOperationException("serialized scheduled mq delivery is not supported");
+    }
 }

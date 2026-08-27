@@ -35,6 +35,7 @@ import com.scott.payment.payment.mapper.TransactionMerchantApiInteractionLogMapp
 import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.mapper.TransactionLocatorMapper;
 import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
+import com.scott.payment.payment.service.MerchantTransactionSnapshotService;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import org.mockito.ArgumentCaptor;
@@ -566,8 +567,11 @@ class DefaultTransactionRecordServiceTests {
                 paymentMethodInfoMapper,
                 new TransactionShardingKeyParser(),
                 logicalShardingProperties());
+        MerchantTransactionSnapshotService snapshotService = mock(MerchantTransactionSnapshotService.class);
+        ReflectionTestUtils.setField(recordService, "merchantTransactionSnapshotService", snapshotService);
 
-        recordService.recordFollowUpTransaction(followUpRecord());
+        TransactionFollowUpRecordDTO recordDTO = followUpRecord();
+        recordService.recordFollowUpTransaction(recordDTO);
 
         assertThat(operationCapture.value.getTransactionId()).isEqualTo("TX202610011000000000001");
         assertThat(operationCapture.value.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 10, 1, 10, 0));
@@ -579,6 +583,8 @@ class DefaultTransactionRecordServiceTests {
                 "TX202610011000000000001",
                 new BigDecimal("5.00"),
                 0);
+        verify(snapshotService).recordActionSnapshot(
+                eq(recordDTO.getCommandDTO()), eq(recordDTO.getResultDTO()), any(LocalDateTime.class));
     }
 
     /**

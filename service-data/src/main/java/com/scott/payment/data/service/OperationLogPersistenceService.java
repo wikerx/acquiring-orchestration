@@ -116,7 +116,7 @@ public class OperationLogPersistenceService {
         entity.setResponseResult(message.getResponseResult());
         entity.setCostTime(message.getCostTimeMs());
         entity.setStatus(message.getOperationStatus() == null ? SUCCESS_STATUS : message.getOperationStatus());
-        entity.setErrorCode(message.getErrorCode());
+        entity.setErrorCode(truncate(message.getErrorCode(), OperationLogMessage.ERROR_CODE_MAX_LENGTH));
         entity.setErrorMsg(truncate(message.getErrorMessage(), OperationLogMessage.ERROR_MESSAGE_MAX_LENGTH));
         entity.setOperatedAt(message.getOperationTime() == null ? now : message.getOperationTime());
         entity.setCreatedAt(now);

@@ -33,6 +33,8 @@ public interface TransactionMerchantSnapshotMapper extends BaseMapper<Transactio
                    channel_id, channel_code, channel_mid_config_id, channel_merchant_id, terminal_id,
                    channel_mid_metadata_json, settlement_config_snapshot_json, fee_config_snapshot_json,
                    internal_risk_config_snapshot_json, route_config_snapshot_json,
+                   fee_plan_id, fee_plan_version_id, fee_plan_version_no,
+                   fee_snapshot_hash, fee_snapshot_time,
                    transaction_date_time, transaction_utc_time, transaction_time_zone,
                    create_time, update_time
             FROM transaction_merchant_snapshot

@@ -1,8 +1,8 @@
 # ShardingSphere-JDBC 交易逻辑路由与物理表治理的 dev 已发布非秘密配置。
 # actualDataNodes 只包含已建表且通过治理校验的季度；变更后必须重新计算并校验规则 checksum。
 transaction-sharding:
-  rule-version: "2026.08.14-001"
-  rule-checksum: "sha256:1558bdaa3834f1b93035d6fba3e7027f941f179323f18e60279b9c1c87c04331"
+  rule-version: "2026.08.25-002-candidate-clearing-28"
+  rule-checksum: "sha256:8ec98c2d65d9324d758d48c71343606496eebbe7bcd00d1e6adf3c46f63dd15a"
   database-zone-id: Asia/Shanghai
   sharding-column: transaction_date_time
   primary-data-source: master
@@ -38,12 +38,16 @@ transaction-sharding:
     - transaction_event_outbox
     - transaction_abnormal_event
     - transaction_card_vault
+    - transaction_clearing_detail
+    - transaction_reserve_clearing_detail
+    - transaction_reserve_clearing_state
   direct-access-services:
     - service-payment
     - service-admin
     - service-merchant
     - service-risk
     - service-data
+    - service-clearing
   query-budget:
     synchronous-timeout-millis: 5000
     max-result-rows: 1000
@@ -709,3 +713,42 @@ transaction-sharding:
         table-name-format: "%s_%d%02d"
         actual-data-source: master
         description: 保存收银台无 CVV 卡资料的字段密文、PAN HMAC 和被 KEK 包裹的 DEK。
+      transaction-clearing-detail:
+        enabled: true
+        logical-table: transaction_clearing_detail
+        template-table: transaction_clearing_detail
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 保存交易本金与各项费用的标签币种清分明细，结算阶段再统一换汇。
+      transaction-reserve-clearing-detail:
+        enabled: true
+        logical-table: transaction_reserve_clearing_detail
+        template-table: transaction_reserve_clearing_detail
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 保存标签币种保证金扣留、返还、释放和调整清分明细，不在清分阶段换汇。
+      transaction-reserve-clearing-state:
+        enabled: true
+        logical-table: transaction_reserve_clearing_state
+        template-table: transaction_reserve_clearing_state
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 3
+        end-year: 2099
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 保存原支付保证金累计扣留、返还、释放及双向调整后的剩余负债状态。

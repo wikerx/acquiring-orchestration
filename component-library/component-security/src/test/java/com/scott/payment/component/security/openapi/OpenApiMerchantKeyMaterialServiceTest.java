@@ -100,7 +100,7 @@ class OpenApiMerchantKeyMaterialServiceTest {
 
         OpenApiMerchantKeyExportProperties exportProperties = new OpenApiMerchantKeyExportProperties();
         exportProperties.setOpenApiBaseUrl("http://127.0.0.1:8004");
-        exportProperties.setSdkVersion("0.1.0-SNAPSHOT");
+        exportProperties.setSdkVersion("1.0.0-SNAPSHOT");
         exportProperties.setCryptoMode("RSA-OAEP-256+A256GCM");
 
         OpenApiKeyExportService exportService = new OpenApiKeyExportService(exportProperties);
@@ -226,7 +226,7 @@ class OpenApiMerchantKeyMaterialServiceTest {
         String gatewayBaseUrl = "https://gateway.local.test";
         OpenApiMerchantKeyExportProperties exportProperties = new OpenApiMerchantKeyExportProperties();
         exportProperties.setOpenApiBaseUrl("https://ignored.example.com");
-        exportProperties.setSdkVersion("0.1.0-SNAPSHOT");
+        exportProperties.setSdkVersion("1.0.0-SNAPSHOT");
         exportProperties.setCryptoMode("RSA-OAEP-256+A256GCM");
         OpenApiKeyExportService exportService = new OpenApiKeyExportService(() -> gatewayBaseUrl);
         OpenApiMerchantKeyMaterialService service = new OpenApiMerchantKeyMaterialService(

@@ -6,14 +6,23 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>service-gateway</artifactId>
+    <name>service-gateway</name>
+    <description>统一流量网关，负责路由、入口过滤、链路标识和网关级安全控制。</description>
+
+    <!--
+        网关只处理协议和流量治理，不读取业务数据库、不执行业务状态机，也不持有交易事实。
+        本服务基于 WebFlux，禁止引入 Servlet 版 component-web 造成双 Web 栈冲突。
+    -->
     <dependencies>
+        <!--响应式网关路由、过滤器链和故障回退能力。-->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
         </dependency>
+        <!--服务注册、配置中心和按服务名转发所需负载均衡。-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -26,6 +35,7 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+        <!--复用链路字段、异常、响应和入口安全相关基础模型。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
@@ -35,6 +45,7 @@
 
     <build>
         <plugins>
+            <!--将网关及其运行时依赖重打包为可独立启动的 Spring Boot 制品。-->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

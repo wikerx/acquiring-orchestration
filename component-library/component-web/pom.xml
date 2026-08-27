@@ -6,28 +6,40 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>component-library</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>component-web</artifactId>
     <packaging>jar</packaging>
+    <name>component-web</name>
+    <description>同步 Web 服务共用的鉴权上下文、异常处理、链路追踪和接口治理组件。</description>
+
+    <!--
+        本模块面向 Servlet Web 服务提供横切能力，不放置 Admin、Merchant、OpenAPI 等具体接口。
+        网关使用 WebFlux 技术栈，不应直接依赖本 Servlet 组件。
+    -->
     <dependencies>
+        <!--复用统一响应、异常、枚举和链路字段。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--提供 Spring MVC、Servlet 和内嵌 Web 容器基础能力。-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!--Fastjson2 与 Spring MVC 的消息转换集成。-->
         <dependency>
             <groupId>com.alibaba.fastjson2</groupId>
             <artifactId>fastjson2-extension-spring6</artifactId>
         </dependency>
+        <!--Controller 请求参数和 DTO Bean Validation。-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!--鉴权、操作日志和版本门禁等横切逻辑所需 AOP 支持。-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aop</artifactId>

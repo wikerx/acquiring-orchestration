@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.scott.payment</groupId>
+        <artifactId>finance-library</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>model-reserve</artifactId>
+    <packaging>jar</packaging>
+    <name>model-reserve</name>
+    <description>标签币种保证金扣留、返还命令及计算结果契约。</description>
+
+    <!--
+        本模块只表达保证金 HOLD/RETURN 事实和规则，接口中禁止出现汇率。
+        保证金账户入账、释放计划、清分持久化和结算批次不属于本模块。
+    -->
+    <dependencies>
+        <!--保证金金额统一使用底层金额和币种值对象。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-money</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+    </dependencies>
+</project>

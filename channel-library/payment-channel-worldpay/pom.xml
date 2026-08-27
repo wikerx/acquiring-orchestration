@@ -7,32 +7,43 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>channel-library</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>payment-channel-worldpay</artifactId>
     <packaging>jar</packaging>
+    <name>payment-channel-worldpay</name>
+    <description>Worldpay 支付渠道协议适配器。</description>
 
+    <!--
+        本模块只负责 Worldpay 请求映射、响应解析、认证和渠道错误转换。
+        不决定商户路由、交易状态机、重试补偿或资金处理规则。
+    -->
     <dependencies>
+        <!--实现标准支付渠道 SPI。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>payment-channel-api</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--复用渠道注册和统一执行框架。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>payment-channel-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--复用平台日志、异常、卡信息和通用值对象。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--解析和生成 Worldpay JSON 协议报文。-->
         <dependency>
             <groupId>com.alibaba.fastjson2</groupId>
             <artifactId>fastjson2</artifactId>
         </dependency>
+        <!--Spring 依赖注入和自动配置支持，不构成独立应用。-->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>

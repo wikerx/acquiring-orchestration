@@ -3,7 +3,9 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessage;
+import com.scott.payment.component.mq.message.ClearingRetryDueMessage;
 import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
@@ -13,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +33,8 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
     @Test
     void shouldPublishDueEventAndMarkSent() {
-        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(event());
+        TransactionEventOutboxDO event = event();
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(event);
         CapturingMqProducer mqProducer = new CapturingMqProducer(null);
         DefaultTransactionEventOutboxRelayService relayService = new DefaultTransactionEventOutboxRelayService(
                 eventOutboxService,
@@ -40,8 +44,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
         assertThat(successCount).isEqualTo(1);
         assertThat(mqProducer.sent).isTrue();
-        assertThat(mqProducer.message).isInstanceOf(TransactionEventMessage.class);
-        assertThat(((TransactionEventMessage) mqProducer.message).getTransactionDateTime())
+        assertThat(mqProducer.payloadJson).isEqualTo(event.getPayloadJson());
+        assertThat(JsonUtils.parseObject(mqProducer.payloadJson, TransactionEventMessage.class)
+                .getTransactionDateTime())
                 .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 0));
         assertThat(eventOutboxService.eventDO.getEventStatus()).isEqualTo("SENT");
         assertThat(eventOutboxService.eventDO.getSentTime()).isNotNull();
@@ -109,7 +114,7 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
         assertThat(successCount).isEqualTo(1);
         assertThat(mqProducer.scheduled).isTrue();
-        assertThat(mqProducer.message).isInstanceOf(MerchantNotificationRetryDueMessage.class);
+        assertThat(mqProducer.payloadJson).isEqualTo(event.getPayloadJson());
         assertThat(mqProducer.deliverAt).isEqualTo(
                 deliverAt.atZone(ZoneId.of("Asia/Shanghai")).toInstant());
     }
@@ -147,6 +152,7 @@ class DefaultTransactionEventOutboxRelayServiceTests {
     @Test
     void shouldUseMessageGroupForOrderedTransactionDelivery() {
         TransactionEventOutboxDO orderedEvent = event();
+        orderedEvent.setDeliveryMode("ORDERLY");
         orderedEvent.setMessageGroup("TX202607121000000010001");
         InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(orderedEvent);
         CapturingMqProducer mqProducer = new CapturingMqProducer(null);
@@ -156,7 +162,131 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         int successCount = relayService.publishDueEvents(orderedEvent.getTransactionDateTime(), 10);
 
         assertThat(successCount).isEqualTo(1);
+        assertThat(mqProducer.deliveryMethod).isEqualTo("ORDERLY");
         assertThat(mqProducer.messageGroup).isEqualTo("TX202607121000000010001");
+        assertThat(mqProducer.payloadJson).isEqualTo(orderedEvent.getPayloadJson());
+    }
+
+    /** NORMAL 模式必须忽略已有分组键并原样发送冻结 JSON。 */
+    @Test
+    void shouldUseNormalDeliveryModeWithoutRewritingFrozenJson() {
+        TransactionEventOutboxDO normalEvent = event();
+        normalEvent.setDeliveryMode("NORMAL");
+        normalEvent.setMessageGroup("legacy-group-must-not-force-orderly");
+        normalEvent.setPayloadJson("{ \"eventType\": \"TRANSACTION_CREATED\", \"messageId\": \"M-1\" }");
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(normalEvent);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(normalEvent.getTransactionDateTime(), 10);
+
+        assertThat(successCount).isEqualTo(1);
+        assertThat(mqProducer.deliveryMethod).isEqualTo("NORMAL");
+        assertThat(mqProducer.messageGroup).isNull();
+        assertThat(mqProducer.payloadJson).isEqualTo(normalEvent.getPayloadJson());
+    }
+
+    /** SCHEDULED 模式按数据库 UTC 时间生成绝对 Instant，不读取或改写消息体时间。 */
+    @Test
+    void shouldUseScheduledDeliveryModeWithUtcDeliverAt() {
+        TransactionEventOutboxDO scheduledEvent = event();
+        LocalDateTime deliverAt = LocalDateTime.of(2026, 8, 26, 2, 30, 0, 123_000_000);
+        scheduledEvent.setDeliveryMode("SCHEDULED");
+        scheduledEvent.setDeliverAt(deliverAt);
+        scheduledEvent.setMessageGroup(null);
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(scheduledEvent);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(scheduledEvent.getTransactionDateTime(), 10);
+
+        assertThat(successCount).isEqualTo(1);
+        assertThat(mqProducer.deliveryMethod).isEqualTo("SCHEDULED");
+        assertThat(mqProducer.deliverAt).isEqualTo(deliverAt.toInstant(ZoneOffset.UTC));
+        assertThat(mqProducer.payloadJson).isEqualTo(scheduledEvent.getPayloadJson());
+    }
+
+    @Test
+    void shouldPublishClearingRetryOnlyWhenPayloadAndOutboxDeliverAtMatch() {
+        LocalDateTime deliverAt = LocalDateTime.of(2026, 8, 26, 2, 30, 0, 123_000_000);
+        TransactionEventOutboxDO scheduledEvent = clearingRetryEvent(deliverAt);
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(scheduledEvent);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(scheduledEvent.getTransactionDateTime(), 10);
+
+        assertThat(successCount).isEqualTo(1);
+        assertThat(mqProducer.deliveryMethod).isEqualTo("SCHEDULED");
+        assertThat(mqProducer.deliverAt).isEqualTo(deliverAt.toInstant(ZoneOffset.UTC));
+    }
+
+    @Test
+    void shouldAcceptLegacyClearingRetryPayloadWithinSameDatabaseMillisecond() {
+        LocalDateTime deliverAt = LocalDateTime.of(2026, 8, 26, 2, 30, 0, 123_000_000);
+        TransactionEventOutboxDO scheduledEvent = clearingRetryEvent(deliverAt);
+        ClearingRetryDueMessage retryMessage = JsonUtils.parseObject(
+                scheduledEvent.getPayloadJson(), ClearingRetryDueMessage.class);
+        retryMessage.setDeliverAt(deliverAt.toInstant(ZoneOffset.UTC).plusNanos(456_000));
+        scheduledEvent.setPayloadJson(JsonUtils.toJsonString(retryMessage));
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(scheduledEvent);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(scheduledEvent.getTransactionDateTime(), 10);
+
+        assertThat(successCount).isEqualTo(1);
+        assertThat(mqProducer.deliveryMethod).isEqualTo("SCHEDULED");
+        assertThat(mqProducer.deliverAt).isEqualTo(deliverAt.toInstant(ZoneOffset.UTC));
+    }
+
+    @Test
+    void shouldRejectClearingRetryWhenPayloadAndOutboxDeliverAtDiffer() {
+        LocalDateTime deliverAt = LocalDateTime.of(2026, 8, 26, 2, 30, 0, 123_000_000);
+        TransactionEventOutboxDO scheduledEvent = clearingRetryEvent(deliverAt);
+        scheduledEvent.setDeliverAt(deliverAt.plusSeconds(1));
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(scheduledEvent);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(null);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(scheduledEvent.getTransactionDateTime(), 10);
+
+        assertThat(successCount).isZero();
+        assertThat(mqProducer.sendCount).isZero();
+        assertThat(scheduledEvent.getEventStatus()).isEqualTo("FAILED");
+    }
+
+    private TransactionEventOutboxDO clearingRetryEvent(LocalDateTime deliverAt) {
+        ClearingRetryDueMessage message = new ClearingRetryDueMessage();
+        message.setMessageId("CR-1");
+        message.setTraceId("TRACE-1");
+        message.setTransactionId("TX-1");
+        message.setOperationId("OP-1");
+        message.setMerchantId("M-1");
+        message.setMerchantOrderNo("ORDER-1");
+        message.setTransactionType("REFUND");
+        message.setTransactionStatus("SUCCESS");
+        message.setEventType(MqTag.TRANSACTION_CLEARING_RETRY_DUE);
+        message.setTransactionDateTime(LocalDateTime.of(2026, 8, 26, 1, 0));
+        message.setSourceEventNo("MSG-1");
+        message.setExpectedClearingRevision(0);
+        message.setClearingRetryCount(1);
+        message.setRetryReasonCode("SOURCE_CLEARING_PENDING");
+        message.setDeliverAt(deliverAt.toInstant(ZoneOffset.UTC));
+        TransactionEventOutboxDO event = event();
+        event.setTopic(MqTopic.PAYMENT_CLEARING_DELAY);
+        event.setTag(MqTag.TRANSACTION_CLEARING_RETRY_DUE);
+        event.setEventType(MqTag.TRANSACTION_CLEARING_RETRY_DUE);
+        event.setDeliveryMode("SCHEDULED");
+        event.setDeliverAt(deliverAt);
+        event.setMessageGroup(null);
+        event.setPayloadJson(JsonUtils.toJsonString(message));
+        return event;
     }
 
     private TransactionEventOutboxDO event() {
@@ -239,6 +369,21 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         /** 捕获的顺序消息分组键。 */
         private String messageGroup;
 
+        /** 捕获冻结 JSON，断言 Relay 不执行二次序列化。 */
+        private String payloadJson;
+
+        /** 捕获消息 Header 使用的平台消息号。 */
+        private String messageId;
+
+        /** 捕获消息 Header 使用的 traceId。 */
+        private String traceId;
+
+        /** 捕获消息 Header 使用的 Outbox 重试次数。 */
+        private int retryCount;
+
+        /** NORMAL、ORDERLY 或 SCHEDULED。 */
+        private String deliveryMethod;
+
         private CapturingMqProducer(RuntimeException failure) {
             this.failure = failure;
         }
@@ -272,6 +417,61 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             this.message = message;
             this.deliverAt = deliverAt;
             this.scheduled = true;
+            this.sent = true;
+            this.sendCount++;
+        }
+
+        /** 捕获普通冻结 JSON 及 Header 元数据。 */
+        @Override
+        public void sendSerialized(String topic,
+                                   String tag,
+                                   String messageId,
+                                   String traceId,
+                                   int retryCount,
+                                   String payloadJson) {
+            captureSerialized(messageId, traceId, retryCount, payloadJson, "NORMAL");
+        }
+
+        /** 捕获顺序冻结 JSON 及分组键。 */
+        @Override
+        public void sendSerializedOrderly(String topic,
+                                          String tag,
+                                          String messageId,
+                                          String traceId,
+                                          int retryCount,
+                                          String payloadJson,
+                                          String messageGroup) {
+            captureSerialized(messageId, traceId, retryCount, payloadJson, "ORDERLY");
+            this.messageGroup = messageGroup;
+        }
+
+        /** 捕获取绝对时间投递的冻结 JSON。 */
+        @Override
+        public void sendSerializedAt(String topic,
+                                     String tag,
+                                     String messageId,
+                                     String traceId,
+                                     int retryCount,
+                                     String payloadJson,
+                                     Instant deliverAt) {
+            captureSerialized(messageId, traceId, retryCount, payloadJson, "SCHEDULED");
+            this.deliverAt = deliverAt;
+            this.scheduled = true;
+        }
+
+        private void captureSerialized(String messageId,
+                                       String traceId,
+                                       int retryCount,
+                                       String payloadJson,
+                                       String deliveryMethod) {
+            if (failure != null) {
+                throw failure;
+            }
+            this.messageId = messageId;
+            this.traceId = traceId;
+            this.retryCount = retryCount;
+            this.payloadJson = payloadJson;
+            this.deliveryMethod = deliveryMethod;
             this.sent = true;
             this.sendCount++;
         }

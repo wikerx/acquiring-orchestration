@@ -2,10 +2,14 @@ package com.scott.payment.payment.mq;
 
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.TransactionQueryCacheService;
+import org.apache.rocketmq.spring.annotation.ConsumeMode;
+import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -22,6 +26,16 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class TransactionQueryCacheInvalidationConsumerTests {
+
+    /** 查询缓存失效必须跟随同一交易 FIFO 队列顺序消费生命周期事件。 */
+    @Test
+    void listenerContractShouldUsePaymentTransactionFifoTopicAndOrderlyMode() {
+        RocketMQMessageListener listener = TransactionQueryCacheInvalidationConsumer.class
+                .getAnnotation(RocketMQMessageListener.class);
+
+        assertThat(listener.topic()).isEqualTo(MqTopic.PAYMENT_TRANSACTION_FIFO);
+        assertThat(listener.consumeMode()).isEqualTo(ConsumeMode.ORDERLY);
+    }
 
     @Test
     void shouldSafelyAdvanceGenerationForDuplicateDelivery() {
@@ -49,12 +63,28 @@ class TransactionQueryCacheInvalidationConsumerTests {
                 .hasMessageContaining("generation advancement failed");
     }
 
+    @Test
+    void shouldInvalidateQueryCacheWhenClearingCompletes() {
+        TransactionQueryCacheService cacheService = mock(TransactionQueryCacheService.class);
+        when(cacheService.advanceGeneration("merchant-1", "order-1")).thenReturn(true);
+        TransactionQueryCacheInvalidationConsumer consumer =
+                new TransactionQueryCacheInvalidationConsumer(cacheService);
+
+        consumer.onMessage(payload(MqTag.TRANSACTION_CLEARING_COMPLETED));
+
+        verify(cacheService).advanceGeneration("merchant-1", "order-1");
+    }
+
     private String payload() {
+        return payload(MqTag.TRANSACTION_STATUS_CHANGED);
+    }
+
+    private String payload(String eventType) {
         TransactionEventMessage message = new TransactionEventMessage();
         message.setMessageId("message-1");
         message.setMerchantId("merchant-1");
         message.setMerchantOrderNo("order-1");
-        message.setEventType(MqTag.TRANSACTION_STATUS_CHANGED);
+        message.setEventType(eventType);
         return JsonUtils.toJsonString(message);
     }
 }

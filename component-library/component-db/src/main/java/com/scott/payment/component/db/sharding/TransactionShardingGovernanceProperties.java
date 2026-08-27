@@ -31,7 +31,7 @@ public class TransactionShardingGovernanceProperties {
     private TableMaintenance tableMaintenance = new TableMaintenance();
     /** MySQL 自增号段规则。 */
     private IdGenerator idGenerator = new IdGenerator();
-    /** 25 张正式交易逻辑表的物理治理规则。 */
+    /** 28 张正式交易逻辑表的物理治理规则。 */
     private Map<String, TableRule> tables = new LinkedHashMap<>();
 
     /** 在规则结束前多少个季度发出续期告警。 */

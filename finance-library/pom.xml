@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.scott.payment</groupId>
+        <artifactId>acquiring-orchestration</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>finance-library</artifactId>
+    <packaging>pom</packaging>
+    <name>finance-library</name>
+    <description>清分、管理端试算及后续结算共用的财务领域模型和纯计算内核。</description>
+
+    <!--
+        该聚合模块只允许纯 Java 模型和确定性计算，不引入 Spring、数据库、Redis、MQ 或远程调用。
+        依赖方向固定为 model-money -> 领域 model -> 对应 core，禁止 core 之间相互依赖。
+    -->
+    <modules>
+        <!--最低层金额值对象：允许有符号金额，不包含费用、保证金或汇率规则。-->
+        <module>model-money</module>
+        <!--费用领域契约：规则、阶梯、退款返费及 Admin 费用预览输入输出。-->
+        <module>model-fee</module>
+        <!--保证金领域契约：只表达标签币种扣留和返还事实。-->
+        <module>model-reserve</module>
+        <!--结算领域契约：表达批次锁定汇率、原币种输入和目标币种结果，不包含数据库状态。-->
+        <module>model-settlement</module>
+        <!--费用纯计算内核：不读取 Spring、数据库、Redis、MQ 或真实结算汇率。-->
+        <module>core-fee</module>
+        <!--保证金纯计算内核：不允许任何汇率和资金账户处理。-->
+        <module>core-reserve</module>
+        <!--结算纯计算内核：统一批次汇率归一、换汇和跨币种费用限额求值，不执行余额入账。-->
+        <module>core-settlement</module>
+    </modules>
+</project>

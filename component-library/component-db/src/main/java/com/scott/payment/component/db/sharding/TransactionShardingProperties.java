@@ -23,9 +23,17 @@ public class TransactionShardingProperties {
     /** 所有交易逻辑表统一使用的分片键。 */
     public static final String REQUIRED_SHARDING_COLUMN = "transaction_date_time";
     /** 当前正式交易逻辑表数量。 */
-    public static final int FORMAL_LOGIC_TABLE_COUNT = 25;
+    public static final int FORMAL_LOGIC_TABLE_COUNT = 28;
+    /** 清分拓扑发布前仍允许滚动加载的完整旧交易逻辑表数量。 */
+    public static final int LEGACY_LOGIC_TABLE_COUNT = 25;
     /** 仅在卡资料能力启用后才必须加入活动分片规则的逻辑表。 */
     public static final String CARD_VAULT_LOGIC_TABLE = "transaction_card_vault";
+    /** 交易费用与本金清分明细季度表。 */
+    public static final String TRANSACTION_CLEARING_DETAIL_LOGIC_TABLE = "transaction_clearing_detail";
+    /** 标签币种保证金清分明细季度表。 */
+    public static final String RESERVE_CLEARING_DETAIL_LOGIC_TABLE = "transaction_reserve_clearing_detail";
+    /** 原支付保证金累计扣留、返还和释放状态季度表。 */
+    public static final String RESERVE_CLEARING_STATE_LOGIC_TABLE = "transaction_reserve_clearing_state";
 
     /** 版本化规则标识，未发布配置不得激活复合数据源。 */
     private String ruleVersion = "unpublished";
@@ -41,18 +49,19 @@ public class TransactionShardingProperties {
     private List<String> replicaDataSources = new ArrayList<>(List.of(DataSourceName.SLAVE_1, DataSourceName.SLAVE_2));
     /** 已建表且通过 schema、字符集和号段校验的季度后缀集合。 */
     private List<String> physicalNodes = new ArrayList<>();
-    /** 必须完整匹配包含卡资料表和收货快照表的 25 表正式拓扑。 */
+    /** 必须完整匹配旧 25 表或包含三张清分表的新 28 表拓扑。 */
     private List<String> logicTables = new ArrayList<>(defaultLogicTables());
     /** 允许直接选择 transaction 逻辑数据源的服务白名单。 */
     private List<String> directAccessServices = new ArrayList<>(List.of(
-            "service-payment", "service-admin", "service-merchant", "service-risk", "service-data"));
+            "service-payment", "service-admin", "service-merchant", "service-risk", "service-data",
+            "service-clearing"));
     /** 跨季度查询的超时、结果行数和导出并发预算。 */
     private QueryBudget queryBudget = new QueryBudget();
 
     /**
      * 返回必须被同一规则版本完整接管的交易表集合。
      *
-     * @return 不可变的 25 张逻辑表名
+     * @return 不可变的 28 张逻辑表名
      */
     public static List<String> defaultLogicTables() {
         return List.of(
@@ -80,18 +89,39 @@ public class TransactionShardingProperties {
                 "transaction_merchant_api_interaction_log",
                 "transaction_event_outbox",
                 "transaction_abnormal_event",
-                CARD_VAULT_LOGIC_TABLE);
+                CARD_VAULT_LOGIC_TABLE,
+                TRANSACTION_CLEARING_DETAIL_LOGIC_TABLE,
+                RESERVE_CLEARING_DETAIL_LOGIC_TABLE,
+                RESERVE_CLEARING_STATE_LOGIC_TABLE);
     }
 
     /**
-     * 返回卡资料表上线前的逻辑表集合。
+     * 返回清分拓扑上线前仍允许滚动加载的完整 25 表集合。
+     *
+     * @return 不含三张清分表的不可变逻辑表集合
+     */
+    public static List<String> legacyLogicTables() {
+        return defaultLogicTables().stream()
+                .filter(table -> !isClearingLogicTable(table))
+                .toList();
+    }
+
+    /**
+     * 返回卡资料表和清分表上线前的逻辑表集合，仅用于拒绝不完整历史拓扑的兼容测试。
      *
      * @return 不含卡资料表的不可变逻辑表集合
      */
     public static List<String> previousLogicTables() {
-        return defaultLogicTables().stream()
+        return legacyLogicTables().stream()
                 .filter(table -> !CARD_VAULT_LOGIC_TABLE.equals(table))
                 .toList();
+    }
+
+    /** @return 是否为三张清分季度逻辑表之一 */
+    private static boolean isClearingLogicTable(String table) {
+        return TRANSACTION_CLEARING_DETAIL_LOGIC_TABLE.equals(table)
+                || RESERVE_CLEARING_DETAIL_LOGIC_TABLE.equals(table)
+                || RESERVE_CLEARING_STATE_LOGIC_TABLE.equals(table);
     }
 
     /**
@@ -117,7 +147,8 @@ public class TransactionShardingProperties {
             throw new IllegalStateException("transaction sharding physical nodes must be unique yyyyQQ suffixes");
         }
         if (!matchesPublishedLogicTableTopology()) {
-            throw new IllegalStateException("transaction sharding rules must contain exactly 25 formal logic tables");
+            throw new IllegalStateException(
+                    "transaction sharding rules must contain the complete legacy 25-table or formal 28-table topology");
         }
         validateQueryBudget();
         String calculated = TransactionShardingRuleChecksum.calculate(this);
@@ -201,18 +232,36 @@ public class TransactionShardingProperties {
         return logicTables;
     }
 
-    /** @param logicTables 包含卡资料表和收货快照表的 25 表正式拓扑 */
+    /** @param logicTables 完整旧 25 表或完整新 28 表拓扑 */
     public void setLogicTables(List<String> logicTables) {
         this.logicTables = logicTables == null ? new ArrayList<>() : new ArrayList<>(logicTables);
     }
 
-    /** 只允许完整正式集合，防止缺表或未知表配置被激活。 */
+    /** 迁移期只允许完整旧 25 表或完整新 28 表，防止缺表、重复表或未知表被激活。 */
     private boolean matchesPublishedLogicTableTopology() {
         if (logicTables == null || logicTables.stream().distinct().count() != logicTables.size()) {
             return false;
         }
-        return logicTables.size() == FORMAL_LOGIC_TABLE_COUNT
-                && logicTables.containsAll(defaultLogicTables());
+        return matchesExactTopology(defaultLogicTables()) || matchesExactTopology(legacyLogicTables());
+    }
+
+    /** @return 当前配置是否为完整 28 表正式拓扑 */
+    public boolean usesFormalLogicTableTopology() {
+        return logicTables != null
+                && logicTables.stream().distinct().count() == logicTables.size()
+                && matchesExactTopology(defaultLogicTables());
+    }
+
+    /** @return 当前配置是否为迁移期完整 25 表拓扑 */
+    public boolean usesLegacyLogicTableTopology() {
+        return logicTables != null
+                && logicTables.stream().distinct().count() == logicTables.size()
+                && matchesExactTopology(legacyLogicTables());
+    }
+
+    /** 使用数量和包含关系执行精确集合匹配，配置顺序不影响路由 checksum。 */
+    private boolean matchesExactTopology(List<String> expectedTables) {
+        return logicTables.size() == expectedTables.size() && logicTables.containsAll(expectedTables);
     }
 
     /** @return 允许直接访问 transaction 数据源的服务名 */

@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * @classname : TransactionMerchantSnapshotDO
  * @date : 2026-08-14 16:00
  * @email : scott_x@163.com
- * @description : 交易商户快照实体，明文保存首次交易的子商户 JSON 以及渠道、费率和路由等冻结配置。
+ * @description : 交易商户快照实体，按交易动作保存子商户 JSON 以及渠道、费用版本和路由等冻结配置。
  * @status : create
  */
 @Data
@@ -44,6 +44,11 @@ public class TransactionMerchantSnapshotDO implements Serializable {
     private String feeConfigSnapshotJson;
     private String internalRiskConfigSnapshotJson;
     private String routeConfigSnapshotJson;
+    private Long feePlanId;
+    private Long feePlanVersionId;
+    private Integer feePlanVersionNo;
+    private String feeSnapshotHash;
+    private LocalDateTime feeSnapshotTime;
     private LocalDateTime transactionDateTime;
     private LocalDateTime transactionUtcTime;
     private String transactionTimeZone;

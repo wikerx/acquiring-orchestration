@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.scott.payment</groupId>
+        <artifactId>acquiring-orchestration</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>service-settlement</artifactId>
+    <name>service-settlement</name>
+    <description>结算批次服务，负责候选激活、日批创建、统一汇率、结果聚合、资金入账、保证金资金化及可靠异步投影。</description>
+
+    <!--
+        服务实现自动候选激活、数据库批次号、create_request_key 幂等、候选 CAS 认领、
+        数据库租约、不可变汇率矩阵、结算结果、单批净额入账、保证金动作、交易投影和可靠 Outbox。
+        服务不得修改清分事实、费用模板或商户费用配置，不以 Redis 或 JVM 锁替代数据库唯一键和版本 CAS。
+    -->
+    <dependencies>
+        <!--服务注册和配置中心；不提供结算业务启停开关。-->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+        <!--平台基础值、内部 Web 能力和 transaction 复合数据源。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-web</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-db</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--内部管理接口 nonce 防重放；Redis 不承担结算资金或命令最终幂等。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--结算完成 Outbox 使用交易级 FIFO 消息联动交易查询缓存代际。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-mq</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--真实结算不可变模型和纯计算内核；服务层只负责状态与持久化编排。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-settlement</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>core-settlement</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <!--Mapper 合同与后续数据库集成测试使用，不进入运行时制品。-->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--将结算服务及其依赖重打包为可独立启动制品。-->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

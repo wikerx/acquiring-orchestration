@@ -104,6 +104,20 @@ class AdminFeeSimulationCalculatorTests {
         assertThat(response.getFormulaSnapshot()).isEqualTo("USD 0.00");
     }
 
+    /** 百分比费用组件先按标签币种 exponent 舍入，再仅用于 Admin 预览换算到 USD。 */
+    @Test
+    void shouldRoundNativePercentageComponentBeforeAdminFxPreview() {
+        System.out.println("费用试算币种精度：验证101 JPY的1%组件先舍入为1 JPY再预览换算");
+        FeeRuleDO rule = standardRule("1", "0", null, null);
+        FeeSimulationRequest request = request("101", "JPY", "0.0067");
+
+        FeeSimulationResponse response = new AdminFeeSimulationCalculator().calculate(
+                request, rule, List.of(), new BigDecimal("0.0067"));
+
+        assertThat(response.getPercentageFeeLabel()).isEqualByComparingTo("1");
+        assertThat(response.getRawFeeUsd()).isEqualByComparingTo("0.0067");
+    }
+
     /** 试算只接受标签币种到 USD 的直接汇率，零值或负值必须拒绝。 */
     @Test
     void shouldRejectMissingDirectRate() {

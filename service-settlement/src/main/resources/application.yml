@@ -1,0 +1,22 @@
+# 结算服务本地基础配置；数据库和服务注册连接仍由环境 Nacos DataId 提供。
+server:
+  port: 8011
+  shutdown: graceful
+
+spring:
+  application:
+    name: service-settlement
+  profiles:
+    active: @profiles.active@
+  main:
+    allow-bean-definition-overriding: true
+
+# 结算批次和候选认领没有 yml/Nacos 业务启停开关；停止处理必须下线服务实例或暂停后续调度入口。
+
+# 仅用于 service-admin 调用结算管理接口的基础安全参数，不控制结算业务是否运行。
+internal-service:
+  auth:
+    enabled: true
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+    allowed-clock-skew: ${INTERNAL_SERVICE_AUTH_CLOCK_SKEW:5m}
+    nonce-ttl: ${INTERNAL_SERVICE_AUTH_NONCE_TTL:10m}

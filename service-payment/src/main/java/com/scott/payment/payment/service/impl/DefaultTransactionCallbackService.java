@@ -708,7 +708,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         eventDO.setTransactionType(operationDO.getTransactionType());
         eventDO.setEventType(TransactionMqConstants.TRANSACTION_CALLBACK_PROCESSED_TAG);
         eventDO.setEventStatus(EVENT_STATUS_INIT);
-        eventDO.setTopic(MqTopic.PAYMENT_EVENT);
+        eventDO.setTopic(MqTopic.PAYMENT_TRANSACTION_FIFO);
         eventDO.setTag(TransactionMqConstants.TRANSACTION_CALLBACK_PROCESSED_TAG);
         eventDO.setMessageKey(callbackId);
         eventDO.setMessageGroup(operationDO.getOperationId());

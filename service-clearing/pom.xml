@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.scott.payment</groupId>
+        <artifactId>acquiring-orchestration</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>service-clearing</artifactId>
+    <name>service-clearing</name>
+    <description>交易清分服务，负责费用与保证金事实计算、清分状态机、幂等消费和可靠事件。</description>
+
+    <!--
+        本服务只消费已提交的交易终态事实并生成清分数据，不拥有支付交易状态机、费用配置写权限、
+        结算汇率、商户余额或保证金资金化。数据库写入必须使用 transaction 复合数据源和显式分片时间。
+    -->
+    <dependencies>
+        <!--服务注册和配置中心；清分没有业务启停开关，启动门禁只校验拓扑和安全前置条件。-->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+        <!--平台 ID、JSON、枚举、异常和链路上下文。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--内部接口、参数校验和统一异常处理。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-web</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--交易复合数据源、MyBatis 和 28 表分片治理。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-db</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--不可变费用版本缓存和分布式基础能力；Redis 不承担资金最终幂等。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--交易终态、清分完成和清分延时重试消息契约。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-mq</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!--清分结果、补偿和人工处置低基数指标；禁止使用交易号或商户号作为 Tag。-->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+        </dependency>
+        <!--标签币种金额、费用组件和保证金纯计算内核。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-money</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-fee</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>core-fee</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-reserve</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>core-reserve</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <!--Mapper 合同测试使用内存数据库，不进入运行时制品。-->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--将服务及其运行时依赖重打包为可独立启动的 Spring Boot 制品。-->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -83,6 +83,26 @@ class OperationLogPersistenceServiceTests {
         log.info("操作日志错误摘要长度保护完成，结果: 持久化字段长度为 1000");
     }
 
+    /** 超长错误码必须在消费持久化边界收敛，兼容已经投递到 RocketMQ 的历史消息。 */
+    @Test
+    void shouldTruncateErrorCodeToDatabaseColumnLength() {
+        log.info("测试操作日志错误码长度保护，关键输入: 34 字符异常类名错误码");
+        DataOperationLogMapper mapper = mock(DataOperationLogMapper.class);
+        OperationLogPersistenceService service = new OperationLogPersistenceService(mapper);
+        OperationLogMessage message = message();
+        message.setErrorCode("InvalidDataAccessApiUsageException");
+
+        service.persist(message, "ADMIN-LOG-LONG-ERROR-CODE");
+
+        ArgumentCaptor<DataOperationLogDO> captor = ArgumentCaptor.forClass(DataOperationLogDO.class);
+        verify(mapper).insert(captor.capture());
+        assertThat(captor.getValue().getErrorCode())
+                .hasSize(OperationLogMessage.ERROR_CODE_MAX_LENGTH)
+                .isEqualTo("InvalidDataAccessApiUsageExcepti");
+        log.info("操作日志错误码长度保护完成，结果: 持久化字段长度为 {}",
+                OperationLogMessage.ERROR_CODE_MAX_LENGTH);
+    }
+
     /** 创建不包含敏感内容的操作日志消息。 */
     private OperationLogMessage message() {
         OperationLogMessage message = new OperationLogMessage();

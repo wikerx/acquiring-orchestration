@@ -103,6 +103,16 @@ public class TransactionEventOutboxDO implements Serializable {
     private String messageGroup;
 
     /**
+     * 投递模式：AUTO、NORMAL、ORDERLY 或 SCHEDULED；历史记录默认 AUTO。
+     */
+    private String deliveryMode = "AUTO";
+
+    /**
+     * SCHEDULED 消息的 Broker 最早投递 UTC 时间；其它模式为空，数据库使用 DATETIME(3)。
+     */
+    private LocalDateTime deliverAt;
+
+    /**
      * 消息体 JSON，禁止保存完整卡号、CVV、JWT、私钥或 API Key。
      */
     private String payloadJson;

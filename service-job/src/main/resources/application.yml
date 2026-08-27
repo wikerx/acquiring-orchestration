@@ -16,3 +16,12 @@ spring:
   main:
     # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
     allow-bean-definition-overriding: true
+
+job:
+  clearing-client:
+    base-url: ${JOB_CLEARING_BASE_URL:http://service-clearing}
+    connect-timeout-millis: ${JOB_CLEARING_CONNECT_TIMEOUT_MILLIS:3000}
+    read-timeout-millis: ${JOB_CLEARING_READ_TIMEOUT_MILLIS:120000}
+    internal-caller: service-job
+    # 必须与 service-clearing 的 internal-service.auth.secret 使用同一环境注入值。
+    internal-secret: ${INTERNAL_SERVICE_AUTH_SECRET}

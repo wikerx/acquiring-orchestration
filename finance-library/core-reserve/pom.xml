@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.scott.payment</groupId>
+        <artifactId>finance-library</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>core-reserve</artifactId>
+    <packaging>jar</packaging>
+    <name>core-reserve</name>
+    <description>标签币种保证金扣留和返还的纯计算内核。</description>
+
+    <!--
+        计算结果只由输入命令和保证金规则决定，不访问基础设施或资金账户。
+        保证金全程使用标签币种，不进行任何汇率转换，也不负责结算入账。
+    -->
+    <dependencies>
+        <!--计算过程中统一使用精确金额和币种值对象。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-money</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <!--消费保证金命令和结果契约，不反向修改模型状态。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-reserve</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+    </dependencies>
+</project>

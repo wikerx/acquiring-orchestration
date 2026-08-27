@@ -19,7 +19,9 @@ import com.scott.payment.payment.mapper.TransactionMerchantSnapshotMapper;
 import com.scott.payment.payment.mapper.TransactionPayerInfoMapper;
 import com.scott.payment.payment.mapper.TransactionProductItemMapper;
 import com.scott.payment.payment.mapper.TransactionShippingInfoMapper;
+import com.scott.payment.payment.service.MerchantFeeVersionSnapshotService;
 import com.scott.payment.payment.service.MerchantTransactionSnapshotService;
+import com.scott.payment.payment.service.dto.FrozenMerchantFeeVersionSnapshotDTO;
 import com.scott.payment.payment.service.dto.MerchantTransactionSnapshotDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -33,6 +35,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * @author : scott
@@ -40,7 +43,7 @@ import java.util.Map;
  * @classname : DefaultMerchantTransactionSnapshotService
  * @date : 2026-08-14 12:45
  * @email : scott_x@163.com
- * @description : 商户交易快照默认实现，明文保存商户可见的子商户、付款人、账单、收货和商品快照，并以交易分片键读取。
+ * @description : 商户交易快照默认实现，首次交易保存商户可见请求，所有资金动作冻结自身费用版本，并以交易分片键读取。
  * @status : create
  */
 @Service
@@ -59,6 +62,7 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
     private final TransactionPayerInfoMapper payerInfoMapper;
     private final TransactionShippingInfoMapper shippingInfoMapper;
     private final TransactionProductItemMapper productItemMapper;
+    private final MerchantFeeVersionSnapshotService feeVersionSnapshotService;
 
     /**
      * 创建商户交易快照服务。
@@ -68,13 +72,16 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
                                                      TransactionMerchantSnapshotMapper merchantSnapshotMapper,
                                                      TransactionPayerInfoMapper payerInfoMapper,
                                                      TransactionShippingInfoMapper shippingInfoMapper,
-                                                     TransactionProductItemMapper productItemMapper) {
+                                                     TransactionProductItemMapper productItemMapper,
+                                                     MerchantFeeVersionSnapshotService feeVersionSnapshotService) {
         this.billingInfoMapper = billingInfoMapper;
         this.authenticationInfoMapper = authenticationInfoMapper;
         this.merchantSnapshotMapper = merchantSnapshotMapper;
         this.payerInfoMapper = payerInfoMapper;
         this.shippingInfoMapper = shippingInfoMapper;
         this.productItemMapper = productItemMapper;
+        this.feeVersionSnapshotService = Objects.requireNonNull(
+                feeVersionSnapshotService, "fee version snapshot service is required");
     }
 
     /**
@@ -96,6 +103,22 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         recordShipping(commandDTO, resultDTO, now);
         recordGoods(commandDTO, resultDTO, now);
         recordMerchantThreeDs(commandDTO, resultDTO, now);
+    }
+
+    /**
+     * 保存后续交易动作自身的商户配置快照，动作级费用配置将在同一行冻结。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public void recordActionSnapshot(PaymentCreateCommandDTO commandDTO,
+                                     PaymentCreateResultDTO resultDTO,
+                                     LocalDateTime now) {
+        if (commandDTO == null || resultDTO == null
+                || !StringUtils.hasText(resultDTO.getTransactionId())
+                || commandDTO.getTransactionDateTime() == null) {
+            return;
+        }
+        recordMerchant(commandDTO, resultDTO, now);
     }
 
     /**
@@ -164,6 +187,8 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
     private void recordMerchant(PaymentCreateCommandDTO commandDTO,
                                 PaymentCreateResultDTO resultDTO,
                                 LocalDateTime now) {
+        FrozenMerchantFeeVersionSnapshotDTO frozenFeeVersion =
+                feeVersionSnapshotService.freezeActiveVersion(commandDTO.getMerchantId(), now);
         TransactionMerchantSnapshotDO target = new TransactionMerchantSnapshotDO();
         target.setSnapshotId(PaymentOrderNoGenerator.nextOrderNo(
                 MERCHANT_PREFIX, commandDTO.getTransactionDateTime()));
@@ -173,6 +198,12 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         if (commandDTO.getSubMerchantInfo() != null) {
             target.setSubMerchantInfoJson(JsonUtils.toJsonString(commandDTO.getSubMerchantInfo()));
         }
+        target.setFeeConfigSnapshotJson(frozenFeeVersion.snapshotJson());
+        target.setFeePlanId(frozenFeeVersion.snapshot().feePlanId());
+        target.setFeePlanVersionId(frozenFeeVersion.snapshot().feePlanVersionId());
+        target.setFeePlanVersionNo(frozenFeeVersion.snapshot().feePlanVersionNo());
+        target.setFeeSnapshotHash(frozenFeeVersion.snapshot().snapshotHash());
+        target.setFeeSnapshotTime(frozenFeeVersion.snapshot().pricingLockTime());
         target.setTransactionDateTime(commandDTO.getTransactionDateTime());
         target.setTransactionUtcTime(toUtc(commandDTO.getTransactionDateTime()));
         target.setTransactionTimeZone(TIME_ZONE);

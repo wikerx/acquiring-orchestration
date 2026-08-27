@@ -897,7 +897,7 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         eventDO.setTransactionType(resultDTO.getTransactionType());
         eventDO.setEventType(TransactionMqConstants.TRANSACTION_CREATED_TAG);
         eventDO.setEventStatus(EVENT_STATUS_INIT);
-        eventDO.setTopic(MqTopic.PAYMENT_EVENT);
+        eventDO.setTopic(MqTopic.PAYMENT_TRANSACTION_FIFO);
         eventDO.setTag(TransactionMqConstants.TRANSACTION_CREATED_TAG);
         eventDO.setMessageKey(resultDTO.getTransactionId());
         eventDO.setMessageGroup(resultDTO.getOperationId());

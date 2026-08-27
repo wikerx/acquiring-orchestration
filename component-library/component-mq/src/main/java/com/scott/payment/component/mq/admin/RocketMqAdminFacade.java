@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.exception.MQBrokerException;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.common.TopicConfig;
+import org.apache.rocketmq.common.attribute.TopicMessageType;
 import org.apache.rocketmq.common.topic.TopicValidator;
 import org.apache.rocketmq.remoting.exception.RemotingException;
 import org.apache.rocketmq.remoting.protocol.body.ClusterInfo;
@@ -19,6 +20,7 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -123,7 +125,10 @@ public class RocketMqAdminFacade {
     private MqResourceCheckResult handleTopic(DefaultMQAdminExt admin,
                                               MqResourceDefinitionProperties resource,
                                               List<String> brokerAddresses) {
-        boolean exists = topicExists(admin, resource.getName(), brokerAddresses);
+        Map<String, TopicConfig> existingTopicConfigs = findTopicConfigs(
+                admin, resource.getName(), brokerAddresses);
+        validateExistingTopicMessageTypes(resource, existingTopicConfigs);
+        boolean exists = !existingTopicConfigs.isEmpty();
         if (!exists && !initializerProperties.isAutoCreate()) {
             return buildResult(resource, false, false, false, "topic missing and autoCreate disabled");
         }
@@ -177,30 +182,34 @@ public class RocketMqAdminFacade {
     }
 
     /**
-     * 判断 Topic 是否存在。
+     * 读取各 Broker 已存在的 Topic 配置。
      *
      * @param admin RocketMQ Admin
      * @param topicName Topic 名称
      * @param brokerAddresses Broker 地址
-     * @return 是否存在
+     * @return Broker 地址到 Topic 配置的映射；不存在的 Broker 不进入结果
      */
-    private boolean topicExists(DefaultMQAdminExt admin, String topicName, List<String> brokerAddresses) {
+    private Map<String, TopicConfig> findTopicConfigs(DefaultMQAdminExt admin,
+                                                      String topicName,
+                                                      List<String> brokerAddresses) {
+        Map<String, TopicConfig> topicConfigs = new LinkedHashMap<>();
         for (String brokerAddress : brokerAddresses) {
             try {
                 TopicConfigSerializeWrapper wrapper = admin.getUserTopicConfig(brokerAddress, false, 3_000L);
                 if (wrapper != null
                         && wrapper.getTopicConfigTable() != null
                         && wrapper.getTopicConfigTable().containsKey(topicName)) {
-                    return true;
+                    topicConfigs.put(brokerAddress, wrapper.getTopicConfigTable().get(topicName));
                 }
             } catch (Exception exception) {
-                log.warn("检查 RocketMQ Topic 失败，topic：{}，brokerAddress：{}，异常类型：{}",
-                        topicName,
-                        brokerAddress,
-                        exception.getClass().getSimpleName());
+                if (exception instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                throw new IllegalStateException("inspect rocketmq topic config failed: topic="
+                        + topicName + ", brokerAddress=" + brokerAddress, exception);
             }
         }
-        return false;
+        return topicConfigs;
     }
 
     /**
@@ -236,13 +245,50 @@ public class RocketMqAdminFacade {
      * @param resource Topic 声明
      * @return Topic 配置
      */
-    private TopicConfig buildTopicConfig(MqResourceDefinitionProperties resource) {
+    TopicConfig buildTopicConfig(MqResourceDefinitionProperties resource) {
         TopicConfig topicConfig = new TopicConfig();
         topicConfig.setTopicName(resource.getName());
         topicConfig.setReadQueueNums(defaultValue(resource.getReadQueueNums(), initializerProperties.getDefaultReadQueueNums()));
         topicConfig.setWriteQueueNums(defaultValue(resource.getWriteQueueNums(), initializerProperties.getDefaultWriteQueueNums()));
         topicConfig.setPerm(defaultValue(resource.getPerm(), initializerProperties.getDefaultTopicPerm()));
+        topicConfig.setTopicMessageType(expectedTopicMessageType(resource));
         return topicConfig;
+    }
+
+    /**
+     * 校验 Broker 已有 Topic 类型，禁止把同名普通 Topic 静默当作 Delay Topic 使用。
+     *
+     * <p>Topic 类型变更可能影响已有消息和生产者，不能通过 update-if-exists 自动覆盖；
+     * 必须由发布人员在 Broker 变更单中显式处理。旧 Broker 未声明类型时按 NORMAL 兼容。</p>
+     *
+     * @param resource Topic 声明
+     * @param existingTopicConfigs Broker 地址到已有 Topic 配置的映射
+     */
+    void validateExistingTopicMessageTypes(MqResourceDefinitionProperties resource,
+                                           Map<String, TopicConfig> existingTopicConfigs) {
+        TopicMessageType expectedType = expectedTopicMessageType(resource);
+        for (Map.Entry<String, TopicConfig> entry : existingTopicConfigs.entrySet()) {
+            TopicConfig topicConfig = entry.getValue();
+            TopicMessageType actualType = topicConfig == null ? null : topicConfig.getTopicMessageType();
+            if (actualType == null || actualType == TopicMessageType.UNSPECIFIED) {
+                actualType = TopicMessageType.NORMAL;
+            }
+            if (actualType != expectedType) {
+                throw new IllegalStateException("rocketmq topic message type mismatch: topic="
+                        + resource.getName() + ", brokerAddress=" + entry.getKey()
+                        + ", expected=" + expectedType + ", actual=" + actualType);
+            }
+        }
+    }
+
+    /**
+     * 解析声明的 Topic 类型，空值按普通消息兼容。
+     *
+     * @param resource Topic 声明
+     * @return 最终 Topic 类型
+     */
+    private TopicMessageType expectedTopicMessageType(MqResourceDefinitionProperties resource) {
+        return Objects.requireNonNullElse(resource.getMessageType(), TopicMessageType.NORMAL);
     }
 
     /**

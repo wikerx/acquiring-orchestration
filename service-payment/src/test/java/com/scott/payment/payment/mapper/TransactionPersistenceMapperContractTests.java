@@ -31,7 +31,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -57,7 +56,7 @@ class TransactionPersistenceMapperContractTests {
         assertThat(root).doesNotContainKey("global-payment");
         assertThat(sharding).doesNotContainKey("mode");
         assertThat(childList(sharding, "logic-tables"))
-                .containsExactlyInAnyOrderElementsOf(PRODUCTION_LOGIC_TABLES);
+                .containsExactlyInAnyOrderElementsOf(TransactionShardingProperties.defaultLogicTables());
         assertThat(sharding.get("rule-checksum"))
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(toShardingProperties(sharding)));
         assertThat(maintenance).containsEntry("allow-create-from-template-table", true)
@@ -67,21 +66,22 @@ class TransactionPersistenceMapperContractTests {
             assertThat(value).isInstanceOf(Map.class);
             @SuppressWarnings("unchecked")
             Map<String, Object> rule = (Map<String, Object>) value;
-            assertThat(rule.get("logical-table")).isIn(PRODUCTION_LOGIC_TABLES.toArray());
+            assertThat(rule.get("logical-table"))
+                    .isIn(TransactionShardingProperties.defaultLogicTables().toArray());
             assertThat(rule).containsEntry("template-table", rule.get("logical-table"))
                     .containsEntry("end-year", 2099);
         });
     }
 
     @Test
-    void transactionShardingDraftShouldDeclareOnlyVerifiedProductionTopology() throws IOException {
+    void transactionShardingDraftShouldDeclareCompleteClearingCandidateTopology() throws IOException {
         Map<String, Object> root = parseYaml(
                 readProjectFile("docs/deployment/nacos/transaction-sharding-dev-draft.yaml"));
         Map<String, Object> sharding = childMap(root, "transaction-sharding");
 
         assertThat(sharding).doesNotContainKey("mode");
         assertThat(sharding.get("rule-version")).asString()
-                .matches("\\d{4}\\.\\d{2}\\.\\d{2}-\\d{3}");
+                .matches("\\d{4}\\.\\d{2}\\.\\d{2}-\\d{3}-candidate-clearing-28");
         assertThat(sharding.get("rule-checksum")).asString()
                 .matches("sha256:[0-9a-f]{64}");
         assertThat(sharding).containsEntry("database-zone-id", "Asia/Shanghai")
@@ -89,7 +89,8 @@ class TransactionPersistenceMapperContractTests {
         assertThat(childList(sharding, "physical-nodes"))
                 .containsExactly("202603", "202604");
         assertThat(childList(sharding, "logic-tables"))
-                .containsExactlyInAnyOrderElementsOf(PRODUCTION_LOGIC_TABLES)
+                .hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT)
+                .containsExactlyInAnyOrderElementsOf(TransactionShardingProperties.defaultLogicTables())
                 .noneMatch(table -> table.startsWith("test_"));
         assertThat(childList(sharding, "direct-access-services"))
                 .containsExactlyInAnyOrder(
@@ -97,7 +98,8 @@ class TransactionPersistenceMapperContractTests {
                         "service-admin",
                         "service-merchant",
                         "service-risk",
-                        "service-data");
+                        "service-data",
+                        "service-clearing");
         assertThat(sharding.get("rule-checksum"))
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(toShardingProperties(sharding)));
         assertThat(root).doesNotContainKey("global-payment");
@@ -170,6 +172,89 @@ class TransactionPersistenceMapperContractTests {
         assertThat(migration)
                 .contains("transaction_operation", "transaction_operation_202603", "transaction_operation_202604")
                 .contains("`description` varchar(128)");
+    }
+
+    @Test
+    void transactionOutboxInsertShouldPersistExplicitDeliveryContract() {
+        String insertSql = annotationValue(
+                methodNamed(TransactionEventOutboxMapper.class, "insertLogical"), Insert.class);
+        int columnStart = insertSql.indexOf('(');
+        int columnEnd = insertSql.indexOf(')', columnStart);
+        int valuesStart = insertSql.indexOf('(', insertSql.indexOf("VALUES"));
+        int valuesEnd = insertSql.indexOf(')', valuesStart);
+
+        assertThat(insertSql)
+                .contains("delivery_mode", "deliver_at")
+                .contains("#{eventDO.deliveryMode}", "#{eventDO.deliverAt}")
+                .doesNotContain("${");
+        assertThat(commaSeparatedItemCount(insertSql.substring(columnStart + 1, columnEnd)))
+                .isEqualTo(commaSeparatedItemCount(insertSql.substring(valuesStart + 1, valuesEnd)));
+    }
+
+    @Test
+    void clearingDraftShouldDefineSameOutboxDeliveryColumnsForTemplateAndPublishedShards() throws IOException {
+        String draft = readProjectFile("docs/sql/20260825_01_transaction_clearing_schema_draft.sql");
+
+        assertThat(List.of(
+                alterTableDefinition(draft, "transaction_event_outbox"),
+                alterTableDefinition(draft, "transaction_event_outbox_202603"),
+                alterTableDefinition(draft, "transaction_event_outbox_202604")))
+                .allSatisfy(definition -> assertThat(definition)
+                        .contains("ADD COLUMN delivery_mode VARCHAR(16) NOT NULL DEFAULT 'AUTO'")
+                        .contains("ADD COLUMN deliver_at DATETIME(3) NULL")
+                        .contains("delivery_mode IN ('AUTO', 'NORMAL', 'ORDERLY', 'SCHEDULED')")
+                        .contains("delivery_mode = 'SCHEDULED' OR deliver_at IS NULL")
+                        .doesNotContain("deliver_at DATETIME NULL"));
+    }
+
+    @Test
+    void merchantSnapshotShouldExposeStructuredFeeVersionAndDatabaseIdempotencyContract() throws IOException {
+        String selectSql = annotationValue(
+                methodNamed(TransactionMerchantSnapshotMapper.class, "selectByTransaction"), Select.class);
+        String draft = readProjectFile("docs/sql/20260825_01_transaction_clearing_schema_draft.sql");
+
+        assertThat(selectSql)
+                .contains("fee_config_snapshot_json", "fee_plan_id", "fee_plan_version_id",
+                        "fee_plan_version_no", "fee_snapshot_hash", "fee_snapshot_time")
+                .contains("transaction_id = #{transactionId}",
+                        "transaction_date_time = #{transactionDateTime}")
+                .doesNotContain("${");
+        assertThat(List.of(
+                alterTableDefinition(draft, "transaction_merchant_snapshot"),
+                alterTableDefinition(draft, "transaction_merchant_snapshot_202603"),
+                alterTableDefinition(draft, "transaction_merchant_snapshot_202604")))
+                .allSatisfy(definition -> assertThat(definition)
+                        .contains("fee_plan_version_id BIGINT NULL")
+                        .contains("fee_snapshot_time DATETIME(3) NULL")
+                        .contains("ADD UNIQUE KEY uk_merchant_snapshot_transaction "
+                                + "(transaction_id, transaction_date_time)"));
+    }
+
+    @Test
+    void activeMerchantFeePointerShouldRequirePlanAndVersionNumbersToMatch() {
+        String selectSql = annotationValue(
+                methodNamed(MerchantFeeVersionSnapshotMapper.class, "selectActivePointer"), Select.class);
+
+        assertThat(selectSql)
+                .contains("fp.current_version_id", "fp.current_version_no = fpv.version_no")
+                .contains("fpv.version_status = 'ACTIVE'", "fp.plan_type = 'MERCHANT'")
+                .doesNotContain("${");
+    }
+
+    @Test
+    void clearingDraftShouldPreserveExistingMerchantFeeConfigurationContract() throws IOException {
+        String draft = readProjectFile("docs/sql/20260825_01_transaction_clearing_schema_draft.sql");
+
+        assertThat(draft)
+                .contains("fp.plan_type = 'MERCHANT'")
+                .contains("fpv.version_status <> 'ACTIVE'")
+                .contains("fr.fixed_amount_usd", "fr.minimum_amount_usd", "fr.maximum_amount_usd")
+                .contains("accumulated_amount_usd", "tier_amount_usd_before", "tier_amount_usd_delta")
+                .doesNotContain("ALTER TABLE fee_plan_version")
+                .doesNotContain("ALTER TABLE fee_rule\n")
+                .doesNotContain("ALTER TABLE fee_rule_tier")
+                .doesNotContain("fixed_amount_native", "minimum_amount_native", "maximum_amount_native")
+                .doesNotContain("fee_component_currency_mode", "tier_pricing_method");
     }
 
     @Test
@@ -360,33 +445,6 @@ class TransactionPersistenceMapperContractTests {
                 .contains("deleted = 0")
                 .doesNotContain("${");
     }
-
-    private static final Set<String> PRODUCTION_LOGIC_TABLES = Set.of(
-            "transaction_order",
-            "transaction_operation",
-            "transaction_merchant_snapshot",
-            "transaction_payment_method_info",
-            "transaction_payer_info",
-            "transaction_billing_info",
-            "transaction_shipping_info",
-            "transaction_additional_info",
-            "transaction_authentication_info",
-            "transaction_product_item",
-            "transaction_channel_request",
-            "transaction_channel_interaction_log",
-            "transaction_channel_callback",
-            "transaction_channel_callback_log",
-            "transaction_flow_event",
-            "transaction_status_history",
-            "transaction_amount_change_log",
-            "transaction_finance_state",
-            "transaction_currency_conversion",
-            "transaction_merchant_notification",
-            "transaction_merchant_notification_log",
-            "transaction_merchant_api_interaction_log",
-            "transaction_event_outbox",
-            "transaction_abnormal_event",
-            "transaction_card_vault");
 
     @Test
     void transactionMappersShouldNotExposeDynamicPhysicalTableSql() {
@@ -615,6 +673,22 @@ class TransactionPersistenceMapperContractTests {
         int end = schema.indexOf(";", begin);
         assertThat(end).as("schema terminator for %s", tableName).isGreaterThan(begin);
         return schema.substring(begin, end);
+    }
+
+    private static String alterTableDefinition(String migration, String tableName) {
+        String marker = "ALTER TABLE " + tableName;
+        int begin = migration.indexOf(marker);
+        assertThat(begin).as("migration alter table %s", tableName).isGreaterThanOrEqualTo(0);
+        int end = migration.indexOf(";", begin);
+        assertThat(end).as("migration terminator for %s", tableName).isGreaterThan(begin);
+        return migration.substring(begin, end);
+    }
+
+    private static long commaSeparatedItemCount(String value) {
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(item -> !item.isEmpty())
+                .count();
     }
 
     private static String readProjectFile(String relativePath) throws IOException {

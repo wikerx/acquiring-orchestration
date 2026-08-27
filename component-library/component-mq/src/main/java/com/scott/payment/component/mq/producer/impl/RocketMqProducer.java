@@ -9,6 +9,7 @@ import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.client.producer.SendStatus;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -172,22 +173,111 @@ public class RocketMqProducer implements MqProducer {
                                String traceId,
                                int retryCount,
                                String payloadJson) {
+        validateSerializedMessage(topic, messageId, payloadJson);
+        RocketMQTemplate rocketMQTemplate = requireRocketMqTemplate();
+        String destination = destination(topic, tag);
+        Message<String> rocketMessage = buildSerializedMessage(
+                messageId, traceId, retryCount, payloadJson);
+        requireSendOk(rocketMQTemplate.syncSend(destination, rocketMessage), destination, messageId);
+    }
+
+    /**
+     * 顺序发送 Outbox 冻结 JSON；载荷不经过反序列化或再次序列化。
+     *
+     * @param topic RocketMQ Topic
+     * @param tag RocketMQ Tag，可为空
+     * @param messageId 消息唯一编号
+     * @param traceId 链路追踪号，可为空
+     * @param retryCount Outbox 投递重试次数
+     * @param payloadJson 已脱敏 JSON 消息快照
+     * @param messageGroup 非空业务分组键
+     */
+    @Override
+    public void sendSerializedOrderly(String topic,
+                                      String tag,
+                                      String messageId,
+                                      String traceId,
+                                      int retryCount,
+                                      String payloadJson,
+                                      String messageGroup) {
+        validateSerializedMessage(topic, messageId, payloadJson);
+        if (!StringUtils.hasText(messageGroup)) {
+            throw new IllegalArgumentException("serialized mq message group can not be blank");
+        }
+        RocketMQTemplate rocketMQTemplate = requireRocketMqTemplate();
+        String destination = destination(topic, tag);
+        Message<String> rocketMessage = buildSerializedMessage(
+                messageId, traceId, retryCount, payloadJson);
+        requireSendOk(rocketMQTemplate.syncSendOrderly(destination, rocketMessage, messageGroup),
+                destination, messageId);
+    }
+
+    /**
+     * 使用 RocketMQ 5.x 绝对时间发送 Outbox 冻结 JSON；已到期消息立即投递。
+     *
+     * @param topic RocketMQ Topic
+     * @param tag RocketMQ Tag，可为空
+     * @param messageId 消息唯一编号
+     * @param traceId 链路追踪号，可为空
+     * @param retryCount Outbox 投递重试次数
+     * @param payloadJson 已脱敏 JSON 消息快照
+     * @param deliverAt 最早投递时间
+     */
+    @Override
+    public void sendSerializedAt(String topic,
+                                 String tag,
+                                 String messageId,
+                                 String traceId,
+                                 int retryCount,
+                                 String payloadJson,
+                                 Instant deliverAt) {
+        validateSerializedMessage(topic, messageId, payloadJson);
+        Objects.requireNonNull(deliverAt, "mq deliver time can not be null");
+        RocketMQTemplate rocketMQTemplate = requireRocketMqTemplate();
+        String destination = destination(topic, tag);
+        Message<String> rocketMessage = buildSerializedMessage(
+                messageId, traceId, retryCount, payloadJson);
+        long deliverTimestamp = deliverAt.toEpochMilli();
+        SendResult sendResult = deliverTimestamp <= System.currentTimeMillis()
+                ? rocketMQTemplate.syncSend(destination, rocketMessage)
+                : rocketMQTemplate.syncSendDeliverTimeMills(destination, rocketMessage, deliverTimestamp);
+        requireSendOk(sendResult, destination, messageId);
+    }
+
+    /** 校验冻结 JSON 投递所需的稳定路由、消息号和载荷。 */
+    private void validateSerializedMessage(String topic, String messageId, String payloadJson) {
         if (!StringUtils.hasText(topic) || !StringUtils.hasText(messageId)
                 || !StringUtils.hasText(payloadJson)) {
             throw new IllegalArgumentException("serialized mq delivery metadata can not be blank");
         }
+    }
+
+    /** 获取当前 RocketMQ 模板；未就绪时保留 Outbox 待重试事实。 */
+    private RocketMQTemplate requireRocketMqTemplate() {
         RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
         if (rocketMQTemplate == null) {
             throw new IllegalStateException("RocketMQTemplate is not ready");
         }
-        String destination = StringUtils.hasText(tag) ? topic + ":" + tag : topic;
+        return rocketMQTemplate;
+    }
+
+    /** 生成 RocketMQ Spring 使用的 {@code topic[:tag]} 目标地址。 */
+    private String destination(String topic, String tag) {
+        return StringUtils.hasText(tag) ? topic + ":" + tag : topic;
+    }
+
+    /** 构建不改写 payload 的冻结 JSON 消息，并补齐可追踪 Header。 */
+    private Message<String> buildSerializedMessage(String messageId,
+                                                   String traceId,
+                                                   int retryCount,
+                                                   String payloadJson) {
         MessageBuilder<String> builder = MessageBuilder.withPayload(payloadJson)
                 .setHeader(RETRY_COUNT_HEADER, Math.max(retryCount, 0))
                 .setHeader(MESSAGE_ID_HEADER, messageId);
         if (StringUtils.hasText(traceId)) {
             builder.setHeader(TraceContext.TRACE_ID_HEADER, traceId);
         }
-        requireSendOk(rocketMQTemplate.syncSend(destination, builder.build()), destination, messageId);
+        return builder.build();
     }
 
     /**

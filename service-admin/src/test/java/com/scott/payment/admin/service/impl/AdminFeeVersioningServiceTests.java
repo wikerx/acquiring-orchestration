@@ -210,7 +210,7 @@ class AdminFeeVersioningServiceTests {
         assertThat(response.getFeeDetails().stream().filter(item -> item.isIncludedInFeeTotal()).toList())
                 .extracting("feeCategory", "riskServiceType", "finalFeeUsd")
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("TRANSACTION_FEE", "NONE", new BigDecimal("3")),
+                        org.assertj.core.groups.Tuple.tuple("TRANSACTION_FEE", "NONE", new BigDecimal("3.00")),
                         org.assertj.core.groups.Tuple.tuple("RISK_FEE", "INTERNAL", new BigDecimal("0.08")),
                         org.assertj.core.groups.Tuple.tuple("RISK_FEE", "EXTERNAL", new BigDecimal("0.09")),
                         org.assertj.core.groups.Tuple.tuple("RISK_FEE", "THREE_DS", new BigDecimal("0.14")));

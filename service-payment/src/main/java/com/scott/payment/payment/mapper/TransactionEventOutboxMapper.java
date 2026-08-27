@@ -52,7 +52,8 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
             (
               event_no, aggregate_type, aggregate_no, transaction_id, operation_id,
               merchant_id, merchant_order_no, transaction_type, event_type, event_status,
-              topic, tag, message_key, message_group, payload_json, retry_count, max_retry_count,
+              topic, tag, message_key, message_group, delivery_mode, deliver_at,
+              payload_json, retry_count, max_retry_count,
               next_retry_time, sent_time, fail_reason, event_time, transaction_date_time,
               transaction_utc_time, transaction_time_zone, version, deleted, create_time, update_time
             )
@@ -62,7 +63,8 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
               #{eventDO.transactionId}, #{eventDO.operationId}, #{eventDO.merchantId},
               #{eventDO.merchantOrderNo}, #{eventDO.transactionType}, #{eventDO.eventType},
               #{eventDO.eventStatus}, #{eventDO.topic}, #{eventDO.tag}, #{eventDO.messageKey},
-              #{eventDO.messageGroup}, #{eventDO.payloadJson}, #{eventDO.retryCount}, #{eventDO.maxRetryCount},
+              #{eventDO.messageGroup}, #{eventDO.deliveryMode}, #{eventDO.deliverAt},
+              #{eventDO.payloadJson}, #{eventDO.retryCount}, #{eventDO.maxRetryCount},
               #{eventDO.nextRetryTime}, #{eventDO.sentTime}, #{eventDO.failReason},
               #{eventDO.eventTime}, #{eventDO.transactionDateTime}, #{eventDO.transactionUtcTime},
               #{eventDO.transactionTimeZone}, #{eventDO.version}, #{eventDO.deleted},

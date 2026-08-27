@@ -6,34 +6,50 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>component-library</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>component-mq</artifactId>
     <packaging>jar</packaging>
+    <name>component-mq</name>
+    <description>RocketMQ 消息契约、发送治理、资源初始化、消费辅助和可观测性组件。</description>
+
+    <!--
+        本模块统一 Topic、Tag、消息信封、生产者和消费治理，但不实现具体业务消费流程。
+        消息幂等、状态机推进和本地事务仍由拥有业务事实的服务负责。
+    -->
     <dependencies>
+        <!--复用消息 ID、链路字段、业务枚举和异常模型。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--复用 Web 侧链路上下文和内部请求治理能力。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-web</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--资源初始化及消息治理记录需要共用的数据访问基础设施。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--采集生产、消费、重试和死信相关指标。-->
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-core</artifactId>
         </dependency>
+        <!--RocketMQ Spring 生产者、消费者和配置绑定。-->
         <dependency>
             <groupId>org.apache.rocketmq</groupId>
             <artifactId>rocketmq-spring-boot-starter</artifactId>
         </dependency>
+        <!--
+            RocketMQ 管理工具用于启动时校验 Topic 和 Consumer Group。
+            排除 commons-logging，防止与 Spring 使用的 SLF4J 日志体系冲突。
+        -->
         <dependency>
             <groupId>org.apache.rocketmq</groupId>
             <artifactId>rocketmq-tools</artifactId>

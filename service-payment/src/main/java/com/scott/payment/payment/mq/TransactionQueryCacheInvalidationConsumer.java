@@ -7,6 +7,7 @@ import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.TransactionQueryCacheService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.MessageModel;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
@@ -33,16 +34,20 @@ import java.util.Set;
         havingValue = "true",
         matchIfMissing = true)
 @RocketMQMessageListener(
-        topic = MqTopic.PAYMENT_EVENT,
+        topic = MqTopic.PAYMENT_TRANSACTION_FIFO,
         consumerGroup = "service-payment-transaction-query-cache",
-        selectorExpression = "TRANSACTION_CREATED || TRANSACTION_STATUS_CHANGED || TRANSACTION_CALLBACK_PROCESSED",
+        selectorExpression = "TRANSACTION_CREATED || TRANSACTION_STATUS_CHANGED || TRANSACTION_CALLBACK_PROCESSED || TRANSACTION_CLEARING_COMPLETED || TRANSACTION_SETTLEMENT_COMPLETED || TRANSACTION_SETTLEMENT_REVERSED",
+        consumeMode = ConsumeMode.ORDERLY,
         messageModel = MessageModel.CLUSTERING)
 public class TransactionQueryCacheInvalidationConsumer implements RocketMQListener<String> {
 
     private static final Set<String> SUPPORTED_EVENTS = Set.of(
             MqTag.TRANSACTION_CREATED,
             MqTag.TRANSACTION_STATUS_CHANGED,
-            MqTag.TRANSACTION_CALLBACK_PROCESSED
+            MqTag.TRANSACTION_CALLBACK_PROCESSED,
+            MqTag.TRANSACTION_CLEARING_COMPLETED,
+            MqTag.TRANSACTION_SETTLEMENT_COMPLETED,
+            MqTag.TRANSACTION_SETTLEMENT_REVERSED
     );
 
     private final TransactionQueryCacheService transactionQueryCacheService;

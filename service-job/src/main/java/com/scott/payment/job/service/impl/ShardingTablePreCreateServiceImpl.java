@@ -196,7 +196,14 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
      * 校验治理配置只包含并完整覆盖当前正式交易逻辑表。
      */
     private void validateGovernanceConfiguration(ShardingTablePreCreateRequest request) {
-        Set<String> expectedTables = new LinkedHashSet<>(transactionShardingProperties.getLogicTables());
+        Set<String> publishedTables = new LinkedHashSet<>(transactionShardingProperties.getLogicTables());
+        if ((!transactionShardingProperties.usesLegacyLogicTableTopology()
+                && !transactionShardingProperties.usesFormalLogicTableTopology())
+                || publishedTables.size() != transactionShardingProperties.getLogicTables().size()) {
+            throw new IllegalStateException(
+                    "transaction sharding published baseline must be the complete legacy 25-table or formal 28-table topology");
+        }
+        Set<String> expectedTables = new LinkedHashSet<>(TransactionShardingProperties.defaultLogicTables());
         if (expectedTables.size() != TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT) {
             throw new IllegalStateException("transaction sharding logic table baseline must contain exactly "
                     + TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT + " tables");
@@ -431,13 +438,24 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
             ShardingTablePreCreateResult result,
             List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> rules,
             List<ShardingQuarter> targetQuarters) {
-        Set<String> expectedTables = new LinkedHashSet<>(transactionShardingProperties.getLogicTables());
+        Set<String> expectedTables = new LinkedHashSet<>(TransactionShardingProperties.defaultLogicTables());
         Set<String> selectedTables = new LinkedHashSet<>();
         rules.forEach(entry -> selectedTables.add(entry.getValue().getLogicalTable()));
         if (!selectedTables.equals(expectedTables)) {
             result.getPublicationBlockers().add("candidate publication requires all formal logic tables");
         }
-        Set<String> verifiedNodes = new LinkedHashSet<>(transactionShardingProperties.getPhysicalNodes());
+        Set<String> verifiedNodes = transactionShardingProperties.usesFormalLogicTableTopology()
+                ? new LinkedHashSet<>(transactionShardingProperties.getPhysicalNodes())
+                : new LinkedHashSet<>();
+        Set<String> targetNodeSuffixes = targetQuarters.stream()
+                .map(ShardingQuarter::suffix)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (transactionShardingProperties.usesLegacyLogicTableTopology()) {
+            transactionShardingProperties.getPhysicalNodes().stream()
+                    .filter(node -> !targetNodeSuffixes.contains(node))
+                    .forEach(node -> result.getPublicationBlockers().add(
+                            "legacy node " + node + " must be revalidated against all 28 formal tables"));
+        }
         for (ShardingQuarter quarter : targetQuarters) {
             List<ShardingTablePreCreateTableResult> quarterResults = result.getTableResults().stream()
                     .filter(item -> quarter.displayName().equals(item.getTargetQuarter()))
@@ -488,7 +506,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         candidate.setPrimaryDataSource(transactionShardingProperties.getPrimaryDataSource());
         candidate.setReplicaDataSources(transactionShardingProperties.getReplicaDataSources());
         candidate.setPhysicalNodes(new ArrayList<>(verifiedNodes));
-        candidate.setLogicTables(transactionShardingProperties.getLogicTables());
+        candidate.setLogicTables(TransactionShardingProperties.defaultLogicTables());
         TransactionShardingProperties.QueryBudget budget = new TransactionShardingProperties.QueryBudget();
         budget.setSynchronousTimeoutMillis(
                 transactionShardingProperties.getQueryBudget().getSynchronousTimeoutMillis());

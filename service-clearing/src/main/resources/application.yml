@@ -1,0 +1,32 @@
+# 清分服务本地基础配置；数据库、分片、Redis 和 RocketMQ 连接信息仍由环境 Nacos DataId 提供。
+server:
+  port: 8010
+  shutdown: graceful
+
+spring:
+  application:
+    name: service-clearing
+  profiles:
+    active: @profiles.active@
+  main:
+    allow-bean-definition-overriding: true
+
+clearing:
+  # 服务启动即注册终态和延时消费者；这里只保留容量、重试和内部调用参数。
+  processing-timeout-seconds: ${CLEARING_PROCESSING_TIMEOUT_SECONDS:120}
+  max-retry-count: ${CLEARING_MAX_RETRY_COUNT:8}
+  consumer-min-threads: ${CLEARING_CONSUMER_MIN_THREADS:16}
+  consumer-max-threads: ${CLEARING_CONSUMER_MAX_THREADS:64}
+  internal-allowed-callers: ${CLEARING_INTERNAL_ALLOWED_CALLERS:service-admin,service-job}
+  metrics:
+    # 指标随服务自动调度，周期参数保留用于只读副本容量调优。
+    initial-delay-ms: ${CLEARING_METRICS_INITIAL_DELAY_MS:30000}
+    fixed-delay-ms: ${CLEARING_METRICS_FIXED_DELAY_MS:60000}
+
+internal-service:
+  auth:
+    enabled: ${INTERNAL_SERVICE_AUTH_ENABLED:true}
+    # 自动清分没有业务关闭态，所有环境都必须在启动前显式注入独立 HMAC 密钥。
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+    allowed-clock-skew: ${INTERNAL_SERVICE_AUTH_CLOCK_SKEW:5m}
+    nonce-ttl: ${INTERNAL_SERVICE_AUTH_NONCE_TTL:10m}

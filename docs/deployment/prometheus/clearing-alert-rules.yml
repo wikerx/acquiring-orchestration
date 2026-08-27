@@ -1,0 +1,250 @@
+groups:
+  - name: acquiring-clearing-p0
+    interval: 30s
+    rules:
+      - alert: ClearingFinancialAmountImbalance
+        expr: |
+          sum by (application, environment, currency) (
+            increase(clearing_amount_imbalance_total{application="service-clearing"}[5m])
+          ) > 0
+        for: 0m
+        labels:
+          severity: critical
+          priority: P0
+          owner: payment-finance
+        annotations:
+          summary: "清分金额一致性异常"
+          description: "{{ $labels.environment }} 环境 {{ $labels.currency }} 清分汇总、交易明细或保证金明细出现不平，禁止扩大灰度和进入结算。"
+
+      - alert: ClearingReserveReturnExceeded
+        expr: |
+          sum by (application, environment) (
+            increase(clearing_failure_total{
+              application="service-clearing",
+              failure_code="RESERVE_RETURN_EXCEEDED"
+            }[5m])
+          ) > 0
+        for: 0m
+        labels:
+          severity: critical
+          priority: P0
+          owner: payment-finance
+        annotations:
+          summary: "保证金返还超过剩余上限"
+          description: "检测到保证金超额返还尝试；立即保持 shadow 模式并按运行手册核对原支付 HOLD、累计 RETURN 和 remaining_amount。"
+
+      - alert: ClearingFinancialMismatchCaseOpened
+        expr: |
+          sum by (application, environment) (
+            increase(clearing_anomaly_total{
+              application="service-clearing",
+              type="FINANCIAL_MISMATCH"
+            }[5m])
+          ) > 0
+        for: 0m
+        labels:
+          severity: critical
+          priority: P0
+          owner: payment-finance
+        annotations:
+          summary: "清分财务异常案件已创建"
+          description: "清分创建 FINANCIAL_MISMATCH 异常案件；重复 ACTIVE 明细、已结算修订变更等结构性异常还必须执行影子验收 SQL。"
+
+  - name: acquiring-clearing-p1
+    interval: 30s
+    rules:
+      - alert: ClearingManualReviewBacklog
+        expr: |
+          max by (application, environment) (
+            clearing_pending_count{
+              application="service-clearing",
+              status="MANUAL_REVIEW"
+            }
+          ) > 0
+        for: 5m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-operations
+        annotations:
+          summary: "清分人工复核存在积压"
+          description: "{{ $labels.environment }} 环境存在 MANUAL_REVIEW 清分记录，请从 Admin 清分管理按失败码和分片时间处理。"
+
+      - alert: ClearingFeeSnapshotHashMismatch
+        expr: |
+          sum by (application, environment) (
+            increase(clearing_failure_total{
+              application="service-clearing",
+              failure_code="FEE_SNAPSHOT_HASH_MISMATCH"
+            }[5m])
+          ) > 0
+        for: 0m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-finance
+        annotations:
+          summary: "清分费用快照 hash 不一致"
+          description: "动作冻结费用快照与结构化版本身份不一致；不得用当前活动费率替代历史版本。"
+
+      - alert: ClearingOldestPendingTooLong
+        expr: |
+          max by (application, environment, status) (
+            clearing_oldest_pending_seconds{
+              application="service-clearing",
+              status=~"PENDING|PROCESSING|WAITING_SOURCE|FAILED"
+            }
+          ) > 900
+        for: 5m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-operations
+        annotations:
+          summary: "清分最老积压超过 15 分钟"
+          description: "状态 {{ $labels.status }} 的最老记录持续超过 15 分钟，检查 MQ、数据库、费用版本回源和 Delay Topic。"
+
+      - alert: ClearingTechnicalFailureDetected
+        expr: |
+          sum by (application, environment) (
+            increase(clearing_processing_failure_total{application="service-clearing"}[5m])
+          ) > 0
+        for: 2m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "清分发生未知技术异常"
+          description: "未知异常已传播给 RocketMQ 原生重试；检查数据库、Redis、Broker 和消费重试/DLQ。"
+
+      - alert: ClearingMetricsRefreshFailed
+        expr: |
+          sum by (application, environment) (
+            increase(clearing_metrics_refresh_total{
+              application="service-clearing",
+              result="FAILURE"
+            }[10m])
+          ) >= 2
+        for: 1m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "清分积压指标连续刷新失败"
+          description: "10 分钟内至少两次无法完整读取全部已发布季度；当前 Gauge 保留旧快照，先修复分片或只读库。"
+
+      - alert: ClearingInputMessageRejected
+        expr: |
+          sum by (application, environment, source, reason) (
+            increase(clearing_message_rejected_total{application="service-clearing"}[5m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: critical
+          priority: P1
+          owner: payment-platform
+        annotations:
+          summary: "清分输入消息被拒绝"
+          description: "{{ $labels.source }} 来源出现 {{ $labels.reason }}，核对生产者消息契约、序列化和分片时间。"
+
+  - name: acquiring-clearing-p2
+    interval: 30s
+    rules:
+      - alert: ClearingFeeVersionRedisHitRateLow
+        expr: |
+          (
+            sum by (application, environment) (
+              rate(clearing_fee_cache_hit_total{
+                application="service-clearing",
+                source="REDIS"
+              }[15m])
+            )
+            /
+            clamp_min(
+              sum by (application, environment) (
+                rate(clearing_fee_cache_hit_total{
+                  application="service-clearing",
+                  source=~"REDIS|SLAVE|MASTER"
+                }[15m])
+              ),
+              0.001
+            )
+          ) < 0.90
+          and
+          sum by (application, environment) (
+            rate(clearing_fee_cache_hit_total{
+              application="service-clearing",
+              source=~"REDIS|SLAVE|MASTER"
+            }[15m])
+          ) > 0.01
+        for: 15m
+        labels:
+          severity: warning
+          priority: P2
+          owner: payment-platform
+        annotations:
+          summary: "历史费用版本 Redis 命中率低于 90%"
+          description: "仅统计需要缓存/数据库回源的历史精确版本，不把动作内嵌 SNAPSHOT 计入分母。"
+
+      - alert: ClearingCompensationBatchRepeatedFailure
+        expr: |
+          sum by (application, environment, scan_type) (
+            increase(clearing_compensation_batch_total{
+              application="service-clearing",
+              outcome="FAILURE"
+            }[15m])
+          ) >= 3
+        for: 1m
+        labels:
+          severity: warning
+          priority: P2
+          owner: payment-operations
+        annotations:
+          summary: "清分补偿批次连续失败"
+          description: "{{ $labels.scan_type }} 在 15 分钟内至少失败 3 次；检查单季度扫描范围、主从可用性和恢复事务。"
+
+      - alert: ClearingTierLockP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, application, environment, rule_type) (
+              rate(clearing_tier_lock_seconds_bucket{application="service-clearing"}[10m])
+            )
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+          priority: P2
+          owner: payment-finance
+        annotations:
+          summary: "清分阶梯累计锁 P95 超过 1 秒"
+          description: "规则类型 {{ $labels.rule_type }} 行锁等待持续升高，检查同商户同月阶梯热点和数据库锁。"
+
+      - alert: ClearingDuplicateMessageRatioHigh
+        expr: |
+          (
+            sum by (application, environment) (
+              rate(clearing_duplicate_total{application="service-clearing"}[10m])
+            )
+            /
+            clamp_min(
+              sum by (application, environment) (
+                rate(clearing_event_consumed_total{application="service-clearing"}[10m])
+              ),
+              0.001
+            )
+          ) > 0.05
+          and
+          sum by (application, environment) (
+            rate(clearing_event_consumed_total{application="service-clearing"}[10m])
+          ) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          priority: P2
+          owner: payment-platform
+        annotations:
+          summary: "清分重复或过期消息比例超过 5%"
+          description: "检查终态 Outbox、RocketMQ 原生重试、Delay Topic 和补偿任务是否重复调度。"

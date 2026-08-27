@@ -1150,6 +1150,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         int operationRows = transactionOperationMapper.insert(operationDO);
         int locatorRows = insertTransactionLocator(operationDO, sourceOrderDO.getRootTransactionId(),
                 sourceOrderDO.getTransactionDateTime(), now);
+        if (merchantTransactionSnapshotService != null) {
+            merchantTransactionSnapshotService.recordActionSnapshot(commandDTO, resultDTO, now);
+        }
         int orderRows = 0;
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
             orderRows = updateSourceOrderAmount(sourceOrderDO, resultDTO);

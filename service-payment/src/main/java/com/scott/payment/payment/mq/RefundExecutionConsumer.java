@@ -8,6 +8,7 @@ import com.scott.payment.component.mq.message.RefundExecutionMessage;
 import com.scott.payment.payment.domain.refund.RefundExecutionOutcomeEnum;
 import com.scott.payment.payment.service.RefundExecutionService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.MessageModel;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
@@ -27,9 +28,10 @@ import org.springframework.util.StringUtils;
 @Component
 @ConditionalOnProperty(prefix = "payment.refund.management", name = "execution-mq-enabled", havingValue = "true")
 @RocketMQMessageListener(
-        topic = MqTopic.PAYMENT_EVENT,
+        topic = MqTopic.PAYMENT_TRANSACTION_FIFO,
         consumerGroup = "service-payment-refund-execution",
         selectorExpression = MqTag.REFUND_EXECUTION_REQUESTED,
+        consumeMode = ConsumeMode.ORDERLY,
         messageModel = MessageModel.CLUSTERING
 )
 public class RefundExecutionConsumer implements RocketMQListener<String> {

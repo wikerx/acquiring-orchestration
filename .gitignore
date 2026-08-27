@@ -58,9 +58,15 @@ docs/sql/*
 !docs/sql/checkout-session-ddl-draft.sql
 !docs/sql/checkout-session-ddl-dev.sql
 !docs/sql/shardingsphere-test-table-retirement-20260802.sql
+!docs/sql/20260825_01_transaction_clearing_schema_draft.sql
+!docs/sql/20260825_02_transaction_clearing_precheck_draft.sql
+!docs/sql/20260825_03_transaction_clearing_compatibility_draft.sql
+!docs/sql/20260825_04_transaction_clearing_topology_draft.sql
+!docs/sql/20260825_05_transaction_clearing_postcheck_draft.sql
 !docs/sql/shardingsphere-auto-increment-repair-20260802.sql
 !docs/sql/20260814_01_transaction_visible_snapshot_plaintext_prepare.sql
 !docs/sql/20260814_02_transaction_visible_snapshot_plaintext_finalize.sql
+!docs/sql/20260827_01_admin_clearing_settlement_query_index_migration.sql
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md

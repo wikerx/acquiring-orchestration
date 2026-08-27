@@ -32,11 +32,13 @@ Nacos DataId 统一使用标准 YAML 后缀 `.yaml`。dev 环境使用命名空�
 
 Nacos yaml 的职责边界：
 
-- `{service-name}-{env}.yaml`：单服务个性配置，例如 `service-admin-dev.yaml`、`service-merchant-dev.yaml`、`service-openapi-dev.yaml`、`service-payment-dev.yaml`、`service-risk-dev.yaml`、`service-data-dev.yaml`、`service-gateway-dev.yaml`。
+- `{service-name}-{env}.yaml`：单服务个性配置，例如 `service-admin-dev.yaml`、`service-merchant-dev.yaml`、`service-openapi-dev.yaml`、`service-payment-dev.yaml`、`service-risk-dev.yaml`、`service-data-dev.yaml`、`service-clearing-dev.yaml`、`service-settlement-dev.yaml`、`service-gateway-dev.yaml`。
 - `common-{env}.yaml`：所有服务共享配置，例如时间格式、管理端点、链路头名称。
 - `service-gateway-{env}.yaml`：只放网关接入层说明、白名单路径和观测规则，不放数据库、Redis、MQ、Seata、分表配置。
 - `service-risk-{env}.yaml`：只放风控服务内部鉴权、健康检查白名单和服务专属规则参数；Redis 与 MQ 连接参数分别复用公共 DataId。
 - `service-data-{env}.yaml`：只放异步数据消费和商户通知执行参数；操作日志、风控审计和商户通知消费者均由该服务独占。
+- `service-clearing-{env}.yaml`：只放清分消费容量、超时重试、指标周期和内部 HMAC 参数；费用版本、分片、Redis 和 RocketMQ 连接继续复用公共 DataId。服务启动后自动消费全部合法终态事件。
+- `service-settlement-{env}.yaml`：只放结算内部 HMAC 和观测参数；结算周期、汇率、费用、保证金、余额入账规则和业务启停不得写入配置中心。服务启动后自动认领真实结算候选。
 - `dataSource-{env}.yaml`：主从数据源、连接池、MyBatis-Plus。
 - `sharding-{env}.yaml`：ShardingSphere 逻辑拓扑和物理表治理规则；第一版直接启用单写，不保存服务级迁移 `mode`。
 - `redis-{env}.yaml`、`rocketmq-{env}.yaml`、`seata-{env}.yaml`、`xxl-job-{env}.yaml`：对应中间件配置。
@@ -66,6 +68,45 @@ Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis �
 只有实际使用 Redis 的服务导入 `redis-{env}.yaml`。`service-checkout` 使用 `StringRedisTemplate`，
 `service-job` 和 `service-payout` 使用共享 Redis 防并发/缓存失效能力，因此这三个服务都必须引入
 `component-redis` 并导入 `redis-{env}.yaml`；`service-gateway` 不使用业务 Redis，也不导入该 DataId。
+
+## RocketMQ
+
+`rocketmq-{env}.yaml` 中的声明式 Topic 默认使用 RocketMQ 5.x `NORMAL` 消息类型。使用绝对投递时间的
+Topic 必须显式配置 `message-type: DELAY`；初始化器会逐 Broker 读取已有 `TopicConfig`，声明类型与
+已有类型不一致时拒绝复用或自动覆盖，Broker 配置读取失败时也不能当作 Topic 不存在继续执行。
+
+`rocketmq-dev.yaml` 当前只增加 `acquiring_payment_clearing_delay_topic` 的本地 DELAY 候选声明，
+尚未连接真实 Broker 创建或核验该 Topic，也未创建尚不存在的 `service-clearing` 消费组。真实变更必须
+单独完成 Broker 变更审批、类型核验、绝对定时投递和重试/DLQ 验收。
+
+## 清分服务
+
+`service-clearing` 的五套本地 Profile 只负责连接各环境 Nacos，并统一导入清分专属 DataId 和五个公共基础设施
+DataId。UAT、生产 Nacos 凭据没有仓库默认值；内部 HMAC 密钥在所有环境都必须由 Secret 显式注入。
+
+清分专属 DataId 不提供业务启停、商户白名单、比例过滤或候选模式配置，只保留消费容量、PROCESSING 超时、
+最大重试次数、指标周期和内部认证参数。数据库、完整 28 表拓扑、RocketMQ 资源和非开发 HMAC 密钥必须先就绪；
+`service-clearing` 启动后自动注册终态/到期重试消费者并处理全部合法终态事件，指标调度器也自动运行。任一强制
+依赖不满足时服务必须启动失败，不能通过缺省配置静默空跑。
+
+指标调度器按 `physical-nodes` 逐季度查询 `transaction_finance_state` 和
+`transaction_reserve_clearing_state`，全部季度成功后才更新 Gauge；Redis 不参与最终统计。停止清分只能暂停两个
+消费者组或下线/缩容全部服务实例，不能依赖 Nacos 动态业务开关。当前生成的 `settlement_candidate` 固定为
+`shadow_mode=1`，真实结算扫描必须排除，不允许通过配置切换为真实结算。
+
+完整数据库、MQ、监控、数据验收和停止恢复步骤见
+[`交易清分发布与运行手册`](../clearing-rollout-runbook.md)。该手册不授权发布 Nacos、执行 SQL 或创建 Broker 资源。
+
+## 结算服务
+
+`service-settlement` 的五套本地 Profile 只负责连接各环境 Nacos，并统一导入结算专属 DataId 和 `common`、
+`dataSource`、`sharding`、`redis`、`rocketmq` 五个公共基础设施 DataId。结算服务不使用 Seata 或 XXL-JOB，
+不得为了配置形式统一而导入无实际依赖的 DataId。
+
+结算专属 DataId 不提供业务启停、影子比例、商户白名单、结算汇率、费用或保证金规则。服务启动后自动执行候选激活、
+日批创建、批次处理、交易投影和 Outbox 发布；停止处理必须下线服务实例，不得依赖 Nacos 动态开关。内部管理接口的
+HMAC 密钥必须由 Secret 注入，Redis 只用于 nonce 防重放，不能替代结算批次、余额流水或 Outbox 的数据库幂等约束。
+当前清分生成的 `shadow_mode=1` 候选仍必须被真实结算扫描排除，不能通过配置切换为真实资金处理。
 
 ## Dev 基础设施默认值
 
@@ -130,19 +171,20 @@ docs/deployment/nacos/transaction-sharding-governance-dev-draft.yaml
 - `transaction-sharding-governance-dev-draft.yaml` 提供 `transaction-sharding.governance`。
 
 真实候选配置必须按 YAML 对象结构合并为一个文档，不能直接拼接两个
-`transaction-sharding` 根节点，否则后出现的根节点会覆盖前一个。五个服务已经只导入
+`transaction-sharding` 根节点，否则后出现的根节点会覆盖前一个。所有直接访问交易分表的服务都只导入
 `sharding-{env}.yaml`，不得把草案文件名直接作为未导入的新 DataId 发布。
 
-五个直接访问服务没有独立迁移模式，必须直接使用 `transaction` 逻辑数据源并加载相同规则版本。
+直接访问交易分表的服务没有独立迁移模式，必须直接使用 `transaction` 逻辑数据源并加载相同规则版本。
 
 发布约束：
 
 - `physical-nodes` 只登记已经存在且当前规则声明的全部正式表通过 schema、`DATETIME(3)`、字符集和号段校验的季度。
-- 当前只接受同时包含 `transaction_card_vault` 与 `transaction_shipping_info` 的完整 25 表正式拓扑；任意缺表、未知表、重复表均拒绝启动。
+- 清分迁移兼容版本只接受完整旧 25 表或完整新 28 表；26/27 表半拓扑、任意缺表、未知表和重复表均拒绝启动。
+- `sharding-dev.yaml` 保留当前已发布 25 表基线；`transaction-sharding-dev-draft.yaml` 是尚未真实 Dry Run 的 28 表候选，禁止直接覆盖已发布基线。
 - `data.card-vault.enabled` 默认关闭；开启前必须先创建各季度 `transaction_card_vault` 物理表并发布包含该表的完整规则，否则 `service-data` 拒绝启动。
 - Job 先 Dry Run，再建表并校验，最后只生成候选 `rule-version` 和 SHA-256 checksum；应用不会自动发布 Nacos。
-- 五个直接访问服务必须加载相同版本后才能开放新季度。
-- `/actuator/info` 的 `transactionSharding` 节点必须显示五个服务一致的 `ruleVersion` 和
+- 所有直接访问服务必须加载相同版本后才能开放新季度。
+- `/actuator/info` 的 `transactionSharding` 节点必须显示所有直接访问服务一致的 `ruleVersion` 和
   `ruleChecksumPrefix`。
 - 回滚只能使用仍识别当前全部节点的上一版 ShardingSphere 制品和规则，不能恢复旧物理路由，禁止双写。
 
@@ -155,6 +197,12 @@ docs/deployment/nacos/transaction-sharding-governance-dev-draft.yaml
 所有已发布季度物理表，随后发布 `2026.08.14-001` 规则和对应 checksum。任一季度缺表时不得把该
 季度加入 `physical-nodes`，也不得先开启收货快照写入。
 
-完整的候选规则生成、五服务滚动加载、单写验收、季度边界和回滚门禁见
+第 26～28 张清分表的发布必须先部署严格识别完整 25/28 表的兼容代码，再按
+`docs/sql/20260825_02` 至 `20260825_05` 草案完成前检、兼容字段、模板/物理表和后检。Job 生成的
+候选必须以 28 表为目标；旧 25 表规则中的季度不能直接继承为已验证节点，必须对三张新表重新完成
+schema、`DATETIME(3)`、字符集、唯一索引和自增号段核验。全部直连服务滚动加载相同 28 表版本后，
+才允许在后续阶段创建并启动 `service-clearing`。
+
+完整的候选规则生成、全部直连服务滚动加载、单写验收、季度边界和回滚门禁见
 [`ShardingSphere 发布、验收与回滚手册`](../shardingsphere-rollout-rollback-runbook.md)。该手册是
 变更单模板，不授权 Nacos 实际发布、数据库 DDL/Drop 或生产重启。

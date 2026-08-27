@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.scott.payment</groupId>
+        <artifactId>finance-library</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>model-settlement</artifactId>
+    <name>model-settlement</name>
+    <description>结算批次汇率、换汇输入、费用组求值和目标币种结果的不可变领域契约。</description>
+
+    <!--
+        本模块只定义真实结算使用的纯 Java 契约；不得读取费用配置、数据库、缓存、MQ 或执行资金入账。
+        结算输入保留清分原币种事实，所有目标币种金额必须引用同一批次锁定汇率。
+    -->
+    <dependencies>
+        <!--复用统一的金额、ISO 币种和 exponent 值对象，不在结算模型中重复定义金额。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-money</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+    </dependencies>
+</project>

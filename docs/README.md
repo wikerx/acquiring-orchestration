@@ -9,6 +9,7 @@
 * [Hosted Checkout V1 数据库与状态机设计草案](architecture/hosted-checkout-v1-database-design.md)：自建收银台的会话表、token、支付尝试、事件、安全事件和 MPGS 3DS 状态机设计。
 * [ShardingSphere SQL 兼容矩阵](architecture/shardingsphere-sql-compatibility-matrix.md)：动态 Mapper、分片键 SQL、事务、分页、治理和回归证据基线。
 * [全系统数据源路由审计与整改基线](architecture/datasource-routing-audit-and-remediation.md)：`@DS` 方法级约束、主从路由、交易逻辑数据源和跨数据源事务风险。
+* [收单交易清分落地设计](architecture/transaction-clearing-implementation-design.md)：交易终态触发、费用和保证金计算、清分明细、MQ 幂等、补偿及后续结算边界。
 * [企业级重构路线图](architecture/refactor-roadmap.md)：后续分阶段重构顺序和重点。
 * [操作日志后续规划](architecture/operation-log-roadmap.md)：操作日志链路的后续演进方向。
 
@@ -40,6 +41,10 @@
 * [Nacos 配置说明](deployment/nacos/README.md)
 * [ShardingSphere 发布、灰度与回滚手册](deployment/shardingsphere-rollout-rollback-runbook.md)
 * [Redis 监控与告警处置手册](deployment/prometheus/redis-monitoring-runbook.md)
+* [交易清分影子发布与运行手册](deployment/clearing-rollout-runbook.md)
+
+清分 Prometheus 规则位于 `deployment/prometheus/clearing-alert-rules.yml`，Grafana Dashboard 位于
+`deployment/grafana/clearing-dashboard.json`。两者必须与清分运行手册和影子验收 SQL 配套使用。
 
 Nacos 配置样例位于 `docs/deployment/nacos/`，Prometheus 规则位于
 `docs/deployment/prometheus/`。
@@ -69,6 +74,16 @@ Nacos 配置样例位于 `docs/deployment/nacos/`，Prometheus 规则位于
 
 * [ShardingSphere 测试分表退役草案](sql/shardingsphere-test-table-retirement-20260802.sql)
 * [ShardingSphere 季度号段修复草案](sql/shardingsphere-auto-increment-repair-20260802.sql)
+* [清分数据库完整设计草案](sql/20260825_01_transaction_clearing_schema_draft.sql)
+* [清分第三阶段只读前检草案](sql/20260825_02_transaction_clearing_precheck_draft.sql)
+* [清分第三阶段兼容字段扩展草案](sql/20260825_03_transaction_clearing_compatibility_draft.sql)
+* [清分第三阶段 28 表拓扑草案](sql/20260825_04_transaction_clearing_topology_draft.sql)
+* [清分第三阶段发布后核验草案](sql/20260825_05_transaction_clearing_postcheck_draft.sql)
+* [清分影子验收只读草案](sql/20260826_06_transaction_clearing_shadow_acceptance_draft.sql)
+* [结算 Phase A 固定表结构草案](sql/20260826_01_settlement_phase_a_schema_draft.sql)
+* [结算 Phase A 只读前检草案](sql/20260826_02_settlement_phase_a_precheck_draft.sql)
+* [结算 Phase A 只读后检草案](sql/20260826_03_settlement_phase_a_postcheck_draft.sql)
+* [Admin 清分与结算分页查询索引迁移](sql/20260827_01_admin_clearing_settlement_query_index_migration.sql)
 
 SQL 参考脚本统一放在 `docs/sql/`。
 
@@ -85,6 +100,7 @@ SQL 参考脚本统一放在 `docs/sql/`。
 * [系统管理与基础数据菜单修复报告](archive/reports/system-base-menu-repair-report.md)
 * [系统菜单树层级修复报告](archive/reports/system-menu-tree-repair-report.md)
 * [交易季度分表专项扫描与整改方案](archive/reports/transaction-sharding-scan-and-remediation-report.md)
+* [Redis、MQ 与交易链路联动专项扫描及真实交易验收](archive/reports/redis-mq-linkage-scan-2026-08-24.md)
 
 ## 8. 前端协作文档
 

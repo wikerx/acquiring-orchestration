@@ -134,6 +134,64 @@ class RocketMqProducerTest {
                 eq("payment-event:updated"), org.mockito.ArgumentMatchers.any(Message.class), eq("TXN-001"));
     }
 
+    /** Outbox 冻结 JSON 的字段顺序和格式必须保持不变，顺序键只参与队列选择。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldSendFrozenJsonOrderlyWithoutReserialization() {
+        ObjectProvider<RocketMQTemplate> provider = mock(ObjectProvider.class);
+        RocketMQTemplate rocketMQTemplate = mock(RocketMQTemplate.class);
+        when(provider.getIfAvailable()).thenReturn(rocketMQTemplate);
+        when(rocketMQTemplate.syncSendOrderly(
+                eq("payment-event:TRANSACTION_STATUS_CHANGED"),
+                org.mockito.ArgumentMatchers.any(Message.class), eq("operation-001")))
+                .thenReturn(sendOk());
+        RocketMqProducer producer = new RocketMqProducer(provider);
+        String payloadJson = "{ \"z\": 1, \"a\": \"001\" }";
+
+        producer.sendSerializedOrderly(
+                "payment-event", "TRANSACTION_STATUS_CHANGED", "message-ordered-001",
+                "trace-ordered-001", 3, payloadJson, "operation-001");
+
+        org.mockito.ArgumentCaptor<Message<String>> captor = org.mockito.ArgumentCaptor.forClass(Message.class);
+        verify(rocketMQTemplate).syncSendOrderly(
+                eq("payment-event:TRANSACTION_STATUS_CHANGED"), captor.capture(), eq("operation-001"));
+        assertThat(captor.getValue().getPayload()).isEqualTo(payloadJson);
+        assertThat(captor.getValue().getHeaders().get(TraceContext.TRACE_ID_HEADER))
+                .isEqualTo("trace-ordered-001");
+        assertThat(captor.getValue().getHeaders().get("retryCount")).isEqualTo(3);
+        assertThat(captor.getValue().getHeaders().get("messageId")).isEqualTo("message-ordered-001");
+    }
+
+    /** Outbox 冻结 JSON 定时消息必须使用 Broker 绝对投递时间且不得重写载荷。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldSendFrozenJsonAtAbsoluteDeliveryTime() {
+        ObjectProvider<RocketMQTemplate> provider = mock(ObjectProvider.class);
+        RocketMQTemplate rocketMQTemplate = mock(RocketMQTemplate.class);
+        when(provider.getIfAvailable()).thenReturn(rocketMQTemplate);
+        Instant deliverAt = Instant.now().plusSeconds(300);
+        when(rocketMQTemplate.syncSendDeliverTimeMills(
+                eq("acquiring_payment_clearing_delay_topic:TRANSACTION_CLEARING_RETRY_DUE"),
+                org.mockito.ArgumentMatchers.any(Message.class), eq(deliverAt.toEpochMilli())))
+                .thenReturn(sendOk());
+        RocketMqProducer producer = new RocketMqProducer(provider);
+        String payloadJson = "{\n  \"retry\": true,\n  \"revision\": 2\n}";
+
+        producer.sendSerializedAt(
+                "acquiring_payment_clearing_delay_topic", "TRANSACTION_CLEARING_RETRY_DUE",
+                "message-scheduled-001", "trace-scheduled-001", 4, payloadJson, deliverAt);
+
+        org.mockito.ArgumentCaptor<Message<String>> captor = org.mockito.ArgumentCaptor.forClass(Message.class);
+        verify(rocketMQTemplate).syncSendDeliverTimeMills(
+                eq("acquiring_payment_clearing_delay_topic:TRANSACTION_CLEARING_RETRY_DUE"),
+                captor.capture(), eq(deliverAt.toEpochMilli()));
+        assertThat(captor.getValue().getPayload()).isEqualTo(payloadJson);
+        assertThat(captor.getValue().getHeaders().get(TraceContext.TRACE_ID_HEADER))
+                .isEqualTo("trace-scheduled-001");
+        assertThat(captor.getValue().getHeaders().get("retryCount")).isEqualTo(4);
+        assertThat(captor.getValue().getHeaders().get("messageId")).isEqualTo("message-scheduled-001");
+    }
+
     private SendResult sendOk() {
         SendResult result = new SendResult();
         result.setSendStatus(SendStatus.SEND_OK);

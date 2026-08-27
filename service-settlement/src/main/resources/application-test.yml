@@ -1,0 +1,33 @@
+# 环境接入配置：结算服务连接 test Nacos，并加载结算所需公共基础设施 DataId。
+spring:
+  config:
+    import:
+      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:dataSource-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:sharding-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:redis-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:rocketmq-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+  cloud:
+    bootstrap:
+      enabled: true
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER:nacos-test:8848}
+        namespace: ${NACOS_NAMESPACE:test}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        register-enabled: true
+      config:
+        server-addr: ${NACOS_SERVER:nacos-test:8848}
+        namespace: ${spring.cloud.nacos.discovery.namespace}
+        username: ${spring.cloud.nacos.discovery.username}
+        password: ${spring.cloud.nacos.discovery.password}
+        group: DEFAULT_GROUP
+        file-extension: yaml
+        encode: UTF-8
+        refresh-enabled: true
+        config-retry-time: 3
+
+logging:
+  config: classpath:log-config/logback-spring.xml

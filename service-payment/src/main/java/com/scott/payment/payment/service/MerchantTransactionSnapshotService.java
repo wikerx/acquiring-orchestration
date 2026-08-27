@@ -29,6 +29,17 @@ public interface MerchantTransactionSnapshotService {
                                 LocalDateTime now);
 
     /**
+     * 保存 Capture、Refund、Void 和增额授权等后续动作自身的商户配置快照。
+     *
+     * @param commandDTO 当前交易动作命令
+     * @param resultDTO 已生成当前动作交易号的受理结果
+     * @param now 当前动作本地事务持久化时间
+     */
+    void recordActionSnapshot(PaymentCreateCommandDTO commandDTO,
+                              PaymentCreateResultDTO resultDTO,
+                              LocalDateTime now);
+
+    /**
      * 读取生命周期根交易的商户可见请求快照。
      *
      * @param merchantId 平台商户号，用作付款人密文 AAD

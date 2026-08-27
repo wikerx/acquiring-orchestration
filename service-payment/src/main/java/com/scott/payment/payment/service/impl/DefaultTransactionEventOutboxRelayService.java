@@ -5,11 +5,14 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessage;
+import com.scott.payment.component.mq.message.ClearingRetryDueMessage;
+import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.RefundExecutionMessage;
 import com.scott.payment.component.mq.observability.MqOutboxOperationalMetrics;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
+import com.scott.payment.payment.model.TransactionEventDeliveryMode;
 import com.scott.payment.payment.model.TransactionEventOutboxMetricsSnapshot;
 import com.scott.payment.payment.service.TransactionEventOutboxRelayService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
@@ -21,6 +24,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 
 /**
@@ -171,22 +175,17 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         }
         try {
             BaseMqMessage message = buildMessage(eventDO);
-            if (!StringUtils.hasText(message.getMessageId())) {
-                message.setMessageId(eventDO.getMessageKey());
-            }
-            if (message.getCreatedAt() == null) {
-                message.setCreatedAt(eventDO.getEventTime());
-            }
-            if (!StringUtils.hasText(message.getTraceId())) {
-                message.setTraceId(TraceContext.getOrCreateTraceId());
-            }
-            message.setRetryCount(Math.max(eventDO.getRetryCount() == null ? 0 : eventDO.getRetryCount(), 0));
+            String messageId = StringUtils.hasText(message.getMessageId())
+                    ? message.getMessageId() : eventDO.getMessageKey();
+            String traceId = StringUtils.hasText(message.getTraceId())
+                    ? message.getTraceId() : TraceContext.getOrCreateTraceId();
+            int retryCount = Math.max(eventDO.getRetryCount() == null ? 0 : eventDO.getRetryCount(), 0);
             log.info("event: TRANSACTION_OUTBOX_PUBLISH_START stage=MQ traceId: {} eventNo: {} messageId: {} messageKey: {} retryCount: {} topic: {} tag: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} transactionType: {} transactionDateTime: {}",
-                    message.getTraceId(),
+                    traceId,
                     eventDO.getEventNo(),
-                    message.getMessageId(),
+                    messageId,
                     eventDO.getMessageKey(),
-                    message.getRetryCount(),
+                    retryCount,
                     eventDO.getTopic(),
                     eventDO.getTag(),
                     eventDO.getTransactionId(),
@@ -195,22 +194,22 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                     eventDO.getMerchantOrderNo(),
                     eventDO.getTransactionType(),
                     eventDO.getTransactionDateTime());
-            sendMessage(eventDO, message);
+            sendMessage(eventDO, message, messageId, traceId, retryCount);
             boolean updated = eventOutboxService.markSent(eventDO, LocalDateTime.now());
             if (!updated) {
                 log.warn("event: TRANSACTION_OUTBOX_MARK_SENT_CAS_FAILED stage=MQ traceId: {} eventNo: {} messageId: {} messageKey: {} transactionId: {} operationId: {} durationMs: {}",
-                        message.getTraceId(),
+                        traceId,
                         eventDO.getEventNo(),
-                        message.getMessageId(),
+                        messageId,
                         eventDO.getMessageKey(),
                         eventDO.getTransactionId(),
                         eventDO.getOperationId(),
                         elapsedMillis(startNanos));
             } else {
                 log.info("event: TRANSACTION_OUTBOX_PUBLISH_END stage=MQ traceId: {} eventNo: {} messageId: {} messageKey: {} transactionId: {} operationId: {} status=SENT durationMs: {}",
-                        message.getTraceId(),
+                        traceId,
                         eventDO.getEventNo(),
-                        message.getMessageId(),
+                        messageId,
                         eventDO.getMessageKey(),
                         eventDO.getTransactionId(),
                         eventDO.getOperationId(),
@@ -247,16 +246,51 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         }
     }
 
-    /** 自动重试事件使用绝对定时投递，生命周期事件强制顺序投递，其它事件使用普通发送。 */
-    private void sendMessage(TransactionEventOutboxDO eventDO, BaseMqMessage message) {
+    /**
+     * 按显式模式发送冻结 JSON；AUTO 保留历史消息类型和 messageGroup 路由规则。
+     *
+     * @param eventDO Outbox 事实记录
+     * @param message 仅用于校验和读取 Header 元数据的解析结果
+     * @param messageId 消息唯一编号 Header
+     * @param traceId 链路追踪 Header
+     * @param retryCount Outbox 重试次数 Header
+     */
+    private void sendMessage(TransactionEventOutboxDO eventDO,
+                             BaseMqMessage message,
+                             String messageId,
+                             String traceId,
+                             int retryCount) {
+        TransactionEventDeliveryMode deliveryMode;
+        try {
+            deliveryMode = TransactionEventDeliveryMode.from(eventDO.getDeliveryMode());
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("unsupported transaction outbox delivery mode", exception);
+        }
+        switch (deliveryMode) {
+            case NORMAL -> sendSerialized(eventDO, messageId, traceId, retryCount);
+            case ORDERLY -> sendSerializedOrderly(eventDO, messageId, traceId, retryCount);
+            case SCHEDULED -> sendSerializedScheduled(eventDO, messageId, traceId, retryCount);
+            case AUTO -> sendAuto(eventDO, message, messageId, traceId, retryCount);
+        }
+    }
+
+    /** 保留历史 AUTO 路由：通知重试定时、生命周期及分组消息顺序，其余普通投递。 */
+    private void sendAuto(TransactionEventOutboxDO eventDO,
+                          BaseMqMessage message,
+                          String messageId,
+                          String traceId,
+                          int retryCount) {
         if (message instanceof MerchantNotificationRetryDueMessage retryMessage) {
             if (retryMessage.getDeliverAt() == null) {
                 throw new IllegalStateException("merchant notification retry deliver time is required");
             }
-            mqProducer.sendAt(
+            mqProducer.sendSerializedAt(
                     eventDO.getTopic(),
                     eventDO.getTag(),
-                    retryMessage,
+                    messageId,
+                    traceId,
+                    retryCount,
+                    eventDO.getPayloadJson(),
                     retryMessage.getDeliverAt().atZone(PLATFORM_ZONE_ID).toInstant());
             return;
         }
@@ -264,15 +298,49 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
             throw new IllegalStateException("transaction lifecycle event message group is required");
         }
         if (StringUtils.hasText(eventDO.getMessageGroup())) {
-            mqProducer.sendOrderly(eventDO.getTopic(), eventDO.getTag(), message, eventDO.getMessageGroup());
+            sendSerializedOrderly(eventDO, messageId, traceId, retryCount);
             return;
         }
-        mqProducer.send(eventDO.getTopic(), eventDO.getTag(), message);
+        sendSerialized(eventDO, messageId, traceId, retryCount);
+    }
+
+    /** 普通发送冻结 JSON。 */
+    private void sendSerialized(TransactionEventOutboxDO eventDO,
+                                String messageId,
+                                String traceId,
+                                int retryCount) {
+        mqProducer.sendSerialized(eventDO.getTopic(), eventDO.getTag(), messageId, traceId,
+                retryCount, eventDO.getPayloadJson());
+    }
+
+    /** 校验分组键后顺序发送冻结 JSON。 */
+    private void sendSerializedOrderly(TransactionEventOutboxDO eventDO,
+                                       String messageId,
+                                       String traceId,
+                                       int retryCount) {
+        if (!StringUtils.hasText(eventDO.getMessageGroup())) {
+            throw new IllegalStateException("ORDERLY transaction outbox message group is required");
+        }
+        mqProducer.sendSerializedOrderly(eventDO.getTopic(), eventDO.getTag(), messageId, traceId,
+                retryCount, eventDO.getPayloadJson(), eventDO.getMessageGroup());
+    }
+
+    /** 校验数据库 UTC 投递时间后定时发送冻结 JSON。 */
+    private void sendSerializedScheduled(TransactionEventOutboxDO eventDO,
+                                         String messageId,
+                                         String traceId,
+                                         int retryCount) {
+        if (eventDO.getDeliverAt() == null) {
+            throw new IllegalStateException("SCHEDULED transaction outbox deliver time is required");
+        }
+        mqProducer.sendSerializedAt(eventDO.getTopic(), eventDO.getTag(), messageId, traceId,
+                retryCount, eventDO.getPayloadJson(), eventDO.getDeliverAt().toInstant(ZoneOffset.UTC));
     }
 
     private boolean isLifecycleEvent(String tag) {
         return MqTag.TRANSACTION_CREATED.equals(tag)
                 || MqTag.TRANSACTION_STATUS_CHANGED.equals(tag)
+                || MqTag.TRANSACTION_CLEARING_COMPLETED.equals(tag)
                 || MqTag.TRANSACTION_CALLBACK_PROCESSED.equals(tag);
     }
 
@@ -297,6 +365,21 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      * @return 可交给 MQ 生产者发送的基础消息
      */
     private BaseMqMessage buildMessage(TransactionEventOutboxDO eventDO) {
+        if (MqTag.TRANSACTION_CLEARING_RETRY_DUE.equals(eventDO.getTag())) {
+            ClearingRetryDueMessage retryMessage = JsonUtils.parseObject(
+                    eventDO.getPayloadJson(), ClearingRetryDueMessage.class);
+            boolean valid = retryMessage != null
+                    && MqTag.TRANSACTION_CLEARING_RETRY_DUE.equals(retryMessage.getEventType())
+                    && retryMessage.getDeliverAt() != null
+                    && eventDO.getDeliverAt() != null
+                    && MqTopic.PAYMENT_CLEARING_DELAY.equals(eventDO.getTopic())
+                    && retryMessage.getDeliverAt().toEpochMilli()
+                    == eventDO.getDeliverAt().toInstant(ZoneOffset.UTC).toEpochMilli();
+            if (!valid) {
+                throw new IllegalStateException("clearing retry outbox contract or deliver time is invalid");
+            }
+            return retryMessage;
+        }
         if (MqTag.MERCHANT_NOTIFICATION_RETRY_DUE.equals(eventDO.getTag())) {
             MerchantNotificationRetryDueMessage retryMessage = JsonUtils.parseObject(
                     eventDO.getPayloadJson(), MerchantNotificationRetryDueMessage.class);

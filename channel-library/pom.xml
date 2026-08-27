@@ -7,18 +7,30 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>channel-library</artifactId>
     <packaging>pom</packaging>
+    <name>channel-library</name>
+    <description>支付和代付渠道 SPI、执行框架及具体渠道适配器的聚合模块。</description>
 
+    <!--
+        渠道模块遵循 API -> Core -> Provider 的单向依赖关系。
+        业务服务只面向 API/Core 编程，具体渠道实现通过运行时注册发现，禁止反向依赖业务服务。
+    -->
     <modules>
+        <!--支付渠道请求、响应、枚举、异常和 SPI 契约。-->
         <module>payment-channel-api</module>
+        <!--支付渠道注册、路由、执行模板和通用安全处理。-->
         <module>payment-channel-core</module>
+        <!--Mastercard Payment Gateway Services 支付渠道适配器。-->
         <module>payment-channel-mpgs</module>
+        <!--Worldpay 支付渠道适配器。-->
         <module>payment-channel-worldpay</module>
+        <!--代付渠道请求、响应、枚举、异常和 SPI 契约。-->
         <module>payout-channel-api</module>
+        <!--代付渠道注册、路由和统一执行框架。-->
         <module>payout-channel-core</module>
     </modules>
 </project>

@@ -58,6 +58,12 @@ acquiring:
           read-queue-nums: 4
           # 参数说明：配置 RocketMQ Topic 写队列数，必须为正整数并结合生产吞吐设置。
           write-queue-nums: 4
+        # 交易生命周期和退款执行命令使用专用 FIFO Topic，同一 operationId 固定进入同一队列。
+        - name: acquiring_payment_transaction_fifo_topic
+          type: TOPIC
+          message-type: FIFO
+          read-queue-nums: 4
+          write-queue-nums: 4
         # Card BIN 等跨服务 generation 变更使用普通可靠消息，不承载缓存值。
         - name: acquiring_cache_invalidation_topic
           type: TOPIC
@@ -92,6 +98,12 @@ acquiring:
         # 收银台卡资料库 Topic 只承载由 service-data 公钥加密且不含 CVV 的信封。
         - name: acquiring_checkout_card_vault_topic
           type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
+        # 清分异常补偿使用 RocketMQ 5.x 绝对定时消息；部署前必须在 Broker 侧核验 Topic 类型为 DELAY。
+        - name: acquiring_payment_clearing_delay_topic
+          type: TOPIC
+          message-type: DELAY
           read-queue-nums: 4
           write-queue-nums: 4
         # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
@@ -175,6 +187,18 @@ acquiring:
           consume-timeout-minute: 15
         # 交易生命周期顺序事件驱动订单查询缓存 generation 失效。
         - name: service-payment-transaction-query-cache
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        # 清分终态消费者按 operationId 顺序处理交易终态事件。
+        - name: service-clearing-transaction-terminal
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        # 清分业务重试到期消费者独立消费 Delay Topic，避免与 Broker 原生重试相互阻塞。
+        - name: service-clearing-transaction-retry-due
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16

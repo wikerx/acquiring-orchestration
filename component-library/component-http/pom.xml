@@ -6,16 +6,22 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>component-library</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>component-http</artifactId>
     <packaging>jar</packaging>
+    <name>component-http</name>
+    <description>跨模块复用的轻量同步 HTTP 客户端和响应结果组件。</description>
+
+    <!--本模块只封装通用 HTTP 调用能力，不保存服务地址、商户凭证或渠道业务重试策略。-->
     <dependencies>
+        <!--复用统一异常、日志字段和序列化模型。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--提供轻量同步 HTTP 请求实现。-->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-http</artifactId>

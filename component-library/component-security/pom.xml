@@ -6,21 +6,31 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>component-library</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>component-security</artifactId>
     <packaging>jar</packaging>
+    <name>component-security</name>
+    <description>JWT、请求签名、加解密、密钥材料和防重放等安全基础组件。</description>
+
+    <!--
+        本模块提供安全原语和商户 OpenAPI 安全链路的共享实现，不决定具体接口的业务权限。
+        密钥数据访问通过 component-db 的受控仓储完成，禁止业务服务复制加密或验签算法。
+    -->
     <dependencies>
+        <!--复用统一异常、敏感字段处理和安全上下文模型。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--读取商户密钥材料及安全配置所需的数据访问契约。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--JWT 创建、解析和验签实现。-->
         <dependency>
             <groupId>cn.hutool</groupId>
             <artifactId>hutool-jwt</artifactId>

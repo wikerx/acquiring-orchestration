@@ -6,10 +6,18 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>service-checkout</artifactId>
+    <name>service-checkout</name>
+    <description>托管收银台服务，提供付款链接页面所需的会话和基础展示配置能力。</description>
+
+    <!--
+        本服务负责收银台展示侧能力，不保存明文卡号、CVV 或有效期，也不直接推进支付交易状态。
+        支付提交由安全的 OpenAPI/Payment 链路完成，收银台会话缓存必须遵循最小敏感数据原则。
+    -->
     <dependencies>
+        <!--服务注册和配置中心。-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -18,26 +26,31 @@
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
         </dependency>
+        <!--平台通用值对象、异常、响应和基础工具。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--收银台同步 API、参数校验和统一异常处理。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-web</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--收银台国家、币种和会话相关数据访问。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--付款链接会话和展示配置缓存。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-redis</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--收银台会话令牌、敏感字段和请求安全能力。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-security</artifactId>
@@ -47,6 +60,7 @@
 
     <build>
         <plugins>
+            <!--将服务及其运行时依赖重打包为可独立启动的 Spring Boot 制品。-->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

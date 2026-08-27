@@ -6,10 +6,18 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>service-payment</artifactId>
+    <name>service-payment</name>
+    <description>收单支付核心服务，拥有交易事实、状态机、渠道执行和交易终态事件。</description>
+
+    <!--
+        本服务是支付交易事实和终态的唯一所有者，负责授权、请款、撤销、退款及渠道结果落库。
+        数据库写入、查询缓存更新和终态消息必须保持幂等；清分、结算和商户通知由下游边界处理。
+    -->
     <dependencies>
+        <!--服务注册、配置中心和服务间负载均衡。-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -22,36 +30,54 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+        <!--平台通用值对象、交易枚举、异常、响应和 ID。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--内部支付 API、参数校验和统一异常处理。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-web</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--交易事实、状态变更、Outbox 和渠道记录的数据访问。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--交易查询缓存、幂等键、并发控制和状态失效联动。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-redis</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--支付终态、通知和异步处理事件的可靠发送。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-mq</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--内部接口签名、安全上下文和敏感支付数据保护。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-security</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--费用快照只复用财务领域不可变金额和费用契约；版本选择、Redis 和数据库访问仍由 Payment 私有适配层负责。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-money</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-fee</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <!--支付渠道标准 SPI 和统一执行框架。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>payment-channel-api</artifactId>
@@ -62,6 +88,10 @@
             <artifactId>payment-channel-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--
+            具体支付渠道只在运行时自动注册，支付核心不直接依赖 Provider 实现类。
+            这样可以在不修改交易状态机的前提下扩展或替换渠道。
+        -->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>payment-channel-mpgs</artifactId>
@@ -74,6 +104,7 @@
             <version>${project.version}</version>
             <scope>runtime</scope>
         </dependency>
+        <!--以下依赖仅用于数据库和 ShardingSphere SQL 兼容性测试。-->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
@@ -88,6 +119,7 @@
 
     <build>
         <plugins>
+            <!--将服务及其运行时依赖重打包为可独立启动的 Spring Boot 制品。-->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
