@@ -61,6 +61,8 @@ public final class MerchantTransactionAnalyticsDTOs {
         private BigDecimal successRate = BigDecimal.ZERO;
         /** 成功交易金额，主币种单位且按币种及精度分别汇总。 */
         private List<AmountMetric> successAmounts = new ArrayList<>();
+        /** 与当前查询区间等长、按自然日向前平移的上一周期对比数据。 */
+        private PeriodComparison comparison = new PeriodComparison();
         /** 自然日交易趋势，日期连续且无数据日期补零。 */
         private List<TrendMetric> trend = new ArrayList<>();
         /** 平台交易状态分布，单位为笔。 */
@@ -97,6 +99,62 @@ public final class MerchantTransactionAnalyticsDTOs {
         private BigDecimal amount = BigDecimal.ZERO;
         /** 当前币种成功交易笔数，用于与成功金额保持相同筛选口径。 */
         private long successCount;
+    }
+
+    /** 当前区间与上一对照区间的核心指标，供首页展示真实环比。 */
+    @Data
+    public static class PeriodComparison {
+        /** 对照区间向前平移的自然日数，仅允许 1 至 31。 */
+        private int periodDays;
+        /** 上一周期首笔交易总数，单位为笔。 */
+        private long previousTotalCount;
+        /** 上一周期终态成功交易数，单位为笔。 */
+        private long previousSuccessCount;
+        /** 上一周期终态失败交易数，单位为笔。 */
+        private long previousFailedCount;
+        /** 上一周期待处理交易数，单位为笔。 */
+        private long previousPendingCount;
+        /** 上一周期处理中交易数，单位为笔。 */
+        private long previousProcessingCount;
+        /** 上一周期终态成功率，单位为百分比。 */
+        private BigDecimal previousSuccessRate = BigDecimal.ZERO;
+        /** 成功交易金额按币种和精度生成的本期、上期及变化对比。 */
+        private List<AmountComparisonMetric> successAmounts = new ArrayList<>();
+    }
+
+    /** 单币种成功金额的上一周期比较结果，禁止跨币种合并。 */
+    @Data
+    public static class AmountComparisonMetric {
+        /** ISO 4217 三位币种；历史缺失值以 UNKNOWN 表示。 */
+        private String currency;
+        /** 币种小数位精度，允许为空表示历史记录未保存精度。 */
+        private Integer currencyExponent;
+        /** 当前周期成功交易金额，主币种单位。 */
+        private BigDecimal currentAmount = BigDecimal.ZERO;
+        /** 上一周期成功交易金额，主币种单位。 */
+        private BigDecimal previousAmount = BigDecimal.ZERO;
+        /** 当前金额减上一周期金额，主币种单位，可为负数。 */
+        private BigDecimal changeAmount = BigDecimal.ZERO;
+        /** 相对上一周期金额的变化幅度百分比；上一周期为零且本期新增时为空。 */
+        private BigDecimal changeRate;
+        /** 金额变化方向，由服务端使用 BigDecimal 精确判断。 */
+        private ComparisonDirection changeDirection = ComparisonDirection.FLAT;
+        /** 当前周期该币种成功交易笔数。 */
+        private long currentSuccessCount;
+        /** 上一周期该币种成功交易笔数。 */
+        private long previousSuccessCount;
+    }
+
+    /** 首页周期比较的标准变化方向。 */
+    public enum ComparisonDirection {
+        /** 当前值高于上一周期。 */
+        INCREASE,
+        /** 当前值低于上一周期。 */
+        DECREASE,
+        /** 当前值与上一周期相同。 */
+        FLAT,
+        /** 上一周期为零且当前周期首次出现正金额。 */
+        NEW
     }
 
     /** 单日交易趋势指标。 */

@@ -6,10 +6,13 @@ import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDTOs.AmountMetric;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDTOs.AmountComparisonMetric;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDTOs.AnalyticsQuery;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDTOs.ComparisonDirection;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDTOs.DimensionMetric;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDTOs.FailureResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDTOs.OverviewResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDTOs.PeriodComparison;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionAnalyticsDTOs.TrendMetric;
 import com.scott.payment.merchant.service.MerchantTransactionAnalyticsQueryService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +32,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -148,12 +152,141 @@ public class JdbcMerchantTransactionAnalyticsQueryService implements MerchantTra
     private OverviewResponse overviewNormalized(String merchantId, AnalyticsQuery query) {
         OverviewResponse response = querySummary(merchantId, query);
         response.setGeneratedAt(LocalDateTime.now(resolveQueryZone(query.getQueryTimeZone())));
-        response.setSuccessAmounts(querySuccessAmounts(merchantId, query));
+        List<AmountMetric> successAmounts = querySuccessAmounts(merchantId, query);
+        response.setSuccessAmounts(successAmounts);
         response.setTrend(fillTrendDates(query, queryTrend(merchantId, query, false)));
         response.setStatusDistribution(queryDimension(merchantId, query, "status", false));
         response.setPaymentMethods(queryDimension(merchantId, query, "paymentMethod", false));
         response.setIssuerCountries(queryDimension(merchantId, query, "issuerCountry", false));
+        int comparisonDays = comparisonDays(query);
+        AnalyticsQuery previousQuery = previousPeriodQuery(query, comparisonDays);
+        response.setComparison(queryPeriodComparison(merchantId, previousQuery, comparisonDays, successAmounts));
         return response;
+    }
+
+    /** 查询上一周期核心指标，并按币种生成金额变化，避免浏览器使用浮点数比较资金数据。 */
+    private PeriodComparison queryPeriodComparison(String merchantId,
+                                                   AnalyticsQuery previousQuery,
+                                                   int periodDays,
+                                                   List<AmountMetric> currentAmounts) {
+        OverviewResponse previousSummary = querySummary(merchantId, previousQuery);
+        List<AmountMetric> previousAmounts = querySuccessAmounts(merchantId, previousQuery);
+        PeriodComparison comparison = new PeriodComparison();
+        comparison.setPeriodDays(periodDays);
+        comparison.setPreviousTotalCount(previousSummary.getTotalCount());
+        comparison.setPreviousSuccessCount(previousSummary.getSuccessCount());
+        comparison.setPreviousFailedCount(previousSummary.getFailedCount());
+        comparison.setPreviousPendingCount(previousSummary.getPendingCount());
+        comparison.setPreviousProcessingCount(previousSummary.getProcessingCount());
+        comparison.setPreviousSuccessRate(previousSummary.getSuccessRate());
+        comparison.setSuccessAmounts(compareSuccessAmounts(currentAmounts, previousAmounts));
+        return comparison;
+    }
+
+    /** 合并当前和上一周期出现过的币种，使用 BigDecimal 计算差额与变化幅度。 */
+    private List<AmountComparisonMetric> compareSuccessAmounts(List<AmountMetric> currentAmounts,
+                                                               List<AmountMetric> previousAmounts) {
+        Map<AmountKey, AmountMetric> currentByCurrency = indexAmounts(currentAmounts);
+        Map<AmountKey, AmountMetric> previousByCurrency = indexAmounts(previousAmounts);
+        LinkedHashSet<AmountKey> orderedKeys = new LinkedHashSet<>(currentByCurrency.keySet());
+        orderedKeys.addAll(previousByCurrency.keySet());
+        List<AmountComparisonMetric> result = new ArrayList<>();
+        for (AmountKey key : orderedKeys) {
+            AmountMetric current = currentByCurrency.get(key);
+            AmountMetric previous = previousByCurrency.get(key);
+            BigDecimal currentAmount = amountOrZero(current);
+            BigDecimal previousAmount = amountOrZero(previous);
+            BigDecimal changeAmount = currentAmount.subtract(previousAmount);
+            AmountComparisonMetric metric = new AmountComparisonMetric();
+            metric.setCurrency(key.currency());
+            metric.setCurrencyExponent(key.currencyExponent());
+            metric.setCurrentAmount(currentAmount);
+            metric.setPreviousAmount(previousAmount);
+            metric.setChangeAmount(changeAmount);
+            metric.setChangeRate(changeRate(changeAmount, previousAmount));
+            metric.setChangeDirection(comparisonDirection(currentAmount, previousAmount));
+            metric.setCurrentSuccessCount(current == null ? 0L : current.getSuccessCount());
+            metric.setPreviousSuccessCount(previous == null ? 0L : previous.getSuccessCount());
+            result.add(metric);
+        }
+        return result;
+    }
+
+    /** 将金额列表按币种和币种精度建立有序索引，二者共同构成金额比较口径。 */
+    private Map<AmountKey, AmountMetric> indexAmounts(List<AmountMetric> amounts) {
+        Map<AmountKey, AmountMetric> indexed = new LinkedHashMap<>();
+        if (amounts == null) {
+            return indexed;
+        }
+        for (AmountMetric amount : amounts) {
+            String currency = StringUtils.hasText(amount.getCurrency()) ? amount.getCurrency() : "UNKNOWN";
+            indexed.put(new AmountKey(currency, amount.getCurrencyExponent()), amount);
+        }
+        return indexed;
+    }
+
+    /** 返回金额指标值；缺失记录和空金额统一按零处理。 */
+    private BigDecimal amountOrZero(AmountMetric metric) {
+        return metric == null || metric.getAmount() == null ? BigDecimal.ZERO : metric.getAmount();
+    }
+
+    /** 计算相对上一周期的绝对变化幅度；零基数新增由 NEW 方向表达而不返回无穷比例。 */
+    private BigDecimal changeRate(BigDecimal changeAmount, BigDecimal previousAmount) {
+        if (previousAmount.signum() == 0) {
+            return changeAmount.signum() == 0 ? BigDecimal.ZERO.setScale(2, RoundingMode.UNNECESSARY) : null;
+        }
+        return changeAmount.abs()
+                .multiply(BigDecimal.valueOf(100L))
+                .divide(previousAmount.abs(), 2, RoundingMode.HALF_UP);
+    }
+
+    /** 使用精确金额判断变化方向，上一周期为零且本期为正时单独标记为新增。 */
+    private ComparisonDirection comparisonDirection(BigDecimal currentAmount, BigDecimal previousAmount) {
+        if (previousAmount.signum() == 0 && currentAmount.signum() > 0) {
+            return ComparisonDirection.NEW;
+        }
+        int comparison = currentAmount.compareTo(previousAmount);
+        if (comparison > 0) {
+            return ComparisonDirection.INCREASE;
+        }
+        if (comparison < 0) {
+            return ComparisonDirection.DECREASE;
+        }
+        return ComparisonDirection.FLAT;
+    }
+
+    /** 按当前查询覆盖的自然日数量确定上一周期平移天数。 */
+    private int comparisonDays(AnalyticsQuery query) {
+        ZoneId queryZone = resolveQueryZone(query.getQueryTimeZone());
+        ZoneId storageZone = ZoneId.of(DEFAULT_QUERY_TIME_ZONE);
+        LocalDateTime displayBegin = convertBetweenZones(query.getBeginTime(), storageZone, queryZone);
+        LocalDateTime displayEnd = convertBetweenZones(query.getEndTime(), storageZone, queryZone);
+        LocalDate lastIncludedDate = displayEnd.toLocalTime().equals(LocalTime.MIDNIGHT)
+                ? displayEnd.toLocalDate().minusDays(1) : displayEnd.toLocalDate();
+        long days = java.time.temporal.ChronoUnit.DAYS.between(displayBegin.toLocalDate(), lastIncludedDate) + 1L;
+        return Math.toIntExact(Math.max(1L, Math.min(MAX_QUERY_DAYS, days)));
+    }
+
+    /** 在查询时区将当前半开区间整体向前平移，保持今天、近七天和近三十天的同进度比较。 */
+    private AnalyticsQuery previousPeriodQuery(AnalyticsQuery currentQuery, int periodDays) {
+        ZoneId queryZone = resolveQueryZone(currentQuery.getQueryTimeZone());
+        ZoneId storageZone = ZoneId.of(DEFAULT_QUERY_TIME_ZONE);
+        LocalDateTime displayBegin = convertBetweenZones(currentQuery.getBeginTime(), storageZone, queryZone);
+        LocalDateTime displayEnd = convertBetweenZones(currentQuery.getEndTime(), storageZone, queryZone);
+        AnalyticsQuery previous = new AnalyticsQuery();
+        previous.setBeginTime(convertBetweenZones(displayBegin.minusDays(periodDays), queryZone, storageZone));
+        previous.setEndTime(convertBetweenZones(displayEnd.minusDays(periodDays), queryZone, storageZone));
+        previous.setTransactionType(currentQuery.getTransactionType());
+        previous.setCurrency(currentQuery.getCurrency());
+        previous.setPaymentMethod(currentQuery.getPaymentMethod());
+        previous.setPaymentBrand(currentQuery.getPaymentBrand());
+        previous.setIssuerCountry(currentQuery.getIssuerCountry());
+        previous.setQueryTimeZone(currentQuery.getQueryTimeZone());
+        return previous;
+    }
+
+    /** 币种和币种精度共同组成金额统计键，防止历史精度不同的数据被误合并。 */
+    private record AmountKey(String currency, Integer currencyExponent) {
     }
 
     /** 失败分析只读取 merchant_visible_message，不读取渠道响应或内部失败原因。 */
