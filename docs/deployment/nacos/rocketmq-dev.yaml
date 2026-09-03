@@ -33,6 +33,9 @@ acquiring:
       default-write-queue-nums: 4
       # Topic 默认权限，6 = 可读 + 可写。
       default-topic-perm: 6
+      # 资源条目字段说明：name 为环境内唯一资源名；type 仅允许 TOPIC/CONSUMER_GROUP；message-type 仅在特殊 Topic 使用 FIFO/DELAY；
+      # read/write-queue-nums 为 Topic 读写队列数；retry-queue-nums、retry-max-times、consume-timeout-minute 分别表示消费组重试队列数、
+      # 最大 Broker 重试次数和消费超时分钟数。调整任一资源前必须核对生产者、消费者、顺序键、延迟消息能力和数据库最终幂等约束。
       resources:
         # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
         - name: acquiring_admin_operation_log_topic
@@ -174,6 +177,7 @@ acquiring:
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
+        # Merchant 邮件投递独立消费组，避免与 Admin 邮件共享消费进度和故障影响面。
         - name: acquiring-merchant-email-delivery-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
@@ -222,13 +226,19 @@ acquiring:
           retry-max-times: 16
           consume-timeout-minute: 15
     outbox:
+      # 参数说明：是否启用通用 MQ Outbox Relay；关闭会停止可靠事件投递，只允许故障处置窗口短时使用。
       relay-enabled: true
+      # 参数说明：单次 Relay 最多认领的 Outbox 记录数；增大前必须评估数据库锁和 Broker 吞吐。
       batch-size: 100
+      # 参数说明：单条 Outbox 事件允许的最大业务重试次数；超过后进入失败告警和人工补偿。
       max-retry-count: 8
+      # 参数说明：普通失败后的基础重试等待时间，单位秒；实际策略不得形成无界高频重试。
       retry-delay-seconds: 10
+      # 参数说明：Outbox 记录进入 PROCESSING 后允许恢复的超时，单位秒，必须大于单次发送超时。
       processing-timeout-seconds: 120
       # 聚合查询独立低频执行，避免跟随 1 秒 Relay 扫描访问全表状态。
       metrics-initial-delay-ms: ${ACQUIRING_MQ_OUTBOX_METRICS_INITIAL_DELAY_MS:30000}
+      # 参数说明：通用 Outbox 指标相邻两次聚合之间的等待时间，单位毫秒。
       metrics-delay-ms: ${ACQUIRING_MQ_OUTBOX_METRICS_DELAY_MS:60000}
   operation-log:
     mq:
@@ -262,11 +272,17 @@ acquiring:
     delivery:
       # 仅在表结构、运行时密钥、Topic 和消费组均已就绪后启用。
       enabled: ${EMAIL_DELIVERY_ENABLED:true}
+      # 参数说明：邮件任务未单独指定时使用的最大重试次数，必须为非负整数。
       default-max-retry-count: 3
+      # 参数说明：首次邮件重试等待时间，单位秒。
       retry-delay-seconds: 30
+      # 参数说明：指数退避允许达到的最大等待时间，单位秒，防止故障期间重试风暴。
       max-retry-delay-seconds: 3600
+      # 参数说明：邮件任务进入 PROCESSING 后允许恢复的超时，单位秒，必须覆盖正常 SMTP P99。
       processing-timeout-seconds: 300
+      # 参数说明：单次邮件 Relay 认领任务上限，增大前必须评估 SMTP 配额和数据库锁。
       batch-size: 100
+      # 参数说明：邮件 Relay 调度间隔，单位毫秒；多实例部署时仍需依赖数据库 CAS 防止重复发送。
       relay-interval-millis: 30000
 
 payment:

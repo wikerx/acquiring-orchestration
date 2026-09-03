@@ -1,5 +1,5 @@
-# 本地基础配置：只保留服务端口、服务名、激活环境和 Spring Boot 基础开关。
-# MQ、数据库、分表、Seata、XXL-JOB 等配置统一从 Nacos yaml DataId 读取。
+# 本地启动基线：只保留服务身份、端口和不可远程关闭的内部鉴权门禁。
+# 下游客户端、超时、调用凭据和允许路径统一从 service-job-{env}.yaml 读取。
 server:
   # 参数说明：配置服务监听端口，有效范围 1-65535；同一主机上的服务端口不得冲突。
   port: 8007
@@ -17,11 +17,7 @@ spring:
     # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
     allow-bean-definition-overriding: true
 
-job:
-  clearing-client:
-    base-url: ${JOB_CLEARING_BASE_URL:http://service-clearing}
-    connect-timeout-millis: ${JOB_CLEARING_CONNECT_TIMEOUT_MILLIS:3000}
-    read-timeout-millis: ${JOB_CLEARING_READ_TIMEOUT_MILLIS:120000}
-    internal-caller: service-job
-    # 必须与 service-clearing 的 internal-service.auth.secret 使用同一环境注入值。
-    internal-secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+internal-service:
+  auth:
+    # 安全门禁固定留在本地，调用凭据和路径由服务专属 Nacos DataId 提供。
+    enabled: true

@@ -16,7 +16,19 @@ public interface ReserveReleaseService {
 
     /** 保证金释放处理结果。 */
     enum ReserveReleaseOutcome {
+        /**
+         * RELEASED 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         RELEASED,
+        /**
+         * ALREADY FINAL 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         ALREADY_FINAL,
         NOT_DUE
     }

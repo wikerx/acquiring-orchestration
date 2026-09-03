@@ -23,23 +23,21 @@ public class TransactionMerchantNotificationDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @TableId(type = IdType.AUTO)
     /**
-     * Transaction Merchant Notification DO 数据库主键，用于唯一标识当前记录。
+     * {@code TransactionMerchantNotificationDO} 数据库主键，用于唯一标识当前记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
-     * notify ID，用于定位 Transaction Merchant Notification DO 关联的上游配置、渠道、账号、角色或业务记录。
+     * 通知ID，用于定位 {@code TransactionMerchantNotificationDO} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String notifyId;
@@ -89,23 +87,21 @@ public class TransactionMerchantNotificationDO implements Serializable {
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String notifyType;
 
     /**
-     * event Type，用于区分 Transaction Merchant Notification DO 记录的处理类别、配置维度或外部协议枚举。
+     * {@code eventType}，用于区分 {@code TransactionMerchantNotificationDO} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String eventType;
 
     /**
-     * notify Status，表示当前记录在业务流程中的处理状态。
+     * 通知状态，表示当前记录在业务流程中的处理状态。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
@@ -115,11 +111,10 @@ public class TransactionMerchantNotificationDO implements Serializable {
     private String notifyStatus;
 
     /**
-     * notify Config Version，用于保存 Transaction Merchant Notification DO 中与 通知配置version 相关的业务属性。
+     * 通知配置版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String notifyConfigVersion;
@@ -131,51 +126,46 @@ public class TransactionMerchantNotificationDO implements Serializable {
     private String payloadJson;
 
     /**
-     * target URL Hash，表示回调、通知、来源站点或远程接口地址。
+     * {@code targetUrlHash}，表示回调、通知、来源站点或远程接口地址。
      * <p>
      * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
      * 取值范围：长度和协议由调用方校验；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String targetUrlHash;
 
     /**
-     * target URL Masked，表示回调、通知、来源站点或远程接口地址。
+     * {@code targetUrlMasked}，表示回调、通知、来源站点或远程接口地址。
      * <p>
      * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
      * 取值范围：长度和协议由调用方校验；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String targetUrlMasked;
 
     /**
-     * payload Json Masked，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
+     * {@code payloadJsonMasked}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
      * <p>
      * 单位：无；格式：JSON 字符串或结构化对象；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：内容必须先脱敏再进入日志；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String payloadJsonMasked;
 
     /**
-     * sign Type，用于区分 Transaction Merchant Notification DO 记录的处理类别、配置维度或外部协议枚举。
+     * {@code signType}，用于区分 {@code TransactionMerchantNotificationDO} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String signType;
 
     /**
-     * last Attempt No，用于保存 Transaction Merchant Notification DO 中与 lastattemptno 相关的业务属性。
+     * 持久化的{@code lastAttemptNo}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private Integer lastAttemptNo;
@@ -185,107 +175,98 @@ public class TransactionMerchantNotificationDO implements Serializable {
      * <p>
      * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private Integer maxRetryCount;
 
     /**
-     * next Retry Time，用于保存 Transaction Merchant Notification DO 中与 nextretrytime 相关的业务属性。
+     * 持久化的{@code nextRetryTime}，用于还原当前记录的业务事实。
      * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
      * </p>
      */
     private LocalDateTime nextRetryTime;
 
     /**
-     * success Time，用于保存 Transaction Merchant Notification DO 中与 successtime 相关的业务属性。
+     * 持久化的成功时间，用于还原当前记录的业务事实。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime successTime;
 
     /**
-     * fail Reason，用于保存 Transaction Merchant Notification DO 中与 failreason 相关的业务属性。
+     * 持久化的{@code failReason}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String failReason;
 
     /**
-     * transaction Date Time，用于保存 Transaction Merchant Notification DO 中与 交易datetime 相关的业务属性。
+     * 交易受理时刻，按交易业务时区解释并保留毫秒精度。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime transactionDateTime;
 
     /**
-     * transaction Utc Time，用于保存 Transaction Merchant Notification DO 中与 交易utctime 相关的业务属性。
+     * 交易受理时刻对应的 UTC 时间，用于跨时区排序和对账。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime transactionUtcTime;
 
     /**
-     * transaction Time Zone，用于保存 Transaction Merchant Notification DO 中与 交易timezone 相关的业务属性。
+     * 交易业务时区，使用 IANA 时区标识解释本地交易时间。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String transactionTimeZone;
 
     /**
-     * version，用于保存 Transaction Merchant Notification DO 中与 version 相关的业务属性。
+     * 版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
      * <p>
      * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private Integer version;
 
     /**
-     * deleted，用于保存 Transaction Merchant Notification DO 中与 deleted 相关的业务属性。
+     * 逻辑删除标识；0 表示有效，1 表示已删除，查询必须沿用统一软删除口径。
      * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：布尔值或 0/1 标识；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：仅允许平台约定的真假取值；数据来源：数据库表记录或持久化写入对象。
      * </p>
      */
     private Integer deleted;
 
     /**
-     * create Time，用于保存 Transaction Merchant Notification DO 中与 createtime 相关的业务属性。
+     * 记录创建时刻，持久化精度为毫秒。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
      * </p>
      */
     private LocalDateTime createTime;
 
     /**
-     * update Time，用于保存 Transaction Merchant Notification DO 中与 updatetime 相关的业务属性。
+     * 记录最后更新时间，持久化精度为毫秒。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
      * </p>
      */
     private LocalDateTime updateTime;

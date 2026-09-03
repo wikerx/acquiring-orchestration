@@ -7,16 +7,16 @@ import java.util.Collections;
 import java.util.List;
 
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PageResult
  * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : Page Result 协作组件，位于 公共组件库，封装 pageresult 相关的校验、转换、持久化访问或运行时协作入口。
+ * @description : 页协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
  * @status : create
  */
+@Data
 public class PageResult<T> implements Serializable {
 
     /**

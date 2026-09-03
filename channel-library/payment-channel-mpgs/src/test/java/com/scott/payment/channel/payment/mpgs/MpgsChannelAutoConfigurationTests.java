@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @version : v1.0.0
  * @classname : MpgsChannelAutoConfigurationTests
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : MPGS 插件自动配置测试，验证兼容默认启用及显式关闭行为。
  * @status : create
  */

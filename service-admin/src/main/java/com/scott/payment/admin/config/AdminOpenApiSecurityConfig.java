@@ -19,8 +19,6 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.Set;
 
-@Configuration
-@EnableConfigurationProperties(OpenApiMerchantKeyExportProperties.class)
 /**
  * @author : scott
  * @version : v1.0.0
@@ -30,6 +28,8 @@ import java.util.Set;
  * @description : Admin Open API Security Config 配置类，位于 运营后台服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
+@Configuration
+@EnableConfigurationProperties(OpenApiMerchantKeyExportProperties.class)
 public class AdminOpenApiSecurityConfig {
 
     /**

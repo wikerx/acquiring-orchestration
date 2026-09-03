@@ -4,7 +4,15 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 
-/** 单季度标签币种保证金剩余负债聚合投影，仅用于运维容量监控。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingReserveRemainingMetricsDO
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 单季度标签币种保证金剩余负债聚合投影，仅用于运维容量监控。
+ * @status : update
+ */
 @Data
 public class ClearingReserveRemainingMetricsDO {
 

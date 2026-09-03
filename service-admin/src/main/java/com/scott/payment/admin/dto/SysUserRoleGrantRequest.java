@@ -6,16 +6,16 @@ import lombok.Data;
 import java.util.List;
 
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysUserRoleGrantRequest
  * @date : 2026-06-12 11:47
  * @email : scott_x@163.com
- * @description : Sys User Role Grant Request 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : sys用户角色授权请求模型，位于 运营后台服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
  * @status : create
  */
+@Data
 public class SysUserRoleGrantRequest {
 
     /**

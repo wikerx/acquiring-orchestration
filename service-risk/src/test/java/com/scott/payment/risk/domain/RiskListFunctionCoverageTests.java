@@ -9,7 +9,13 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 管理端名单定义与运行时名单枚举覆盖契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskListFunctionCoverageTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 管理端名单定义与运行时名单枚举覆盖契约测试。
+ * @status : create
  */
 class RiskListFunctionCoverageTests {
 

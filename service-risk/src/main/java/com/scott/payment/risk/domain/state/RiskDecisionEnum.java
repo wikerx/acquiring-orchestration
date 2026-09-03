@@ -8,7 +8,7 @@ import lombok.Getter;
  * @classname : RiskDecisionEnum
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : 风控决策枚举，位于 service-risk 领域状态层，只表达风险处理建议，不与交易状态 transaction_status 混用。
+ * @description : 风控结论枚举，位于 风控服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  * @status : create
  */
 @Getter

@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.exception.MQBrokerException;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.common.TopicConfig;
+import org.apache.rocketmq.common.TopicAttributes;
 import org.apache.rocketmq.common.attribute.TopicMessageType;
 import org.apache.rocketmq.common.topic.TopicValidator;
 import org.apache.rocketmq.remoting.exception.RemotingException;
@@ -251,7 +252,11 @@ public class RocketMqAdminFacade {
         topicConfig.setReadQueueNums(defaultValue(resource.getReadQueueNums(), initializerProperties.getDefaultReadQueueNums()));
         topicConfig.setWriteQueueNums(defaultValue(resource.getWriteQueueNums(), initializerProperties.getDefaultWriteQueueNums()));
         topicConfig.setPerm(defaultValue(resource.getPerm(), initializerProperties.getDefaultTopicPerm()));
-        topicConfig.setTopicMessageType(expectedTopicMessageType(resource));
+        TopicMessageType messageType = expectedTopicMessageType(resource);
+        if (messageType != TopicMessageType.NORMAL) {
+            String attributeName = TopicAttributes.TOPIC_MESSAGE_TYPE_ATTRIBUTE.getName();
+            topicConfig.getAttributes().put("+" + attributeName, messageType.getValue());
+        }
         return topicConfig;
     }
 

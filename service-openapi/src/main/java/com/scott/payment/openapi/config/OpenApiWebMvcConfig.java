@@ -11,8 +11,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import java.util.List;
 
 
-@Configuration
-@EnableConfigurationProperties({OpenApiCallbackProperties.class, OpenApiMerchantSecretCacheProperties.class})
 /**
  * @author : scott
  * @version : v1.0.0
@@ -22,6 +20,8 @@ import java.util.List;
  * @description : Open API Web Mvc Config 配置类，位于 商户开放接口服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
+@Configuration
+@EnableConfigurationProperties({OpenApiCallbackProperties.class, OpenApiMerchantSecretCacheProperties.class})
 public class OpenApiWebMvcConfig implements WebMvcConfigurer {
 
     /**

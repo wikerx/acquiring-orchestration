@@ -110,8 +110,9 @@ public interface SettlementCandidateMapper {
             WHERE candidate.candidate_status = 'READY'
               AND candidate.shadow_mode = 0
               AND candidate.settlement_batch_no IS NULL
+              AND candidate.review_order_no IS NULL
               AND ((batch.batch_type = 'REGULAR'
-                    AND candidate.source_type IN ('CLEARING_REVISION', 'ADJUSTMENT'))
+                    AND candidate.source_type = 'CLEARING_REVISION')
                    OR (batch.batch_type = 'RESERVE_RELEASE'
                        AND candidate.source_type = 'RESERVE_RELEASE')
                    OR (batch.batch_type = 'ADJUSTMENT'
@@ -138,6 +139,180 @@ public interface SettlementCandidateMapper {
             @Param("settlementBatchNo") String settlementBatchNo,
             @Param("limit") int limit);
 
+    /**
+     * 在自动正式建批事务内锁定第一条真实可认领候选；筛选条件必须与批次认领第一页保持一致。
+     */
+    @Select("""
+            SELECT candidate.*
+            FROM settlement_candidate candidate
+            INNER JOIN merchant_settlement_profile profile
+                    ON profile.id = candidate.settlement_profile_id
+                   AND profile.merchant_id = candidate.merchant_id
+                   AND profile.settlement_account_id = #{settlementAccountId}
+                   AND profile.target_currency = candidate.target_currency
+                   AND profile.target_currency_exponent = candidate.target_currency_exponent
+                   AND profile.profile_status IN ('ACTIVE', 'RETIRED')
+                   AND profile.processing_mode = 'AUTO_POST'
+            INNER JOIN merchant_fund_account account
+                    ON account.id = profile.settlement_account_id
+                   AND account.merchant_id = profile.merchant_id
+                   AND account.settlement_currency = profile.target_currency
+                   AND account.account_status = 'NORMAL'
+                   AND account.deleted = 0
+            WHERE candidate.merchant_id = #{merchantId}
+              AND candidate.settlement_profile_id = #{settlementProfileId}
+              AND candidate.target_currency = #{targetCurrency}
+              AND candidate.target_currency_exponent = #{targetCurrencyExponent}
+              AND candidate.candidate_status = 'READY'
+              AND candidate.shadow_mode = 0
+              AND candidate.settlement_batch_no IS NULL
+              AND candidate.review_order_no IS NULL
+              AND ((#{batchType} = 'REGULAR'
+                    AND candidate.source_type = 'CLEARING_REVISION')
+                   OR (#{batchType} = 'RESERVE_RELEASE'
+                       AND candidate.source_type = 'RESERVE_RELEASE')
+                   OR (#{batchType} = 'ADJUSTMENT'
+                       AND candidate.source_type = 'ADJUSTMENT'))
+              AND candidate.settlement_eligible_date <= #{businessDate}
+              AND candidate.create_time < #{cutoffEndTime}
+              AND NOT EXISTS (
+                    SELECT 1
+                    FROM settlement_candidate_dependency dependency
+                    INNER JOIN settlement_candidate required_candidate
+                            ON required_candidate.id = dependency.depends_on_candidate_id
+                    WHERE dependency.candidate_id = candidate.id
+                      AND required_candidate.candidate_status != 'POSTED'
+              )
+            ORDER BY candidate.id ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+            """)
+    SettlementCandidateDO selectAutomaticPostAnchorForUpdate(
+            @Param("merchantId") String merchantId,
+            @Param("settlementProfileId") Long settlementProfileId,
+            @Param("settlementAccountId") Long settlementAccountId,
+            @Param("targetCurrency") String targetCurrency,
+            @Param("targetCurrencyExponent") Integer targetCurrencyExponent,
+            @Param("batchType") String batchType,
+            @Param("businessDate") java.time.LocalDate businessDate,
+            @Param("cutoffEndTime") LocalDateTime cutoffEndTime);
+
+    /** 按主键升序锁定人工选择的候选，所有校验和 CAS 均在同一主库事务内完成。 */
+    @Select("""
+            <script>
+            SELECT *
+            FROM settlement_candidate
+            WHERE id IN
+            <foreach collection="candidateIds" item="candidateId" open="(" separator="," close=")">
+                #{candidateId}
+            </foreach>
+            ORDER BY id ASC
+            FOR UPDATE
+            </script>
+            """)
+    List<SettlementCandidateDO> selectByIdsForUpdate(@Param("candidateIds") List<Long> candidateIds);
+
+    /** 将页面携带版本的同维度 READY 候选原子锁入预审单。 */
+    @Update("""
+            <script>
+            UPDATE settlement_candidate
+            SET candidate_status = 'REVIEW_LOCKED',
+                review_order_no = #{reviewOrderNo},
+                review_locked_time = #{lockedTime},
+                version = version + 1,
+                update_time = #{lockedTime}
+            WHERE candidate_status = 'READY'
+              AND settlement_batch_no IS NULL
+              AND review_order_no IS NULL
+              AND shadow_mode = 0
+              AND settlement_profile_id = #{settlementProfileId}
+              AND (
+                <foreach collection="rows" item="row" separator=" OR ">
+                    (id = #{row.id}
+                     AND version = #{row.version}
+                     AND merchant_id = #{row.merchantId}
+                     AND target_currency = #{row.targetCurrency}
+                     AND target_currency_exponent = #{row.targetCurrencyExponent})
+                </foreach>
+              )
+            </script>
+            """)
+    int lockForReview(@Param("rows") List<SettlementCandidateDO> rows,
+                      @Param("reviewOrderNo") String reviewOrderNo,
+                      @Param("settlementProfileId") Long settlementProfileId,
+                      @Param("lockedTime") LocalDateTime lockedTime);
+
+    /** 审批通过时将仍被该预审单独占的候选消费为正式批次认领。 */
+    @Update("""
+            <script>
+            UPDATE settlement_candidate
+            SET candidate_status = 'CLAIMED',
+                settlement_batch_no = #{settlementBatchNo},
+                claimed_time = #{claimedTime},
+                version = version + 1,
+                update_time = #{claimedTime}
+            WHERE candidate_status = 'REVIEW_LOCKED'
+              AND review_order_no = #{reviewOrderNo}
+              AND settlement_batch_no IS NULL
+              AND shadow_mode = 0
+              AND (
+                <foreach collection="rows" item="row" separator=" OR ">
+                    (id = #{row.id}
+                     AND version = #{row.version})
+                </foreach>
+              )
+            </script>
+            """)
+    int consumeReviewLock(@Param("rows") List<SettlementCandidateDO> rows,
+                          @Param("reviewOrderNo") String reviewOrderNo,
+                          @Param("settlementBatchNo") String settlementBatchNo,
+                          @Param("claimedTime") LocalDateTime claimedTime);
+
+    /** 拒绝、取消或过期只释放仍属于该预审单且版本未变化的候选。 */
+    @Update("""
+            <script>
+            UPDATE settlement_candidate
+            SET candidate_status = 'READY',
+                review_order_no = NULL,
+                review_locked_time = NULL,
+                version = version + 1,
+                update_time = #{releasedTime}
+            WHERE candidate_status = 'REVIEW_LOCKED'
+              AND review_order_no = #{reviewOrderNo}
+              AND settlement_batch_no IS NULL
+              AND shadow_mode = 0
+              AND (
+                <foreach collection="rows" item="row" separator=" OR ">
+                    (id = #{row.id}
+                     AND version = #{row.version})
+                </foreach>
+              )
+            </script>
+            """)
+    int releaseReviewLock(@Param("rows") List<SettlementCandidateDO> rows,
+                          @Param("reviewOrderNo") String reviewOrderNo,
+                          @Param("releasedTime") LocalDateTime releasedTime);
+
+    /** 预审候选的依赖必须已入账，或与依赖方一起进入同一预审单。 */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM settlement_candidate_dependency dependency
+            INNER JOIN settlement_candidate required_candidate
+                    ON required_candidate.id = dependency.depends_on_candidate_id
+            WHERE dependency.candidate_id IN
+            <foreach collection="candidateIds" item="candidateId" open="(" separator="," close=")">
+                #{candidateId}
+            </foreach>
+              AND required_candidate.candidate_status != 'POSTED'
+              AND required_candidate.id NOT IN
+            <foreach collection="candidateIds" item="candidateId" open="(" separator="," close=")">
+                #{candidateId}
+            </foreach>
+            </script>
+            """)
+    long countUnresolvedReviewDependencies(@Param("candidateIds") List<Long> candidateIds);
+
     /** 批量认领已锁定候选；每个 OR 分支都校验主键、version、配置和真实 READY 状态。 */
     @Update("""
             <script>
@@ -149,6 +324,7 @@ public interface SettlementCandidateMapper {
                 update_time = #{claimedTime}
             WHERE candidate_status = 'READY'
               AND settlement_batch_no IS NULL
+              AND review_order_no IS NULL
               AND shadow_mode = 0
               AND settlement_profile_id = #{settlementProfileId}
               AND (
@@ -208,6 +384,7 @@ public interface SettlementCandidateMapper {
             WHERE id = #{candidateId}
               AND candidate_status = 'READY'
               AND settlement_batch_no IS NULL
+              AND review_order_no IS NULL
               AND shadow_mode = 0
               AND settlement_profile_id = #{settlementProfileId}
               AND version = #{expectedVersion}

@@ -22,6 +22,8 @@
     <modules>
         <!--基础值对象、枚举、异常、缓存契约、卡号脱敏和通用工具。-->
         <module>component-core</module>
+        <!--Nacos 配置密文的 AES-GCM 加解密 SPI；同一产物同时装载到服务端和客户端。-->
+        <module>component-nacos-encryption</module>
         <!--Excel 导入导出模型、注解和统一处理能力。-->
         <module>component-excel</module>
         <!--Servlet Web、鉴权上下文、异常处理、链路追踪和内部接口保护。-->

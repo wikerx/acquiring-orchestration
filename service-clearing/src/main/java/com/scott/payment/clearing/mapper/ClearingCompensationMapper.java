@@ -7,7 +7,15 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 清分补偿候选只读扫描 Mapper。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingCompensationMapper
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 清分补偿候选只读扫描 Mapper。
+ * @status : update
+ */
 public interface ClearingCompensationMapper {
 
     /** 在单季度半开窗口内按动作时间和物理主键游标扫描恢复候选。 */

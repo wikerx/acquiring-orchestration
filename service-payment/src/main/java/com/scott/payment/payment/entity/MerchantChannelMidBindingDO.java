@@ -20,15 +20,14 @@ import java.time.LocalDateTime;
 @TableName("merchant_channel_mid_binding")
 public class MerchantChannelMidBindingDO {
 
-    @TableId(type = IdType.AUTO)
     /**
-     * Merchant Channel MID Binding DO 数据库主键，用于唯一标识当前记录。
+     * {@code MerchantChannelMidBindingDO} 数据库主键，用于唯一标识当前记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
@@ -42,7 +41,7 @@ public class MerchantChannelMidBindingDO {
     private String merchantId;
 
     /**
-     * channel ID，用于定位 Merchant Channel MID Binding DO 关联的上游配置、渠道、账号、角色或业务记录。
+     * 渠道ID，用于定位 {@code MerchantChannelMidBindingDO} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
@@ -52,27 +51,25 @@ public class MerchantChannelMidBindingDO {
     private Long channelId;
 
     /**
-     * 渠道编码，用于定位统一 SPI 下的 provider 实现和路由配置。
+     * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String channelCode;
 
     /**
-     * MID Config ID，用于定位 Merchant Channel MID Binding DO 关联的上游配置、渠道、账号、角色或业务记录。
+     * {@code midConfigId}，用于定位 {@code MerchantChannelMidBindingDO} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private Long midConfigId;
 
     /**
-     * channel MID，用于定位 Merchant Channel MID Binding DO 关联的上游配置、渠道、账号、角色或业务记录。
+     * {@code channelMid}，用于定位 {@code MerchantChannelMidBindingDO} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
@@ -82,7 +79,7 @@ public class MerchantChannelMidBindingDO {
     private String channelMid;
 
     /**
-     * binding Status，表示当前记录在业务流程中的处理状态。
+     * {@code bindingStatus}，表示当前记录在业务流程中的处理状态。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
@@ -92,31 +89,28 @@ public class MerchantChannelMidBindingDO {
     private Integer bindingStatus;
 
     /**
-     * effective Time，用于保存 Merchant Channel MID Binding DO 中与 effectivetime 相关的业务属性。
+     * 业务配置或汇率开始生效的具体时刻。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime effectiveTime;
 
     /**
-     * expire Time，用于保存 Merchant Channel MID Binding DO 中与 expiretime 相关的业务属性。
+     * 业务配置、令牌或缓存条目的失效时刻。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime expireTime;
 
     /**
-     * deleted，用于保存 Merchant Channel MID Binding DO 中与 deleted 相关的业务属性。
+     * 逻辑删除标识；0 表示有效，1 表示已删除，查询必须沿用统一软删除口径。
      * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：布尔值或 0/1 标识；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：仅允许平台约定的真假取值；数据来源：数据库表记录或持久化写入对象。
      * </p>
      */
     private Long deleted;

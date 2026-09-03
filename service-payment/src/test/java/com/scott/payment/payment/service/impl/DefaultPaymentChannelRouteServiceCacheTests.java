@@ -66,6 +66,52 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         verifyNoInteractions(midMapper, channelMapper);
     }
 
+    @Test
+    void shouldUseConfiguredDefaultCurrencyForEdcRoute() {
+        PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
+        PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);
+        MerchantRouteProfileCacheService profileCache = mock(MerchantRouteProfileCacheService.class);
+        PaymentChannelMidMetadataCache metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        MerchantRouteProfile profile = profile(LocalDateTime.of(2026, 8, 1, 15, 40));
+        RouteOption option = profile.getRouteOptions().get(0);
+        option.setSupportedCurrencies(new ArrayList<>(List.of("EUR", "USD")));
+        option.setDefaultTransactionCurrency("USD");
+        when(profileCache.findRouteProfile("200045")).thenReturn(profile);
+        when(metadataCache.getMetadataJson(10L, option.getMidModifiedTime())).thenReturn("{}");
+        PaymentCreateCommandDTO command = command();
+        command.setCurrency("CNY");
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                midMapper, channelMapper, profileCache, metadataCache);
+
+        PaymentRouteResultDTO result = service.route(command);
+
+        assertThat(result.getRequestedCurrency()).isEqualTo("CNY");
+        assertThat(result.getRoutedCurrency()).isEqualTo("USD");
+        assertThat(result.isEdcRequired()).isTrue();
+    }
+
+    @Test
+    void shouldRejectEdcRouteWhenDefaultCurrencyIsOutsideMidIntersection() {
+        PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
+        PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);
+        MerchantRouteProfileCacheService profileCache = mock(MerchantRouteProfileCacheService.class);
+        PaymentChannelMidMetadataCache metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        MerchantRouteProfile profile = profile(LocalDateTime.of(2026, 8, 1, 15, 40));
+        RouteOption option = profile.getRouteOptions().get(0);
+        option.setSupportedCurrencies(new ArrayList<>(List.of("EUR")));
+        option.setDefaultTransactionCurrency("USD");
+        when(profileCache.findRouteProfile("200045")).thenReturn(profile);
+        PaymentCreateCommandDTO command = command();
+        command.setCurrency("CNY");
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                midMapper, channelMapper, profileCache, metadataCache);
+
+        assertThatThrownBy(() -> service.route(command))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("Invalid request parameter");
+        verifyNoInteractions(metadataCache, midMapper, channelMapper);
+    }
+
     /** 路由层必须再次校验卡品牌，不能选择仅支持 Visa/Mastercard 的 MID 处理 AMEX。 */
     @Test
     void shouldRejectRouteWhenMidDoesNotSupportCardBrand() {
@@ -207,6 +253,7 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         option.setCapabilitySupport3ds(1);
         option.setCapabilityStatus(1);
         option.setCapabilitySortOrder(1);
+        option.setDefaultTransactionCurrency("USD");
         option.setSupportedCurrencies(new ArrayList<>(List.of("USD")));
         profile.setRouteOptions(new ArrayList<>(List.of(option)));
         return profile;

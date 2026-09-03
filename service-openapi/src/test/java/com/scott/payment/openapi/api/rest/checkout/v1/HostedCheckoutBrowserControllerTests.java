@@ -12,7 +12,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Hosted Checkout 浏览器桥接页测试，验证 3DS 返回数据不被误判为支付成功且敏感报文不回显。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : HostedCheckoutBrowserControllerTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 浏览器桥接页测试，验证 3DS 返回数据不被误判为支付成功且敏感报文不回显。
+ * @status : create
  */
 class HostedCheckoutBrowserControllerTests {
 

@@ -9,6 +9,15 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingInternalCallerInterceptorTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证清分内部路径只允许配置的可信调用方通过且路径范围不能被扩大
+ * @status : create
+ */
 class ClearingInternalCallerInterceptorTest {
 
     @Test

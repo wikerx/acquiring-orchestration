@@ -12,7 +12,13 @@ import java.util.Base64;
 import java.util.HexFormat;
 
 /**
- * Hosted Checkout token 与摘要支撑。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutTokenSupport
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout token 与摘要支撑。
+ * @status : create
  */
 public final class PaymentCheckoutTokenSupport {
 

@@ -11,9 +11,23 @@ import java.util.List;
 
 import com.scott.payment.clearing.entity.ClearingTierPeriodReplayItemFactsDO;
 
-/** 清分结算候选 Mapper；只创建或替换 READY 候选，不执行结算认领和入账。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingSettlementCandidateMapper
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 清分结算候选 Mapper；只创建或替换 READY 候选，不执行结算认领和入账。
+ * @status : update
+ */
 public interface ClearingSettlementCandidateMapper {
 
+    /**
+     * 依赖来源类型、业务身份和修订唯一键幂等写入候选，不覆盖既有候选状态。
+     *
+     * @param row 待写入的清分或保证金候选快照
+     * @return 实际插入行数；唯一键重复时可能为 0
+     */
     @Insert("""
             INSERT INTO settlement_candidate
             (candidate_no, source_type, source_business_id, source_revision,
@@ -31,6 +45,13 @@ public interface ClearingSettlementCandidateMapper {
             """)
     int insertIdempotent(@Param("row") ClearingSettlementCandidateDO row);
 
+    /**
+     * 按清分财务状态和修订锁定真实交易候选。
+     *
+     * @param financeStateId 清分财务状态业务号
+     * @param revision 清分修订号
+     * @return 已加行锁的候选，不存在时返回 null
+     */
     @Select("""
             SELECT *
             FROM settlement_candidate

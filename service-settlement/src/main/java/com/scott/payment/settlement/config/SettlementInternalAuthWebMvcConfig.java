@@ -26,11 +26,16 @@ public class SettlementInternalAuthWebMvcConfig implements WebMvcConfigurer {
 
     public SettlementInternalAuthWebMvcConfig(InternalServiceAuthProperties authProperties,
                                               InternalRequestReplayGuard replayGuard) {
+        authProperties.validate();
         this.authProperties = authProperties;
         this.replayGuard = replayGuard;
     }
 
-    /** 先验证签名和 nonce，再验证调用方必须是 service-admin。 */
+    /**
+     * 先验证签名和 nonce，再验证调用方必须是 service-admin。
+     *
+     * @param registry Spring MVC 拦截器注册表
+     */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new InternalServiceAuthInterceptor(authProperties, replayGuard))

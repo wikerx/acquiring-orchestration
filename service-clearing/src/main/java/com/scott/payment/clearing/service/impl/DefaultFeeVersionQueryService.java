@@ -41,8 +41,30 @@ import java.util.regex.Pattern;
 @Service
 public class DefaultFeeVersionQueryService implements FeeVersionQueryService {
 
+    /**
+     * {@code USD}常量，统一 {@code DefaultFeeVersionQueryService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String USD = "USD";
+    /**
+     * {@code USD_EXPONENT}常量，统一 {@code DefaultFeeVersionQueryService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int USD_EXPONENT = 2;
+    /**
+     * ISO币种，表示金额字段使用的币种。
+     * <p>
+     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+     * </p>
+     */
     private static final Pattern ISO_CURRENCY = Pattern.compile("[A-Z]{3}");
 
     private final ClearingFeeVersionSnapshotMapper snapshotMapper;
@@ -98,6 +120,7 @@ public class DefaultFeeVersionQueryService implements FeeVersionQueryService {
                 first.getReserveDelayDays(), snapshots);
     }
 
+    /** 费用版本头必须完整且仍处于可追溯的 ACTIVE 或 SUPERSEDED 状态。 */
     private void validateVersionHeader(ClearingFeeVersionSnapshotRowDO row) {
         if (row == null || row.getMerchantId() == null || row.getMerchantId().isBlank()
                 || row.getFeePlanId() == null || row.getFeePlanId() < 1
@@ -114,6 +137,7 @@ public class DefaultFeeVersionQueryService implements FeeVersionQueryService {
         }
     }
 
+    /** 同一不可变版本内禁止出现重复规则维度，避免一笔动作重复收费。 */
     private void validateDistinctRuleDimensions(List<FeeRuleConfigurationSnapshot> rules) {
         Set<RuleDimension> dimensions = new HashSet<>();
         for (FeeRuleConfigurationSnapshot rule : rules) {
@@ -132,6 +156,7 @@ public class DefaultFeeVersionQueryService implements FeeVersionQueryService {
         return value == null ? null : value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /** JOIN 展开的每行必须属于同一商户、方案和不可变版本。 */
     private void validateIdentity(ClearingFeeVersionSnapshotRowDO expected,
                                   ClearingFeeVersionSnapshotRowDO actual) {
         if (!Objects.equals(expected.getMerchantId(), actual.getMerchantId())
@@ -168,7 +193,22 @@ public class DefaultFeeVersionQueryService implements FeeVersionQueryService {
 
     private static final class RuleAccumulator {
 
+        /**
+         * 规则字段，保存 {@code RuleAccumulator} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private final ClearingFeeVersionSnapshotRowDO rule;
+        /**
+         * {@code tiers}集合，承载 {@code RuleAccumulator} 当前请求或响应中的多值数据。
+         * <p>
+         * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
+         * </p>
+         */
         private final List<FeeTierSnapshot> tiers = new ArrayList<>();
 
         private RuleAccumulator(ClearingFeeVersionSnapshotRowDO rule) {
@@ -179,6 +219,7 @@ public class DefaultFeeVersionQueryService implements FeeVersionQueryService {
             this.rule = rule;
         }
 
+        /** 阶梯行必须连续归属于当前规则，且金额和边界口径由规则类型决定。 */
         private void addTier(ClearingFeeVersionSnapshotRowDO row) {
             validateRuleTerms(row);
             if (row.getFeeTierId() != null) {
@@ -189,6 +230,7 @@ public class DefaultFeeVersionQueryService implements FeeVersionQueryService {
             }
         }
 
+        /** 百分比、USD 固定费和上下限必须满足非负及组合约束。 */
         private void validateRuleTerms(ClearingFeeVersionSnapshotRowDO row) {
             if (!Objects.equals(rule.getFeeRuleId(), row.getFeeRuleId())
                     || !Objects.equals(normalized(rule.getFeeCategory()), normalized(row.getFeeCategory()))

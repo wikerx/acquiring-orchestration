@@ -19,12 +19,43 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-/** 默认补偿扫描实现；扫描只读，逐条恢复由独立事务服务完成。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingCompensationService
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 默认补偿扫描实现；扫描只读，逐条恢复由独立事务服务完成。
+ * @status : update
+ */
 @Service
 public class DefaultClearingCompensationService implements ClearingCompensationService {
 
+    /**
+     * {@code DEFAULT_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int DEFAULT_LIMIT = 200;
+    /**
+     * {@code MAX_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int MAX_LIMIT = 1000;
+    /**
+     * 等待超时分钟数常量，统一 {@code DefaultClearingCompensationService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long PENDING_TIMEOUT_MINUTES = 5L;
     private static final Set<String> MODES = Set.of("DRY_RUN", "SHADOW_WRITE");
 
@@ -40,6 +71,7 @@ public class DefaultClearingCompensationService implements ClearingCompensationS
         this.metrics = metrics;
     }
 
+    /** {@inheritDoc} */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public CompensationScanResponse scan(CompensationScanRequest request, LocalDateTime now) {
@@ -52,6 +84,7 @@ public class DefaultClearingCompensationService implements ClearingCompensationS
         }
     }
 
+    /** 使用主键游标逐条调用独立短事务恢复，单条失败不得回滚整页。 */
     private CompensationScanResponse scanValidated(CompensationScanRequest request,
                                                     LocalDateTime now,
                                                     String mode) {
@@ -92,6 +125,7 @@ public class DefaultClearingCompensationService implements ClearingCompensationS
         return response;
     }
 
+    /** 限制为单季度半开窗口和有上限批量，防止补偿广播所有交易分片。 */
     private String validate(CompensationScanRequest request, LocalDateTime now) {
         if (request == null || now == null || request.getBeginTime() == null || request.getEndTime() == null
                 || !request.getBeginTime().isBefore(request.getEndTime())) {

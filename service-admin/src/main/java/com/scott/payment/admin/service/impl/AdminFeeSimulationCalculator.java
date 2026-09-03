@@ -37,9 +37,37 @@ import java.util.Map;
 @Component
 public class AdminFeeSimulationCalculator {
 
+    /**
+     * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
+    /**
+     * 展示小数位常量，统一 {@code AdminFeeSimulationCalculator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int DISPLAY_SCALE = 2;
+    /**
+     * {@code USD_EXPONENT}常量，统一 {@code AdminFeeSimulationCalculator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int USD_EXPONENT = 2;
+    /**
+     * 费用舍入模式常量，统一 {@code AdminFeeSimulationCalculator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final RoundingMode FEE_ROUNDING_MODE = RoundingMode.HALF_UP;
 
     private final FeeComponentCalculator feeComponentCalculator = new FeeComponentCalculator();

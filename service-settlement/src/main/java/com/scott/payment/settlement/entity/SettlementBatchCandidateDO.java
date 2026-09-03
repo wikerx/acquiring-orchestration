@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 @Data
 @TableName("settlement_batch_candidate")
 public class SettlementBatchCandidateDO {
+    /** 批次候选关系数据库主键，插入前允许为空。 */
     @TableId(type = IdType.AUTO)
     private Long id;
     /** 稳定批次候选关系号。 */
@@ -43,6 +44,8 @@ public class SettlementBatchCandidateDO {
     private LocalDateTime postedTime;
     /** 关系状态 CAS 版本。 */
     private Long version;
+    /** 批次候选关系创建时间，数据库精度为毫秒。 */
     private LocalDateTime createTime;
+    /** 关系状态最近更新时间，数据库精度为毫秒。 */
     private LocalDateTime updateTime;
 }

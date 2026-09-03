@@ -54,6 +54,13 @@ import java.util.Objects;
 @Service
 public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
 
+    /**
+     * {@code PERIOD_FORMATTER}常量，统一 {@code DefaultTierPeriodReplayService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final DateTimeFormatter PERIOD_FORMATTER = DateTimeFormatter.ofPattern("uuuuMM");
 
     private final ClearingTierPeriodReplayMapper replayMapper;
@@ -184,6 +191,7 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
                 item.getExpectedFinanceStateVersion(), item.getExpectedClearingRevision(), now);
     }
 
+    /** 执行前确认动作仍与冻结修订、版本、完成时间和未结算门禁一致。 */
     private void validateItemFacts(ClearingTierPeriodReplayDO replay,
                                    ClearingTierPeriodReplayItemDO item,
                                    ClearingTransactionOperationDO operation,
@@ -199,6 +207,7 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         }
     }
 
+    /** 为单项重放构造确定性内部触发消息，不生成新的支付交易或终态。 */
     private PaymentTransactionEventMessage replayMessage(ClearingTierPeriodReplayDO replay,
                                                           ClearingTierPeriodReplayItemDO item,
                                                           ClearingTransactionOperationDO operation,
@@ -228,6 +237,7 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
                 row.getVersion());
     }
 
+    /** 固化商户、不可变费用版本和月度半开窗口的重放控制行。 */
     private ClearingTierPeriodReplayDO replayRow(SubmitCommand command,
                                                   YearMonth period,
                                                   LocalDateTime now) {
@@ -252,6 +262,7 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         return row;
     }
 
+    /** 幂等请求键冲突后核对全部范围和提交审计，禁止扩大重放范围。 */
     private void validateDuplicate(ClearingTierPeriodReplayDO actual,
                                    ClearingTierPeriodReplayDO expected) {
         if (actual == null || !Objects.equals(actual.getReplayNo(), expected.getReplayNo())
@@ -274,6 +285,7 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         return value == null ? 0 : value;
     }
 
+    /** 提交只接受明确商户、不可变版本、阶梯规则和 yyyy-MM 期间。 */
     private void validateSubmit(SubmitCommand command) {
         if (command == null || !validText(command.requestKey(), 128)
                 || !validText(command.merchantId(), 64) || command.feePlanId() < 1
@@ -285,6 +297,7 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         parsePeriod(command.periodKey());
     }
 
+    /** 复核命令要求申请版本、固定决定、可信复核人和审计时点。 */
     private void validateReview(ReviewCommand command) {
         if (command == null || !validText(command.replayNo(), 64)
                 || command.expectedRequestVersion() < 0 || command.decision() == null
@@ -306,6 +319,11 @@ public class DefaultTierPeriodReplayService implements TierPeriodReplayService {
         return StringUtils.hasText(value) && value.trim().length() <= maxLength;
     }
 
+    /**
+     * 根据稳定业务身份生成可重复计算的幂等标识。
+     * @param requestKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String stableId(String requestKey) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

@@ -60,13 +60,69 @@ import java.util.stream.Collectors;
 @Service
 public class AdminFundAccountServiceImpl implements AdminFundAccountService {
 
+    /**
+     * {@code BUILTIN_ADMIN_ACCOUNT}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String BUILTIN_ADMIN_ACCOUNT = "admin";
+    /**
+     * 等待审计常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String PENDING_AUDIT = "PENDING_AUDIT";
+    /**
+     * {@code PENDING_RECHECK}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String PENDING_RECHECK = "PENDING_RECHECK";
+    /**
+     * {@code POSTED}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String POSTED = "POSTED";
+    /**
+     * {@code REJECTED}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String REJECTED = "REJECTED";
+    /**
+     * {@code NORMAL}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String NORMAL = "NORMAL";
+    /**
+     * {@code FROZEN}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String FROZEN = "FROZEN";
+    /**
+     * {@code CLOSED}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CLOSED = "CLOSED";
 
     private final MerchantFundAccountMapper accountMapper;
@@ -1096,6 +1152,13 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         }
     }
 
+    /**
+     * 比较 Maker 与 Checker 的可信账号主键；任一身份缺失均不得视为同一操作人。
+     *
+     * @param left Maker 或前序操作人账号主键
+     * @param right Checker 或当前操作人账号主键
+     * @return 两个非空可信账号主键相同时返回 true
+     */
     private boolean sameOperator(Long left, Long right) {
         return left != null && left.equals(right);
     }
@@ -1181,17 +1244,16 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
     /**
      * 按人工状态和负余额限制生成统一账户能力，供管理端和后续资金链路复用。
      *
-     * <p>关闭账户仍允许人工充值；冻结账户允许结算入账但禁止提现、转出和主动逆向交易。</p>
+     * <p>关闭或冻结账户仍允许被动入账，但禁止结算、提现、转出和主动逆向交易。</p>
      *
      * @param response 已包含账户状态和负余额限制标识的响应对象
      */
     private void applyAccountCapabilities(FundAccountResponse response) {
         boolean normal = NORMAL.equals(response.getAccountStatus());
-        boolean frozen = FROZEN.equals(response.getAccountStatus());
         response.setCreditAllowed(true);
         response.setDebitAllowed(normal);
         response.setWithdrawalAllowed(normal);
-        response.setSettlementAllowed(normal || frozen);
+        response.setSettlementAllowed(normal);
         response.setReverseTransactionAllowed(normal && response.getReverseRestricted() != null
                 && response.getReverseRestricted() == 0);
     }

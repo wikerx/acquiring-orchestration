@@ -31,15 +31,15 @@ public final class ExchangeRateDTOs {
      */
     @Data
     public static class StatusRequest {
-        @NotNull(message = "status is required")
         /**
-         * status，表示当前记录在业务流程中的处理状态。
+         * 状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
          * </p>
          */
+        @NotNull(message = "status is required")
         private Integer status;
     }
 
@@ -48,15 +48,14 @@ public final class ExchangeRateDTOs {
      */
     @Data
     public static class VoidRequest {
-        @NotBlank(message = "voidReason is required")
         /**
-         * void Reason，用于保存 Void Request 中与 voidreason 相关的业务属性。
+         * 请求中的撤销原因，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "voidReason is required")
         private String voidReason;
     }
 
@@ -66,26 +65,24 @@ public final class ExchangeRateDTOs {
     @Data
     public static class GenerateBusinessRateRequest {
 
-        @NotNull(message = "rawRateId is required")
         /**
-         * raw Rate ID，用于定位 Generate Business Rate Request 关联的上游配置、渠道、账号、角色或业务记录。
+         * 原始汇率ID，用于定位 {@code GenerateBusinessRateRequest} 关联的上游配置、渠道、账号、角色或业务记录。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotNull(message = "rawRateId is required")
         private Long rawRateId;
 
-        @NotNull(message = "ruleId is required")
         /**
-         * rule ID，用于定位 Generate Business Rate Request 关联的上游配置、渠道、账号、角色或业务记录。
+         * 规则ID，用于定位 {@code GenerateBusinessRateRequest} 关联的上游配置、渠道、账号、角色或业务记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotNull(message = "ruleId is required")
         private Long ruleId;
         /**
          * 汇率管理备注字段，用于记录人工说明，不参与核心状态流转。
@@ -98,82 +95,77 @@ public final class ExchangeRateDTOs {
      */
     @Data
     public static class BusinessRateSaveRequest {
-        @NotBlank(message = "rateType is required")
         /**
          * 汇率类型，用于区分基准汇率、业务汇率、买入价、卖出价或渠道报价。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "rateType is required")
         private String rateType;
-        @NotBlank(message = "sourceCode is required")
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "sourceCode is required")
         private String sourceCode;
 
-        @NotBlank(message = "baseCurrency is required")
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
+        @NotBlank(message = "baseCurrency is required")
         private String baseCurrency;
 
-        @NotBlank(message = "quoteCurrency is required")
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
+        @NotBlank(message = "quoteCurrency is required")
         private String quoteCurrency;
 
-        @NotNull(message = "originalRate is required")
         /**
-         * original Rate，用于保存 Business Rate Save Request 中与 original汇率 相关的业务属性。
+         * 请求中的原始汇率，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotNull(message = "originalRate is required")
         private BigDecimal originalRate;
 
-        @NotNull(message = "finalRate is required")
         /**
-         * final Rate，用于保存 Business Rate Save Request 中与 final汇率 相关的业务属性。
+         * 请求中的最终汇率，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotNull(message = "finalRate is required")
         private BigDecimal finalRate;
-        @NotNull(message = "effectiveTime is required")
         /**
-         * effective Time，用于保存 Business Rate Save Request 中与 effectivetime 相关的业务属性。
+         * 业务配置或汇率开始生效的具体时刻。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotNull(message = "effectiveTime is required")
         private LocalDateTime effectiveTime;
         /**
-         * rate Status，表示当前记录在业务流程中的处理状态。
+         * 汇率状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -192,16 +184,16 @@ public final class ExchangeRateDTOs {
      */
     @Data
     public static class BusinessRateBatchSaveRequest {
-        @Valid
-        @Size(min = 1, max = 500, message = "items size must be between 1 and 500")
         /**
-         * items，用于保存 Business Rate Batch Save Request 中与 items 相关的业务属性。
+         * {@code items}集合，承载 {@code BusinessRateBatchSaveRequest} 当前请求或响应中的多值数据。
          * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
          * </p>
          */
+        @Valid
+        @Size(min = 1, max = 500, message = "items size must be between 1 and 500")
         private List<BusinessRateSaveRequest> items;
     }
 
@@ -220,12 +212,11 @@ public final class ExchangeRateDTOs {
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceType;
         /**
-         * source Status，表示当前记录在业务流程中的处理状态。
+         * 来源状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -240,81 +231,74 @@ public final class ExchangeRateDTOs {
      */
     @Data
     public static class SourceSaveRequest {
-        @NotBlank(message = "sourceCode is required")
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "sourceCode is required")
         private String sourceCode;
-        @NotBlank(message = "sourceName is required")
         /**
-         * source Name，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * 来源名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
          * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "sourceName is required")
         private String sourceName;
-        @NotBlank(message = "sourceType is required")
         /**
          * 数据来源类型，用于区分手工维护、文件导入、外部抓取或系统初始化数据。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "sourceType is required")
         private String sourceType;
         /**
-         * request URL，表示当前内部调用、渠道调用或商户通知的目标地址。
+         * 请求URL，表示当前内部调用、渠道调用或商户通知的目标地址。
          * <p>
          * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
          * 取值范围：长度和协议由调用方校验；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String requestUrl;
         /**
-         * default Source，用于保存 Source Save Request 中与 default来源 相关的业务属性。
+         * 请求中的默认来源，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Integer defaultSource;
         /**
-         * priority，用于保存 Source Save Request 中与 priority 相关的业务属性。
+         * 匹配优先级，数值越小越优先。
          * <p>
          * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Integer priority;
         /**
-         * timeout Seconds，用于保存 Source Save Request 中与 timeoutseconds 相关的业务属性。
+         * 远程调用超时时间，单位为秒。
          * <p>
          * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Integer timeoutSeconds;
-        @NotNull(message = "sourceStatus is required")
         /**
-         * source Status，表示当前记录在业务流程中的处理状态。
+         * 来源状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
          * </p>
          */
+        @NotNull(message = "sourceStatus is required")
         private Integer sourceStatus;
         /**
          * 汇率管理备注字段，用于记录人工说明，不参与核心状态流转。
@@ -328,29 +312,26 @@ public final class ExchangeRateDTOs {
     @Data
     public static class SourceResponse {
         /**
-         * Source Response 数据库主键，用于唯一标识当前记录。
+         * 来源响应 数据库主键，用于唯一标识当前记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Long id;
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceCode;
         /**
-         * source Name，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * 来源名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
          * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceName;
@@ -359,48 +340,43 @@ public final class ExchangeRateDTOs {
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceType;
         /**
-         * request URL，表示当前内部调用、渠道调用或商户通知的目标地址。
+         * 请求URL，表示当前内部调用、渠道调用或商户通知的目标地址。
          * <p>
          * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
          * 取值范围：长度和协议由调用方校验；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String requestUrl;
         /**
-         * default Source，用于保存 Source Response 中与 default来源 相关的业务属性。
+         * 响应中的默认来源，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Integer defaultSource;
         /**
-         * priority，用于保存 Source Response 中与 priority 相关的业务属性。
+         * 匹配优先级，数值越小越优先。
          * <p>
          * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Integer priority;
         /**
-         * timeout Seconds，用于保存 Source Response 中与 timeoutseconds 相关的业务属性。
+         * 远程调用超时时间，单位为秒。
          * <p>
          * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Integer timeoutSeconds;
         /**
-         * source Status，表示当前记录在业务流程中的处理状态。
+         * 来源状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -409,16 +385,15 @@ public final class ExchangeRateDTOs {
          */
         private Integer sourceStatus;
         /**
-         * last Fetch Time，用于保存 Source Response 中与 lastfetchtime 相关的业务属性。
+         * 响应中的{@code lastFetchTime}，用于管理端或商户端展示当前处理结果。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime lastFetchTime;
         /**
-         * last Fetch Status，表示当前记录在业务流程中的处理状态。
+         * {@code lastFetchStatus}，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -431,20 +406,20 @@ public final class ExchangeRateDTOs {
          */
         private String remark;
         /**
-         * create Time，用于保存 Source Response 中与 createtime 相关的业务属性。
+         * 记录创建时刻，持久化精度为毫秒。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
          * </p>
          */
         private LocalDateTime createTime;
         /**
-         * update Time，用于保存 Source Response 中与 updatetime 相关的业务属性。
+         * 记录最后更新时间，持久化精度为毫秒。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
          * </p>
          */
         private LocalDateTime updateTime;
@@ -457,17 +432,16 @@ public final class ExchangeRateDTOs {
     @EqualsAndHashCode(callSuper = true)
     public static class RawRateQuery extends PageRequest {
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceCode;
 
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -477,7 +451,7 @@ public final class ExchangeRateDTOs {
         private String baseCurrency;
 
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -486,7 +460,7 @@ public final class ExchangeRateDTOs {
          */
         private String quoteCurrency;
         /**
-         * rate Status，表示当前记录在业务流程中的处理状态。
+         * 汇率状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -495,11 +469,10 @@ public final class ExchangeRateDTOs {
          */
         private String rateStatus;
         /**
-         * create Method，表示支付方式、通知方式或调用方式。
+         * {@code createMethod}，表示支付方式、通知方式或调用方式。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String createMethod;
@@ -524,115 +497,106 @@ public final class ExchangeRateDTOs {
      */
     @Data
     public static class RawRateSaveRequest {
-        @NotBlank(message = "sourceCode is required")
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "sourceCode is required")
         private String sourceCode;
 
-        @NotBlank(message = "baseCurrency is required")
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
+        @NotBlank(message = "baseCurrency is required")
         private String baseCurrency;
 
-        @NotBlank(message = "quoteCurrency is required")
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
+        @NotBlank(message = "quoteCurrency is required")
         private String quoteCurrency;
 
         /**
-         * cash Buy Rate，用于保存 Raw Rate Save Request 中与 cashbuy汇率 相关的业务属性。
+         * 请求中的{@code cashBuyRate}，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal cashBuyRate;
 
         /**
-         * cash Sell Rate，用于保存 Raw Rate Save Request 中与 cashsell汇率 相关的业务属性。
+         * 请求中的{@code cashSellRate}，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal cashSellRate;
 
         /**
-         * spot Buy Rate，用于保存 Raw Rate Save Request 中与 spotbuy汇率 相关的业务属性。
+         * 请求中的{@code spotBuyRate}，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal spotBuyRate;
 
         /**
-         * spot Sell Rate，用于保存 Raw Rate Save Request 中与 spotsell汇率 相关的业务属性。
+         * 请求中的{@code spotSellRate}，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal spotSellRate;
 
         /**
-         * middle Rate，用于定位渠道商户号配置或渠道侧 MID。
+         * {@code middleRate}，用于定位渠道商户号配置或渠道侧 MID。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal middleRate;
 
-        @NotNull(message = "publishTime is required")
         /**
-         * publish Time，用于保存 Raw Rate Save Request 中与 publishtime 相关的业务属性。
+         * 请求中的{@code publishTime}，用于限定本次操作的输入和校验范围。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotNull(message = "publishTime is required")
         private LocalDateTime publishTime;
 
         /**
-         * effective Time，用于保存 Raw Rate Save Request 中与 effectivetime 相关的业务属性。
+         * 业务配置或汇率开始生效的具体时刻。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime effectiveTime;
         /**
-         * batch No，用于保存 Raw Rate Save Request 中与 batchno 相关的业务属性。
+         * 批次号，用于关联同一次导入、抓取、清分或结算处理的记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String batchNo;
@@ -648,135 +612,123 @@ public final class ExchangeRateDTOs {
     @Data
     public static class RawRateResponse {
         /**
-         * Raw Rate Response 数据库主键，用于唯一标识当前记录。
+         * 原始汇率响应 数据库主键，用于唯一标识当前记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Long id;
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceCode;
 
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
         private String baseCurrency;
 
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
         private String quoteCurrency;
         /**
-         * cash Buy Rate，用于保存 Raw Rate Response 中与 cashbuy汇率 相关的业务属性。
+         * 响应中的{@code cashBuyRate}，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal cashBuyRate;
         /**
-         * cash Sell Rate，用于保存 Raw Rate Response 中与 cashsell汇率 相关的业务属性。
+         * 响应中的{@code cashSellRate}，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal cashSellRate;
         /**
-         * spot Buy Rate，用于保存 Raw Rate Response 中与 spotbuy汇率 相关的业务属性。
+         * 响应中的{@code spotBuyRate}，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal spotBuyRate;
         /**
-         * spot Sell Rate，用于保存 Raw Rate Response 中与 spotsell汇率 相关的业务属性。
+         * 响应中的{@code spotSellRate}，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal spotSellRate;
         /**
-         * middle Rate，用于定位渠道商户号配置或渠道侧 MID。
+         * {@code middleRate}，用于定位渠道商户号配置或渠道侧 MID。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal middleRate;
         /**
-         * publish Time，用于保存 Raw Rate Response 中与 publishtime 相关的业务属性。
+         * 响应中的{@code publishTime}，用于管理端或商户端展示当前处理结果。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime publishTime;
         /**
-         * fetch Time，用于保存 Raw Rate Response 中与 fetchtime 相关的业务属性。
+         * 响应中的{@code fetchTime}，用于管理端或商户端展示当前处理结果。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime fetchTime;
         /**
-         * effective Time，用于保存 Raw Rate Response 中与 effectivetime 相关的业务属性。
+         * 业务配置或汇率开始生效的具体时刻。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime effectiveTime;
         /**
-         * create Method，表示支付方式、通知方式或调用方式。
+         * {@code createMethod}，表示支付方式、通知方式或调用方式。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String createMethod;
         /**
-         * batch No，用于保存 Raw Rate Response 中与 batchno 相关的业务属性。
+         * 批次号，用于关联同一次导入、抓取、清分或结算处理的记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String batchNo;
         /**
-         * rate Status，表示当前记录在业务流程中的处理状态。
+         * 汇率状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -785,29 +737,28 @@ public final class ExchangeRateDTOs {
          */
         private String rateStatus;
         /**
-         * void Reason，用于保存 Raw Rate Response 中与 voidreason 相关的业务属性。
+         * 响应中的撤销原因，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String voidReason;
         /**
-         * create Time，用于保存 Raw Rate Response 中与 createtime 相关的业务属性。
+         * 记录创建时刻，持久化精度为毫秒。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
          * </p>
          */
         private LocalDateTime createTime;
         /**
-         * update Time，用于保存 Raw Rate Response 中与 updatetime 相关的业务属性。
+         * 记录最后更新时间，持久化精度为毫秒。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
          * </p>
          */
         private LocalDateTime updateTime;
@@ -824,22 +775,20 @@ public final class ExchangeRateDTOs {
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String rateType;
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceCode;
 
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -849,7 +798,7 @@ public final class ExchangeRateDTOs {
         private String baseCurrency;
 
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -858,25 +807,23 @@ public final class ExchangeRateDTOs {
          */
         private String quoteCurrency;
         /**
-         * adjust Direction，用于保存 Rule Query 中与 adjustdirection 相关的业务属性。
+         * 请求中的{@code adjustDirection}，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String adjustDirection;
         /**
-         * adjust Method，表示支付方式、通知方式或调用方式。
+         * {@code adjustMethod}，表示支付方式、通知方式或调用方式。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String adjustMethod;
         /**
-         * rule Status，表示当前记录在业务流程中的处理状态。
+         * 规则状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -891,146 +838,135 @@ public final class ExchangeRateDTOs {
      */
     @Data
     public static class RuleSaveRequest {
-        @NotBlank(message = "rateType is required")
         /**
          * 汇率类型，用于区分基准汇率、业务汇率、买入价、卖出价或渠道报价。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "rateType is required")
         private String rateType;
-        @NotBlank(message = "sourceCode is required")
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "sourceCode is required")
         private String sourceCode;
 
-        @NotBlank(message = "baseCurrency is required")
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
+        @NotBlank(message = "baseCurrency is required")
         private String baseCurrency;
 
-        @NotBlank(message = "quoteCurrency is required")
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
+        @NotBlank(message = "quoteCurrency is required")
         private String quoteCurrency;
-        @NotBlank(message = "rateField is required")
         /**
-         * rate Field，用于保存 Rule Save Request 中与 汇率field 相关的业务属性。
+         * 请求中的汇率字段，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "rateField is required")
         private String rateField;
-        @NotBlank(message = "adjustDirection is required")
         /**
-         * adjust Direction，用于保存 Rule Save Request 中与 adjustdirection 相关的业务属性。
+         * 请求中的{@code adjustDirection}，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "adjustDirection is required")
         private String adjustDirection;
-        @NotBlank(message = "adjustMethod is required")
         /**
-         * adjust Method，表示支付方式、通知方式或调用方式。
+         * {@code adjustMethod}，表示支付方式、通知方式或调用方式。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "adjustMethod is required")
         private String adjustMethod;
 
-        @NotNull(message = "adjustValue is required")
         /**
-         * adjust Value，用于保存 Rule Save Request 中与 adjustvalue 相关的业务属性。
+         * 请求中的{@code adjustValue}，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotNull(message = "adjustValue is required")
         private BigDecimal adjustValue;
 
-        @NotNull(message = "decimalScale is required")
         /**
-         * decimal Scale，用于保存 Rule Save Request 中与 decimalscale 相关的业务属性。
+         * 请求中的{@code decimalScale}，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotNull(message = "decimalScale is required")
         private Integer decimalScale;
-        @NotBlank(message = "roundingMode is required")
         /**
-         * rounding Mode，用于保存 Rule Save Request 中与 roundingmode 相关的业务属性。
+         * 请求中的舍入模式，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @NotBlank(message = "roundingMode is required")
         private String roundingMode;
         /**
-         * priority，用于保存 Rule Save Request 中与 priority 相关的业务属性。
+         * 匹配优先级，数值越小越优先。
          * <p>
          * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Integer priority;
         /**
-         * effective Start Time，用于保存 Rule Save Request 中与 effectivestarttime 相关的业务属性。
+         * 请求中的生效开始时间，用于限定本次操作的输入和校验范围。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime effectiveStartTime;
         /**
-         * effective End Time，用于保存 Rule Save Request 中与 effectiveendtime 相关的业务属性。
+         * 请求中的生效结束时间，用于限定本次操作的输入和校验范围。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime effectiveEndTime;
-        @NotNull(message = "ruleStatus is required")
         /**
-         * rule Status，表示当前记录在业务流程中的处理状态。
+         * 规则状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
          * </p>
          */
+        @NotNull(message = "ruleStatus is required")
         private Integer ruleStatus;
         /**
          * 汇率管理备注字段，用于记录人工说明，不参与核心状态流转。
@@ -1044,11 +980,10 @@ public final class ExchangeRateDTOs {
     @Data
     public static class RuleResponse {
         /**
-         * Rule Response 数据库主键，用于唯一标识当前记录。
+         * 规则响应 数据库主键，用于唯一标识当前记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Long id;
@@ -1057,122 +992,111 @@ public final class ExchangeRateDTOs {
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String rateType;
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceCode;
 
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
         private String baseCurrency;
 
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
         private String quoteCurrency;
         /**
-         * rate Field，用于保存 Rule Response 中与 汇率field 相关的业务属性。
+         * 响应中的汇率字段，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String rateField;
         /**
-         * adjust Direction，用于保存 Rule Response 中与 adjustdirection 相关的业务属性。
+         * 响应中的{@code adjustDirection}，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String adjustDirection;
         /**
-         * adjust Method，表示支付方式、通知方式或调用方式。
+         * {@code adjustMethod}，表示支付方式、通知方式或调用方式。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String adjustMethod;
         /**
-         * adjust Value，用于保存 Rule Response 中与 adjustvalue 相关的业务属性。
+         * 响应中的{@code adjustValue}，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal adjustValue;
         /**
-         * decimal Scale，用于保存 Rule Response 中与 decimalscale 相关的业务属性。
+         * 响应中的{@code decimalScale}，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Integer decimalScale;
         /**
-         * rounding Mode，用于保存 Rule Response 中与 roundingmode 相关的业务属性。
+         * 响应中的舍入模式，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String roundingMode;
         /**
-         * priority，用于保存 Rule Response 中与 priority 相关的业务属性。
+         * 匹配优先级，数值越小越优先。
          * <p>
          * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Integer priority;
         /**
-         * effective Start Time，用于保存 Rule Response 中与 effectivestarttime 相关的业务属性。
+         * 响应中的生效开始时间，用于管理端或商户端展示当前处理结果。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime effectiveStartTime;
         /**
-         * effective End Time，用于保存 Rule Response 中与 effectiveendtime 相关的业务属性。
+         * 响应中的生效结束时间，用于管理端或商户端展示当前处理结果。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime effectiveEndTime;
         /**
-         * rule Status，表示当前记录在业务流程中的处理状态。
+         * 规则状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -1185,20 +1109,20 @@ public final class ExchangeRateDTOs {
          */
         private String remark;
         /**
-         * create Time，用于保存 Rule Response 中与 createtime 相关的业务属性。
+         * 记录创建时刻，持久化精度为毫秒。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
          * </p>
          */
         private LocalDateTime createTime;
         /**
-         * update Time，用于保存 Rule Response 中与 updatetime 相关的业务属性。
+         * 记录最后更新时间，持久化精度为毫秒。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
          * </p>
          */
         private LocalDateTime updateTime;
@@ -1215,22 +1139,20 @@ public final class ExchangeRateDTOs {
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String rateType;
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceCode;
 
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -1240,7 +1162,7 @@ public final class ExchangeRateDTOs {
         private String baseCurrency;
 
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -1249,7 +1171,7 @@ public final class ExchangeRateDTOs {
          */
         private String quoteCurrency;
         /**
-         * rate Status，表示当前记录在业务流程中的处理状态。
+         * 汇率状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -1279,11 +1201,10 @@ public final class ExchangeRateDTOs {
     @Data
     public static class BusinessRateResponse {
         /**
-         * Business Rate Response 数据库主键，用于唯一标识当前记录。
+         * {@code BusinessRateResponse} 数据库主键，用于唯一标识当前记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Long id;
@@ -1292,83 +1213,76 @@ public final class ExchangeRateDTOs {
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String rateType;
         /**
-         * source Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceCode;
 
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
         private String baseCurrency;
 
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
         private String quoteCurrency;
         /**
-         * raw Rate ID，用于定位 Business Rate Response 关联的上游配置、渠道、账号、角色或业务记录。
+         * 原始汇率ID，用于定位 {@code BusinessRateResponse} 关联的上游配置、渠道、账号、角色或业务记录。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Long rawRateId;
         /**
-         * rule ID，用于定位 Business Rate Response 关联的上游配置、渠道、账号、角色或业务记录。
+         * 规则ID，用于定位 {@code BusinessRateResponse} 关联的上游配置、渠道、账号、角色或业务记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Long ruleId;
 
         /**
-         * original Rate，用于保存 Business Rate Response 中与 original汇率 相关的业务属性。
+         * 响应中的原始汇率，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal originalRate;
 
         /**
-         * final Rate，用于保存 Business Rate Response 中与 final汇率 相关的业务属性。
+         * 响应中的最终汇率，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal finalRate;
         /**
-         * adjust Description，用于保存人工备注、交易说明或配置补充说明。
+         * {@code adjustDescription}，用于保存人工备注、交易说明或配置补充说明。
          * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String adjustDescription;
@@ -1379,7 +1293,7 @@ public final class ExchangeRateDTOs {
         /** 生成方式，AUTO 表示按原始汇率和规则生成，MANUAL 表示人工录入，非敏感字段。 */
         private String generateMethod;
         /**
-         * rate Status，表示当前记录在业务流程中的处理状态。
+         * 汇率状态，表示当前记录在业务流程中的处理状态。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -1412,16 +1326,14 @@ public final class ExchangeRateDTOs {
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String rateType;
         /**
-         * usage Scene，用于保存 Usage Snapshot Query 中与 usagescene 相关的业务属性。
+         * 请求中的{@code usageScene}，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String usageScene;
@@ -1430,22 +1342,20 @@ public final class ExchangeRateDTOs {
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String businessType;
         /**
-         * business No，用于保存 Usage Snapshot Query 中与 businessno 相关的业务属性。
+         * 请求中的{@code businessNo}，用于限定本次操作的输入和校验范围。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String businessNo;
 
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -1455,7 +1365,7 @@ public final class ExchangeRateDTOs {
         private String baseCurrency;
 
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -1464,20 +1374,18 @@ public final class ExchangeRateDTOs {
          */
         private String quoteCurrency;
         /**
-         * applied Start Time，用于保存 Usage Snapshot Query 中与 appliedstarttime 相关的业务属性。
+         * 请求中的{@code appliedStartTime}，用于限定本次操作的输入和校验范围。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime appliedStartTime;
         /**
-         * applied End Time，用于保存 Usage Snapshot Query 中与 appliedendtime 相关的业务属性。
+         * 请求中的{@code appliedEndTime}，用于限定本次操作的输入和校验范围。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime appliedEndTime;
@@ -1489,11 +1397,10 @@ public final class ExchangeRateDTOs {
     @Data
     public static class UsageSnapshotResponse {
         /**
-         * Usage Snapshot Response 数据库主键，用于唯一标识当前记录。
+         * {@code UsageSnapshotResponse} 数据库主键，用于唯一标识当前记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Long id;
@@ -1502,16 +1409,14 @@ public final class ExchangeRateDTOs {
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String rateType;
         /**
-         * usage Scene，用于保存 Usage Snapshot Response 中与 usagescene 相关的业务属性。
+         * 响应中的{@code usageScene}，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String usageScene;
@@ -1520,100 +1425,92 @@ public final class ExchangeRateDTOs {
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String businessType;
         /**
-         * business No，用于保存 Usage Snapshot Response 中与 businessno 相关的业务属性。
+         * 响应中的{@code businessNo}，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String businessNo;
 
         /**
-         * base Currency，表示金额字段使用的币种。
+         * 基础币种，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
         private String baseCurrency;
 
         /**
-         * quote Currency，表示金额字段使用的币种。
+         * {@code quoteCurrency}，表示金额字段使用的币种。
          * <p>
          * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
         private String quoteCurrency;
 
         /**
-         * used Rate，用于保存 Usage Snapshot Response 中与 used汇率 相关的业务属性。
+         * 响应中的{@code usedRate}，用于管理端或商户端展示当前处理结果。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private BigDecimal usedRate;
         /**
-         * business Rate ID，用于定位 Usage Snapshot Response 关联的上游配置、渠道、账号、角色或业务记录。
+         * {@code businessRateId}，用于定位 {@code UsageSnapshotResponse} 关联的上游配置、渠道、账号、角色或业务记录。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Long businessRateId;
         /**
-         * raw Rate ID，用于定位 Usage Snapshot Response 关联的上游配置、渠道、账号、角色或业务记录。
+         * 原始汇率ID，用于定位 {@code UsageSnapshotResponse} 关联的上游配置、渠道、账号、角色或业务记录。
          * <p>
          * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Long rawRateId;
         /**
-         * rule ID，用于定位 Usage Snapshot Response 关联的上游配置、渠道、账号、角色或业务记录。
+         * 规则ID，用于定位 {@code UsageSnapshotResponse} 关联的上游配置、渠道、账号、角色或业务记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private Long ruleId;
         /**
-         * calculation Description，用于保存人工备注、交易说明或配置补充说明。
+         * {@code calculationDescription}，用于保存人工备注、交易说明或配置补充说明。
          * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String calculationDescription;
         /**
-         * applied Time，用于保存 Usage Snapshot Response 中与 appliedtime 相关的业务属性。
+         * 响应中的{@code appliedTime}，用于管理端或商户端展示当前处理结果。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private LocalDateTime appliedTime;
         /**
-         * create Time，用于保存 Usage Snapshot Response 中与 createtime 相关的业务属性。
+         * 记录创建时刻，持久化精度为毫秒。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
          * </p>
          */
         private LocalDateTime createTime;

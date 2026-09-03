@@ -40,13 +40,32 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 结算批次资金提交实现。账户行是固定首个资金锁，数据库流水幂等键是最终防重边界；
- * Redis、MQ 和交易查询投影均不参与余额事务的成功判定。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultSettlementLedgerPostingService
+ * @date : 2026-09-01 00:00
+ * @email : scott_x@163.com
+ * @description : 原子提交结算净额和保证金动作；固定先锁 NORMAL 资金账户，以流水/动作唯一键及余额、聚合版本 CAS 防重，Redis、MQ 和异步投影不参与余额事务成功判定。
+ * @status : create
  */
 @Service
 public class DefaultSettlementLedgerPostingService implements SettlementLedgerPostingService {
 
+    /**
+     * {@code ZERO}常量，统一 {@code DefaultSettlementLedgerPostingService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final BigDecimal ZERO = BigDecimal.ZERO;
+    /**
+     * {@code SYSTEM_OPERATOR}常量，统一 {@code DefaultSettlementLedgerPostingService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String SYSTEM_OPERATOR = "service-settlement";
 
     private final SettlementBatchMapper batchMapper;
@@ -73,7 +92,17 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         this.projectionMapper = projectionMapper;
     }
 
-    /** 批次状态、净额结果、余额流水、保证金、候选和投影任务在 transaction 主库同提交或同回滚。 */
+    /**
+     * 批次状态、净额结果、余额流水、保证金、候选和投影任务在 transaction 主库同提交或同回滚。
+     *
+     * @param leasedBatch 调度阶段已领取且携带租约版本的批次
+     * @param facts 已冻结汇率和逐笔结果的批次事实
+     * @param owner 当前处理租约所有者
+     * @param now 入账、资金流水、保证金动作和投影任务的统一时间
+     * @return 实际入账并消费的候选数
+     * @throws IllegalArgumentException 入参或租约所有者不合法时抛出
+     * @throws IllegalStateException 批次、净额、余额、保证金责任或候选事实不一致时抛出并回滚
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
@@ -107,8 +136,17 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         materializeReserve(batch, facts, now);
 
         List<SettlementProjectionTaskDO> tasks = projectionTasks(batch, facts, financialItems, now);
-        if (tasks.size() != batch.getCandidateCount()
-                || projectionMapper.insertTasksIdempotent(tasks) != tasks.size()) {
+        long projectableCandidateCount = facts.candidates().stream()
+                .filter(candidate -> "CLEARING_REVISION".equals(candidate.getSourceType()))
+                .count();
+        if ("MANUAL_REVIEW".equals(batch.getCreateMode())
+                && !Objects.equals(batch.getProjectableCandidateCount(),
+                Math.toIntExact(projectableCandidateCount))) {
+            throw failure("SETTLEMENT_PROJECTABLE_COUNT_CHANGED", false,
+                    "formal projectable candidate count differs from the approved review snapshot");
+        }
+        if (tasks.size() != projectableCandidateCount
+                || !tasks.isEmpty() && projectionMapper.insertTasksIdempotent(tasks) != tasks.size()) {
             throw failure("SETTLEMENT_PROJECTION_TASK_COUNT_MISMATCH", true,
                     "settlement projection task count is inconsistent");
         }
@@ -130,6 +168,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return batch.getCandidateCount();
     }
 
+    /** 汇总 FINANCIAL_COMPONENT 的目标币种有符号金额，得到唯一非负净额和 CREDIT/DEBIT 方向。 */
     private NetAmount net(SettlementBatchDO batch, List<SettlementResultItemDO> items) {
         BigDecimal signed = ZERO;
         for (SettlementResultItemDO item : items) {
@@ -150,6 +189,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return new NetAmount(direction, amount, signed);
     }
 
+    /** 追加批次唯一 NET_POSTING 结果行，并通过回读身份校验区分合法重放与唯一键碰撞。 */
     private void insertNetResult(SettlementBatchDO batch, NetAmount net, LocalDateTime now) {
         Long identityRateId = resultMapper.selectIdentityRateId(
                 batch.getSettlementBatchNo(), batch.getTargetCurrency());
@@ -189,6 +229,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
+    /** 固定先锁 NORMAL 账户，追加批次唯一资金流水，再用旧余额和版本双条件 CAS 更新可用余额。 */
     private void postFundLedger(SettlementBatchDO batch, NetAmount net, LocalDateTime now) {
         MerchantFundAccountDO account = fundMapper.selectAccountForUpdate(batch.getSettlementAccountId());
         validateAccount(account, batch);
@@ -215,6 +256,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
+    /** 构造包含账户序号、余额前后值及完整人工/系统审计的不可变净入账流水。 */
     private MerchantFundLedgerDO ledger(SettlementBatchDO batch,
                                         NetAmount net,
                                         BigDecimal before,
@@ -227,9 +269,12 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         row.setLedgerGroupNo(batch.getSettlementBatchNo());
         row.setAccountId(batch.getSettlementAccountId());
         row.setMerchantId(batch.getMerchantId());
-        row.setBusinessType("RESERVE_RELEASE".equals(batch.getBatchType())
+        row.setBusinessType(("RESERVE_RELEASE".equals(batch.getBatchType())
+                || "ADJUSTMENT".equals(batch.getBatchType()))
                 ? "RESERVE_SETTLEMENT" : "TRANSACTION_SETTLEMENT");
-        row.setSummary("Settlement batch net posting");
+        boolean manual = "MANUAL_REVIEW".equals(batch.getCreateMode());
+        row.setSummary(manual ? "Approved manual settlement batch net posting"
+                : "Settlement batch net posting");
         row.setBusinessNo(batch.getSettlementBatchNo());
         row.setSettlementBatchNo(batch.getSettlementBatchNo());
         row.setCurrency(batch.getTargetCurrency());
@@ -238,15 +283,25 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         row.setBalanceBefore(before);
         row.setBalanceAfter(after);
         row.setAccountSequence(sequence);
-        row.setOperationMode("AUTO");
-        row.setOperatorName(SYSTEM_OPERATOR);
-        row.setBusinessTime(now);
+        row.setOperationMode(manual ? "MANUAL" : "AUTO");
+        row.setOperatorId(manual ? batch.getMakerAccountId() : null);
+        row.setOperatorName(manual ? batch.getMakerAccountName() : SYSTEM_OPERATOR);
+        row.setReviewerId(manual ? batch.getCheckerAccountId() : null);
+        row.setReviewerName(manual ? batch.getCheckerAccountName() : null);
+        row.setOperationReason(manual ? batch.getMakerReason()
+                : "Automatic settlement for business date " + batch.getBusinessDate());
+        row.setReviewComment(manual ? batch.getCheckerComment() : null);
+        row.setBusinessTime(manual ? batch.getMakerTime() : now);
+        row.setSubmitTime(manual ? batch.getMakerTime() : null);
+        row.setReviewTime(manual ? batch.getCheckerTime() : null);
         row.setPostedTime(now);
+        row.setRequestId(manual ? batch.getReviewOrderNo() : null);
         row.setIdempotencyKey(idempotencyKey);
         row.setCreateTime(now);
         return row;
     }
 
+    /** 按候选和清分行稳定顺序资金化保证金，动作唯一键决定聚合是否需要首次更新。 */
     private void materializeReserve(SettlementBatchDO batch,
                                     SettlementBatchFacts facts,
                                     LocalDateTime now) {
@@ -270,6 +325,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
+    /** 将 HOLD、RETURN、RELEASE 或 ADJUSTMENT 清分事实应用到原标签币种聚合，拒绝未知动作。 */
     private void applyReserveDetail(SettlementBatchDO batch,
                                     Long candidateId,
                                     SettlementReserveClearingDetailDO detail,
@@ -293,36 +349,58 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
             return;
         }
         if (!"RETURN".equals(detail.getReserveActionType())
-                && !"RELEASE".equals(detail.getReserveActionType())) {
+                && !"RELEASE".equals(detail.getReserveActionType())
+                && !"ADJUSTMENT".equals(detail.getReserveActionType())) {
             throw failure("SETTLEMENT_RESERVE_ACTION_INVALID", false,
                     "reserve action is unsupported during posting");
         }
         if (detail.getSourceReserveDetailNo() == null || detail.getSourceReserveDetailNo().isBlank()) {
             throw failure("SETTLEMENT_RESERVE_SOURCE_MISSING", false,
-                    "reserve return or release must reference the original hold detail");
+                    "reserve return, release or adjustment must reference the original hold detail");
         }
         MerchantReserveItemDO stored = reserveMapper.selectBySourceForUpdate(
                 detail.getMerchantId(), detail.getSourceReserveDetailNo());
         if (stored == null || stored.getVersion() == null
-                || !detail.getReserveCurrency().equals(stored.getCurrency())) {
+                || !detail.getReserveCurrency().equals(stored.getCurrency())
+                || !Objects.equals(batch.getSettlementAccountId(), stored.getAccountId())
+                || !Objects.equals(detail.getMerchantId(), stored.getMerchantId())) {
             throw failure("SETTLEMENT_RESERVE_SOURCE_INVALID", false,
-                    "reserve return or release source is missing or mismatched");
+                    "reserve source is missing or mismatched");
         }
         boolean inserted = insertReserveAction(batch, candidateId, detail, stored, amount, now);
         if (!inserted) {
             return;
         }
-        int affected = "RETURN".equals(detail.getReserveActionType())
-                ? reserveMapper.applyReturn(stored.getId(), stored.getCurrency(), amount,
-                stored.getVersion(), now)
-                : reserveMapper.applyRelease(stored.getId(), stored.getCurrency(), amount,
-                batch.getSettlementBatchNo(), stored.getVersion(), now);
+        int affected = switch (detail.getReserveActionType()) {
+            case "RETURN" -> reserveMapper.applyReturn(stored.getId(), stored.getCurrency(), amount,
+                    stored.getVersion(), now);
+            case "RELEASE" -> reserveMapper.applyRelease(stored.getId(), stored.getCurrency(), amount,
+                    batch.getSettlementBatchNo(), stored.getVersion(), now);
+            case "ADJUSTMENT" -> applyAdjustment(stored, detail, amount, now);
+            default -> 0;
+        };
         if (affected != 1) {
             throw failure("SETTLEMENT_RESERVE_BALANCE_CAS_FAILED", false,
-                    "reserve return or release exceeds the remaining liability or lost its version");
+                    "reserve action exceeds the remaining liability or lost its version");
         }
     }
 
+    /** 按 CREDIT/DEBIT 调整方向更新保证金责任，贷方调整不得超过当前剩余责任。 */
+    private int applyAdjustment(MerchantReserveItemDO stored,
+                                SettlementReserveClearingDetailDO detail,
+                                BigDecimal amount,
+                                LocalDateTime now) {
+        return switch (detail.getDirection()) {
+            case "DEBIT" -> reserveMapper.applyDebitAdjustment(stored.getId(), stored.getCurrency(),
+                    amount, stored.getVersion(), now);
+            case "CREDIT" -> reserveMapper.applyCreditAdjustment(stored.getId(), stored.getCurrency(),
+                    amount, stored.getVersion(), now);
+            default -> throw failure("SETTLEMENT_RESERVE_ADJUSTMENT_DIRECTION_INVALID", false,
+                    "reserve adjustment direction is invalid");
+        };
+    }
+
+    /** 构造保证金聚合首次 HOLD 行；保留原交易和标签币种，不写结算目标币种金额。 */
     private MerchantReserveItemDO reserveItem(SettlementBatchDO batch,
                                               SettlementReserveClearingDetailDO detail,
                                               BigDecimal amount,
@@ -337,6 +415,8 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         row.setRetainedAmount(amount);
         row.setReturnedAmount(ZERO.setScale(detail.getReserveCurrencyExponent()));
         row.setReleasedAmount(ZERO.setScale(detail.getReserveCurrencyExponent()));
+        row.setDebitAdjustmentAmount(ZERO.setScale(detail.getReserveCurrencyExponent()));
+        row.setCreditAdjustmentAmount(ZERO.setScale(detail.getReserveCurrencyExponent()));
         row.setReversedAmount(ZERO.setScale(detail.getReserveCurrencyExponent()));
         row.setReserveStatus("HELD");
         row.setExpectedReleaseDate(detail.getExpectedReserveReleaseDate());
@@ -361,6 +441,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         action.setCandidateId(candidateId);
         action.setSourceReserveDetailNo(detail.getReserveClearingDetailNo());
         action.setActionType(detail.getReserveActionType());
+        action.setDirection(detail.getDirection());
         action.setCurrency(detail.getReserveCurrency());
         action.setAmount(amount);
         action.setActionTime(now);
@@ -375,6 +456,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
                 && Objects.equals(stored.getSettlementBatchNo(), action.getSettlementBatchNo())
                 && Objects.equals(stored.getSourceReserveDetailNo(), action.getSourceReserveDetailNo())
                 && Objects.equals(stored.getActionType(), action.getActionType())
+                && Objects.equals(stored.getDirection(), action.getDirection())
                 && Objects.equals(stored.getCurrency(), action.getCurrency())
                 && stored.getAmount() != null && stored.getAmount().compareTo(action.getAmount()) == 0;
         if (!matches) {
@@ -384,6 +466,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return false;
     }
 
+    /** 仅为真实 CLEARING_REVISION 候选创建 SETTLE 任务，RESERVE_RELEASE 和纯 ADJUSTMENT 不生成伪交易。 */
     private List<SettlementProjectionTaskDO> projectionTasks(SettlementBatchDO batch,
                                                              SettlementBatchFacts facts,
                                                              List<SettlementResultItemDO> items,
@@ -403,6 +486,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
                 row.getOperationId()));
         List<SettlementProjectionTaskDO> tasks = new ArrayList<>(facts.candidates().size());
         for (SettlementCandidateDO candidate : facts.candidates()) {
+            if (!"CLEARING_REVISION".equals(candidate.getSourceType())) {
+                continue;
+            }
             FactKey key = new FactKey(candidate.getSourceTransactionId(),
                     candidate.getSourceTransactionDateTime(), candidate.getSourceRevision());
             String operationId = operationIds.get(key);
@@ -437,6 +523,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return tasks;
     }
 
+    /** 从清分保证金行提取唯一非负动作金额，并校验动作类型与对应金额列一致。 */
     private BigDecimal reserveAmount(SettlementReserveClearingDetailDO row) {
         BigDecimal amount = switch (row.getReserveActionType()) {
             case "HOLD" -> row.getRetainedAmount();
@@ -448,6 +535,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return amount == null ? ZERO : amount;
     }
 
+    /** 校验租约、批次状态、候选/事实数量、净结果和投影计数均与锁读批次一致。 */
     private void validateBatch(SettlementBatchDO batch,
                                SettlementBatchFacts facts,
                                String owner,
@@ -472,8 +560,18 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
             throw failure("SETTLEMENT_POSTING_STATUS_INVALID", false,
                     "settlement batch is not ready for posting");
         }
+        if ("MANUAL_REVIEW".equals(batch.getCreateMode())
+                && (batch.getMakerAccountId() == null || batch.getMakerAccountName() == null
+                || batch.getMakerReason() == null || batch.getMakerTime() == null
+                || batch.getCheckerAccountId() == null || batch.getCheckerAccountName() == null
+                || batch.getCheckerComment() == null || batch.getCheckerTime() == null
+                || Objects.equals(batch.getMakerAccountId(), batch.getCheckerAccountId()))) {
+            throw failure("SETTLEMENT_MANUAL_AUDIT_INCOMPLETE", false,
+                    "manual settlement batch has an incomplete Maker-Checker audit snapshot");
+        }
     }
 
+    /** 资金入账只接受批次商户、目标币种均匹配且状态为 NORMAL 的账户。 */
     private void validateAccount(MerchantFundAccountDO account, SettlementBatchDO batch) {
         if (account == null || account.getAvailableBalance() == null || account.getAccountVersion() == null
                 || !Objects.equals(account.getId(), batch.getSettlementAccountId())
@@ -485,14 +583,24 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
+    /** 对流水幂等键重放核对账户、商户、批次、币种、方向、金额和余额前后值。 */
     private void validateExistingLedger(MerchantFundLedgerDO ledger,
                                         SettlementBatchDO batch,
                                         NetAmount net) {
+        boolean manual = "MANUAL_REVIEW".equals(batch.getCreateMode());
+        String expectedBusinessType = ("RESERVE_RELEASE".equals(batch.getBatchType())
+                || "ADJUSTMENT".equals(batch.getBatchType()))
+                ? "RESERVE_SETTLEMENT" : "TRANSACTION_SETTLEMENT";
         boolean matches = Objects.equals(ledger.getAccountId(), batch.getSettlementAccountId())
                 && Objects.equals(ledger.getMerchantId(), batch.getMerchantId())
+                && Objects.equals(ledger.getBusinessType(), expectedBusinessType)
+                && Objects.equals(ledger.getBusinessNo(), batch.getSettlementBatchNo())
                 && Objects.equals(ledger.getSettlementBatchNo(), batch.getSettlementBatchNo())
                 && Objects.equals(ledger.getCurrency(), batch.getTargetCurrency())
                 && Objects.equals(ledger.getDirection(), net.direction())
+                && Objects.equals(ledger.getIdempotencyKey(),
+                ledgerIdempotencyKey(batch.getSettlementBatchNo()))
+                && auditMatches(ledger, batch, manual)
                 && ledger.getAmount() != null && ledger.getAmount().compareTo(net.amount()) == 0;
         if (!matches) {
             throw failure("SETTLEMENT_LEDGER_IDEMPOTENCY_CONFLICT", false,
@@ -500,6 +608,37 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
+    /** 核对重放资金流水中的人工 Maker-Checker 或系统操作审计与批次冻结快照一致。 */
+    private boolean auditMatches(MerchantFundLedgerDO ledger,
+                                 SettlementBatchDO batch,
+                                 boolean manual) {
+        if (manual) {
+            return "MANUAL".equals(ledger.getOperationMode())
+                    && Objects.equals(ledger.getOperatorId(), batch.getMakerAccountId())
+                    && Objects.equals(ledger.getOperatorName(), batch.getMakerAccountName())
+                    && Objects.equals(ledger.getReviewerId(), batch.getCheckerAccountId())
+                    && Objects.equals(ledger.getReviewerName(), batch.getCheckerAccountName())
+                    && Objects.equals(ledger.getOperationReason(), batch.getMakerReason())
+                    && Objects.equals(ledger.getReviewComment(), batch.getCheckerComment())
+                    && Objects.equals(ledger.getBusinessTime(), batch.getMakerTime())
+                    && Objects.equals(ledger.getSubmitTime(), batch.getMakerTime())
+                    && Objects.equals(ledger.getReviewTime(), batch.getCheckerTime())
+                    && Objects.equals(ledger.getRequestId(), batch.getReviewOrderNo());
+        }
+        return "AUTO".equals(ledger.getOperationMode())
+                && ledger.getOperatorId() == null
+                && SYSTEM_OPERATOR.equals(ledger.getOperatorName())
+                && ledger.getReviewerId() == null
+                && ledger.getReviewerName() == null
+                && Objects.equals(ledger.getOperationReason(),
+                "Automatic settlement for business date " + batch.getBusinessDate())
+                && ledger.getReviewComment() == null
+                && ledger.getSubmitTime() == null
+                && ledger.getReviewTime() == null
+                && ledger.getRequestId() == null;
+    }
+
+    /** 对保证金来源唯一键重放核对商户、账户、原交易和原标签币种，拒绝身份碰撞。 */
     private void validateReserveIdentity(MerchantReserveItemDO actual, MerchantReserveItemDO expected) {
         boolean matches = actual != null && actual.getId() != null
                 && Objects.equals(actual.getReserveNo(), expected.getReserveNo())
@@ -515,6 +654,7 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         }
     }
 
+    /** 规范化并限制租约所有者长度，防止空主体参与资金状态 CAS。 */
     private String requireOwner(String owner) {
         if (owner == null || owner.isBlank()) {
             throw new IllegalArgumentException("settlement posting owner is required");
@@ -522,10 +662,12 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         return owner.trim();
     }
 
+    /** 生成正式批次唯一净入账资金流水幂等键。 */
     private String ledgerIdempotencyKey(String batchNo) {
         return "SETTLEMENT:" + batchNo;
     }
 
+    /** 以稳定业务身份生成固定长度 SHA-256 派生号，保证任务重放结果一致。 */
     private String stableId(String prefix, String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

@@ -9,9 +9,6 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-@Data
-@Component
-@ConfigurationProperties(prefix = "spring.datasource.dynamic")
 /**
  * @author : scott
  * @version : v1.0.0
@@ -21,6 +18,9 @@ import java.util.Map;
  * @description : Monitor Dynamic Data Source Properties 配置属性模型，位于 运营后台服务，绑定 application 配置项并提供运行时默认值。
  * @status : create
  */
+@Data
+@Component
+@ConfigurationProperties(prefix = "spring.datasource.dynamic")
 public class MonitorDynamicDataSourceProperties {
 
     /**

@@ -40,41 +40,9 @@ public class AdminDictApplicationService {
      */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    /**
-     * admin Dict Service 依赖，用于 Admin Dict Application Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final AdminDictService adminDictService;
-    /**
-     * excel Export Service 依赖，用于 Admin Dict Application Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final ExcelExportService excelExportService;
-    /**
-     * excel I 18 n Message Resolver，用于保存 Admin Dict Application Service 中与 exceli18nmessageresolver 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
-    /**
-     * excel Locale Resolver，用于保存 Admin Dict Application Service 中与 excellocaleresolver 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final ExcelLocaleResolver excelLocaleResolver;
     /**
      * 数据字典对象转换器。
@@ -340,49 +308,15 @@ public class AdminDictApplicationService {
         return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
     }
 
-    /**
-     * 构造查询条件对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param builder builder 输入值，参与 builder 的查询、校验、转换、写入或日志摘要
-     * @param labelKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
-     */
     private void appendCondition(StringBuilder builder, String labelKey, String value, Locale locale) {
         appendSeparator(builder);
         builder.append(excelI18nMessageResolver.resolve(labelKey, locale)).append("=").append(value);
     }
 
-    /**
-     * 解析resolve状态文本，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param enabled enabled 输入值，参与 enabled 的查询、校验、转换、写入或日志摘要
-     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolveStatusText(boolean enabled, Locale locale) {
         return excelI18nMessageResolver.resolve(enabled ? "excel.common.enabled" : "excel.common.disabled", locale);
     }
 
-    /**
-     * 解析resolveboolean文本，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param yes yes 输入值，参与 yes 的查询、校验、转换、写入或日志摘要
-     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolveBooleanText(boolean yes, Locale locale) {
         return excelI18nMessageResolver.resolve(yes ? "excel.common.yes" : "excel.common.no", locale);
     }

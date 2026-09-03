@@ -43,13 +43,29 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** 清分管理应用服务，可信操作人始终取自 Admin 登录上下文。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminClearingApplicationService
+ * @date : 2026-09-01 23:00
+ * @email : scott_x@163.com
+ * @description : Admin 清分查询与人工命令编排；查询使用管理侧数据源，命令在校验版本和请求范围后注入可信操作人并调用 clearing 服务。
+ * @status : update
+ */
 @Service
 public class AdminClearingApplicationService {
 
     private static final Set<String> ADJUSTMENT_DIRECTIONS = Set.of("DEBIT", "CREDIT");
     private static final Set<String> REVIEW_DECISIONS = Set.of("APPROVE", "REJECT");
     private static final Set<String> RECALCULABLE_STATUSES = Set.of("CLEARED", "NOT_REQUIRED");
+    /**
+     * {@code MAX_RECALCULATION_BATCH_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int MAX_RECALCULATION_BATCH_SIZE = 20;
 
     private final ClearingInternalClient client;
@@ -64,11 +80,24 @@ public class AdminClearingApplicationService {
         this.feeVersionQueryService = feeVersionQueryService;
     }
 
+    /**
+     * 查询当前 Admin 数据范围内的清分记录。
+     *
+     * @param request 清分查询条件
+     * @return 清分记录分页
+     */
     public PageResult<Summary> search(SearchRequest request) {
         currentOperator();
         return queryService.search(request);
     }
 
+    /**
+     * 按交易号和交易时间从本地逻辑数据源查询清分详情。
+     *
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 交易时间，用于物理季度定位
+     * @return 清分详情
+     */
     public DetailResponse detail(String transactionId, LocalDateTime transactionDateTime) {
         currentOperator();
         if (!StringUtils.hasText(transactionId) || transactionDateTime == null) {
@@ -77,20 +106,47 @@ public class AdminClearingApplicationService {
         return queryService.detail(transactionId.trim(), transactionDateTime);
     }
 
-    /** 查询当前商户方案允许用于重算的不可变费用版本。 */
+    /**
+     * 查询当前商户方案允许用于重算的不可变费用版本。
+     *
+     * @param merchantId 商户号
+     * @param feePlanId 费用模板主键
+     * @return 已发布且属于该商户方案的版本列表
+     */
     public RecalculationOptionsResponse recalculationOptions(String merchantId, Long feePlanId) {
         currentOperator();
         return feeVersionQueryService.listOptions(merchantId, feePlanId);
     }
 
+    /**
+     * 使用可信 Admin 操作人提交幂等清分重试。
+     *
+     * @param transactionId 待重试平台交易号
+     * @param request 动作分片时间、期望版本和原因
+     * @return 清分服务幂等命令结果
+     */
     public CommandResponse retry(String transactionId, ActionRequest request) {
         return client.retry(transactionId, action(transactionId, request));
     }
 
+    /**
+     * 使用可信 Admin 操作人将清分记录升级为人工复核。
+     *
+     * @param transactionId 待升级平台交易号
+     * @param request 动作分片时间、期望版本和原因
+     * @return 清分服务幂等命令结果
+     */
     public CommandResponse review(String transactionId, ActionRequest request) {
         return client.review(transactionId, action(transactionId, request));
     }
 
+    /**
+     * 对尚未结算的清分事实执行单笔版本 CAS 重算。
+     *
+     * @param transactionId 平台交易号
+     * @param request 交易时间、期望版本、目标费用版本和原因
+     * @return 清分服务幂等命令结果
+     */
     public CommandResponse recalculate(String transactionId, RecalculateRequest request) {
         validateAction(transactionId, request);
         if (request.getExpectedClearingRevision() == null || request.getExpectedClearingRevision() < 1
@@ -111,6 +167,9 @@ public class AdminClearingApplicationService {
 
     /**
      * 有界批量重算，同一商户方案共用目标不可变版本，但每笔交易独立 CAS 和返回结果。
+     *
+     * @param request 最多 20 笔交易、统一目标费用版本和原因
+     * @return 不因单笔失败回滚其他交易的逐笔结果汇总
      */
     public RecalculateBatchResponse batchRecalculate(RecalculateBatchRequest request) {
         validateBatchRequest(request);
@@ -151,6 +210,7 @@ public class AdminClearingApplicationService {
         return response;
     }
 
+    /** 校验批量数量、请求内唯一交易引用、期望版本和统一目标费用版本。 */
     private void validateBatchRequest(RecalculateBatchRequest request) {
         if (request == null || request.getRecords() == null || request.getRecords().size() < 2
                 || request.getRecords().size() > MAX_RECALCULATION_BATCH_SIZE
@@ -171,6 +231,7 @@ public class AdminClearingApplicationService {
         }
     }
 
+    /** 确保当前命中的交易属于同一商户、同一费用方案且与目标方案一致。 */
     private void validateBatchScope(RecalculateBatchRequest request, List<Summary> currentRows) {
         if (currentRows == null || currentRows.isEmpty()) {
             return;
@@ -190,6 +251,7 @@ public class AdminClearingApplicationService {
         }
     }
 
+    /** 仅允许 CLEARED/NOT_REQUIRED 且 NOT_SETTLED 的当前版本重算，阻止终态和已结算事实被覆盖。 */
     private boolean isCurrentAndRecalculable(RecalculateBatchItem item, Summary current) {
         return current != null
                 && RECALCULABLE_STATUSES.contains(current.getClearingStatus())
@@ -199,6 +261,14 @@ public class AdminClearingApplicationService {
                 && Objects.equals(item.getExpectedClearingRevision(), current.getClearingRevision());
     }
 
+    /**
+     * 将批量重算项转换为内部命令，并把可信登录操作人和浏览器不可覆盖的版本前置条件注入命令。
+     *
+     * @param item 当前交易及其分片时间、期望版本
+     * @param request 目标费用版本与重算原因
+     * @param operator 从 Admin 登录上下文解析的操作人
+     * @return 发往清分服务的单笔重算命令
+     */
     private InternalRecalculateRequest batchCommand(RecalculateBatchItem item,
                                                     RecalculateBatchRequest request,
                                                     String operator) {
@@ -274,7 +344,12 @@ public class AdminClearingApplicationService {
         return client.reviewReserveAdjustment(adjustmentNo.trim(), command);
     }
 
-    /** 提交不可变费用版本月度阶梯重放申请，操作人只能来自登录上下文。 */
+    /**
+     * 提交不可变费用版本月度阶梯重放申请，操作人只能来自登录上下文。
+     *
+     * @param request 商户、费用版本、触发规则、月份、请求键和原因
+     * @return 待复核重放申请
+     */
     public TierPeriodReplayResponse submitTierPeriodReplay(TierPeriodReplaySubmitRequest request) {
         if (request == null || !validText(request.getRequestKey(), 128)
                 || !validText(request.getMerchantId(), 64) || request.getFeePlanId() == null
@@ -296,7 +371,13 @@ public class AdminClearingApplicationService {
         return client.submitTierPeriodReplay(command);
     }
 
-    /** 复核阶梯期间重放申请，复核人只能来自登录上下文。 */
+    /**
+     * 复核阶梯期间重放申请，复核人只能来自登录上下文。
+     *
+     * @param replayNo 重放申请号
+     * @param request 决策、期望版本和复核意见
+     * @return 终态或幂等复核结果
+     */
     public TierPeriodReplayResponse reviewTierPeriodReplay(
             String replayNo, TierPeriodReplayReviewRequest request) {
         if (!StringUtils.hasText(replayNo) || request == null
@@ -332,6 +413,12 @@ public class AdminClearingApplicationService {
         }
     }
 
+    /**
+     * 校验保证金差额申请的方向、正金额、精度和释放日期组合，阻止非法资金语义进入清分状态机。
+     *
+     * @param request 浏览器提交的保证金差额申请
+     * @throws ServiceException 身份、版本、金额或方向组合不合法时抛出
+     */
     private void validateReserveAdjustmentSubmit(ReserveAdjustmentSubmitRequest request) {
         String direction = request == null || request.getDirection() == null
                 ? null : request.getDirection().trim().toUpperCase(java.util.Locale.ROOT);
@@ -355,6 +442,7 @@ public class AdminClearingApplicationService {
         return StringUtils.hasText(value) && value.trim().length() <= maxLength;
     }
 
+    /** 从可信内部认证上下文解析 Admin 操作人；不存在可信身份时拒绝请求。 */
     private String currentOperator() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || account.getAccountId() == null) {

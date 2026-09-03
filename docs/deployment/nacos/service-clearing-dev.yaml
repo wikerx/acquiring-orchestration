@@ -1,13 +1,19 @@
 # service-clearing 专属配置：服务启动即处理全部合法终态事件，只保留容量、安全和调度周期参数。
 clearing:
+  # 参数说明：清分记录进入 PROCESSING 后允许被恢复任务重新认领的超时，单位秒。
   processing-timeout-seconds: ${CLEARING_PROCESSING_TIMEOUT_SECONDS:120}
+  # 参数说明：单条清分记录允许的最大业务重试次数；超过后进入人工处置，不得无限重试。
   max-retry-count: ${CLEARING_MAX_RETRY_COUNT:8}
+  # 参数说明：RocketMQ 清分消费者核心线程数，必须为正整数且不能大于最大线程数。
   consumer-min-threads: ${CLEARING_CONSUMER_MIN_THREADS:16}
+  # 参数说明：RocketMQ 清分消费者最大线程数；需结合数据库连接池、分片数和 Broker 队列数压测。
   consumer-max-threads: ${CLEARING_CONSUMER_MAX_THREADS:64}
+  # 参数说明：允许触发内部清分命令的调用方标识集合；必须与 internal-service.auth.callers 保持一致。
   internal-allowed-callers: ${CLEARING_INTERNAL_ALLOWED_CALLERS:service-admin,service-job}
   metrics:
     # 每个已发布季度各执行两条只读聚合 SELECT，周期可按副本容量调优。
     initial-delay-ms: ${CLEARING_METRICS_INITIAL_DELAY_MS:30000}
+    # 参数说明：相邻两次清分指标聚合完成后的等待时间，单位毫秒；不得配置为高频压库。
     fixed-delay-ms: ${CLEARING_METRICS_FIXED_DELAY_MS:60000}
 
 management:
@@ -16,16 +22,34 @@ management:
       percentiles-histogram:
         # 为清分处理和阶梯锁等待提供可跨实例聚合的 P95/P99 直方图。
         clearing.duration: true
+        # 参数说明：为阶梯费用周期锁等待指标生成直方图，用于观察热点商户和锁竞争。
         clearing.tier.lock: true
 
 internal-service:
   auth:
-    enabled: true
-    caller: service-clearing
-    # dev 也必须显式注入独立密钥，避免自动消费者带共享弱密钥启动。
-    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
-    allowed-clock-skew: 5m
-    nonce-ttl: 10m
-    whitelist:
-      - /actuator/health/**
-      - /error
+    # enabled 安全门禁固定在本地，调用方按最小路径授权。
+    callers:
+      service-admin:
+        # 参数说明：Admin 调用清分人工命令时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.admin-clearing.active-secret}
+        # 参数说明：Admin-Clearing 密钥滚动轮换期间接受的上一版密钥；平时为空。
+        previous-secret: ${acquiring.internal-auth.edges.admin-clearing.previous-secret:}
+        allowed-paths:
+          # 路径说明：允许 Admin 查询或处置单笔交易清分事实和状态。
+          - /internal/clearing/v1/transactions/**
+          # 路径说明：允许 Admin 查询或处置保证金调整清分命令。
+          - /internal/clearing/v1/reserve-adjustments/**
+          # 路径说明：允许 Admin 对阶梯费用周期执行受审计的重放操作。
+          - /internal/clearing/v1/tier-period-replays/**
+      service-job:
+        # 参数说明：Job 调用清分补偿命令时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.job-clearing.active-secret}
+        # 参数说明：Job-Clearing 密钥滚动轮换期间接受的上一版密钥；平时为空。
+        previous-secret: ${acquiring.internal-auth.edges.job-clearing.previous-secret:}
+        allowed-paths:
+          # 路径说明：仅允许任务服务执行清分超时恢复和失败补偿，不得扩展到人工管理接口。
+          - /internal/clearing/v1/compensations/**
+    # 参数说明：内部 HMAC 时间戳允许的最大偏差，使用 Spring Duration，默认 5 分钟。
+    allowed-clock-skew: ${INTERNAL_SERVICE_AUTH_CLOCK_SKEW:5m}
+    # 参数说明：nonce 防重放记录保留时间，使用 Spring Duration，必须大于 allowed-clock-skew。
+    nonce-ttl: ${INTERNAL_SERVICE_AUTH_NONCE_TTL:10m}

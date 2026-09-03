@@ -25,7 +25,6 @@ public class TransactionChannelCallbackClientRequestDTO implements Serializable 
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String channelCode;
@@ -51,11 +50,10 @@ public class TransactionChannelCallbackClientRequestDTO implements Serializable 
     private String transactionId;
 
     /**
-     * channel Order No，用于保存 Transaction Channel Callback Client Request DTO 中与 渠道订单no 相关的业务属性。
+     * 渠道订单号，由渠道返回，用于渠道查询、回调匹配和对账。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String channelOrderNo;
@@ -75,87 +73,78 @@ public class TransactionChannelCallbackClientRequestDTO implements Serializable 
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String channelEventType;
 
     /**
-     * request URI，用于保存 Transaction Channel Callback Client Request DTO 中与 requesturi 相关的业务属性。
+     * {@code requestUri}字段，保存 {@code TransactionChannelCallbackClientRequestDTO} 当前处理所需的业务取值。
      * <p>
      * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度和协议由调用方校验；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String requestUri;
 
     /**
-     * http Method，表示支付方式、通知方式或调用方式。
+     * HTTP方式，表示支付方式、通知方式或调用方式。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String httpMethod;
 
     /**
-     * source IP，用于保存 Transaction Channel Callback Client Request DTO 中与 来源ip 相关的业务属性。
+     * {@code sourceIp}字段，保存 {@code TransactionChannelCallbackClientRequestDTO} 当前处理所需的业务取值。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String sourceIp;
 
     /**
-     * request Headers，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
+     * 请求请求头，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private Map<String, String> requestHeaders;
 
     /**
-     * request Body，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
+     * 请求报文体，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String requestBody;
 
     /**
-     * signature Valid，用于定位 Transaction Channel Callback Client Request DTO 关联的上游配置、渠道、账号、角色或业务记录。
+     * {@code signatureValid}，用于定位 {@code TransactionChannelCallbackClientRequestDTO} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private Boolean signatureValid;
 
     /**
-     * IP Allowed，用于保存 Transaction Channel Callback Client Request DTO 中与 ipallowed 相关的业务属性。
+     * {@code ipAllowed}，用于明确 {@code TransactionChannelCallbackClientRequestDTO} 当前业务分支是否成立。
      * <p>
      * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
      * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private Boolean ipAllowed;
 
     /**
-     * received Time，用于保存 Transaction Channel Callback Client Request DTO 中与 receivedtime 相关的业务属性。
+     * {@code receivedTime}字段，保存 {@code TransactionChannelCallbackClientRequestDTO} 当前处理所需的业务取值。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime receivedTime;

@@ -1,6 +1,8 @@
 # service-checkout 专属配置：公开展示配置仍由 service-checkout 提供，但只能经 service-gateway 访问。
 acquiring:
   gateway-ingress:
-    # 与 dev Gateway 保持一致；环境变量优先覆盖，非 dev 环境禁止复用该默认值。
-    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:2acee5d27b34b556d0a9b0123e2277870558d57f39968820a0b00edc1d3b7a12}
+    # Checkout 只能接受 Gateway 签发的入口请求；密钥正文由受控脚本合入同一服务 DataId。
+    secret: ${acquiring.internal-auth.edges.gateway-checkout.active-secret}
+    # 参数说明：Gateway 入口签名时间戳允许偏差，单位毫秒；必须覆盖正常网络抖动且不宜过大。
+    # 环境说明：各环境应保持网关和 Checkout 时钟同步，生产建议不超过 60000 毫秒。
     allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}

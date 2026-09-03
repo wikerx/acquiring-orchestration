@@ -1,6 +1,7 @@
 package com.scott.payment.settlement.service;
 
 import com.scott.payment.settlement.dto.SettlementBatchFacts;
+import com.scott.payment.settlement.dto.SettlementCalculationPreview;
 import com.scott.payment.settlement.dto.SettlementLockedRateMatrix;
 import com.scott.payment.settlement.entity.SettlementBatchDO;
 
@@ -16,6 +17,12 @@ import java.time.LocalDateTime;
  * @status : create
  */
 public interface SettlementResultCalculationService {
+
+    /** 使用与正式结算相同的算法生成不落库预览。 */
+    SettlementCalculationPreview preview(SettlementBatchDO batch,
+                                         SettlementBatchFacts facts,
+                                         SettlementLockedRateMatrix rates,
+                                         LocalDateTime now);
 
     /**
      * 原子生成结果、回读校验汇总并完成 CALCULATED 状态 CAS。

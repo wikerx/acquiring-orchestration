@@ -41,7 +41,21 @@ import java.util.Set;
 @Service
 public class DefaultTierPeriodReplayTransactionService implements TierPeriodReplayTransactionService {
 
+    /**
+     * 等待审核常量，统一 {@code DefaultTierPeriodReplayTransactionService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String PENDING_REVIEW = "PENDING_REVIEW";
+    /**
+     * {@code MANUAL_REVIEW}常量，统一 {@code DefaultTierPeriodReplayTransactionService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String MANUAL_REVIEW = "MANUAL_REVIEW";
 
     private final ClearingTierPeriodReplayMapper replayMapper;
@@ -171,6 +185,7 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
                 replay.getCompletedCount() == null ? 0 : replay.getCompletedCount(), replay.getVersion() + 1);
     }
 
+    /** 加锁读取唯一待复核申请并校验版本及 Maker-Checker 约束。 */
     private ClearingTierPeriodReplayDO lockReviewable(ReviewCommand command) {
         ClearingTierPeriodReplayDO replay = replayMapper.selectForUpdate(command.replayNo());
         if (replay == null || !PENDING_REVIEW.equals(replay.getReplayStatus())
@@ -180,6 +195,11 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         return replay;
     }
 
+    /**
+     * 将累计阶梯规则闭包规范化为去重且有序的稳定集合。
+     * <p>
+     * 重放申请必须冻结完整规则身份；重复、空值或非法 ID 会导致 Maker 与 Checker 审核的计算范围不一致，必须拒绝。
+     */
     private List<Long> stableRuleIds(List<Long> tierRuleIds) {
         if (tierRuleIds == null || tierRuleIds.isEmpty() || tierRuleIds.stream().anyMatch(id -> id == null || id < 1)) {
             throw new IllegalArgumentException("complete tier rule closure is required");
@@ -191,6 +211,7 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         return stable;
     }
 
+    /** 目标阶梯规则集合必须与费用版本内累计事实闭包一致，禁止只重放部分规则。 */
     private void validateAccumulatorClosure(List<Long> ruleIds,
                                             List<ClearingFeeTierAccumulatorDO> accumulators) {
         if (accumulators == null || accumulators.size() != ruleIds.size()) {
@@ -229,6 +250,13 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         return null;
     }
 
+    /**
+     * 校验完整冻结集合仍逐项对应未认领 READY 交易候选，任一缺失或重复都阻断重放。
+     *
+     * @param facts 按稳定顺序冻结的清分修订事实
+     * @param candidates 已加行锁的结算候选集合
+     * @return 数量、来源身份、状态和批次占用全部匹配时返回 true
+     */
     private boolean replaceableCandidates(List<ClearingTierPeriodReplayItemFactsDO> facts,
                                           List<ClearingSettlementCandidateDO> candidates) {
         if (candidates == null || candidates.size() != facts.size()) {
@@ -248,6 +276,7 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
                 item.getFinanceStateId() + "|" + item.getClearingRevision()));
     }
 
+    /** 将按清分完成时间和交易号冻结的事实转换为不可跳序重放项。 */
     private List<ClearingTierPeriodReplayItemDO> replayItems(
             String replayNo, List<ClearingTierPeriodReplayItemFactsDO> facts, LocalDateTime now) {
         List<ClearingTierPeriodReplayItemDO> rows = new ArrayList<>(facts.size());
@@ -272,6 +301,7 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         return rows;
     }
 
+    /** 对外只保存稳定错误分类，不把异常堆栈写入人工复核消息。 */
     private String manualMessage(String errorCode) {
         return switch (errorCode) {
             case "EMPTY_PERIOD" -> "no completed clearing actions exist in the requested tier period";
@@ -282,6 +312,7 @@ public class DefaultTierPeriodReplayTransactionService implements TierPeriodRepl
         };
     }
 
+    /** 复核决定、版本、复核人和时间必须完整且与调用分支一致。 */
     private void validateReview(ReviewCommand command, ReviewDecision expected, LocalDateTime now) {
         if (command == null || !StringUtils.hasText(command.replayNo())
                 || command.expectedRequestVersion() < 0 || command.decision() != expected

@@ -22,29 +22,26 @@ import java.util.zip.ZipOutputStream;
 public class OpenApiKeyExportService {
 
     /**
-     * TEXT CONTENT TYPE，用于区分 Open API Key Export Service 记录的处理类别、配置维度或外部协议枚举。
+     * 文本内容类型，用于区分 {@code OpenApiKeyExportService} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String TEXT_CONTENT_TYPE = "text/plain;charset=UTF-8";
     /**
-     * PROPERTIES CONTENT TYPE，用于区分 Open API Key Export Service 记录的处理类别、配置维度或外部协议枚举。
+     * {@code PROPERTIES_CONTENT_TYPE}，用于区分 {@code OpenApiKeyExportService} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String PROPERTIES_CONTENT_TYPE = "text/plain;charset=UTF-8";
     /**
-     * ZIP CONTENT TYPE，用于区分 Open API Key Export Service 记录的处理类别、配置维度或外部协议枚举。
+     * {@code ZIP_CONTENT_TYPE}，用于区分 {@code OpenApiKeyExportService} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String ZIP_CONTENT_TYPE = "application/zip";
@@ -52,14 +49,6 @@ public class OpenApiKeyExportService {
     /** Gateway 中所有商户 OpenAPI 的统一外部前缀。 */
     private static final String OPENAPI_BASE_PATH = "/api/rest";
 
-    /**
-     * base URL Resolver，表示回调、通知、来源站点或远程接口地址。
-     * <p>
-     * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：长度和协议由调用方校验；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final OpenApiBaseUrlResolver baseUrlResolver;
 
     /**
@@ -261,32 +250,12 @@ public class OpenApiKeyExportService {
         return new OpenApiKeyDownloadFile(fileName, PROPERTIES_CONTENT_TYPE, content.getBytes(StandardCharsets.UTF_8));
     }
 
-    /**
-     * 创建zipentry，完成必要校验后写入或委托下游服务处理。
-     * <p>
-     * 前置条件：调用方已完成 公共组件库 的身份、权限、必填字段和业务唯一性准备。
-     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
-     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
-     * </p>
-     * @param zip zip 输入值，参与 zip 的查询、校验、转换、写入或日志摘要
-     * @param name name 输入值，参与 name 的查询、校验、转换、写入或日志摘要
-     * @param content content 输入值，参与 content 的查询、校验、转换、写入或日志摘要
-     */
     private void addZipEntry(ZipOutputStream zip, String name, String content) throws IOException {
         zip.putNextEntry(new ZipEntry(name));
         zip.write(content.getBytes(StandardCharsets.UTF_8));
         zip.closeEntry();
     }
 
-    /**
-     * 规范化readme，返回调用链后续步骤可直接使用的业务值。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String readme() {
         return ""
                 + "1. 将 merchant-config.properties 与 keys/ 保持当前相对目录结构，SDK 会从配置文件所在目录解析密钥。\n"
@@ -297,15 +266,6 @@ public class OpenApiKeyExportService {
                 + "6. 如密钥泄露，请立即在管理系统或商户系统中轮换密钥。\n";
     }
 
-    /**
-     * 整理openapi基础url，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String openApiBaseUrl() {
         String baseUrl = baseUrlResolver == null ? null : baseUrlResolver.resolve();
         if (baseUrl == null || baseUrl.trim().isEmpty()) {

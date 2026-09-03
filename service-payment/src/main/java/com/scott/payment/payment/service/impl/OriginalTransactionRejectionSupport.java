@@ -6,7 +6,15 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 
-/** Applies the stable merchant response for original-transaction route rejection. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OriginalTransactionRejectionSupport
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Applies the stable merchant response for original-transaction route rejection.
+ * @status : create
+ */
 final class OriginalTransactionRejectionSupport {
 
     private OriginalTransactionRejectionSupport() {

@@ -12,7 +12,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * MQ 风控审计发布器。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MqRiskAuditRecordPublisher
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : MQ 风控审计发布器。
+ * @status : create
  */
 @Slf4j
 @Service

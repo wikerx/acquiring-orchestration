@@ -16,7 +16,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** 验证首次交易本地准备在风控和 MID 路由前补齐服务端卡品牌。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultPaymentTransactionPreparationServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证首次交易本地准备在风控和 MID 路由前补齐服务端卡品牌。
+ * @status : create
+ */
 class DefaultPaymentTransactionPreparationServiceTests {
 
     @Test

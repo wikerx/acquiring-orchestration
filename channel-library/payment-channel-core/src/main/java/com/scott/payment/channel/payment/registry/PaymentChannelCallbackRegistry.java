@@ -24,14 +24,6 @@ import java.util.Optional;
 @Component
 public class PaymentChannelCallbackRegistry {
 
-    /**
-     * handlers，用于保存 Payment Channel Callback Registry 中与 handlers 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final Map<String, PaymentChannelCallbackHandler> handlers;
 
     /**
@@ -78,16 +70,6 @@ public class PaymentChannelCallbackRegistry {
         return handlers;
     }
 
-    /**
-     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 渠道适配库 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param channelCode channel Code 输入值，参与 渠道编码 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private String normalize(String channelCode) {
         return channelCode == null ? null : channelCode.trim().toUpperCase(Locale.ROOT);
     }

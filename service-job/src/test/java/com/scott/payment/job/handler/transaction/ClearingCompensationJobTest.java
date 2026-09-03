@@ -24,6 +24,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingCompensationJobTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证清分补偿任务只负责编排远程游标分页、总量聚合和单次页数上限
+ * @status : create
+ */
 class ClearingCompensationJobTest {
 
     @Test

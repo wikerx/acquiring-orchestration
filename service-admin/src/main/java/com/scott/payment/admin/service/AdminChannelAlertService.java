@@ -22,7 +22,7 @@ import java.util.List;
  * @classname : AdminChannelAlertService
  * @date : 2026-07-17 00:00
  * @email : scott_x@163.com
- * @description : 渠道预警管理服务契约，位于 service-admin 服务层，定义后台规则、事件和邮件通知日志管理边界。
+ * @description : admin渠道告警服务契约，位于 运营后台服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  * @status : create
  */
 public interface AdminChannelAlertService {

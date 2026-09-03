@@ -11,15 +11,13 @@ import java.time.LocalTime;
  * @classname : SettlementBatchGroupDO
  * @date : 2026-08-26 22:10
  * @email : scott_x@163.com
- * @description : 真实 READY 候选按冻结档案、账户和目标币种聚合的自动建批投影，不包含清分金额。
+ * @description : READY 候选按冻结档案、账户和目标币种聚合的自动扫描投影；不作为正式建批候选快照。
  * @status : create
  */
 @Data
 public class SettlementBatchGroupDO {
-    /** REGULAR 或 RESERVE_RELEASE，由候选来源确定。 */
+    /** REGULAR、RESERVE_RELEASE 或 ADJUSTMENT，由候选来源确定；非敏感且不允许为空。 */
     private String batchType;
-    /** 当前结算维度最早 READY 候选主键，用于生成有界批次的稳定请求键。 */
-    private Long anchorCandidateId;
     /** 候选冻结的结算档案 ID。 */
     private Long settlementProfileId;
     /** 平台商户号。 */
@@ -34,6 +32,8 @@ public class SettlementBatchGroupDO {
     private String businessTimeZone;
     /** 商户每日结算日切时间。 */
     private LocalTime dailyCutoffTime;
+    /** AUTO_POST 或 AUTO_REVIEW；MANUAL 档案不会进入自动分组。 */
+    private String processingMode;
     /** 当前未归属候选中最早结算日期。 */
     private LocalDate earliestEligibleDate;
 }

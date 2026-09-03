@@ -12,7 +12,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** OpenAPI 统一系统参数读取契约测试。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiSystemConfigServiceImplTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : OpenAPI 统一系统参数读取契约测试。
+ * @status : create
+ */
 class OpenApiSystemConfigServiceImplTests {
 
     /** 必需参数存在时必须返回公共读取器提供的启用值。 */

@@ -18,6 +18,7 @@ import com.scott.payment.finance.settlement.model.SettlementRateModels.LockedRat
 import com.scott.payment.settlement.domain.model.SettlementBatchStatus;
 import com.scott.payment.settlement.domain.model.SettlementFailureStage;
 import com.scott.payment.settlement.dto.SettlementBatchFacts;
+import com.scott.payment.settlement.dto.SettlementCalculationPreview;
 import com.scott.payment.settlement.dto.SettlementLockedRateMatrix;
 import com.scott.payment.settlement.entity.SettlementBatchDO;
 import com.scott.payment.settlement.entity.SettlementCandidateDO;
@@ -29,6 +30,8 @@ import com.scott.payment.settlement.exception.SettlementProcessingException;
 import com.scott.payment.settlement.mapper.SettlementBatchMapper;
 import com.scott.payment.settlement.mapper.SettlementResultMapper;
 import com.scott.payment.settlement.service.SettlementResultCalculationService;
+import com.scott.payment.settlement.support.SettlementReviewFingerprintService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -63,22 +66,104 @@ import java.util.Set;
 @Service
 public class DefaultSettlementResultCalculationService implements SettlementResultCalculationService {
 
+    /**
+     * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
+    /**
+     * {@code ITEM_INSERT_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int ITEM_INSERT_PAGE_SIZE = 500;
+    /**
+     * {@code SUMMARY_INSERT_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int SUMMARY_INSERT_PAGE_SIZE = 200;
+    /**
+     * {@code TRACE}常量，统一 {@code DefaultSettlementResultCalculationService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * 字段关系：与日志 MDC 和 X-Trace-Id 请求头共同串联一次链路。
+     * </p>
+     */
     private static final String TRACE = "TRACE";
+    /**
+     * {@code FINANCIAL_COMPONENT}常量，统一 {@code DefaultSettlementResultCalculationService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String FINANCIAL_COMPONENT = "FINANCIAL_COMPONENT";
+    /**
+     * {@code NONE}常量，统一 {@code DefaultSettlementResultCalculationService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String NONE = "NONE";
 
     private final SettlementBatchMapper batchMapper;
     private final SettlementResultMapper resultMapper;
+    private final SettlementReviewFingerprintService fingerprintService;
     private final SettlementAmountCalculator amountCalculator = new SettlementAmountCalculator();
     private final SettlementFeeGroupCalculator feeGroupCalculator = new SettlementFeeGroupCalculator();
 
     public DefaultSettlementResultCalculationService(SettlementBatchMapper batchMapper,
                                                      SettlementResultMapper resultMapper) {
+        this(batchMapper, resultMapper, new SettlementReviewFingerprintService());
+    }
+
+    @Autowired
+    public DefaultSettlementResultCalculationService(SettlementBatchMapper batchMapper,
+                                                     SettlementResultMapper resultMapper,
+                                                     SettlementReviewFingerprintService fingerprintService) {
         this.batchMapper = batchMapper;
         this.resultMapper = resultMapper;
+        this.fingerprintService = fingerprintService;
+    }
+
+    /**
+     * 使用冻结清分事实和统一汇率执行纯预览计算，不写正式结果表或修改批次状态。
+     *
+     * @param batch 预审或正式批次的商户、账户、币种和类型维度
+     * @param facts 完整交易及保证金清分事实
+     * @param rates 已锁定统一直接汇率及持久化行映射
+     * @param now 结果快照时间
+     * @return 不可变结果明细、汇总和目标币种净额
+     * @throws SettlementProcessingException 金额、币种、费用组、汇率或舍入事实不完整时抛出
+     */
+    @Override
+    public SettlementCalculationPreview preview(SettlementBatchDO batch,
+                                                SettlementBatchFacts facts,
+                                                SettlementLockedRateMatrix rates,
+                                                LocalDateTime now) {
+        Objects.requireNonNull(batch, "settlement preview batch is required");
+        Objects.requireNonNull(facts, "settlement preview facts are required");
+        Objects.requireNonNull(rates, "settlement preview rates are required");
+        Objects.requireNonNull(now, "settlement preview time is required");
+        List<SettlementResultItemDO> items = calculate(batch, facts, rates, now);
+        if (items.isEmpty()) {
+            throw failure("SETTLEMENT_RESULT_EMPTY", false,
+                    "settlement batch produced no financial or audit results");
+        }
+        List<SettlementResultSummaryDO> resultSummaries = summaries(items, now);
+        return preview(batch, items, resultSummaries);
     }
 
     /**
@@ -138,6 +223,14 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
             throw failure("SETTLEMENT_SUMMARY_EMPTY", false,
                     "settlement batch produced no financial summaries");
         }
+        if (StringUtils.hasText(batch.getResultFingerprint())) {
+            String actualFingerprint = fingerprintService.result(
+                    preview(batch, expectedItems, expectedSummaries));
+            if (!batch.getResultFingerprint().equals(actualFingerprint)) {
+                throw failure("SETTLEMENT_REVIEW_RESULT_FINGERPRINT_MISMATCH", false,
+                        "formal settlement result differs from the approved review snapshot");
+            }
+        }
         insertSummaries(expectedSummaries);
         List<SettlementResultSummaryDO> storedSummaries = safe(resultMapper.selectSummariesByBatch(
                 batch.getSettlementBatchNo()));
@@ -156,6 +249,21 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         return expectedItems.size();
     }
 
+    /** 从财务组件目标金额计算 CREDIT/DEBIT 净额，批次预审结果以该值做指纹和审批一致性校验。 */
+    private SettlementCalculationPreview preview(SettlementBatchDO batch,
+                                                 List<SettlementResultItemDO> items,
+                                                 List<SettlementResultSummaryDO> resultSummaries) {
+        BigDecimal signed = items.stream()
+                .filter(item -> FINANCIAL_COMPONENT.equals(item.getResultRole()))
+                .map(item -> "CREDIT".equals(item.getDirection())
+                        ? item.getTargetAmount() : item.getTargetAmount().negate())
+                .reduce(BigDecimal.ZERO, (left, right) -> left.add(right, CALCULATION_CONTEXT));
+        String direction = signed.signum() < 0 ? "DEBIT" : "CREDIT";
+        BigDecimal amount = signed.abs().setScale(batch.getTargetCurrencyExponent());
+        return new SettlementCalculationPreview(items, resultSummaries, direction, amount);
+    }
+
+    /** 按候选和清分明细稳定顺序生成结果；全程保留未舍入目标金额，最终才按目标 exponent 舍入。 */
     private List<SettlementResultItemDO> calculate(SettlementBatchDO batch,
                                                    SettlementBatchFacts facts,
                                                    SettlementLockedRateMatrix rates,
@@ -185,6 +293,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         return List.copyOf(results);
     }
 
+    /** 对单个候选生成本金、费用 TRACE/最终值和保证金结果，禁止跨候选或跨币种隐式合并。 */
     private void calculateCandidate(SettlementBatchDO batch,
                                     SettlementCandidateDO candidate,
                                     List<SettlementTransactionClearingDetailDO> transactionRows,
@@ -236,6 +345,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         }
     }
 
+    /** 将清分本金按批次统一直接汇率换算为参与净额的 FINANCIAL_COMPONENT。 */
     private SettlementResultItemDO principal(SettlementBatchDO batch,
                                              SettlementCandidateDO candidate,
                                              SettlementTransactionClearingDetailDO row,
@@ -252,6 +362,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
                 "principal converted once with the immutable batch rate", now);
     }
 
+    /** 保存单个费用组件换算 TRACE；仅供审计，不重复参与批次净额。 */
     private SettlementResultItemDO feeTrace(SettlementBatchDO batch,
                                             SettlementCandidateDO candidate,
                                             SettlementTransactionClearingDetailDO row,
@@ -268,6 +379,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
                 "clearing fee component converted for audit; excluded from financial summary", now);
     }
 
+    /** 保存费用组应用 USD 最低/最高限额后的唯一最终财务组件，避免组件和最终值重复扣费。 */
     private SettlementResultItemDO feeFinal(SettlementBatchDO batch,
                                             SettlementCandidateDO candidate,
                                             String feeGroupNo,
@@ -293,6 +405,10 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
                 representative.getRoundingMode(), finalValue.formula(), now);
     }
 
+    /**
+     * 对待结算评估费用组执行跨币种归并：百分比组件保留标签币种，固定费及上下限继续使用 USD，
+     * 统一换算到目标币种后才应用限额和最终舍入。
+     */
     private FeeFinal pendingFeeGroup(List<SettlementTransactionClearingDetailDO> rows,
                                      String feeGroupNo,
                                      SettlementBatchDO batch,
@@ -331,6 +447,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
                 "fee group = percentage(label currency) + fixed(USD), then apply USD min/max with batch rates");
     }
 
+    /** 对清分阶段已最终确定的同币种费用组复核方向、金额和限额身份，不二次应用模板规则。 */
     private FeeFinal finalizedFeeGroup(List<SettlementTransactionClearingDetailDO> rows,
                                        SettlementBatchDO batch,
                                        SettlementLockedRateMatrix rates,
@@ -355,6 +472,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
                 "fee group final preserves clearing-final components and converts their signed net with batch rates");
     }
 
+    /** 将 HOLD、RETURN、RELEASE 或 ADJUSTMENT 原标签币种金额换算为结算结果，不改变保证金聚合原币种。 */
     private SettlementResultItemDO reserve(SettlementBatchDO batch,
                                            SettlementCandidateDO candidate,
                                            SettlementReserveClearingDetailDO row,
@@ -382,6 +500,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
                 "reserve clearing fact converted only at settlement with the immutable batch rate", now);
     }
 
+    /** 构造不可变结果项，同时冻结来源/目标币种精度、汇率行、舍入模式和公式快照。 */
     private SettlementResultItemDO item(SettlementBatchDO batch,
                                         SettlementCandidateDO candidate,
                                         int lineNo,
@@ -444,6 +563,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         return row;
     }
 
+    /** 使用批次归一直接汇率和 DECIMAL128 计算未舍入值，再按目标币种 exponent 执行指定舍入。 */
     private Converted convert(String lineNo,
                               BigDecimal amount,
                               String currency,
@@ -466,6 +586,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         }
     }
 
+    /** 仅聚合 FINANCIAL_COMPONENT，并按支付/交易/费用/方向及来源和目标币种完整分组。 */
     private List<SettlementResultSummaryDO> summaries(List<SettlementResultItemDO> items,
                                                       LocalDateTime now) {
         Map<SummaryKey, SummaryAccumulator> grouped = new LinkedHashMap<>();
@@ -482,6 +603,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
                 .map(entry -> summary(entry.getKey(), entry.getValue(), now)).toList();
     }
 
+    /** 从单一完整分组累加器生成不可变结果汇总，交易数按候选主键去重。 */
     private SettlementResultSummaryDO summary(SummaryKey key,
                                                SummaryAccumulator value,
                                                LocalDateTime now) {
@@ -503,6 +625,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         return row;
     }
 
+    /** 分页追加不可变结果明细，数据库唯一键承担最终幂等。 */
     private void insertItems(List<SettlementResultItemDO> rows) {
         for (int start = 0; start < rows.size(); start += ITEM_INSERT_PAGE_SIZE) {
             resultMapper.insertItemsIdempotent(rows.subList(start,
@@ -510,6 +633,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         }
     }
 
+    /** 分页追加不可变结果汇总，数据库业务维度唯一键承担最终幂等。 */
     private void insertSummaries(List<SettlementResultSummaryDO> rows) {
         for (int start = 0; start < rows.size(); start += SUMMARY_INSERT_PAGE_SIZE) {
             resultMapper.insertSummariesIdempotent(rows.subList(start,
@@ -517,6 +641,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         }
     }
 
+    /** 对幂等回读的结果明细逐业务身份和金额核对，拒绝唯一键碰撞或部分写入。 */
     private void validateStoredItems(List<SettlementResultItemDO> expected,
                                      List<SettlementResultItemDO> stored) {
         if (expected.size() != stored.size()) {
@@ -534,6 +659,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         }
     }
 
+    /** 比较结果项全部资金身份、未舍入/舍入金额、精度、汇率和公式快照。 */
     private boolean sameItem(SettlementResultItemDO left, SettlementResultItemDO right) {
         return right != null
                 && Objects.equals(left.getSettlementBatchNo(), right.getSettlementBatchNo())
@@ -565,6 +691,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
                 && right.getLedgerIdempotencyKey() == null;
     }
 
+    /** 对幂等回读的汇总逐完整分组和金额核对，拒绝跨币种或部分写入。 */
     private void validateStoredSummaries(List<SettlementResultSummaryDO> expected,
                                          List<SettlementResultSummaryDO> stored) {
         if (expected.size() != stored.size()) {
@@ -584,12 +711,14 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         }
     }
 
+    /** 构造包含来源/目标币种在内的完整汇总键，禁止多币种使用同一累加器。 */
     private SummaryKey summaryKey(SettlementResultSummaryDO row) {
         return new SummaryKey(row.getSettlementBatchNo(), row.getMerchantId(), row.getPaymentType(),
                 row.getPaymentMethod(), row.getTransactionType(), row.getResultItemType(),
                 row.getFeeCategory(), row.getDirection(), row.getSourceCurrency(), row.getTargetCurrency());
     }
 
+    /** 校验费用组内商户、支付维度、方向、标签币种、USD 限额和舍入模式一致。 */
     private void validateFeeGroupIdentity(List<SettlementTransactionClearingDetailDO> rows,
                                           SettlementTransactionClearingDetailDO expected) {
         for (SettlementTransactionClearingDetailDO row : rows) {
@@ -604,6 +733,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         }
     }
 
+    /** 从费用组读取可空公共金额字段；不同组件出现不一致非空值时阻断结算。 */
     private BigDecimal consistentOptional(List<SettlementTransactionClearingDetailDO> rows,
                                           boolean minimum) {
         BigDecimal expected = null;
@@ -621,6 +751,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         return expected;
     }
 
+    /** 将固定单笔费或最低/最高限额的 USD 金额使用同一批次 USD 锁定汇率换算为目标币种。 */
     private BigDecimal convertUsd(BigDecimal amount,
                                   SettlementBatchDO batch,
                                   SettlementLockedRateMatrix rates) {
@@ -635,6 +766,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         return amount == null ? null : new Money(amount, "USD", 2);
     }
 
+    /** 从保证金清分行提取与动作类型唯一对应的非负原标签币种金额。 */
     private BigDecimal reserveAmount(SettlementReserveClearingDetailDO row) {
         return switch (row.getReserveActionType()) {
             case "HOLD" -> row.getRetainedAmount();
@@ -646,6 +778,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         };
     }
 
+    /** 按交易号、分片时间和清分修订精确定位候选，防止不同修订串单。 */
     private SettlementCandidateDO requireCandidate(Map<FactKey, SettlementCandidateDO> candidates,
                                                    String transactionId,
                                                    LocalDateTime transactionTime,
@@ -659,6 +792,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         return candidate;
     }
 
+    /** 将清分冻结舍入模式转换为枚举，缺失或未知值时拒绝结算。 */
     private RoundingMode rounding(String value) {
         try {
             RoundingMode mode = RoundingMode.valueOf(value);
@@ -672,6 +806,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         }
     }
 
+    /** 将清分限额结果转换为领域枚举，缺失时使用 NONE，未知值时拒绝结算。 */
     private AppliedLimit appliedLimit(String value) {
         try {
             return AppliedLimit.valueOf(value);
@@ -681,6 +816,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         }
     }
 
+    /** 要求批次处于可计算状态且当前处理租约仍归 owner 所有并未过期。 */
     private void validateLease(SettlementBatchDO batch, String owner, LocalDateTime now) {
         if (batch == null || batch.getVersion() == null || !owner.equals(batch.getProcessingOwner())
                 || batch.getProcessingDeadline() == null || !batch.getProcessingDeadline().isAfter(now)) {
@@ -698,6 +834,13 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         }
     }
 
+    /**
+     * 按金额数值而非 BigDecimal scale 比较结算结果，避免 1.0 与 1.00 被误判为资金差异。
+     *
+     * @param left 左侧金额，可为空
+     * @param right 右侧金额，可为空
+     * @return 两侧同时为空或数值相等时返回 true
+     */
     private boolean amountEquals(BigDecimal left, BigDecimal right) {
         return left == null ? right == null : right != null && left.compareTo(right) == 0;
     }
@@ -706,6 +849,7 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         return StringUtils.hasText(value) ? value : NONE;
     }
 
+    /** 以批次号、候选和结果行号生成稳定结果项号，确保事务重放身份一致。 */
     private String resultItemNo(String batchNo, Long candidateId, int lineNo) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
@@ -753,6 +897,12 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
                               String sourceCurrency,
                               String targetCurrency) implements Comparable<SummaryKey> {
 
+        /**
+         * 按完整业务分组维度提供确定性排序，保证汇总和指纹在重放时稳定。
+         *
+         * @param other 另一完整汇总维度键
+         * @return 按所有维度串联后的稳定字典序比较结果
+         */
         @Override
         public int compareTo(SummaryKey other) {
             return String.join("|", batchNo, merchantId, paymentType, paymentMethod, transactionType,
@@ -764,10 +914,14 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
     }
 
     private static final class SummaryAccumulator {
+        /** 当前完整分组已计入的候选主键，用于防止交易笔数重复。 */
         private final Set<Long> candidateIds = new HashSet<>();
+        /** 来源币种未提前舍入的累计金额，使用 DECIMAL128 中间精度。 */
         private BigDecimal sourceAmount = BigDecimal.ZERO;
+        /** 目标结算币种未提前舍入的累计金额，使用 DECIMAL128 中间精度。 */
         private BigDecimal targetAmount = BigDecimal.ZERO;
 
+        /** 累加同一完整分组的来源/目标金额，并按候选主键去重统计交易数。 */
         private void add(Long candidateId, BigDecimal source, BigDecimal target) {
             candidateIds.add(candidateId);
             sourceAmount = sourceAmount.add(source, CALCULATION_CONTEXT);

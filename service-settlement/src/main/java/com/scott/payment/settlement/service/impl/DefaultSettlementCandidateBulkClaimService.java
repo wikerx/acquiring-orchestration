@@ -34,6 +34,14 @@ import java.util.Objects;
 @Service
 public class DefaultSettlementCandidateBulkClaimService implements SettlementCandidateBulkClaimService {
 
+    /**
+     * {@code CLAIM_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int CLAIM_PAGE_SIZE = 200;
     /** 单批硬上限 1000 条，避免事实读取和结果入库随历史积压无界增长。 */
     private static final int MAX_CLAIM_PAGES_PER_BATCH = 5;
@@ -55,22 +63,24 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
      *
      * @param settlementBatchNo 目标批次号
      * @param claimedTime 统一认领时间
+     * @return 批次封存后的候选总数；重复调用已封存批次时返回既有总数
      */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
-    public void claimAndSeal(String settlementBatchNo, LocalDateTime claimedTime) {
+    public int claimAndSeal(String settlementBatchNo, LocalDateTime claimedTime) {
         if (settlementBatchNo == null || settlementBatchNo.isBlank()) {
             throw new IllegalArgumentException("settlement batch number is required");
         }
         Objects.requireNonNull(claimedTime, "settlement bulk claim time is required");
         SettlementBatchDO batch = batchMapper.selectByBatchNoForUpdate(settlementBatchNo.trim());
-        if (batch == null || batch.getVersion() == null || batch.getCandidateCount() == null) {
+        if (batch == null || batch.getVersion() == null || batch.getCandidateCount() == null
+                || batch.getProjectableCandidateCount() == null) {
             throw new IllegalStateException("settlement batch does not exist or is incomplete");
         }
         SettlementBatchStatus status = parseStatus(batch.getBatchStatus());
         if (status == SettlementBatchStatus.CLAIMED) {
-            return;
+            return batch.getCandidateCount();
         }
         if (!status.allowsCandidateClaim()) {
             throw new IllegalStateException("settlement batch status does not allow bulk claim");
@@ -81,13 +91,15 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
                     batch.getSettlementBatchNo(), CLAIM_PAGE_SIZE);
             if (candidates.isEmpty()) {
                 sealIfNonEmpty(batch, claimedTime);
-                return;
+                return batch.getCandidateCount();
             }
             claimPage(batch, candidates, claimedTime);
         }
         sealIfNonEmpty(batch, claimedTime);
+        return batch.getCandidateCount();
     }
 
+    /** 对一页 READY 候选执行批量版本 CAS、关系幂等插入和批次候选计数 CAS。 */
     private void claimPage(SettlementBatchDO batch,
                            List<SettlementCandidateDO> candidates,
                            LocalDateTime claimedTime) {
@@ -103,15 +115,20 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
         if (relationMapper.insertBatchIdempotent(relations) != relations.size()) {
             throw new IllegalStateException("settlement batch candidate relation insert affected an unexpected row count");
         }
+        int projectableDelta = (int) candidates.stream()
+                .filter(candidate -> "CLEARING_REVISION".equals(candidate.getSourceType()))
+                .count();
         if (batchMapper.incrementCandidateCountBy(batch.getSettlementBatchNo(), candidates.size(),
-                batch.getVersion()) != 1) {
+                projectableDelta, batch.getVersion()) != 1) {
             throw new IllegalStateException("settlement batch bulk candidate count CAS failed");
         }
         batch.setCandidateCount(batch.getCandidateCount() + candidates.size());
+        batch.setProjectableCandidateCount(batch.getProjectableCandidateCount() + projectableDelta);
         batch.setVersion(batch.getVersion() + 1);
         batch.setBatchStatus(SettlementBatchStatus.CLAIMING.name());
     }
 
+    /** 仅对非空批次从 CREATED 原子封存为 CLAIMED，0 候选批次由上层取消留痕。 */
     private void sealIfNonEmpty(SettlementBatchDO batch, LocalDateTime sealedTime) {
         if (batch.getCandidateCount() == 0) {
             return;
@@ -122,6 +139,7 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
         }
     }
 
+    /** 构造批次候选不可删除关系，冻结来源类型、业务 ID 和修订号。 */
     private SettlementBatchCandidateDO relation(String batchNo,
                                                 SettlementCandidateDO candidate,
                                                 LocalDateTime claimedTime) {
@@ -140,6 +158,7 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
         return row;
     }
 
+    /** 将批次状态字符串解析为枚举，拒绝未知值进入认领状态机。 */
     private SettlementBatchStatus parseStatus(String value) {
         try {
             return SettlementBatchStatus.valueOf(value);
@@ -148,6 +167,7 @@ public class DefaultSettlementCandidateBulkClaimService implements SettlementCan
         }
     }
 
+    /** 由批次号和候选主键生成稳定关系号，保证分页重放身份一致。 */
     private String relationNo(String settlementBatchNo, Long candidateId) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

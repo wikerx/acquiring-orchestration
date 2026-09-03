@@ -14,7 +14,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-/** 签发平台到商户的短时 HS256 回调 JWT，不记录或返回任何密钥摘要。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantCallbackJwtSigner
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 签发平台到商户的短时 HS256 回调 JWT，不记录或返回任何密钥摘要。
+ * @status : create
+ */
 public class MerchantCallbackJwtSigner {
 
     /** 平台回调 JWT 签发者。 */

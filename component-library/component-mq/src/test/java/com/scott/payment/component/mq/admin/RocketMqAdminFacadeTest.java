@@ -3,6 +3,7 @@ package com.scott.payment.component.mq.admin;
 import com.scott.payment.component.mq.properties.MqResourceDefinitionProperties;
 import com.scott.payment.component.mq.properties.MqResourceInitializerProperties;
 import org.apache.rocketmq.common.TopicConfig;
+import org.apache.rocketmq.common.TopicAttributes;
 import org.apache.rocketmq.common.attribute.TopicMessageType;
 import org.apache.rocketmq.spring.autoconfigure.RocketMQProperties;
 import org.junit.jupiter.api.Test;
@@ -32,9 +33,22 @@ class RocketMqAdminFacadeTest {
 
         TopicConfig topicConfig = facade.buildTopicConfig(resource);
 
-        assertThat(topicConfig.getTopicMessageType()).isEqualTo(TopicMessageType.DELAY);
+        String messageTypeAttribute = "+" + TopicAttributes.TOPIC_MESSAGE_TYPE_ATTRIBUTE.getName();
+        assertThat(topicConfig.getAttributes())
+                .containsEntry(messageTypeAttribute, TopicMessageType.DELAY.getValue());
         assertThat(topicConfig.getReadQueueNums()).isEqualTo(4);
         assertThat(topicConfig.getWriteQueueNums()).isEqualTo(4);
+    }
+
+    /** 普通 Topic 使用 Broker 默认类型，避免把无前缀 message.type 当作属性变更提交。 */
+    @Test
+    void shouldBuildNormalTopicConfigWithoutMessageTypeMutationAttribute() {
+        RocketMqAdminFacade facade = newFacade();
+        MqResourceDefinitionProperties resource = topic("acquiring_cache_invalidation_topic");
+
+        TopicConfig topicConfig = facade.buildTopicConfig(resource);
+
+        assertThat(topicConfig.getAttributes()).isEmpty();
     }
 
     /** 已存在的 NORMAL Topic 不能被同名 DELAY 声明静默复用或覆盖。 */
@@ -67,8 +81,7 @@ class RocketMqAdminFacadeTest {
 
         facade.validateExistingTopicMessageTypes(resource, Map.of("broker-a:10911", existing));
 
-        assertThat(facade.buildTopicConfig(resource).getTopicMessageType())
-                .isEqualTo(TopicMessageType.NORMAL);
+        assertThat(facade.buildTopicConfig(resource).getAttributes()).isEmpty();
     }
 
     private RocketMqAdminFacade newFacade() {

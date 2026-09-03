@@ -37,7 +37,7 @@ class TransactionShardingNacosDraftTest {
         assertThat(properties.getLogicTables())
                 .containsExactlyElementsOf(TransactionShardingProperties.defaultLogicTables());
         assertThat(properties.getPhysicalNodes()).containsExactly("202603", "202604");
-        assertThat(properties.getDirectAccessServices()).contains("service-clearing");
+        assertThat(properties.getDirectAccessServices()).contains("service-clearing", "service-settlement");
         assertThat(properties.getRuleChecksum())
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(properties));
     }
@@ -54,7 +54,7 @@ class TransactionShardingNacosDraftTest {
         assertThat(properties.usesFormalLogicTableTopology()).isTrue();
         assertThat(properties.getLogicTables())
                 .containsExactlyElementsOf(TransactionShardingProperties.defaultLogicTables());
-        assertThat(properties.getDirectAccessServices()).contains("service-clearing");
+        assertThat(properties.getDirectAccessServices()).contains("service-clearing", "service-settlement");
         assertThat(properties.getRuleChecksum())
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(properties));
     }

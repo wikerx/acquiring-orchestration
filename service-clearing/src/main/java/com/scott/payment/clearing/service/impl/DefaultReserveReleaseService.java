@@ -43,8 +43,29 @@ import java.util.Objects;
 @Service
 public class DefaultReserveReleaseService implements ReserveReleaseService {
 
+    /**
+     * {@code OPEN}常量，统一 {@code DefaultReserveReleaseService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String OPEN = "OPEN";
+    /**
+     * {@code ACTIVE}常量，统一 {@code DefaultReserveReleaseService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ACTIVE = "ACTIVE";
+    /**
+     * {@code BUSINESS_ZONE}常量，统一 {@code DefaultReserveReleaseService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final ZoneId BUSINESS_ZONE = ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID);
 
     private final ClearingReserveMapper reserveMapper;
@@ -62,6 +83,7 @@ public class DefaultReserveReleaseService implements ReserveReleaseService {
         this.reserveCalculator = reserveCalculator;
     }
 
+    /** {@inheritDoc} */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -119,6 +141,7 @@ public class DefaultReserveReleaseService implements ReserveReleaseService {
                 ReserveReleaseOutcome.RELEASED, releaseTransactionId, sourceRevision);
     }
 
+    /** 构造标签币种 RELEASE 事实，金额等于锁定状态的全部剩余负债。 */
     private ClearingReserveDetailDO releaseDetail(ClearingReserveStateDO state,
                                                   ClearingReserveDetailDO hold,
                                                   ReserveCalculationResult calculation,
@@ -172,6 +195,7 @@ public class DefaultReserveReleaseService implements ReserveReleaseService {
         return row;
     }
 
+    /** 扫描快照不能替代行锁，事务内必须重新核对原支付身份和分片时间。 */
     private void validateLockedIdentity(ClearingReserveStateDO state,
                                         String reserveStateId,
                                         String originalTransactionId,
@@ -183,6 +207,7 @@ public class DefaultReserveReleaseService implements ReserveReleaseService {
         }
     }
 
+    /** 原 HOLD 必须与状态中的快照、币种和商户身份一致。 */
     private void validateHold(ClearingReserveStateDO state, ClearingReserveDetailDO hold) {
         if (hold == null || !"HOLD".equals(hold.getReserveActionType())
                 || !Objects.equals(state.getOriginalHoldDetailNo(), hold.getReserveClearingDetailNo())
@@ -194,6 +219,7 @@ public class DefaultReserveReleaseService implements ReserveReleaseService {
         }
     }
 
+    /** 释放候选使用当前活动结算档案目标币种，清分阶段不执行换汇。 */
     private void validateProfile(ClearingReserveStateDO state,
                                  ClearingMerchantSettlementProfileDO profile) {
         if (profile == null || !Objects.equals(state.getMerchantId(), profile.getMerchantId())
@@ -213,6 +239,7 @@ public class DefaultReserveReleaseService implements ReserveReleaseService {
         }
     }
 
+    /** 以原保证金状态和释放修订身份派生稳定明细号，保证调度重放不重复释放。 */
     private String stableId(String prefix, String identity) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

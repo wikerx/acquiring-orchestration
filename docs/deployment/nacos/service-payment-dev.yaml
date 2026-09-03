@@ -4,19 +4,29 @@ payment:
     card-vault:
       # 表、分片规则、Topic、消费组和 service-data 密钥全部完成发布后再开启。
       enabled: ${CHECKOUT_CARD_VAULT_PUBLISH_ENABLED:false}
+      # 参数说明：Payment 加密卡资料时选择的 Checkout 传输公钥标识，必须与 Data 端私钥标识一致。
       key-id: ${CHECKOUT_CARD_VAULT_TRANSFER_KEY_ID:checkout-card-vault-v1}
+      # 参数说明：Checkout Card Vault RSA 公钥的 X.509 Base64；必须由 Secret 注入，生产不得把真实正文写入仓库。
       public-key-x509-base64: ${CHECKOUT_CARD_VAULT_TRANSFER_PUBLIC_KEY_X509_BASE64:}
   refund:
     management:
       # dev 已完成退款管理数据库迁移，默认开启查询和来源字段能力；其他环境仍需单独发布。
       enabled: ${PAYMENT_REFUND_MANAGEMENT_ENABLED:true}
+      # 参数说明：是否启用退款 Maker-Checker 审批；开启前必须完成权限、菜单、审计和审批表迁移。
       approval-enabled: ${PAYMENT_REFUND_APPROVAL_ENABLED:false}
+      # 参数说明：退款审批策略；NONE 表示无需审批，其他取值必须与代码枚举和运营制度一致。
       approval-policy: ${PAYMENT_REFUND_APPROVAL_POLICY:NONE}
+      # 参数说明：待审批退款单的有效期，单位分钟；到期后必须由受控任务关闭，不得继续执行。
       approval-expire-minutes: ${PAYMENT_REFUND_APPROVAL_EXPIRE_MINUTES:1440}
+      # 参数说明：是否通过 RocketMQ 异步执行已批准退款；开启前必须确认 Topic、消费组和幂等约束就绪。
       execution-mq-enabled: ${PAYMENT_REFUND_EXECUTION_MQ_ENABLED:false}
+      # 参数说明：是否启用退款执行超时恢复；只能在数据库 CAS 和渠道幂等查询均就绪后开启。
       recovery-enabled: ${PAYMENT_REFUND_RECOVERY_ENABLED:false}
+      # 参数说明：单次扫描处理的审批过期记录上限，必须为正整数并结合数据库容量设置。
       expiration-batch-size: ${PAYMENT_REFUND_EXPIRATION_BATCH_SIZE:100}
+      # 参数说明：单次扫描恢复的退款执行记录上限，增大前必须评估渠道查询和数据库压力。
       execution-recovery-batch-size: ${PAYMENT_REFUND_EXECUTION_RECOVERY_BATCH_SIZE:100}
+      # 参数说明：退款执行状态超过该秒数未更新后才允许恢复，必须大于正常渠道调用 P99。
       execution-recovery-stale-seconds: ${PAYMENT_REFUND_EXECUTION_RECOVERY_STALE_SECONDS:300}
   channel-match:
     recovery:
@@ -25,7 +35,9 @@ payment:
     abnormal:
       # dev 完成异常表迁移和 Admin 权限后开启；test/uat/prod 不继承该默认值。
       enabled: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_ENABLED:true}
+      # 参数说明：渠道勾兑异常评分达到该阈值后强制进入人工复核，必须与评分模型版本同步调整。
       review-required-threshold: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_THRESHOLD:12}
+      # 参数说明：未命中更精确规则时的默认异常等级，取值必须属于风险等级枚举。
       default-level: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_DEFAULT_LEVEL:HIGH}
   redis:
     redisson:
@@ -99,11 +111,15 @@ payment:
       processing-timeout-seconds: ${PAYMENT_TRANSACTION_OUTBOX_PROCESSING_TIMEOUT_SECONDS:120}
       # 当前和上一季度保持高频扫描，其他已发布季度进入历史低频任务。
       recent-quarter-count: ${PAYMENT_TRANSACTION_OUTBOX_RECENT_QUARTER_COUNT:2}
+      # 参数说明：近期季度 Outbox Relay 完成一次扫描后的等待时间，单位毫秒。
       recent-fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_RECENT_FIXED_DELAY_MS:5000}
+      # 参数说明：历史季度 Outbox Relay 在应用启动后的首次等待时间，单位毫秒。
       historical-initial-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_HISTORICAL_INITIAL_DELAY_MS:60000}
+      # 参数说明：历史季度 Outbox Relay 两次扫描之间的等待时间，单位毫秒，避免持续压库。
       historical-fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_HISTORICAL_FIXED_DELAY_MS:300000}
       # 指标刷新覆盖全部已发布季度，但不跟随高频 Relay 执行。
       metrics-initial-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_METRICS_INITIAL_DELAY_MS:30000}
+      # 参数说明：交易 Outbox 聚合指标两次刷新之间的等待时间，单位毫秒。
       metrics-fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_METRICS_FIXED_DELAY_MS:60000}
   card-bin:
     cache:
@@ -116,11 +132,10 @@ payment:
     # 参数说明：控制 Noop 降级实现；仅本地隔离测试允许开启，UAT/生产必须为 false。
     # 环境说明：环境变量：PAYMENT_RISK_CLIENT_NOOP_ENABLED，dev 配置默认值为 "false"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     noop-enabled: ${PAYMENT_RISK_CLIENT_NOOP_ENABLED:false}
-    # 参数说明：指定内部服务调用方标识，必须与被调用方签名白名单一致。
+    # 参数说明：实时风控内部协议的固定调用方标识，必须保持 service-payment。
     internal-caller: service-payment
-    # 参数说明：配置内部服务 HMAC-SHA256 共享密钥，调用方与被调用方必须使用同一环境的密钥。
-    # 环境说明：环境变量：PAYMENT_RISK_INTERNAL_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
-    internal-secret: ${PAYMENT_RISK_INTERNAL_SECRET:dev-internal-service-secret}
+    # 参数说明：Payment 到 Risk 调用边的当前 HMAC 密钥引用；生产禁止配置共享全局密钥。
+    internal-secret: ${acquiring.internal-auth.edges.payment-risk.active-secret}
   idempotent:
     # 创建交易幂等锁默认有效期，单位秒。
     create-ttl-seconds: 600
@@ -129,3 +144,92 @@ payment:
     topic: payment-event
     # 交易动作创建事件 Tag。
     created-tag: TRANSACTION_CREATED
+
+internal-service:
+  auth:
+    # enabled 安全门禁固定在本地；外部入口、后台、商户后台和任务服务分别按最小路径授权。
+    callers:
+      service-openapi:
+        # 参数说明：OpenAPI 调用支付受理和查询内部协议时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.openapi-payment.active-secret}
+        # 参数说明：OpenAPI-Payment 密钥滚动轮换期间接受的上一版密钥；非轮换窗口为空。
+        previous-secret: ${acquiring.internal-auth.edges.openapi-payment.previous-secret:}
+        allowed-paths:
+          # 路径说明：银行卡授权内部受理入口。
+          - /internal/payment/authorization
+          # 路径说明：普通支付内部受理入口。
+          - /internal/payment/payment
+          # 路径说明：预授权内部受理入口。
+          - /internal/payment/pre-authorization
+          # 路径说明：增量授权内部受理入口。
+          - /internal/payment/incremental-authorization
+          # 路径说明：授权交易请款入口；预授权完成使用独立入口。
+          - /internal/payment/capture
+          # 路径说明：预授权完成入口，业务语义不得标记为普通请款。
+          - /internal/payment/pre-auth-completion
+          # 路径说明：退款内部受理入口。
+          - /internal/payment/refund
+          # 路径说明：授权、预授权或支付撤销入口。
+          - /internal/payment/void
+          # 路径说明：商户 OpenAPI 交易查询内部入口。
+          - /internal/payment/query
+          # 路径说明：渠道异步回调进入支付核心的内部入口。
+          - /internal/payment/channel-callback
+          # 路径说明：回写商户 API 交互响应快照的内部入口。
+          - /internal/payment/transactions/merchant-api-logs/response
+          # 路径说明：Hosted Checkout 会话和交易受理内部入口集合。
+          - /internal/payment/checkout/**
+      service-merchant:
+        # 参数说明：Merchant 发起交易写操作时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.merchant-payment.active-secret}
+        # 参数说明：Merchant-Payment 密钥滚动轮换期间接受的上一版密钥；非轮换窗口为空。
+        previous-secret: ${acquiring.internal-auth.edges.merchant-payment.previous-secret:}
+        allowed-paths:
+          # 路径说明：商户后台对授权交易执行请款。
+          - /internal/payment/capture
+          # 路径说明：商户后台对预授权交易执行预授权完成。
+          - /internal/payment/pre-auth-completion
+          # 路径说明：商户后台发起退款。
+          - /internal/payment/refund
+          # 路径说明：商户后台发起交易撤销。
+          - /internal/payment/void
+      service-admin:
+        # 参数说明：Admin 发起支付管理命令时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.admin-payment.active-secret}
+        # 参数说明：Admin-Payment 密钥滚动轮换期间接受的上一版密钥；非轮换窗口为空。
+        previous-secret: ${acquiring.internal-auth.edges.admin-payment.previous-secret:}
+        allowed-paths:
+          # 路径说明：管理后台对授权交易执行请款。
+          - /internal/payment/capture
+          # 路径说明：管理后台对预授权交易执行预授权完成。
+          - /internal/payment/pre-auth-completion
+          # 路径说明：管理后台发起或审批退款命令。
+          - /internal/payment/refund
+          # 路径说明：管理后台发起交易撤销。
+          - /internal/payment/void
+          # 路径说明：管理后台执行渠道交易勾兑和异常处置命令。
+          - /internal/payment/channel-match/**
+          # 路径说明：管理后台执行退款 Maker-Checker 审批命令。
+          - /internal/payment/refund-approvals/**
+      service-job:
+        # 参数说明：Job 发起支付到期和补偿任务时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.job-payment.active-secret}
+        # 参数说明：Job-Payment 密钥滚动轮换期间接受的上一版密钥；非轮换窗口为空。
+        previous-secret: ${acquiring.internal-auth.edges.job-payment.previous-secret:}
+        allowed-paths:
+          # 路径说明：任务服务扫描并处理到期的渠道交易勾兑记录。
+          - /internal/payment/transactions/channel-match/match-due
+          # 路径说明：任务服务关闭到期的 Hosted Checkout 会话。
+          - /internal/payment/checkout/session/expire-due
+    # 参数说明：内部 HMAC 请求时间戳允许偏差，默认 5 分钟；生产实例必须保持时间同步。
+    allowed-clock-skew: 5m
+    # 参数说明：内部请求 nonce 防重放记录保留时间，默认 10 分钟，必须覆盖签名有效窗口。
+    nonce-ttl: 10m
+
+acquiring:
+  mq:
+    outbox:
+      # 通用可靠 MQ Outbox 指标独立于交易 Outbox Relay 周期。
+      metrics-initial-delay-ms: ${ACQUIRING_MQ_OUTBOX_METRICS_INITIAL_DELAY_MS:30000}
+      # 参数说明：通用 MQ Outbox 指标相邻两次聚合之间的等待时间，单位毫秒。
+      metrics-delay-ms: ${ACQUIRING_MQ_OUTBOX_METRICS_DELAY_MS:60000}

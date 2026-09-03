@@ -11,7 +11,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 验证受保护收银台路径只接受 service-gateway 签发的短时请求。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : GatewayIngressAuthFilterTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证受保护收银台路径只接受 service-gateway 签发的短时请求。
+ * @status : create
+ */
 class GatewayIngressAuthFilterTests {
 
     private static final long NOW = 1786176000000L;

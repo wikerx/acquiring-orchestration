@@ -7,7 +7,15 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 验证阶梯期间重放的申请与复核权限分离，浏览器不能直接执行重放。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminTierPeriodReplayControllerContractTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证阶梯期间重放的申请与复核权限分离，浏览器不能直接执行重放。
+ * @status : create
+ */
 class AdminTierPeriodReplayControllerContractTest {
 
     @Test

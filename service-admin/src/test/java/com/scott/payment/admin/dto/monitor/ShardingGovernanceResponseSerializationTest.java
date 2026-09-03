@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @version : v1.0.0
  * @classname : ShardingGovernanceResponseSerializationTest
  * @date : 2026-08-02 00:00
+ * @email : scott_x@163.com
  * @description : 验证分表治理主键和季度号段以 JSON 字符串返回，避免 JavaScript 安全整数精度损失。
  * @status : create
  */

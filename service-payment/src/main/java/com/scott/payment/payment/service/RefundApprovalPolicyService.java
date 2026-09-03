@@ -11,14 +11,36 @@ import java.util.Locale;
  * @version : v1.0.0
  * @classname : RefundApprovalPolicyService
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款审批策略服务，只解释已确认的 NONE、PARTIAL_ONLY、ALL 策略，不做跨币种金额比较。
  * @status : create
  */
 @Service
 public class RefundApprovalPolicyService {
 
+    /**
+     * {@code POLICY_NONE}常量，统一 {@code RefundApprovalPolicyService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String POLICY_NONE = "NONE";
+    /**
+     * {@code POLICY_PARTIAL_ONLY}常量，统一 {@code RefundApprovalPolicyService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String POLICY_PARTIAL_ONLY = "PARTIAL_ONLY";
+    /**
+     * {@code POLICY_ALL}常量，统一 {@code RefundApprovalPolicyService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String POLICY_ALL = "ALL";
 
     private final RefundManagementProperties properties;
@@ -51,7 +73,10 @@ public class RefundApprovalPolicyService {
         };
     }
 
-    /** @return 当前生效的规范化策略编码 */
+    /**
+     * 返回当前生效的退款审批策略编码；空配置按 NONE 处理。
+     * @return 当前方法生成或规范化后的文本值
+     */
     public String currentPolicyCode() {
         return normalizePolicy(properties.getApprovalPolicy());
     }

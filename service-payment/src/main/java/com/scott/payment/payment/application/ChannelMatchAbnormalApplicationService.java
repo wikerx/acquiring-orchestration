@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
  * @version : v1.0.0
  * @classname : ChannelMatchAbnormalApplicationService
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 勾兑异常内部命令应用服务，编排领取、重查和非资金终态处置，不承载管理端查询。
  * @status : create
  */

@@ -7,17 +7,17 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-@Data
-@TableName("sys_sharding_physical_table")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysShardingPhysicalTableDO
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : Sys Sharding Physical Table DO 持久化模型，位于 调度任务服务，映射数据库记录字段，承载主键、业务标识、状态、时间和审计信息。
+ * @description : sys分表物理表持久化模型，位于 调度任务服务，映射数据库中的业务事实、状态、版本和审计字段，不作为外部接口模型。
  * @status : create
  */
+@Data
+@TableName("sys_sharding_physical_table")
 public class SysShardingPhysicalTableDO {
 
     /**

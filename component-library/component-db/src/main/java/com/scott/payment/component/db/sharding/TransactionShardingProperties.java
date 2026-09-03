@@ -54,7 +54,7 @@ public class TransactionShardingProperties {
     /** 允许直接选择 transaction 逻辑数据源的服务白名单。 */
     private List<String> directAccessServices = new ArrayList<>(List.of(
             "service-payment", "service-admin", "service-merchant", "service-risk", "service-data",
-            "service-clearing"));
+            "service-clearing", "service-settlement"));
     /** 跨季度查询的超时、结果行数和导出并发预算。 */
     private QueryBudget queryBudget = new QueryBudget();
 

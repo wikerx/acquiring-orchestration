@@ -42,23 +42,7 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
      */
     private static final long DEADLOCK_RETRY_BACKOFF_MILLIS = 50L;
 
-    /**
-     * sys Job Executor Node Mapper 依赖，用于 Job Executor Node Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysJobExecutorNodeMapper sysJobExecutorNodeMapper;
-    /**
-     * job Node Context，用于保存 Job Executor Node Service Impl 中与 jobnodecontext 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final JobNodeContext jobNodeContext;
 
     /**

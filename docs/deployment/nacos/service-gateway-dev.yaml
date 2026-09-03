@@ -1,9 +1,5 @@
 # service-gateway 专属配置：网关只保留接入层规则，不引入数据库、Redis、MQ、Seata、分表等业务基础设施。
-acquiring:
-  gateway-ingress:
-    # dev 默认值可直接联调；环境变量优先覆盖，test/uat/prod 必须使用各自 Secret。
-    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:2acee5d27b34b556d0a9b0123e2277870558d57f39968820a0b00edc1d3b7a12}
-
+# Gateway 与 Checkout/OpenAPI 的共享入口密钥由受控脚本合入各自现有服务 DataId。
 gateway:
   route:
     # 商户收单 OpenAPI 入口，路由到 service-openapi。
@@ -17,3 +13,152 @@ gateway:
   security:
     # 网关只做路径白名单和基础响应头处理；JWT验签、报文解密、参数校验下沉到 service-openapi。
     delegate-auth-to-openapi: true
+
+acquiring:
+  gateway:
+    client-ip:
+      # 默认不信任外部 X-Forwarded-For；部署到可信负载均衡之后再按环境开启。
+      trust-forwarded-header: false
+  gateway-ingress:
+    # 少于 32 字符时入口签名组件失败关闭，禁止退化为下游直连。
+    secret: ${acquiring.internal-auth.edges.gateway-checkout.active-secret}
+
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            # 参数说明：Gateway 与下游服务建立 TCP 连接的最大等待时间，单位毫秒。
+            connect-timeout: 3000
+            # 覆盖最长渠道调用，并为解密、风控和响应加密预留预算。
+            response-timeout: 40s
+          default-filters:
+            # 过滤器说明：向下游保留客户端原始 Host，供回调地址、租户域名和审计判断使用。
+            - PreserveHostHeader
+            # 过滤器说明：清除浏览器 Cookie，避免后台会话或第三方 Cookie 被透传到业务服务。
+            - RemoveRequestHeader=Cookie
+            # 过滤器说明：清除下游 Server 响应头，减少容器和中间件指纹暴露。
+            - RemoveResponseHeader=Server
+            # 过滤器说明：跨多个过滤器写入 CORS 响应头时只保留第一项，避免重复响应头导致浏览器拒绝。
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin RETAIN_FIRST
+            # 过滤器说明：统一增加 HSTS 响应头；生产入口必须使用 HTTPS 才会生效。
+            - name: AddResponseHeader
+              args:
+                # 参数说明：当前响应头过滤器写入的安全响应头名称。
+                name: Strict-Transport-Security
+                # 参数说明：HSTS 有效期为一年并覆盖子域；变更前必须确认全部子域支持 HTTPS。
+                value: "max-age=31536000; includeSubDomains"
+            # 过滤器说明：禁止浏览器 MIME 嗅探，降低内容类型混淆风险。
+            - name: AddResponseHeader
+              args:
+                # 参数说明：当前响应头过滤器写入的安全响应头名称。
+                name: X-Content-Type-Options
+                # 参数说明：nosniff 要求浏览器严格遵循响应 Content-Type。
+                value: nosniff
+            # 过滤器说明：限制页面被其他站点框架嵌入，降低点击劫持风险。
+            - name: AddResponseHeader
+              args:
+                # 参数说明：当前响应头过滤器写入的安全响应头名称。
+                name: X-Frame-Options
+                # 参数说明：SAMEORIGIN 只允许同源页面通过 frame 嵌入。
+                value: SAMEORIGIN
+            # 过滤器说明：限制跨站跳转时 Referer 暴露范围。
+            - name: AddResponseHeader
+              args:
+                # 参数说明：当前响应头过滤器写入的安全响应头名称。
+                name: Referrer-Policy
+                # 参数说明：同源保留完整 Referer，跨源仅发送源信息，HTTPS 降级不发送。
+                value: strict-origin-when-cross-origin
+            # 过滤器说明：关闭页面默认不需要的摄像头、麦克风和定位权限。
+            - name: AddResponseHeader
+              args:
+                # 参数说明：当前响应头过滤器写入的安全响应头名称。
+                name: Permissions-Policy
+                # 参数说明：禁止当前页面及嵌入内容使用摄像头、麦克风和地理定位。
+                value: "camera=(), microphone=(), geolocation=()"
+            # 过滤器说明：设置基础内容安全策略，限制资源来源并禁止跨站框架嵌入。
+            - name: AddResponseHeader
+              args:
+                # 参数说明：当前响应头过滤器写入的安全响应头名称。
+                name: Content-Security-Policy
+                # 参数说明：资源默认只允许同源，frame 祖先也必须同源；前端引入新来源前需安全评审。
+                value: "default-src 'self'; frame-ancestors 'self'"
+          globalcors:
+            cors-configurations:
+              "[/api/rest/**]":
+                allowed-origin-patterns:
+                  # 来源说明：允许本机 localhost 任意端口，仅用于 dev 前端联调，正式环境必须替换为精确域名。
+                  - "http://localhost:*"
+                  # 来源说明：允许本机回环 IP 任意端口，仅用于 dev 前端联调，正式环境必须删除。
+                  - "http://127.0.0.1:*"
+                # 参数说明：支付和代付 OpenAPI 浏览器预检允许的方法；业务协议仍由下游限制为规定方法。
+                allowed-methods: [GET, POST, OPTIONS]
+                # 参数说明：dev 允许浏览器提交任意请求头；正式环境应收敛到协议声明的头集合。
+                allowed-headers: "*"
+                # 参数说明：允许浏览器读取链路追踪头，便于商户联调和问题定位。
+                exposed-headers: [X-Trace-Id]
+                # 参数说明：OpenAPI CORS 不携带浏览器 Cookie 或 HTTP 认证信息，必须保持 false。
+                allow-credentials: false
+                # 参数说明：浏览器缓存 CORS 预检结果的时间，单位秒。
+                max-age: 1800
+              "[/channel/**]":
+                allowed-origin-patterns:
+                  # 来源说明：允许本机 localhost 任意端口模拟渠道回调，仅用于隔离 dev。
+                  - "http://localhost:*"
+                  # 来源说明：允许本机回环 IP 任意端口模拟渠道回调，仅用于隔离 dev。
+                  - "http://127.0.0.1:*"
+                # 参数说明：渠道回调仅允许 POST 和浏览器预检 OPTIONS，禁止开放修改类其他方法。
+                allowed-methods: [POST, OPTIONS]
+                # 参数说明：dev 渠道模拟器可提交任意头；正式渠道入口应由 WAF 和下游验签共同收敛。
+                allowed-headers: "*"
+                # 参数说明：渠道回调不使用浏览器凭据，必须保持 false。
+                allow-credentials: false
+                # 参数说明：浏览器缓存渠道回调预检结果的时间，单位秒。
+                max-age: 1800
+              "[/openapi/**]":
+                allowed-origin-patterns:
+                  # 来源说明：允许本机 localhost 任意端口访问 OpenAPI 支持接口，仅用于 dev。
+                  - "http://localhost:*"
+                  # 来源说明：允许本机回环 IP 任意端口访问 OpenAPI 支持接口，仅用于 dev。
+                  - "http://127.0.0.1:*"
+                # 参数说明：OpenAPI 支持接口允许的浏览器方法集合。
+                allowed-methods: [GET, POST, OPTIONS]
+                # 参数说明：dev 支持接口允许任意请求头；正式环境必须按实际接口收敛。
+                allowed-headers: "*"
+                # 参数说明：OpenAPI 支持接口不携带浏览器凭据，必须保持 false。
+                allow-credentials: false
+                # 参数说明：浏览器缓存 OpenAPI 支持接口预检结果的时间，单位秒。
+                max-age: 1800
+              "[/admin/**]":
+                allowed-origin-patterns:
+                  # 来源说明：允许本机 Admin 前端 localhost 任意端口，仅用于 dev 联调。
+                  - "http://localhost:*"
+                  # 来源说明：允许本机 Admin 前端回环 IP 任意端口，仅用于 dev 联调。
+                  - "http://127.0.0.1:*"
+                # 参数说明：管理后台页面接口允许的方法集合；具体权限仍由 service-admin RBAC 校验。
+                allowed-methods: [GET, POST, PUT, DELETE, OPTIONS]
+                # 参数说明：dev 管理端允许任意请求头；正式环境应按认证与业务头白名单收敛。
+                allowed-headers: "*"
+                # 参数说明：允许管理前端读取链路追踪头用于故障定位。
+                exposed-headers: [X-Trace-Id]
+                # 参数说明：当前管理端使用显式令牌而非跨域 Cookie，禁止开启跨域凭据。
+                allow-credentials: false
+                # 参数说明：浏览器缓存 Admin CORS 预检结果的时间，单位秒。
+                max-age: 1800
+              "[/merchant/**]":
+                allowed-origin-patterns:
+                  # 来源说明：允许本机 Merchant 前端 localhost 任意端口，仅用于 dev 联调。
+                  - "http://localhost:*"
+                  # 来源说明：允许本机 Merchant 前端回环 IP 任意端口，仅用于 dev 联调。
+                  - "http://127.0.0.1:*"
+                # 参数说明：商户后台页面接口允许的方法集合；具体数据范围由 service-merchant 校验。
+                allowed-methods: [GET, POST, PUT, DELETE, OPTIONS]
+                # 参数说明：dev 商户端允许任意请求头；正式环境应按认证与业务头白名单收敛。
+                allowed-headers: "*"
+                # 参数说明：允许商户前端读取链路追踪头用于请求定位。
+                exposed-headers: [X-Trace-Id]
+                # 参数说明：当前商户端使用显式令牌而非跨域 Cookie，禁止开启跨域凭据。
+                allow-credentials: false
+                # 参数说明：浏览器缓存 Merchant CORS 预检结果的时间，单位秒。
+                max-age: 1800

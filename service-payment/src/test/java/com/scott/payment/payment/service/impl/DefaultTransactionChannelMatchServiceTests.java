@@ -617,44 +617,12 @@ class DefaultTransactionChannelMatchServiceTests {
 
     private static class QueryCaptureInvokeService implements PaymentChannelInvokeService {
 
-        /**
-         * query Status，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private final ChannelTradeStatus queryStatus;
 
-        /**
-         * query Invoke Count，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private final AtomicInteger queryInvokeCount = new AtomicInteger();
 
-        /**
-         * payment Invoke Count，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private final AtomicInteger paymentInvokeCount = new AtomicInteger();
 
-        /**
-         * last Request，用于保存 Query Capture Invoke Service 中与 lastrequest 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private ChannelPaymentRequest lastRequest;
         private String channelCurrency;
         private BigDecimal channelAmount;
@@ -759,24 +727,8 @@ class DefaultTransactionChannelMatchServiceTests {
 
     private static class CapturingMatchResultTransactionService implements TransactionChannelMatchResultTransactionService {
 
-        /**
-         * record Service 依赖，用于 Capturing Match Result Transaction Service 调用对应的数据访问、远程调用或领域服务能力。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private final TransactionRecordService recordService;
 
-        /**
-         * pending Count，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private int pendingCount;
 
         private CapturingMatchResultTransactionService(TransactionRecordService recordService) {
@@ -909,129 +861,33 @@ class DefaultTransactionChannelMatchServiceTests {
 
     private class InMemoryRecordService implements TransactionRecordService {
 
-        /**
-         * operation，用于保存 In Memory Record Service 中与 动作 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private final TransactionOperationDO operation;
 
-        /**
-         * order，用于保存 In Memory Record Service 中与 订单 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private final TransactionOrderDO order = new TransactionOrderDO();
 
-        /**
-         * original Request，用于保存 In Memory Record Service 中与 originalrequest 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private TransactionChannelRequestDO originalRequest;
 
-        /**
-         * complete Attempt Count，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private int completeAttemptCount;
 
-        /**
-         * successful Terminal Count，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private int successfulTerminalCount;
 
-        /**
-         * original Request Updated Count，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private int originalRequestUpdatedCount;
 
-        /**
-         * complete Should Succeed，用于保存 In Memory Record Service 中与 completeshouldsucceed 相关的业务属性。
-         * <p>
-         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：仅允许平台约定的启停取值；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private boolean completeShouldSucceed = true;
 
         private boolean terminalUpdateShouldSucceed = true;
 
-        /**
-         * completed Status，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String completedStatus;
 
-        /**
-         * last Match Result，用于保存 In Memory Record Service 中与 lastmatchresult 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private String lastMatchResult;
 
         /** 最近一次写入的渠道勾兑状态。 */
         private String lastMatchStatus;
 
-        /**
-         * last Fail Reason，用于保存 In Memory Record Service 中与 lastfailreason 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private String lastFailReason;
 
-        /**
-         * last Next Match Time，用于保存 In Memory Record Service 中与 lastnextmatchtime 相关的业务属性。
-         * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private LocalDateTime lastNextMatchTime;
 
-        /**
-         * last Updated Original Request，用于保存 In Memory Record Service 中与 lastupdatedoriginalrequest 相关的业务属性。
-         * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private TransactionChannelRequestDO lastUpdatedOriginalRequest;
 
         private InMemoryRecordService(TransactionOperationDO operation) {
@@ -1204,22 +1060,20 @@ class DefaultTransactionChannelMatchServiceTests {
             return true;
         }
 
-/**
- * 更新渠道match，保持业务状态、配置项或展示字段与请求意图一致。
- * <p>
- * 前置条件：调用方已确认 支付核心服务 中目标记录存在且当前状态允许变更。
- * 该方法可能更新状态、配置或审计时间；调用方需关注返回值或受影响行数判断是否真正生效。
- * 异常边界：状态冲突、版本冲突或持久化失败按当前模块异常规范返回。
- * </p>
- * @param operationDO operation DO 输入值，参与 动作do 的查询、校验、转换、写入或日志摘要
- * @param matchStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
- * @param matchResult match Result 输入值，参与 match结果 的查询、校验、转换、写入或日志摘要
- * @param requestId request ID 输入值，参与 请求ID 的查询、校验、转换、写入或日志摘要
- * @param matchTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param nextMatchTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param failReason fail Reason 输入值，参与 failreason 的查询、校验、转换、写入或日志摘要
- * @return 写入、更新或删除后的处理结果
- */
+        /**
+         * 模拟渠道勾兑 CAS 更新并记录本次匹配事实。
+         * <p>
+         * 状态或配置变更必须通过 支付核心服务 既有权限、版本和状态流转校验。
+         * </p>
+         * @param operationDO 待更新的测试动作单
+         * @param matchStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+         * @param matchResult 渠道勾兑结果
+         * @param requestId 本次渠道查询请求号
+         * @param matchTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+         * @param nextMatchTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+         * @param failReason 勾兑失败原因
+         * @return 写入、更新或删除后的处理结果
+         */
         @Override
         public boolean updateChannelMatch(TransactionOperationDO operationDO,
                                           String matchStatus,

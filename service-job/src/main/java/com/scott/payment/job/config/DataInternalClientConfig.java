@@ -65,6 +65,7 @@ public class DataInternalClientConfig {
 
     /** 拒绝无界或立即超时的内部客户端配置。 */
     private void validateTimeouts(DataInternalClientProperties properties) {
+        properties.validate();
         if (properties.getConnectTimeoutMillis() <= 0 || properties.getReadTimeoutMillis() <= 0) {
             throw new IllegalArgumentException("job data-client timeouts must be greater than zero");
         }

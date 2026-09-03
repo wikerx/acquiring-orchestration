@@ -4,16 +4,16 @@ import lombok.Data;
 
 import java.io.Serializable;
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantDefaultLoginCredentialDTO
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : Merchant Default Login Credential DTO 传输模型，位于 商户后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : 新建商户用户后一次性返回的默认登录凭据 DTO；密码属于敏感数据，只允许在创建响应中短暂展示。
  * @status : create
  */
+@Data
 public class MerchantDefaultLoginCredentialDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;

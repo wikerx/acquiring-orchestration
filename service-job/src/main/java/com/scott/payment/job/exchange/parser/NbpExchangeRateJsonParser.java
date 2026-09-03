@@ -28,8 +28,31 @@ import java.util.regex.Pattern;
 @Component
 public class NbpExchangeRateJsonParser {
 
+    /**
+     * 表c常量，统一 {@code NbpExchangeRateJsonParser} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String TABLE_C = "C";
+    /**
+     * {@code QUOTE_CURRENCY}，表示金额字段使用的币种。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+     * </p>
+     */
     private static final String QUOTE_CURRENCY = "PLN";
+    /**
+     * 币种编码正则模式，表示金额字段使用的币种。
+     * <p>
+     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+     * </p>
+     */
     private static final Pattern CURRENCY_CODE_PATTERN = Pattern.compile("^[A-Z]{3}$");
 
     /**

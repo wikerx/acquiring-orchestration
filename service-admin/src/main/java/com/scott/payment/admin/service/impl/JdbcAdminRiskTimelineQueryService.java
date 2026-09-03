@@ -15,7 +15,13 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 管理端交易风控时间轴 JDBC 查询实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JdbcAdminRiskTimelineQueryService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 管理端交易风控时间轴 JDBC 查询实现。
+ * @status : create
  */
 @Service
 public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQueryService {

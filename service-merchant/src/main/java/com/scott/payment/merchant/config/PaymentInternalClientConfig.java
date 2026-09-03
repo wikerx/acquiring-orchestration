@@ -42,7 +42,9 @@ public class PaymentInternalClientConfig {
      * @return 直连 RestTemplate
      */
     @Bean("merchantPaymentInternalRestTemplate")
-    public RestTemplate merchantPaymentInternalRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
+    public RestTemplate merchantPaymentInternalRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer,
+                                                            PaymentInternalClientProperties properties) {
+        properties.validate();
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setProxy(Proxy.NO_PROXY);
         requestFactory.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);

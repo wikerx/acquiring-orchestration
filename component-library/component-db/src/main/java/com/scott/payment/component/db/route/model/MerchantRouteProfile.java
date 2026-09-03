@@ -26,7 +26,7 @@ public class MerchantRouteProfile implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /** 当前快照结构版本，用于永久 Redis 数据的在线兼容升级。 */
-    public static final int CURRENT_SCHEMA_VERSION = 2;
+    public static final int CURRENT_SCHEMA_VERSION = 3;
 
     /** 构建该快照时使用的结构版本；旧缓存反序列化后为空。 */
     private Integer schemaVersion;
@@ -148,5 +148,8 @@ public class MerchantRouteProfile implements Serializable {
 
         /** 能力和 MID 范围交集后的支持币种。 */
         private List<String> supportedCurrencies = new ArrayList<>();
+
+        /** 能力配置的默认交易币种；EDC 路由时必须同时属于 supportedCurrencies。 */
+        private String defaultTransactionCurrency;
     }
 }

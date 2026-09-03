@@ -44,7 +44,22 @@ import java.util.stream.Collectors;
 @Service
 public class DefaultSettlementBatchRateLockService implements SettlementBatchRateLockService {
 
+    /**
+     * 汇率类型，用于区分 {@code DefaultSettlementBatchRateLockService} 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RATE_TYPE = "SETTLEMENT";
+    /**
+     * 汇率状态，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final String RATE_STATUS = "LOCKED";
 
     private final SettlementBatchMapper batchMapper;
@@ -110,6 +125,7 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         return locked;
     }
 
+    /** 调用统一报价解析服务生成完整来源币种到目标币种的归一直接汇率矩阵。 */
     private RateMatrix resolve(Set<SettlementCurrency> currencies,
                                SettlementBatchDO batch,
                                LocalDateTime now) {
@@ -125,6 +141,7 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         }
     }
 
+    /** 将纯计算汇率矩阵映射为批次不可变行，冻结精度、来源、报价方向和锁定时间。 */
     private List<SettlementBatchRateDO> rows(SettlementBatchDO batch,
                                              RateMatrix matrix,
                                              String owner,
@@ -152,6 +169,7 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         return rows;
     }
 
+    /** 校验持久化汇率矩阵覆盖全部币种且方向/精度/目标一致，并建立来源币种到行 ID 映射。 */
     private SettlementLockedRateMatrix validateAndConvert(SettlementBatchDO batch,
                                                            Set<SettlementCurrency> currencies,
                                                            List<SettlementBatchRateDO> stored) {
@@ -202,6 +220,7 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         return new SettlementLockedRateMatrix(RateMatrix.of(rates), ids);
     }
 
+    /** 要求批次处于可锁汇率状态且处理租约归 owner 所有并未过期。 */
     private void validateLease(SettlementBatchDO batch, String owner, LocalDateTime now) {
         if (batch == null || batch.getVersion() == null
                 || !owner.equals(batch.getProcessingOwner())
@@ -212,6 +231,7 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         }
     }
 
+    /** 从锁读批次取得非空 version，作为汇率状态 CAS 前置条件。 */
     private long requireVersion(SettlementBatchDO batch) {
         if (batch.getVersion() == null) {
             throw failure("SETTLEMENT_BATCH_VERSION_MISSING", false,
@@ -220,6 +240,7 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         return batch.getVersion();
     }
 
+    /** 将数据库批次状态解析为枚举，拒绝未知状态值。 */
     private SettlementBatchStatus status(String value) {
         try {
             return SettlementBatchStatus.valueOf(value);
@@ -229,6 +250,7 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
         }
     }
 
+    /** 将数据库 CAS 后的状态、版本和锁定时间同步回调用方批次快照。 */
     private void copyMutableState(SettlementBatchDO source, SettlementBatchDO target) {
         target.setBatchStatus(source.getBatchStatus());
         target.setRateLockedTime(source.getRateLockedTime());

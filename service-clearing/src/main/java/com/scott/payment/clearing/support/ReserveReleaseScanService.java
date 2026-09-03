@@ -33,8 +33,30 @@ import java.util.regex.Pattern;
 @Service
 public class ReserveReleaseScanService {
 
+    /**
+     * 季度批次大小，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int QUARTER_BATCH_SIZE = 200;
+    /**
+     * 物理节点常量，统一 {@code ReserveReleaseScanService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final Pattern PHYSICAL_NODE = Pattern.compile("\\d{4}0[1-4]");
+    /**
+     * {@code BUSINESS_ZONE}常量，统一 {@code ReserveReleaseScanService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final ZoneId BUSINESS_ZONE = ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID);
 
     private final ClearingReserveMapper reserveMapper;
@@ -115,6 +137,7 @@ public class ReserveReleaseScanService {
         return new ReserveReleaseScanResult(scanned, released, skipped, failed);
     }
 
+    /** 只扫描数据库治理表声明已发布的季度。 */
     private List<LocalDateTime> publishedQuarters() {
         List<String> nodes = shardingProperties.getPhysicalNodes();
         if (nodes == null) {
@@ -137,6 +160,7 @@ public class ReserveReleaseScanService {
         return LocalDateTime.of(value.getYear(), firstMonth, 1, 0, 0);
     }
 
+    /** 扫描候选必须携带状态号、原支付身份和真实分片时间。 */
     private void validateCandidate(ClearingReserveStateDO candidate) {
         if (candidate == null || candidate.getReserveStateId() == null
                 || candidate.getReserveStateId().isBlank()

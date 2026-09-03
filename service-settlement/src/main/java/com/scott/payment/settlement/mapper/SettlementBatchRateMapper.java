@@ -22,12 +22,13 @@ public interface SettlementBatchRateMapper {
     @Insert("""
             <script>
             INSERT INTO settlement_batch_rate
-            (settlement_batch_no, source_currency, target_currency, rate_type, direct_rate,
+            (settlement_batch_no, review_rate_id, source_currency, target_currency, rate_type, direct_rate,
              source_currency_exponent, target_currency_exponent, rate_source, quote_id,
              source_quote_direction, effective_time, locked_time, locked_by, rate_status, create_time)
             VALUES
             <foreach collection="rows" item="row" separator=",">
-                (#{row.settlementBatchNo}, #{row.sourceCurrency}, #{row.targetCurrency}, #{row.rateType},
+                (#{row.settlementBatchNo}, #{row.reviewRateId}, #{row.sourceCurrency},
+                 #{row.targetCurrency}, #{row.rateType},
                  #{row.directRate}, #{row.sourceCurrencyExponent}, #{row.targetCurrencyExponent},
                  #{row.rateSource}, #{row.quoteId}, #{row.sourceQuoteDirection}, #{row.effectiveTime},
                  #{row.lockedTime}, #{row.lockedBy}, #{row.rateStatus}, #{row.createTime})

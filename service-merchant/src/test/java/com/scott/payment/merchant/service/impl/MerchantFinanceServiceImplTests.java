@@ -224,6 +224,25 @@ class MerchantFinanceServiceImplTests {
         assertThat(response.getSettlementAllowed()).isTrue();
     }
 
+    /** 商户端必须与管理端保持同一冻结口径：冻结账户不得继续发起结算。 */
+    @Test
+    void shouldDisableSettlementCapabilityForFrozenAccount() {
+        Fixture fixture = new Fixture();
+        FundAccountDO account = account(31L, "M10001");
+        account.setAccountStatus("FROZEN");
+        when(fixture.accountMapper.selectOne(any())).thenReturn(account);
+        when(fixture.reserveMapper.sumHeldBalance(31L, "M10001")).thenReturn(BigDecimal.ZERO);
+        when(fixture.pendingBalanceQueryService.sumPendingBalances("M10001")).thenReturn(List.of());
+
+        FundAccountResponse response = fixture.service.getFundAccount("M10001");
+
+        assertThat(response.getCreditAllowed()).isTrue();
+        assertThat(response.getDebitAllowed()).isFalse();
+        assertThat(response.getWithdrawalAllowed()).isFalse();
+        assertThat(response.getSettlementAllowed()).isFalse();
+        assertThat(response.getReverseTransactionAllowed()).isFalse();
+    }
+
     /** 余额流水查询应包含入账起止时间，且结束时间不得早于开始时间。 */
     @Test
     void shouldFilterAndValidateLedgerPostedTimeRange() {

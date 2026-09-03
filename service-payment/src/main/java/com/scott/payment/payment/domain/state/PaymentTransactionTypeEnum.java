@@ -8,7 +8,7 @@ import lombok.Getter;
  * @classname : PaymentTransactionTypeEnum
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : 收单交易类型枚举，位于 service-payment 领域状态层，对齐字典 transaction_type，用于标识同一原始交易生命周期中的不同交易动作。
+ * @description : 支付交易类型枚举，位于 支付核心服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  * @status : create
  */
 @Getter
@@ -75,11 +75,10 @@ public enum PaymentTransactionTypeEnum {
     INCREMENTAL_AUTHORIZATION("INCREMENTAL_AUTHORIZATION");
 
     /**
-     * code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * 编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final String code;

@@ -7,7 +7,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 
-@Configuration
 /**
  * @author : scott
  * @version : v1.0.0
@@ -17,6 +16,7 @@ import org.springframework.context.annotation.Configuration;
  * @description : Open API Security Config 配置类，位于 商户开放接口服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
+@Configuration
 public class OpenApiSecurityConfig {
 
     /**

@@ -33,11 +33,10 @@ public class HolidayCalendarCachePolicy {
     }
 
     /**
-     * 将年、月规范化为稳定的缓存业务键。
-     *
-     * @param year 年份
-     * @param month 月份
-     * @return {@code yyyy-MM} 格式的业务键
+     * 把年份和月份转换为 ISO YearMonth 缓存键。
+     * @param year 语言区域、年份或月份值，用于格式化、分区或缓存窗口计算
+     * @param month 语言区域、年份或月份值，用于格式化、分区或缓存窗口计算
+     * @return 当前方法生成或规范化后的文本值
      */
     public String monthKey(int year, int month) {
         return YearMonth.of(year, month).toString();

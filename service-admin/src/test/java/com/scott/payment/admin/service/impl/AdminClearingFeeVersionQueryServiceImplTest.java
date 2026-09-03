@@ -14,6 +14,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminClearingFeeVersionQueryServiceImplTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证人工重算只能选择目标商户费用计划下不可变且可追溯的费用版本
+ * @status : create
+ */
 class AdminClearingFeeVersionQueryServiceImplTest {
 
     @Test

@@ -35,6 +35,11 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+        <!--提供网关本地健康探针；只暴露运维端点，不引入业务基础设施。-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
         <!--复用链路字段、异常、响应和入口安全相关基础模型。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
@@ -59,4 +64,25 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Apple Silicon 本地运行必须加载与 JVM 架构一致的 Netty DNS native resolver。 -->
+        <profile>
+            <id>macos-aarch64-native-dns</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-resolver-dns-native-macos</artifactId>
+                    <classifier>osx-aarch_64</classifier>
+                    <scope>runtime</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
 </project>

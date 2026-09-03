@@ -6,7 +6,14 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * Worldpay channel payload metadata used by application logs.
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : WorldPayPayloadLogMetadata
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Worldpay channel payload metadata used by application logs.
+ * @status : create
+ *
  *
  * @param length UTF-8 payload length in bytes
  * @param digest irreversible SHA-256 digest

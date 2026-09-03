@@ -16,7 +16,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证清分异常复用交易异常案件表并携带确定性去重键和精确分片时间。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingAnomalyServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证清分异常复用交易异常案件表并携带确定性去重键和精确分片时间。
+ * @status : create
+ */
 class DefaultClearingAnomalyServiceTest {
 
     @Test

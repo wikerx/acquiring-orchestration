@@ -16,7 +16,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 商户通知补偿应用层输入和批次边界测试。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantNotificationApplicationServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户通知补偿应用层输入和批次边界测试。
+ * @status : create
+ */
 class MerchantNotificationApplicationServiceTests {
 
     @Test

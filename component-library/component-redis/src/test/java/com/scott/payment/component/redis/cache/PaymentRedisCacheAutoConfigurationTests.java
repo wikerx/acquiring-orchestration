@@ -54,7 +54,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 支付系统 Redis Cache 物理 Key 与过期策略测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentRedisCacheAutoConfigurationTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 支付系统 Redis Cache 物理 Key 与过期策略测试。
+ * @status : create
  */
 @Slf4j
 class PaymentRedisCacheAutoConfigurationTests {

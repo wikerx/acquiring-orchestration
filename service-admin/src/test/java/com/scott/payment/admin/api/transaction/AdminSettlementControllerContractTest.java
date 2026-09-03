@@ -7,7 +7,15 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 验证结算管理的查询和资金命令均使用独立最小权限。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminSettlementControllerContractTest
+ * @date : 2026-09-01 23:20
+ * @email : scott_x@163.com
+ * @description : 验证结算管理查询与资金命令分别绑定独立最小权限的接口契约
+ * @status : create
+ */
 class AdminSettlementControllerContractTest {
 
     @Test
@@ -15,8 +23,7 @@ class AdminSettlementControllerContractTest {
         Map<String, String> expected = Map.of(
                 "search", "settlement:batch:list",
                 "detail", "settlement:batch:detail",
-                "cancel", "settlement:batch:cancel",
-                "reverse", "settlement:batch:reverse");
+                "cancel", "settlement:batch:cancel");
         expected.forEach((methodName, permission) -> {
             RequiresPermission annotation = java.util.Arrays.stream(
                             AdminSettlementController.class.getDeclaredMethods())

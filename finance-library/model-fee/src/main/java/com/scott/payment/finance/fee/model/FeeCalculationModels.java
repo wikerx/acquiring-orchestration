@@ -23,45 +23,105 @@ public final class FeeCalculationModels {
 
     /** 费用规则计价模式。 */
     public enum FeeMode {
+        /**
+         * STANDARD 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         STANDARD,
         TIER
     }
 
     /** 阶梯累计指标。 */
     public enum TierMetric {
+        /**
+         * COUNT 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         COUNT,
         AMOUNT
     }
 
     /** 清分费用原子组件类型。 */
     public enum FeeComponentType {
+        /**
+         * PERCENTAGE 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         PERCENTAGE,
+        /**
+         * FIXED 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         FIXED,
         LIMIT_ADJUSTMENT
     }
 
     /** 费用组件对商户应结金额的方向。 */
     public enum EntryDirection {
+        /**
+         * DEBIT 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         DEBIT,
         CREDIT
     }
 
     /** 当前费用组是否已经得到单币种最终金额。 */
     public enum FeeEvaluationStatus {
+        /**
+         * FINAL AT CLEARING 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         FINAL_AT_CLEARING,
         PENDING_SETTLEMENT_RATE
     }
 
     /** 最低和最高费用的求值状态。 */
     public enum LimitEvaluationStatus {
+        /**
+         * NOT REQUIRED 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         NOT_REQUIRED,
+        /**
+         * FINAL AT CLEARING 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         FINAL_AT_CLEARING,
         PENDING_SETTLEMENT_RATE
     }
 
     /** 同币种限额求值后实际采用的边界。 */
     public enum AppliedLimit {
+        /**
+         * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         NONE,
+        /**
+         * MINIMUM 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         MINIMUM,
         MAXIMUM
     }

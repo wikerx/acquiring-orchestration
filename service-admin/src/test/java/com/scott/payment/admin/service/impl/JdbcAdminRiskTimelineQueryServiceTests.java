@@ -18,7 +18,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 管理端交易风控时间轴查询测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JdbcAdminRiskTimelineQueryServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 管理端交易风控时间轴查询测试。
+ * @status : create
  */
 class JdbcAdminRiskTimelineQueryServiceTests {
 

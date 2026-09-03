@@ -5,14 +5,24 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 清分服务对纯领域计算组件的装配边界。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingFinanceCoreConfiguration
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 清分服务对纯领域计算组件的装配边界。
+ * @status : update
  *
  * <p>领域库保持无 Spring 依赖；清分服务启动时无条件注册无状态计算器，供保证金计算、调整和释放流程复用。</p>
  */
 @Configuration(proxyBeanMethods = false)
 public class ClearingFinanceCoreConfiguration {
 
-    /** 注册无状态保证金计算器，不依赖 yml 或 Nacos 开关。 */
+    /**
+     * 注册无状态保证金计算器，不依赖 yml 或 Nacos 开关。
+     *
+     * @return 标签币种保证金纯计算器
+     */
     @Bean
     public ReserveCalculator reserveCalculator() {
         return new ReserveCalculator();

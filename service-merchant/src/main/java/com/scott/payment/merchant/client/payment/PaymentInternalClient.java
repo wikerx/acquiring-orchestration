@@ -23,6 +23,14 @@ public interface PaymentInternalClient {
     TransactionActionResponse capture(PaymentTransactionActionClientRequestDTO requestDTO);
 
     /**
+     * 通过支付核心发起预授权完成动作。
+     *
+     * @param requestDTO 支付核心内部预授权完成命令
+     * @return 预授权完成动作结果
+     */
+    TransactionActionResponse preAuthCompletion(PaymentTransactionActionClientRequestDTO requestDTO);
+
+    /**
      * 通过支付核心发起退款动作。
      *
      * @param requestDTO 支付核心内部退款命令

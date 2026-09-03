@@ -30,11 +30,18 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 商户交易同步导出资源预算测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantTransactionApplicationServiceTests
+ * @date : 2026-09-01 23:20
+ * @email : scott_x@163.com
+ * @description : 验证商户交易命令身份隔离以及同步导出资源预算和分页边界
+ * @status : create
  */
 class MerchantTransactionApplicationServiceTests {
 
@@ -46,6 +53,48 @@ class MerchantTransactionApplicationServiceTests {
             LocalDateTime.of(2026, 7, 14, 12, 30, 45);
     private static final LocalDateTime ROOT_TRANSACTION_DATE_TIME =
             LocalDateTime.of(2026, 4, 10, 9, 15, 30);
+
+    /** 商户后台授权动作必须调用 CAPTURE，不得误标为预授权完成。 */
+    @Test
+    void captureShouldCallCaptureCommandForAuthorization() {
+        MerchantTransactionQueryService queryService = mock(MerchantTransactionQueryService.class);
+        PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
+        MerchantTransactionApplicationService service = service(
+                paymentInternalClient, queryService, new TransactionShardingProperties(),
+                mock(RedisConcurrencyLimiter.class));
+        when(queryService.detail(MERCHANT_ID, TRANSACTION_ID,
+                TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME))
+                .thenReturn(detail("AUTHORIZATION"));
+        when(paymentInternalClient.capture(any())).thenReturn(new TransactionActionResponse());
+
+        service.capture(MERCHANT_ID, TRANSACTION_ID, actionRequest());
+
+        ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
+                ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
+        verify(paymentInternalClient).capture(captor.capture());
+        assertThat(captor.getValue().getMerchantOrderId()).startsWith("MCHCP");
+    }
+
+    /** 商户后台预授权动作必须调用 PRE_AUTH_COMPLETION 独立支付核心命令。 */
+    @Test
+    void preAuthCompletionShouldCallDedicatedCommand() {
+        MerchantTransactionQueryService queryService = mock(MerchantTransactionQueryService.class);
+        PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
+        MerchantTransactionApplicationService service = service(
+                paymentInternalClient, queryService, new TransactionShardingProperties(),
+                mock(RedisConcurrencyLimiter.class));
+        when(queryService.detail(MERCHANT_ID, TRANSACTION_ID,
+                TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME))
+                .thenReturn(detail("PRE_AUTHORIZATION"));
+        when(paymentInternalClient.preAuthCompletion(any())).thenReturn(new TransactionActionResponse());
+
+        service.preAuthCompletion(MERCHANT_ID, TRANSACTION_ID, actionRequest());
+
+        ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
+                ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
+        verify(paymentInternalClient).preAuthCompletion(captor.capture());
+        assertThat(captor.getValue().getMerchantOrderId()).startsWith("MCHPA");
+    }
 
     @Test
     void voidShouldForwardSourceAndRootShardingTimesToPaymentCore() {
@@ -141,5 +190,31 @@ class MerchantTransactionApplicationServiceTests {
                                                           RedisConcurrencyLimiter limiter) {
         return new MerchantTransactionApplicationService(
                 paymentInternalClient, queryService, properties, limiter);
+    }
+
+    private TransactionDetailResponse detail(String transactionType) {
+        TransactionOrderResponse order = new TransactionOrderResponse();
+        order.setMerchantId(MERCHANT_ID);
+        TransactionOperationResponse operation = new TransactionOperationResponse();
+        operation.setMerchantId(MERCHANT_ID);
+        operation.setMerchantOrderNo("merchant-order-a");
+        operation.setTransactionId(TRANSACTION_ID);
+        operation.setTransactionType(transactionType);
+        operation.setTransactionStatus("SUCCESS");
+        operation.setTransactionCurrency("USD");
+        operation.setTransactionAmount(new BigDecimal("3.00"));
+        operation.setTransactionDateTime(TRANSACTION_DATE_TIME);
+        operation.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
+        TransactionDetailResponse detail = new TransactionDetailResponse();
+        detail.setOrder(order);
+        detail.setOperations(List.of(operation));
+        return detail;
+    }
+
+    private TransactionActionRequest actionRequest() {
+        TransactionActionRequest request = new TransactionActionRequest();
+        request.setTransactionDateTime(TRANSACTION_DATE_TIME);
+        request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
+        return request;
     }
 }

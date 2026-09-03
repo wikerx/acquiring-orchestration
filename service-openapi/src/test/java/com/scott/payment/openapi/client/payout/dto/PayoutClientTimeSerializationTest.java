@@ -13,7 +13,13 @@ import java.time.format.DateTimeFormatter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 验证 OpenAPI 调用 Payout 时使用稳定的毫秒时间字符串契约。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PayoutClientTimeSerializationTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 OpenAPI 调用 Payout 时使用稳定的毫秒时间字符串契约。
+ * @status : create
  */
 class PayoutClientTimeSerializationTest {
 

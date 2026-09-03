@@ -11,6 +11,7 @@ import java.util.Map;
  * @version : v1.0.0
  * @classname : ChannelPayoutQueryRequest
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 平台统一代付查单请求，通过平台或渠道持久化标识定位交易。
  * @status : create
  */

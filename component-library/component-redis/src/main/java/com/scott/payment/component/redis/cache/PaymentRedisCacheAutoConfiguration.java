@@ -248,16 +248,6 @@ public class PaymentRedisCacheAutoConfiguration {
         return configuration;
     }
 
-    /**
-     * 规范化 Spring Cache 的 Redis Key 前缀。
-     * <p>
-     * 输入前缀移除尾部重复冒号后只保留一个分隔符，确保最终格式稳定为
-     * {@code acquiring:{environment}:{cacheName}:{businessKey}}。
-     * </p>
-     *
-     * @param keyPrefix 配置的缓存 Key 前缀
-     * @return 以单个冒号结尾的规范前缀
-     */
     private String normalizeKeyPrefix(String keyPrefix) {
         String normalized = keyPrefix.trim();
         while (normalized.endsWith(":")) {

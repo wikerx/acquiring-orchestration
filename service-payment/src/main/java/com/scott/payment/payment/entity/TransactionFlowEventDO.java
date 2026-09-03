@@ -23,23 +23,21 @@ public class TransactionFlowEventDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @TableId(type = IdType.AUTO)
     /**
-     * Transaction Flow Event DO 数据库主键，用于唯一标识当前记录。
+     * {@code TransactionFlowEventDO} 数据库主键，用于唯一标识当前记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
-     * flow Event ID，用于定位 Transaction Flow Event DO 关联的上游配置、渠道、账号、角色或业务记录。
+     * {@code flowEventId}，用于定位 {@code TransactionFlowEventDO} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String flowEventId;
@@ -65,27 +63,25 @@ public class TransactionFlowEventDO implements Serializable {
     private String operationId;
 
     /**
-     * event Type，用于区分 Transaction Flow Event DO 记录的处理类别、配置维度或外部协议枚举。
+     * {@code eventType}，用于区分 {@code TransactionFlowEventDO} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String eventType;
 
     /**
-     * event Stage，用于保存 Transaction Flow Event DO 中与 eventstage 相关的业务属性。
+     * 持久化的{@code eventStage}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String eventStage;
 
     /**
-     * event Status，表示当前记录在业务流程中的处理状态。
+     * {@code eventStatus}，表示当前记录在业务流程中的处理状态。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
@@ -95,27 +91,25 @@ public class TransactionFlowEventDO implements Serializable {
     private String eventStatus;
 
     /**
-     * event Name，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * {@code eventName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String eventName;
 
     /**
-     * event Content，用于保存 Transaction Flow Event DO 中与 eventcontent 相关的业务属性。
+     * 持久化的{@code eventContent}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String eventContent;
 
     /**
-     * previous Status，表示当前记录在业务流程中的处理状态。
+     * {@code previousStatus}，表示当前记录在业务流程中的处理状态。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
@@ -125,7 +119,7 @@ public class TransactionFlowEventDO implements Serializable {
     private String previousStatus;
 
     /**
-     * current Status，表示当前记录在业务流程中的处理状态。
+     * 当前状态，表示当前记录在业务流程中的处理状态。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
@@ -135,111 +129,101 @@ public class TransactionFlowEventDO implements Serializable {
     private String currentStatus;
 
     /**
-     * operator Type，用于区分 Transaction Flow Event DO 记录的处理类别、配置维度或外部协议枚举。
+     * {@code operatorType}，用于区分 {@code TransactionFlowEventDO} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String operatorType;
 
     /**
-     * operator ID，用于定位 Transaction Flow Event DO 关联的上游配置、渠道、账号、角色或业务记录。
+     * 执行本次管理操作的可信登录账号 ID，用于操作审计。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String operatorId;
 
     /**
-     * reference Type，用于区分 Transaction Flow Event DO 记录的处理类别、配置维度或外部协议枚举。
+     * {@code referenceType}，用于区分 {@code TransactionFlowEventDO} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String referenceType;
 
     /**
-     * reference ID，用于定位 Transaction Flow Event DO 关联的上游配置、渠道、账号、角色或业务记录。
+     * {@code referenceId}，用于定位 {@code TransactionFlowEventDO} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String referenceId;
 
     /**
-     * error Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * 错误编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String errorCode;
 
     /**
-     * error Message，用于保存 Transaction Flow Event DO 中与 errormessage 相关的业务属性。
+     * 内部错误摘要，用于运营排障；禁止包含密钥、卡数据和完整报文。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String errorMessage;
 
     /**
-     * event Time，用于保存 Transaction Flow Event DO 中与 eventtime 相关的业务属性。
+     * 持久化的{@code eventTime}，用于还原当前记录的业务事实。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime eventTime;
 
     /**
-     * transaction Date Time，用于保存 Transaction Flow Event DO 中与 交易datetime 相关的业务属性。
+     * 交易受理时刻，按交易业务时区解释并保留毫秒精度。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime transactionDateTime;
 
     /**
-     * transaction Utc Time，用于保存 Transaction Flow Event DO 中与 交易utctime 相关的业务属性。
+     * 交易受理时刻对应的 UTC 时间，用于跨时区排序和对账。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime transactionUtcTime;
 
     /**
-     * transaction Time Zone，用于保存 Transaction Flow Event DO 中与 交易timezone 相关的业务属性。
+     * 交易业务时区，使用 IANA 时区标识解释本地交易时间。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String transactionTimeZone;
 
     /**
-     * create Time，用于保存 Transaction Flow Event DO 中与 createtime 相关的业务属性。
+     * 记录创建时刻，持久化精度为毫秒。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
      * </p>
      */
     private LocalDateTime createTime;

@@ -3,7 +3,13 @@ package com.scott.payment.payment.domain.state;
 import lombok.Getter;
 
 /**
- * Hosted Checkout 事件处理结果枚举。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutEventResultEnum
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 事件处理结果枚举。
+ * @status : create
  */
 @Getter
 public enum PaymentCheckoutEventResultEnum {

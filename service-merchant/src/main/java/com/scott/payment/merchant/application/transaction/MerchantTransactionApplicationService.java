@@ -43,7 +43,7 @@ import java.util.Set;
  * @classname : MerchantTransactionApplicationService
  * @date : 2026-07-19 00:00
  * @email : scott_x@163.com
- * @description : 商户后台交易应用服务，位于 service-merchant 应用层，查询和导出直接读取交易查询库并强制当前商户边界，退款等状态变更动作才调用支付核心。
+ * @description : 商户交易应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
 @Service
@@ -66,6 +66,9 @@ public class MerchantTransactionApplicationService {
      */
     private static final String MERCHANT_CAPTURE_ORDER_ID_PREFIX = "MCHCP";
 
+    /** 商户后台预授权完成动作幂等号前缀。 */
+    private static final String MERCHANT_PRE_AUTH_COMPLETION_ORDER_ID_PREFIX = "MCHPA";
+
     /**
      * 商户后台退款动作幂等号前缀。
      */
@@ -84,7 +87,10 @@ public class MerchantTransactionApplicationService {
     /**
      * 可作为请款源的授权类动作类型。
      */
-    private static final Set<String> CAPTURE_SOURCE_TYPES = Set.of("AUTHORIZATION", "PRE_AUTHORIZATION");
+    private static final Set<String> CAPTURE_SOURCE_TYPES = Set.of("AUTHORIZATION");
+
+    /** 可作为预授权完成来源的动作类型。 */
+    private static final Set<String> PRE_AUTH_COMPLETION_SOURCE_TYPES = Set.of("PRE_AUTHORIZATION");
 
     /**
      * 可作为撤销源的授权类动作类型。
@@ -96,24 +102,8 @@ public class MerchantTransactionApplicationService {
      */
     private static final String UTF8_BOM = "\uFEFF";
 
-    /**
-     * payment Internal Client 依赖，用于 Merchant Transaction Application Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final PaymentInternalClient paymentInternalClient;
 
-    /**
-     * transaction Query Service 依赖，用于 Merchant Transaction Application Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final MerchantTransactionQueryService transactionQueryService;
     /** 交易查询和同步导出资源预算。 */
     private final TransactionShardingProperties shardingProperties;
@@ -205,6 +195,41 @@ public class MerchantTransactionApplicationService {
                 transactionAmount,
                 MERCHANT_CAPTURE_ORDER_ID_PREFIX);
         return paymentInternalClient.capture(requestDTO);
+    }
+
+    /**
+     * 当前商户发起全额预授权完成动作。
+     *
+     * @param merchantId 当前登录商户号
+     * @param transactionId 原预授权平台交易 ID
+     * @param request 预授权完成请求
+     * @return 预授权完成动作结果
+     */
+    public TransactionActionResponse preAuthCompletion(String merchantId,
+                                                       String transactionId,
+                                                       TransactionActionRequest request) {
+        TransactionDetailResponse detailResponse = detail(
+                merchantId, transactionId, requiredTransactionDateTime(request),
+                requiredRootTransactionDateTime(request));
+        ensureBelongsToMerchant(merchantId, detailResponse);
+        TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
+        if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED,
+                    "only successful pre-authorizations can be completed");
+        }
+        if (!PRE_AUTH_COMPLETION_SOURCE_TYPES.contains(sourceOperation.getTransactionType())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+        }
+        BigDecimal labelAmount = fullLabelAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
+        BigDecimal transactionAmount = fullTransactionAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
+        PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
+                merchantId,
+                sourceOperation,
+                request,
+                labelAmount,
+                transactionAmount,
+                MERCHANT_PRE_AUTH_COMPLETION_ORDER_ID_PREFIX);
+        return paymentInternalClient.preAuthCompletion(requestDTO);
     }
 
     /**
@@ -335,17 +360,6 @@ public class MerchantTransactionApplicationService {
         });
     }
 
-    /**
-     * 整理商户scoped查询，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private TransactionPageQuery merchantScopedQuery(String merchantId, TransactionPageQuery source) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ApiException(ApiResultEnum.UNAUTHORIZED, "merchant context missing");
@@ -401,16 +415,6 @@ public class MerchantTransactionApplicationService {
         return "merchant-account:" + merchantId + ":" + accountIdentity;
     }
 
-    /**
-     * 构造交易查询对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private TransactionPageQuery copyTransactionQuery(TransactionPageQuery source) {
         TransactionPageQuery query = source == null ? new TransactionPageQuery() : source;
         TransactionPageQuery copy = new TransactionPageQuery();
@@ -433,16 +437,6 @@ public class MerchantTransactionApplicationService {
         return copy;
     }
 
-    /**
-     * 校验确保belongsto商户输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @param detailResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
-     */
     private void ensureBelongsToMerchant(String merchantId, TransactionDetailResponse detailResponse) {
         if (detailResponse == null || detailResponse.getOrder() == null) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -457,17 +451,6 @@ public class MerchantTransactionApplicationService {
         }
     }
 
-    /**
-     * 解析resolve来源动作，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param detailResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
-     * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
-     * @return 构造、转换或解析后的业务值
-     */
     private TransactionOperationResponse resolveSourceOperation(TransactionDetailResponse detailResponse, String transactionId) {
         if (detailResponse == null || detailResponse.getOperations() == null) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -478,21 +461,6 @@ public class MerchantTransactionApplicationService {
                 .orElseThrow(() -> new ApiException(ApiResultEnum.ORDER_NOT_FOUND));
     }
 
-/**
- * 构造action请求对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 商户后台服务 所需的源对象、配置或协议字段。
- * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
- * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
- * </p>
- * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
- * @param sourceOperation source Operation 输入值，参与 来源动作 的查询、校验、转换、写入或日志摘要
- * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param labelAmount 金额值，单位必须结合 currency 或同名币种字段解释
- * @param transactionAmount 金额值，单位必须结合 currency 或同名币种字段解释
- * @param orderIdPrefix order ID Prefix 输入值，参与 订单IDprefix 的查询、校验、转换、写入或日志摘要
- * @return 构造、转换或解析后的业务值
- */
     private PaymentTransactionActionClientRequestDTO buildActionRequest(String merchantId,
                                                                        TransactionOperationResponse sourceOperation,
                                                                        TransactionActionRequest request,
@@ -562,17 +530,6 @@ public class MerchantTransactionApplicationService {
         return request.getRootTransactionDateTime();
     }
 
-    /**
-     * 解析resolvelabel币种，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param sourceOperation source Operation 输入值，参与 来源动作 的查询、校验、转换、写入或日志摘要
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolveLabelCurrency(TransactionOperationResponse sourceOperation, TransactionActionRequest request) {
         if (StringUtils.hasText(request == null ? null : request.getCurrency())) {
             return request.getCurrency().trim().toUpperCase(Locale.ROOT);
@@ -583,17 +540,6 @@ public class MerchantTransactionApplicationService {
         return sourceOperation.getTransactionCurrency();
     }
 
-    /**
-     * 整理full交易金额，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param sourceOperation source Operation 输入值，参与 来源动作 的查询、校验、转换、写入或日志摘要
-     * @param preferredAmount 金额值，单位必须结合 currency 或同名币种字段解释
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private BigDecimal fullTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal preferredAmount) {
         BigDecimal amount = preferredAmount == null ? sourceOperation.getTransactionAmount() : preferredAmount;
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -602,17 +548,6 @@ public class MerchantTransactionApplicationService {
         return amount;
     }
 
-    /**
-     * 整理fulllabel金额，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param sourceOperation source Operation 输入值，参与 来源动作 的查询、校验、转换、写入或日志摘要
-     * @param transactionAmount 金额值，单位必须结合 currency 或同名币种字段解释
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private BigDecimal fullLabelAmount(TransactionOperationResponse sourceOperation, BigDecimal transactionAmount) {
         BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
         BigDecimal sourceLabelAmount = sourceOperation.getLabelAmount();
@@ -624,17 +559,6 @@ public class MerchantTransactionApplicationService {
         return amount.multiply(sourceLabelAmount).divide(sourceTransactionAmount, 6, RoundingMode.HALF_UP);
     }
 
-    /**
-     * 构造交易金额对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param sourceOperation source Operation 输入值，参与 来源动作 的查询、校验、转换、写入或日志摘要
-     * @param labelAmount 金额值，单位必须结合 currency 或同名币种字段解释
-     * @return 构造、转换或解析后的业务值
-     */
     private BigDecimal toTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal labelAmount) {
         if (labelAmount == null || labelAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
@@ -648,16 +572,6 @@ public class MerchantTransactionApplicationService {
         return labelAmount.multiply(sourceTransactionAmount).divide(sourceLabelAmount, 6, RoundingMode.HALF_UP);
     }
 
-    /**
-     * 构造动作csvline对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
-     */
     private String toOperationCsvLine(TransactionOperationResponse row, Locale locale) {
         return String.join(",",
                 csv(row.getTransactionId()),
@@ -706,16 +620,6 @@ public class MerchantTransactionApplicationService {
                 ? zhText : enText;
     }
 
-    /**
-     * 规范化csv，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String csv(Object value) {
         if (value == null) {
             return "";

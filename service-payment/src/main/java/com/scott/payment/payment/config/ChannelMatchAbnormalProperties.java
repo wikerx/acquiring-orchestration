@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
  * @version : v1.0.0
  * @classname : ChannelMatchAbnormalProperties
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 渠道勾兑异常自动升级配置；默认关闭，发布前需完成数据库和菜单权限门禁。
  * @status : create
  */

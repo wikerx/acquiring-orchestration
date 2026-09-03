@@ -44,51 +44,46 @@ import java.util.regex.Pattern;
 public class MpgsApiClient {
 
     /**
-     * HTTP METHOD GET，表示支付方式、通知方式或调用方式。
+     * {@code HTTP_METHOD_GET}，表示支付方式、通知方式或调用方式。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String HTTP_METHOD_GET = "GET";
 
     /**
-     * HTTP METHOD PUT，表示支付方式、通知方式或调用方式。
+     * HTTP方式写入，表示支付方式、通知方式或调用方式。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String HTTP_METHOD_PUT = "PUT";
 
     /**
-     * EXT REQUEST URL，表示当前内部调用、渠道调用或商户通知的目标地址。
+     * {@code EXT_REQUEST_URL}，表示当前内部调用、渠道调用或商户通知的目标地址。
      * <p>
-     * 单位：无；格式：HTTP/HTTPS URL 或服务路径；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：长度和协议由调用方校验；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String EXT_REQUEST_URL = "requestUrl";
 
     /**
-     * EXT READ TIMEOUT SECONDS，用于保存 Mpgs API Client 中与 ext读取超时seconds 相关的业务属性。
+     * {@code EXT_READ_TIMEOUT_SECONDS}常量，统一 {@code MpgsApiClient} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String EXT_READ_TIMEOUT_SECONDS = "readTimeoutSeconds";
 
     /**
-     * EXT MPGS MERCHANT ID，用于定位 Mpgs API Client 关联的上游配置、渠道、账号、角色或业务记录。
+     * {@code EXT_MPGS_MERCHANT_ID}，用于定位 {@code MpgsApiClient} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String EXT_MPGS_MERCHANT_ID = "mid.merchantId";
@@ -97,101 +92,91 @@ public class MpgsApiClient {
     private static final String EXT_MID_NO = "midNo";
 
     /**
-     * EXT MPGS API USERNAME，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * {@code EXT_MPGS_API_USERNAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String EXT_MPGS_API_USERNAME = "mid.apiUsername";
 
     /**
-     * EXT MPGS PASSWORD，用于保存 Mpgs API Client 中与 extmpgspassword 相关的业务属性。
+     * {@code EXT_MPGS_PASSWORD}常量，统一 {@code MpgsApiClient} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String EXT_MPGS_PASSWORD = "mid.password";
 
     /**
-     * EXT MPGS API PASSWORD，用于保存 Mpgs API Client 中与 extmpgsapipassword 相关的业务属性。
+     * {@code EXT_MPGS_API_PASSWORD}常量，统一 {@code MpgsApiClient} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String EXT_MPGS_API_PASSWORD = "mid.apiPassword";
 
     /**
-     * EXT MPGS API VERSION，用于保存 Mpgs API Client 中与 extmpgsapiversion 相关的业务属性。
+     * {@code EXT_MPGS_API_VERSION}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String EXT_MPGS_API_VERSION = "mid.version";
 
     /**
-     * RAW HTTP METHOD，表示支付方式、通知方式或调用方式。
+     * 原始HTTP方式，表示支付方式、通知方式或调用方式。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String RAW_HTTP_METHOD = "httpMethod";
 
     /**
-     * RAW REQUEST URL MASKED，表示当前内部调用、渠道调用或商户通知的目标地址。
+     * 原始请求URL脱敏，表示当前内部调用、渠道调用或商户通知的目标地址。
      * <p>
-     * 单位：无；格式：HTTP/HTTPS URL 或服务路径；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：长度和协议由调用方校验；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
 
     /**
-     * RAW REQUEST HEADER JSON MASKED，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
+     * {@code RAW_REQUEST_HEADER_JSON_MASKED}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
      * <p>
-     * 单位：无；格式：JSON 字符串或结构化对象；不允许为空；非敏感字段。
-     * 取值范围：内容必须先脱敏再进入日志；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String RAW_REQUEST_HEADER_JSON_MASKED = "requestHeaderJsonMasked";
 
     /**
-     * RAW REQUEST BODY JSON MASKED，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
+     * {@code RAW_REQUEST_BODY_JSON_MASKED}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
      * <p>
-     * 单位：无；格式：JSON 字符串或结构化对象；不允许为空；非敏感字段。
-     * 取值范围：内容必须先脱敏再进入日志；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String RAW_REQUEST_BODY_JSON_MASKED = "requestBodyJsonMasked";
 
     /**
-     * RAW RESPONSE HEADER JSON MASKED，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
+     * {@code RAW_RESPONSE_HEADER_JSON_MASKED}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
      * <p>
-     * 单位：无；格式：JSON 字符串或结构化对象；不允许为空；非敏感字段。
-     * 取值范围：内容必须先脱敏再进入日志；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String RAW_RESPONSE_HEADER_JSON_MASKED = "responseHeaderJsonMasked";
 
     /**
-     * RAW RESPONSE BODY JSON MASKED，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
+     * {@code RAW_RESPONSE_BODY_JSON_MASKED}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
      * <p>
-     * 单位：无；格式：JSON 字符串或结构化对象；不允许为空；非敏感字段。
-     * 取值范围：内容必须先脱敏再进入日志；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String RAW_RESPONSE_BODY_JSON_MASKED = "responseBodyJsonMasked";
@@ -447,18 +432,6 @@ public class MpgsApiClient {
         return channelResponse;
     }
 
-    /**
-     * 构造raw请求audit对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param httpMethod HTTP 方法或内部调用方法名，用于构造请求、签名或异常摘要
-     * @param requestUrl request URL 输入值，参与 请求url 的查询、校验、转换、写入或日志摘要
-     * @param requestBody request Body 输入值，参与 请求报文体 的查询、校验、转换、写入或日志摘要
-     */
     private void fillRawRequestAudit(ChannelPaymentRequest request, String httpMethod, String requestUrl, String requestBody) {
         if (request == null) {
             return;
@@ -471,19 +444,6 @@ public class MpgsApiClient {
                 : JsonUtils.toJsonString(Collections.emptyMap()));
     }
 
-/**
- * 构造raw响应audit对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 渠道适配库 所需的源对象、配置或协议字段。
- * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
- * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
- * </p>
- * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
- * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
- * @param httpMethod HTTP 方法或内部调用方法名，用于构造请求、签名或异常摘要
- * @param requestUrl request URL 输入值，参与 请求url 的查询、校验、转换、写入或日志摘要
- */
     private void fillRawResponseAudit(ChannelPaymentResponse channelResponse,
                                       ChannelPaymentRequest request,
                                       HttpResponse<String> response,
@@ -508,34 +468,12 @@ public class MpgsApiClient {
         putIfText(channelResponse, RAW_RESPONSE_BODY_JSON_MASKED, channelResponse.getResponseBodyJsonMasked());
     }
 
-    /**
-     * 整理非空文本字段，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
-     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     */
     private void putIfText(ChannelPaymentResponse channelResponse, String key, String value) {
         if (channelResponse != null && StringUtils.hasText(value)) {
             channelResponse.getRawResponse().put(key, value);
         }
     }
 
-    /**
-     * 记录value，写入安全、审计或链路排障所需的脱敏上下文。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String auditValue(ChannelPaymentRequest request, String key) {
         if (request == null || request.getExtension() == null) {
             return null;
@@ -543,17 +481,6 @@ public class MpgsApiClient {
         return request.getExtension().get(key);
     }
 
-    /**
-     * 解析parse响应报文体，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 渠道适配库 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param body 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
-     * @param httpStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
-     * @return 构造、转换或解析后的业务值
-     */
     private MpgsResponsePayload parseResponseBody(String body, int httpStatus) {
         try {
             return JsonUtils.parseObject(body, MpgsResponsePayload.class);
@@ -1112,60 +1039,20 @@ public class MpgsApiClient {
         return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
     }
 
-    /**
-     * 解析normalizetype，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 渠道适配库 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private String normalizeType(String transactionType) {
         return transactionType == null ? null : transactionType.trim().toUpperCase(Locale.ROOT);
     }
 
-    /**
-     * 整理编码，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
-    /**
-     * 校验文本输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 渠道适配库 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     */
     private void requireText(String value, String message) {
         if (!StringUtils.hasText(value)) {
             throw new ChannelRequestException(message);
         }
     }
 
-    /**
-     * 整理超时，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Duration readTimeout(ChannelPaymentRequest request) {
         String configuredSeconds = request == null ? null : request.getExtension().get(EXT_READ_TIMEOUT_SECONDS);
         if (StringUtils.hasText(configuredSeconds)) {
@@ -1193,18 +1080,6 @@ public class MpgsApiClient {
         return Duration.ofMillis(properties.getReadTimeoutMillis());
     }
 
-    /**
-     * 整理扩展字段值，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @param fallback fallback 输入值，参与 fallback 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String extensionValue(ChannelPaymentRequest request, String key, String fallback) {
         if (request != null && request.getExtension() != null && StringUtils.hasText(request.getExtension().get(key))) {
             return request.getExtension().get(key);
@@ -1238,16 +1113,6 @@ public class MpgsApiClient {
                 properties.getMerchantId());
     }
 
-    /**
-     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -1308,72 +1173,22 @@ public class MpgsApiClient {
                 elapsedMillis(startNanos), exception.getClass().getSimpleName());
     }
 
-    /**
-     * 整理动作ID，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String safeOperationId(ChannelPaymentRequest request) {
         return request == null ? null : request.getOperationId();
     }
 
-    /**
-     * 整理交易ID，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String safeTransactionId(ChannelPaymentRequest request) {
         return request == null ? null : request.getTransactionId();
     }
 
-    /**
-     * 整理渠道订单no，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String safeChannelOrderNo(ChannelPaymentRequest request) {
         return request == null ? null : request.getChannelOrderNo();
     }
 
-    /**
-     * 整理渠道交易ID，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String safeChannelTransactionId(ChannelPaymentRequest request) {
         return request == null ? null : request.getChannelTransactionId();
     }
 
-    /**
-     * 整理商户订单no，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String safeMerchantOrderNo(ChannelPaymentRequest request) {
         return request == null ? null : request.getMerchantOrderNo();
     }

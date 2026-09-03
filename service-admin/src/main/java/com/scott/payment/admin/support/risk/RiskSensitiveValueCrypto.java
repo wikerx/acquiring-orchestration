@@ -26,29 +26,26 @@ import java.util.Base64;
 public class RiskSensitiveValueCrypto {
 
     /**
-     * SECURE RANDOM，用于保存 Risk Sensitive Value Crypto 中与 securerandom 相关的业务属性。
+     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     /**
-     * IV LENGTH，用于保存 Risk Sensitive Value Crypto 中与 ivlength 相关的业务属性。
+     * {@code IV_LENGTH}常量，统一 {@code RiskSensitiveValueCrypto} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int IV_LENGTH = 12;
     /**
-     * TAG LENGTH BITS，用于保存 Risk Sensitive Value Crypto 中与 taglengthbits 相关的业务属性。
+     * {@code TAG_LENGTH_BITS}常量，统一 {@code RiskSensitiveValueCrypto} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：位；格式：正整数；不允许为空；非敏感字段。
+     * 取值范围：取值由算法协议或数值精度边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final int TAG_LENGTH_BITS = 128;
@@ -100,15 +97,6 @@ public class RiskSensitiveValueCrypto {
         }
     }
 
-    /**
-     * 整理密钥材料，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private byte[] secretKey() throws Exception {
         String seed = System.getProperty("payment.risk.secret", System.getenv().getOrDefault("PAYMENT_RISK_SECRET", "local-risk-secret-change-me"));
         return MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8));

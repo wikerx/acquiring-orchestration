@@ -413,24 +413,8 @@ class MpgsApiClientMaskingTests {
 
         private final String responseBody;
 
-        /**
-         * authorization Header，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private String authorizationHeader;
 
-        /**
-         * last Request，用于保存 Capturing Http Client 中与 last请求 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private HttpRequest lastRequest;
 
         private CapturingHttpClient() {
@@ -604,15 +588,7 @@ class MpgsApiClientMaskingTests {
             return HttpClient.Version.HTTP_1_1;
         }
 
-        /**
-         * 规范化sslsession，返回当前业务步骤需要的业务值。
-         * <p>
-         * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-         * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-         * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-         * </p>
-         * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-         */
+        /** 测试响应不建立 TLS 会话。 */
         @Override
         public Optional<javax.net.ssl.SSLSession> sslSession() {
             return Optional.empty();

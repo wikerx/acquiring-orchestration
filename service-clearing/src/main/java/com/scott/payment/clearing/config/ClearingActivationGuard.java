@@ -5,7 +5,6 @@ import com.scott.payment.component.web.internal.InternalServiceAuthProperties;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
-import org.springframework.util.StringUtils;
 
 /**
  * @author : scott
@@ -19,9 +18,15 @@ import org.springframework.util.StringUtils;
 @Component
 public class ClearingActivationGuard implements SmartInitializingSingleton {
 
-    private static final String DEVELOPMENT_SECRET = "dev-internal-service-secret";
     private static final String CLEARING_INTERNAL_PROBE_PATH =
             "/internal/clearing/v1/transactions/search";
+    /**
+     * {@code PATH_MATCHER}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     private final ClearingProperties clearingProperties;
@@ -55,18 +60,12 @@ public class ClearingActivationGuard implements SmartInitializingSingleton {
         if (!authProperties.isEnabled()) {
             throw new IllegalStateException("clearing internal service authentication must be enabled");
         }
-        if (!StringUtils.hasText(authProperties.getSecret())) {
-            throw new IllegalStateException("clearing internal service authentication secret is required");
-        }
+        authProperties.validate();
         if (authProperties.getWhitelist() == null
                 || authProperties.getWhitelist().stream().anyMatch(pattern ->
-                StringUtils.hasText(pattern)
+                pattern != null && !pattern.trim().isEmpty()
                         && PATH_MATCHER.match(pattern.trim(), CLEARING_INTERNAL_PROBE_PATH))) {
             throw new IllegalStateException("clearing internal endpoints must not match the authentication whitelist");
-        }
-        if (DEVELOPMENT_SECRET.equals(authProperties.getSecret().trim())) {
-            throw new IllegalStateException(
-                    "automatic clearing requires an injected internal authentication secret, not the development secret");
         }
     }
 }

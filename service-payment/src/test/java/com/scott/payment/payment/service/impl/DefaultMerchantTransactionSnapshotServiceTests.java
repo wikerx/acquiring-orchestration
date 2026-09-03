@@ -34,7 +34,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-/** Merchant-visible transaction snapshot persistence tests. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantTransactionSnapshotServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Merchant-visible transaction snapshot persistence tests.
+ * @status : create
+ */
 class DefaultMerchantTransactionSnapshotServiceTests {
 
     @Test

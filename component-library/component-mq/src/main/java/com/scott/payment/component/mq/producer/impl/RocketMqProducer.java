@@ -20,8 +20,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 
-@Slf4j
-@Service
 /**
  * @author : scott
  * @version : v1.0.0
@@ -31,6 +29,8 @@ import java.util.UUID;
  * @description : Rocket MQ Producer 消息投递组件，位于 公共组件库，补齐消息标识、traceId、重试次数和业务载荷后发送 MQ。
  * @status : create
  */
+@Slf4j
+@Service
 public class RocketMqProducer implements MqProducer {
 
     /**

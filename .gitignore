@@ -42,6 +42,9 @@ audit/*secret*.json
 *.key
 *.p12
 *.jks
+.nacos-runtime.env
+**/.nacos-runtime.env
+runtime/nacos-backups/
 docs/nacos/*.zip
 
 # Generated
@@ -67,8 +70,23 @@ docs/sql/*
 !docs/sql/20260814_01_transaction_visible_snapshot_plaintext_prepare.sql
 !docs/sql/20260814_02_transaction_visible_snapshot_plaintext_finalize.sql
 !docs/sql/20260827_01_admin_clearing_settlement_query_index_migration.sql
+!docs/sql/20260831_01_settlement_p0_consistency_migration.sql
+!docs/sql/20260831_02_settlement_p0_consistency_postcheck.sql
+!docs/sql/20260831_03_settlement_review_maker_checker_migration.sql
+!docs/sql/20260831_04_settlement_review_maker_checker_postcheck.sql
+!docs/sql/20260831_05_settlement_reversal_projection_migration.sql
+!docs/sql/20260831_06_settlement_reversal_projection_postcheck.sql
+!docs/sql/20260831_07_settlement_cancellation_audit_migration.sql
+!docs/sql/20260831_08_settlement_cancellation_audit_postcheck.sql
+!docs/sql/20260901_01_settlement_processing_mode_migration.sql
+!docs/sql/20260901_02_settlement_processing_mode_postcheck.sql
+!docs/sql/20260901_03_channel_capability_default_currency_migration.sql
+!docs/sql/20260901_04_channel_capability_default_currency_postcheck.sql
+!docs/sql/20260901_05_settlement_system_operator_cancellation_migration.sql
+!docs/sql/20260901_06_settlement_system_operator_cancellation_postcheck.sql
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md
 !docs/archive/reports/transaction-sharding-scan-and-remediation-report.md
-/scripts/
+/scripts/*
+!/scripts/manage-nacos-internal-auth.sh

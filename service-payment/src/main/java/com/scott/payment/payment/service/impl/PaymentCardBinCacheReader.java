@@ -18,12 +18,41 @@ import java.util.List;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-/** 使用 Spring Cache 按 11 位卡号前缀分别保存有限期 BIN 命中与未命中结果。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCardBinCacheReader
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 使用 Spring Cache 按 11 位卡号前缀分别保存有限期 BIN 命中与未命中结果。
+ * @status : create
+ */
 @Service
 public class PaymentCardBinCacheReader {
 
+    /**
+     * {@code MIN_BIN_LENGTH}常量，统一 {@code PaymentCardBinCacheReader} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MIN_BIN_LENGTH = 6;
+    /**
+     * {@code MAX_BIN_LENGTH}常量，统一 {@code PaymentCardBinCacheReader} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_BIN_LENGTH = 11;
+    /**
+     * {@code CACHE_NAMESPACE}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     static final String CACHE_NAMESPACE = "card-bin-range";
 
     private final PaymentCardBinRangeMapper cardBinRangeMapper;

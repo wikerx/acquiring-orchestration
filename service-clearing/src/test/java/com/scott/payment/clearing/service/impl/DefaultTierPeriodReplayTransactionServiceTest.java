@@ -27,7 +27,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** 验证阶梯期间重放准备阶段不会覆盖已结算或保证金相关历史事实。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultTierPeriodReplayTransactionServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证阶梯期间重放准备阶段不会覆盖已结算或保证金相关历史事实。
+ * @status : create
+ */
 class DefaultTierPeriodReplayTransactionServiceTest {
 
     private final ClearingTierPeriodReplayMapper replayMapper = mock(ClearingTierPeriodReplayMapper.class);

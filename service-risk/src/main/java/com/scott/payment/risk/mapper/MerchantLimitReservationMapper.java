@@ -11,7 +11,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 商户累计限额预占数据访问。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantLimitReservationMapper
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户累计限额预占数据访问。
+ * @status : create
  */
 public interface MerchantLimitReservationMapper {
 

@@ -24,7 +24,15 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 验证回调 Header、JWT、事件 ID 和密文正文形成同一个不可拆分的协议请求。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantCallbackRequestFactoryTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证回调 Header、JWT、事件 ID 和密文正文形成同一个不可拆分的协议请求。
+ * @status : create
+ */
 class MerchantCallbackRequestFactoryTests {
 
     @Test

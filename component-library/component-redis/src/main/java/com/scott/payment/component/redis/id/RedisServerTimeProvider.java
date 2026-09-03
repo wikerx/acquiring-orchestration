@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
  * @classname : RedisServerTimeProvider
  * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : Redis Server Time Provider 协作组件，位于 公共组件库，封装 redisservertimeprovider 相关的校验、转换、持久化访问或运行时协作入口。
+ * @description : redisserver时间提供方协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
  * @status : create
  */
 public class RedisServerTimeProvider {

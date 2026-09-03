@@ -47,6 +47,14 @@ public record Money(BigDecimal amount, String currency, int exponent) {
         return other != null && currency.equals(other.currency) && exponent == other.exponent;
     }
 
+    /**
+     * 解析币种，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 仅返回规范化或计算结果，不直接提交交易状态。
+     * </p>
+     * @param currency 币种代码，格式为 ISO 4217 三位大写字母
+     * @return 构造、转换或解析后的业务值
+     */
     private static String normalizeCurrency(String currency) {
         if (currency == null || currency.isBlank()) {
             throw new IllegalArgumentException("currency is required");

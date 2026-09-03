@@ -1,4 +1,4 @@
-# 环境接入配置：清分服务连接生产 Nacos；账号、密码和内部 HMAC 密钥必须由 Secret 注入。
+# 环境接入配置：清分服务连接生产 Nacos；Nacos 凭据和配置加密根密钥必须由 Secret 注入。
 spring:
   config:
     import:
@@ -31,8 +31,3 @@ spring:
 
 logging:
   config: classpath:log-config/logback-spring.xml
-
-internal-service:
-  auth:
-    enabled: true
-    secret: ${INTERNAL_SERVICE_AUTH_SECRET}

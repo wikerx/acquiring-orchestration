@@ -13,7 +13,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * 风控累计限额预占补偿测试，验证失败交易触发取消且缺少预占标识时不发送无效请求。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentRiskReservationCompensationTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控累计限额预占补偿测试，验证失败交易触发取消且缺少预占标识时不发送无效请求。
+ * @status : create
  */
 class PaymentRiskReservationCompensationTests {
 

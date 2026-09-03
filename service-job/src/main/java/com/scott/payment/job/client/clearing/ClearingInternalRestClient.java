@@ -24,12 +24,27 @@ import java.net.URI;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-/** 带 HMAC、防重放随机数和 CommonResult 解包的清分内部 REST 客户端。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingInternalRestClient
+ * @date : 2026-09-01 22:30
+ * @email : scott_x@163.com
+ * @description : 带 HMAC、防重放随机数、有界超时和 CommonResult 解包的清分补偿 REST 客户端；不承载补偿业务规则。
+ * @status : update
+ */
 @Service
 @Slf4j
 public class ClearingInternalRestClient implements ClearingInternalClient {
 
     private static final Pattern IPV4 = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
+    /**
+     * {@code PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * </p>
+     */
     private static final String PATH = "/internal/clearing/v1/compensations/scan";
 
     private final RestTemplate direct;
@@ -45,6 +60,7 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
         this.properties = properties;
     }
 
+    /** {@inheritDoc} */
     @Override
     public Response scan(Request request) {
         URI uri = URI.create(normalizeBaseUrl(properties.getBaseUrl()) + PATH);
@@ -87,6 +103,12 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
         return new HttpEntity<>(body, headers);
     }
 
+    /**
+     * IP、localhost 和完整域名使用直连客户端，逻辑服务名使用负载均衡客户端。
+     *
+     * @param uri 已校验的服务地址
+     * @return 与地址类型匹配且配置了有界超时的 RestTemplate
+     */
     private RestTemplate choose(URI uri) {
         String host = uri.getHost();
         if (host == null) {

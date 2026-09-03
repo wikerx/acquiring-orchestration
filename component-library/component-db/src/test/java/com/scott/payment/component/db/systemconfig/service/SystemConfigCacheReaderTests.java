@@ -17,7 +17,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 系统参数 Cacheable 代理和数据库快照映射测试。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SystemConfigCacheReaderTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 系统参数 Cacheable 代理和数据库快照映射测试。
+ * @status : create
+ */
 class SystemConfigCacheReaderTests {
 
     /** 缓存入口必须使用统一 Cache Name、原始配置键并强制回源主库。 */

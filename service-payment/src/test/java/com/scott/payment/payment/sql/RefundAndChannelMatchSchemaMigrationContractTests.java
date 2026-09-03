@@ -9,7 +9,13 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 退款管理和勾兑异常开发环境配置契约。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RefundAndChannelMatchSchemaMigrationContractTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 退款管理和勾兑异常开发环境配置契约。
+ * @status : create
  */
 class RefundAndChannelMatchSchemaMigrationContractTests {
 

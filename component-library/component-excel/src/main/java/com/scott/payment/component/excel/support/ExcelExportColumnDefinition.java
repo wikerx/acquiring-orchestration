@@ -18,6 +18,7 @@ public record ExcelExportColumnDefinition(
         int order,
         String headerKey,
         int width,
-        HorizontalAlignment align
+        HorizontalAlignment align,
+        boolean forceText
 ) {
 }

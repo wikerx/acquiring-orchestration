@@ -39,6 +39,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingManagementCommandServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证人工清分命令的分片版本 CAS、稳定 Outbox 身份、重复事件核对和终态保护
+ * @status : create
+ */
 class DefaultClearingManagementCommandServiceTest {
 
     private static final LocalDateTime TRANSACTION_TIME = LocalDateTime.of(2026, 8, 25, 9, 0);

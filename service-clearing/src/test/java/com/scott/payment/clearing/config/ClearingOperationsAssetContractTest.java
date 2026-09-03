@@ -15,7 +15,15 @@ import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 验证清分监控和影子验收资产可解析、只读且引用真实指标。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingOperationsAssetContractTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证清分监控和影子验收资产可解析、只读且引用真实指标。
+ * @status : create
+ */
 class ClearingOperationsAssetContractTest {
 
     private static final Pattern SQL_COMMENT = Pattern.compile("(?m)^\\s*--.*$");

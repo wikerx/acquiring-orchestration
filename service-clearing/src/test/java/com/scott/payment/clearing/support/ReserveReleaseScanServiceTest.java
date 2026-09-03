@@ -21,7 +21,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/** 验证保证金释放扫描只遍历已发布历史季度，并隔离单条释放失败。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ReserveReleaseScanServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证保证金释放扫描只遍历已发布历史季度，并隔离单条释放失败。
+ * @status : create
+ */
 class ReserveReleaseScanServiceTest {
 
     @Test

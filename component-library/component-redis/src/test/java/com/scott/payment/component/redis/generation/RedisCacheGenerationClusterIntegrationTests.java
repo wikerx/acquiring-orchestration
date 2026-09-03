@@ -22,7 +22,13 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 在真实 Redis Cluster 上验证缓存代际多 Key Lua 和 token 租约释放语义。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedisCacheGenerationClusterIntegrationTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 在真实 Redis Cluster 上验证缓存代际多 Key Lua 和 token 租约释放语义。
+ * @status : create
  */
 @EnabledIfSystemProperty(named = "cache-generation.redis.cluster.integration.enabled", matches = "true")
 class RedisCacheGenerationClusterIntegrationTests {

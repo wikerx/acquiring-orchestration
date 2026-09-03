@@ -35,6 +35,13 @@ import java.util.Locale;
 @Service
 public class AdminHolidayCalendarApplicationService {
 
+    /**
+     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code AdminHolidayCalendarApplicationService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final AdminHolidayCalendarService calendarService;

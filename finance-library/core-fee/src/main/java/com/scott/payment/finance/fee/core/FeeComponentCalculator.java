@@ -33,7 +33,21 @@ import java.util.Set;
  */
 public class FeeComponentCalculator {
 
+    /**
+     * 百分比换算基数 100，用于把百分数转换为比例值。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+    /**
+     * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
 
     /**
@@ -131,6 +145,12 @@ public class FeeComponentCalculator {
                 terms, tier.tierId(), List.of(tier.tierId()));
     }
 
+    /**
+     * 计算本笔交易完成后的阶梯命中值；笔数口径加一，金额口径沿用调用方提供的 USD 累计事实。
+     *
+     * @param command 包含阶梯指标和本笔前累计事实的计算命令
+     * @return 用于匹配左闭右开阶梯区间的累计值
+     */
     private BigDecimal reachedValue(FeeCalculationCommand command) {
         if (command.rule().tierMetric() == TierMetric.COUNT) {
             return BigDecimal.valueOf(command.tierContext().countBefore()).add(BigDecimal.ONE);
@@ -139,6 +159,12 @@ public class FeeComponentCalculator {
                 .add(command.tierContext().currentAmountUsd(), CALCULATION_CONTEXT);
     }
 
+    /**
+     * 校验并按下界排序冻结的阶梯，确保区间从零开始、连续且最后一档无上界。
+     *
+     * @param command 含冻结阶梯列表的计算命令
+     * @return 按下界升序排列的不可变阶梯列表
+     */
     private List<FeeTierSnapshot> sortedTiers(FeeCalculationCommand command) {
         if (command.tiers().isEmpty()) {
             throw new IllegalArgumentException("tier configuration is required");
@@ -202,6 +228,14 @@ public class FeeComponentCalculator {
         }
     }
 
+    /**
+     * 按标签金额和标签币种计算百分比组件，仅在组件最终落地处按该币种 exponent 舍入。
+     *
+     * @param basis 标签币种计算基数
+     * @param percentageRate 百分比数值，2.3 表示 2.3%
+     * @param roundingMode 费用版本冻结的舍入规则
+     * @return 与标签金额同币种、同 exponent 的非负费用组件
+     */
     private Money percentage(Money basis,
                                       BigDecimal percentageRate,
                                       java.math.RoundingMode roundingMode) {
@@ -215,6 +249,13 @@ public class FeeComponentCalculator {
         return amount == null ? null : amount.rounded(roundingMode);
     }
 
+    /**
+     * 仅在最低费与最高费币种及 exponent 一致时校验上下限顺序；跨币种限额必须留到结算阶段按统一汇率求值。
+     *
+     * @param minimum USD 最低费用，可为空
+     * @param maximum USD 最高费用，可为空
+     * @throws IllegalArgumentException 同币种最低费用大于最高费用时抛出
+     */
     private void validateSameCurrencyLimits(Money minimum, Money maximum) {
         if (minimum != null && maximum != null && minimum.sameCurrency(maximum)
                 && minimum.amount().compareTo(maximum.amount()) > 0) {
@@ -222,6 +263,15 @@ public class FeeComponentCalculator {
         }
     }
 
+    /**
+     * 判断费用组件与 USD 限额是否已经处于同一币种和 exponent；跨币种时必须留待结算统一汇率求值。
+     *
+     * @param labelAmount 标签金额，用于无费用组件时确定零值币种
+     * @param components 已生成的标签币种百分比和 USD 固定费组件
+     * @param minimum USD 最低费用
+     * @param maximum USD 最高费用
+     * @return 清分阶段无需汇率即可形成最终费用时返回 true
+     */
     private boolean canEvaluateAtClearing(Money labelAmount,
                                           List<FeeComponent> components,
                                           Money minimum,
@@ -237,6 +287,15 @@ public class FeeComponentCalculator {
         return currencies.size() <= 1 && exponents.size() <= 1;
     }
 
+    /**
+     * 在已确认单币种后解析最终费用的币种和 exponent，不进行任何汇率转换。
+     *
+     * @param labelAmount 标签金额
+     * @param components 已生成费用组件
+     * @param minimum 同币种最低费用
+     * @param maximum 同币种最高费用
+     * @return 用于构造最终费用和限额调整的币种载体
+     */
     private Money resolveCalculationCurrency(Money labelAmount,
                                                       List<FeeComponent> components,
                                                       Money minimum,
@@ -253,6 +312,16 @@ public class FeeComponentCalculator {
         return new Money(BigDecimal.ZERO, labelAmount.currency(), labelAmount.exponent());
     }
 
+    /**
+     * 将最低或最高费用命中差额保存为独立组件，保留原始费用组件以便后续审计和冲正。
+     *
+     * @param amount 非负调整金额
+     * @param direction 最低费补扣为 DEBIT，最高费回冲为 CREDIT
+     * @param currency 已确认的单币种载体
+     * @param ruleId 来源费用规则主键
+     * @param tierId 来源阶梯主键，标准费率为空
+     * @return 可持久化的限额调整组件
+     */
     private FeeComponent limitAdjustment(BigDecimal amount,
                                          EntryDirection direction,
                                          Money currency,
@@ -263,6 +332,13 @@ public class FeeComponentCalculator {
                 null, null, ruleId, tierId);
     }
 
+    /**
+     * 分别收集币种与 exponent，用于判定清分阶段能否在不引入汇率的前提下完成费用限额计算。
+     *
+     * @param currencies 已发现的币种集合
+     * @param exponents 已发现的币种精度集合
+     * @param amount 待检查金额，可为空
+     */
     private void addCurrency(Set<String> currencies, Set<Integer> exponents, Money amount) {
         if (amount != null) {
             currencies.add(amount.currency());

@@ -6,17 +6,17 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
-@Data
-@EqualsAndHashCode(callSuper = true)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysOperLogQueryRequest
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : Sys Oper Log Query Request 传输模型，位于 商户后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : sysoper日志查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
  * @status : create
  */
+@Data
+@EqualsAndHashCode(callSuper = true)
 public class SysOperLogQueryRequest extends PageRequest {
 
     /**

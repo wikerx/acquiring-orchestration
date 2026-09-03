@@ -25,6 +25,13 @@ import java.util.Objects;
  */
 public final class SettlementAmountCalculator {
 
+    /**
+     * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
 
     /**
@@ -55,6 +62,15 @@ public final class SettlementAmountCalculator {
         return new ConversionResult(converted, netAmount, targetNet);
     }
 
+    /**
+     * 从批次矩阵取得源币种到目标币种的唯一直接汇率，并校验两端 exponent 与金额事实一致。
+     *
+     * @param sourceAmount 待换算原币种金额
+     * @param targetCurrency 批次目标币种
+     * @param targetCurrencyExponent 目标币种 exponent
+     * @param rateMatrix 批次不可变汇率矩阵
+     * @return 可直接用于乘法换算的锁定汇率
+     */
     static LockedRate requireRate(Money sourceAmount,
                                   String targetCurrency,
                                   int targetCurrencyExponent,
@@ -70,6 +86,13 @@ public final class SettlementAmountCalculator {
         return rate;
     }
 
+    /**
+     * 校验计算命令与批次汇率矩阵使用同一目标币种和 exponent，防止批次内目标口径漂移。
+     *
+     * @param targetCurrency 计算命令目标币种
+     * @param targetCurrencyExponent 计算命令目标币种 exponent
+     * @param rateMatrix 批次不可变汇率矩阵
+     */
     static void requireTarget(String targetCurrency, int targetCurrencyExponent, RateMatrix rateMatrix) {
         Objects.requireNonNull(rateMatrix, "rate matrix is required");
         if (!targetCurrency.equals(rateMatrix.targetCurrency())) {

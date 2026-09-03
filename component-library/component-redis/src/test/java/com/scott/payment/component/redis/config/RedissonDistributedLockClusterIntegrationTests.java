@@ -21,7 +21,13 @@ import java.util.concurrent.Future;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 使用两个真实 Redisson Cluster 客户端验证统一锁的跨客户端互斥、可重入、租约和持有者保护。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedissonDistributedLockClusterIntegrationTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 使用两个真实 Redisson Cluster 客户端验证统一锁的跨客户端互斥、可重入、租约和持有者保护。
+ * @status : create
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EnabledIfSystemProperty(named = "redisson.redis.cluster.integration.enabled", matches = "true")

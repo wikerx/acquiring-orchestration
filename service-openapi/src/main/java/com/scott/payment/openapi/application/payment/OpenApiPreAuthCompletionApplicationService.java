@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
  * @classname : OpenApiPreAuthCompletionApplicationService
  * @date : 2026-07-26 00:00
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 预授权完成应用服务，位于 service-openapi 应用编排层，仅编排 pre-auth-completion 独立外部 API 到内部支付服务的调用。
+ * @description : openAPIpreauthcompletion应用服务，位于 商户开放接口服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
 @Service

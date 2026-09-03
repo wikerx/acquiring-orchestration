@@ -35,7 +35,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 商户交易查询展示规则测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JdbcMerchantTransactionQueryServiceTests
+ * @date : 2026-09-01 23:20
+ * @email : scott_x@163.com
+ * @description : 验证商户交易查询、导出分页和展示富化始终绑定可信商户身份
+ * @status : create
  */
 class JdbcMerchantTransactionQueryServiceTests {
 
@@ -200,7 +206,12 @@ class JdbcMerchantTransactionQueryServiceTests {
         when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenAnswer(invocation -> {
                     String sql = invocation.getArgument(0, String.class);
-                    if (sql.contains("SELECT o.*") && sql.contains("FROM transaction_operation o")) {
+                    if (sql.contains("FROM transaction_operation o") && sql.contains("LIMIT :offset, :limit")) {
+                        assertThat(sql).doesNotContain("SELECT o.*");
+                        assertThat(sql).contains(
+                                "transaction_rate", "settlement_currency", "settlement_amount",
+                                "settlement_rate", "settlement_date", "settlement_batch_no",
+                                "settlement_status");
                         return List.of(firstOperation, secondOperation);
                     }
                     if (sql.contains("FROM transaction_order")) {
@@ -235,6 +246,12 @@ class JdbcMerchantTransactionQueryServiceTests {
             String sql = sqlCaptor.getAllValues().get(index);
             if (sql.contains("FROM transaction_order")) {
                 lifecycleIndexes.add(index);
+                assertThat(sql).doesNotContain("SELECT *");
+                assertThat(sql).contains(
+                        "transaction_date_time", "settlement_currency", "settlement_amount",
+                        "settlement_rate", "settlement_date", "settlement_batch_no",
+                        "settlement_transaction_id", "settlement_transaction_date_time",
+                        "settlement_status");
                 assertThat(sql).contains("merchant_id = :merchantId");
                 assertThat(sql).contains("operation_id IN (:operationIds)");
                 assertThat(sql).contains("transaction_date_time >= :registeredNodeBegin");

@@ -1524,16 +1524,6 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         return sourceUrl.substring(0, queryIndex) + "?...";
     }
 
-    /**
-     * 判断支付风控评估请求是否缺少最小必填字段。
-     * <p>
-     * 前置条件：OpenAPI 或 payment 服务已经完成基础 DTO 反序列化。
-     * 该方法只检查风控决策必需的商户号、商户订单号、币种和正金额；不读取完整卡号、邮箱、手机号等敏感字段，
-     * 返回 true 时上层直接给出拒绝结论并记录原因码。
-     * </p>
-     * @param requestDTO 支付风控评估请求
-     * @return true 表示请求缺少必填字段或金额不合法
-     */
     private boolean isInvalid(RiskPaymentEvaluateRequestDTO requestDTO) {
         return requestDTO == null
                 || !StringUtils.hasText(requestDTO.getMerchantId())

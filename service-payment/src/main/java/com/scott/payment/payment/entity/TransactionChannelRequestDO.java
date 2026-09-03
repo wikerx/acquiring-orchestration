@@ -24,15 +24,14 @@ public class TransactionChannelRequestDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @TableId(type = IdType.AUTO)
     /**
-     * Transaction Channel Request DO 数据库主键，用于唯一标识当前记录。
+     * {@code TransactionChannelRequestDO} 数据库主键，用于唯一标识当前记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     /**

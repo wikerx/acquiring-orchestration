@@ -39,11 +39,26 @@ import java.util.StringJoiner;
 @Service
 public class JdbcAdminClearingQueryService implements AdminClearingQueryService {
 
+    /**
+     * 默认页大小，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final Set<String> CLEARING_STATUSES = Set.of(
             "NOT_CLEARED", "PENDING", "PROCESSING", "WAITING_SOURCE", "FAILED",
             "MANUAL_REVIEW", "CLEARED", "NOT_REQUIRED");
 
+    /**
+     * {@code FINANCE_FROM_SQL}常量，统一 {@code JdbcAdminClearingQueryService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String FINANCE_FROM_SQL = "FROM transaction_finance_state f\n";
 
     private static final String SUMMARY_FROM_SQL = FINANCE_FROM_SQL + """

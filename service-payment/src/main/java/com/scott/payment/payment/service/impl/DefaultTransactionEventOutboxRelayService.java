@@ -125,7 +125,7 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         }
     }
 
-    /** 从所有已发布季度汇总交易 Outbox 状态并刷新 Gauge。 */
+    /** {@inheritDoc} 本实现从所有已发布季度汇总交易 Outbox 状态并刷新 Gauge。 */
     @Override
     public void refreshMetrics(List<LocalDateTime> publishedQuarters) {
         long init = 0L;
@@ -354,16 +354,6 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
-    /**
-     * 从本地事件表载荷恢复 MQ 消息体。
-     * <p>
-     * 前置条件：eventDO 来自 transaction_event_outbox 分表，payloadJson 可能是历史版本消息。
-     * 该方法优先反序列化为明确消息类型；载荷为空、畸形或无法识别时抛出异常并进入 Outbox 重试，
-     * 禁止发送缺失交易身份的空事件。
-     * </p>
-     * @param eventDO 本地事件表记录，提供 payloadJson、topic、tag 和业务标识
-     * @return 可交给 MQ 生产者发送的基础消息
-     */
     private BaseMqMessage buildMessage(TransactionEventOutboxDO eventDO) {
         if (MqTag.TRANSACTION_CLEARING_RETRY_DUE.equals(eventDO.getTag())) {
             ClearingRetryDueMessage retryMessage = JsonUtils.parseObject(

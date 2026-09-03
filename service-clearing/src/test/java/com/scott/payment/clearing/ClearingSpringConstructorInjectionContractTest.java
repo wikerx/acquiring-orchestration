@@ -28,7 +28,15 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-/** Spring 生产构造器选择契约，防止测试辅助构造器破坏服务启动。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingSpringConstructorInjectionContractTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Spring 生产构造器选择契约，防止测试辅助构造器破坏服务启动。
+ * @status : create
+ */
 class ClearingSpringConstructorInjectionContractTest {
 
     @Test

@@ -8,7 +8,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 查询 Hosted Checkout 会话内部结果。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutSessionQueryResultDTO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 查询 Hosted Checkout 会话内部结果。
+ * @status : create
  */
 @Data
 public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
@@ -36,6 +42,15 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
     /** 仅可支付状态下发的卡数据加密公钥元数据和一次性 nonce。 */
     private CardEncryptionDTO cardEncryption;
 
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : CardEncryptionDTO
+     * @date : 2026-09-02 08:03
+     * @email : scott_x@163.com
+     * @description : 卡encryption传输模型，承载当前接口或跨层调用所需字段，不直接执行状态写入。
+     * @status : create
+     */
     @Data
     public static class CardEncryptionDTO implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -49,36 +64,215 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
         private String nonce;
     }
 
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : PayerInfoDTO
+     * @date : 2026-09-02 08:03
+     * @email : scott_x@163.com
+     * @description : payer信息传输模型，承载当前接口或跨层调用所需字段，不直接执行状态写入。
+     * @status : create
+     */
     @Data
     public static class PayerInfoDTO implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * {@code payerId}，用于定位 {@code PayerInfoDTO} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String payerId;
+        /**
+         * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String email;
+        /**
+         * 首个名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String firstName;
+        /**
+         * {@code lastName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String lastName;
+        /**
+         * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String phone;
+        /**
+         * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
+         * <p>
+         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String country;
+        /**
+         * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String state;
+        /**
+         * 城市，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String city;
+        /**
+         * 街道，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String street;
+        /**
+         * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String postal;
+        /**
+         * {@code ipAddress}字段，保存 {@code PayerInfoDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String ipAddress;
+        /**
+         * {@code sessionId}，用于定位 {@code PayerInfoDTO} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String sessionId;
+        /**
+         * {@code browserInfo}字段，保存 {@code PayerInfoDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private java.util.Map<String, Object> browserInfo;
+        /**
+         * {@code userAgent}字段，保存 {@code PayerInfoDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String userAgent;
     }
 
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : BillingInfoDTO
+     * @date : 2026-09-02 08:03
+     * @email : scott_x@163.com
+     * @description : 账单信息传输模型，承载当前接口或跨层调用所需字段，不直接执行状态写入。
+     * @status : create
+     */
     @Data
     public static class BillingInfoDTO implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 首个名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String firstName;
+        /**
+         * {@code lastName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String lastName;
+        /**
+         * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String email;
+        /**
+         * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String phone;
+        /**
+         * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
+         * <p>
+         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String country;
+        /**
+         * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String state;
+        /**
+         * 城市，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String city;
+        /**
+         * 街道，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String street;
+        /**
+         * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String postal;
     }
 

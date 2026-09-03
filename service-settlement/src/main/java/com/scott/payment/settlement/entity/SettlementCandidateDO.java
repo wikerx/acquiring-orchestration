@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 @Data
 @TableName("settlement_candidate")
 public class SettlementCandidateDO {
+    /** 结算候选数据库主键，插入前允许为空。 */
     @TableId(type = IdType.AUTO)
     private Long id;
     /** 候选稳定业务号。 */
@@ -50,12 +51,18 @@ public class SettlementCandidateDO {
     private Integer shadowMode;
     /** 当前独占候选的结算批次号。 */
     private String settlementBatchNo;
+    /** 当前独占候选的预审单号；审批消费后保留为审计引用。 */
+    private String reviewOrderNo;
+    /** 预审独占锁定时间。 */
+    private LocalDateTime reviewLockedTime;
     /** 最近认领时间。 */
     private LocalDateTime claimedTime;
     /** 资金入账完成时间。 */
     private LocalDateTime postedTime;
     /** 认领状态 CAS 版本。 */
     private Long version;
+    /** 候选创建时间，数据库精度为毫秒。 */
     private LocalDateTime createTime;
+    /** 候选最近更新时间，数据库精度为毫秒。 */
     private LocalDateTime updateTime;
 }

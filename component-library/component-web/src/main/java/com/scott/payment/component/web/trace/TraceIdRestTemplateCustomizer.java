@@ -18,24 +18,14 @@ import java.util.List;
 public class TraceIdRestTemplateCustomizer {
 
     /**
-     * interceptor 依赖，用于 Trace ID Rest Template Customizer 调用对应的数据访问、远程调用或领域服务能力。
+     * {@code interceptor} 依赖，用于 {@code TraceIdRestTemplateCustomizer} 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final TraceIdRestTemplateInterceptor interceptor;
 
-    /**
-     * 规范化traceIDresttemplatecustomizer，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param interceptor interceptor 输入值，参与 interceptor 的查询、校验、转换、写入或日志摘要
-     */
     public TraceIdRestTemplateCustomizer(TraceIdRestTemplateInterceptor interceptor) {
         this.interceptor = interceptor;
     }

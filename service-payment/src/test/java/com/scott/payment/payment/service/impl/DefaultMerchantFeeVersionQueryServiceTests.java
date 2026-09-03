@@ -21,7 +21,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** Payment merchant fee version read-boundary tests. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantFeeVersionQueryServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Payment merchant fee version read-boundary tests.
+ * @status : create
+ */
 class DefaultMerchantFeeVersionQueryServiceTests {
 
     @Test

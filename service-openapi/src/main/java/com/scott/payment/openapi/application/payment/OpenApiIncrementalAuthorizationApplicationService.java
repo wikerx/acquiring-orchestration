@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
  * @classname : OpenApiIncrementalAuthorizationApplicationService
  * @date : 2026-07-14 19:20
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 增量授权应用服务，位于 service-openapi 应用编排层，仅编排 incremental-authorization 独立外部 API 到内部支付服务的调用。
+ * @description : openAPIincremental授权应用服务，位于 商户开放接口服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
 @Service

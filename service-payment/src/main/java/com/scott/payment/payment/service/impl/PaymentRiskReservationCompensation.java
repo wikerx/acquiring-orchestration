@@ -8,7 +8,13 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * 支付本地准备事务回滚后的风控预占补偿。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentRiskReservationCompensation
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 支付本地准备事务回滚后的风控预占补偿。
+ * @status : create
  */
 @Slf4j
 public class PaymentRiskReservationCompensation {

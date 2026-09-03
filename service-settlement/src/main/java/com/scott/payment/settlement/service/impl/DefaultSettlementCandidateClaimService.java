@@ -35,6 +35,14 @@ import java.util.Objects;
 @Service
 public class DefaultSettlementCandidateClaimService implements SettlementCandidateClaimService {
 
+    /**
+     * {@code CLAIMED_RELATION_STATUS}，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final String CLAIMED_RELATION_STATUS = "CLAIMED";
 
     private final SettlementBatchMapper batchMapper;
@@ -93,7 +101,9 @@ public class DefaultSettlementCandidateClaimService implements SettlementCandida
         SettlementBatchCandidateDO stored = relationMapper.selectByBatchAndCandidateForUpdate(
                 batch.getSettlementBatchNo(), candidate.getId());
         verifyRelation(stored, expected);
-        if (batchMapper.incrementCandidateCount(batch.getSettlementBatchNo(), batch.getVersion()) != 1) {
+        int projectableDelta = "CLEARING_REVISION".equals(candidate.getSourceType()) ? 1 : 0;
+        if (batchMapper.incrementCandidateCount(batch.getSettlementBatchNo(), projectableDelta,
+                batch.getVersion()) != 1) {
             throw new IllegalStateException("settlement batch candidate count CAS failed");
         }
         return new SettlementCandidateClaimResult(
@@ -103,9 +113,11 @@ public class DefaultSettlementCandidateClaimService implements SettlementCandida
                 stored.getBatchCandidateNo());
     }
 
+    /** 锁读并校验批次仍允许追加候选且关键维度和版本完整。 */
     private SettlementBatchDO requireClaimableBatch(String settlementBatchNo) {
         SettlementBatchDO batch = batchMapper.selectByBatchNoForUpdate(settlementBatchNo);
-        if (batch == null || batch.getBatchStatus() == null || batch.getVersion() == null) {
+        if (batch == null || batch.getBatchStatus() == null || batch.getVersion() == null
+                || batch.getProjectableCandidateCount() == null) {
             throw new IllegalStateException("settlement batch does not exist or has no version");
         }
         SettlementBatchStatus status;
@@ -120,6 +132,7 @@ public class DefaultSettlementCandidateClaimService implements SettlementCandida
         return batch;
     }
 
+    /** 识别候选和关系均已属于同批次的合法重放，其他部分归属一律拒绝。 */
     private SettlementCandidateClaimResult alreadyClaimed(SettlementCandidateClaimCommand command,
                                                           SettlementCandidateDO candidate) {
         if (!Objects.equals(candidate.getSettlementBatchNo(), command.settlementBatchNo())) {
@@ -137,6 +150,7 @@ public class DefaultSettlementCandidateClaimService implements SettlementCandida
                 relation.getBatchCandidateNo());
     }
 
+    /** 校验候选 READY、版本匹配、非影子且未被批次或预审占用。 */
     private void requireReadyCandidate(SettlementCandidateClaimCommand command,
                                        SettlementBatchDO batch,
                                        SettlementCandidateDO candidate) {
@@ -163,10 +177,10 @@ public class DefaultSettlementCandidateClaimService implements SettlementCandida
         }
     }
 
+    /** 校验 REGULAR、RESERVE_RELEASE 或 ADJUSTMENT 批次只认领对应来源候选。 */
     private void requireSourceCompatible(SettlementBatchDO batch, SettlementCandidateDO candidate) {
         boolean compatible = switch (batch.getBatchType() == null ? "" : batch.getBatchType()) {
-            case "REGULAR" -> "CLEARING_REVISION".equals(candidate.getSourceType())
-                    || "ADJUSTMENT".equals(candidate.getSourceType());
+            case "REGULAR" -> "CLEARING_REVISION".equals(candidate.getSourceType());
             case "RESERVE_RELEASE" -> "RESERVE_RELEASE".equals(candidate.getSourceType());
             case "ADJUSTMENT" -> "ADJUSTMENT".equals(candidate.getSourceType());
             default -> false;
@@ -176,6 +190,7 @@ public class DefaultSettlementCandidateClaimService implements SettlementCandida
         }
     }
 
+    /** 构造批次候选不可删除关系并冻结来源身份。 */
     private SettlementBatchCandidateDO relation(SettlementBatchDO batch,
                                                 SettlementCandidateDO candidate,
                                                 SettlementCandidateClaimCommand command) {
@@ -194,6 +209,7 @@ public class DefaultSettlementCandidateClaimService implements SettlementCandida
         return row;
     }
 
+    /** 对关系唯一键重放核对批次、候选和来源身份，拒绝碰撞。 */
     private void verifyRelation(SettlementBatchCandidateDO actual, SettlementBatchCandidateDO expected) {
         boolean matches = actual != null
                 && Objects.equals(actual.getBatchCandidateNo(), expected.getBatchCandidateNo())

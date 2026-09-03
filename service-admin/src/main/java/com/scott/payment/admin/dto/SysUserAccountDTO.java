@@ -6,16 +6,16 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysUserAccountDTO
  * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : Sys User Account DTO 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : Admin 系统用户账号 DTO，承载账号基础信息、组织归属、角色和登录安全状态。
  * @status : create
  */
+@Data
 public class SysUserAccountDTO {
 
     /**

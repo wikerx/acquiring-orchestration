@@ -88,13 +88,24 @@ public class ClearingRetryDueConsumer
         }
     }
 
-    /** 按清分配置调整 RocketMQ 消费线程，Delay Topic 不启用 FIFO 消费模式。 */
+    /**
+     * 按清分配置调整 RocketMQ 消费线程，Delay Topic 不启用 FIFO 消费模式。
+     *
+     * @param consumer 即将启动的清分延迟消息消费者
+     */
     @Override
     public void prepareStart(DefaultMQPushConsumer consumer) {
         consumer.setConsumeThreadMin(properties.getConsumerMinThreads());
         consumer.setConsumeThreadMax(properties.getConsumerMaxThreads());
     }
 
+    /**
+     * 反序列化清分到期重试消息；数据库修订和重试序号仍是是否执行的权威依据。
+     *
+     * @param payload Broker 投递的非敏感 JSON
+     * @return 非空清分重试消息
+     * @throws IllegalArgumentException 载荷为空、反序列化失败或结果为空时抛出
+     */
     private ClearingRetryDueMessage parse(String payload) {
         if (!StringUtils.hasText(payload)) {
             metrics.recordMessageRejected("RETRY_DUE", "EMPTY");
@@ -114,6 +125,7 @@ public class ClearingRetryDueConsumer
         return message;
     }
 
+    /** @return 本次数据库处理租约的唯一执行者标识。 */
     private String processingOwner() {
         return "service-clearing:" + idGenerator.nextId();
     }

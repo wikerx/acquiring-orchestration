@@ -58,7 +58,21 @@ import static com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels
 @Service
 public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationSnapshotService {
 
+    /**
+     * {@code CACHE_TTL}常量，统一 {@code DefaultFeeConfigurationSnapshotService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final Duration CACHE_TTL = Duration.ofDays(30);
+    /**
+     * {@code CACHE_JITTER_BOUND}常量，统一 {@code DefaultFeeConfigurationSnapshotService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long CACHE_JITTER_BOUND = Duration.ofDays(1).toSeconds() + 1;
 
     private final ClearingTransactionMerchantSnapshotMapper snapshotMapper;
@@ -186,6 +200,11 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return freeze(configuration, pricingLockTime);
     }
 
+    /**
+     * 读取交易已冻结的费用快照并同时核对快照自带哈希和数据库哈希。
+     * <p>
+     * 任一身份或完整性校验失败都视为不可用，禁止用损坏快照继续资金计算。
+     */
     private FeeVersionSnapshot readFrozen(ClearingTransactionMerchantSnapshotDO row) {
         if (!StringUtils.hasText(row.getFeeConfigSnapshotJson())) {
             return null;
@@ -209,6 +228,11 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
+    /**
+     * 从按不可变版本号寻址的缓存读取费用配置，并验证规范 JSON 摘要及商户/版本身份。
+     * <p>
+     * 缓存只承担加速作用；解析、摘要或身份失败统一返回未命中，由精确版本数据库查询兜底。
+     */
     private FeeVersionConfigurationDTO readCached(ClearingTransactionMerchantSnapshotDO row) {
         try {
             String value = redisTemplate.opsForValue().get(versionKey(row.getFeePlanVersionId()));
@@ -229,6 +253,11 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
+    /**
+     * 按交易冻结的费用方案版本精确查询，先读从库、失败或未命中再回主库。
+     * <p>
+     * 绝不回退到“当前生效版本”，否则历史交易会因配置更新产生不可重放的费用差异。
+     */
     private FeeVersionConfigurationDTO loadExactVersion(ClearingTransactionMerchantSnapshotDO row) {
         FeeVersionConfigurationDTO configuration = null;
         try {
@@ -254,6 +283,11 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return configuration;
     }
 
+    /**
+     * 将费用版本转换为不可变计算快照并生成规范 SHA-256 摘要。
+     * <p>
+     * 百分比项固定按标签币种和标签金额计算，固定单笔费及最低/最高限制继续使用 USD；冻结过程不得改变既有费用口径。
+     */
     private FeeVersionSnapshot freeze(FeeVersionConfigurationDTO configuration, LocalDateTime lockTime) {
         ReservePolicySnapshot reserve = new ReservePolicySnapshot(
                 configuration.reserveRate(), ReserveBasis.LABEL_AMOUNT,
@@ -274,6 +308,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                 material.rules(), hash);
     }
 
+    /** 排除 snapshotHash 自身后重建规范哈希材料，用于校验持久化快照未被修改。 */
     private String hash(FeeVersionSnapshot snapshot) {
         FeeSnapshotHashMaterial material = new FeeSnapshotHashMaterial(
                 snapshot.schemaVersion(), snapshot.merchantId(), snapshot.feePlanId(),
@@ -283,6 +318,11 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return sha256(canonicalJson(material));
     }
 
+    /**
+     * 写入带规范载荷哈希和随机抖动 TTL 的不可变版本缓存。
+     * <p>
+     * Redis 写失败只影响性能，不能改变主库精确版本读取和资金计算结果。
+     */
     private void writeCached(FeeVersionConfigurationDTO configuration) {
         try {
             FeeVersionCacheEntryDTO entry = new FeeVersionCacheEntryDTO(
@@ -296,6 +336,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
+    /** 数据库快照行必须与请求商户、动作、费用版本和分片时间完全一致。 */
     private void validateRowIdentity(ClearingTransactionMerchantSnapshotDO row,
                                      String merchantId,
                                      String operationId,
@@ -320,6 +361,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
+    /** 反序列化后的快照身份必须与动作冻结列及 SHA-256 一致。 */
     private void validateSnapshotIdentity(FeeVersionSnapshot snapshot,
                                           ClearingTransactionMerchantSnapshotDO row) {
         if (snapshot == null || !Objects.equals(snapshot.merchantId(), row.getMerchantId())
@@ -331,6 +373,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
+    /** 缓存或主从降级配置只能返回请求中的确切不可变版本。 */
     private void validateConfigurationIdentity(FeeVersionConfigurationDTO configuration,
                                                ClearingTransactionMerchantSnapshotDO row) {
         if (configuration == null) {
@@ -358,6 +401,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return keyResolver.businessKey("fee", "version", String.valueOf(versionId));
     }
 
+    /** 使用字段顺序稳定的专用 ObjectMapper 序列化哈希材料，禁止替换为普通业务 JSON 配置。 */
     private String canonicalJson(Object value) {
         try {
             return canonicalMapper.writeValueAsString(value);
@@ -366,6 +410,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
+    /** 对 UTF-8 规范 JSON 计算小写十六进制 SHA-256 摘要。 */
     private String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -375,6 +420,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
+    /** 以固定时间摘要比较校验费用快照完整性，避免普通字符串比较泄露逐字符匹配信息。 */
     private boolean constantTimeEquals(String expected, String actual) {
         return expected != null && actual != null && MessageDigest.isEqual(
                 expected.getBytes(StandardCharsets.US_ASCII),

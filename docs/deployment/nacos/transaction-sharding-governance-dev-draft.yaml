@@ -1,33 +1,58 @@
 # 交易季度物理表治理非秘密配置草案。
 # 仅供 Job/Admin 治理链路评审；未经确认不得发布，也不得据此自动 ALTER 既有表。
 transaction-sharding:
+  # 下列治理配置只负责模板、物理表预建、结构比对和号段规划，不直接替代 ShardingSphere actualDataNodes。
   governance:
+    # 参数说明：物理表按季度治理；路由字段所在季度决定目标表后缀。
     strategy: quarter
+    # 参数说明：统一季度路由字段，写入、查询和预建校验必须使用同一字段。
     sharding-column: transaction_date_time
+    # 参数说明：季度边界和物理表后缀计算使用的 IANA 时区，必须与数据库时区一致。
     database-timezone: Asia/Shanghai
+    # 参数说明：距离协议结束范围不足该季度数时触发告警，单位为季度。
     expiry-warning-quarters: 4
+    # 参数说明：Admin 和 Job 向前展示/预检的滚动规划窗口，单位为季度；不等于一次性建表数量。
     planning-horizon-quarters: 8
 
+    # 物理表维护只允许小步预建和结构比对；第一版发现结构差异只告警，不自动 ALTER。
     table-maintenance:
+      # 参数说明：是否启用物理表治理任务；关闭后只保留配置展示，不允许自动预建表。
       enabled: true
+      # 参数说明：是否检查并预建当前季度的全部逻辑表物理表。
       pre-create-current-quarter: true
+      # 参数说明：是否检查并预建下一季度的全部逻辑表物理表，避免季度切换时缺表。
       pre-create-next-quarter: true
+      # 参数说明：目标表已存在时是否与模板表比较字段、索引和默认值。
       compare-schema-if-exists: true
+      # 参数说明：DDL 固定使用的可写数据源，禁止改为 slave 或只读连接。
       ddl-data-source: master
+      # 参数说明：建表后是否按 yyyyQQ 前缀规则设置 AUTO_INCREMENT 起始值。
       set-auto-increment-start-value: true
+      # 参数说明：季度前缀后的自增序列位数，必须与 id-generator.sequence-width 一致。
       auto-increment-sequence-width: 12
+      # 参数说明：是否允许通过 CREATE TABLE target LIKE template 创建季度物理表。
       allow-create-from-template-table: true
+      # 参数说明：是否允许自动 ALTER 已存在的物理表；资金系统默认 false，差异必须人工审核迁移。
       allow-alter-existing-table: false
 
+    # 主键号段使用季度前缀加 MySQL 自增序列，避免跨季度物理表主键冲突。
     id-generator:
+      # 参数说明：主键生成模式；当前由 MySQL AUTO_INCREMENT 承担序列分配。
       mode: mysql-auto-increment-prefix
+      # 参数说明：主键时间前缀格式，yyyyQQ 中 QQ 为两位季度编号。
       prefix-format: yyyyQQ
+      # 参数说明：季度前缀后的序列位数，必须与表维护配置一致。
       sequence-width: 12
+      # 参数说明：每张新季度物理表的起始序列，必须大于等于 1。
       start-sequence: 1
+      # 参数说明：单季度单表允许的最大序列号，不能超过 sequence-width 可表达范围。
       max-sequence: 999999999999
 
     # 规则范围是滚动治理窗口，不等于 ShardingSphere actualDataNodes。
     # actualDataNodes 只能由预建任务对 28 张表全部校验通过后生成。
+    # 表字段字典：enabled 控制该表是否参与治理；logical-table 是业务逻辑表；template-table 是建表模板；
+    # start/end-year 与 start/end-quarter 定义协议允许范围（季度有效值 1-4）；actual-data-source 指定 DDL 可写主库。
+    # 列表中每张表均使用相同字段语义，任何表名、范围或数据源变更都必须同步正式 sharding DataId 和 checksum。
     tables:
       transaction_order:
         enabled: true

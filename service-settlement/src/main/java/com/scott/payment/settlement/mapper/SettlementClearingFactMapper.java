@@ -35,6 +35,21 @@ public interface SettlementClearingFactMapper {
     List<SettlementCandidateDO> selectClaimedCandidates(
             @Param("settlementBatchNo") String settlementBatchNo);
 
+    /** 按预审不可删除关系读取仍被该预审单独占的候选。 */
+    @Select("""
+            SELECT candidate.*
+            FROM settlement_review_candidate relation
+            INNER JOIN settlement_candidate candidate
+                    ON candidate.id = relation.candidate_id
+                   AND candidate.review_order_no = relation.review_order_no
+                   AND candidate.candidate_status = 'REVIEW_LOCKED'
+            WHERE relation.review_order_no = #{reviewOrderNo}
+              AND relation.relation_status = 'LOCKED'
+            ORDER BY candidate.id ASC
+            """)
+    List<SettlementCandidateDO> selectReviewLockedCandidates(
+            @Param("reviewOrderNo") String reviewOrderNo);
+
     /** 在一个 SQL 中精确读取全部交易清分修订，禁止按交易号逐条查询。 */
     @Select("""
             <script>

@@ -10,7 +10,7 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantMenuGrantSaveRequest;
  * @classname : AdminMerchantMenuGrantService
  * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : Admin Merchant Menu Grant Service 服务契约，位于 运营后台服务，声明当前业务能力的输入、返回结果和异常边界，由实现类保持一致。
+ * @description : admin商户菜单授权服务契约，位于 运营后台服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  * @status : create
  */
 public interface AdminMerchantMenuGrantService {

@@ -15,6 +15,10 @@
 - [20260826_08_settlement_posting_migration.sql](../sql/20260826_08_settlement_posting_migration.sql)
 - [20260826_09_settlement_posting_postcheck.sql](../sql/20260826_09_settlement_posting_postcheck.sql)
 
+结算管理、预审审批、Admin 与 Merchant 权限和数据查看范围见：
+
+- [收单交易结算管理详细设计](transaction-settlement-management-design.md)
+
 本文以当前代码和架构为基线：
 
 1. 交易事实表由 ShardingSphere-JDBC 逻辑表访问，按 `transaction_date_time` 和
@@ -1451,7 +1455,7 @@ clearing:
 | 第四阶段：清分服务 | 本地核心链路已实现，环境未部署 | `service-clearing`、费用与保证金清分、失败恢复、延时重试、查询投影、异常案件、Metrics 和完成事件 | 真实交易、Broker 重复投递、主从延迟和多实例并发验收 |
 | 第五阶段：补偿和管理 | 本地实现且菜单权限已落库 | Job 补偿、内部 HMAC、清分查询、人工重试/复核/重算、保证金双人调整、阶梯期间重放、Admin 菜单和权限 | 真实登录权限、自动调度和数据库/Broker 故障演练 |
 | 第六阶段：结算候选与自动处理 | 本地实现且数据库结构已落地 | 非影子候选激活、最多 1000 条有界认领、数据库批次号、租约和自动调度 | 真实日切候选、跨币种汇率源和压测验收 |
-| 第七阶段：结算与资金提交 | 本地实现且数据库结构已落地 | 统一汇率、结果聚合、唯一净入账、保证金资金化、交易投影、Outbox、取消和独立冲正 | 完整回归及真实账户、汇率、MQ、缓存联动验收 |
+| 第七阶段：结算与资金提交 | 主流程本地实现且数据库结构已落地，仍有 P0 一致性缺口 | 统一汇率、结果聚合、唯一净入账、`HOLD/RETURN/RELEASE` 保证金资金化、真实交易投影、Outbox、取消和独立冲正 | 修复保证金释放伪交易投影、`ADJUSTMENT` 资金化、人工流水审计后，再做完整回归及真实账户、汇率、MQ、缓存联动验收 |
 
 当前外部环境门禁完成前不得将 `service-clearing` 或 `service-settlement` 放行到 UAT/生产。两个服务没有独立业务开关，
 启动后消费者和调度器会自动运行。本地开发库迁移通过不代表 Nacos、Broker、监控和真实资金链路已经完成生产验收。
@@ -2015,8 +2019,8 @@ UTC 审计时间、候选到期日、影子隔离、依赖门禁、同批重试�
 2. 清分完成仍先生成修订级 `settlement_candidate`。自动激活只接受 `shadow_mode=1`、`READY`、未归属批次、
    结算档案唯一有效且目标账户为同商户正常账户的候选，再以候选 `id + version + merchant_id + 目标币种维度`
    批量 CAS 切换为真实候选。结算不重新读取费用模板或商户费用配置，只消费已经冻结完成的清分事实。
-3. 自动日批按商户结算档案的 IANA 时区和日切点计算最近成熟业务日。请求键固定为
-   `AUTO:REGULAR:{settlementProfileId}:{businessDate}`；批次号继续由 transaction 主库日序列表生成
+3. 自动日批按商户结算档案的 IANA 时区和日切点计算最近成熟业务日。该阶段历史实现使用按档案和业务日固定的
+   请求键；为避免历史取消批次被后续调度重复认领，当前请求键规则已由第 38 节替代。批次号继续由 transaction 主库日序列表生成
    `SByyyyMMdd-NNNNNNNN`，展示时格式化为 `yyyy-MM-dd NNNNNNNN`。服务停机期间的积压由最近成熟日批承接，
    不创建没有候选的空日批。
 4. 候选批量认领仍使用 `READY + shadow_mode=0 + settlement_batch_no IS NULL + version` 数据库 CAS，关系表
@@ -2088,10 +2092,13 @@ UTC 审计时间、候选到期日、影子隔离、依赖门禁、同批重试�
    `LEDGER_POSTING / NET_SETTLEMENT`，资金流水业务类型为 `TRANSACTION_SETTLEMENT`。
 2. `merchant_fund_account` 使用行锁和版本 CAS，`merchant_fund_ledger.idempotency_key` 提供最终资金幂等；
    Redis 只用于内部接口 nonce 防重放，不作为余额或结算幂等事实。
-3. 保证金按原标签币种记录 `HOLD/RETURN/RELEASE` 及相反冲正动作，不参与结算汇率；保证金释放资金流水使用
-   `RESERVE_SETTLEMENT`，并通过不可变 `merchant_reserve_action` 防止重复资金化。
-4. 入账后按交易动作生成可靠投影任务，更新 `transaction_finance_state` 和 `transaction_operation` 的结算查询状态，
-   再追加按 `operation_id` 保序的结算 Outbox；投影和 Outbox 均使用数据库状态、租约和指数退避恢复。
+3. 保证金台账按原标签币种记录 `HOLD/RETURN/RELEASE` 及相反冲正动作，本身不保存结算汇率；其对商户可用
+   余额的影响仍使用所在正式批次统一汇率换算为目标结算币种。保证金释放资金流水使用 `RESERVE_SETTLEMENT`，
+   并通过不可变 `merchant_reserve_action` 防止重复资金化。当前资金化尚不接受清分已支持的 `ADJUSTMENT`。
+4. 入账后只应为 `source_type=CLEARING_REVISION` 的真实交易动作生成可靠投影任务，更新
+   `transaction_finance_state` 和 `transaction_operation` 的结算查询状态，再追加按 `operation_id` 保序的结算
+   Outbox；投影和 Outbox 均使用数据库状态、租约和指数退避恢复。`RESERVE_RELEASE` 的 `RRL...` 合成号和纯
+   保证金 `ADJUSTMENT` 不是交易号，不得生成交易投影。
 5. 入账前取消只释放候选并保留批次审计；入账后冲正创建独立 `REVERSAL` 批次、相反资金流水和相反保证金动作，
    不覆盖原批次、原结果、原资金流水或原清分事实。
 6. Admin 提供结算批次游标查询、详情、取消和冲正接口与页面；命令要求原因、请求幂等键和预期版本，权限分别为
@@ -2099,3 +2106,60 @@ UTC 审计时间、候选到期日、影子隔离、依赖门禁、同批重试�
 7. 本地 `payment_acquiring` 已按前检、清分兼容、28 表拓扑、结算 Phase A、资金提交、各阶段后检和菜单权限顺序
    完成迁移。清分/结算后检的缺失、重复、孤儿、金额守恒和档案覆盖计数均为 0；7 个正常资金账户均已生成
    1 条 ACTIVE 结算档案，`SUPER_ADMIN` 已获得 4 项结算菜单和 4 项结算权限。
+
+### 36.1 当前资金阶段必须补齐的一致性缺口
+
+1. 当前入账对每个批次候选创建 `settlement_projection_task`，并校验任务数等于 `candidate_count`；
+   `RESERVE_RELEASE` 候选使用不存在于 `transaction_operation` 的 `RRL...` 合成号，因此会在资金已入账后永久
+   投影失败。入账和冲正都必须改为按“真实 `CLEARING_REVISION` 候选数”创建和校验投影任务。
+2. 清分已通过双人复核生成保证金 `ADJUSTMENT` 明细和候选，但当前资金化只接受 `HOLD/RETURN/RELEASE`，
+   `merchant_reserve_action` 的数据库约束也不接受 `ADJUSTMENT`。补齐 `debit_adjustment_amount`、
+   `credit_adjustment_amount`、动作方向、`ADJUSTMENT/REVERSAL_ADJUSTMENT` 和责任守恒前，必须禁止该类候选
+   自动封批或入账。
+3. 当前结算和直接冲正余额流水固定写 `operation_mode=AUTO`、`operator_name=service-settlement`。人工预审和
+   冲正复核落地时，必须写 `MANUAL`，并保存制单人、复核人、原因、意见及提交/复核时间快照。
+4. `settlement_result_item` 当前通过 `source_detail_no` 引用不可变清分事实，并保存换算公式，但未结构化保存
+   百分比、固定 USD、USD 上下限、费用版本和规则等全部展示快照。后续详情和导出应以清分明细为权威，增加
+   必要展示字段，不得回查当前费用配置替代历史事实。
+
+## 37. 结算一致性与独立冲正迭代记录（2026-08-31）
+
+本节取代第 36.1 节中前三项“待补齐”描述；第 36 节其余历史阶段记录保留用于追踪实现演进。
+
+1. `settlement_projection_task` 和反向投影任务只按 `settlement_batch_candidate.source_type=CLEARING_REVISION`
+   创建并校验。`RESERVE_RELEASE` 和纯保证金 `ADJUSTMENT` 不再使用合成业务号生成伪交易投影；冲正申请冻结时
+   再次核对可投影候选数、批次冻结计数和已完成原投影任务数。
+2. 交易结算投影同步更新 `transaction_finance_state`、`transaction_operation` 和 `transaction_order`。三层都保存
+   `settlement_status/currency/amount/rate/date/batch_no`；主单额外保存来源动作交易号和动作分片时间，按动作时间与
+   交易号稳定选择最新真实动作，旧任务不能覆盖新快照。
+3. 汇率只读取不可变 `settlement_batch_rate.direct_rate`，按 `DECIMAL(24,12)` 保存，金额按 `DECIMAL(24,8)`
+   保存。正常重放逐字段核对金额、币种、汇率、日期、批次和动作身份；冲正只改变状态与批次号，保留原结算事实。
+4. 直接浏览器冲正入口和 `settlement:batch:reverse` 单步骤授权已停用。`service-admin` 本地查询独立冲正单并校验
+   商户数据范围，注入可信 Maker/Checker、IP、User-Agent 和角色快照后，通过 HMAC 内部接口调用
+   `service-settlement`；申请人与审批人必须为不同账号。
+5. `settlement_reversal_order` 冻结原批次版本、净额结果、资金流水和保证金动作指纹。创建请求键、决策请求键、
+   冲正批次号和活动原批次均有数据库唯一约束；只有 `APPROVED` 决策可以调用内部 `reversePostedBatch`。
+6. `merchant_fund_ledger` 的人工预审和人工冲正流水写入 `MANUAL`，保留制单人、复核人、原因、意见和时间快照；
+   自动批次仍使用系统主体，两种审计口径不混用。
+7. 新增 `20260831_05_settlement_reversal_projection_migration.sql` 和
+   `20260831_06_settlement_reversal_projection_postcheck.sql`，覆盖冲正表、唯一约束、模板/季度物理表字段及三层
+   数据一致性后检。本轮只生成迁移与后检脚本，未连接或修改数据库，执行前仍需按部署顺序人工审核。
+8. 当前只完成 Admin/settlement 定向单测、SQL 契约和模块编译验证；尚未执行全仓完整回归、真实数据库迁移后检、
+   RocketMQ 顺序投递和缓存 generation 的环境联动验收，因此不能视为整个收单结算管理迭代已完成。
+9. 冲正资金流水继续按原净额的相反方向入账；反向交易投影任务冻结原动作 `settlement_amount` 和
+   `settlement_date`，并从原批次读取不可变直汇率，只把三层交易投影的状态和批次号推进为冲正结果。主结构文件
+   已同步模板、`202603`、`202604` 三组交易动作表、交易主单和财务状态表的完整结算字段及精度。
+
+## 38. 自动批次历史状态重放修复（2026-09-02）
+
+1. 自动 `AUTO_POST` 不再根据粗分组结果直接创建批次。每个分组必须先在 transaction 主库事务内按商户、冻结档案、
+   账户、目标币种、批次类型、成熟业务日、日切截止和依赖状态锁定一条真实 `READY` 候选；没有真实候选时不得创建
+   空批次。
+2. 自动批次请求键固定为
+   `AUTO:{batchType}:{settlementProfileId}:{businessDate}:{anchorCandidateId}:V{anchorVersion}`。候选取消释放时必须递增
+   version，因此新的合法认领不会复用已进入 `CANCELLED`、`POSTED` 或其他非认领状态的历史批次；同一候选和版本的
+   并发重试仍由 `UNIQUE(create_request_key)` 幂等收敛。
+3. 候选锚点锁、批次创建、分页候选 CAS、批次关系审计和封批处于同一 transaction 主库事务。单批最多认领 1000 条，
+   达到上限后剩余候选使用下一条真实锚点创建后续批次，不复用已封存批次身份。
+4. 单条和批量认领都必须附带 `review_order_no IS NULL`，防止自动结算抢占人工预审锁定候选。`CANCELLED` 状态仍不允许
+   候选认领，修复不得通过放宽状态机掩盖历史请求键冲突。

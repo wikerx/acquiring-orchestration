@@ -8,7 +8,13 @@ import java.time.Duration;
 import java.util.function.Supplier;
 
 /**
- * 支付服务单元测试使用的进程内锁替身，只用于构造不关注锁竞争的业务场景。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AlwaysAvailableDistributedLockService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 支付服务单元测试使用的进程内锁替身，只用于构造不关注锁竞争的业务场景。
+ * @status : create
  */
 class AlwaysAvailableDistributedLockService implements DistributedLockService {
 

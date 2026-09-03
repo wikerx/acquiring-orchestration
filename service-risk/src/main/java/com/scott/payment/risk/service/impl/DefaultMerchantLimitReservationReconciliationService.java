@@ -23,7 +23,13 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 根据 Redis marker 和 payment 事实恢复超时预占。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantLimitReservationReconciliationService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 根据 Redis marker 和 payment 事实恢复超时预占。
+ * @status : create
  */
 @Slf4j
 @Service

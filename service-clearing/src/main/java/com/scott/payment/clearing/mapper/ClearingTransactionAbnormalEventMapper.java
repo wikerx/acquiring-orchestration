@@ -7,7 +7,15 @@ import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 
-/** 清分异常案件 Mapper；所有写入和关闭操作都携带交易分片时间。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingTransactionAbnormalEventMapper
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 清分异常案件 Mapper；所有写入和关闭操作都携带交易分片时间。
+ * @status : update
+ */
 public interface ClearingTransactionAbnormalEventMapper {
 
     /** 相同清分异常重复出现时增加次数，已关闭案件重新打开。 */

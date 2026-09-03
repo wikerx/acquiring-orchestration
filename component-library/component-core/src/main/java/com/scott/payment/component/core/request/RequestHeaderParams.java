@@ -9,11 +9,11 @@ import java.util.Map;
 
 /**
  * @author : scott
- * @version ：v1.0.0
+ * @version : v1.0.0
  * @classname : RequestHeaderParams
  * @date : 2026-08-10 15:33
  * @email : scott_x@163.com
- * @description ：外部接口请求参数全信息读取
+ * @description : HTTP 请求元数据采集工具，统一脱敏 Header 和查询/Form 参数且不读取 JSON 请求体
  * @status : create
  */
 public class RequestHeaderParams {

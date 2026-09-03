@@ -55,13 +55,69 @@ import static com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels
 @Service
 public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVersionSnapshotService {
 
+    /**
+     * {@code CACHE_DOMAIN}，表示远程服务主机、商户域名或渠道访问域名。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CACHE_DOMAIN = "fee";
+    /**
+     * {@code VERSION_CACHE_BUSINESS}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String VERSION_CACHE_BUSINESS = "version";
+    /**
+     * {@code VERSION_MISS_CACHE_BUSINESS}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String VERSION_MISS_CACHE_BUSINESS = "version-miss";
+    /**
+     * {@code VERSION_CACHE_BASE_TTL}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final Duration VERSION_CACHE_BASE_TTL = Duration.ofDays(30);
+    /**
+     * {@code VERSION_CACHE_MAX_JITTER_SECONDS}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long VERSION_CACHE_MAX_JITTER_SECONDS = Duration.ofDays(1).toSeconds();
+    /**
+     * {@code VERSION_MISS_MIN_TTL_SECONDS}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long VERSION_MISS_MIN_TTL_SECONDS = 30L;
+    /**
+     * {@code VERSION_MISS_MAX_TTL_SECONDS}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long VERSION_MISS_MAX_TTL_SECONDS = 60L;
+    /**
+     * {@code MISS_MARKER}常量，统一 {@code DefaultMerchantFeeVersionSnapshotService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String MISS_MARKER = "1";
 
     private final MerchantFeeVersionQueryService queryService;
@@ -327,6 +383,12 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         }
     }
 
+    /**
+     * 使用常量时间摘要比较校验费用快照哈希，避免普通字符串比较泄露时序差异。
+     * @param expected 待比较的期望值和实际值；敏感摘要必须使用常量时间比较
+     * @param actual 待比较的期望值和实际值；敏感摘要必须使用常量时间比较
+     * @return 当前业务条件成立时返回 true，否则返回 false
+     */
     private boolean constantTimeEquals(String expected, String actual) {
         return expected != null && MessageDigest.isEqual(
                 expected.getBytes(StandardCharsets.US_ASCII),
@@ -348,7 +410,6 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                 "Merchant active fee configuration is unavailable");
     }
 
-    /** 排除 snapshotHash 后参与动作费用快照 SHA-256 的规范化结构。 */
     private record FeeSnapshotHashMaterial(
             int schemaVersion,
             String merchantId,

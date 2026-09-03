@@ -25,7 +25,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证低频 Job 对账会覆盖全部已发布季度，并且只补发 MQ 事件。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantNotificationRetryReconciliationServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证低频 Job 对账会覆盖全部已发布季度，并且只补发 MQ 事件。
+ * @status : create
+ */
 class MerchantNotificationRetryReconciliationServiceTests {
 
     @Test

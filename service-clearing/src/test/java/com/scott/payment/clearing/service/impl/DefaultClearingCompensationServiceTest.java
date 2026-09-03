@@ -20,6 +20,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingCompensationServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证清分补偿按独立事务逐条恢复、游标分页、影子执行和失败批次可观测性
+ * @status : create
+ */
 class DefaultClearingCompensationServiceTest {
 
     @Test

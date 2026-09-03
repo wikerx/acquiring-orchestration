@@ -21,7 +21,13 @@ import java.util.concurrent.Future;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 真实 Redis 下频控成功名额脚本的原子性和终态幂等集成测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultFrequencySuccessReservationServiceRedisIntegrationTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 真实 Redis 下频控成功名额脚本的原子性和终态幂等集成测试。
+ * @status : create
  */
 @EnabledIfSystemProperty(named = "risk.redis.standalone.integration.enabled", matches = "true")
 class DefaultFrequencySuccessReservationServiceRedisIntegrationTests {

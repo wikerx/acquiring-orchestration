@@ -40,7 +40,21 @@ import java.util.function.LongSupplier;
 @Service
 public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCallbackSecurityMaterialProvider {
 
+    /**
+     * 启用标识，表示当前配置项或业务能力的启停开关。
+     * <p>
+     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
+     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int ENABLED = 1;
+    /**
+     * {@code NOT_DELETED}常量，统一 {@code JdbcMerchantCallbackSecurityMaterialProvider} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int NOT_DELETED = 0;
 
     /** 共享非敏感密钥版本缓存。 */
@@ -191,8 +205,29 @@ public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCal
     /** 带到期点和访问顺序的 JVM 敏感材料缓存条目。 */
     private static final class CacheEntry {
 
+        /**
+         * 材料字段，保存 {@code CacheEntry} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private final MerchantCallbackSecurityMaterial material;
+        /**
+         * 缓存条目的单调时钟过期点，仅用于进程内过期判断，不可解释为墙上时间。
+         * <p>
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private final long expiresAtNanos;
+        /**
+         * 缓存条目最近访问顺序，用于容量淘汰，不参与商户安全材料版本判断。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         private volatile long lastAccessOrder;
 
         private CacheEntry(MerchantCallbackSecurityMaterial material,

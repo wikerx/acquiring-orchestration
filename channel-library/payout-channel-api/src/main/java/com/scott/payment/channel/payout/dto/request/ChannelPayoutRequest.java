@@ -12,6 +12,7 @@ import java.util.Map;
  * @version : v1.0.0
  * @classname : ChannelPayoutRequest
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 平台统一代付提交请求，仅包含跨 Provider 稳定字段和受控扩展参数。
  * @status : create
  */

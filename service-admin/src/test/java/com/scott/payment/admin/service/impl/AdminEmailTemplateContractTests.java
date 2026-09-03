@@ -14,7 +14,13 @@ import java.util.regex.Pattern;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 邮件模板初始化、迁移、触发变量和敏感字段的静态合同测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminEmailTemplateContractTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 邮件模板初始化、迁移、触发变量和敏感字段的静态合同测试。
+ * @status : create
  */
 class AdminEmailTemplateContractTests {
 

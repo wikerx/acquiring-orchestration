@@ -16,7 +16,15 @@ import java.util.Currency;
 import java.util.HexFormat;
 import java.util.Objects;
 
-/** 默认只读结算候选输出；当前候选固定带 shadow_mode=1，真实结算必须排除。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingSettlementCandidateService
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 默认只读结算候选输出；当前候选固定带 shadow_mode=1，真实结算必须排除。
+ * @status : update
+ */
 @Service
 public class DefaultClearingSettlementCandidateService implements ClearingSettlementCandidateService {
 
@@ -25,6 +33,7 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
         this.candidateMapper = candidateMapper;
     }
 
+    /** {@inheritDoc} */
     @Override
     public void create(String financeStateId, int revision, ClearingOperationFacts operation,
                        String settlementCurrency, LocalDate eligibleDate, LocalDateTime now) {
@@ -37,6 +46,7 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
         }
     }
 
+    /** {@inheritDoc} */
     @Override
     public void replace(String financeStateId, int oldRevision, int newRevision,
                         ClearingOperationFacts operation, String settlementCurrency,
@@ -68,6 +78,7 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
         create(financeStateId, newRevision, operation, settlementCurrency, eligibleDate, now);
     }
 
+    /** {@inheritDoc} */
     @Override
     public void createReserveRelease(String reserveStateId,
                                      int sourceRevision,
@@ -88,6 +99,7 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
         }
     }
 
+    /** {@inheritDoc} */
     @Override
     public void createAdjustment(String adjustmentNo,
                                  int sourceRevision,
@@ -108,6 +120,7 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
         }
     }
 
+    /** 将真实交易清分修订转换为 CLEARING_REVISION 候选。 */
     private ClearingSettlementCandidateDO clearingRevisionCandidate(String financeStateId,
                                                                      int revision,
                                                                      ClearingOperationFacts operation,
@@ -122,6 +135,7 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
                 operation.transactionDateTime(), operation.merchantId(), settlementCurrency, eligibleDate, now);
     }
 
+    /** 统一构造三类候选并校验 ISO 币种及来源身份，不在此计算汇率或金额。 */
     private ClearingSettlementCandidateDO candidate(String sourceType,
                                                      String sourceBusinessId,
                                                      int revision,
@@ -161,6 +175,7 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
         return row;
     }
 
+    /** 幂等唯一键命中后必须核对全部来源和路由身份。 */
     private boolean sameIdentity(ClearingSettlementCandidateDO actual,
                                  ClearingSettlementCandidateDO expected) {
         return actual != null
@@ -178,6 +193,14 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
                 && Objects.equals(actual.getShadowMode(), expected.getShadowMode());
     }
 
+    /**
+     * 以真实来源类型、业务标识和修订号生成稳定候选号，作为重放时复用的数据库幂等身份。
+     *
+     * @param sourceType CLEARING_REVISION、RESERVE_RELEASE 或 ADJUSTMENT 来源类型
+     * @param sourceBusinessId 来源交易、释放项或调整项标识
+     * @param revision 来源修订号
+     * @return 带 SC 前缀的稳定 SHA-256 截断指纹
+     */
     private String candidateNo(String sourceType, String sourceBusinessId, int revision) {
         try {
             String identity = "CLEARING_REVISION".equals(sourceType)

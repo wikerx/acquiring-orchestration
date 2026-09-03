@@ -21,6 +21,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingSettlementCandidateServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证结算候选稳定身份、重复一致性、修订替换和保证金释放来源类型约束
+ * @status : create
+ */
 class DefaultClearingSettlementCandidateServiceTest {
 
     @Test

@@ -17,8 +17,11 @@ import com.scott.payment.component.core.model.PageResult;
 public interface AdminSettlementQueryService {
 
     /** @return 按业务日期和主键倒序的结算批次标准分页 */
-    PageResult<BatchSummary> search(BatchSearchRequest request);
+    PageResult<BatchSummary> search(BatchSearchRequest request, AdminMerchantDataScope dataScope);
 
     /** @return 批次、锁定汇率、结果汇总、净入账与异步联动状态 */
-    BatchDetailResponse detail(String settlementBatchNo);
+    BatchDetailResponse detail(String settlementBatchNo, AdminMerchantDataScope dataScope);
+
+    /** 命令远程调用前，从本地交易逻辑数据源确认批次仍位于当前商户范围。 */
+    void requireBatchAccess(String settlementBatchNo, AdminMerchantDataScope dataScope);
 }

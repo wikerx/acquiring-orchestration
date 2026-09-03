@@ -9,7 +9,15 @@ import java.net.InetAddress;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** 验证商户回调出站地址不会访问平台私网。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantCallbackTargetValidatorTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证商户回调出站地址不会访问平台私网。
+ * @status : create
+ */
 class MerchantCallbackTargetValidatorTests {
 
     @Test

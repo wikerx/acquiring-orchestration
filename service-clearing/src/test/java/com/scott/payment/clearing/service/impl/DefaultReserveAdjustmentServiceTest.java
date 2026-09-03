@@ -34,7 +34,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** 验证保证金调整申请、双人复核和独立结算事实的同事务边界。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultReserveAdjustmentServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证保证金调整申请、双人复核和独立结算事实的同事务边界。
+ * @status : create
+ */
 class DefaultReserveAdjustmentServiceTest {
 
     private final ClearingReserveAdjustmentMapper adjustmentMapper =

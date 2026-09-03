@@ -19,7 +19,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 任务终态写入和持锁节点隔离测试。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JobTaskServiceImplTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 任务终态写入和持锁节点隔离测试。
+ * @status : create
+ */
 class JobTaskServiceImplTests {
 
     @Test

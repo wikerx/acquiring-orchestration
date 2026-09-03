@@ -46,7 +46,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** Payment action fee version cache and freezing tests. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantFeeVersionSnapshotServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Payment action fee version cache and freezing tests.
+ * @status : create
+ */
 class DefaultMerchantFeeVersionSnapshotServiceTests {
 
     private static final String MERCHANT_ID = "200045";

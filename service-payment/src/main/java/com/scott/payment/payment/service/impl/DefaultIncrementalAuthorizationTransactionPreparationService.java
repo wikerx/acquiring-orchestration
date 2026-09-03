@@ -52,6 +52,7 @@ import java.util.Objects;
  * @version : v1.0.0
  * @classname : DefaultIncrementalAuthorizationTransactionPreparationService
  * @date : 2026-07-24 00:00
+ * @email : scott_x@163.com
  * @description : Incremental Authorization 本地准备默认实现，确保渠道增量授权调用前提交幂等、动作单、渠道请求 INIT 和恢复入口。
  * @status : create
  */
@@ -59,169 +60,101 @@ import java.util.Objects;
 public class DefaultIncrementalAuthorizationTransactionPreparationService implements IncrementalAuthorizationTransactionPreparationService {
 
     /**
-     * CHANNEL REQUEST ID PREFIX，用于保存 Default Incremental Authorization Transaction Preparation Service 中与 渠道requestIDprefix 相关的业务属性。
+     * {@code CHANNEL_REQUEST_ID_PREFIX}常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
      * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
      * </p>
      */
     private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
 
     /**
-     * CHANNEL TRANSACTION ID PREFIX，用于保存 Default Incremental Authorization Transaction Preparation Service 中与 渠道交易IDprefix 相关的业务属性。
+     * {@code CHANNEL_TRANSACTION_ID_PREFIX}常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
      * </p>
      */
     private static final String CHANNEL_TRANSACTION_ID_PREFIX = "CH";
 
     /**
-     * TRANSACTION OPERATION SCOPE，用于保存 Default Incremental Authorization Transaction Preparation Service 中与 交易动作scope 相关的业务属性。
+     * 交易动作范围常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
 
     /**
-     * DEFAULT TIME ZONE，用于保存 Default Incremental Authorization Transaction Preparation Service 中与 defaulttimezone 相关的业务属性。
+     * 默认时间时区常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
 
     /**
-     * PAYMENT TRANSACTION AGGREGATE，用于保存 Default Incremental Authorization Transaction Preparation Service 中与 payment交易aggregate 相关的业务属性。
+     * {@code PAYMENT_TRANSACTION_AGGREGATE}常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
 
     /**
-     * EVENT STATUS INIT，表示当前记录在业务流程中的处理状态。
+     * {@code EVENT_STATUS_INIT}，表示当前记录在业务流程中的处理状态。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
      * </p>
      */
     private static final String EVENT_STATUS_INIT = "INIT";
 
     /**
-     * DEFAULT EVENT MAX RETRY COUNT，表示当前统计、分页、扫描或重试场景中的数量。
+     * {@code DEFAULT_EVENT_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int DEFAULT_EVENT_MAX_RETRY_COUNT = 200;
 
     /**
-     * INITIAL VERSION，用于保存 Default Incremental Authorization Transaction Preparation Service 中与 initialversion 相关的业务属性。
+     * 初始版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int INITIAL_VERSION = 0;
 
     /**
-     * NOT DELETED，用于保存 Default Incremental Authorization Transaction Preparation Service 中与 notdeleted 相关的业务属性。
+     * {@code NOT_DELETED}常量，统一 {@code DefaultIncrementalAuthorizationTransactionPreparationService} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int NOT_DELETED = 0;
 
-    /**
-     * ISO Dictionary Service 依赖，用于 Default Incremental Authorization Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：仅允许平台约定的启停取值；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final IsoDictionaryService isoDictionaryService;
 
-    /**
-     * payment Channel Route Service 依赖，用于 Default Incremental Authorization Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final PaymentChannelRouteService paymentChannelRouteService;
 
-    /**
-     * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final TransactionIdempotencyService transactionIdempotencyService;
 
-    /**
-     * transaction Event Outbox Service 依赖，用于 Default Incremental Authorization Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final TransactionEventOutboxService transactionEventOutboxService;
 
-    /**
-     * transaction Record Service 依赖，用于 Default Incremental Authorization Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final TransactionRecordService transactionRecordService;
 
-    /**
-     * transaction State Machine Service 依赖，用于 Default Incremental Authorization Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final TransactionStateMachineService transactionStateMachineService;
 
-/**
- * 整理默认incrementalauthorization交易preparationservice，返回后续查询、通知或响应组装可直接使用的标准值。
- * <p>
- * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
- * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param isoDictionaryService ISO Dictionary Service 输入值，参与 isodictionaryservice 的查询、校验、转换、写入或日志摘要
- * @param paymentChannelRouteService payment Channel Route Service 输入值，参与 payment渠道routeservice 的查询、校验、转换、写入或日志摘要
- * @param transactionIdempotencyService 平台交易号，用于定位主单、动作单、渠道请求和回调记录
- * @param transactionEventOutboxService transaction Event Outbox Service 输入值，参与 交易eventoutboxservice 的查询、校验、转换、写入或日志摘要
- * @param transactionRecordService transaction Record Service 输入值，参与 交易记录service 的查询、校验、转换、写入或日志摘要
- * @param transactionStateMachineService transaction State Machine Service 输入值，参与 交易状态machineservice 的查询、校验、转换、写入或日志摘要
- */
     public DefaultIncrementalAuthorizationTransactionPreparationService(
             IsoDictionaryService isoDictionaryService,
             PaymentChannelRouteService paymentChannelRouteService,
@@ -355,16 +288,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return target;
     }
 
-    /**
-     * 解析resolve来源订单，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
-     */
     private TransactionOrderDO resolveSourceOrder(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
         String sourceTransactionId = transactionInfoDTO.getSourceTransactionId();
@@ -378,16 +301,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return sourceOrderDO;
     }
 
-    /**
-     * 整理lock来源订单，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
+    /** 锁定原授权主单，串行化增量授权与请款、预授权完成和撤销的额度竞争。 */
     private TransactionOrderDO lockSourceOrder(TransactionOrderDO sourceOrderDO) {
         if (sourceOrderDO == null
                 || !StringUtils.hasText(sourceOrderDO.getOperationId())
@@ -397,17 +311,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return transactionRecordService.lockOrder(sourceOrderDO.getTransactionDateTime(), sourceOrderDO.getOperationId());
     }
 
-/**
- * 校验noconflictingauthorizationaction输入，发现缺失、越权或格式错误时中断当前流程。
- * <p>
- * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
- * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
- * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
- * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
- */
+    /** 拒绝任何处理中请款、增量授权或撤销动作，确保增额基于确定的授权累计值。 */
     private void validateNoConflictingAuthorizationAction(PaymentCreateCommandDTO commandDTO,
                                                           TransactionOrderDO sourceOrderDO,
                                                           LocalDateTime now) {
@@ -434,17 +338,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         }
     }
 
-    /**
-     * 规范化laterof，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param first first 输入值，参与 首个 的查询、校验、转换、写入或日志摘要
-     * @param second second 输入值，参与 second 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
         if (first == null) {
             return second;
@@ -455,17 +348,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return first.isAfter(second) ? first : second;
     }
 
-/**
- * 解析resolve重复incrementalauthorization，将原始输入转换为当前调用链需要的规范化结果。
- * <p>
- * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
- * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
- * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param record record 输入值，参与 记录 的查询、校验、转换、写入或日志摘要
- * @return 构造、转换或解析后的业务值
- */
+    /** 仅在请求指纹一致且原记录已有交易号时复用增量授权幂等结果。 */
     private PaymentCreateResultDTO resolveDuplicateIncrementalAuthorization(PaymentCreateCommandDTO commandDTO,
                                                                             TransactionIdempotencyDO record) {
         if (StringUtils.hasText(record.getRequestFingerprint())
@@ -480,17 +363,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return toDuplicateResult(record);
     }
 
-/**
- * 整理规范化incrementalauthorization请求指纹，返回当前业务步骤需要的规范化结果。
- * <p>
- * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
- * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
- * @return 方法执行后的业务结果、更新行数、转换对象或空结果
- */
+    /** 对原交易、增额金额、币种和商户操作号生成稳定增量授权请求指纹。 */
     private String canonicalIncrementalAuthorizationRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                                        TransactionOrderDO sourceOrderDO) {
         String sourceTransactionId = commandDTO.getTransactionInfo() == null
@@ -513,11 +386,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析normalize指纹文本，将原始输入转换为当前调用链需要的规范化结果。
+     * 解析指纹文本，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * 仅返回规范化或计算结果，不直接提交交易状态。
      * </p>
      * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
      * @return 构造、转换或解析后的业务值
@@ -527,11 +398,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析normalize指纹金额，将原始输入转换为当前调用链需要的规范化结果。
+     * 解析指纹金额，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * 仅返回规范化或计算结果，不直接提交交易状态。
      * </p>
      * @param amount 金额值，单位必须结合 currency 或同名币种字段解释
      * @return 构造、转换或解析后的业务值
@@ -543,16 +412,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return amount.stripTrailingZeros().toPlainString();
     }
 
-    /**
-     * 计算sha256摘要，用不可逆指纹关联原始内容而不暴露明文。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String sha256(String source) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -563,17 +422,15 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         }
     }
 
-/**
- * 解析normalizeincrementalauthorizationcommand，将原始输入转换为当前调用链需要的规范化结果。
- * <p>
- * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
- * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
- * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
- * @param sourceOperationDO source Operation DO 输入值，参与 来源动作do 的查询、校验、转换、写入或日志摘要
- */
+    /**
+     * 解析{@code normalizeIncrementalAuthorizationCommand}，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 仅返回规范化或计算结果，不直接提交交易状态。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param sourceOrderDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
+     * @param sourceOperationDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
+     */
     private void normalizeIncrementalAuthorizationCommand(PaymentCreateCommandDTO commandDTO,
                                                          TransactionOrderDO sourceOrderDO,
                                                          TransactionOperationDO sourceOperationDO) {
@@ -600,16 +457,15 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         commandDTO.setEdcEnabled(0);
     }
 
-/**
- * 校验incrementalauthorization商户订单no输入，发现缺失、越权或格式错误时中断当前流程。
- * <p>
- * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
- * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
- * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
- */
+    /**
+     * 校验增量授权请求中的可选商户订单号与原交易一致。
+     *
+     * <p>未传商户订单号时沿用原交易身份；显式传入不同订单号会破坏后续动作
+     * 与原支付流的幂等范围，因此在创建交易主单和动作单前直接拒绝。</p>
+     *
+     * @param commandDTO 增量授权交易命令
+     * @param sourceOrderDO 被追加授权金额的原交易主单
+     */
     private void validateIncrementalAuthorizationMerchantOrderNo(PaymentCreateCommandDTO commandDTO,
                                                                  TransactionOrderDO sourceOrderDO) {
         if (!StringUtils.hasText(commandDTO.getMerchantOrderNo())) {
@@ -620,18 +476,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         }
     }
 
-/**
- * 构造incrementalauthorization结果对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
- * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
- * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
- * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
- * @return 构造、转换或解析后的业务值
- */
     private PaymentCreateResultDTO buildIncrementalAuthorizationResult(PaymentCreateCommandDTO commandDTO,
                                                                        TransactionOrderDO sourceOrderDO,
                                                                        String transactionId) {
@@ -649,17 +493,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return resultDTO;
     }
 
-/**
- * 整理prepare渠道请求，返回当前业务步骤需要的规范化结果。
- * <p>
- * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
- * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
- * @return 方法执行后的业务结果、更新行数、转换对象或空结果
- */
     private PaymentPreparedChannelRequestDTO prepareChannelRequest(PaymentCreateCommandDTO commandDTO,
                                                                   TransactionOrderDO sourceOrderDO) {
         PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
@@ -669,20 +502,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return prepared;
     }
 
-/**
- * 构造preparedinvokeresult对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
- * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
- * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
- * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
- * @param preparedChannelRequestDTO prepared Channel Request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @return 构造、转换或解析后的业务值
- */
     private PaymentChannelInvokeResultDTO buildPreparedInvokeResult(PaymentCreateCommandDTO commandDTO,
                                                                     PaymentRouteResultDTO routeResultDTO,
                                                                     String operationId,
@@ -715,20 +534,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return invokeResultDTO;
     }
 
-/**
- * 记录incrementalauthorizationpreparedfact，写入安全、审计或链路排障所需的脱敏上下文。
- * <p>
- * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
- * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
- * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param invokeResultDTO invoke Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
- */
+    /** 在渠道调用前持久化增量授权动作及请求事实，失败或重试不得重复占用授权额度。 */
     private void recordIncrementalAuthorizationPreparedFact(PaymentCreateCommandDTO commandDTO,
                                                             TransactionOrderDO sourceOrderDO,
                                                             PaymentRouteResultDTO routeResultDTO,
@@ -745,16 +551,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         transactionRecordService.recordFollowUpTransaction(recordDTO);
     }
 
-    /**
-     * 创建交易createdevent，完成必要校验后写入或委托下游服务处理。
-     * <p>
-     * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
-     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
-     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
+    /** 将增量授权创建事件写入同一交易生命周期的 FIFO Outbox。 */
     private void saveTransactionCreatedEvent(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         TransactionEventMessage message = new TransactionEventMessage();
         message.setMessageId(resultDTO.getTransactionId());
@@ -797,17 +594,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         transactionEventOutboxService.save(eventDO);
     }
 
-    /**
-     * 规范化completeidempotency，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param idempotencyKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
+    /** 保存增量授权准备结果快照，重复请求只能返回原结果且禁止重复调用渠道。 */
     private void completeIdempotency(String idempotencyKey, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         transactionIdempotencyService.complete(
                 TRANSACTION_OPERATION_SCOPE,
@@ -820,16 +607,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 JsonUtils.toJsonString(resultDTO));
     }
 
-    /**
-     * 构造重复请求结果对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param record record 输入值，参与 记录 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private PaymentCreateResultDTO toDuplicateResult(TransactionIdempotencyDO record) {
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
@@ -851,18 +628,13 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return resultDTO;
     }
 
-/**
- * 构造incrementalauthorization结果对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
- * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
- * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
- * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- */
+    /**
+     * 构造{@code enrichIncrementalAuthorizationResult}对象，完成字段复制、格式标准化和敏感数据处理。
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param sourceOrderDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
+     * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     */
     private void enrichIncrementalAuthorizationResult(PaymentCreateCommandDTO commandDTO,
                                                       TransactionOrderDO sourceOrderDO,
                                                       com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse channelResponse,
@@ -893,11 +665,9 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析resolve回调url，将原始输入转换为当前调用链需要的规范化结果。
+     * 解析回调地址，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * 仅返回规范化或计算结果，不直接提交交易状态。
      * </p>
      * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      * @return 构造、转换或解析后的业务值
@@ -912,32 +682,12 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return null;
     }
 
-/**
- * 构造商户响应对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
- * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
- */
     private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO,
                                         com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse channelResponse) {
         resultDTO.setMerchantResponseCode(resolveMerchantResponseCode(resultDTO.getStatus()));
         resultDTO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO, channelResponse));
     }
 
-    /**
-     * 解析resolve商户响应编码，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolveMerchantResponseCode(String transactionStatus) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
             return ApiResultEnum.PAYMENT_SUCCESS.getCode();
@@ -948,17 +698,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return ApiResultEnum.PROCESSING.getCode();
     }
 
-/**
- * 解析resolve商户响应说明，将原始输入转换为当前调用链需要的规范化结果。
- * <p>
- * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
- * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
- * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
- * </p>
- * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
- * @return 构造、转换或解析后的业务值
- */
     private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO,
                                                   com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse response) {
         if (resultDTO == null) {
@@ -976,17 +715,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 ApiResultEnum.PAYMENT_REJECTED.getMessage());
     }
 
-    /**
-     * 整理拼接编码and说明，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String joinCodeAndMessage(String code, String message) {
         if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
             return code + ": " + message;
@@ -994,16 +722,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return firstText(code, message);
     }
 
-    /**
-     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String firstText(String... values) {
         if (values == null) {
             return null;
@@ -1016,33 +734,13 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return null;
     }
 
-    /**
-     * 解析resolve渠道订单no，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolveChannelOrderNo(TransactionOrderDO sourceOrderDO) {
         return StringUtils.hasText(sourceOrderDO.getRootTransactionId())
                 ? sourceOrderDO.getRootTransactionId()
                 : sourceOrderDO.getLatestTransactionId();
     }
 
-    /**
-     * 构造minor金额对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param amount 金额值，单位必须结合 currency 或同名币种字段解释
-     * @param currency 币种代码，格式为 ISO 4217 三位大写字母
-     * @return 构造、转换或解析后的业务值
-     */
+    /** 按 ISO 4217 币种精度精确转换最小货币单位，超精度输入直接失败。 */
     private Long toMinorAmount(BigDecimal amount, String currency) {
         try {
             return isoDictionaryService.toMinorUnit(amount, currency);
@@ -1051,16 +749,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         }
     }
 
-    /**
-     * 解析resolve币种小数位，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param currency 币种代码，格式为 ISO 4217 三位大写字母
-     * @return 构造、转换或解析后的业务值
-     */
     private int resolveCurrencyExponent(String currency) {
         IsoCurrencyInfo currencyInfo = isoDictionaryService.getCurrency(currency)
                 .orElseThrow(() -> new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "currency can not be resolved"));
@@ -1070,43 +758,14 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return currencyInfo.defaultFractionDigits();
     }
 
-    /**
-     * 解析normalize币种，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param currency 币种代码，格式为 ISO 4217 三位大写字母
-     * @return 构造、转换或解析后的业务值
-     */
     private String normalizeCurrency(String currency) {
         return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
     }
 
-    /**
-     * 整理默认交易汇率，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
     }
 
-    /**
-     * 构造子商户响应信息对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
-     */
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
         if (source == null) {
             return null;
@@ -1129,16 +788,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         return isEmptySubMerchantInfo(target) ? null : target;
     }
 
-    /**
-     * 判断 is empty sub merchant info 条件是否成立，用于控制 Default Incremental Authorization Transaction Preparation Service 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 条件满足时返回 true，否则返回 false
-     */
     private boolean isEmptySubMerchantInfo(PaymentCreateResultDTO.SubMerchantInfoDTO value) {
         return value == null || java.util.stream.Stream.of(
                 value.getSubId(),
@@ -1157,17 +806,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 value.getChargeType()).allMatch(item -> !StringUtils.hasText(item));
     }
 
-    /**
-     * 构造utctime对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 构造、转换或解析后的业务值
-     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone);
         return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();

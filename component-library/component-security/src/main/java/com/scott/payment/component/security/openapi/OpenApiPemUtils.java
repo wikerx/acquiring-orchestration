@@ -26,38 +26,34 @@ public final class OpenApiPemUtils {
     private static final int PEM_LINE_LENGTH = 64;
 
     /**
-     * PUBLIC KEY BEGIN，用于保存 Open API Pem Utils 中与 public密钥begin 相关的业务属性。
+     * {@code PUBLIC_KEY_BEGIN}常量，统一 {@code OpenApiPemUtils} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String PUBLIC_KEY_BEGIN = "-----BEGIN PUBLIC KEY-----";
     /**
-     * PUBLIC KEY END，用于保存 Open API Pem Utils 中与 public密钥end 相关的业务属性。
+     * {@code PUBLIC_KEY_END}常量，统一 {@code OpenApiPemUtils} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String PUBLIC_KEY_END = "-----END PUBLIC KEY-----";
     /**
-     * PRIVATE KEY BEGIN，用于保存 Open API Pem Utils 中与 private密钥begin 相关的业务属性。
+     * {@code PRIVATE_KEY_BEGIN}常量，统一 {@code OpenApiPemUtils} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String PRIVATE_KEY_BEGIN = "-----BEGIN PRIVATE KEY-----";
     /**
-     * PRIVATE KEY END，用于保存 Open API Pem Utils 中与 private密钥end 相关的业务属性。
+     * 私钥密钥结束常量，统一 {@code OpenApiPemUtils} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String PRIVATE_KEY_END = "-----END PRIVATE KEY-----";
@@ -119,18 +115,6 @@ public final class OpenApiPemUtils {
         }
     }
 
-    /**
-     * 构造pem对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param begin begin 输入值，参与 begin 的查询、校验、转换、写入或日志摘要
-     * @param end end 输入值，参与 end 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private static String toPem(String value, String begin, String end) {
         String normalizedBase64 = normalizePem(value);
         StringBuilder builder = new StringBuilder(begin).append('\n');

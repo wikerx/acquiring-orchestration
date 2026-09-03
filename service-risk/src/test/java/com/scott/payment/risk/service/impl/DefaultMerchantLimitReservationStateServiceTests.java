@@ -24,7 +24,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 累计限额预占状态机测试，覆盖事务锁、乐观锁、幂等终态和非法反向迁移。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantLimitReservationStateServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 累计限额预占状态机测试，覆盖事务锁、乐观锁、幂等终态和非法反向迁移。
+ * @status : create
  */
 class DefaultMerchantLimitReservationStateServiceTests {
 

@@ -8,7 +8,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 风控规则缓存失效事件持久化模型。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskCacheInvalidationOutboxDO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控规则缓存失效事件持久化模型。
+ * @status : create
  */
 @Data
 @TableName("risk_cache_invalidation_outbox")

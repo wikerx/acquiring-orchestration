@@ -16,11 +16,10 @@ import java.time.LocalDateTime;
 public interface MerchantFeeVersionSnapshotService {
 
     /**
-     * 冻结动作受理时生效的完整费用版本；没有合法配置时 fail-closed，中断新动作受理。
-     *
-     * @param merchantId 当前交易所属平台商户号
-     * @param pricingLockTime 动作受理时系统时间，将规范化为毫秒精度
-     * @return 可同时写入结构化列和 JSON 列的费用快照
+     * 准备{@code freezeActiveVersion}，在执行外部动作前冻结必要事实并完成幂等与状态校验。
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @param pricingLockTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法生成的 {@code FrozenMerchantFeeVersionSnapshotDTO} 结果
      */
     FrozenMerchantFeeVersionSnapshotDTO freezeActiveVersion(String merchantId,
                                                             LocalDateTime pricingLockTime);

@@ -11,7 +11,13 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * 按持久化业务时间范围查询 payment 动作状态。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultRiskPaymentTransactionStatusRepository
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 按持久化业务时间范围查询 payment 动作状态。
+ * @status : create
  */
 @Slf4j
 @Repository

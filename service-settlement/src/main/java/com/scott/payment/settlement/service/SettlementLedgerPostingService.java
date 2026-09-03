@@ -5,7 +5,15 @@ import com.scott.payment.settlement.entity.SettlementBatchDO;
 
 import java.time.LocalDateTime;
 
-/** 结算资金提交边界；唯一允许由结算批次修改商户余额、资金流水和保证金聚合的服务。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SettlementLedgerPostingService
+ * @date : 2026-09-01 00:00
+ * @email : scott_x@163.com
+ * @description : 定义结算资金提交边界；唯一允许正式批次修改商户可用余额、追加资金流水并资金化保证金动作的领域服务。
+ * @status : create
+ */
 public interface SettlementLedgerPostingService {
 
     /**

@@ -9,7 +9,13 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * Hosted Checkout 3DS 浏览器回跳内部命令。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutThreeDsReturnCommandDTO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 3DS 浏览器回跳内部命令。
+ * @status : create
  */
 @Data
 public class PaymentCheckoutThreeDsReturnCommandDTO implements Serializable {

@@ -1,12 +1,17 @@
 # ShardingSphere-JDBC 交易清分 28 表非秘密候选配置。
 # 尚未执行真实 Dry Run；必须先完成物理表迁移和 28 表治理校验，才允许提交 Nacos 发布审批。
 transaction-sharding:
-  # 第一版直接启用 ShardingSphere 单写，不配置 LEGACY/COMPARE 服务级迁移 mode。
+  # 参数说明：候选规则版本；第一版直接启用 ShardingSphere 单写，不配置 LEGACY/COMPARE 服务级迁移 mode。
   rule-version: "2026.08.25-002-candidate-clearing-28"
+  # 参数说明：候选规则正文的 SHA-256 校验值；真实 Dry Run 后必须重新计算并经发布审批确认。
   rule-checksum: "sha256:8ec98c2d65d9324d758d48c71343606496eebbe7bcd00d1e6adf3c46f63dd15a"
+  # 参数说明：数据库和季度路由采用的 IANA 时区，必须与 JDBC serverTimezone 和数据库会话时区一致。
   database-zone-id: Asia/Shanghai
+  # 参数说明：28 张逻辑表统一使用的季度路由字段，写入和范围查询必须携带该交易时间。
   sharding-column: transaction_date_time
+  # 参数说明：ShardingSphere 单写和强一致查询使用的主数据源名称，必须与 dataSource 配置一致。
   primary-data-source: master
+  # 集合说明：只读副本名称；是否承载查询取决于复制延迟和一致性要求，禁止承担资金写入。
   replica-data-sources:
     - slave_1
     - slave_2
@@ -16,6 +21,7 @@ transaction-sharding:
     - "202603"
     - "202604"
 
+  # 集合说明：候选规则覆盖的 28 张交易逻辑表；变更必须同步模板表、物理表治理和 checksum。
   logic-tables:
     - transaction_order
     - transaction_operation
@@ -46,6 +52,7 @@ transaction-sharding:
     - transaction_reserve_clearing_detail
     - transaction_reserve_clearing_state
 
+  # 集合说明：允许直接访问交易分片数据源的服务；不得用该白名单替代应用 RBAC 或内部接口鉴权。
   direct-access-services:
     - service-payment
     - service-admin
@@ -53,8 +60,13 @@ transaction-sharding:
     - service-risk
     - service-data
     - service-clearing
+    - service-settlement
 
+  # 查询预算用于限制跨季度查询和导出对连接池、主从库与 JVM 内存的影响。
   query-budget:
+    # 参数说明：同步查询最大执行时间，单位毫秒；超时后应要求缩小时间范围。
     synchronous-timeout-millis: 5000
+    # 参数说明：单次同步查询最大结果行数，超过限制的数据必须使用受控导出任务。
     max-result-rows: 1000
+    # 参数说明：同一操作人并发导出任务上限，防止重复提交造成资源争抢。
     max-concurrent-exports-per-user: 1

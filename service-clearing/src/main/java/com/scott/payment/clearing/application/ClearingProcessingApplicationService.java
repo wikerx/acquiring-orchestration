@@ -98,6 +98,7 @@ public class ClearingProcessingApplicationService {
         }
     }
 
+    /** 仅对 Stage A 成功领取租约的消息执行事务外准备和 Stage B 原子提交。 */
     private ClearingProcessingResult completeAcquired(PaymentTransactionEventMessage message,
                                                       ClearingClaimResult claim,
                                                       String processingOwner,

@@ -51,66 +51,39 @@ import java.util.stream.Collectors;
  * @classname : AdminMerchantIpWhitelistServiceImpl
  * @date : 2026-07-18 00:00
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 白名单领域服务实现，位于 service-admin 服务实现层，仅维护精确 IP 和商户维度校验开关。
+ * @description : admin商户ipwhitelist服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
 @Service
 public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhitelistService {
 
     /**
-     * NOT DELETED，用于保存 Admin Merchant IP Whitelist Service Impl 中与 notdeleted 相关的业务属性。
+     * {@code NOT_DELETED}常量，统一 {@code AdminMerchantIpWhitelistServiceImpl} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final long NOT_DELETED = 0L;
     /**
-     * ENABLED，表示当前配置项或业务能力的启停开关。
+     * 启用标识，表示当前配置项或业务能力的启停开关。
      * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
+     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final int ENABLED = 1;
     /**
-     * DISABLED，表示当前配置项或业务能力的启停开关。
+     * {@code DISABLED}，表示当前配置项或业务能力的启停开关。
      * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
+     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final int DISABLED = 0;
 
-    /**
-     * whitelist Mapper 依赖，用于 Admin Merchant IP Whitelist Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final MerchantIpWhitelistMapper whitelistMapper;
-    /**
-     * access Config Mapper 依赖，用于 Admin Merchant IP Whitelist Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final MerchantOpenApiAccessConfigMapper accessConfigMapper;
-    /**
-     * merchant Info Mapper 依赖，用于 Admin Merchant IP Whitelist Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final BaseMerchantInfoMapper merchantInfoMapper;
 
     /**
@@ -594,17 +567,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .toList();
     }
 
-    /**
-     * 构造商户ID对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param left left 输入值，参与 left 的查询、校验、转换、写入或日志摘要
-     * @param right right 输入值，参与 right 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private List<String> mergeMerchantIds(List<String> left, List<String> right) {
         if (left == null) {
             return right;
@@ -618,16 +580,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return left.stream().filter(right::contains).toList();
     }
 
-    /**
-     * 整理group按商户，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param rows 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Map<String, List<MerchantIpWhitelistDO>> groupByMerchant(List<MerchantIpWhitelistDO> rows) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
@@ -642,17 +594,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return grouped;
     }
 
-    /**
-     * 整理paginate商户ID，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param merchantIds 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @param condition 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private List<String> paginateMerchantIds(List<String> merchantIds, MerchantIpWhitelistQuery condition) {
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
@@ -662,21 +603,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return merchantIds.subList(fromIndex, toIndex);
     }
 
-/**
- * 构造whitelist对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
- * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
- * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
- * </p>
- * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
- * @param ip IP 输入值，参与 ip 的查询、校验、转换、写入或日志摘要
- * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
- * @param remark remark 输入值，参与 remark 的查询、校验、转换、写入或日志摘要
- * @param operator operator 输入值，参与 operator 的查询、校验、转换、写入或日志摘要
- * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
- * @return 构造、转换或解析后的业务值
- */
     private MerchantIpWhitelistDO buildWhitelist(String merchantId,
                                                  NormalizedIp ip,
                                                  int status,
@@ -702,16 +628,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return row;
     }
 
-    /**
-     * 校验whitelist输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private MerchantIpWhitelistDO requireWhitelist(Long id) {
         if (id == null) {
             throw badRequest("白名单记录不存在");
@@ -725,16 +641,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return row;
     }
 
-    /**
-     * 校验商户输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private BaseMerchantInfoDO requireMerchant(String merchantId) {
         BaseMerchantInfoDO merchant = findMerchant(merchantId);
         if (merchant == null) {
@@ -743,16 +649,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return merchant;
     }
 
-    /**
-     * 查询商户，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
     private BaseMerchantInfoDO findMerchant(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             return null;
@@ -763,16 +659,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .last("LIMIT 1"));
     }
 
-    /**
-     * 查询配置，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
     private MerchantOpenApiAccessConfigDO findConfig(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             return null;
@@ -783,16 +669,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .last("LIMIT 1"));
     }
 
-    /**
-     * 查询merchants，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param merchantIds 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
     private Map<String, BaseMerchantInfoDO> loadMerchants(List<String> merchantIds) {
         List<String> ids = distinctMerchantIds(merchantIds);
         if (ids.isEmpty()) {
@@ -805,16 +681,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .collect(Collectors.toMap(BaseMerchantInfoDO::getMerchantId, Function.identity(), (left, right) -> left));
     }
 
-    /**
-     * 查询configs，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param merchantIds 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
     private Map<String, MerchantOpenApiAccessConfigDO> loadConfigs(List<String> merchantIds) {
         List<String> ids = distinctMerchantIds(merchantIds);
         if (ids.isEmpty()) {
@@ -827,16 +693,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .collect(Collectors.toMap(MerchantOpenApiAccessConfigDO::getMerchantId, Function.identity(), (left, right) -> left));
     }
 
-    /**
-     * 整理distinct商户ID，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param merchantIds 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private List<String> distinctMerchantIds(List<String> merchantIds) {
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
@@ -848,16 +704,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .toList();
     }
 
-    /**
-     * 解析normalizeiplist，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param ipValues IP Values 输入值，参与 ip值 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private List<NormalizedIp> normalizeIpList(List<String> ipValues) {
         if (ipValues == null || ipValues.isEmpty()) {
             throw badRequest("至少录入一个精确 IP");
@@ -876,16 +722,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return List.copyOf(normalized.values());
     }
 
-    /**
-     * 解析normalizeip，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 构造、转换或解析后的业务值
-     */
     private NormalizedIp normalizeIp(String value) {
         try {
             return IpAddressNormalizer.normalizeExact(value);
@@ -894,18 +730,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         }
     }
 
-/**
- * 构造响应对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
- * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
- * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
- * </p>
- * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
- * @param merchant merchant 输入值，参与 商户 的查询、校验、转换、写入或日志摘要
- * @param config config 输入值，参与 配置 的查询、校验、转换、写入或日志摘要
- * @return 构造、转换或解析后的业务值
- */
     private MerchantIpWhitelistResponse toResponse(MerchantIpWhitelistDO row,
                                                    BaseMerchantInfoDO merchant,
                                                    MerchantOpenApiAccessConfigDO config) {
@@ -937,18 +761,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return response;
     }
 
-/**
- * 构造aggregated响应对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
- * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
- * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
- * </p>
- * @param rows 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
- * @param merchant merchant 输入值，参与 商户 的查询、校验、转换、写入或日志摘要
- * @param config config 输入值，参与 配置 的查询、校验、转换、写入或日志摘要
- * @return 构造、转换或解析后的业务值
- */
     private MerchantIpWhitelistResponse toAggregatedResponse(List<MerchantIpWhitelistDO> rows,
                                                              BaseMerchantInfoDO merchant,
                                                              MerchantOpenApiAccessConfigDO config) {
@@ -961,16 +773,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return response;
     }
 
-    /**
-     * 构造item对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
-     */
     private MerchantIpWhitelistItem toItem(MerchantIpWhitelistDO row) {
         MerchantIpWhitelistItem item = new MerchantIpWhitelistItem();
         item.setId(row.getId());
@@ -988,16 +790,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return item;
     }
 
-    /**
-     * 解析normalize状态，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
-     * @return 构造、转换或解析后的业务值
-     */
     private int normalizeStatus(Integer status) {
         return status != null && status == ENABLED ? ENABLED : DISABLED;
     }
@@ -1013,43 +805,14 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         }
     }
 
-    /**
-     * 解析normalize商户ID，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @return 构造、转换或解析后的业务值
-     */
     private String normalizeMerchantId(String merchantId) {
         return merchantId == null ? "" : merchantId.trim();
     }
 
-    /**
-     * 规范化trimtonull，返回调用链后续步骤可直接使用的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    /**
-     * 整理当前操作人名称，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -1064,16 +827,6 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return "system";
     }
 
-    /**
-     * 整理bad请求，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

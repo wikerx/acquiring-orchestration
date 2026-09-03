@@ -25,16 +25,16 @@ import java.util.List;
 import java.util.Locale;
 
 
-@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminUserApplicationService
  * @date : 2026-06-19 19:12
  * @email : scott_x@163.com
- * @description : Admin User Application Service 应用服务，位于 运营后台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
+ * @description : admin用户应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
+@Service
 public class AdminUserApplicationService {
 
     /**

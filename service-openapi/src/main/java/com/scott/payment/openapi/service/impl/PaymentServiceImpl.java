@@ -43,7 +43,7 @@ import java.time.ZoneId;
  * @classname : PaymentServiceImpl
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 收单交易服务实现，位于 service-openapi 服务层，负责把独立交易动作转换为 service-payment 内部请求；敏感卡信息只允许内存透传到支付核心。
+ * @description : 支付交易服务实现，位于 商户开放接口服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
 @Service

@@ -9,7 +9,15 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-/** 将冻结 Outbox JSON 按 operationId 有序发布；发送失败只影响 Outbox，不影响已提交资金。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SettlementEventPublisherService
+ * @date : 2026-09-01 00:00
+ * @email : scott_x@163.com
+ * @description : 发布冻结的结算 Outbox JSON；按 operationId 发送顺序消息，失败仅驱动 Outbox 重试，不回滚已经提交的资金事务。
+ * @status : create
+ */
 @Service
 public class SettlementEventPublisherService {
 
@@ -24,7 +32,12 @@ public class SettlementEventPublisherService {
         this.mqProducer = mqProducer;
     }
 
-    /** @return true 表示领取了一条事件，false 表示当前无事件。 */
+    /**
+     * 领取一条冻结 Outbox，按 operationId 顺序组至少一次发送并提交成功或退避状态。
+     *
+     * @param now 本轮 Outbox 认领时间
+     * @return true 表示领取了一条事件，false 表示当前无事件
+     */
     public boolean publishNext(LocalDateTime now) {
         Optional<SettlementEventOutboxDO> claimed = persistenceService.claimNext(now);
         if (claimed.isEmpty()) {

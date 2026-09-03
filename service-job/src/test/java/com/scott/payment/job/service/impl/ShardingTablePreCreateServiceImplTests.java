@@ -30,7 +30,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 交易季度物理表预建和候选节点发布门禁测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingTablePreCreateServiceImplTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 交易季度物理表预建和候选节点发布门禁测试。
+ * @status : create
  */
 class ShardingTablePreCreateServiceImplTests {
 

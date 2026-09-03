@@ -12,6 +12,7 @@ import java.io.Serializable;
  * @version : v1.0.0
  * @classname : RefundPreparationResultDTO
  * @date : 2026-07-24 00:00
+ * @email : scott_x@163.com
  * @description : Refund 本地准备结果 DTO，承载已提交的退款动作事实、幂等结果和渠道请求身份。
  * @status : create
  */
@@ -21,104 +22,94 @@ public class RefundPreparationResultDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * call Channel，用于保存 Refund Preparation Result DTO 中与 call渠道 相关的业务属性。
+     * 是否需要调用渠道；幂等命中、准备失败或本地终态结果均为 false。
      * <p>
-     * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：布尔值或 0/1 标识；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：仅允许平台约定的真假取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与幂等结果和准备结果共同决定是否允许发起渠道调用。
      * </p>
      */
     private boolean callChannel;
 
     /**
-     * duplicate，用于保存 Refund Preparation Result DTO 中与 duplicate 相关的业务属性。
+     * 是否命中既有幂等结果；为 true 时必须复用原结果且禁止重复调用渠道。
      * <p>
-     * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：布尔值或 0/1 标识；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：仅允许平台约定的真假取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与幂等结果和准备结果共同决定是否允许发起渠道调用。
      * </p>
      */
     private boolean duplicate;
 
     /**
-     * idempotency Key，用于保存 Refund Preparation Result DTO 中与 idempotency密钥 相关的业务属性。
+     * 资金类请求幂等键，用于在同一商户和交易动作范围内识别重复提交。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 字段关系：与商户号、交易类型和原交易共同限定重复请求的唯一范围。
      * </p>
      */
     private String idempotencyKey;
 
     /**
-     * command DTO，用于保存 Refund Preparation Result DTO 中与 commanddto 相关的业务属性。
+     * 完成本地准备和字段归一后的支付命令，供渠道调用阶段使用。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private PaymentCreateCommandDTO commandDTO;
 
     /**
-     * source Order DO，用于保存 Refund Preparation Result DTO 中与 来源订单do 相关的业务属性。
+     * 后续交易关联的原交易主单快照，用于校验可操作状态、剩余金额和原渠道身份。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private TransactionOrderDO sourceOrderDO;
 
     /**
-     * route Result DTO，用于保存 Refund Preparation Result DTO 中与 routeresultdto 相关的业务属性。
+     * 本次交易锁定的渠道路由结果，后续渠道调用不得重新选择路由。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private PaymentRouteResultDTO routeResultDTO;
 
     /**
-     * prepared Channel Request DTO，用于保存 Refund Preparation Result DTO 中与 prepared渠道requestdto 相关的业务属性。
+     * 已完成金额、币种和渠道身份归一的渠道请求，仅用于本次渠道调用。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private PaymentPreparedChannelRequestDTO preparedChannelRequestDTO;
 
     /**
-     * result DTO，用于保存 Refund Preparation Result DTO 中与 resultdto 相关的业务属性。
+     * 无需调用渠道时直接返回的支付结果，例如幂等命中或准备阶段拒绝。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private PaymentCreateResultDTO resultDTO;
 
     /**
-     * currency Exponent，表示金额字段使用的币种。
+     * 交易币种的小数位数，用于主币种单位与最小货币单位之间的精确转换。
      * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 单位：位；格式：非负整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：必须等于 ISO 4217 币种精度，禁止默认按 2 位处理；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
      * </p>
      */
     private int currencyExponent;
 
     /**
-     * 整理重复，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 创建命中幂等结果的准备结果，明确禁止再次调用渠道。
+     * @param resultDTO 已持久化的原退款结果快照
+     * @return 禁止再次占用额度或调用渠道的幂等命中结果
      */
     public static RefundPreparationResultDTO duplicate(PaymentCreateResultDTO resultDTO) {
         RefundPreparationResultDTO target = new RefundPreparationResultDTO();

@@ -19,7 +19,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证内部协议不会允许调用方另传保证金币种，且完整绑定状态版本。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingInternalControllerTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证内部协议不会允许调用方另传保证金币种，且完整绑定状态版本。
+ * @status : create
+ */
 class ClearingInternalControllerTest {
 
     @Test

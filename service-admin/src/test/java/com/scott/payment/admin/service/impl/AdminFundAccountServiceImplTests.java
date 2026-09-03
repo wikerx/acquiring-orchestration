@@ -176,6 +176,26 @@ class AdminFundAccountServiceImplTests {
         System.out.println("账户能力：验证 NORMAL 负余额账户仍可入账、提现和结算，但禁止主动逆向交易");
     }
 
+    /** 冻结账户只允许被动入账，不得继续发起结算、提现、扣减或主动逆向。 */
+    @Test
+    void shouldDisableSettlementCapabilityForFrozenAccount() {
+        Fixture fixture = new Fixture();
+        MerchantFundAccountDO account = account();
+        account.setAccountStatus("FROZEN");
+        when(fixture.accountMapper.selectOne(any())).thenReturn(account);
+        when(fixture.merchantInfoMapper.selectList(any())).thenReturn(List.of(merchant()));
+        when(fixture.transactionFundQueryService.sumPendingBalances("M10001")).thenReturn(List.of());
+        when(fixture.reserveMapper.sumHeldBalance(100L, "M10001")).thenReturn(BigDecimal.ZERO);
+
+        FundAccountResponse response = fixture.service.getAccount(100L);
+
+        assertThat(response.getCreditAllowed()).isTrue();
+        assertThat(response.getDebitAllowed()).isFalse();
+        assertThat(response.getWithdrawalAllowed()).isFalse();
+        assertThat(response.getSettlementAllowed()).isFalse();
+        assertThat(response.getReverseTransactionAllowed()).isFalse();
+    }
+
     /** 全局余额明细必须组合商户、账户、业务类型、方向、币种和入账闭区间条件。 */
     @Test
     void shouldFilterAllLedgersByConfirmedManagementDimensions() {

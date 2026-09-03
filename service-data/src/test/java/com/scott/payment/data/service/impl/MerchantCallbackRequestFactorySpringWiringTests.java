@@ -10,7 +10,15 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-/** 验证商户回调请求工厂在真实 Spring 构造器解析规则下可以完成装配。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantCallbackRequestFactorySpringWiringTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证商户回调请求工厂在真实 Spring 构造器解析规则下可以完成装配。
+ * @status : create
+ */
 class MerchantCallbackRequestFactorySpringWiringTests {
 
     /** 多构造器类必须明确生产注入入口，避免 service-data 在启动阶段寻找默认构造器。 */

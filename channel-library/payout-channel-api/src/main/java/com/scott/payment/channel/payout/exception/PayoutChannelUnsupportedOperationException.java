@@ -5,6 +5,7 @@ package com.scott.payment.channel.payout.exception;
  * @version : v1.0.0
  * @classname : PayoutChannelUnsupportedOperationException
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : Provider 未声明或未实现指定代付能力时抛出的稳定异常。
  * @status : create
  */

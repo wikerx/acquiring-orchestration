@@ -43,13 +43,42 @@ import java.util.HexFormat;
 import java.util.Objects;
 import java.util.Set;
 
-/** 清分人工命令默认实现；浏览器不能传任意状态，所有状态推进均由固定命令决定。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingManagementCommandService
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 清分人工命令默认实现；浏览器不能传任意状态，所有状态推进均由固定命令决定。
+ * @status : update
+ */
 @Service
 @Slf4j
 public class DefaultClearingManagementCommandService implements ClearingManagementCommandService {
 
+    /**
+     * {@code OUTBOX_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int OUTBOX_MAX_RETRY_COUNT = 10;
+    /**
+     * {@code REASON_MAX_LENGTH}常量，统一 {@code DefaultClearingManagementCommandService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int REASON_MAX_LENGTH = 512;
+    /**
+     * {@code OPERATOR_MAX_LENGTH}常量，统一 {@code DefaultClearingManagementCommandService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int OPERATOR_MAX_LENGTH = 64;
     private static final Set<String> RETRYABLE = Set.of("PENDING", "FAILED", "WAITING_SOURCE", "MANUAL_REVIEW");
 
@@ -92,6 +121,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         this.clock = clock;
     }
 
+    /** {@inheritDoc} */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -123,6 +153,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return response(state, "RETRY", "FAILED", result);
     }
 
+    /** {@inheritDoc} */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -149,6 +180,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return response(state, "REVIEW", "MANUAL_REVIEW", "ESCALATED");
     }
 
+    /** {@inheritDoc} */
     @Override
     public ClearingCommandResponse recalculate(String transactionId, ClearingRecalculateRequest request) {
         ClearingCommandResponse response = recalculationService.recalculate(transactionId, request);
@@ -156,6 +188,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return response;
     }
 
+    /** 使用财务状态号、修订和重试序号构造确定性人工重试 Outbox。 */
     private ClearingTransactionEventOutboxDO retryOutbox(ClearingTransactionFinanceStateDO state,
                                                           ClearingTransactionOperationDO operation,
                                                           int retryCount,
@@ -229,6 +262,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return true;
     }
 
+    /** 唯一键冲突后比较全部路由身份，防止不同消息错误复用同一事件号。 */
     private boolean sameOutboxIdentity(ClearingTransactionEventOutboxDO actual,
                                        ClearingTransactionEventOutboxDO expected) {
         return Objects.equals(actual.getEventNo(), expected.getEventNo())
@@ -249,6 +283,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
                 && Objects.equals(actual.getPayloadJson(), expected.getPayloadJson());
     }
 
+    /** 由清分状态、修订、轮次、人工投递时间和可信操作人派生稳定 Outbox 事件号。 */
     private String deterministicEventNo(String stateId, int revision, int retryCount,
                                         LocalDateTime deliverAt, String operator) {
         String material = stateId + "|" + revision + "|" + retryCount + "|MANUAL|"
@@ -262,6 +297,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         }
     }
 
+    /** 按真实分片时间锁定未结算状态，并校验调用方预期版本。 */
     private ClearingTransactionFinanceStateDO lockedState(String transactionId,
                                                            LocalDateTime transactionDateTime,
                                                            int expectedVersion) {
@@ -284,6 +320,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return operation;
     }
 
+    /** 人工命令前确认交易动作与财务状态属于同一商户、操作和分片。 */
     private void validateOperation(ClearingTransactionFinanceStateDO state,
                                    ClearingTransactionOperationDO operation) {
         if (!Objects.equals(state.getTransactionId(), operation.getTransactionId())
@@ -294,6 +331,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         }
     }
 
+    /** 人工状态变更后刷新查询投影；投影失败记录异常案件供补偿。 */
     private void updateProjection(ClearingTransactionOperationDO operation,
                                   ClearingStateEnum status,
                                   String failureCode,
@@ -330,12 +368,21 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         return response;
     }
 
+    /**
+     * 将可信操作人与人工原因固化为清分审计文本，并在拼接前分别执行长度约束。
+     *
+     * @param operator 由管理端可信登录上下文注入的操作人
+     * @param reason 人工操作原因
+     * @return 可持久化且可追溯的审计原因
+     * @throws IllegalArgumentException 操作人或原因缺失、超长时抛出
+     */
     private String auditReason(String operator, String reason) {
         String normalizedOperator = requiredText(operator, "operator", OPERATOR_MAX_LENGTH);
         String normalizedReason = requiredText(reason, "reason", REASON_MAX_LENGTH - OPERATOR_MAX_LENGTH - 2);
         return normalizedOperator + ": " + normalizedReason;
     }
 
+    /** 重试命令必须携带分片时间、预期版本、原因和可信操作人。 */
     private void validateRetry(String transactionId, ClearingRetryRequest request) {
         if (!StringUtils.hasText(transactionId) || request == null || request.getTransactionDateTime() == null
                 || request.getExpectedVersion() == null || request.getExpectedVersion() < 0) {
@@ -345,6 +392,7 @@ public class DefaultClearingManagementCommandService implements ClearingManageme
         requiredText(request.getOperator(), "operator", OPERATOR_MAX_LENGTH);
     }
 
+    /** 人工复核命令必须携带分片时间、预期版本、原因和可信操作人。 */
     private void validateReview(String transactionId, ClearingReviewRequest request) {
         if (!StringUtils.hasText(transactionId) || request == null || request.getTransactionDateTime() == null
                 || request.getExpectedVersion() == null || request.getExpectedVersion() < 0) {

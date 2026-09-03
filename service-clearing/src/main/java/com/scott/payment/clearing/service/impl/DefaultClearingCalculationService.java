@@ -107,6 +107,7 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         return new ClearingProcessingException(code, cause.getMessage());
     }
 
+    /** 只按原实际收费事实计算返费，不重新套用当前费用配置。 */
     private FeeRefundResult calculateFeeRefund(ClearingCalculationCommand command) {
         if (command.feeRefundCommand() == null) {
             return null;
@@ -118,6 +119,7 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         }
     }
 
+    /** 百分比组件保留标签币种，固定费和上下限继续保留 USD 原子组件。 */
     private List<CalculatedFee> calculateFees(ClearingCalculationCommand command, Money labelAmount) {
         List<CalculatedFee> fees = new ArrayList<>();
         for (FeeRuleConfigurationSnapshot rule : command.feeSnapshot().rules()) {
@@ -135,6 +137,7 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         return List.copyOf(fees);
     }
 
+    /** 保证金始终按标签币种本金计算，清分阶段不得读取或应用汇率。 */
     private ReserveCalculationResult calculateReserve(ClearingCalculationCommand command, Money labelAmount) {
         ClearingOperationFacts operation = command.operation();
         if (!"SUCCESS".equals(operation.transactionStatus())) {
@@ -175,14 +178,17 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         return new Principal(amount, direction);
     }
 
+    /** 将可空渠道批准金额转换为带 ISO exponent 的精确金额。 */
     private Money approvedAmount(ClearingOperationFacts operation) {
         return money(operation.approvedAmount(), operation.approvedCurrency(), "approved amount");
     }
 
+    /** 将数据库权威交易金额转换为带 ISO exponent 的精确金额。 */
     private Money transactionAmount(ClearingOperationFacts operation) {
         return money(operation.transactionAmount(), operation.transactionCurrency(), "transaction amount");
     }
 
+    /** 将商户标签金额转换为百分比费和保证金共用的精确金额。 */
     private Money labelAmount(ClearingOperationFacts operation) {
         Money label = money(operation.labelAmount(), operation.labelCurrency(), "label amount");
         if (label == null || label.amount().signum() < 0) {
@@ -210,6 +216,7 @@ public class DefaultClearingCalculationService implements ClearingCalculationSer
         return result;
     }
 
+    /** 拒绝币种、金额或冻结费用版本不完整的计算命令，避免产生部分财务事实。 */
     private void validateCommand(ClearingCalculationCommand command) {
         Objects.requireNonNull(command, "clearing calculation command is required");
         if (!Objects.equals(command.operation().merchantId(), command.feeSnapshot().merchantId())) {

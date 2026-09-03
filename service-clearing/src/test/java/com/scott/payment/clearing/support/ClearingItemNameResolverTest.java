@@ -4,7 +4,15 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 验证清分新事实使用专业中文名称，稳定英文编码和金额规则保持不变。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingItemNameResolverTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证清分新事实使用专业中文名称，稳定英文编码和金额规则保持不变。
+ * @status : create
+ */
 class ClearingItemNameResolverTest {
 
     @Test

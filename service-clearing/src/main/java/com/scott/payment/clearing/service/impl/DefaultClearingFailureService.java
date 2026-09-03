@@ -50,8 +50,30 @@ import java.util.Set;
 @Slf4j
 public class DefaultClearingFailureService implements ClearingFailureService {
 
+    /**
+     * {@code FAILURE_SUMMARY_MAX_LENGTH}常量，统一 {@code DefaultClearingFailureService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int FAILURE_SUMMARY_MAX_LENGTH = 512;
+    /**
+     * {@code OUTBOX_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int OUTBOX_MAX_RETRY_COUNT = 10;
+    /**
+     * {@code EVENT_STATUS_INIT}，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final String EVENT_STATUS_INIT = "INIT";
     private static final List<Long> RETRY_DELAY_MINUTES = List.of(1L, 5L, 15L, 60L, 360L);
     private static final Set<ClearingFailureCodeEnum> SOURCE_WAIT_FAILURES = Set.of(
@@ -135,6 +157,7 @@ public class DefaultClearingFailureService implements ClearingFailureService {
                 decision.nextRetryTime(), decision.nextRetryTime() != null);
     }
 
+    /** 失败状态提交后尽力刷新查询投影；投影延迟不得回滚已持久化失败事实。 */
     private void updateFailureProjection(ClearingClaimResult claim,
                                          FailureDecision decision,
                                          LocalDateTime nowUtc) {
@@ -148,6 +171,11 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         }
     }
 
+    /**
+     * 根据受控失败码、当前次数和固定退避表决定重试时间或转人工复核。
+     * <p>
+     * 等待源交易的失败保持 WAITING_SOURCE，其余可重试失败进入 FAILED；达到上限后必须进入 MANUAL_REVIEW，禁止无限自动重试。
+     */
     private FailureDecision decide(ClearingFailureCodeEnum code,
                                    int currentRetryCount,
                                    LocalDateTime nowUtc) {
@@ -167,17 +195,20 @@ public class DefaultClearingFailureService implements ClearingFailureService {
                 nowUtc.plusMinutes(delayMinutes).truncatedTo(ChronoUnit.MILLIS));
     }
 
+    /** 将不可重试或已耗尽重试的失败收敛为人工复核终点，不再安排下次投递。 */
     private FailureDecision manualDecision(ClearingFailureCodeEnum code, int retryCount) {
         requireTransition(ClearingStateEnum.MANUAL_REVIEW);
         return new FailureDecision(ClearingStateEnum.MANUAL_REVIEW, code, retryCount, null);
     }
 
+    /** 自动失败流转必须经过状态机白名单，禁止直接覆盖终态。 */
     private void requireTransition(ClearingStateEnum target) {
         if (!ClearingStateEnum.PROCESSING.canTransitionTo(target, ClearingTransitionOrigin.AUTOMATIC)) {
             throw new IllegalStateException("unsupported automatic clearing failure transition");
         }
     }
 
+    /** 与失败状态在同一事务写入延时 Outbox，避免先发 MQ 后提交状态。 */
     private void persistRetryOutbox(PaymentTransactionEventMessage source,
                                     ClearingClaimResult claim,
                                     FailureDecision decision,
@@ -236,6 +267,7 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         }
     }
 
+    /** 追溯首次交易事件号，使多轮延时重试仍共享同一来源审计链。 */
     private String sourceEventNo(PaymentTransactionEventMessage source) {
         if (source instanceof ClearingRetryDueMessage retryMessage
                 && StringUtils.hasText(retryMessage.getSourceEventNo())) {
@@ -244,6 +276,13 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         return source.getMessageId();
     }
 
+    /**
+     * 生成可持久化的脱敏失败摘要，去除换行并限制长度，避免保存异常堆栈或敏感原文。
+     *
+     * @param failure 清分受控异常
+     * @param decision 本次重试或人工复核决策
+     * @return 不超过数据库上限的单行失败摘要
+     */
     private String failureSummary(ClearingProcessingException failure, FailureDecision decision) {
         String summary;
         if (decision.recordedCode() == ClearingFailureCodeEnum.CLEARING_RETRY_EXHAUSTED) {
@@ -258,6 +297,15 @@ public class DefaultClearingFailureService implements ClearingFailureService {
                 ? summary : summary.substring(0, FAILURE_SUMMARY_MAX_LENGTH);
     }
 
+    /**
+     * 校验失败事务仍携带原消息、已领取财务状态、租约所有者和统一 UTC 时间。
+     *
+     * @param message 原交易或重试事件
+     * @param claim 当前已成功领取的清分状态
+     * @param processingOwner 当前数据库处理租约所有者
+     * @param failure 待记录受控异常
+     * @param nowUtc 失败事实统一 UTC 时间
+     */
     private void requireArguments(PaymentTransactionEventMessage message,
                                   ClearingClaimResult claim,
                                   String processingOwner,
@@ -277,6 +325,7 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         }
     }
 
+    /** 失败提交必须仍持有同一 PROCESSING owner 和版本。 */
     private void validateLease(PaymentTransactionEventMessage message,
                                ClearingClaimResult claim,
                                String processingOwner,
@@ -297,6 +346,7 @@ public class DefaultClearingFailureService implements ClearingFailureService {
         }
     }
 
+    /** 已持久化重试次数必须为非负数，消息值不能替代数据库事实。 */
     private int requiredRetryCount(Integer retryCount) {
         if (retryCount == null || retryCount < 0) {
             throw new IllegalStateException("clearing failure retry count is invalid");

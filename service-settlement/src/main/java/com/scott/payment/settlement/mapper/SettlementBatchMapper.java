@@ -1,6 +1,7 @@
 package com.scott.payment.settlement.mapper;
 
 import com.scott.payment.settlement.entity.SettlementBatchDO;
+import com.scott.payment.settlement.entity.SettlementBatchCancellationAuditDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -73,14 +74,16 @@ public interface SettlementBatchMapper {
             INSERT INTO settlement_batch
             (settlement_batch_no, create_request_key, business_date, business_time_zone,
              daily_sequence, merchant_id, settlement_profile_id, settlement_account_id,
-             target_currency, target_currency_exponent, batch_type, original_batch_no,
-             cutoff_begin_time, cutoff_end_time, batch_status, candidate_count, retry_count,
+             target_currency, target_currency_exponent, batch_type, original_batch_no, review_order_no,
+             create_mode, cutoff_begin_time, cutoff_end_time, batch_status, candidate_count,
+             projectable_candidate_count, retry_count,
              version, create_time, update_time)
             VALUES
             (#{row.settlementBatchNo}, #{row.createRequestKey}, #{row.businessDate}, #{row.businessTimeZone},
              #{row.dailySequence}, #{row.merchantId}, #{row.settlementProfileId}, #{row.settlementAccountId},
              #{row.targetCurrency}, #{row.targetCurrencyExponent}, #{row.batchType}, #{row.originalBatchNo},
-             #{row.cutoffBeginTime}, #{row.cutoffEndTime}, #{row.batchStatus}, #{row.candidateCount},
+             #{row.reviewOrderNo}, #{row.createMode}, #{row.cutoffBeginTime}, #{row.cutoffEndTime},
+             #{row.batchStatus}, #{row.candidateCount}, #{row.projectableCandidateCount},
              #{row.retryCount}, #{row.version}, #{row.createTime}, #{row.updateTime})
             ON DUPLICATE KEY UPDATE id = id
             """)
@@ -119,18 +122,55 @@ public interface SettlementBatchMapper {
     SettlementBatchDO selectReversalByOriginalForUpdate(
             @Param("originalBatchNo") String originalBatchNo);
 
+    /** 在候选消费前将人工预审与可信 Maker-Checker 快照冻结到正式批次。 */
+    @Update("""
+            UPDATE settlement_batch
+            SET review_order_no = #{row.reviewOrderNo},
+                create_mode = 'MANUAL_REVIEW',
+                batch_status = 'CLAIMED',
+                candidate_count = #{row.candidateCount},
+                projectable_candidate_count = #{row.projectableCandidateCount},
+                result_fingerprint = #{row.resultFingerprint},
+                maker_account_id = #{row.makerAccountId},
+                maker_account_name = #{row.makerAccountName},
+                maker_role_snapshot = #{row.makerRoleSnapshot},
+                maker_client_ip = #{row.makerClientIp},
+                maker_user_agent = #{row.makerUserAgent},
+                maker_reason = #{row.makerReason},
+                maker_time = #{row.makerTime},
+                checker_account_id = #{row.checkerAccountId},
+                checker_account_name = #{row.checkerAccountName},
+                checker_role_snapshot = #{row.checkerRoleSnapshot},
+                checker_client_ip = #{row.checkerClientIp},
+                checker_user_agent = #{row.checkerUserAgent},
+                checker_comment = #{row.checkerComment},
+                checker_time = #{row.checkerTime},
+                version = version + 1,
+                update_time = #{row.checkerTime}
+            WHERE settlement_batch_no = #{row.settlementBatchNo}
+              AND batch_status = 'CREATED'
+              AND candidate_count = 0
+              AND review_order_no IS NULL
+              AND version = #{expectedVersion}
+            """)
+    int bindApprovedReview(@Param("row") SettlementBatchDO row,
+                           @Param("expectedVersion") long expectedVersion);
+
     /** 候选与审计关系写入后，使用批次状态和版本 CAS 增加计数并进入 CLAIMING。 */
     @Update("""
             UPDATE settlement_batch
             SET batch_status = 'CLAIMING',
                 candidate_count = candidate_count + 1,
+                projectable_candidate_count = projectable_candidate_count + #{projectableDelta},
                 version = version + 1,
                 update_time = CURRENT_TIMESTAMP(3)
             WHERE settlement_batch_no = #{settlementBatchNo}
               AND batch_status IN ('CREATED', 'CLAIMING')
+              AND #{projectableDelta} IN (0, 1)
               AND version = #{expectedVersion}
             """)
     int incrementCandidateCount(@Param("settlementBatchNo") String settlementBatchNo,
+                                @Param("projectableDelta") int projectableDelta,
                                 @Param("expectedVersion") long expectedVersion);
 
     /** 自动批量认领后按实际页大小增加候选数，状态与 version 共同防止跨实例覆盖。 */
@@ -138,15 +178,18 @@ public interface SettlementBatchMapper {
             UPDATE settlement_batch
             SET batch_status = 'CLAIMING',
                 candidate_count = candidate_count + #{delta},
+                projectable_candidate_count = projectable_candidate_count + #{projectableDelta},
                 version = version + 1,
                 update_time = CURRENT_TIMESTAMP(3)
             WHERE settlement_batch_no = #{settlementBatchNo}
               AND batch_status IN ('CREATED', 'CLAIMING')
               AND #{delta} > 0
+              AND #{projectableDelta} BETWEEN 0 AND #{delta}
               AND version = #{expectedVersion}
             """)
     int incrementCandidateCountBy(@Param("settlementBatchNo") String settlementBatchNo,
                                   @Param("delta") int delta,
+                                  @Param("projectableDelta") int projectableDelta,
                                   @Param("expectedVersion") long expectedVersion);
 
     /** 候选扫描出现空页后封闭非空批次，后续汇率处理只接受 CLAIMED。 */
@@ -285,6 +328,42 @@ public interface SettlementBatchMapper {
     int cancelBeforePosting(@Param("settlementBatchNo") String settlementBatchNo,
                             @Param("expectedVersion") long expectedVersion,
                             @Param("now") java.time.LocalDateTime now);
+
+    /** 按请求键读取既有取消结果；唯一键负责跨批次拒绝复用。 */
+    @Select("""
+            SELECT *
+            FROM settlement_batch_cancellation_audit
+            WHERE request_key = #{requestKey}
+            LIMIT 1
+            """)
+    SettlementBatchCancellationAuditDO selectCancellationAuditByRequestKey(
+            @Param("requestKey") String requestKey);
+
+    /** 批次行锁获取后回读取消审计，串行化同一批次的并发重放。 */
+    @Select("""
+            SELECT *
+            FROM settlement_batch_cancellation_audit
+            WHERE settlement_batch_no = #{settlementBatchNo}
+            LIMIT 1
+            """)
+    SettlementBatchCancellationAuditDO selectCancellationAuditByBatchNo(
+            @Param("settlementBatchNo") String settlementBatchNo);
+
+    /** 取消状态、候选释放和审计快照必须在同一本地事务提交。 */
+    @Insert("""
+            INSERT INTO settlement_batch_cancellation_audit
+            (settlement_batch_no, request_key, expected_version, merchant_id, batch_status_before,
+             released_candidate_count, operator_account_id, operator_account_name,
+             operator_role_snapshot, client_ip, user_agent, reason, operation_time,
+             cancelled_time, create_time)
+            VALUES
+            (#{row.settlementBatchNo}, #{row.requestKey}, #{row.expectedVersion}, #{row.merchantId},
+             #{row.batchStatusBefore}, #{row.releasedCandidateCount}, #{row.operatorAccountId},
+             #{row.operatorAccountName}, #{row.operatorRoleSnapshot}, #{row.clientIp},
+             #{row.userAgent}, #{row.reason}, #{row.operationTime}, #{row.cancelledTime},
+             #{row.createTime})
+            """)
+    int insertCancellationAudit(@Param("row") SettlementBatchCancellationAuditDO row);
 
     /** 原批次由 POSTED 进入 REVERSING，禁止并发创建多条冲正链。 */
     @Update("""

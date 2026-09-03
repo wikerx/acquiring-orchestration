@@ -22,7 +22,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 /**
- * 清分低基数运行指标。任何商户号、交易号、消息号和异常明文都不得作为 tag 传入。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingOperationalMetrics
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 清分低基数运行指标。任何商户号、交易号、消息号和异常明文都不得作为 tag 传入。
+ * @status : update
  */
 @Component
 public class ClearingOperationalMetrics {
@@ -53,6 +59,14 @@ public class ClearingOperationalMetrics {
             ClearingStateEnum.WAITING_SOURCE,
             ClearingStateEnum.FAILED,
             ClearingStateEnum.MANUAL_REVIEW);
+    /**
+     * ISO币种，表示金额字段使用的币种。
+     * <p>
+     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+     * </p>
+     */
     private static final Pattern ISO_CURRENCY = Pattern.compile("[A-Z]{3}");
 
     private final MeterRegistry registry;
@@ -89,7 +103,12 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录一条已校验清分消息的低基数处理结果，并单独统计幂等重复类型。 */
+    /**
+     * 记录一条已校验清分消息的低基数处理结果，并单独统计幂等重复类型。
+     *
+     * @param result 清分应用编排结果
+     * @param transactionType 有限交易类型标签
+     */
     public void recordEventConsumed(ClearingProcessingResult result, String transactionType) {
         String outcome = result == null ? "TECHNICAL_FAILURE" : result.name();
         Counter.builder("clearing.event.consumed")
@@ -110,7 +129,13 @@ public class ClearingOperationalMetrics {
         }
     }
 
-    /** 仅在阶段 B 已成功提交权威清分事实后统计完成动作。 */
+    /**
+     * 仅在阶段 B 已成功提交权威清分事实后统计完成动作。
+     *
+     * @param transactionType 有限交易类型标签
+     * @param currency ISO 标签币种
+     * @param clearingStatus 已提交的清分终态
+     */
     public void recordCompleted(String transactionType, String currency, String clearingStatus) {
         Counter.builder("clearing.completed")
                 .description("Successfully completed clearing actions")
@@ -121,7 +146,12 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录从消息进入应用编排到 ACK 或异常传播的完整耗时。 */
+    /**
+     * 记录从消息进入应用编排到 ACK 或异常传播的完整耗时。
+     *
+     * @param outcome 有限处理结果标签
+     * @param durationNanos 端到端耗时，单位纳秒
+     */
     public void recordDuration(String outcome, long durationNanos) {
         Timer.builder("clearing.duration")
                 .description("Clearing message processing duration")
@@ -130,7 +160,11 @@ public class ClearingOperationalMetrics {
                 .record(Math.max(0L, durationNanos), TimeUnit.NANOSECONDS);
     }
 
-    /** 记录带固定失败码和可重试属性的受控失败。 */
+    /**
+     * 记录带固定失败码和可重试属性的受控失败。
+     *
+     * @param failureCode 清分受控失败枚举
+     */
     public void recordFailure(ClearingFailureCodeEnum failureCode) {
         ClearingFailureCodeEnum safeCode = failureCode == null
                 ? ClearingFailureCodeEnum.CLEARING_PERSISTENCE_ERROR : failureCode;
@@ -142,7 +176,11 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录动作费用配置最终采用的不可变事实来源。 */
+    /**
+     * 记录动作费用配置最终采用的不可变事实来源。
+     *
+     * @param source 有限费用事实来源标签
+     */
     public void recordFeeSource(String source) {
         Counter.builder("clearing.fee.cache.hit")
                 .description("Source used to load an immutable clearing fee version")
@@ -151,7 +189,12 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录阶梯规则批量初始化和行锁等待耗时。 */
+    /**
+     * 记录阶梯规则批量初始化和行锁等待耗时。
+     *
+     * @param ruleType 有限阶梯规则类型
+     * @param durationNanos 锁处理耗时，单位纳秒
+     */
     public void recordTierLock(String ruleType, long durationNanos) {
         Timer.builder("clearing.tier.lock")
                 .description("Clearing tier accumulator lock duration")
@@ -160,7 +203,11 @@ public class ClearingOperationalMetrics {
                 .record(Math.max(0L, durationNanos), TimeUnit.NANOSECONDS);
     }
 
-    /** 记录阶梯期间重放有限状态；商户、交易和重放号不得作为 tag。 */
+    /**
+     * 记录阶梯期间重放有限状态；商户、交易和重放号不得作为 tag。
+     *
+     * @param outcome 有限重放结果标签
+     */
     public void recordTierReplay(String outcome) {
         Counter.builder("clearing.tier.replay")
                 .description("Tier period replay outcomes")
@@ -169,7 +216,12 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录退款保证金返还结果；金额继续由保证金明细承担权威审计。 */
+    /**
+     * 记录退款保证金返还结果；金额继续由保证金明细承担权威审计。
+     *
+     * @param currency 保证金原标签币种
+     * @param outcome 有限返还结果标签
+     */
     public void recordReserveReturn(String currency, String outcome) {
         Counter.builder("clearing.reserve.return")
                 .description("Reserve return outcomes")
@@ -179,7 +231,11 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录到期保证金单条独立事务的有限结果，不记录业务身份和金额。 */
+    /**
+     * 记录到期保证金单条独立事务的有限结果，不记录业务身份和金额。
+     *
+     * @param outcome 有限释放结果标签
+     */
     public void recordReserveRelease(String outcome) {
         Counter.builder("clearing.reserve.release")
                 .description("Reserve release transaction outcomes")
@@ -188,7 +244,11 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录人工保证金调整申请和双人复核的有限结果。 */
+    /**
+     * 记录人工保证金调整申请和双人复核的有限结果。
+     *
+     * @param outcome 有限调整结果标签
+     */
     public void recordReserveAdjustment(String outcome) {
         Counter.builder("clearing.reserve.adjustment")
                 .description("Reserve adjustment workflow outcomes")
@@ -241,7 +301,11 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录已通过参数校验但在数据库扫描或逐条恢复阶段失败的补偿批次。 */
+    /**
+     * 记录已通过参数校验但在数据库扫描或逐条恢复阶段失败的补偿批次。
+     *
+     * @param mode DRY_RUN 或 SHADOW_WRITE 补偿模式
+     */
     public void recordCompensationFailure(String mode) {
         Counter.builder("clearing.compensation.batch")
                 .description("Clearing compensation batch outcomes")
@@ -275,7 +339,11 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录清分汇总、交易明细或保证金明细金额不平事件。 */
+    /**
+     * 记录清分汇总、交易明细或保证金明细金额不平事件。
+     *
+     * @param currency 发生不平的 ISO 币种
+     */
     public void recordAmountImbalance(String currency) {
         Counter.builder("clearing.amount.imbalance")
                 .description("Clearing financial consistency mismatches")
@@ -284,7 +352,11 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 记录全部已发布季度 Gauge 刷新的有限成功或失败结果。 */
+    /**
+     * 记录全部已发布季度 Gauge 刷新的有限成功或失败结果。
+     *
+     * @param success true 表示本轮全部刷新成功
+     */
     public void recordMetricsRefresh(boolean success) {
         Counter.builder("clearing.metrics.refresh")
                 .description("Clearing operational gauge refresh outcomes")
@@ -293,7 +365,12 @@ public class ClearingOperationalMetrics {
                 .increment();
     }
 
-    /** 使用全部已发布季度的聚合结果原子刷新待处理数量和最老等待时间。 */
+    /**
+     * 使用全部已发布季度的聚合结果原子刷新待处理数量和最老等待时间。
+     *
+     * @param counts 按有限状态聚合的待处理数量
+     * @param oldestSeconds 按有限状态聚合的最老等待秒数
+     */
     public void updatePending(Map<String, Long> counts, Map<String, Long> oldestSeconds) {
         for (ClearingStateEnum status : PENDING_STATES) {
             pendingCounts.get(status).set(nonNegative(counts == null ? null : counts.get(status.name())));
@@ -302,7 +379,11 @@ public class ClearingOperationalMetrics {
         }
     }
 
-    /** 按标签币种刷新尚未释放或返还的保证金负债，仅用于容量和异常趋势监控。 */
+    /**
+     * 按标签币种刷新尚未释放或返还的保证金负债，仅用于容量和异常趋势监控。
+     *
+     * @param amounts 按 ISO 标签币种聚合的剩余保证金主单位金额
+     */
     public void updateReserveRemaining(Map<String, BigDecimal> amounts) {
         reserveRemainingAmounts.values().forEach(value -> value.set(BigDecimal.ZERO));
         if (amounts == null) {
@@ -343,11 +424,17 @@ public class ClearingOperationalMetrics {
         return allowed(normalized, TRANSACTION_TYPES);
     }
 
+    /** 仅允许 ISO 三字母币种进入指标标签，非法值归一为 UNKNOWN。 */
     private String currency(String value) {
         String normalized = value == null ? null : value.trim().toUpperCase(Locale.ROOT);
         return normalized != null && ISO_CURRENCY.matcher(normalized).matches() ? normalized : "OTHER";
     }
 
+    /**
+     * 把清分状态规范化为受控指标标签，未知值统一归入 OTHER，避免指标基数失控。
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String clearingStatus(String value) {
         try {
             return ClearingStateEnum.valueOf(value).name();

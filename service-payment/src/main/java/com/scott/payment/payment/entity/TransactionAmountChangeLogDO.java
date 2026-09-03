@@ -24,19 +24,18 @@ public class TransactionAmountChangeLogDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @TableId(type = IdType.AUTO)
     /**
-     * Transaction Amount Change Log DO 数据库主键，用于唯一标识当前记录。
+     * {@code TransactionAmountChangeLogDO} 数据库主键，用于唯一标识当前记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
-     * amount Change ID，用于定位 Transaction Amount Change Log DO 关联的上游配置、渠道、账号、角色或业务记录。
+     * 金额变更ID，用于定位 {@code TransactionAmountChangeLogDO} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
@@ -76,27 +75,26 @@ public class TransactionAmountChangeLogDO implements Serializable {
     private String sourceTransactionId;
 
     /**
-     * change Type，用于区分 Transaction Amount Change Log DO 记录的处理类别、配置维度或外部协议枚举。
+     * 变更类型，用于区分 {@code TransactionAmountChangeLogDO} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String changeType;
 
     /**
-     * amount Currency，表示当前交易、费用、限额或统计口径下的金额值。
+     * 金额币种，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
+     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自平台支持币种；数据来源：数据库表记录或持久化写入对象。
      * 字段关系：必须与 currency 或同名币种字段一起解释。
      * </p>
      */
     private String amountCurrency;
 
     /**
-     * change Amount，表示当前交易、费用、限额或统计口径下的金额值。
+     * 变更金额，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
@@ -106,161 +104,146 @@ public class TransactionAmountChangeLogDO implements Serializable {
     private BigDecimal changeAmount;
 
     /**
-     * authorized Before，用于保存 Transaction Amount Change Log DO 中与 authorizedbefore 相关的业务属性。
+     * 持久化的{@code authorizedBefore}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal authorizedBefore;
 
     /**
-     * authorized After，用于保存 Transaction Amount Change Log DO 中与 authorizedafter 相关的业务属性。
+     * 持久化的{@code authorizedAfter}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal authorizedAfter;
 
     /**
-     * captured Before，用于保存 Transaction Amount Change Log DO 中与 capturedbefore 相关的业务属性。
+     * 持久化的{@code capturedBefore}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal capturedBefore;
 
     /**
-     * captured After，用于保存 Transaction Amount Change Log DO 中与 capturedafter 相关的业务属性。
+     * 持久化的{@code capturedAfter}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal capturedAfter;
 
     /**
-     * refunded Before，用于保存 Transaction Amount Change Log DO 中与 refundedbefore 相关的业务属性。
+     * 持久化的{@code refundedBefore}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal refundedBefore;
 
     /**
-     * refunded After，用于保存 Transaction Amount Change Log DO 中与 refundedafter 相关的业务属性。
+     * 持久化的{@code refundedAfter}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal refundedAfter;
 
     /**
-     * available Capture Before，用于保存 Transaction Amount Change Log DO 中与 availablecapturebefore 相关的业务属性。
+     * 持久化的{@code availableCaptureBefore}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal availableCaptureBefore;
 
     /**
-     * available Capture After，用于保存 Transaction Amount Change Log DO 中与 availablecaptureafter 相关的业务属性。
+     * 持久化的{@code availableCaptureAfter}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal availableCaptureAfter;
 
     /**
-     * available Refund Before，用于保存 Transaction Amount Change Log DO 中与 availablerefundbefore 相关的业务属性。
+     * 持久化的{@code availableRefundBefore}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal availableRefundBefore;
 
     /**
-     * available Refund After，用于保存 Transaction Amount Change Log DO 中与 availablerefundafter 相关的业务属性。
+     * 持久化的{@code availableRefundAfter}，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal availableRefundAfter;
 
     /**
-     * change Reason，用于保存 Transaction Amount Change Log DO 中与 changereason 相关的业务属性。
+     * 持久化的变更原因，用于还原当前记录的业务事实。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String changeReason;
 
     /**
-     * change Time，用于保存 Transaction Amount Change Log DO 中与 changetime 相关的业务属性。
+     * 持久化的变更时间，用于还原当前记录的业务事实。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime changeTime;
 
     /**
-     * transaction Date Time，用于保存 Transaction Amount Change Log DO 中与 交易datetime 相关的业务属性。
+     * 交易受理时刻，按交易业务时区解释并保留毫秒精度。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime transactionDateTime;
 
     /**
-     * transaction Utc Time，用于保存 Transaction Amount Change Log DO 中与 交易utctime 相关的业务属性。
+     * 交易受理时刻对应的 UTC 时间，用于跨时区排序和对账。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LocalDateTime transactionUtcTime;
 
     /**
-     * transaction Time Zone，用于保存 Transaction Amount Change Log DO 中与 交易timezone 相关的业务属性。
+     * 交易业务时区，使用 IANA 时区标识解释本地交易时间。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String transactionTimeZone;
 
     /**
-     * create Time，用于保存 Transaction Amount Change Log DO 中与 createtime 相关的业务属性。
+     * 记录创建时刻，持久化精度为毫秒。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 字段关系：与创建人、更新人和版本字段共同形成记录审计信息。
      * </p>
      */
     private LocalDateTime createTime;

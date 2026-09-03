@@ -41,6 +41,13 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class PaymentCheckoutCardEnvelopeService {
 
+    /**
+     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final DefaultRedisScript<Long> CONSUME_NONCE_SCRIPT = new DefaultRedisScript<>("""
             local value = redis.call('GET', KEYS[1])
@@ -176,6 +183,12 @@ public class PaymentCheckoutCardEnvelopeService {
         return sum > 0 && sum % 10 == 0;
     }
 
+    /**
+     * 以 SETNX 和 TTL 登记一次性卡密文 nonce，阻止相同信封被重复提交。
+     * <p>
+     * 生产配置要求重放存储时 Redis 故障必须关闭入口；仅在显式允许降级的环境使用进程内存储，
+     * 该降级不提供跨实例重放保护。
+     */
     private void storeNonce(String key, String expected) {
         Duration ttl = Duration.ofSeconds(Math.max(60, config().getNonceTtlSeconds()));
         if (redisTemplate != null) {
@@ -198,6 +211,12 @@ public class PaymentCheckoutCardEnvelopeService {
         localNonces.put(key, new LocalNonce(expected, Instant.now().plus(ttl)));
     }
 
+    /**
+     * 原子校验并删除 nonce，确保成功解密只发生一次。
+     * <p>
+     * Redis Lua 脚本把比对和删除合并为单个原子操作；值不匹配、已过期或已消费统一按非法密文处理，
+     * 避免向调用方泄露重放存储状态。
+     */
     private void consumeNonce(String key, String expected) {
         if (redisTemplate != null) {
             try {
@@ -222,11 +241,20 @@ public class PaymentCheckoutCardEnvelopeService {
         }
     }
 
+    /**
+     * 规范化{@code cleanupLocalNonces}，返回调用链后续步骤可直接使用的业务值。
+     */
     private void cleanupLocalNonces() {
         Instant now = Instant.now();
         localNonces.entrySet().removeIf(entry -> entry.getValue().expireTime.isBefore(now));
     }
 
+    /**
+     * 对收银台会话号和一次性随机数取摘要，构造防重放 Redis Key。
+     * @param checkoutSessionId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param nonce 收银台会话标识或一次性随机数，用于构造防重放身份
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String nonceKey(String checkoutSessionId, String nonce) {
         return redisProperties.businessKey("checkout", "card-nonce",
                 RedisKeyDigest.sha256(checkoutSessionId + "|" + nonce));
@@ -240,6 +268,10 @@ public class PaymentCheckoutCardEnvelopeService {
         return properties.getCardEncryption();
     }
 
+    /**
+     * 使用密码学安全随机数生成 URL-safe 的一次性 nonce。
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String newNonce() {
         byte[] bytes = new byte[24];
         SECURE_RANDOM.nextBytes(bytes);
@@ -255,10 +287,45 @@ public class PaymentCheckoutCardEnvelopeService {
     }
 
     private static final class CardPlaintext {
+        /**
+         * 卡编号，表示银行卡号或脱敏卡号字段。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；银行卡敏感字段，只允许脱敏或摘要化使用。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         public String cardNo;
+        /**
+         * {@code expirationMonth}字段，保存 {@code CardPlaintext} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         public String expirationMonth;
+        /**
+         * {@code expirationYear}字段，保存 {@code CardPlaintext} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         public String expirationYear;
+        /**
+         * 安全编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         public String securityCode;
+        /**
+         * {@code cardholderName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * </p>
+         */
         public String cardholderName;
     }
 

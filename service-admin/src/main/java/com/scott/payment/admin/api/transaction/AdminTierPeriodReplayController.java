@@ -35,7 +35,12 @@ public class AdminTierPeriodReplayController {
         this.applicationService = applicationService;
     }
 
-    /** 提交商户、不可变费用版本和月份闭包的重放申请。 */
+    /**
+     * 提交商户、不可变费用版本和月份闭包的重放申请。
+     *
+     * @param request 重放月份、费用版本、触发规则和原因
+     * @return 新建或幂等回放的待复核申请
+     */
     @PostMapping
     @RequiresPermission("clearing:tier-period-replay:submit")
     @OperationLog(moduleName = "交易清分", businessType = OperationTypeConstants.CREATE,
@@ -45,7 +50,13 @@ public class AdminTierPeriodReplayController {
         return success(applicationService.submitTierPeriodReplay(request));
     }
 
-    /** 由不同操作人批准或拒绝；批准后服务端自动推进。 */
+    /**
+     * 由不同操作人批准或拒绝；批准后服务端自动推进。
+     *
+     * @param replayNo 阶梯期间重放单号
+     * @param request 决策、申请预期版本和复核意见
+     * @return 复核后的重放状态和处理统计
+     */
     @PostMapping("/{replayNo}/review")
     @RequiresPermission("clearing:tier-period-replay:review")
     @OperationLog(moduleName = "交易清分", businessType = OperationTypeConstants.AUDIT,

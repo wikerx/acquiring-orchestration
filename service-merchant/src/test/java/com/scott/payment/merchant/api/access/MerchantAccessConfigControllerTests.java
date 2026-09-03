@@ -18,7 +18,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 /**
- * 商户访问配置接口的认证商户隔离测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantAccessConfigControllerTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户访问配置接口的认证商户隔离测试。
+ * @status : create
  */
 class MerchantAccessConfigControllerTests {
 

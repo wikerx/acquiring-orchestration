@@ -1,7 +1,14 @@
 package com.scott.payment.risk.domain;
 
 /**
- * 商户累计限额预占批量迁移结果。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantLimitReservationTransitionSummary
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户累计限额预占批量迁移结果。
+ * @status : create
+ *
  *
  * @param applied 本次成功迁移数量
  * @param idempotent 已处于目标状态的数量

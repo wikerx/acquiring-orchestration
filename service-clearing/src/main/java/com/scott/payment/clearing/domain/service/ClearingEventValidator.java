@@ -48,6 +48,7 @@ public class ClearingEventValidator {
         }
     }
 
+    /** 延时重试消息必须携带原失败修订和重试序号，避免过期消息重新领取最新状态。 */
     private void validateRetryControl(PaymentTransactionEventMessage message) {
         if (!(message instanceof ClearingRetryDueMessage retryMessage)
                 || !StringUtils.hasText(retryMessage.getSourceEventNo())

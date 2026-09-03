@@ -24,12 +24,21 @@ import java.util.Objects;
  * @version : v1.0.0
  * @classname : RefundExecutionService
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款执行消息状态机，使用数据库 CAS 吸收重复消费，并将任何已有发送事实转为主动 QUERY。
  * @status : create
  */
 @Service
 public class RefundExecutionService {
 
+    /**
+     * {@code REQUEST_STATUS_INIT}，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final String REQUEST_STATUS_INIT = "INIT";
 
     private final TransactionOperationMapper operationMapper;

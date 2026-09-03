@@ -51,16 +51,16 @@ public class MpgsRequestPayload {
     /** MPGS 付款人资料，仅在 Authenticate Payer 阶段按已有资料发送。 */
     private Customer customer;
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Order
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Order 协作组件，位于 渠道适配库，封装 订单 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 请求报文的订单节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Order {
 
         /**
@@ -82,16 +82,16 @@ public class MpgsRequestPayload {
         private String notificationUrl;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Transaction
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Transaction 协作组件，位于 渠道适配库，封装 交易 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 请求报文的交易节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Transaction {
 
         /**
@@ -115,16 +115,16 @@ public class MpgsRequestPayload {
         private String targetTransactionId;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : SourceOfFunds
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Source Of Funds 协作组件，位于 渠道适配库，封装 来源offunds 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 请求报文的资金来源节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class SourceOfFunds {
 
         /**
@@ -138,16 +138,16 @@ public class MpgsRequestPayload {
         private Provided provided;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Provided
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Provided 协作组件，位于 渠道适配库，封装 provided 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 请求报文的支付工具节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Provided {
 
         /**
@@ -156,16 +156,16 @@ public class MpgsRequestPayload {
         private Card card;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Card
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Card 协作组件，位于 渠道适配库，封装 card 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 请求报文的卡节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Card {
 
         /**
@@ -187,16 +187,16 @@ public class MpgsRequestPayload {
         private String nameOnCard;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Expiry
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Expiry 协作组件，位于 渠道适配库，封装 expiry 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 请求报文的有效期节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Expiry {
 
         /**
@@ -210,16 +210,16 @@ public class MpgsRequestPayload {
         private String year;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Authentication
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Authentication 协作组件，位于 渠道适配库，封装 authentication 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 请求报文的认证节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Authentication {
 
         /** Initiate Authentication 接受的协议版本，当前平台只启用 EMV 3DS2。 */
@@ -359,16 +359,16 @@ public class MpgsRequestPayload {
         private String url;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : ThreeDs
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Three Ds 协作组件，位于 渠道适配库，封装 threeds 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 请求报文的3DS节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class ThreeDs {
 
         /**
@@ -387,16 +387,16 @@ public class MpgsRequestPayload {
         private String authenticationToken;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : ThreeDs1
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Three Ds 1 协作组件，位于 渠道适配库，封装 threeds1 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 请求报文的3DS 1.x节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class ThreeDs1 {
 
         /**
@@ -410,16 +410,16 @@ public class MpgsRequestPayload {
         private String veResEnrolled;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : ThreeDs2
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Three Ds 2 协作组件，位于 渠道适配库，封装 threeds2 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 请求报文的3DS 2.x节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class ThreeDs2 {
 
         /**

@@ -21,6 +21,7 @@ import java.time.LocalTime;
 @Data
 @TableName("merchant_settlement_profile")
 public class MerchantSettlementProfileDO {
+    /** 结算档案数据库主键，插入前允许为空。 */
     @TableId(type = IdType.AUTO)
     private Long id;
     /** 对外审计使用的稳定档案号。 */
@@ -37,6 +38,8 @@ public class MerchantSettlementProfileDO {
     private String businessTimeZone;
     /** 每日结算日切时间，不包含时区。 */
     private LocalTime dailyCutoffTime;
+    /** AUTO_POST、AUTO_REVIEW 或 MANUAL。 */
+    private String processingMode;
     /** ACTIVE、RETIRED 或 SUSPENDED。 */
     private String profileStatus;
     /** 活动档案固定为 1，非活动档案为空，用于数据库唯一约束。 */
@@ -47,6 +50,8 @@ public class MerchantSettlementProfileDO {
     private LocalDate expireDate;
     /** 档案并发与审计版本。 */
     private Long version;
+    /** 结算档案创建时间，数据库精度为毫秒。 */
     private LocalDateTime createTime;
+    /** 结算档案最近更新时间，数据库精度为毫秒。 */
     private LocalDateTime updateTime;
 }

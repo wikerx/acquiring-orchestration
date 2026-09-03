@@ -32,6 +32,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantOpenApiEndToEndTests
+ * @date : 2026-05-30 09:37
+ * @email : scott_x@163.com
+ * @description : Merchant Open API End To End Tests 自动化测试类，位于 商户开放接口服务，验证当前模块的正常路径、异常边界和回归场景。
+ * @status : create
+ */
 @Slf4j
 @AutoConfigureMockMvc
 @SpringBootTest(
@@ -44,15 +53,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiEndToEndTests
- * @date : 2026-05-30 09:37
- * @email : scott_x@163.com
- * @description : Merchant Open API End To End Tests 自动化测试类，位于 商户开放接口服务，验证当前模块的正常路径、异常边界和回归场景。
- * @status : create
- */
 class MerchantOpenApiEndToEndTests {
 
     /**

@@ -32,7 +32,7 @@ JOIN sys_menu parent ON parent.app_id = menu.app_id
                     AND parent.menu_code = 'admin_transaction_catalog_v1'
                     AND parent.deleted = 0
 SET menu.parent_id = parent.id,
-    menu.menu_name = '交易清分',
+    menu.menu_name = BINARY '交易清分',
     menu.menu_type = 'MENU',
     menu.route_path = '/transaction/clearing',
     menu.component_path = 'transaction/clearing',
@@ -109,7 +109,7 @@ JOIN sys_menu parent ON parent.app_id = menu.app_id
                     AND parent.menu_code = 'admin_transaction_clearing_v1'
                     AND parent.deleted = 0
 SET menu.parent_id = parent.id,
-    menu.menu_name = item.menu_name,
+    menu.menu_name = BINARY item.menu_name,
     menu.menu_type = 'BUTTON',
     menu.route_path = NULL,
     menu.component_path = NULL,
@@ -215,11 +215,11 @@ JOIN sys_menu menu ON menu.app_id = permission.app_id
                   AND menu.menu_code = item.menu_code
                   AND menu.deleted = 0
 SET permission.menu_id = menu.id,
-    permission.permission_name = item.permission_name,
+    permission.permission_name = BINARY item.permission_name,
     permission.permission_type = item.permission_type,
     permission.resource_method = item.resource_method,
     permission.resource_path = item.resource_path,
-    permission.description = item.description,
+    permission.description = BINARY item.description,
     permission.status = 1,
     permission.updated_at = CURRENT_TIMESTAMP(3)
 WHERE permission.deleted = 0;
@@ -280,7 +280,7 @@ JOIN sys_menu parent ON parent.app_id = menu.app_id
                     AND parent.menu_code = 'admin_transaction_catalog_v1'
                     AND parent.deleted = 0
 SET menu.parent_id = parent.id,
-    menu.menu_name = '交易结算',
+    menu.menu_name = BINARY '交易结算',
     menu.menu_type = 'MENU',
     menu.route_path = '/transaction/settlement',
     menu.component_path = 'transaction/settlement',
@@ -310,8 +310,6 @@ JOIN (
            'settlement:batch:detail' permission_code, 1 sort_no
     UNION ALL SELECT 'admin_transaction_settlement_cancel_v1', '取消未入账批次',
            'settlement:batch:cancel', 2
-    UNION ALL SELECT 'admin_transaction_settlement_reverse_v1', '冲正已入账批次',
-           'settlement:batch:reverse', 3
 ) item
 WHERE app.app_code = 'ADMIN'
   AND app.deleted = 0
@@ -330,14 +328,12 @@ JOIN (
            'settlement:batch:detail' permission_code, 1 sort_no
     UNION ALL SELECT 'admin_transaction_settlement_cancel_v1', '取消未入账批次',
            'settlement:batch:cancel', 2
-    UNION ALL SELECT 'admin_transaction_settlement_reverse_v1', '冲正已入账批次',
-           'settlement:batch:reverse', 3
 ) item ON item.menu_code = menu.menu_code
 JOIN sys_menu parent ON parent.app_id = menu.app_id
                     AND parent.menu_code = 'admin_transaction_settlement_v1'
                     AND parent.deleted = 0
 SET menu.parent_id = parent.id,
-    menu.menu_name = item.menu_name,
+    menu.menu_name = BINARY item.menu_name,
     menu.menu_type = 'BUTTON',
     menu.route_path = NULL,
     menu.component_path = NULL,
@@ -369,9 +365,6 @@ JOIN (
     UNION ALL SELECT 'admin_transaction_settlement_cancel_v1', 'settlement:batch:cancel',
            '取消未入账结算批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/cancel',
            '通过状态和版本CAS取消未入账批次并释放全部候选'
-    UNION ALL SELECT 'admin_transaction_settlement_reverse_v1', 'settlement:batch:reverse',
-           '冲正已入账结算批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/reverse',
-           '为已入账批次创建独立冲正批并追加相反资金事实'
 ) item
 JOIN sys_menu menu ON menu.app_id = app.id
                   AND menu.menu_code = item.menu_code
@@ -399,19 +392,16 @@ JOIN (
     UNION ALL SELECT 'admin_transaction_settlement_cancel_v1', 'settlement:batch:cancel',
            '取消未入账结算批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/cancel',
            '通过状态和版本CAS取消未入账批次并释放全部候选'
-    UNION ALL SELECT 'admin_transaction_settlement_reverse_v1', 'settlement:batch:reverse',
-           '冲正已入账结算批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/reverse',
-           '为已入账批次创建独立冲正批并追加相反资金事实'
 ) item ON item.permission_code = permission.permission_code
 JOIN sys_menu menu ON menu.app_id = permission.app_id
                   AND menu.menu_code = item.menu_code
                   AND menu.deleted = 0
 SET permission.menu_id = menu.id,
-    permission.permission_name = item.permission_name,
+    permission.permission_name = BINARY item.permission_name,
     permission.permission_type = item.permission_type,
     permission.resource_method = item.resource_method,
     permission.resource_path = item.resource_path,
-    permission.description = item.description,
+    permission.description = BINARY item.description,
     permission.status = 1,
     permission.updated_at = CURRENT_TIMESTAMP(3)
 WHERE permission.deleted = 0;
@@ -426,8 +416,7 @@ WHERE role.role_code = 'SUPER_ADMIN'
   AND menu.menu_code IN (
       'admin_transaction_settlement_v1',
       'admin_transaction_settlement_detail_v1',
-      'admin_transaction_settlement_cancel_v1',
-      'admin_transaction_settlement_reverse_v1'
+      'admin_transaction_settlement_cancel_v1'
   );
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
@@ -440,8 +429,34 @@ WHERE role.role_code = 'SUPER_ADMIN'
   AND permission.permission_code IN (
       'settlement:batch:list',
       'settlement:batch:detail',
-      'settlement:batch:cancel',
-      'settlement:batch:reverse'
+      'settlement:batch:cancel'
   );
+
+-- Direct reversal was replaced by the separate Maker-Checker reversal-order flow.
+UPDATE sys_role_permission role_permission
+JOIN sys_permission permission
+  ON permission.app_id = role_permission.app_id
+ AND permission.id = role_permission.permission_id
+SET role_permission.deleted = role_permission.id
+WHERE permission.permission_code = 'settlement:batch:reverse'
+  AND permission.deleted = 0
+  AND role_permission.deleted = 0;
+
+UPDATE sys_permission
+SET deleted = id, status = 0
+WHERE permission_code = 'settlement:batch:reverse' AND deleted = 0;
+
+UPDATE sys_role_menu role_menu
+JOIN sys_menu menu
+  ON menu.app_id = role_menu.app_id
+ AND menu.id = role_menu.menu_id
+SET role_menu.deleted = role_menu.id
+WHERE menu.menu_code = 'admin_transaction_settlement_reverse_v1'
+  AND menu.deleted = 0
+  AND role_menu.deleted = 0;
+
+UPDATE sys_menu
+SET deleted = id, status = 0, visible = 0
+WHERE menu_code = 'admin_transaction_settlement_reverse_v1' AND deleted = 0;
 
 COMMIT;

@@ -46,7 +46,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Hosted Checkout OpenAPI 服务测试，覆盖商户绑定、Token 不透明性、金额币种和页面状态映射。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : HostedCheckoutServiceImplTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout OpenAPI 服务测试，覆盖商户绑定、Token 不透明性、金额币种和页面状态映射。
+ * @status : create
  */
 @Slf4j
 class HostedCheckoutServiceImplTests {

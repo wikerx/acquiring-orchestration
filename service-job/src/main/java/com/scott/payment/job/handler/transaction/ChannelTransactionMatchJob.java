@@ -45,20 +45,20 @@ public class ChannelTransactionMatchJob implements JobHandler {
     public static final String HANDLER_CODE = "channelTransactionMatch";
 
     /**
-     * DEFAULT LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
+     * {@code DEFAULT_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final int DEFAULT_LIMIT = 100;
 
     /**
-     * MAX LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
+     * {@code MAX_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
@@ -70,11 +70,10 @@ public class ChannelTransactionMatchJob implements JobHandler {
     private static final int DEFAULT_LOOKBACK_QUARTERS = 2;
 
     /**
-     * payment Internal Client 依赖，用于 Channel Transaction Match Job 调用对应的数据访问、远程调用或领域服务能力。
+     * {@code paymentInternalClient} 依赖，用于 渠道交易匹配任务 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final PaymentInternalClient paymentInternalClient;

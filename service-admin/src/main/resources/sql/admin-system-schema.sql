@@ -1477,6 +1477,7 @@ CREATE TABLE IF NOT EXISTS channel_payment_capability (
     business_type VARCHAR(32) NOT NULL COMMENT '业务类型：ACQUIRING/PAYOUT',
     payment_method VARCHAR(64) NOT NULL COMMENT '支付方式',
     transaction_type VARCHAR(512) NOT NULL DEFAULT 'NONE' COMMENT '交易类型列表，多个以英文逗号分隔，代付为NONE',
+    default_transaction_currency CHAR(3) NOT NULL COMMENT '默认交易币种，必须属于能力允许币种',
     support_3ds TINYINT NOT NULL DEFAULT 0 COMMENT '是否支持3DS：0否，1是',
     support_incremental_authorization TINYINT NOT NULL DEFAULT 0 COMMENT '是否支持增量授权：0否，1是',
     capability_status TINYINT NOT NULL DEFAULT 1 COMMENT '能力状态：0停用，1启用',

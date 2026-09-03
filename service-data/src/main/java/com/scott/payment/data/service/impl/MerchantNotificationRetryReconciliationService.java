@@ -35,6 +35,13 @@ import java.util.List;
 @Service
 public class MerchantNotificationRetryReconciliationService {
 
+    /**
+     * 平台时区ID，用于定位 {@code MerchantNotificationRetryReconciliationService} 关联的上游配置、渠道、账号、角色或业务记录。
+     * <p>
+     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID);
 
     /** 通知任务 Mapper。 */

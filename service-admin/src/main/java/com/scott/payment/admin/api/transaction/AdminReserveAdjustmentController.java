@@ -35,7 +35,12 @@ public class AdminReserveAdjustmentController {
         this.applicationService = applicationService;
     }
 
-    /** 提交标签币种保证金差额申请，不直接产生保证金明细。 */
+    /**
+     * 提交标签币种保证金差额申请，不直接产生保证金明细。
+     *
+     * @param request 保证金状态版本、方向、标签币种金额和原因
+     * @return 新建或幂等回放的待复核申请
+     */
     @PostMapping
     @RequiresPermission("clearing:reserve-adjustment:submit")
     @OperationLog(moduleName = "保证金清分", businessType = OperationTypeConstants.CREATE,
@@ -45,7 +50,13 @@ public class AdminReserveAdjustmentController {
         return success(applicationService.submitReserveAdjustment(request));
     }
 
-    /** 复核保证金差额申请，批准后由清分服务同事务写事实和候选。 */
+    /**
+     * 复核保证金差额申请，批准后由清分服务同事务写事实和候选。
+     *
+     * @param adjustmentNo 保证金调整单号
+     * @param request 决策、申请预期版本和复核意见
+     * @return 复核状态和资金化动作身份
+     */
     @PostMapping("/{adjustmentNo}/review")
     @RequiresPermission("clearing:reserve-adjustment:review")
     @OperationLog(moduleName = "保证金清分", businessType = OperationTypeConstants.AUDIT,

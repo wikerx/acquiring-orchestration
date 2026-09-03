@@ -1,7 +1,13 @@
 package com.scott.payment.risk.domain;
 
 /**
- * Redis 预占标记探测结果。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedisReservationMarkerState
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Redis 预占标记探测结果。
+ * @status : create
  */
 public enum RedisReservationMarkerState {
     /** Redis 中存在本笔累计限额预占标记。 */

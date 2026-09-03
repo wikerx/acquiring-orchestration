@@ -96,14 +96,9 @@ public final class TotpUtils {
 
     /**
      * 创建编码，完成必要校验后写入或委托下游服务处理。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param secret secret 输入值，参与 secret 的查询、校验、转换、写入或日志摘要
-     * @param step step 输入值，参与 step 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * @param secret 敏感认证或加密材料，只能在当前安全边界内使用，禁止明文日志和异常回显
+     * @param step TOTP 时间步长序号，用于计算当前或相邻窗口的一次性验证码
+     * @return 当前方法生成或规范化后的文本值
      */
     private static String generateCode(byte[] secret, long step) {
         try {
@@ -121,16 +116,6 @@ public final class TotpUtils {
         }
     }
 
-    /**
-     * 整理基础32编码，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param bytes bytes 输入值，参与 bytes 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private static String base32Encode(byte[] bytes) {
         StringBuilder result = new StringBuilder((bytes.length * 8 + 4) / 5);
         int buffer = 0;
@@ -149,16 +134,6 @@ public final class TotpUtils {
         return result.toString();
     }
 
-    /**
-     * 整理基础32解码，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private static byte[] base32Decode(String value) {
         String normalized = value.replace("=", "").replace(" ", "").toUpperCase(Locale.ROOT);
         int buffer = 0;
@@ -177,16 +152,6 @@ public final class TotpUtils {
         return Arrays.copyOf(output, count);
     }
 
-    /**
-     * 整理基础32digit，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param ch ch 输入值，参与 ch 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private static int base32Digit(char ch) {
         for (int i = 0; i < BASE32_ALPHABET.length; i++) {
             if (BASE32_ALPHABET[i] == ch) {
@@ -196,16 +161,6 @@ public final class TotpUtils {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "totp secret is invalid");
     }
 
-    /**
-     * 整理url编码，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private static String urlEncode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }

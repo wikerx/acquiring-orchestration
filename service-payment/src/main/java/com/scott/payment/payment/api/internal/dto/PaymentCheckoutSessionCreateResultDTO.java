@@ -6,7 +6,13 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 创建 Hosted Checkout 会话内部结果。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutSessionCreateResultDTO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 创建 Hosted Checkout 会话内部结果。
+ * @status : create
  */
 @Data
 public class PaymentCheckoutSessionCreateResultDTO implements Serializable {

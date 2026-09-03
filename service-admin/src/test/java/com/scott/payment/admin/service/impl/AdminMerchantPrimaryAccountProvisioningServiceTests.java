@@ -45,7 +45,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证管理端新增商户时创建可登录的主账号并发送开户通知。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantPrimaryAccountProvisioningServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证管理端新增商户时创建可登录的主账号并发送开户通知。
+ * @status : create
+ */
 class AdminMerchantPrimaryAccountProvisioningServiceTests {
 
     @Test

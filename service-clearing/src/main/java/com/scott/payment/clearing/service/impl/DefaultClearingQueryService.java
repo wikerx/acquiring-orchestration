@@ -23,11 +23,35 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 默认清分管理查询实现，只读取当前权威修订，不跨季度广播。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingQueryService
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 默认清分管理查询实现，只读取当前权威修订，不跨季度广播。
+ * @status : update
+ */
 @Service
 public class DefaultClearingQueryService implements ClearingQueryService {
 
+    /**
+     * {@code DEFAULT_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int DEFAULT_LIMIT = 200;
+    /**
+     * {@code MAX_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int MAX_LIMIT = 1000;
 
     private final ClearingTransactionFinanceStateMapper financeStateMapper;
@@ -42,6 +66,7 @@ public class DefaultClearingQueryService implements ClearingQueryService {
         this.reserveMapper = reserveMapper;
     }
 
+    /** {@inheritDoc} */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(readOnly = true)
@@ -65,6 +90,7 @@ public class DefaultClearingQueryService implements ClearingQueryService {
         return response;
     }
 
+    /** {@inheritDoc} */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(readOnly = true)
@@ -126,6 +152,7 @@ public class DefaultClearingQueryService implements ClearingQueryService {
         return result;
     }
 
+    /** 管理查询强制单季度半开窗口、成对游标和有上限页大小。 */
     private void validateSearchRequest(ClearingRecordSearchRequest request) {
         if (request == null || request.getBeginTime() == null || request.getEndTime() == null
                 || !request.getBeginTime().isBefore(request.getEndTime())) {
@@ -195,6 +222,7 @@ public class DefaultClearingQueryService implements ClearingQueryService {
         return result;
     }
 
+    /** 转换保证金原子事实时保留标签币种、方向和剩余金额口径。 */
     private ClearingReserveLine toReserveLine(ClearingReserveDetailDO row) {
         ClearingReserveLine result = new ClearingReserveLine();
         result.setReserveClearingDetailNo(row.getReserveClearingDetailNo());

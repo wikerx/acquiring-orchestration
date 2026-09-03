@@ -38,6 +38,12 @@ public interface ClearingTierPeriodReplayMapper {
             """)
     int insertIdempotent(@Param("row") ClearingTierPeriodReplayDO row);
 
+    /**
+     * 通过请求幂等键锁定既有重放申请。
+     *
+     * @param requestKey 重放申请全局幂等键
+     * @return 已加行锁的重放主单，不存在时返回 null
+     */
     @Select("""
             SELECT * FROM clearing_tier_period_replay
             WHERE request_key = #{requestKey}
@@ -45,6 +51,12 @@ public interface ClearingTierPeriodReplayMapper {
             """)
     ClearingTierPeriodReplayDO selectByRequestKeyForUpdate(@Param("requestKey") String requestKey);
 
+    /**
+     * 通过重放单号锁定主单，供 Maker-Checker 状态 CAS 使用。
+     *
+     * @param replayNo 阶梯期间重放单号
+     * @return 已加行锁的重放主单，不存在时返回 null
+     */
     @Select("""
             SELECT * FROM clearing_tier_period_replay
             WHERE replay_no = #{replayNo}
@@ -126,6 +138,12 @@ public interface ClearingTierPeriodReplayMapper {
                                    @Param("periodStart") LocalDateTime periodStart,
                                    @Param("periodEnd") LocalDateTime periodEnd);
 
+    /**
+     * 批量冻结按完成时间稳定排序的重放项，唯一键重复时不覆盖原项。
+     *
+     * @param rows 已冻结清分修订和财务状态版本的重放项
+     * @return 实际插入行数
+     */
     @Insert("""
             <script>
             INSERT INTO clearing_tier_period_replay_item
@@ -144,6 +162,15 @@ public interface ClearingTierPeriodReplayMapper {
             """)
     int insertItems(@Param("rows") List<ClearingTierPeriodReplayItemDO> rows);
 
+    /**
+     * 以 PREPARING 和版本 CAS 启动重放并冻结项总数。
+     *
+     * @param replayNo 重放单号
+     * @param expectedVersion PREPARING 主单预期版本
+     * @param itemCount 冻结的重放项总数
+     * @param now 状态更新时间
+     * @return 成功更新行数，必须为 1
+     */
     @Update("""
             UPDATE clearing_tier_period_replay
             SET replay_status = 'RUNNING', item_count = #{itemCount}, completed_count = 0,
@@ -157,6 +184,16 @@ public interface ClearingTierPeriodReplayMapper {
                     @Param("itemCount") int itemCount,
                     @Param("now") LocalDateTime now);
 
+    /**
+     * 准备阶段失败时以版本 CAS 转人工复核，保留脱敏错误摘要。
+     *
+     * @param replayNo 重放单号
+     * @param expectedVersion PREPARING 主单预期版本
+     * @param errorCode 稳定错误码
+     * @param errorMessage 不含敏感信息的错误摘要
+     * @param now 状态更新时间
+     * @return 成功更新行数，必须为 1
+     */
     @Update("""
             UPDATE clearing_tier_period_replay
             SET replay_status = 'MANUAL_REVIEW', last_error_code = #{errorCode},
@@ -170,6 +207,16 @@ public interface ClearingTierPeriodReplayMapper {
                          @Param("errorMessage") String errorMessage,
                          @Param("now") LocalDateTime now);
 
+    /**
+     * Checker 拒绝待复核申请，限定 PENDING_REVIEW 和版本 CAS。
+     *
+     * @param replayNo 重放单号
+     * @param expectedVersion 待复核主单预期版本
+     * @param reviewOperator 可信 Checker 身份快照
+     * @param reviewComment 复核意见
+     * @param now 复核时间
+     * @return 成功更新行数，必须为 1
+     */
     @Update("""
             UPDATE clearing_tier_period_replay
             SET replay_status = 'REJECTED', review_operator = #{reviewOperator},
@@ -238,6 +285,16 @@ public interface ClearingTierPeriodReplayMapper {
     ClearingTierPeriodReplayItemDO selectNextItemForUpdate(@Param("replayNo") String replayNo,
                                                            @Param("now") LocalDateTime now);
 
+    /**
+     * 以项版本 CAS 标记单项完成并保存新清分修订。
+     *
+     * @param replayNo 重放单号
+     * @param sequenceNo 稳定项序号
+     * @param expectedVersion 项预期版本
+     * @param processedRevision 重放生成的新清分修订
+     * @param now 完成时间
+     * @return 成功更新行数，必须为 1
+     */
     @Update("""
             UPDATE clearing_tier_period_replay_item
             SET item_status = 'COMPLETED', processed_revision = #{processedRevision},
@@ -253,7 +310,17 @@ public interface ClearingTierPeriodReplayMapper {
                           @Param("processedRevision") int processedRevision,
                           @Param("now") LocalDateTime now);
 
-    /** 完成项与控制游标同事务推进；最后一项自动关闭重放。 */
+    /**
+     * 完成项与控制游标同事务推进；最后一项自动关闭重放。
+     *
+     * @param replayNo 重放单号
+     * @param expectedVersion RUNNING 主单预期版本
+     * @param sequenceNo 刚完成的稳定项序号
+     * @param clearingCompleteTime 原动作清分完成时间
+     * @param transactionId 原动作交易号
+     * @param now 游标推进时间
+     * @return 成功更新行数，必须为 1
+     */
     @Update("""
             UPDATE clearing_tier_period_replay
             SET completed_count = completed_count + 1,
@@ -275,6 +342,18 @@ public interface ClearingTierPeriodReplayMapper {
                          @Param("transactionId") String transactionId,
                          @Param("now") LocalDateTime now);
 
+    /**
+     * 以项版本 CAS 记录可重试失败和下一次退避时间。
+     *
+     * @param replayNo 重放单号
+     * @param sequenceNo 稳定项序号
+     * @param expectedVersion 项预期版本
+     * @param nextRetryTime 下次允许执行时间
+     * @param errorCode 稳定错误码
+     * @param errorMessage 不含敏感信息的错误摘要
+     * @param now 失败记录时间
+     * @return 成功更新行数，必须为 1
+     */
     @Update("""
             UPDATE clearing_tier_period_replay_item
             SET item_status = 'FAILED', attempt_count = attempt_count + 1,
@@ -291,6 +370,17 @@ public interface ClearingTierPeriodReplayMapper {
                        @Param("errorMessage") String errorMessage,
                        @Param("now") LocalDateTime now);
 
+    /**
+     * 以主单版本 CAS 记录单项失败后的 RUNNING 或 MANUAL_REVIEW 状态。
+     *
+     * @param replayNo 重放单号
+     * @param expectedVersion RUNNING 主单预期版本
+     * @param targetStatus RUNNING 或 MANUAL_REVIEW
+     * @param errorCode 稳定错误码
+     * @param errorMessage 不含敏感信息的错误摘要
+     * @param now 状态更新时间
+     * @return 成功更新行数，必须为 1
+     */
     @Update("""
             UPDATE clearing_tier_period_replay
             SET replay_status = #{targetStatus}, last_error_code = #{errorCode},

@@ -3,7 +3,13 @@ package com.scott.payment.risk.repository;
 import com.scott.payment.risk.domain.PaymentTransactionLookupResult;
 
 /**
- * 风控侧只读查询 payment 交易状态。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskPaymentTransactionStatusRepository
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控侧只读查询 payment 交易状态。
+ * @status : create
  */
 public interface RiskPaymentTransactionStatusRepository {
 

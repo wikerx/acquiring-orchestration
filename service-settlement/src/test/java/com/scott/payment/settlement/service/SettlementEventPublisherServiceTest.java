@@ -13,7 +13,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证结算 Outbox 使用冻结的 operationId 分组发布，MQ 失败时只进入持久化退避。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SettlementEventPublisherServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证结算 Outbox 使用冻结的 operationId 分组发布，MQ 失败时只进入持久化退避。
+ * @status : create
+ */
 class SettlementEventPublisherServiceTest {
 
     @Test

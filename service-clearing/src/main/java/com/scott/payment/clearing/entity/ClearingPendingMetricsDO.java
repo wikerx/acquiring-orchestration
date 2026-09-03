@@ -2,7 +2,15 @@ package com.scott.payment.clearing.entity;
 
 import lombok.Data;
 
-/** 单季度清分待处理状态聚合投影，仅用于低基数运维指标刷新。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingPendingMetricsDO
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 单季度清分待处理状态聚合投影，仅用于低基数运维指标刷新。
+ * @status : update
+ */
 @Data
 public class ClearingPendingMetricsDO {
 

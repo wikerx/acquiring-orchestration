@@ -13,7 +13,13 @@ import java.time.format.DateTimeFormatter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * OpenAPI 调用 Payment 时的分片时间序列化契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentClientShardingTimeSerializationTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : OpenAPI 调用 Payment 时的分片时间序列化契约测试。
+ * @status : create
  */
 class PaymentClientShardingTimeSerializationTest {
 

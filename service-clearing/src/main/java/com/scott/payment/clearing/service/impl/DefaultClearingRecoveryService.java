@@ -39,15 +39,41 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * 清分补偿恢复实现。数据库 finance state 和交易 Outbox 在同一短事务内更新，
- * 确定性 event_no 唯一键负责重复扫描去重，Redis 不参与财务幂等。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingRecoveryService
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 清分补偿恢复实现。数据库 finance state 和交易 Outbox 在同一短事务内更新， 确定性 event_no 唯一键负责重复扫描去重，Redis 不参与财务幂等。
+ * @status : update
  */
 @Service
 @Slf4j
 public class DefaultClearingRecoveryService implements ClearingRecoveryService {
 
+    /**
+     * 处理失败码，用于补偿策略、告警聚合和后台排障，不直接暴露底层异常。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String FAILURE_CODE = ClearingFailureCodeEnum.CLEARING_COMPENSATION_DUE.name();
+    /**
+     * {@code OUTBOX_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int OUTBOX_MAX_RETRY_COUNT = 10;
+    /**
+     * {@code RESCHEDULE_DELAY_MINUTES}常量，统一 {@code DefaultClearingRecoveryService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long RESCHEDULE_DELAY_MINUTES = 1L;
     private static final Set<String> RETRYABLE_STATUSES = Set.of(
             "NOT_CLEARED", "PENDING", "PROCESSING", "FAILED", "WAITING_SOURCE");
@@ -73,6 +99,7 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
         this.anomalyService = anomalyService;
     }
 
+    /** {@inheritDoc} */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -161,6 +188,7 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
         return true;
     }
 
+    /** 确定性事件号冲突后核对完整消息路由身份，防止错误幂等。 */
     private boolean sameOutboxIdentity(ClearingTransactionEventOutboxDO actual,
                                        ClearingTransactionEventOutboxDO expected) {
         return Objects.equals(actual.getEventNo(), expected.getEventNo())
@@ -181,6 +209,7 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
                 && Objects.equals(actual.getPayloadJson(), expected.getPayloadJson());
     }
 
+    /** 已完成财务事实只修复缺失查询投影，不重复写清分明细或幂等记录。 */
     private String repairCompletedProjection(ClearingCompensationCandidateDO candidate,
                                              ClearingTransactionFinanceStateDO state,
                                              ClearingStateEnum status,
@@ -203,6 +232,7 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
         }
     }
 
+    /** 补偿写入前重新核对状态、版本、截止时间和失败分类。 */
     private boolean stillEligible(ClearingCompensationCandidateDO candidate,
                                   ClearingTransactionFinanceStateDO state,
                                   LocalDateTime now) {
@@ -222,11 +252,13 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
         };
     }
 
+    /** 仅 PROCESSING 补偿要求扫描租约截止点与锁读状态一致，其他可恢复状态不携带租约身份。 */
     private LocalDateTime expectedDeadline(ClearingStateEnum status,
                                            ClearingTransactionFinanceStateDO state) {
         return status == ClearingStateEnum.PROCESSING ? state.getProcessingDeadline() : null;
     }
 
+    /** 补偿状态提交后刷新动作及生命周期投影，使用扫描时冻结的真实分片时间。 */
     private void updateProjection(ClearingCompensationCandidateDO candidate,
                                   ClearingStateEnum status,
                                   String failureCode,
@@ -239,6 +271,7 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
         }
     }
 
+    /** 使用财务状态号和下一重试序号构造确定性补偿 Outbox。 */
     private ClearingTransactionEventOutboxDO retryOutbox(ClearingCompensationCandidateDO candidate,
                                                           ClearingTransactionFinanceStateDO state,
                                                           int retryCount,
@@ -296,6 +329,11 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
         return outbox;
     }
 
+    /**
+     * 由资金状态、修订号、重试轮次、失败码和投递时间派生补偿事件号。
+     * <p>
+     * 相同补偿决策必须生成相同 Outbox 唯一键，防止扫描任务重复创建延时消息。
+     */
     private String deterministicEventNo(String financeStateId,
                                         int revision,
                                         int retryCount,
@@ -312,6 +350,13 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
         }
     }
 
+    /**
+     * 校验补偿扫描快照与主库财务状态仍指向同一动作、商户和分片，防止跨分片误恢复。
+     *
+     * @param candidate 补偿扫描候选
+     * @param state 主库当前财务状态
+     * @return 身份和版本完整且完全一致时返回 true
+     */
     private boolean validIdentity(ClearingCompensationCandidateDO candidate,
                                   ClearingTransactionFinanceStateDO state) {
         return state != null
@@ -323,6 +368,12 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
                 && state.getVersion() != null;
     }
 
+    /**
+     * 将数据库清分状态转换为受控枚举，未知状态必须阻断补偿而非猜测迁移。
+     *
+     * @param value 数据库状态值
+     * @return 支持的清分状态枚举
+     */
     private ClearingStateEnum parseStatus(String value) {
         try {
             return ClearingStateEnum.valueOf(value);
@@ -375,6 +426,12 @@ public class DefaultClearingRecoveryService implements ClearingRecoveryService {
         return value == null ? 0 : value;
     }
 
+    /**
+     * 校验补偿候选具备交易、动作、商户、分片时间和原因等最小恢复身份。
+     *
+     * @param candidate 补偿扫描候选
+     * @param now 本轮补偿统一时间
+     */
     private void requireCandidate(ClearingCompensationCandidateDO candidate, LocalDateTime now) {
         if (candidate == null || now == null || !StringUtils.hasText(candidate.getTransactionId())
                 || !StringUtils.hasText(candidate.getOperationId()) || !StringUtils.hasText(candidate.getMerchantId())

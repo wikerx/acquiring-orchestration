@@ -41,41 +41,37 @@ import java.util.Map;
 public class DefaultPaymentChannelRouteService implements PaymentChannelRouteService {
 
     /**
-     * NOT DELETED，用于保存 Default Payment Channel Route Service 中与 notdeleted 相关的业务属性。
+     * {@code NOT_DELETED}常量，统一 {@code DefaultPaymentChannelRouteService} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final long NOT_DELETED = 0L;
 
     /**
-     * ENABLED，表示当前配置项或业务能力的启停开关。
+     * 启用标识，表示当前配置项或业务能力的启停开关。
      * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
+     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final int ENABLED = 1;
 
     /**
-     * BUSINESS ACQUIRING，用于保存 Default Payment Channel Route Service 中与 businessacquiring 相关的业务属性。
+     * {@code BUSINESS_ACQUIRING}常量，统一 {@code DefaultPaymentChannelRouteService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String BUSINESS_ACQUIRING = "ACQUIRING";
 
     /**
-     * ALL，用于保存 Default Payment Channel Route Service 中与 all 相关的业务属性。
+     * {@code ALL}常量，统一 {@code DefaultPaymentChannelRouteService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String ALL = "ALL";
@@ -83,33 +79,16 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     private static final String SCOPE_SEPARATOR = ",";
 
     /**
-     * DEFAULT PAYMENT METHOD，表示支付方式、通知方式或调用方式。
+     * 默认支付方式，表示支付方式、通知方式或调用方式。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String DEFAULT_PAYMENT_METHOD = "BANK_CARD";
 
-    /**
-     * MID Config Mapper，用于定位渠道商户号配置或渠道侧 MID。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final PaymentChannelMidConfigMapper midConfigMapper;
 
-    /**
-     * channel Info Mapper 依赖，用于 Default Payment Channel Route Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final PaymentChannelInfoMapper channelInfoMapper;
 
     /** 商户非敏感路由永久快照查询服务。 */
@@ -386,7 +365,12 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         }
         String requestedCurrency = normalize(commandDTO.getCurrency());
         boolean directCurrencySupported = currencies.stream().anyMatch(item -> normalize(item).equals(requestedCurrency));
-        String routedCurrency = directCurrencySupported ? requestedCurrency : normalize(currencies.get(0));
+        String defaultTransactionCurrency = normalize(option.getDefaultTransactionCurrency());
+        if (!directCurrencySupported && (defaultTransactionCurrency.isEmpty()
+                || currencies.stream().noneMatch(item -> normalize(item).equals(defaultTransactionCurrency)))) {
+            return null;
+        }
+        String routedCurrency = directCurrencySupported ? requestedCurrency : defaultTransactionCurrency;
         return new RouteCandidate(
                 toChannelInfo(option),
                 toMidConfig(option),
@@ -457,6 +441,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         capability.setSupportIncrementalAuthorization(option.getCapabilitySupportIncrementalAuthorization());
         capability.setCapabilityStatus(option.getCapabilityStatus());
         capability.setSortOrder(option.getCapabilitySortOrder());
+        capability.setDefaultTransactionCurrency(option.getDefaultTransactionCurrency());
         capability.setDeleted(NOT_DELETED);
         return capability;
     }
@@ -481,6 +466,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     row.put("capabilityTransactionType", candidate.capability().getTransactionType());
                     row.put("threeDsSupported", Integer.valueOf(ENABLED).equals(candidate.capability().getSupport3ds()));
                     row.put("supportedCurrencies", candidate.supportedCurrencies());
+                    row.put("defaultTransactionCurrency", candidate.capability().getDefaultTransactionCurrency());
                     row.put("routedCurrency", candidate.routedCurrency());
                     row.put("edcRequired", candidate.edcRequired());
                     row.put("endpointHost", endpointHost(candidate.channelInfo().getDefaultRequestUrl()));
@@ -542,17 +528,6 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 && (expireTime == null || now.isBefore(expireTime));
     }
 
-    /**
-     * 规范化matchesscope，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param scope scope 输入值，参与 scope 的查询、校验、转换、写入或日志摘要
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private boolean matchesScope(String scope, String value) {
         if (!StringUtils.hasText(scope) || ALL.equalsIgnoreCase(scope.trim())) {
             return true;
@@ -569,31 +544,10 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return false;
     }
 
-    /**
-     * 整理matches交易type，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param capabilityTransactionType capability Transaction Type 输入值，参与 capability交易type 的查询、校验、转换、写入或日志摘要
-     * @param requestedTransactionType requested Transaction Type 输入值，参与 requested交易type 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private boolean matchesTransactionType(String capabilityTransactionType, String requestedTransactionType) {
         return matchesScope(capabilityTransactionType, requestedTransactionType);
     }
 
-    /**
-     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 构造、转换或解析后的业务值
-     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
@@ -626,44 +580,14 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return null;
     }
 
-    /**
-     * 解析resolvepaymentmethod，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolvePaymentMethod(PaymentCreateCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getPaymentMethod()) ? normalize(commandDTO.getPaymentMethod()) : DEFAULT_PAYMENT_METHOD;
     }
 
-    /**
-     * 整理耗时毫秒数，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param startNanos start Nanos 输入值，参与 startnanos 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
-    /**
-     * 解析parsemetadata，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param metadataValueJson metadata Value Json 输入值，参与 metadata值json 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private Map<String, String> parseMetadata(String metadataValueJson) {
         if (!StringUtils.hasText(metadataValueJson)) {
             return Map.of();

@@ -1,17 +1,25 @@
 # ShardingSphere-JDBC 交易逻辑路由与物理表治理的 dev 已发布非秘密配置。
 # actualDataNodes 只包含已建表且通过治理校验的季度；变更后必须重新计算并校验规则 checksum。
 transaction-sharding:
+  # 参数说明：分表规则版本标识；拓扑、表清单或路由规则变化时递增，便于服务启动时核对发布批次。
   rule-version: "2026.08.25-002-candidate-clearing-28"
+  # 参数说明：当前规则正文的 SHA-256 校验值；发布前必须由治理流程重新计算，禁止手工随意修改。
   rule-checksum: "sha256:8ec98c2d65d9324d758d48c71343606496eebbe7bcd00d1e6adf3c46f63dd15a"
+  # 参数说明：数据库和分片季度计算使用的 IANA 时区，必须与 JDBC serverTimezone 及数据库会话时区一致。
   database-zone-id: Asia/Shanghai
+  # 参数说明：逻辑表季度路由字段；所有直连写入和范围查询都必须携带该交易时间。
   sharding-column: transaction_date_time
+  # 参数说明：ShardingSphere 写入和强一致读取使用的主数据源名称，必须与 dataSource DataId 一致。
   primary-data-source: master
+  # 集合说明：只读副本数据源名称；生产按复制延迟和一致性要求决定是否承载查询，禁止用于资金写入。
   replica-data-sources:
     - slave_1
     - slave_2
+  # 集合说明：已完成 28 张逻辑表建表和结构校验的季度节点，格式为 yyyyQQ；未验收季度不得提前加入。
   physical-nodes:
     - "202603"
     - "202604"
+  # 集合说明：参与统一季度路由的交易逻辑表；新增或删除表必须同步 DDL、治理表清单和 checksum。
   logic-tables:
     - transaction_order
     - transaction_operation
@@ -41,6 +49,7 @@ transaction-sharding:
     - transaction_clearing_detail
     - transaction_reserve_clearing_detail
     - transaction_reserve_clearing_state
+  # 集合说明：允许直接访问交易分片数据源的服务白名单；不得用该列表替代应用层 RBAC 或内部接口鉴权。
   direct-access-services:
     - service-payment
     - service-admin
@@ -48,9 +57,14 @@ transaction-sharding:
     - service-risk
     - service-data
     - service-clearing
+    - service-settlement
+  # 查询预算用于限制跨季度聚合和导出对主从库的冲击，生产值应结合慢查询与连接池容量评估。
   query-budget:
+    # 参数说明：同步查询最大执行时间，单位毫秒；超时后应提示缩小日期范围，禁止无限等待。
     synchronous-timeout-millis: 5000
+    # 参数说明：单次同步查询允许返回的最大行数；更大数据集必须走受控导出任务。
     max-result-rows: 1000
+    # 参数说明：同一操作人允许并发执行的导出任务数，防止重复点击耗尽连接和内存。
     max-concurrent-exports-per-user: 1
 
   # 下列配置只供 Job/Admin 的模板、DDL、schema 和号段治理直连链路使用。
@@ -701,54 +715,102 @@ transaction-sharding:
         # 参数说明：说明该分片表承载的业务数据，仅用于治理展示，不参与路由计算。
         description: 保存已能定位交易时间的交易异常事件，如状态推进失败、金额校验失败、回调无法处理等。
       transaction-card-vault:
+        # 参数说明：控制卡资料分片表治理是否启用；关闭前必须确认收银台和支付查询均不再访问。
         enabled: true
+        # 参数说明：业务代码访问的逻辑表名，必须与 Mapper 和 ShardingSphere 规则一致。
         logical-table: transaction_card_vault
+        # 参数说明：创建季度物理表时复制结构的模板表；涉及密文字段和索引变更时必须专项审核。
         template-table: transaction_card_vault
+        # 参数说明：物理表主键列名，必须与模板表结构和自增号段策略一致。
         id-column: id
+        # 参数说明：季度分片路由字段；写入和查询必须提供原交易时间。
         sharding-column: transaction_date_time
+        # 参数说明：允许治理生成物理表的起始年份。
         start-year: 2026
+        # 参数说明：允许治理生成物理表的起始季度，有效值为 1-4。
         start-quarter: 3
+        # 参数说明：规则协议覆盖的结束年份；不代表系统会一次性创建到该年份。
         end-year: 2099
+        # 参数说明：规则协议覆盖的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：DDL 和写入使用的数据源，卡资料密文禁止写入只读副本。
         actual-data-source: master
+        # 业务说明：仅保存无 CVV 卡资料密文、PAN HMAC 和被 KEK 包裹的 DEK，禁止保存 CVV 明文。
         description: 保存收银台无 CVV 卡资料的字段密文、PAN HMAC 和被 KEK 包裹的 DEK。
       transaction-clearing-detail:
+        # 参数说明：控制交易清分明细分片表治理是否启用；关闭会阻断后续候选与结算事实读取。
         enabled: true
+        # 参数说明：业务代码访问的逻辑表名，必须与清分、结算 Mapper 和分片规则一致。
         logical-table: transaction_clearing_detail
+        # 参数说明：创建季度物理表时复制结构的模板表，金额、币种和唯一约束必须完整保留。
         template-table: transaction_clearing_detail
+        # 参数说明：物理表主键列名，必须与模板表结构和自增号段策略一致。
         id-column: id
+        # 参数说明：季度分片路由字段；清分、结算查询必须携带原交易时间。
         sharding-column: transaction_date_time
+        # 参数说明：允许治理生成物理表的起始年份。
         start-year: 2026
+        # 参数说明：允许治理生成物理表的起始季度，有效值为 1-4。
         start-quarter: 3
+        # 参数说明：规则协议覆盖的结束年份；不代表系统会一次性创建到该年份。
         end-year: 2099
+        # 参数说明：规则协议覆盖的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：DDL 和资金事实写入使用的数据源，必须保持主库可写和事务一致性。
         actual-data-source: master
+        # 业务说明：百分比费用保留标签币种/金额，结算阶段再按批次锁定汇率统一换汇。
         description: 保存交易本金与各项费用的标签币种清分明细，结算阶段再统一换汇。
       transaction-reserve-clearing-detail:
+        # 参数说明：控制保证金清分明细分片表治理是否启用；关闭会影响扣留、返还、释放和调整资金化。
         enabled: true
+        # 参数说明：业务代码访问的逻辑表名，必须与清分、结算 Mapper 和分片规则一致。
         logical-table: transaction_reserve_clearing_detail
+        # 参数说明：创建季度物理表时复制结构的模板表，保证金方向、币种和幂等约束必须完整保留。
         template-table: transaction_reserve_clearing_detail
+        # 参数说明：物理表主键列名，必须与模板表结构和自增号段策略一致。
         id-column: id
+        # 参数说明：季度分片路由字段；保证金事实查询必须携带原交易时间。
         sharding-column: transaction_date_time
+        # 参数说明：允许治理生成物理表的起始年份。
         start-year: 2026
+        # 参数说明：允许治理生成物理表的起始季度，有效值为 1-4。
         start-quarter: 3
+        # 参数说明：规则协议覆盖的结束年份；不代表系统会一次性创建到该年份。
         end-year: 2099
+        # 参数说明：规则协议覆盖的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：DDL 和保证金事实写入使用的数据源，禁止指向只读副本。
         actual-data-source: master
+        # 业务说明：清分阶段不换汇；RESERVE_RELEASE 和纯 ADJUSTMENT 不生成伪交易状态投影。
         description: 保存标签币种保证金扣留、返还、释放和调整清分明细，不在清分阶段换汇。
       transaction-reserve-clearing-state:
+        # 参数说明：控制保证金累计状态分片表治理是否启用；关闭会导致剩余负债无法可靠计算。
         enabled: true
+        # 参数说明：业务代码访问的逻辑表名，必须与清分、结算 Mapper 和分片规则一致。
         logical-table: transaction_reserve_clearing_state
+        # 参数说明：创建季度物理表时复制结构的模板表，累计金额和版本字段必须完整保留。
         template-table: transaction_reserve_clearing_state
+        # 参数说明：物理表主键列名，必须与模板表结构和自增号段策略一致。
         id-column: id
+        # 参数说明：季度分片路由字段；累计状态更新和查询必须携带原交易时间。
         sharding-column: transaction_date_time
+        # 参数说明：允许治理生成物理表的起始年份。
         start-year: 2026
+        # 参数说明：允许治理生成物理表的起始季度，有效值为 1-4。
         start-quarter: 3
+        # 参数说明：规则协议覆盖的结束年份；不代表系统会一次性创建到该年份。
         end-year: 2099
+        # 参数说明：规则协议覆盖的结束季度，有效值为 1-4。
         end-quarter: 4
+        # 参数说明：季度物理表名格式，参数依次为逻辑表名、年份和季度。
         table-name-format: "%s_%d%02d"
+        # 参数说明：DDL 和累计状态写入使用的数据源，必须与保证金清分明细保持同一主库事务边界。
         actual-data-source: master
+        # 业务说明：记录原支付维度的保证金剩余负债，双向 ADJUSTMENT 必须可审计且可冲正。
         description: 保存原支付保证金累计扣留、返还、释放及双向调整后的剩余负债状态。

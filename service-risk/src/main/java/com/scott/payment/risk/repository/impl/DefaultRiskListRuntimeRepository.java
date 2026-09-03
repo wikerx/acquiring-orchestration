@@ -59,7 +59,13 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * Redis 优先的风控运行时仓储。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultRiskListRuntimeRepository
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Redis 优先的风控运行时仓储。
+ * @status : create
  */
 @Slf4j
 @Service
@@ -438,14 +444,13 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
-     * 查询当前来源主机是否命中商户来源网址允许清单。
-     *
-     * <p>数据库记录上的动作描述未命中时的处置；主机实际命中时统一转换为 PASS，
-     * 缓存 Key 只保留来源主机摘要，不暴露完整 URL。</p>
-     *
-     * @param merchantId 当前商户号
-     * @param lookupValue 已提取规范化主机名的来源网址查询值
-     * @return 允许清单命中明细；参数无效、未配置或未命中时返回空
+     * 查询当前商户可用的来源主机白名单规则，命中时返回受控放行结论。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param lookupValue 已完成哈希、脱敏或区间归一化的风控查询值，禁止携带可直接识别的敏感原文
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -505,11 +510,13 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
-     * 检查商户已配置来源网址允许清单但当前主机为空或未命中的拒绝场景。
-     *
-     * @param merchantId 当前商户号
-     * @param lookupValue 已提取规范化主机名的来源网址查询值，可为空
-     * @return 限制已生效且当前来源不在允许范围内时返回 REJECT 明细
+     * 判断来源主机是否未命中商户白名单，并返回对应风控处置规则。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param lookupValue 已完成哈希、脱敏或区间归一化的风控查询值，禁止携带可直接识别的敏感原文
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -664,12 +671,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 RedisKeyDigest.sha256(safeKey(ipValue)));
     }
 
-    /**
-     * 判断商户是否显式开启 IP 白名单或存在有效白名单记录。
-     *
-     * @param merchantId 已规范化的商户号
-     * @return 配置开关开启或至少存在一条启用记录时返回 {@code true}
-     */
     private boolean merchantIpWhitelistConfigured(String merchantId) {
         Integer enabled = riskRuntimeMapper.selectMerchantIpWhitelistEnabled(merchantId);
         return (enabled != null && enabled == 1)
@@ -1062,12 +1063,12 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
-     * 根据规范化卡 BIN 区间值解析发卡行国家或地区代码。
-     *
-     * <p>BIN 公共字典规模远高于通用风控规则快照上限，禁止尝试全量加载；
-     * 该查询始终使用带规则 generation 的按 BIN Cache-Aside，未命中时才执行数据库区间点查。</p>
-     *
-     * @return Mapper 命中的 ISO 代码；输入或运行时不可用时返回空
+     * 查询{@code findIssuerCountryByCardBin}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param cardBinLookup 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @Override
     @DS(DataSourceName.MASTER)

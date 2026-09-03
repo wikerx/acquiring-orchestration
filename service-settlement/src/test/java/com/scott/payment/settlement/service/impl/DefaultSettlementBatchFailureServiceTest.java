@@ -87,6 +87,32 @@ class DefaultSettlementBatchFailureServiceTest {
         verify(relationMapper).markBatchManualReview(batch.getSettlementBatchNo(), now);
     }
 
+    /** 预审正式结果指纹失配必须直接迁移批次和全部候选到人工复核。 */
+    @Test
+    void shouldMoveApprovedResultFingerprintMismatchToManualReview() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 26, 16, 0);
+        SettlementBatchDO batch = batch(now, 0, 1);
+        when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+        when(batchMapper.recordManualReview(
+                batch.getSettlementBatchNo(), "worker-1", 0, 9L,
+                "RESULT_CALCULATION", "SETTLEMENT_REVIEW_RESULT_FINGERPRINT_MISMATCH",
+                "formal settlement result differs from the approved review snapshot", now)).thenReturn(1);
+        when(candidateMapper.markBatchManualReview(batch.getSettlementBatchNo(), now)).thenReturn(1);
+        when(relationMapper.markBatchManualReview(batch.getSettlementBatchNo(), now)).thenReturn(1);
+
+        service.recordFailure(batch.getSettlementBatchNo(), "worker-1",
+                new SettlementProcessingException(SettlementFailureStage.RESULT_CALCULATION,
+                        "SETTLEMENT_REVIEW_RESULT_FINGERPRINT_MISMATCH", false,
+                        "formal settlement result differs from the approved review snapshot"), now);
+
+        verify(batchMapper).recordManualReview(
+                batch.getSettlementBatchNo(), "worker-1", 0, 9L,
+                "RESULT_CALCULATION", "SETTLEMENT_REVIEW_RESULT_FINGERPRINT_MISMATCH",
+                "formal settlement result differs from the approved review snapshot", now);
+        verify(candidateMapper).markBatchManualReview(batch.getSettlementBatchNo(), now);
+        verify(relationMapper).markBatchManualReview(batch.getSettlementBatchNo(), now);
+    }
+
     /** 第八次自动重试后再次失败必须停止循环并使用统一耗尽错误码转人工复核。 */
     @Test
     void shouldStopRetryingAfterMaximumRetryCount() {

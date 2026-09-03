@@ -33,6 +33,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingRecoveryServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证清分恢复的独立回滚事务、确定性重试 Outbox、租约 CAS、投影修复和人工介入上限
+ * @status : create
+ */
 class DefaultClearingRecoveryServiceTest {
 
     private static final LocalDateTime TX_TIME = LocalDateTime.of(2026, 8, 26, 10, 0);

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
  * @version : v1.0.0
  * @classname : PayoutChannelExecutor
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 代付渠道执行器，通过 Registry 委托独立 Provider，不包含 service-payout 状态机或路由规则。
  * @status : create
  */

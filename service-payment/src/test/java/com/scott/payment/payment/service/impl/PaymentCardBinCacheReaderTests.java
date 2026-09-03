@@ -28,6 +28,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCardBinCacheReaderTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证卡 BIN 缓存主库回源、负缓存、有效期和 generation 切换后的隔离读取
+ * @status : create
+ */
 class PaymentCardBinCacheReaderTests {
 
     /** BIN 缓存失效后的首次重建必须读主库，避免复制延迟重新缓存旧区间。 */

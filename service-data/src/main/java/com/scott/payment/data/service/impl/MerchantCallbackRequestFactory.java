@@ -21,7 +21,15 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 
-/** 构造 v1 商户回调请求，统一绑定 JWT、Header 事件标识和加密正文。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantCallbackRequestFactory
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 构造 v1 商户回调请求，统一绑定 JWT、Header 事件标识和加密正文。
+ * @status : create
+ */
 @Component
 public class MerchantCallbackRequestFactory {
 

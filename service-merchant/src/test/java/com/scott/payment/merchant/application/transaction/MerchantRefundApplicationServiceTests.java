@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
  * @version : v1.0.0
  * @classname : MerchantRefundApplicationServiceTests
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 商户退款管理隔离测试，验证浏览器商户号被认证上下文商户号覆盖且详情查询携带租户边界。
  * @status : create
  */

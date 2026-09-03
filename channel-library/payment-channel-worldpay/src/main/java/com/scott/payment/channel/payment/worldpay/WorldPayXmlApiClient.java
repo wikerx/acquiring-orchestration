@@ -39,10 +39,10 @@ import java.util.regex.Pattern;
 public class WorldPayXmlApiClient {
 
     /**
-     * 渠道请求基础 URL 扩展键。
+     * {@code EXT_REQUEST_URL}，表示当前内部调用、渠道调用或商户通知的目标地址。
      * <p>
-     * 单位：无；格式：HTTP/HTTPS URL；非敏感字段；不允许为空。
-     * 数据来源：后台渠道 MID 配置经 service-payment 透传，可为 Worldpay XML Direct JSP 地址或主机 baseUrl。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String EXT_REQUEST_URL = "requestUrl";
@@ -57,37 +57,37 @@ public class WorldPayXmlApiClient {
     private static final String EXT_READ_TIMEOUT_SECONDS = "readTimeoutSeconds";
 
     /**
-     * 渠道请求 HTTP 方法审计字段名。
+     * 原始HTTP方式，表示支付方式、通知方式或调用方式。
      * <p>
-     * 单位：无；格式：HTTP method；非敏感字段；不允许为空。
-     * 数据来源：当前客户端固定 POST，用于落库后复盘渠道请求。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String RAW_HTTP_METHOD = "httpMethod";
 
     /**
-     * 脱敏请求 URL 审计字段名。
+     * 原始请求URL脱敏，表示当前内部调用、渠道调用或商户通知的目标地址。
      * <p>
-     * 单位：无；格式：HTTP/HTTPS URL；非敏感字段；不允许为空。
-     * 数据来源：本类 buildUrl 结果，不能包含 Basic Auth 密码或完整敏感查询参数。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
 
     /**
-     * 脱敏请求头审计字段名。
+     * {@code RAW_REQUEST_HEADER_JSON_MASKED}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
      * <p>
-     * 单位：无；格式：JSON 字符串；敏感字段已掩码；不允许为空。
-     * 数据来源：本类 HTTP 请求头白名单，Authorization 只能保存 Basic ***。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String RAW_REQUEST_HEADER_JSON_MASKED = "requestHeaderJsonMasked";
 
     /**
-     * 脱敏请求体审计字段名。
+     * {@code RAW_REQUEST_BODY_JSON_MASKED}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
      * <p>
-     * 单位：无；格式：XML 字符串；卡号、有效期、CVC、CAVV 和认证凭据已掩码；不允许为空。
-     * 数据来源：XML 编码器输出，供渠道请求记录表保存排查摘要。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
      * </p>
      */
     private static final String RAW_REQUEST_BODY_JSON_MASKED = "requestBodyJsonMasked";
@@ -174,42 +174,12 @@ public class WorldPayXmlApiClient {
             Pattern.CASE_INSENSITIVE
     );
 
-    /**
-     * WPGXML 请求映射器。
-     * <p>
-     * 单位：无；格式：Spring Bean；非敏感依赖；不允许为空。
-     * 数据来源：构造器注入，负责把平台渠道请求转换为 XML 请求对象和报文。
-     * </p>
-     */
     private final WorldPayXmlRequestMapper requestMapper;
 
-    /**
-     * WPGXML 响应映射器。
-     * <p>
-     * 单位：无；格式：Spring Bean；非敏感依赖；不允许为空。
-     * 数据来源：构造器注入，负责把 XML 响应转换为平台统一渠道响应。
-     * </p>
-     */
     private final WorldPayXmlResponseMapper responseMapper;
 
-    /**
-     * JDK HTTP 客户端。
-     * <p>
-     * 单位：无；格式：HttpClient 实例；非敏感依赖；不允许为空。
-     * 数据来源：生产构造器创建或测试构造器注入，用于发送 Worldpay XML Direct 请求。
-     * </p>
-     */
     private final HttpClient httpClient;
 
-    /**
-     * 创建生产使用的 Worldpay XML HTTP 客户端。
-     * <p>
-     * 前置条件：Spring 容器已提供 XML 请求映射器和响应映射器；构造过程只创建 HTTP client，不读取 MID 凭据、不发起渠道请求。
-     * </p>
-     *
-     * @param requestMapper WPGXML 请求映射器，负责对象封装和 XML 序列化
-     * @param responseMapper WPGXML 响应映射器，负责响应解析和平台统一响应转换
-     */
     @Autowired
     public WorldPayXmlApiClient(WorldPayXmlRequestMapper requestMapper,
                                 WorldPayXmlResponseMapper responseMapper) {
@@ -237,15 +207,10 @@ public class WorldPayXmlApiClient {
     }
 
     /**
-     * 执行 WPGXML 渠道请求。
-     * <p>
-     * 前置条件：request 必须包含交易类型、渠道订单号或平台交易号，并通过扩展字段携带 Worldpay XML MID 三要素。
-     * 方法会构造 XML 报文、记录脱敏请求日志、发送 Basic Auth HTTP POST、解析 XML 响应并填充渠道审计字段。
-     * 本方法不写数据库、不提交事务、不改变平台状态机；网络超时和 IO 异常转换为渠道统一异常，PAN、CVC、CAVV 和密码禁止明文日志输出。
-     * </p>
+     * 调用 Worldpay XML API，并将 HTTP、XML 解析及渠道错误统一映射为渠道响应语义。
      *
-     * @param request 平台统一渠道请求，来源于 service-payment 渠道调用链
-     * @return 平台统一渠道响应，包含渠道状态、响应码、交易号和脱敏审计字段
+     * @param request 已完成路由和金额币种校验的渠道请求
+     * @return 脱敏且结构化的 Worldpay 渠道响应
      */
     public ChannelPaymentResponse execute(ChannelPaymentRequest request) {
         validateRequest(request);

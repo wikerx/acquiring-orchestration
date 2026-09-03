@@ -5,16 +5,16 @@ import lombok.Data;
 import java.io.Serializable;
 
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestHeaderDTO
  * @date : 2026-05-28 17:48
  * @email : scott_x@163.com
- * @description : Open API Request Header DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : openAPI请求头请求模型，位于 商户开放接口服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
  * @status : create
  */
+@Data
 public class OpenApiRequestHeaderDTO implements Serializable {
 
     /**

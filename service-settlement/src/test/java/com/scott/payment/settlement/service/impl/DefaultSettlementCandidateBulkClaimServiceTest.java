@@ -59,16 +59,42 @@ class DefaultSettlementCandidateBulkClaimServiceTest {
                 batch.getSettlementProfileId(), now)).thenReturn(2);
         when(relationMapper.insertBatchIdempotent(anyList())).thenReturn(2);
         when(batchMapper.incrementCandidateCountBy(
-                batch.getSettlementBatchNo(), 2, 0L)).thenReturn(1);
+                batch.getSettlementBatchNo(), 2, 2, 0L)).thenReturn(1);
         when(batchMapper.sealClaimedBatch(
                 batch.getSettlementBatchNo(), 2, 1L, now)).thenReturn(1);
 
-        service.claimAndSeal(batch.getSettlementBatchNo(), now);
+        assertThat(service.claimAndSeal(batch.getSettlementBatchNo(), now)).isEqualTo(2);
 
         assertThat(batch.getCandidateCount()).isEqualTo(2);
+        assertThat(batch.getProjectableCandidateCount()).isEqualTo(2);
         assertThat(batch.getVersion()).isEqualTo(1L);
         verify(relationMapper).insertBatchIdempotent(anyList());
         verify(batchMapper).sealClaimedBatch(batch.getSettlementBatchNo(), 2, 1L, now);
+    }
+
+    /** 保证金释放候选只增加总数，不得增加真实交易投影计数。 */
+    @Test
+    void shouldNotCountReserveReleaseCandidatesAsProjectableTransactions() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 26, 1, 30);
+        SettlementBatchDO batch = batch();
+        List<SettlementCandidateDO> candidates = List.of(candidate(201L), candidate(202L));
+        candidates.forEach(candidate -> candidate.setSourceType("RESERVE_RELEASE"));
+        when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+        when(candidateMapper.selectClaimableByBatchForUpdate(batch.getSettlementBatchNo(), 200))
+                .thenReturn(candidates, List.of());
+        when(candidateMapper.claimBatch(candidates, batch.getSettlementBatchNo(),
+                batch.getSettlementProfileId(), now)).thenReturn(2);
+        when(relationMapper.insertBatchIdempotent(anyList())).thenReturn(2);
+        when(batchMapper.incrementCandidateCountBy(
+                batch.getSettlementBatchNo(), 2, 0, 0L)).thenReturn(1);
+        when(batchMapper.sealClaimedBatch(
+                batch.getSettlementBatchNo(), 2, 1L, now)).thenReturn(1);
+
+        assertThat(service.claimAndSeal(batch.getSettlementBatchNo(), now)).isEqualTo(2);
+
+        assertThat(batch.getCandidateCount()).isEqualTo(2);
+        assertThat(batch.getProjectableCandidateCount()).isZero();
+        verify(batchMapper).incrementCandidateCountBy(batch.getSettlementBatchNo(), 2, 0, 0L);
     }
 
     /** 持续有积压时单批只能消费五页共1000条，剩余候选必须留给下一批。 */
@@ -86,17 +112,34 @@ class DefaultSettlementCandidateBulkClaimServiceTest {
         when(relationMapper.insertBatchIdempotent(anyList())).thenReturn(200);
         for (long version = 0; version < 5; version++) {
             when(batchMapper.incrementCandidateCountBy(
-                    batch.getSettlementBatchNo(), 200, version)).thenReturn(1);
+                    batch.getSettlementBatchNo(), 200, 200, version)).thenReturn(1);
         }
         when(batchMapper.sealClaimedBatch(
                 batch.getSettlementBatchNo(), 1000, 5L, now)).thenReturn(1);
 
-        service.claimAndSeal(batch.getSettlementBatchNo(), now);
+        assertThat(service.claimAndSeal(batch.getSettlementBatchNo(), now)).isEqualTo(1000);
 
         assertThat(batch.getCandidateCount()).isEqualTo(1000);
+        assertThat(batch.getProjectableCandidateCount()).isEqualTo(1000);
         verify(candidateMapper, org.mockito.Mockito.times(5))
                 .selectClaimableByBatchForUpdate(batch.getSettlementBatchNo(), 200);
         verify(batchMapper).sealClaimedBatch(batch.getSettlementBatchNo(), 1000, 5L, now);
+    }
+
+    /** 并发后没有候选时保持空壳 CREATED，并把 0 返回给自动编排层执行审计取消。 */
+    @Test
+    void shouldReturnZeroWithoutSealingEmptyBatch() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 26, 2, 30);
+        SettlementBatchDO batch = batch();
+        when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+        when(candidateMapper.selectClaimableByBatchForUpdate(batch.getSettlementBatchNo(), 200))
+                .thenReturn(List.of());
+
+        assertThat(service.claimAndSeal(batch.getSettlementBatchNo(), now)).isZero();
+
+        verify(batchMapper, org.mockito.Mockito.never()).sealClaimedBatch(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any());
     }
 
     private SettlementBatchDO batch() {
@@ -110,6 +153,7 @@ class DefaultSettlementCandidateBulkClaimServiceTest {
         row.setBusinessDate(LocalDate.of(2026, 8, 26));
         row.setBatchStatus(SettlementBatchStatus.CREATED.name());
         row.setCandidateCount(0);
+        row.setProjectableCandidateCount(0);
         row.setVersion(0L);
         return row;
     }

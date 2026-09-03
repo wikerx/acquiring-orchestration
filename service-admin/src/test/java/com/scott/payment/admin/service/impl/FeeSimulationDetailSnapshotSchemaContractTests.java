@@ -8,7 +8,15 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 费用试算逐项快照结构契约测试，防止初始化、迁移和回滚脚本发生漂移。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : FeeSimulationDetailSnapshotSchemaContractTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 费用试算逐项快照结构契约测试，防止初始化、迁移和回滚脚本发生漂移。
+ * @status : create
+ */
 class FeeSimulationDetailSnapshotSchemaContractTests {
 
     @Test

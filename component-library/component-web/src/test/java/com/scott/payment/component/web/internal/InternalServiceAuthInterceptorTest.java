@@ -8,6 +8,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,23 +27,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class InternalServiceAuthInterceptorTest {
 
-    /**
-     * SECRET，用于保存 Internal Service Auth Interceptor Test 中与 secret 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private static final String SECRET = "test-internal-secret";
-    /**
-     * CALLER，用于保存 Internal Service Auth Interceptor Test 中与 caller 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
+    private static final String SECRET = "test-internal-secret-at-least-32-bytes";
+    private static final String PREVIOUS_SECRET = "previous-internal-secret-at-least-32-bytes";
+    private static final String OTHER_SECRET = "another-internal-secret-at-least-32-bytes";
     private static final String CALLER = "service-openapi";
 
     /**
@@ -171,9 +159,64 @@ class InternalServiceAuthInterceptorTest {
         assertThat(actualTtl.get()).isEqualTo(Duration.ofMinutes(10));
     }
 
+    /** 调用方独立密钥启用后，持有其他调用方密钥不能伪造当前调用方。 */
+    @Test
+    void shouldRejectRequestSignedWithAnotherCallersSecret() throws Exception {
+        InternalServiceAuthProperties properties = callerScopedProperties();
+        MockHttpServletRequest request = signedRequest(
+                InternalServiceSignature.currentTimeMillis(), UUID.randomUUID().toString(), null, "{}", OTHER_SECRET);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean allowed = new InternalServiceAuthInterceptor(properties, (caller, nonce, ttl) -> true)
+                .preHandle(request, response, new Object());
+
+        assertThat(allowed).isFalse();
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+        assertThat(response.getContentAsString()).contains("internal service signature is invalid");
+    }
+
+    /** 轮换窗口内服务端同时接受 active 和 previous，调用方只继续使用 active。 */
+    @Test
+    void shouldAllowPreviousSecretDuringRotation() throws Exception {
+        InternalServiceAuthProperties properties = callerScopedProperties();
+        MockHttpServletRequest request = signedRequest(
+                InternalServiceSignature.currentTimeMillis(), UUID.randomUUID().toString(), null, "{}", PREVIOUS_SECRET);
+
+        boolean allowed = new InternalServiceAuthInterceptor(properties, (caller, nonce, ttl) -> true)
+                .preHandle(request, new MockHttpServletResponse(), new Object());
+
+        assertThat(allowed).isTrue();
+    }
+
+    /** 身份通过 HMAC 认证后仍必须受调用方路径授权约束，禁止横向调用其他内部命令。 */
+    @Test
+    void shouldRejectAuthenticatedCallerOutsideAllowedPaths() throws Exception {
+        InternalServiceAuthProperties properties = callerScopedProperties();
+        MockHttpServletRequest request = signedRequest(
+                InternalServiceSignature.currentTimeMillis(), UUID.randomUUID().toString(), null, "{}", SECRET);
+        request.setRequestURI("/internal/payment/refund-approvals/1/approve");
+        resign(request, "{}", SECRET);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean allowed = new InternalServiceAuthInterceptor(properties, (caller, nonce, ttl) -> true)
+                .preHandle(request, response, new Object());
+
+        assertThat(allowed).isFalse();
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_FORBIDDEN);
+        assertThat(response.getContentAsString()).contains("internal service caller is not allowed for this path");
+    }
+
     private InternalServiceAuthProperties properties() {
+        return callerScopedProperties();
+    }
+
+    private InternalServiceAuthProperties callerScopedProperties() {
         InternalServiceAuthProperties properties = new InternalServiceAuthProperties();
-        properties.setSecret(SECRET);
+        InternalServiceAuthProperties.CallerCredential credential = new InternalServiceAuthProperties.CallerCredential();
+        credential.setActiveSecret(SECRET);
+        credential.setPreviousSecret(PREVIOUS_SECRET);
+        credential.setAllowedPaths(List.of("/internal/payment/authorization"));
+        properties.setCallers(Map.of(CALLER, credential));
         properties.setAllowedClockSkew(Duration.ofMinutes(5));
         return properties;
     }
@@ -185,6 +228,14 @@ class InternalServiceAuthInterceptorTest {
     }
 
     private MockHttpServletRequest signedRequest(long timestamp, String nonce, String query, String body) {
+        return signedRequest(timestamp, nonce, query, body, SECRET);
+    }
+
+    private MockHttpServletRequest signedRequest(long timestamp,
+                                                 String nonce,
+                                                 String query,
+                                                 String body,
+                                                 String secret) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/internal/payment/authorization");
         request.setQueryString(query);
         byte[] payload = body.getBytes(StandardCharsets.UTF_8);
@@ -197,7 +248,7 @@ class InternalServiceAuthInterceptorTest {
                 nonce,
                 CALLER,
                 payloadSha256,
-                SECRET
+                secret
         );
         request.setAttribute(InternalServiceRequestBodyFilter.BODY_SHA256_ATTRIBUTE, payloadSha256);
         request.addHeader(InternalServiceSignature.HEADER_CALLER, CALLER);
@@ -205,5 +256,21 @@ class InternalServiceAuthInterceptorTest {
         request.addHeader(InternalServiceSignature.HEADER_NONCE, nonce);
         request.addHeader(InternalServiceSignature.HEADER_SIGNATURE, signature);
         return request;
+    }
+
+    private void resign(MockHttpServletRequest request, String body, String secret) {
+        String payloadSha256 = InternalServiceSignature.payloadSha256(body);
+        String signature = InternalServiceSignature.sign(
+                request.getMethod(),
+                InternalServiceSignature.requestTarget(request.getRequestURI(), request.getQueryString()),
+                Long.parseLong(request.getHeader(InternalServiceSignature.HEADER_TIMESTAMP)),
+                request.getHeader(InternalServiceSignature.HEADER_NONCE),
+                request.getHeader(InternalServiceSignature.HEADER_CALLER),
+                payloadSha256,
+                secret
+        );
+        request.setAttribute(InternalServiceRequestBodyFilter.BODY_SHA256_ATTRIBUTE, payloadSha256);
+        request.removeHeader(InternalServiceSignature.HEADER_SIGNATURE);
+        request.addHeader(InternalServiceSignature.HEADER_SIGNATURE, signature);
     }
 }

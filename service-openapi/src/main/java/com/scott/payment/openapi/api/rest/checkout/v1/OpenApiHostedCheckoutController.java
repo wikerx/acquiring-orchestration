@@ -15,7 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 商户 Hosted Checkout OpenAPI V1 控制器。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiHostedCheckoutController
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户 Hosted Checkout OpenAPI V1 控制器。
+ * @status : create
  */
 @ApiVersion(apiVersion = 1)
 @RestController

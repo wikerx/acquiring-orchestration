@@ -69,13 +69,14 @@ class DefaultSettlementCandidateClaimServiceTest {
         });
         when(relationMapper.selectByBatchAndCandidateForUpdate(batch.getSettlementBatchNo(), candidate.getId()))
                 .thenAnswer(invocation -> storedRelation.get());
-        when(batchMapper.incrementCandidateCount(batch.getSettlementBatchNo(), batch.getVersion())).thenReturn(1);
+        when(batchMapper.incrementCandidateCount(batch.getSettlementBatchNo(), 1, batch.getVersion())).thenReturn(1);
 
         var result = service.claim(command());
 
         assertThat(result.outcome()).isEqualTo(SettlementCandidateClaimOutcome.CLAIMED);
         assertThat(result.candidateId()).isEqualTo(candidate.getId());
         verify(relationMapper).insertIdempotent(any(SettlementBatchCandidateDO.class));
+        verify(batchMapper).incrementCandidateCount(batch.getSettlementBatchNo(), 1, batch.getVersion());
     }
 
     @Test
@@ -93,7 +94,7 @@ class DefaultSettlementCandidateClaimServiceTest {
 
         assertThat(result.outcome()).isEqualTo(SettlementCandidateClaimOutcome.ALREADY_CLAIMED);
         verify(candidateMapper, never()).claim(any(Long.class), any(), any(Long.class), any(Long.class), any());
-        verify(batchMapper, never()).incrementCandidateCount(any(), any(Long.class));
+        verify(batchMapper, never()).incrementCandidateCount(any(), any(Integer.class), any(Long.class));
     }
 
     @Test
@@ -146,6 +147,21 @@ class DefaultSettlementCandidateClaimServiceTest {
         verify(candidateMapper, never()).claim(any(Long.class), any(), any(Long.class), any(Long.class), any());
     }
 
+    /** 保证金调整必须进入独立 ADJUSTMENT 批次，不能混入常规交易日批。 */
+    @Test
+    void shouldRejectAdjustmentCandidateFromRegularBatch() {
+        SettlementBatchDO batch = batch();
+        SettlementCandidateDO candidate = candidate();
+        candidate.setSourceType("ADJUSTMENT");
+        when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+        when(candidateMapper.selectByIdForUpdate(candidate.getId())).thenReturn(candidate);
+
+        assertThatThrownBy(() -> service.claim(command()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("batch type");
+        verify(candidateMapper, never()).claim(any(Long.class), any(), any(Long.class), any(Long.class), any());
+    }
+
     private SettlementCandidateClaimCommand command() {
         return new SettlementCandidateClaimCommand(
                 "SB20260826-00000008", 200L, 4L, LocalDateTime.of(2026, 8, 26, 12, 30));
@@ -163,6 +179,7 @@ class DefaultSettlementCandidateClaimServiceTest {
         row.setBatchType("REGULAR");
         row.setBatchStatus(SettlementBatchStatus.CREATED.name());
         row.setCandidateCount(0);
+        row.setProjectableCandidateCount(0);
         row.setVersion(2L);
         return row;
     }

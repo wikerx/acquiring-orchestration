@@ -22,14 +22,38 @@ public final class ReserveCalculationModels {
 
     /** 保证金清分事实类型。 */
     public enum ReserveActionType {
+        /**
+         * HOLD 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         HOLD,
+        /**
+         * RETURN 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         RETURN,
+        /**
+         * RELEASE 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         RELEASE,
         ADJUSTMENT
     }
 
     /** 保证金差额调整方向；DEBIT增加商户保证金负债，CREDIT减少商户保证金负债。 */
     public enum ReserveAdjustmentDirection {
+        /**
+         * DEBIT 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         DEBIT,
         CREDIT
     }
@@ -211,6 +235,11 @@ public final class ReserveCalculationModels {
         }
     }
 
+    /**
+     * 校验保证金费率使用百分比口径且位于闭区间 [0, 100]。
+     * <p>
+     * 调用方必须传入显式费率，禁止用空值或小数比例猜测业务配置。
+     */
     private static void validateRate(BigDecimal reserveRate) {
         Objects.requireNonNull(reserveRate, "reserve rate is required");
         if (reserveRate.signum() < 0 || reserveRate.compareTo(new BigDecimal("100")) > 0) {
@@ -218,6 +247,11 @@ public final class ReserveCalculationModels {
         }
     }
 
+    /**
+     * 保证同一次保证金运算的币种代码和币种精度完全一致。
+     * <p>
+     * 保证金始终按原标签币种累计，跨币种调整必须先在上游形成明确的汇率事实，不能在模型内隐式换算。
+     */
     private static void requireSameCurrency(Money expected, Money actual) {
         if (!expected.sameCurrency(actual)) {
             throw new IllegalArgumentException("reserve amounts must use original label currency and exponent");

@@ -7,7 +7,15 @@ import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
 
-/** Mapper for plaintext payer snapshots in the transaction payer logical table. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : TransactionPayerInfoMapper
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Mapper for plaintext payer snapshots in the transaction payer logical table.
+ * @status : create
+ */
 public interface TransactionPayerInfoMapper extends BaseMapper<TransactionPayerInfoDO> {
 
     /** Query the initial payer snapshot through the exact shard key. */

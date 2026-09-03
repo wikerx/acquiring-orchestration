@@ -8,7 +8,15 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 验证运维聚合 SQL 只读且始终携带单季度半开分片范围。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingOperationalMetricsMapperContractTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证运维聚合 SQL 只读且始终携带单季度半开分片范围。
+ * @status : create
+ */
 class ClearingOperationalMetricsMapperContractTest {
 
     @Test

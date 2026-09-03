@@ -9,7 +9,7 @@ import org.springframework.util.StringUtils;
  * @classname : PaymentRiskDecisionEnum
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : 支付侧风控决策枚举，位于 service-payment 领域状态层，用于接收 service-risk 决策并映射交易状态，不与 transaction_status 字典混用。
+ * @description : 支付风控结论枚举，位于 支付核心服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  * @status : create
  */
 @Getter

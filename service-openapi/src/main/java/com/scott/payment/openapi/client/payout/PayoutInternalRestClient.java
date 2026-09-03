@@ -21,7 +21,6 @@ import java.net.URI;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
-@Service
 /**
  * @author : scott
  * @version : v1.0.0
@@ -31,6 +30,7 @@ import java.util.regex.Pattern;
  * @description : Payout Internal Rest Client 客户端，位于 商户开放接口服务，封装内部服务或渠道接口调用，统一处理请求构造、响应解析、超时和异常转换。
  * @status : create
  */
+@Service
 public class PayoutInternalRestClient implements PayoutInternalClient {
 
     /**

@@ -24,19 +24,43 @@ public final class SettlementCalculationModels {
 
     /** 商户视角的目标净额方向。 */
     public enum AmountDirection {
+        /**
+         * CREDIT 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         CREDIT,
         DEBIT
     }
 
     /** 清分费用原子组件类型；限额调整仅由结算结果生成，不作为输入。 */
     public enum FeeComponentKind {
+        /**
+         * PERCENTAGE 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         PERCENTAGE,
         FIXED
     }
 
     /** 结算统一求值后命中的费用边界。 */
     public enum AppliedLimit {
+        /**
+         * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         NONE,
+        /**
+         * MINIMUM 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         MINIMUM,
         MAXIMUM
     }

@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
  * @classname : PayoutServiceImpl
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 代付服务实现，位于 service-openapi 服务层，负责本地降级受理和转调 service-payout。
+ * @description : 代付交易服务实现，位于 商户开放接口服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
 @Service

@@ -18,28 +18,28 @@ import java.util.Map;
 public class WorldPayJsonRequestPayload {
 
     /**
-     * 平台生成的渠道交易引用，Worldpay 用于幂等、查询和排查。
+     * {@code transactionReference}字段，保存 {@code WorldPayJsonRequestPayload} 当前处理所需的业务取值。
      * <p>
-     * 单位：无；格式：平台渠道交易号或动作请求号；不允许为空；非敏感字段。
-     * 数据来源：service-payment 预生成的 channelTransactionId/requestId；与 channelOrderNo、operationId 共同定位一次渠道调用。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private String transactionReference;
 
     /**
-     * 商户在 Worldpay 的实体信息。
+     * 商户字段，保存 {@code WorldPayJsonRequestPayload} 当前处理所需的业务取值。
      * <p>
-     * 单位：无；格式：对象；不允许为空；非敏感字段但日志只输出 MID 摘要。
-     * 数据来源：后台渠道 MID 元数据中的 Worldpay gateway merchant code。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private Merchant merchant;
 
     /**
-     * 支付或后续动作指令。
+     * {@code instruction}字段，保存 {@code WorldPayJsonRequestPayload} 当前处理所需的业务取值。
      * <p>
-     * 单位：无；格式：对象；首笔卡交易不允许为空；包含金额最小单位、币种、支付工具和收银描述。
-     * 数据来源：平台交易请求、币种精度和卡资料；PAN、CVC 只允许当前 HTTP 请求内短暂使用。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private Instruction instruction;
@@ -64,19 +64,19 @@ public class WorldPayJsonRequestPayload {
     private String orderReference;
 
     /**
-     * 后续动作金额。
+     * 值字段，保存 {@code WorldPayJsonRequestPayload} 当前处理所需的业务取值。
      * <p>
-     * 单位：币种最小单位；格式：整数 amount 加 ISO 4217 currency；请款、退款等金额类后续动作不允许为空；非敏感字段。
-     * 数据来源：平台动作请求金额和币种精度；与 action link 共同定位并执行渠道后续动作。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private Value value;
 
     /**
-     * 平台动作类型，作为非协议审计字段随可配置 endpoint 上送时便于渠道排查。
+     * 动作字段，保存 {@code WorldPayJsonRequestPayload} 当前处理所需的业务取值。
      * <p>
-     * 单位：无；格式：PAYMENT、AUTHORIZE、CAPTURE、REFUND、VOID 或 QUERY；不允许为空；非敏感字段。
-     * 数据来源：平台 transactionType 映射结果；不参与平台状态推进。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     @com.alibaba.fastjson2.annotation.JSONField(serialize = false)
@@ -115,10 +115,10 @@ public class WorldPayJsonRequestPayload {
     public static class Merchant {
 
         /**
-         * Worldpay merchant entity / gateway merchant code。
+         * {@code entity}字段，保存 商户 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：Worldpay 分配的商户实体编码；不允许为空；非敏感字段但日志只输出摘要。
-         * 数据来源：后台 MID 元数据；与 Basic Auth 账号共同决定交易归属。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String entity;
@@ -137,10 +137,10 @@ public class WorldPayJsonRequestPayload {
     public static class Instruction {
 
         /**
-         * 付款方式。
+         * 方式，表示支付方式、通知方式或调用方式。
          * <p>
-         * 单位：无；格式：card 或渠道支持的受控字符串；不允许为空；非敏感字段。
-         * 数据来源：paymentMethod 和 MID 元数据；与 paymentInstrument.type 共同表达卡交易。
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String method;
@@ -173,19 +173,19 @@ public class WorldPayJsonRequestPayload {
         private Narrative narrative;
 
         /**
-         * 交易金额。
+         * 值字段，保存 {@code Instruction} 当前处理所需的业务取值。
          * <p>
-         * 单位：币种最小单位；格式：整数 amount 加 ISO 4217 currency；金额类交易不允许为空；非敏感字段。
-         * 数据来源：平台交易金额和数据库/ISO 字典解析出的 currencyExponent；与 currency 字段共同解释金额。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private Value value;
 
         /**
-         * 支付工具。
+         * {@code paymentInstrument}字段，保存 {@code Instruction} 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：对象；首笔卡交易不允许为空；包含 PAN、有效期和 CVC。
-         * 数据来源：OpenAPI 到 payment 的内存链路；高敏字段禁止落库和明文日志。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private PaymentInstrument paymentInstrument;
@@ -204,10 +204,10 @@ public class WorldPayJsonRequestPayload {
     public static class RequestAutoSettlement {
 
         /**
-         * 是否请求 Worldpay 自动请款。
+         * 启用标识，表示当前配置项或业务能力的启停开关。
          * <p>
-         * 单位：无；格式：true 或 false；不允许为空；非敏感字段。
-         * 数据来源：平台交易类型和 MID 元数据；PAYMENT 默认 true，授权和预授权默认 false。
+         * 单位：无；格式：布尔值或 0/1 标识；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的真假取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * </p>
          */
         private Boolean enabled;
@@ -248,19 +248,21 @@ public class WorldPayJsonRequestPayload {
     public static class Value {
 
         /**
-         * 最小辅币单位金额。
+         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：由 currency 的辅币位决定，例如 USD 12.34 为 1234；不允许为空；非敏感字段。
-         * 数据来源：平台交易金额按 currencyExponent 无舍入转换；与 currency 必须同时出现。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private Long amount;
 
         /**
-         * 交易币种。
+         * 币种，表示金额字段使用的币种。
          * <p>
-         * 单位：无；格式：ISO 4217 三位大写代码；不允许为空；非敏感字段。
-         * 数据来源：支付核心归一化后的 transactionCurrency；决定 amount 的辅币位解释。
+         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
         private String currency;
@@ -288,28 +290,28 @@ public class WorldPayJsonRequestPayload {
         private String type;
 
         /**
-         * PAN 卡号。
+         * 卡编号，表示银行卡号或脱敏卡号字段。
          * <p>
-         * 单位：无；格式：13 至 19 位数字；首笔卡交易不允许为空；高敏感字段。
-         * 数据来源：OpenAPI 请求解密后的卡信息；仅允许当前渠道请求内使用，禁止日志、异常、MQ 和落库明文保存。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；银行卡敏感字段，只允许脱敏或摘要化使用。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String cardNumber;
 
         /**
-         * 卡有效期。
+         * 卡有效期日期字段，保存 {@code PaymentInstrument} 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：month 两位、year 四位；首笔卡交易不允许为空；非敏感认证辅助字段。
-         * 数据来源：OpenAPI 请求卡信息；与 cardNumber 一起提交给渠道。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private ExpiryDate cardExpiryDate;
 
         /**
-         * CVV/CVC 安全码。
+         * {@code cvc}，表示卡组织或 3DS 认证链路使用的安全认证值。
          * <p>
-         * 单位：无；格式：3 至 4 位数字；首笔卡交易不允许为空；高敏感认证数据。
-         * 数据来源：OpenAPI 请求解密后的卡信息；禁止落库、日志、异常消息和 MQ。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String cvc;
@@ -355,19 +357,19 @@ public class WorldPayJsonRequestPayload {
     public static class ExpiryDate {
 
         /**
-         * 有效期月份。
+         * {@code month}字段，保存 有效期日期 当前处理所需的业务取值。
          * <p>
-         * 单位：月；格式：两位数字 01 至 12；不允许为空；非敏感字段。
-         * 数据来源：OpenAPI 卡信息；与 year 共同描述卡有效期。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String month;
 
         /**
-         * 有效期年份。
+         * 年份字段，保存 有效期日期 当前处理所需的业务取值。
          * <p>
-         * 单位：年；格式：四位数字；不允许为空；非敏感字段。
-         * 数据来源：OpenAPI 卡信息；与 month 共同描述卡有效期。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String year;

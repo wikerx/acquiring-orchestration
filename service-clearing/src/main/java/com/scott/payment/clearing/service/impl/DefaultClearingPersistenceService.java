@@ -38,6 +38,13 @@ import java.util.Set;
 @Service
 public class DefaultClearingPersistenceService implements ClearingPersistenceService {
 
+    /**
+     * {@code IDEMPOTENCY_KEY_PREFIX}常量，统一 {@code DefaultClearingPersistenceService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String IDEMPOTENCY_KEY_PREFIX = "service-clearing-transaction-status:";
     private static final Set<String> TERMINAL_TRANSACTION_STATUSES = Set.of("SUCCESS", "FAILED");
 
@@ -130,6 +137,7 @@ public class DefaultClearingPersistenceService implements ClearingPersistenceSer
         return result(ClearingClaimResult.Outcome.ACQUIRED, state, toFacts(operation, true), true);
     }
 
+    /** 延时消息只有在失败码、修订和重试序号仍匹配时才允许重新领取。 */
     private RetryClaimDecision retryClaimDecision(PaymentTransactionEventMessage message,
                                                   ClearingTransactionFinanceStateDO state,
                                                   LocalDateTime now) {
@@ -152,6 +160,7 @@ public class DefaultClearingPersistenceService implements ClearingPersistenceSer
                 ? RetryClaimDecision.NOT_DUE : RetryClaimDecision.DUE;
     }
 
+    /** 被排期重试的状态必须仍可领取，人工复核和完成态不得覆盖。 */
     private void validateScheduledRetryState(ClearingTransactionFinanceStateDO state) {
         if (state.getNextRetryTime() == null || state.getClearingRetryCount() == null
                 || state.getClearingRetryCount() < 1 || !StringUtils.hasText(state.getLastFailureCode())) {
@@ -167,6 +176,7 @@ public class DefaultClearingPersistenceService implements ClearingPersistenceSer
                 value(state.getClearingRevision()), value(state.getVersion()) + (versionAdvanced ? 1 : 0), facts);
     }
 
+    /** Stage A 领取前校验消息身份、分片时间和租约 owner。 */
     private void requireClaimArguments(PaymentTransactionEventMessage message,
                                        String processingOwner,
                                        LocalDateTime now) {
@@ -180,6 +190,7 @@ public class DefaultClearingPersistenceService implements ClearingPersistenceSer
         }
     }
 
+    /** 消息只作触发，交易终态、金额和身份全部以主库动作事实为准。 */
     private void validateAuthoritativeOperation(PaymentTransactionEventMessage message,
                                                 ClearingTransactionOperationDO operation) {
         if (operation == null) {
@@ -199,6 +210,7 @@ public class DefaultClearingPersistenceService implements ClearingPersistenceSer
         }
     }
 
+    /** 新建或锁定后的 finance state 必须与权威动作身份一致。 */
     private void validateFinanceState(ClearingTransactionOperationDO operation,
                                       ClearingTransactionFinanceStateDO state) {
         if (state == null) {
@@ -249,8 +261,26 @@ public class DefaultClearingPersistenceService implements ClearingPersistenceSer
     }
 
     private enum RetryClaimDecision {
+        /**
+         * NOT RETRY 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         NOT_RETRY,
+        /**
+         * DUE 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         DUE,
+        /**
+         * NOT DUE 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         NOT_DUE,
         STALE
     }

@@ -24,14 +24,65 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SettlementPersistenceMapperContractTest {
 
     private static final List<Class<?>> MAPPER_TYPES = List.of(
+            MerchantSettlementProfileMapper.class,
             SettlementBatchDailySequenceMapper.class,
             SettlementBatchMapper.class,
             SettlementCandidateMapper.class,
             SettlementBatchCandidateMapper.class,
             SettlementClearingFactMapper.class,
             SettlementBatchRateMapper.class,
+            SettlementReviewDailySequenceMapper.class,
+            SettlementReviewOrderMapper.class,
+            SettlementReviewCandidateMapper.class,
+            SettlementReviewRateMapper.class,
+            SettlementReviewSummaryMapper.class,
             SettlementRateQuoteMapper.class,
-            SettlementResultMapper.class);
+            SettlementResultMapper.class,
+            SettlementFundMapper.class,
+            SettlementReserveMapper.class);
+
+    /** 自动处理只读取自动档案；自动预审候选页必须稳定且不碰已被占用的候选。 */
+    @Test
+    void automaticProfileQueriesShouldRespectProcessingModeAndCandidateOwnership() {
+        String groups = sql(methodNamed(MerchantSettlementProfileMapper.class, "selectReadyBatchGroups"));
+        String candidates = sql(methodNamed(
+                MerchantSettlementProfileMapper.class, "selectReadyReviewCandidates"));
+        String automaticPostAnchor = sql(methodNamed(
+                SettlementCandidateMapper.class, "selectAutomaticPostAnchorForUpdate"));
+
+        assertThat(groups).contains(
+                "profile.processing_mode IN ('AUTO_POST', 'AUTO_REVIEW')",
+                "candidate.candidate_status = 'READY'",
+                "candidate.settlement_batch_no IS NULL",
+                "candidate.review_order_no IS NULL")
+                .doesNotContain("profile.processing_mode = 'MANUAL'");
+        assertThat(candidates).contains(
+                "candidate.candidate_status = 'READY'",
+                "candidate.settlement_batch_no IS NULL",
+                "candidate.review_order_no IS NULL",
+                "candidate.settlement_eligible_date <= #{businessDate}",
+                "candidate.create_time < #{cutoffEndTime}",
+                "ORDER BY candidate.id ASC",
+                "LIMIT #{limit}");
+        assertThat(automaticPostAnchor).contains(
+                "profile.processing_mode = 'AUTO_POST'",
+                "account.account_status = 'NORMAL'",
+                "candidate.candidate_status = 'READY'",
+                "candidate.settlement_batch_no IS NULL",
+                "candidate.review_order_no IS NULL",
+                "candidate.settlement_eligible_date <= #{businessDate}",
+                "candidate.create_time < #{cutoffEndTime}",
+                "required_candidate.candidate_status != 'POSTED'",
+                "ORDER BY candidate.id ASC",
+                "LIMIT 1",
+                "FOR UPDATE SKIP LOCKED");
+        assertThat(automaticPostAnchor).contains(
+                "candidate.source_type = 'CLEARING_REVISION'",
+                "candidate.source_type = 'RESERVE_RELEASE'",
+                "candidate.source_type = 'ADJUSTMENT'");
+        assertThat(sql(methodNamed(SettlementCandidateMapper.class, "lockForReview"))).contains(
+                "candidate_status = 'READY'", "review_order_no IS NULL", "version = #{row.version}");
+    }
 
     /** 所有注解 SQL 必须使用绑定参数，禁止字符串插值。 */
     @Test
@@ -58,7 +109,7 @@ class SettlementPersistenceMapperContractTest {
                 "version = version + 1");
     }
 
-    /** 批次请求键必须唯一回读，候选计数只能在认领状态用版本 CAS 增加。 */
+    /** 批次请求键必须唯一回读，候选总数和真实交易投影数必须在同一版本 CAS 中增加。 */
     @Test
     void batchShouldKeepCreateIdempotencyAndCountCas() {
         String insert = sql(methodNamed(SettlementBatchMapper.class, "insertIdempotent"));
@@ -70,8 +121,60 @@ class SettlementPersistenceMapperContractTest {
         assertThat(count).contains(
                 "batch_status IN ('CREATED', 'CLAIMING')",
                 "candidate_count = candidate_count + 1",
+                "projectable_candidate_count = projectable_candidate_count + #{projectableDelta}",
+                "#{projectableDelta} IN (0, 1)",
                 "version = #{expectedVersion}",
                 "version = version + 1");
+        assertThat(sql(methodNamed(SettlementBatchMapper.class, "incrementCandidateCountBy"))).contains(
+                "candidate_count = candidate_count + #{delta}",
+                "projectable_candidate_count = projectable_candidate_count + #{projectableDelta}",
+                "#{projectableDelta} BETWEEN 0 AND #{delta}",
+                "version = #{expectedVersion}");
+    }
+
+    /** 正式批次取消必须由状态/version CAS 与只追加审计唯一键共同保护。 */
+    @Test
+    void cancellationShouldUseStateCasAndImmutableAudit() {
+        assertThat(sql(methodNamed(SettlementBatchMapper.class, "cancelBeforePosting"))).contains(
+                "batch_status IN ('CREATED', 'CLAIMING', 'CLAIMED', 'RATE_LOCKED'",
+                "version = #{expectedVersion}",
+                "version = version + 1");
+        assertThat(sql(methodNamed(SettlementBatchMapper.class,
+                "selectCancellationAuditByRequestKey"))).contains(
+                "settlement_batch_cancellation_audit", "request_key = #{requestKey}");
+        assertThat(sql(methodNamed(SettlementBatchMapper.class,
+                "selectCancellationAuditByBatchNo"))).contains(
+                "settlement_batch_cancellation_audit", "settlement_batch_no = #{settlementBatchNo}");
+        assertThat(sql(methodNamed(SettlementBatchMapper.class, "insertCancellationAudit"))).contains(
+                "INSERT INTO settlement_batch_cancellation_audit", "request_key", "expected_version",
+                "operator_role_snapshot", "released_candidate_count");
+    }
+
+    /** 预审创建、终态决策和候选占用必须由唯一键及当前状态/version CAS 共同保护。 */
+    @Test
+    void reviewMappersShouldProtectIdempotencyAndStateTransitions() {
+        assertThat(sql(methodNamed(SettlementReviewOrderMapper.class, "insertIdempotent")))
+                .contains("create_request_key", "selection_fingerprint", "ON DUPLICATE KEY UPDATE id = id");
+        assertThat(sql(methodNamed(SettlementReviewOrderMapper.class, "selectByDecisionRequestKeyForUpdate")))
+                .contains("decision_request_key = #{requestKey}", "FOR UPDATE");
+        assertThat(sql(methodNamed(SettlementReviewOrderMapper.class, "approve")))
+                .contains("review_status = 'PENDING_APPROVAL'", "version = #{expectedVersion}",
+                        "decision_request_key", "settlement_batch_no");
+        assertThat(sql(methodNamed(SettlementCandidateMapper.class, "lockForReview")))
+                .contains("candidate_status = 'READY'", "review_order_no IS NULL",
+                        "version = #{row.version}", "candidate_status = 'REVIEW_LOCKED'");
+        assertThat(sql(methodNamed(SettlementCandidateMapper.class, "consumeReviewLock")))
+                .contains("candidate_status = 'REVIEW_LOCKED'", "review_order_no = #{reviewOrderNo}",
+                        "version = #{row.version}", "candidate_status = 'CLAIMED'");
+        assertThat(sql(methodNamed(SettlementCandidateMapper.class, "releaseReviewLock")))
+                .contains("candidate_status = 'REVIEW_LOCKED'", "review_order_no = #{reviewOrderNo}",
+                        "version = #{row.version}", "candidate_status = 'READY'");
+        assertThat(sql(methodNamed(SettlementBatchMapper.class, "bindApprovedReview")))
+                .contains("batch_status = 'CREATED'", "candidate_count = 0",
+                        "review_order_no IS NULL", "version = #{expectedVersion}",
+                        "create_mode = 'MANUAL_REVIEW'");
+        assertThat(sql(methodNamed(SettlementBatchRateMapper.class, "insertBatchIdempotent")))
+                .contains("review_rate_id", "ON DUPLICATE KEY UPDATE id = id");
     }
 
     /** 候选认领 SQL 必须同时保护状态、批次空值、真实模式、冻结配置和版本。 */
@@ -83,9 +186,18 @@ class SettlementPersistenceMapperContractTest {
         assertThat(claim).contains(
                 "candidate_status = 'READY'",
                 "settlement_batch_no IS NULL",
+                "review_order_no IS NULL",
                 "shadow_mode = 0",
                 "settlement_profile_id = #{settlementProfileId}",
                 "version = #{expectedVersion}",
+                "version = version + 1");
+        assertThat(sql(methodNamed(SettlementCandidateMapper.class, "claimBatch"))).contains(
+                "candidate_status = 'READY'",
+                "settlement_batch_no IS NULL",
+                "review_order_no IS NULL",
+                "shadow_mode = 0",
+                "settlement_profile_id = #{settlementProfileId}",
+                "version = #{row.version}",
                 "version = version + 1");
         assertThat(dependencies).contains(
                 "settlement_candidate_dependency",
@@ -145,11 +257,37 @@ class SettlementPersistenceMapperContractTest {
         assertThat(rateLocked).contains("batch_status IN ('CLAIMED', 'FAILED_RETRYABLE')",
                 "processing_owner = #{owner}", "processing_deadline > #{lockedTime}",
                 "version = #{expectedVersion}", "batch_status = 'RATE_LOCKED'");
+        assertThat(rateLocked).containsOnlyOnce("version = version + 1");
         assertThat(calculating).contains("batch_status = 'RATE_LOCKED'",
                 "processing_owner = #{owner}", "version = #{expectedVersion}");
         assertThat(calculated).contains("batch_status = 'CALCULATING'",
                 "batch_status = 'CALCULATED'", "calculated_time = #{calculatedTime}",
                 "processing_owner = NULL", "version = #{expectedVersion}");
+    }
+
+    /** 保证金全部消费和冲正 CAS 必须使用包含调整累计的统一剩余责任公式。 */
+    @Test
+    void reserveMutationsShouldUseAdjustmentAwareResponsibilityCas() {
+        for (String method : List.of("applyReturn", "applyRelease", "reverseHold", "applyCreditAdjustment",
+                "reverseDebitAdjustment")) {
+            assertThat(sql(methodNamed(SettlementReserveMapper.class, method))).contains(
+                    "retained_amount + debit_adjustment_amount",
+                    "returned_amount",
+                    "released_amount",
+                    "credit_adjustment_amount",
+                    "reversed_amount",
+                    "version = #{expectedVersion}");
+        }
+    }
+
+    /** 所有结算余额 CAS 都必须再次校验正常账户，防止冻结账户执行结算或主动冲正。 */
+    @Test
+    void fundBalanceCasShouldRequireNormalAccount() {
+        assertThat(sql(methodNamed(SettlementFundMapper.class, "updateAccountBalance"))).contains(
+                "available_balance = #{balanceBefore}",
+                "account_version = #{expectedVersion}",
+                "account_status = 'NORMAL'",
+                "deleted = 0");
     }
 
     private static Method methodNamed(Class<?> type, String methodName) {

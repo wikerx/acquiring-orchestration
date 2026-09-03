@@ -83,12 +83,12 @@ public class TransactionEventOutboxDO implements Serializable {
     private String eventStatus;
 
     /**
-     * RocketMQ Topic。
+     * RocketMQ 主题，用于限定交易事件的投递通道。
      */
     private String topic;
 
     /**
-     * RocketMQ Tag。
+     * RocketMQ 标签，用于区分交易状态、清分完成等事件类型。
      */
     private String tag;
 

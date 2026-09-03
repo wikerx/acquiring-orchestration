@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
  * @version : v1.0.0
  * @classname : AdminShardingGovernanceApplicationServiceTest
  * @date : 2026-08-02 00:00
+ * @email : scott_x@163.com
  * @description : 验证 Admin 分表治理只展示正式规则，并暴露当前规则版本和实际节点登记状态。
  * @status : create
  */

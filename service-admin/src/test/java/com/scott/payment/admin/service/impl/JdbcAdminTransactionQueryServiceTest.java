@@ -458,7 +458,12 @@ class JdbcAdminTransactionQueryServiceTest {
         when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenAnswer(invocation -> {
                     String sql = invocation.getArgument(0, String.class);
-                    if (sql.contains("SELECT o.*") && sql.contains("FROM transaction_operation o")) {
+                    if (sql.contains("FROM transaction_operation o") && sql.contains("LIMIT :offset, :limit")) {
+                        assertThat(sql).doesNotContain("SELECT o.*");
+                        assertThat(sql).contains(
+                                "o.transaction_rate", "o.settlement_currency", "o.settlement_amount",
+                                "o.settlement_rate", "o.settlement_date", "o.settlement_batch_no",
+                                "o.settlement_status");
                         return List.of(firstOperation, secondOperation);
                     }
                     if (sql.contains("FROM transaction_order")) {
@@ -492,6 +497,11 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(sqlCaptor.getAllValues().stream().filter(sql -> sql.contains("FROM transaction_order")))
                 .singleElement()
                 .satisfies(sql -> {
+                    assertThat(sql).doesNotContain("SELECT *");
+                    assertThat(sql).contains(
+                            "settlement_currency", "settlement_amount", "settlement_rate",
+                            "settlement_date", "settlement_batch_no",
+                            "settlement_transaction_id", "settlement_transaction_date_time");
                     assertThat(sql).contains("operation_id IN (:operationIds)");
                     assertThat(sql).contains("transaction_date_time >= :registeredNodeBegin");
                     assertThat(sql).contains("transaction_date_time < :registeredNodeEnd");
@@ -518,7 +528,7 @@ class JdbcAdminTransactionQueryServiceTest {
         when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
                 .thenAnswer(invocation -> {
                     String sql = invocation.getArgument(0, String.class);
-                    if (sql.contains("SELECT o.*") && sql.contains("FROM transaction_operation o")) {
+                    if (sql.contains("FROM transaction_operation o") && sql.contains("LIMIT :offset, :limit")) {
                         return List.of(operation);
                     }
                     if (sql.contains("FROM transaction_merchant_notification")) {

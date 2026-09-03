@@ -3,7 +3,7 @@
 spring:
   config:
     import:
-      # 参数说明：导入当前服务专属 Nacos DataId，承载只属于该服务的业务开关。
+      # 参数说明：导入当前服务专属 Nacos DataId，承载当前服务业务参数和其参与的内部鉴权配置。
       - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入公共 Nacos DataId，统一时间、监控和链路追踪配置。
       - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
@@ -65,16 +65,6 @@ logging:
   config: classpath:log-config/logback-spring.xml
 
 openapi:
-  payment-client:
-    # 生产环境调用 service-payment /internal/** 的 HMAC-SHA256 共享密钥。
-    # 必须与 service-payment.internal-service.auth.secret 使用同一 Secret，不允许在 yml 中写明文默认值。
-    # 环境说明：环境变量：INTERNAL_SERVICE_AUTH_SECRET（无默认值）；启动前必须通过 K8s Secret、CI/CD Secret 或密钥管理系统注入，禁止写入 UAT/生产 YAML 或 Nacos 明文。
-    internal-secret: ${INTERNAL_SERVICE_AUTH_SECRET}
-  payout-client:
-    # 生产环境调用 service-payout /internal/** 的 HMAC-SHA256 共享密钥。
-    # 必须与 service-payout.internal-service.auth.secret 使用同一 Secret，不允许在 yml 中写明文默认值。
-    # 环境说明：环境变量：INTERNAL_SERVICE_AUTH_SECRET（无默认值）；启动前必须通过 K8s Secret、CI/CD Secret 或密钥管理系统注入，禁止写入 UAT/生产 YAML 或 Nacos 明文。
-    internal-secret: ${INTERNAL_SERVICE_AUTH_SECRET}
   callback-security:
     # 商户通知重试维护密钥，只允许内部运维/后台任务调用方持有。
     # 推荐通过 K8s Secret、CI/CD Secret 或主机环境变量注入：OPENAPI_NOTIFY_RETRY_TOKEN=<32位以上随机高强度密钥>。

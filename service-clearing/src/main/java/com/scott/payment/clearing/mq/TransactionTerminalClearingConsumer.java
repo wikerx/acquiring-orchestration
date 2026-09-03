@@ -87,13 +87,24 @@ public class TransactionTerminalClearingConsumer
         }
     }
 
-    /** 按清分配置调整 RocketMQ 消费线程，配置校验由启动门禁统一执行。 */
+    /**
+     * 按清分配置调整 RocketMQ 消费线程，配置校验由启动门禁统一执行。
+     *
+     * @param consumer 即将启动的交易 FIFO 消费者
+     */
     @Override
     public void prepareStart(DefaultMQPushConsumer consumer) {
         consumer.setConsumeThreadMin(properties.getConsumerMinThreads());
         consumer.setConsumeThreadMax(properties.getConsumerMaxThreads());
     }
 
+    /**
+     * 反序列化并校验交易终态消息外壳；业务身份和状态规则由应用层继续校验。
+     *
+     * @param payload Broker 投递的非敏感 JSON
+     * @return 非空交易终态消息
+     * @throws IllegalArgumentException 载荷为空、反序列化失败或结果为空时抛出
+     */
     private PaymentTransactionEventMessage parse(String payload) {
         if (!StringUtils.hasText(payload)) {
             metrics.recordMessageRejected("TERMINAL", "EMPTY");
@@ -114,6 +125,7 @@ public class TransactionTerminalClearingConsumer
         return message;
     }
 
+    /** @return 本次数据库处理租约的唯一执行者标识。 */
     private String processingOwner() {
         return "service-clearing:" + idGenerator.nextId();
     }

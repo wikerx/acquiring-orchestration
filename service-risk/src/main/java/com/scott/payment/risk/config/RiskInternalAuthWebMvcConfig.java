@@ -37,6 +37,7 @@ public class RiskInternalAuthWebMvcConfig implements WebMvcConfigurer {
      */
     public RiskInternalAuthWebMvcConfig(InternalServiceAuthProperties internalServiceAuthProperties,
                                         InternalRequestReplayGuard replayGuard) {
+        internalServiceAuthProperties.validate();
         this.internalServiceAuthProperties = internalServiceAuthProperties;
         this.replayGuard = replayGuard;
     }

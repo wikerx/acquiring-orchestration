@@ -8,7 +8,15 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 锁定结算资金提交、保证金动作、投影和Outbox的数据库最终幂等合同。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SettlementPostingSchemaContractTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 锁定结算资金提交、保证金动作、投影和Outbox的数据库最终幂等合同。
+ * @status : create
+ */
 class SettlementPostingSchemaContractTest {
 
     @Test

@@ -10,7 +10,14 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * 支付系统 Redis 物理 Key 配置。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentRedisProperties
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 支付系统 Redis 物理 Key 配置。
+ * @status : create
+ *
  *
  * <p>所有直接访问 Redis 的业务 Key 都必须经过本配置拼接系统和环境前缀，
  * 避免同一 Redis 集群中的不同环境、系统或用途相互覆盖。</p>
@@ -69,10 +76,9 @@ public class PaymentRedisProperties implements PaymentRedisKeyResolver {
     }
 
     /**
-     * 构造规范化的物理 Redis Key。
-     *
-     * @param segments 业务层级片段
-     * @return 带系统和环境隔离前缀的物理 Key
+     * 按系统、环境和业务片段构造规范化 Redis Key，忽略空片段并使用安全默认值。
+     * @param segments 有界参数集合或键值片段，空元素按当前方法约定忽略或拒绝
+     * @return 当前方法生成或规范化后的文本值
      */
     public String key(String... segments) {
         String prefix = normalizeSegment(keyPrefix, "acquiring:local");

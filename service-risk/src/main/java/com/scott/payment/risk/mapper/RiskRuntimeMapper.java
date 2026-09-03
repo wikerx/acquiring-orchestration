@@ -12,7 +12,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 风控运行时 Mapper。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskRuntimeMapper
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控运行时 Mapper。
+ * @status : create
  */
 public interface RiskRuntimeMapper {
 
@@ -294,16 +300,18 @@ public interface RiskRuntimeMapper {
     List<RiskRuleSnapshotRow> selectActiveAmlSourceHostSnapshotRows(@Param("maxRows") int maxRows);
 
     /**
-     * 按敏感值哈希查询当前商户适用的名单规则，商户级规则优先于全局规则。
-     *
-     * @param tableName 已通过 {@link com.scott.payment.risk.domain.RiskListFunction} 白名单校验的表名
-     * @param moduleType 风控模块类型，用于组装统一命中结果
-     * @param functionCode 名单功能编码
-     * @param functionName 名单功能名称
-     * @param hitElement 参与匹配的交易要素名称
-     * @param merchantId 当前商户号
-     * @param matchValueHash 规范化敏感值的不可逆哈希，禁止传入明文卡号等敏感数据
-     * @return 优先级最高的有效规则；未命中时返回 {@code null}
+     * 按不可逆摘要查询当前生效且商户范围优先的风控名单命中记录。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param tableName 经白名单选择的风控物理表名，禁止由外部请求直接拼接
+     * @param moduleType 风控模块类型，用于标识命中记录所属的规则域
+     * @param functionCode 风控功能编码，用于标识本次名单匹配能力
+     * @param functionName 风控功能名称，用于生成运营可读的命中原因
+     * @param hitElement 命中要素编码，用于说明本次匹配基于邮箱、IP、卡 BIN 或其它维度
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param matchValueHash 待匹配值的不可逆摘要，禁止传入或记录原始敏感值
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @Select("""
             <script>
@@ -339,17 +347,19 @@ public interface RiskRuntimeMapper {
                                   @Param("matchValueHash") String matchValueHash);
 
     /**
-     * 按 IP 版本和无符号整数区间查询当前商户适用的名单规则。
-     *
-     * @param tableName 已通过 {@link com.scott.payment.risk.domain.RiskListFunction} 白名单校验的表名
-     * @param moduleType 风控模块类型，用于组装统一命中结果
-     * @param functionCode 名单功能编码
-     * @param functionName 名单功能名称
-     * @param hitElement 参与匹配的 IP 要素名称
-     * @param merchantId 当前商户号
-     * @param ipVersion 规范化 IP 版本，取值为 IPv4 或 IPv6
-     * @param numericValue IP 地址对应的无符号整数，避免文本格式差异影响区间判断
-     * @return 优先级最高的有效 IP 区间规则；未命中时返回 {@code null}
+     * 按 IP 版本和数值区间查询当前生效的风控名单命中记录。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param tableName 经白名单选择的风控物理表名，禁止由外部请求直接拼接
+     * @param moduleType 风控模块类型，用于标识命中记录所属的规则域
+     * @param functionCode 风控功能编码，用于标识本次名单匹配能力
+     * @param functionName 风控功能名称，用于生成运营可读的命中原因
+     * @param hitElement 命中要素编码，用于说明本次匹配基于邮箱、IP、卡 BIN 或其它维度
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param ipVersion IP 协议版本，只允许平台支持的 IPv4 或 IPv6 编码
+     * @param numericValue 已规范化的数值边界值，用于执行 BIN 或 IP 区间包含判断
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @Select("""
             <script>
@@ -388,16 +398,18 @@ public interface RiskRuntimeMapper {
                                      @Param("numericValue") BigDecimal numericValue);
 
     /**
-     * 按规范化卡 BIN 数值区间查询当前商户适用的名单规则。
-     *
-     * @param tableName 已通过 {@link com.scott.payment.risk.domain.RiskListFunction} 白名单校验的表名
-     * @param moduleType 风控模块类型，用于组装统一命中结果
-     * @param functionCode 名单功能编码
-     * @param functionName 名单功能名称
-     * @param hitElement 参与匹配的卡 BIN 要素名称
-     * @param merchantId 当前商户号
-     * @param numericValue 补齐到固定长度的 BIN 数值，不得传入完整卡号
-     * @return 优先级最高的有效 BIN 区间规则；未命中时返回 {@code null}
+     * 按卡 BIN 数值区间查询当前生效且商户范围优先的风控名单记录。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param tableName 经白名单选择的风控物理表名，禁止由外部请求直接拼接
+     * @param moduleType 风控模块类型，用于标识命中记录所属的规则域
+     * @param functionCode 风控功能编码，用于标识本次名单匹配能力
+     * @param functionName 风控功能名称，用于生成运营可读的命中原因
+     * @param hitElement 命中要素编码，用于说明本次匹配基于邮箱、IP、卡 BIN 或其它维度
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param numericValue 已规范化的数值边界值，用于执行 BIN 或 IP 区间包含判断
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @Select("""
             <script>
@@ -530,9 +542,16 @@ public interface RiskRuntimeMapper {
                                     @Param("cityName") String cityName);
 
     /**
-     * 按规范化来源主机名查询启用的 AML 来源网址规则。
-     *
-     * @return 最新一条 AML 命中；未命中时返回 {@code null}
+     * 按来源主机精确查询当前生效的 AML 风控名单命中记录。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param moduleType 风控模块类型，用于标识命中记录所属的规则域
+     * @param functionCode 风控功能编码，用于标识本次名单匹配能力
+     * @param functionName 风控功能名称，用于生成运营可读的命中原因
+     * @param hitElement 命中要素编码，用于说明本次匹配基于邮箱、IP、卡 BIN 或其它维度
+     * @param sourceHost 已规范化的来源主机名，用于 AML 来源地址精确匹配
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @Select("""
             SELECT id AS ruleId,
@@ -641,11 +660,10 @@ public interface RiskRuntimeMapper {
     long countActiveSourceUrlRules(@Param("merchantId") String merchantId);
 
     /**
-     * 统计当前主机命中的有效来源网址限制规则。
-     *
-     * @param merchantId 当前商户号
-     * @param sourceHost 已规范化为 ASCII 小写形式的主机名
-     * @return 当前主机的有效命中数量
+     * 统计{@code countActiveSourceUrlHit}，返回分页、扫描或报表汇总所需的数量结果。
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @param sourceHost 已规范化的来源主机名，用于 AML 来源地址精确匹配
+     * @return 当前方法计算的数量、版本或状态数值
      */
     @Select("""
             SELECT COUNT(1)
@@ -694,11 +712,10 @@ public interface RiskRuntimeMapper {
     long countActiveMerchantIpWhitelist(@Param("merchantId") String merchantId);
 
     /**
-     * 统计商户 IP 白名单中与规范地址完全相等的记录。
-     *
-     * @param merchantId 当前商户号
-     * @param ipValue 已规范化的 IPv4 或 IPv6 地址
-     * @return 精确命中数量
+     * 统计{@code countMerchantIpWhitelistHit}，返回分页、扫描或报表汇总所需的数量结果。
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param ipValue 待规范化的可识别信息，仅允许以脱敏、哈希或数值区间形式参与匹配
+     * @return 当前方法计算的数量、版本或状态数值
      */
     @Select("""
             SELECT COUNT(1)
@@ -1030,10 +1047,12 @@ public interface RiskRuntimeMapper {
             @Param("maxRows") int maxRows);
 
     /**
-     * 按规范化卡 BIN 数值查询最具体的发卡行国家。
-     *
-     * @param numericValue 右侧补零后的卡 BIN 比较值
-     * @return BIN 长度和数据源优先级最高的记录；未命中时返回 {@code null}
+     * 按卡 BIN 最长区间优先规则解析发卡国家或地区。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param numericValue 已规范化的数值边界值，用于执行 BIN 或 IP 区间包含判断
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @Select("""
             SELECT id AS ruleId,

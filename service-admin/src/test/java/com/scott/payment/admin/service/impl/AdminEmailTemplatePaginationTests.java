@@ -26,7 +26,15 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** 验证邮件模板分页使用稳定排序，更新时间相同时不会跨页重复或遗漏。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminEmailTemplatePaginationTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证邮件模板分页使用稳定排序，更新时间相同时不会跨页重复或遗漏。
+ * @status : create
+ */
 class AdminEmailTemplatePaginationTests {
 
     @Test

@@ -10,7 +10,13 @@ import java.util.HexFormat;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 风控运行时值归一化契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskRuntimeValueNormalizerTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控运行时值归一化契约测试。
+ * @status : create
  */
 class RiskRuntimeValueNormalizerTests {
 

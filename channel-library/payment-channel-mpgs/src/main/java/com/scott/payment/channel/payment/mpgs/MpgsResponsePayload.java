@@ -107,16 +107,16 @@ public class MpgsResponsePayload {
      */
     private String threeDSSessionData;
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Response
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Response 传输模型，位于 渠道适配库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : MPGS 响应报文的响应节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Response {
 
         /**
@@ -145,16 +145,16 @@ public class MpgsResponsePayload {
         private CardSecurityCode cardSecurityCode;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : CardSecurityCode
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Card Security Code 协作组件，位于 渠道适配库，封装 cardsecuritycode 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的卡安全编码节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class CardSecurityCode {
 
         /**
@@ -168,16 +168,16 @@ public class MpgsResponsePayload {
         private String acquirerCode;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : AuthorizationResponse
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Authorization Response 传输模型，位于 渠道适配库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : MPGS 响应报文的授权节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class AuthorizationResponse {
 
         /**
@@ -226,16 +226,16 @@ public class MpgsResponsePayload {
         private String transactionIdentifier;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Transaction
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Transaction 协作组件，位于 渠道适配库，封装 交易 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的交易节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Transaction {
 
         /**
@@ -299,16 +299,16 @@ public class MpgsResponsePayload {
         private String terminal;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Acquirer
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Acquirer 协作组件，位于 渠道适配库，封装 acquirer 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的收单机构节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Acquirer {
 
         /**
@@ -347,16 +347,16 @@ public class MpgsResponsePayload {
         private String transactionId;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Order
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Order 协作组件，位于 渠道适配库，封装 订单 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的订单节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Order {
 
         /**
@@ -440,16 +440,16 @@ public class MpgsResponsePayload {
         private BigDecimal totalRefundedAmount;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Chargeback
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Chargeback 协作组件，位于 渠道适配库，封装 chargeback 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的拒付节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Chargeback {
 
         /**
@@ -463,16 +463,16 @@ public class MpgsResponsePayload {
         private String currency;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : SourceOfFunds
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Source Of Funds 协作组件，位于 渠道适配库，封装 来源offunds 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的资金来源节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class SourceOfFunds {
 
         /**
@@ -486,16 +486,16 @@ public class MpgsResponsePayload {
         private Provided provided;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Provided
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Provided 协作组件，位于 渠道适配库，封装 provided 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的支付工具节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Provided {
 
         /**
@@ -504,16 +504,16 @@ public class MpgsResponsePayload {
         private Card card;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Card
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Card 协作组件，位于 渠道适配库，封装 card 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的卡节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Card {
 
         /**
@@ -552,16 +552,16 @@ public class MpgsResponsePayload {
         private String storedOnFile;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Expiry
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Expiry 协作组件，位于 渠道适配库，封装 expiry 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的有效期节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Expiry {
 
         /**
@@ -575,16 +575,16 @@ public class MpgsResponsePayload {
         private String year;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Risk
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Risk 协作组件，位于 渠道适配库，封装 risk 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的风控节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Risk {
 
         /**
@@ -593,16 +593,16 @@ public class MpgsResponsePayload {
         private RiskResponse response;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : RiskResponse
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Risk Response 传输模型，位于 渠道适配库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : MPGS 响应报文的风控节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class RiskResponse {
 
         /**
@@ -631,16 +631,16 @@ public class MpgsResponsePayload {
         private Integer totalScore;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : Review
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Review 协作组件，位于 渠道适配库，封装 review 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的审核节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class Review {
 
         /**
@@ -649,16 +649,16 @@ public class MpgsResponsePayload {
         private String decision;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : RiskRule
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Risk Rule 协作组件，位于 渠道适配库，封装 risk规则 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的风控规则节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class RiskRule {
 
         /**
@@ -682,16 +682,16 @@ public class MpgsResponsePayload {
         private String type;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : ErrorPayload
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Error Payload 协作组件，位于 渠道适配库，封装 errorpayload 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : MPGS 响应报文的错误报文节点模型，位于渠道适配库，只映射渠道协议字段，不决定平台交易状态。
      * @status : create
      */
+    @Data
     public static class ErrorPayload {
 
         /**

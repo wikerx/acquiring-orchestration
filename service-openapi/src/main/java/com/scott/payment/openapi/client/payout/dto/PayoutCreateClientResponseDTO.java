@@ -4,16 +4,16 @@ import lombok.Data;
 
 import java.io.Serializable;
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PayoutCreateClientResponseDTO
  * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : Payout Create Client Response DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : 代付create响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
  * @status : create
  */
+@Data
 public class PayoutCreateClientResponseDTO implements Serializable {
 
     /**

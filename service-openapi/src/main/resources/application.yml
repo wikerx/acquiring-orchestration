@@ -1,5 +1,5 @@
-# 本地基础配置：只保留服务端口、服务名、激活环境和 Spring Boot 基础开关。
-# Redis、MQ、数据库、分表、Seata、XXL-JOB 等配置统一从 Nacos yaml DataId 读取。
+# 本地启动基线：只保留服务身份、端口和 Spring Boot 基础开关。
+# Gateway 验签、内部客户端和缓存参数统一从 service-openapi-{env}.yaml 读取。
 server:
   # 参数说明：配置服务监听端口，有效范围 1-65535；同一主机上的服务端口不得冲突。
   port: 8004
@@ -16,20 +16,3 @@ spring:
   main:
     # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
     allow-bean-definition-overriding: true
-
-acquiring:
-  gateway-ingress:
-    # 只接受 service-gateway 签发的收银台请求；密钥必须由 Secret 或 Nacos 环境占位符注入。
-    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:}
-    allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}
-
-openapi:
-  security:
-    secret-cache:
-      # 密钥正文只允许在 OpenAPI 单实例内短时驻留，Redis 仅保存非敏感 revision。
-      ttl: PT2M
-      # 参数说明：配置本地密钥缓存最大条目数，超限后按缓存策略淘汰。
-      max-entries: 2048
-    replay:
-      # 本地默认不强制 Redis 防重放成功，避免未启动 Redis 时影响本地启动；生产环境必须在 application-prod.yml 开启。
-      required: false

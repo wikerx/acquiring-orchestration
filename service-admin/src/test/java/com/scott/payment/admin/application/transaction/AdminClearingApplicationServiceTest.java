@@ -42,6 +42,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminClearingApplicationServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 Admin 清分本地查询、可信操作人注入、批量重算 CAS 和保证金 Maker-Checker 编排
+ * @status : create
+ */
 class AdminClearingApplicationServiceTest {
 
     @AfterEach

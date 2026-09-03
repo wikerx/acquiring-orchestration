@@ -9,7 +9,13 @@ import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 
 /**
- * 支付风控决策映射工具，统一交易准备链路对风控返回值和拦截状态的解释。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentRiskDecisionSupport
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 支付风控决策映射工具，统一交易准备链路对风控返回值和拦截状态的解释。
+ * @status : create
  */
 final class PaymentRiskDecisionSupport {
 

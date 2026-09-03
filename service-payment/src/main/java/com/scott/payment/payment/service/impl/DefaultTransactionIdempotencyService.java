@@ -292,12 +292,6 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
         return record;
     }
 
-    /**
-     * 规范化参与幂等指纹的枚举型文本。
-     *
-     * @param value 原始文本
-     * @return 去除首尾空白并转为大写的文本；null 返回空串
-     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }

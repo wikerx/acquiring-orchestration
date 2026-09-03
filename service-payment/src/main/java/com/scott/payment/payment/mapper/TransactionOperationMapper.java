@@ -22,6 +22,29 @@ import java.util.List;
 public interface TransactionOperationMapper extends BaseMapper<TransactionOperationDO> {
 
     /**
+     * 动作单稳定投影。显式列序避免 ShardingSphere 启动后季度表扩列导致 SELECT * 按旧元数据错位映射。
+     */
+    String OPERATION_SELECT_COLUMNS = """
+            id, operation_id, transaction_id, source_transaction_id, source_operation_id,
+            merchant_id, merchant_order_no, merchant_order_id, merchant_operation_no,
+            request_source, description, refund_scope, request_reason, applicant_type, applicant_id,
+            applicant_name, execution_mode, operation_sequence, transaction_type, transaction_status,
+            process_stage, pending_reason_code, fail_reason_code, fail_reason_message,
+            label_currency, label_amount, transaction_currency, transaction_amount,
+            approved_currency, approved_amount, channel_request_currency, channel_request_amount,
+            settlement_currency, settlement_amount, settlement_rate, settlement_date, settlement_batch_no,
+            currency_exponent, dcc_enabled, edc_enabled, transaction_rate,
+            channel_id, channel_code, channel_mid_config_id, channel_terminal_id,
+            channel_order_no, channel_transaction_id, channel_status,
+            channel_response_code, channel_response_message, auth_code, rrn, acquirer_reference_no,
+            settlement_status, reconciliation_status, accounting_status,
+            channel_match_status, channel_match_result, channel_match_count,
+            last_channel_match_request_id, last_channel_match_time, next_channel_match_time,
+            channel_match_fail_reason, transaction_date_time, transaction_utc_time,
+            transaction_time_zone, operation_time, complete_time, version, deleted, create_time, update_time
+            """;
+
+    /**
      * 审批通过后将退款动作推进到等待 MQ 执行阶段。
      *
      * @return 影响行数
@@ -107,7 +130,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      * @return 交易动作单，不存在时返回 null
      */
     @Select("""
-            SELECT *
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
             FROM transaction_operation
             WHERE transaction_id = #{transactionId}
               AND transaction_date_time = #{transactionDateTime}
@@ -127,7 +151,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      * @return 动作单，不存在时返回 null
      */
     @Select("""
-            SELECT *
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
             FROM transaction_operation
             WHERE channel_order_no = #{channelOrderNo}
               AND channel_transaction_id = #{channelTransactionId}
@@ -243,7 +268,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      */
     @Select("""
             <script>
-            SELECT o.*
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
             FROM transaction_operation o
             WHERE o.deleted = 0
               AND o.transaction_date_time &gt;= #{beginTime}
@@ -361,7 +387,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      * @return 动作单列表
      */
     @Select("""
-            SELECT *
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
             FROM transaction_operation
             WHERE operation_id = #{operationId}
               AND transaction_date_time >= #{beginTime}
@@ -385,7 +412,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      */
     @Select("""
             <script>
-            SELECT *
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
             FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND merchant_order_no = #{merchantOrderNo}
@@ -415,7 +443,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      * @return 首次起点动作列表
      */
     @Select("""
-            SELECT *
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
             FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND merchant_order_no = #{merchantOrderNo}
@@ -437,7 +466,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      * @return 未终态 Capture 动作列表
      */
     @Select("""
-            SELECT *
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
             FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND operation_id = #{operationId}
@@ -462,7 +492,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      * @return 未终态 Refund 动作列表
      */
     @Select("""
-            SELECT *
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
             FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND operation_id = #{operationId}
@@ -485,7 +516,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      * @return 未终态 Void 动作列表
      */
     @Select("""
-            SELECT *
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
             FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND operation_id = #{operationId}
@@ -508,7 +540,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      * @return 未终态 Incremental Authorization 动作列表
      */
     @Select("""
-            SELECT *
+            SELECT
+            """ + OPERATION_SELECT_COLUMNS + """
             FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND operation_id = #{operationId}

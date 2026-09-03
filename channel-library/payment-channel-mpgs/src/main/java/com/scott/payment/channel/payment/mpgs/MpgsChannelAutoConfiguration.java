@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Bean;
  * @version : v1.0.0
  * @classname : MpgsChannelAutoConfiguration
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : MPGS provider 自动配置，仅在 payment.channel.mpgs.enabled=true 时注册该渠道的客户端、映射器、回调和验签实现。
  * @status : create
  */

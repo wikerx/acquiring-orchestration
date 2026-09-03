@@ -38,10 +38,45 @@ import java.util.regex.Pattern;
 @Service
 public class DefaultPaymentAuthenticationRecordService implements PaymentAuthenticationRecordService {
 
+    /**
+     * 默认时间时区常量，统一 {@code DefaultPaymentAuthenticationRecordService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
+    /**
+     * 认证类型，用于区分 {@code DefaultPaymentAuthenticationRecordService} 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String AUTHENTICATION_TYPE = "3DS";
+    /**
+     * 认证来源常量，统一 {@code DefaultPaymentAuthenticationRecordService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String AUTHENTICATION_SOURCE = "CHANNEL";
+    /**
+     * {@code RESULT_CODE_MAX_LENGTH}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int RESULT_CODE_MAX_LENGTH = 64;
+    /**
+     * {@code RESULT_MESSAGE_MAX_LENGTH}常量，统一 {@code DefaultPaymentAuthenticationRecordService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int RESULT_MESSAGE_MAX_LENGTH = 512;
     private static final Pattern LONG_DIGIT_SEQUENCE = Pattern.compile("(?<![0-9])[0-9]{10,19}(?![0-9])");
     private static final Pattern SENSITIVE_QUERY_PARAMETER = Pattern.compile(
@@ -54,6 +89,11 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
         this.mapper = mapper;
     }
 
+    /**
+     * 记录渠道返回的 3DS 或其它支付认证结果。
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public void recordChannelResult(ChannelThreeDsAuthenticationRequest request,
@@ -66,6 +106,12 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
                 response == null ? "EMPTY_CHANNEL_RESPONSE" : response.getFailureCode());
     }
 
+    /**
+     * 记录渠道认证失败事实，保留可审计的失败码和脱敏摘要。
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param failureCode 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public void recordChannelFailure(ChannelThreeDsAuthenticationRequest request,
@@ -75,6 +121,10 @@ public class DefaultPaymentAuthenticationRecordService implements PaymentAuthent
                 status == null ? ChannelThreeDsStatus.PROCESSING : status, failureCode);
     }
 
+    /**
+     * 记录渠道认证超时事实，供状态机和运营排障使用。
+     * @param attemptDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public void recordTimeout(PaymentCheckoutAttemptDO attemptDO) {

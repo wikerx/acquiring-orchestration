@@ -89,16 +89,16 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
      */
     private TransactionInfoDTO transactionInfo;
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : TransactionInfoDTO
      * @date : 2026-07-14 23:59
      * @email : scott_x@163.com
-     * @description : Transaction Info DTO 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : Admin 发起退款、撤销、请款等内部交易命令时传递的来源交易和操作说明上下文。
      * @status : create
      */
+    @Data
     public static class TransactionInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;

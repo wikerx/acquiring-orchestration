@@ -21,13 +21,33 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * 逐个已发布季度读取清分积压和保证金负债，并在全部查询成功后原子刷新 Gauge。
- * Redis 不参与该链路，任一季度失败时保留上一轮完整指标。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingOperationalMetricsRefreshService
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 逐个已发布季度读取清分积压和保证金负债，并在全部查询成功后原子刷新 Gauge。 Redis 不参与该链路，任一季度失败时保留上一轮完整指标。
+ * @status : update
  */
 @Service
 public class ClearingOperationalMetricsRefreshService {
 
+    /**
+     * 物理节点常量，统一 {@code ClearingOperationalMetricsRefreshService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final Pattern PHYSICAL_NODE = Pattern.compile("\\d{4}0[1-4]");
+    /**
+     * ISO币种，表示金额字段使用的币种。
+     * <p>
+     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+     * </p>
+     */
     private static final Pattern ISO_CURRENCY = Pattern.compile("[A-Z]{3}");
 
     private final ClearingOperationalMetricsMapper mapper;
@@ -86,6 +106,7 @@ public class ClearingOperationalMetricsRefreshService {
         }
     }
 
+    /** 只遍历数据库治理表声明已发布的季度，不猜测或广播未来分片。 */
     private List<LocalDateTime> publishedQuarters() {
         return shardingProperties.getPhysicalNodes().stream()
                 .map(this::quarterAnchor)
@@ -111,6 +132,7 @@ public class ClearingOperationalMetricsRefreshService {
         }
     }
 
+    /** 按 ISO 币种累加剩余保证金，禁止跨币种合并成单一金额。 */
     private void aggregateReserve(List<ClearingReserveRemainingMetricsDO> rows,
                                   Map<String, BigDecimal> amounts) {
         if (rows == null) {

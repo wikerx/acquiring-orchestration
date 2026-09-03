@@ -1,5 +1,5 @@
-# 本地基础配置：只保留服务端口、服务名、激活环境和 Spring Boot 基础开关。
-# 数据库、分表、Seata 等配置统一从 Nacos yaml DataId 读取。
+# 本地启动基线：只保留服务身份、端口和 Spring Boot 基础开关。
+# Gateway 入口验签参数统一从 service-checkout-{env}.yaml 读取。
 server:
   # 参数说明：配置服务监听端口，有效范围 1-65535；同一主机上的服务端口不得冲突。
   port: 8003
@@ -16,9 +16,3 @@ spring:
   main:
     # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
     allow-bean-definition-overriding: true
-
-acquiring:
-  gateway-ingress:
-    # 国家配置和健康入口同样只允许 service-gateway 签发，禁止绕过接入层直连。
-    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:}
-    allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}

@@ -33,6 +33,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultClearingRecalculationServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证清分重算显式锁定费用版本、传递期望 CAS 状态并拒绝已结算或过期事实
+ * @status : create
+ */
 class DefaultClearingRecalculationServiceTest {
 
     private static final LocalDateTime TRANSACTION_TIME = LocalDateTime.of(2026, 8, 25, 9, 0);

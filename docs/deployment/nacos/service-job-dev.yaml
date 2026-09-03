@@ -1,20 +1,44 @@
 # service-job 专属配置：任务服务调用其他业务服务的内部补偿客户端参数。
 job:
+  clearing-client:
+    # 参数说明：清分补偿服务地址；dev 默认通过 Nacos 服务发现访问 service-clearing。
+    base-url: ${JOB_CLEARING_BASE_URL:http://service-clearing}
+    # 参数说明：建立清分内部连接的最大等待时间，单位毫秒。
+    connect-timeout-millis: ${JOB_CLEARING_CONNECT_TIMEOUT_MILLIS:3000}
+    # 参数说明：等待单批清分补偿响应的最大时间，单位毫秒，必须覆盖有界批次 P99。
+    read-timeout-millis: ${JOB_CLEARING_READ_TIMEOUT_MILLIS:120000}
+    # 参数说明：写入清分内部签名头的固定调用方标识，必须保持 service-job。
+    internal-caller: service-job
+    # 参数说明：Job 到 Clearing 调用边的当前 HMAC 密钥引用。
+    internal-secret: ${acquiring.internal-auth.edges.job-clearing.active-secret}
   data-client:
     # service-data 建连超时，单位毫秒。
     connect-timeout-millis: ${JOB_DATA_CLIENT_CONNECT_TIMEOUT_MILLIS:3000}
     # 单批最多 5 条通知，每条回调最坏耗时由 service-data 控制；读取超时必须覆盖完整有界批次。
     read-timeout-millis: ${JOB_DATA_CLIENT_READ_TIMEOUT_MILLIS:240000}
-    # 参数说明：指定内部服务调用方标识，必须与被调用方签名白名单一致。
-    # 环境说明：环境变量：DATA_INTERNAL_CALLER，dev 配置默认值为 "service-job"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
-    internal-caller: ${DATA_INTERNAL_CALLER:service-job}
-    # 参数说明：配置内部服务 HMAC-SHA256 共享密钥，调用方与被调用方必须使用同一环境的密钥。
-    # 环境说明：环境变量：DATA_INTERNAL_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
-    internal-secret: ${DATA_INTERNAL_SECRET:dev-internal-service-secret}
+    # 参数说明：写入 Data 内部签名头的固定调用方标识，必须保持 service-job。
+    internal-caller: service-job
+    # 参数说明：Job 到 Data 调用边的当前 HMAC 密钥引用，用于通知和数据补偿命令。
+    internal-secret: ${acquiring.internal-auth.edges.job-data.active-secret}
   payment-client:
-    # 参数说明：指定内部服务调用方标识，必须与被调用方签名白名单一致。
-    # 环境说明：环境变量：PAYMENT_INTERNAL_CALLER，dev 配置默认值为 "service-job"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
-    internal-caller: ${PAYMENT_INTERNAL_CALLER:service-job}
-    # 参数说明：配置内部服务 HMAC-SHA256 共享密钥，调用方与被调用方必须使用同一环境的密钥。
-    # 环境说明：环境变量：PAYMENT_INTERNAL_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
-    internal-secret: ${PAYMENT_INTERNAL_SECRET:dev-internal-service-secret}
+    # 参数说明：写入 Payment 内部签名头的固定调用方标识，必须保持 service-job。
+    internal-caller: service-job
+    # 参数说明：Job 到 Payment 调用边的当前 HMAC 密钥引用，用于到期处理和补偿命令。
+    internal-secret: ${acquiring.internal-auth.edges.job-payment.active-secret}
+
+internal-service:
+  auth:
+    # enabled 安全门禁固定在本地，Admin 仅能访问受控任务管理入口。
+    callers:
+      service-admin:
+        # 参数说明：Admin 调用 Job 管理接口时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.admin-job.active-secret}
+        # 参数说明：Admin-Job 密钥滚动轮换期间接受的上一版密钥；平时为空。
+        previous-secret: ${acquiring.internal-auth.edges.admin-job.previous-secret:}
+        allowed-paths:
+          # 路径说明：仅允许后台任务管理、查询和人工触发入口，禁止扩大到任意业务接口。
+          - /internal/job/**
+    # 参数说明：内部 HMAC 请求时间戳允许偏差，默认 5 分钟；生产节点必须启用时间同步。
+    allowed-clock-skew: 5m
+    # 参数说明：nonce 防重放记录保留时间，默认 10 分钟，必须大于签名有效窗口。
+    nonce-ttl: 10m

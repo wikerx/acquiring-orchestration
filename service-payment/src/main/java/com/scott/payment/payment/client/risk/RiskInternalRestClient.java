@@ -337,16 +337,6 @@ public class RiskInternalRestClient implements RiskInternalClient {
         }
     }
 
-    /**
-     * 转换解包结果，把下游响应、异常或包装结果映射为当前模块统一语义。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param result 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private RiskPaymentEvaluateClientResponseDTO unwrapResult(CommonResult<RiskPaymentEvaluateClientResponseDTO> result) {
         if (result == null) {
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-risk response is empty");

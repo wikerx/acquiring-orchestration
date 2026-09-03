@@ -10,7 +10,13 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 管理端交易菜单和商户支付接入菜单的 SQL 契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminTransactionMenuSqlContractTests
+ * @date : 2026-09-01 23:20
+ * @email : scott_x@163.com
+ * @description : 验证管理端交易、清分和结算菜单及权限迁移 SQL 的契约完整性
+ * @status : create
  */
 class AdminTransactionMenuSqlContractTests {
 
@@ -62,8 +68,7 @@ class AdminTransactionMenuSqlContractTests {
     private static final Set<String> SETTLEMENT_PERMISSIONS = Set.of(
             "settlement:batch:list",
             "settlement:batch:detail",
-            "settlement:batch:cancel",
-            "settlement:batch:reverse"
+            "settlement:batch:cancel"
     );
 
     private static final String MERCHANT_ANALYTICS_PERMISSION = "merchant:transaction:analytics:view";
@@ -226,7 +231,10 @@ class AdminTransactionMenuSqlContractTests {
                 "role.role_code = 'SUPER_ADMIN'",
                 "NOT EXISTS",
                 "INSERT IGNORE INTO sys_role_menu",
-                "INSERT IGNORE INTO sys_role_permission"
+                "INSERT IGNORE INTO sys_role_permission",
+                "menu.menu_name = BINARY item.menu_name",
+                "permission.permission_name = BINARY item.permission_name",
+                "permission.description = BINARY item.description"
         );
         for (String permission : CLEARING_PERMISSIONS) {
             assertThat(migration).contains(permission);

@@ -18,7 +18,13 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 支付终态驱动频控成功名额确认和释放的消费者测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : FrequencySuccessReservationPaymentEventConsumerTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 支付终态驱动频控成功名额确认和释放的消费者测试。
+ * @status : create
  */
 class FrequencySuccessReservationPaymentEventConsumerTests {
 

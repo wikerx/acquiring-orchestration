@@ -64,6 +64,15 @@ public interface SettlementBatchCandidateMapper {
             @Param("settlementBatchNo") String settlementBatchNo,
             @Param("candidateId") Long candidateId);
 
+    /** 统计批次冻结关系中的真实交易候选；保证金释放和调整不参与交易状态投影。 */
+    @Select("""
+            SELECT COUNT(1)
+            FROM settlement_batch_candidate
+            WHERE settlement_batch_no = #{settlementBatchNo}
+              AND source_type = 'CLEARING_REVISION'
+            """)
+    int countProjectableCandidates(@Param("settlementBatchNo") String settlementBatchNo);
+
     /** 批次人工复核时迁移仍为 CLAIMED 的审计关系，禁止覆盖 POSTED 或 RELEASED。 */
     @Update("""
             UPDATE settlement_batch_candidate

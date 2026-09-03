@@ -8,7 +8,7 @@ import lombok.Getter;
  * @classname : RiskReasonCodeEnum
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : 风控原因码枚举，位于 service-risk 领域状态层，用于解释风控决策来源并支撑后续人工复核和审计。
+ * @description : 风控原因编码枚举，位于 风控服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  * @status : create
  */
 @Getter

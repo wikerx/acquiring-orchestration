@@ -20,7 +20,21 @@ import java.util.Set;
  */
 public final class SettlementRateModels {
 
+    /**
+     * 结算锁定汇率的有效数字精度。
+     * <p>
+     * 单位：比例值；格式：decimal，按费率或汇率精度保存；不允许为空；非敏感字段。
+     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int LOCKED_RATE_PRECISION = 24;
+    /**
+     * 结算锁定汇率保留的小数位数，至少满足结算汇率精度要求。
+     * <p>
+     * 单位：比例值；格式：decimal，按费率或汇率精度保存；不允许为空；非敏感字段。
+     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int LOCKED_RATE_SCALE = 12;
 
     private SettlementRateModels() {
@@ -28,6 +42,12 @@ public final class SettlementRateModels {
 
     /** 外部报价相对于标准“源币种到目标币种”的方向。 */
     public enum QuoteDirection {
+        /**
+         * DIRECT 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         DIRECT,
         INVERSE
     }
@@ -203,6 +223,11 @@ public final class SettlementRateModels {
         }
     }
 
+    /**
+     * 校验锁定汇率能够无损写入数据库 DECIMAL(24,12)。
+     * <p>
+     * 禁止通过静默截断或四舍五入适配列容量，避免结算计算使用的汇率与审计快照不一致。
+     */
     private static void requireLockedRateCapacity(BigDecimal value) {
         requirePositive(value, "direct rate");
         if (value.scale() > LOCKED_RATE_SCALE) {

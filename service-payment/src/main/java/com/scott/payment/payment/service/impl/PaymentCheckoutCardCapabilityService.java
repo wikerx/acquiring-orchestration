@@ -37,6 +37,13 @@ public class PaymentCheckoutCardCapabilityService {
     private static final List<String> ALL_CARD_BRANDS = List.of(
             "VISA", "MASTERCARD", "AMEX", "JCB", "MAESTRO", "UNIONPAY", "DISCOVER", "DINERS_CLUB",
             "CARTES_BANCAIRES", "EFTPOS_AUSTRALIA", "INTERAC");
+    /**
+     * {@code ISO_ALPHA_3_PATTERN}常量，统一 {@code PaymentCheckoutCardCapabilityService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：布尔值或 0/1 开关；不允许为空；非敏感字段。
+     * 取值范围：仅允许平台约定的启停取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final Pattern ISO_ALPHA_3_PATTERN = Pattern.compile("[A-Z]{3}");
 
     private final MerchantRouteProfileCacheService routeProfileCacheService;

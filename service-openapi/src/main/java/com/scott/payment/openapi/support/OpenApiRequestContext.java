@@ -10,16 +10,16 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 
 
-@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestContext
  * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : Open API Request Context 协作组件，位于 商户开放接口服务，封装 openapirequestcontext 相关的校验、转换、持久化访问或运行时协作入口。
+ * @description : openAPI上下文协作组件，位于 商户开放接口服务，封装该业务的本地校验、转换或运行时协作入口。
  * @status : create
  */
+@Component
 public class OpenApiRequestContext {
 
     /**

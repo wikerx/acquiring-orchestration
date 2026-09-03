@@ -12,7 +12,15 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Merchant payment request contract validation tests. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ApiMerchantPaymentRequestDTOTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Merchant payment request contract validation tests.
+ * @status : create
+ */
 class ApiMerchantPaymentRequestDTOTests {
 
     private static final ValidatorFactory VALIDATOR_FACTORY = Validation.buildDefaultValidatorFactory();

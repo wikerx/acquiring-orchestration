@@ -5,16 +5,16 @@ import lombok.Data;
 import java.util.ArrayList;
 import java.util.List;
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminMerchantKeyBundleDTO
  * @date : 2026-06-13 17:17
  * @email : scott_x@163.com
- * @description : Admin Merchant Key Bundle DTO 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : Admin 商户密钥下载包 DTO，聚合一次性密钥材料、版本、指纹和生成时间，禁止在日志中输出完整内容。
  * @status : create
  */
+@Data
 public class AdminMerchantKeyBundleDTO {
 
     /**

@@ -40,7 +40,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证阶梯期间重放编排只使用冻结版本、稳定月份边界和逐项短事务。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultTierPeriodReplayServiceTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证阶梯期间重放编排只使用冻结版本、稳定月份边界和逐项短事务。
+ * @status : create
+ */
 class DefaultTierPeriodReplayServiceTest {
 
     private final ClearingTierPeriodReplayMapper replayMapper = mock(ClearingTierPeriodReplayMapper.class);

@@ -19,7 +19,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * service-data 卡资料传输与静态信封加密测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DataCheckoutCardVaultSecurityTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : service-data 卡资料传输与静态信封加密测试。
+ * @status : create
  */
 class DataCheckoutCardVaultSecurityTests {
 

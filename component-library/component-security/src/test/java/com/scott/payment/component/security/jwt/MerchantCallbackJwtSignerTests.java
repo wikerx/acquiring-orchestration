@@ -10,7 +10,15 @@ import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 验证平台回调 JWT 的签名和事件关联声明。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantCallbackJwtSignerTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证平台回调 JWT 的签名和事件关联声明。
+ * @status : create
+ */
 class MerchantCallbackJwtSignerTests {
 
     @Test

@@ -29,7 +29,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证 Admin 业务邮件只写记录与 Outbox，不在请求线程调用 SMTP。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminEmailServiceAsyncTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 Admin 业务邮件只写记录与 Outbox，不在请求线程调用 SMTP。
+ * @status : create
+ */
 class AdminEmailServiceAsyncTests {
 
     /** 邮件账户查询依赖。 */

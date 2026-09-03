@@ -41,7 +41,22 @@ import java.net.URISyntaxException;
 @Slf4j
 public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThreeDsService {
 
+    /**
+     * {@code GATEWAY_BASE_URL_CONFIG_KEY}，表示回调、通知、来源站点或远程接口地址。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String GATEWAY_BASE_URL_CONFIG_KEY = "platform.gateway.base-url";
+    /**
+     * {@code THREE_DS_CALLBACK_PATH_PREFIX}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
+     * </p>
+     */
     private static final String THREE_DS_CALLBACK_PATH_PREFIX = "/channel/v1/callbacks/";
 
     /** 统一渠道执行器，根据路由结果定位 3DS provider。 */
@@ -139,6 +154,15 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         return invoke(request, routeResultDTO, policy, true);
     }
 
+    /**
+     * 恢复认证处理，复用既有幂等身份并从已持久化阶段继续执行。
+     * @param sessionDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
+     * @param attemptDO 已从数据库读取或准备持久化的记录对象，状态、版本和审计字段必须保持一致
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param returnUrl 来源或回跳地址，必须经过协议、主机和长度校验
+     * @param phase 3DS 认证阶段编码，用于限定当前可执行的渠道认证动作
+     * @return 当前方法生成的 {@code PaymentCheckoutThreeDsResultDTO} 结果
+     */
     @Override
     public PaymentCheckoutThreeDsResultDTO continueAuthentication(PaymentCheckoutSessionDO sessionDO,
                                                                   PaymentCheckoutAttemptDO attemptDO,
@@ -210,6 +234,12 @@ public class DefaultPaymentCheckoutThreeDsService implements PaymentCheckoutThre
         }
     }
 
+    /**
+     * 记录渠道认证失败事实，保留可审计的失败码和脱敏摘要。
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param failureCode 受控失败码或失败说明，用于状态机、商户文案映射和审计排障
+     */
     private void recordChannelFailure(ChannelThreeDsAuthenticationRequest request,
                                       ChannelThreeDsStatus status,
                                       String failureCode) {

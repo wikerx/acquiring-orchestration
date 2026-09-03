@@ -23,6 +23,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingInternalRestClientTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 Job 调用清分补偿扫描时 HMAC 签名绑定调用方、完整路径和 JSON 请求体
+ * @status : create
+ */
 class ClearingInternalRestClientTest {
 
     @Test

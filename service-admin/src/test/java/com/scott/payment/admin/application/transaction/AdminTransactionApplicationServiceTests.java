@@ -81,6 +81,50 @@ class AdminTransactionApplicationServiceTests {
         verifyNoInteractions(paymentInternalClient);
     }
 
+    /** 授权完成后的资金捕获必须保持 CAPTURE 平台动作语义。 */
+    @Test
+    void captureShouldCallCaptureCommandForAuthorization() {
+        PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
+        AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
+        when(transactionQueryService.detail(
+                "TX-AUTH-001", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME))
+                .thenReturn(detail("TX-AUTH-001", "AUTHORIZATION"));
+        TransactionActionResponse expected = actionResponse("TX-CAPTURE-001", "CAPTURE");
+        ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
+                ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
+        when(paymentInternalClient.capture(captor.capture())).thenReturn(expected);
+
+        TransactionActionResponse actual = service.capture("TX-AUTH-001", actionRequest());
+
+        assertThat(actual).isSameAs(expected);
+        assertThat(captor.getValue().getMerchantOrderId()).startsWith("ADMCP");
+        assertThat(captor.getValue().getTransactionInfo().getSourceTransactionId())
+                .isEqualTo("TX-AUTH-001");
+    }
+
+    /** 预授权完成必须调用独立命令，使动作单落 PRE_AUTH_COMPLETION 而不是 CAPTURE。 */
+    @Test
+    void preAuthCompletionShouldCallDedicatedCommand() {
+        PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
+        AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
+        when(transactionQueryService.detail(
+                "TX-PREAUTH-001", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME))
+                .thenReturn(detail("TX-PREAUTH-001", "PRE_AUTHORIZATION"));
+        TransactionActionResponse expected = actionResponse("TX-PAC-001", "PRE_AUTH_COMPLETION");
+        ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
+                ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
+        when(paymentInternalClient.preAuthCompletion(captor.capture())).thenReturn(expected);
+
+        TransactionActionResponse actual = service.preAuthCompletion("TX-PREAUTH-001", actionRequest());
+
+        assertThat(actual).isSameAs(expected);
+        assertThat(captor.getValue().getMerchantOrderId()).startsWith("ADMPA");
+        assertThat(captor.getValue().getTransactionInfo().getSourceTransactionId())
+                .isEqualTo("TX-PREAUTH-001");
+    }
+
     /**
      * 退款动作应回填原交易上下文，并生成后台幂等请求号后调用支付核心。
      */
@@ -299,5 +343,12 @@ class AdminTransactionApplicationServiceTests {
         response.setTransactionType(transactionType);
         response.setStatus("SUCCESS");
         return response;
+    }
+
+    private TransactionActionRequest actionRequest() {
+        TransactionActionRequest request = new TransactionActionRequest();
+        request.setTransactionDateTime(TRANSACTION_DATE_TIME);
+        request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
+        return request;
     }
 }

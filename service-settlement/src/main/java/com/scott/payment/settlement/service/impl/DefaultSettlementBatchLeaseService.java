@@ -63,7 +63,16 @@ public class DefaultSettlementBatchLeaseService implements SettlementBatchLeaseS
         return Optional.of(batch);
     }
 
-    /** 续租只允许当前所有者在旧租约尚未过期时执行。 */
+    /**
+     * 续租只允许当前所有者在旧租约尚未过期时执行。
+     *
+     * @param settlementBatchNo 正在处理的正式结算批次号
+     * @param owner 当前处理租约所有者
+     * @param now 续租判断时间
+     * @param deadline 新租约截止时间，必须晚于 now
+     * @throws IllegalArgumentException 批次号、所有者或时间窗口不合法时抛出
+     * @throws IllegalStateException 当前所有者、状态或旧租约不再允许续租时抛出
+     */
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
@@ -80,6 +89,17 @@ public class DefaultSettlementBatchLeaseService implements SettlementBatchLeaseS
         }
     }
 
+    /**
+     * 校验并规范化结算批次处理租约参数。
+     *
+     * <p>租约所有者必须非空且不超过数据库字段上限，截止时间必须严格晚于
+     * 当前处理时间；失败时在执行 Mapper CAS 前中断，避免写入不可续租的脏租约。</p>
+     *
+     * @param owner 当前处理实例的租约所有者标识
+     * @param now 本次获取或续租使用的统一当前时间
+     * @param deadline 新租约截止时间
+     * @return 去除首尾空白后的租约所有者标识
+     */
     private String requireLeaseArguments(String owner, LocalDateTime now, LocalDateTime deadline) {
         if (owner == null || owner.isBlank() || owner.trim().length() > 128) {
             throw new IllegalArgumentException("settlement lease owner is invalid");

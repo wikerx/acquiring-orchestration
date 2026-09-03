@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
  * @version : v1.0.0
  * @classname : TransactionAbnormalEventMapper
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 勾兑异常案件 Mapper，仅访问 transaction_abnormal_event 逻辑表并要求所有更新携带分片时间和版本。
  * @status : create
  */

@@ -69,6 +69,7 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         updateProjection(operation, toValidatedLocator(locator, operation), authoritativeStatus, failureCode, now);
     }
 
+    /** 先 CAS 更新动作投影，再按完整生命周期状态聚合根主单清分状态。 */
     private void updateProjection(ClearingOperationFacts operation,
                                   LocatorFacts currentLocator,
                                   ClearingStateEnum authoritativeStatus,
@@ -112,6 +113,7 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
                 order.getVersion(), orderStatus, now), "order clearing projection CAS");
     }
 
+    /** 将 locator 转换为强校验分片事实，拒绝缺失根交易时间的数据。 */
     private LocatorFacts toValidatedLocator(ClearingTransactionLocatorDO row,
                                             ClearingOperationFacts operation) {
         if (row == null) {
@@ -131,6 +133,7 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         return locator;
     }
 
+    /** 生命周期 locator 必须完整覆盖参与聚合的所有动作，避免部分状态误判。 */
     private List<LocatorFacts> validateLifecycleLocators(List<ClearingTransactionLocatorDO> rows,
                                                         LocatorFacts current,
                                                         ClearingOperationFacts operation) {
@@ -162,6 +165,7 @@ public class DefaultClearingProjectionService implements ClearingProjectionServi
         return List.copyOf(result);
     }
 
+    /** 当前 locator 必须与动作交易号、操作号、商户和分片时间完全一致。 */
     private void validateCurrentLocator(LocatorFacts locator, ClearingOperationFacts operation) {
         if (locator == null || !Objects.equals(locator.transactionId(), operation.transactionId())
                 || !Objects.equals(locator.operationId(), operation.operationId())

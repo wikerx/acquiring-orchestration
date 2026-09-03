@@ -49,11 +49,53 @@ import java.util.Objects;
 @Service
 public class DefaultMerchantTransactionSnapshotService implements MerchantTransactionSnapshotService {
 
+    /**
+     * 时间时区常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String TIME_ZONE = "Asia/Shanghai";
+    /**
+     * 账单前缀常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String BILLING_PREFIX = "TBI";
+    /**
+     * 商户前缀常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String MERCHANT_PREFIX = "TMS";
+    /**
+     * {@code PAYER_PREFIX}常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String PAYER_PREFIX = "TPI";
+    /**
+     * {@code SHIPPING_PREFIX}常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String SHIPPING_PREFIX = "TSI";
+    /**
+     * {@code PRODUCT_PREFIX}常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String PRODUCT_PREFIX = "TGI";
 
     private final TransactionBillingInfoMapper billingInfoMapper;

@@ -1,0 +1,17 @@
+# service-payout 专属配置：代付内部接口只接受 service-openapi 的可信调用。
+internal-service:
+  auth:
+    # enabled 安全门禁固定在本地，密钥正文由受控脚本合入同一服务 DataId。
+    callers:
+      service-openapi:
+        # 参数说明：OpenAPI 调用代付内部协议时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.openapi-payout.active-secret}
+        # 参数说明：OpenAPI-Payout 密钥滚动轮换期间接受的上一版密钥；非轮换窗口为空。
+        previous-secret: ${acquiring.internal-auth.edges.openapi-payout.previous-secret:}
+        allowed-paths:
+          # 路径说明：允许 OpenAPI 访问代付受理和查询内部协议；不得直接暴露给浏览器或公网。
+          - /internal/payout/**
+    # 参数说明：内部 HMAC 请求时间戳允许偏差，默认 5 分钟；生产节点必须保持时钟同步。
+    allowed-clock-skew: 5m
+    # 参数说明：nonce 防重放记录保留时间，默认 10 分钟，必须大于签名有效窗口。
+    nonce-ttl: 10m

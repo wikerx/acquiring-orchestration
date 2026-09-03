@@ -31,6 +31,13 @@ import java.util.Objects;
 @Service
 public class DefaultSettlementBatchCreationService implements SettlementBatchCreationService {
 
+    /**
+     * {@code MAX_DAILY_SEQUENCE}常量，统一 {@code DefaultSettlementBatchCreationService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_DAILY_SEQUENCE = 99_999_999;
 
     private final SettlementBatchDailySequenceMapper sequenceMapper;
@@ -103,6 +110,14 @@ public class DefaultSettlementBatchCreationService implements SettlementBatchCre
         return result(stored, reused);
     }
 
+    /**
+     * 构造尚未认领候选的结算批次初始快照，金额、候选数和重试数必须从零开始并保持 CREATED 状态。
+     *
+     * @param command 已校验的商户、档案、账户、目标币种和日切窗口
+     * @param sequence 当日通过 CAS 占用的唯一序号
+     * @param now 批次创建时间
+     * @return 可按创建请求键幂等落库的批次记录
+     */
     private SettlementBatchDO batch(SettlementBatchCreateCommand command, int sequence, LocalDateTime now) {
         SettlementBatchDO row = new SettlementBatchDO();
         row.setSettlementBatchNo(numberFormatter.storageNumber(command.businessDate(), sequence));
@@ -117,10 +132,12 @@ public class DefaultSettlementBatchCreationService implements SettlementBatchCre
         row.setTargetCurrencyExponent(command.targetCurrencyExponent());
         row.setBatchType(command.batchType().name());
         row.setOriginalBatchNo(command.originalBatchNo());
+        row.setCreateMode("AUTO");
         row.setCutoffBeginTime(command.cutoffBeginTime());
         row.setCutoffEndTime(command.cutoffEndTime());
         row.setBatchStatus(SettlementBatchStatus.CREATED.name());
         row.setCandidateCount(0);
+        row.setProjectableCandidateCount(0);
         row.setRetryCount(0);
         row.setVersion(0L);
         row.setCreateTime(now);
@@ -136,6 +153,12 @@ public class DefaultSettlementBatchCreationService implements SettlementBatchCre
                 reused);
     }
 
+    /**
+     * 校验命中创建幂等键的批次是否与本次不可变业务身份完全一致。
+     * <p>
+     * 幂等键只能复用原批次，不能被同一请求键替换商户、账户、币种、批次类型或切点；任一身份字段不同
+     * 都表示调用方错误复用了幂等键，必须拒绝而不是返回已有批次。
+     */
     private void verifyIdentity(SettlementBatchDO actual, SettlementBatchCreateCommand expected) {
         boolean matches = actual != null
                 && Objects.equals(actual.getCreateRequestKey(), expected.createRequestKey())

@@ -25,7 +25,22 @@ public final class FeeConfigurationSnapshotModels {
     /** 当前可生产清分的费用快照结构版本。 */
     public static final int CURRENT_SCHEMA_VERSION = 3;
 
+    /**
+     * ISO币种，表示金额字段使用的币种。
+     * <p>
+     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+     * </p>
+     */
     private static final Pattern ISO_CURRENCY = Pattern.compile("[A-Z]{3}");
+    /**
+     * {@code SHA256}常量，统一 {@code FeeConfigurationSnapshotModels} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final Pattern SHA256 = Pattern.compile("[0-9a-f]{64}");
     private static final Set<RoundingMode> SUPPORTED_ROUNDING_MODES =
             Set.of(RoundingMode.HALF_UP, RoundingMode.HALF_EVEN, RoundingMode.DOWN);
@@ -45,7 +60,19 @@ public final class FeeConfigurationSnapshotModels {
 
     /** 退款时原交易手续费返还策略。 */
     public enum RefundFeeReturnPolicy {
+        /**
+         * NONE 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         NONE,
+        /**
+         * FULL 枚举值，表示当前枚举定义中的一个受控业务取值。
+         * <p>
+         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+         * </p>
+         */
         FULL,
         PROPORTIONAL
     }

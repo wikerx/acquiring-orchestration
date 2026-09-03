@@ -16,7 +16,13 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 
 /**
- * Hosted Checkout 应用编排服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutApplicationService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 应用编排服务。
+ * @status : create
  */
 @Service
 public class PaymentCheckoutApplicationService {

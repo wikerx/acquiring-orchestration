@@ -27,13 +27,62 @@ import java.util.concurrent.atomic.AtomicLong;
 @Component
 public class MqOutboxOperationalMetrics {
 
+    /**
+     * 等待计数，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     public static final String PENDING_COUNT = "acquiring.mq.outbox.pending.count";
+    /**
+     * {@code OLDEST_AGE_SECONDS}常量，统一 {@code MqOutboxOperationalMetrics} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     public static final String OLDEST_AGE_SECONDS = "acquiring.mq.outbox.oldest.age.seconds";
+    /**
+     * {@code CLOSED_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     public static final String CLOSED_COUNT = "acquiring.mq.outbox.closed.count";
+    /**
+     * {@code RELAY_DURATION}常量，统一 {@code MqOutboxOperationalMetrics} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     public static final String RELAY_DURATION = "acquiring.mq.outbox.relay.duration";
+    /**
+     * {@code BATCH_SATURATED}常量，统一 {@code MqOutboxOperationalMetrics} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     public static final String BATCH_SATURATED = "acquiring.mq.outbox.batch.saturated";
 
+    /**
+     * {@code RELIABLE_OUTBOX}常量，统一 {@code MqOutboxOperationalMetrics} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     public static final String RELIABLE_OUTBOX = "reliable";
+    /**
+     * {@code TRANSACTION_OUTBOX}常量，统一 {@code MqOutboxOperationalMetrics} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     public static final String TRANSACTION_OUTBOX = "transaction";
 
     private static final String[] PENDING_STATUSES = {"INIT", "PROCESSING", "RETRY_WAIT", "FAILED"};

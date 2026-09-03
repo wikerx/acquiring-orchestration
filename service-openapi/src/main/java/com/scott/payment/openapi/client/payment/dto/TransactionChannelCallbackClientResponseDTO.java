@@ -19,7 +19,7 @@ public class TransactionChannelCallbackClientResponseDTO implements Serializable
     private static final long serialVersionUID = 1L;
 
     /**
-     * callback Log ID，用于定位 Transaction Channel Callback Client Response DTO 关联的上游配置、渠道、账号、角色或业务记录。
+     * 回调日志ID，用于定位 {@code TransactionChannelCallbackClientResponseDTO} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -29,7 +29,7 @@ public class TransactionChannelCallbackClientResponseDTO implements Serializable
     private String callbackLogId;
 
     /**
-     * callback ID，用于定位 Transaction Channel Callback Client Response DTO 关联的上游配置、渠道、账号、角色或业务记录。
+     * 回调ID，用于定位 {@code TransactionChannelCallbackClientResponseDTO} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -49,7 +49,7 @@ public class TransactionChannelCallbackClientResponseDTO implements Serializable
     private String transactionId;
 
     /**
-     * callback Status，表示当前记录在业务流程中的处理状态。
+     * 回调状态，表示当前记录在业务流程中的处理状态。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -59,21 +59,19 @@ public class TransactionChannelCallbackClientResponseDTO implements Serializable
     private String callbackStatus;
 
     /**
-     * process Result，用于保存 Transaction Channel Callback Client Response DTO 中与 processresult 相关的业务属性。
+     * {@code processResult}字段，保存 {@code TransactionChannelCallbackClientResponseDTO} 当前处理所需的业务取值。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String processResult;
 
     /**
-     * fail Reason，用于保存 Transaction Channel Callback Client Response DTO 中与 failreason 相关的业务属性。
+     * {@code failReason}字段，保存 {@code TransactionChannelCallbackClientResponseDTO} 当前处理所需的业务取值。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String failReason;

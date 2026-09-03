@@ -50,4 +50,11 @@ public @interface ExcelExportColumn {
      * @return 对齐方式
      */
     HorizontalAlignment align() default HorizontalAlignment.LEFT;
+
+    /**
+     * 是否强制按文本单元格格式写出，适用于超长交易号等不可计算标识符。
+     *
+     * @return true 表示使用 Excel 文本格式
+     */
+    boolean forceText() default false;
 }

@@ -1,4 +1,4 @@
-# 结算服务本地基础配置；数据库和服务注册连接仍由环境 Nacos DataId 提供。
+# 结算服务本地启动基线；调用方、路径和鉴权时间窗由 service-settlement-{env}.yaml 提供。
 server:
   port: 8011
   shutdown: graceful
@@ -13,10 +13,7 @@ spring:
 
 # 结算批次和候选认领没有 yml/Nacos 业务启停开关；停止处理必须下线服务实例或暂停后续调度入口。
 
-# 仅用于 service-admin 调用结算管理接口的基础安全参数，不控制结算业务是否运行。
 internal-service:
   auth:
+    # 安全门禁固定留在本地，不允许通过 Nacos 关闭结算管理接口鉴权。
     enabled: true
-    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
-    allowed-clock-skew: ${INTERNAL_SERVICE_AUTH_CLOCK_SKEW:5m}
-    nonce-ttl: ${INTERNAL_SERVICE_AUTH_NONCE_TTL:10m}

@@ -8,7 +8,15 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 锁定 Admin 清分与结算分页索引迁移的幂等边界和季度模板覆盖。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminFinanceQueryIndexMigrationContractTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 锁定 Admin 清分与结算分页索引迁移的幂等边界和季度模板覆盖。
+ * @status : create
+ */
 class AdminFinanceQueryIndexMigrationContractTest {
 
     @Test

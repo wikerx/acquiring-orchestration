@@ -23,9 +23,24 @@ import java.nio.charset.StandardCharsets;
  */
 public class SettlementInternalCallerInterceptor implements HandlerInterceptor {
 
+    /**
+     * {@code ADMIN_CALLER}常量，统一 {@code SettlementInternalCallerInterceptor} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ADMIN_CALLER = "service-admin";
 
-    /** @return service-admin 调用返回 true，其它调用方返回401 */
+    /**
+     * 在 HMAC 和 nonce 校验通过后进一步限制固定调用方为 service-admin。
+     *
+     * @param request 已通过通用内部鉴权的请求
+     * @param response 内部接口响应
+     * @param handler 当前 Spring MVC 处理器
+     * @return service-admin 调用返回 true，其它调用方写入 401 并返回 false
+     * @throws IOException 写入拒绝响应失败时抛出
+     */
     @Override
     public boolean preHandle(HttpServletRequest request,
                              HttpServletResponse response,

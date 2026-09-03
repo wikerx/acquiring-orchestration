@@ -25,6 +25,13 @@ import java.util.Objects;
  */
 public final class SettlementFeeGroupCalculator {
 
+    /**
+     * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
 
     /**
@@ -76,6 +83,14 @@ public final class SettlementFeeGroupCalculator {
                 appliedLimit, adjustment, finalFee);
     }
 
+    /**
+     * 使用批次锁定的 USD 直接汇率换算最低或最高费用，保留未舍入值供统一限额比较。
+     *
+     * @param usdAmount 可空的 USD 费用限额
+     * @param command 当前费用组目标币种口径
+     * @param rateMatrix 同批次不可变汇率矩阵
+     * @return DECIMAL128 未舍入目标币种限额，未配置时返回 null
+     */
     private BigDecimal convertOptionalUsd(Money usdAmount,
                                           FeeGroupCommand command,
                                           RateMatrix rateMatrix) {

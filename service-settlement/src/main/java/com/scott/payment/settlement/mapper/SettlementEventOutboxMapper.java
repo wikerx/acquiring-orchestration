@@ -7,7 +7,15 @@ import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 
-/** 结算事件 Outbox 状态 Mapper；MQ 发送成功与数据库标记之间按至少一次语义处理。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SettlementEventOutboxMapper
+ * @date : 2026-09-01 00:00
+ * @email : scott_x@163.com
+ * @description : 结算事件 Outbox 数据访问接口；通过事件唯一键、短租约和 version CAS 支撑 MQ 至少一次发送，不假设网络发送与成功标记原子。
+ * @status : create
+ */
 public interface SettlementEventOutboxMapper {
 
     /** 锁定一条到期或 PROCESSING 超时事件。 */

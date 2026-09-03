@@ -22,6 +22,13 @@ import org.springframework.stereotype.Component;
 public class SettlementAutomaticScheduler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SettlementAutomaticScheduler.class);
+    /**
+     * {@code MAX_BATCHES_PER_TICK}常量，统一 {@code SettlementAutomaticScheduler} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_BATCHES_PER_TICK = 10;
 
     private final SettlementAutomaticProcessingApplicationService applicationService;

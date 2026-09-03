@@ -17,7 +17,14 @@ import java.time.format.DateTimeFormatter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 管理后台交易列表分片时间序列化契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminTransactionShardingTimeSerializationTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 管理后台交易列表分片时间序列化契约测试。
+ * @status : create
+ *
  *
  * <p>页面展示仍可隐藏毫秒，但列表响应必须保留数据库 {@code DATETIME(3)} 精度，
  * 以便详情请求把真实交易时间和根主单时间原样传回后端。</p>

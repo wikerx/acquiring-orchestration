@@ -39,15 +39,11 @@ public class WorldPayJsonRequestMapper {
     private static final String DEFAULT_CHANNEL = "ecom";
 
     /**
-     * 将平台统一交易请求转换为 WorldPay JSON 请求体。
-     * <p>
-     * 前置条件：request、transactionType、channelOrderNo 必须存在；支付、授权和预授权必须携带卡号、有效期和安全码；金额类交易必须携带币种和大于 0 的主币种金额。
-     * 本方法只做本地映射和校验，不写数据库、不发起外部系统调用、不改变平台交易状态；PAN、CVV 和 CAVV 只进入渠道请求对象，禁止明文日志和异常消息输出。
-     * </p>
+     * 将平台渠道请求映射为 Worldpay Access JSON 协议载荷。
      *
-     * @param request 平台统一渠道请求，来源于 service-payment 渠道调用链，包含交易类型、金额币种、平台交易号、渠道订单号、卡数据和扩展 MID 配置
-     * @param merchantCode WorldPay merchant entity，由后台 MID 配置提供
-     * @return WPGJSON 请求体，包含 transactionReference、merchant.entity、instruction.value 和可选 paymentInstrument
+     * @param request 已完成路由和金额币种校验的平台渠道请求
+     * @param merchantCode 当前路由命中的 Worldpay MID 商户代码
+     * @return 仅包含当前交易动作所需字段的 Worldpay JSON 请求模型
      */
     public WorldPayJsonRequestPayload toWorldPayRequest(ChannelPaymentRequest request, String merchantCode) {
         validateCommonRequest(request);

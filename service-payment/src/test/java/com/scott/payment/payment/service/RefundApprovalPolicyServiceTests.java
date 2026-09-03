@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @version : v1.0.0
  * @classname : RefundApprovalPolicyServiceTests
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款审批策略行为测试，验证默认兼容、部分退款策略和错误配置阻断。
  * @status : create
  */

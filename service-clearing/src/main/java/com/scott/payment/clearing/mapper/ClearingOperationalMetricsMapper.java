@@ -8,7 +8,15 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 清分运维指标只读 Mapper；每次查询必须携带单季度半开时间窗口。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingOperationalMetricsMapper
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 清分运维指标只读 Mapper；每次查询必须携带单季度半开时间窗口。
+ * @status : update
+ */
 public interface ClearingOperationalMetricsMapper {
 
     /** 按清分状态聚合单季度待处理数量和最老等待秒数。 */

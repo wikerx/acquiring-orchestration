@@ -10,16 +10,16 @@ import java.io.Serializable;
 import java.util.List;
 
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysUserAccountUpdateRequest
  * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : Sys User Account Update Request 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : sys用户账号写操作请求模型，位于 运营后台服务，承载新增或编辑字段；权限、状态和唯一性由应用服务校验。
  * @status : create
  */
+@Data
 public class SysUserAccountUpdateRequest implements Serializable {
 
     /**

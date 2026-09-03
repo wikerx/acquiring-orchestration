@@ -8,7 +8,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 /**
- * 风控缓存失效重试调度测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskCacheInvalidationRetrySchedulerTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控缓存失效重试调度测试。
+ * @status : create
  */
 class RiskCacheInvalidationRetrySchedulerTests {
 

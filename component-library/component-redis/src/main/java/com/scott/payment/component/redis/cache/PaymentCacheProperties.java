@@ -81,9 +81,11 @@ public class PaymentCacheProperties {
     }
 
     /**
-     * 获取 Spring Cache 物理 Key 前缀。
-     *
-     * @return 包含系统与环境隔离维度的前缀，末尾分隔符由自动配置统一规范化
+     * 查询密钥前缀；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 公共组件库 既有权限、数据范围和空结果约定。
+     * </p>
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     public String getKeyPrefix() {
         return keyPrefix;

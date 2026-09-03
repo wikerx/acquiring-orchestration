@@ -21,6 +21,13 @@ import java.math.MathContext;
  */
 public class FeeConversionPreviewCalculator {
 
+    /**
+     * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
 
     /**
@@ -61,6 +68,13 @@ public class FeeConversionPreviewCalculator {
         return new FeeConversionPreviewResult(rawFee, targetAmount(finalValue, command), appliedLimit);
     }
 
+    /**
+     * 使用调用方提供的一单位源币种对应目标币种的直接汇率执行 Admin 预览换算。
+     *
+     * @param source 清分保存的原币种费用组件
+     * @param command 目标币种、exponent 和直接汇率集合
+     * @return 采用 DECIMAL128 计算且尚未按目标币种舍入的预览金额
+     */
     private BigDecimal convert(Money source, FeeConversionPreviewCommand command) {
         BigDecimal rate;
         if (source.currency().equals(command.targetCurrency())) {
@@ -74,10 +88,24 @@ public class FeeConversionPreviewCalculator {
         return source.amount().multiply(rate, CALCULATION_CONTEXT);
     }
 
+    /**
+     * 将可空的 USD 最低或最高费用换算为未舍入目标币种预览值。
+     *
+     * @param limit USD 限额，未配置时为空
+     * @param command Admin 预览命令
+     * @return 未舍入目标币种限额，未配置时返回 null
+     */
     private BigDecimal convertedLimit(Money limit, FeeConversionPreviewCommand command) {
         return limit == null ? null : convert(limit, command);
     }
 
+    /**
+     * 将未舍入预览值封装为目标币种金额；Money 不隐式舍入，调用方仍可审计完整计算精度。
+     *
+     * @param amount 未舍入目标币种金额
+     * @param command 目标币种和 exponent
+     * @return 保留原计算精度的目标币种预览金额
+     */
     private Money targetAmount(BigDecimal amount, FeeConversionPreviewCommand command) {
         return new Money(amount, command.targetCurrency(), command.targetExponent());
     }

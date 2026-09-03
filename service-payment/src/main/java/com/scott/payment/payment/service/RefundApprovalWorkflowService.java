@@ -41,20 +41,85 @@ import java.util.Objects;
  * @version : v1.0.0
  * @classname : RefundApprovalWorkflowService
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款审批领域服务，在同一本地事务内完成审批 CAS、退款动作推进、流程审计和执行 Outbox 写入。
  * @status : create
  */
 @Service
 public class RefundApprovalWorkflowService {
 
+    /**
+     * {@code APPROVAL_ID_PREFIX}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String APPROVAL_ID_PREFIX = "RA";
+    /**
+     * {@code EXECUTION_EVENT_PREFIX}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String EXECUTION_EVENT_PREFIX = "RE";
+    /**
+     * {@code FLOW_EVENT_PREFIX}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String FLOW_EVENT_PREFIX = "FE";
+    /**
+     * {@code PAYMENT_TRANSACTION_AGGREGATE}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
+    /**
+     * {@code EVENT_STATUS_INIT}，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final String EVENT_STATUS_INIT = "INIT";
+    /**
+     * 默认时间时区常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
+    /**
+     * 初始版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int INITIAL_VERSION = 0;
+    /**
+     * {@code NOT_DELETED}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int NOT_DELETED = 0;
+    /**
+     * {@code DEFAULT_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int DEFAULT_MAX_RETRY_COUNT = 200;
 
     private final TransactionRefundApprovalMapper approvalMapper;
@@ -314,6 +379,16 @@ public class RefundApprovalWorkflowService {
         }
     }
 
+    /**
+     * 解析重复结论，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 仅返回规范化或计算结果，不直接提交交易状态。
+     * </p>
+     * @param approval 受控开关或审批结论，不得绕过对应权限和状态校验
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param targetStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 构造、转换或解析后的业务值
+     */
     private TransactionRefundApprovalDO resolveDuplicateDecision(TransactionRefundApprovalDO approval,
                                                                   RefundApprovalDecisionCommandDTO commandDTO,
                                                                   RefundApprovalStatusEnum targetStatus) {
@@ -327,6 +402,17 @@ public class RefundApprovalWorkflowService {
         return null;
     }
 
+    /**
+     * 创建{@code saveExecutionOutbox}，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 写操作；实现必须沿用 支付核心服务 既有权限、幂等键、唯一约束和事务边界。
+     * </p>
+     * @param approval 受控开关或审批结论，不得绕过对应权限和状态校验
+     * @param operation 当前交易动作事实，包含交易身份、状态、版本和分片定位信息
+     * @param eventId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param expectedOperationVersion 交易动作预期版本，用于数据库 CAS 防止并发终态覆盖
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     */
     private void saveExecutionOutbox(TransactionRefundApprovalDO approval,
                                      TransactionOperationDO operation,
                                      String eventId,
@@ -376,6 +462,20 @@ public class RefundApprovalWorkflowService {
         outboxService.save(outbox);
     }
 
+    /**
+     * 创建{@code saveFlowEvent}，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 写操作；实现必须沿用 支付核心服务 既有权限、幂等键、唯一约束和事务边界。
+     * </p>
+     * @param approval 受控开关或审批结论，不得绕过对应权限和状态校验
+     * @param operationId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param eventType MQ 主题、标签、顺序分组或事件类型，必须符合既有消息契约
+     * @param eventStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param content 序列化业务载荷，持久化或记录日志前必须完成敏感字段检查
+     * @param operatorType 可信认证上下文中的操作人身份或类型，用于权限校验和操作审计
+     * @param operatorId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param now 当前处理时刻，用于写入业务记录或审计记录的时间字段
+     */
     private void saveFlowEvent(TransactionRefundApprovalDO approval,
                                String operationId,
                                String eventType,

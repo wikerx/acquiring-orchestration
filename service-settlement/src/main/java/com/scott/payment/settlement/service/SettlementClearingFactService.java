@@ -2,6 +2,10 @@ package com.scott.payment.settlement.service;
 
 import com.scott.payment.settlement.dto.SettlementBatchFacts;
 import com.scott.payment.settlement.entity.SettlementBatchDO;
+import com.scott.payment.settlement.entity.SettlementReviewOrderDO;
+
+import java.util.List;
+import com.scott.payment.settlement.entity.SettlementCandidateDO;
 
 /**
  * @author : scott
@@ -21,4 +25,11 @@ public interface SettlementClearingFactService {
      * @return 已完成一致性校验的批次事实
      */
     SettlementBatchFacts load(SettlementBatchDO batch);
+
+    /** 加载并校验一个预审单独占候选的完整清分事实。 */
+    SettlementBatchFacts loadReview(SettlementReviewOrderDO reviewOrder);
+
+    /** 提交事务中在关系表写入前校验已经 CAS 锁定的候选事实。 */
+    SettlementBatchFacts loadReviewSelection(SettlementReviewOrderDO reviewOrder,
+                                             List<SettlementCandidateDO> candidates);
 }

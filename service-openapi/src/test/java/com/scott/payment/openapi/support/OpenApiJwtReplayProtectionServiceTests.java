@@ -26,7 +26,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * OpenAPI JWT 防重放 Redis 行为测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiJwtReplayProtectionServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : OpenAPI JWT 防重放 Redis 行为测试。
+ * @status : create
  */
 class OpenApiJwtReplayProtectionServiceTests {
 

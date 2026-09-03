@@ -20,7 +20,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 累计限额生命周期编排测试，验证 Redis 回滚必须先于持久状态取消且终态保持幂等。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantLimitReservationLifecycleCoordinatorTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 累计限额生命周期编排测试，验证 Redis 回滚必须先于持久状态取消且终态保持幂等。
+ * @status : create
  */
 class DefaultMerchantLimitReservationLifecycleCoordinatorTests {
 

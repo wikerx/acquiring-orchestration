@@ -1,6 +1,7 @@
 package com.scott.payment.component.excel.support;
 
 import com.alibaba.excel.metadata.Head;
+import com.alibaba.excel.metadata.data.DataFormatData;
 import com.alibaba.excel.metadata.data.WriteCellData;
 import com.alibaba.excel.constant.OrderConstant;
 import com.alibaba.excel.write.handler.CellWriteHandler;
@@ -9,6 +10,7 @@ import com.alibaba.excel.write.metadata.holder.WriteSheetHolder;
 import com.alibaba.excel.write.metadata.holder.WriteTableHolder;
 import com.alibaba.excel.write.metadata.style.WriteCellStyle;
 import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.BuiltinFormats;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.ss.usermodel.VerticalAlignment;
@@ -28,15 +30,8 @@ import java.util.Map;
  */
 public class ExcelColumnStyleWriteHandler implements CellWriteHandler {
 
-    /**
-     * alignments，用于保存 Excel Column Style Write Handler 中与 alignments 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final Map<Integer, HorizontalAlignment> alignments = new HashMap<>();
+    private final Map<Integer, Boolean> forceTextColumns = new HashMap<>();
 
     /**
      * 创建列级样式处理器。
@@ -47,6 +42,7 @@ public class ExcelColumnStyleWriteHandler implements CellWriteHandler {
         for (int index = 0; index < columns.size(); index++) {
             HorizontalAlignment alignment = columns.get(index).align();
             alignments.put(index, alignment == null ? HorizontalAlignment.LEFT : alignment);
+            forceTextColumns.put(index, columns.get(index).forceText());
         }
     }
 
@@ -116,6 +112,12 @@ public class ExcelColumnStyleWriteHandler implements CellWriteHandler {
         style.setBorderTop(BorderStyle.THIN);
         style.setBorderLeft(BorderStyle.THIN);
         style.setBorderRight(BorderStyle.THIN);
+        if (Boolean.TRUE.equals(forceTextColumns.get(columnIndex))) {
+            DataFormatData textFormat = new DataFormatData();
+            textFormat.setIndex((short) BuiltinFormats.getBuiltinFormat("@"));
+            textFormat.setFormat("@");
+            style.setDataFormatData(textFormat);
+        }
         WriteCellStyle.merge(style, cellData.getOrCreateStyle());
     }
 }

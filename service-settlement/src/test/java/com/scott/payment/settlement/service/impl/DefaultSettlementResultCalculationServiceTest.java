@@ -13,8 +13,10 @@ import com.scott.payment.settlement.entity.SettlementReserveClearingDetailDO;
 import com.scott.payment.settlement.entity.SettlementResultItemDO;
 import com.scott.payment.settlement.entity.SettlementResultSummaryDO;
 import com.scott.payment.settlement.entity.SettlementTransactionClearingDetailDO;
+import com.scott.payment.settlement.exception.SettlementProcessingException;
 import com.scott.payment.settlement.mapper.SettlementBatchMapper;
 import com.scott.payment.settlement.mapper.SettlementResultMapper;
+import com.scott.payment.settlement.support.SettlementReviewFingerprintService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,8 +28,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -100,6 +105,39 @@ class DefaultSettlementResultCalculationServiceTest {
         assertThat(batch.getBatchStatus()).isEqualTo("CALCULATED");
         assertThat(batch.getProcessingOwner()).isNull();
         verify(batchMapper).markCalculated(batch.getSettlementBatchNo(), "worker-1", 6L, now);
+    }
+
+    /** 人工预审正式重算指纹不一致时必须抛出不可重试稳定错误，禁止进入 CALCULATED。 */
+    @Test
+    void shouldRejectFormalResultWhenApprovedFingerprintChanges() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 26, 10, 0);
+        SettlementBatchDO batch = batch(now);
+        batch.setResultFingerprint("approved-result-fingerprint");
+        AtomicReference<List<SettlementResultItemDO>> items = new AtomicReference<>();
+        SettlementReviewFingerprintService fingerprintService = mock(SettlementReviewFingerprintService.class);
+        DefaultSettlementResultCalculationService reviewedService =
+                new DefaultSettlementResultCalculationService(batchMapper, resultMapper, fingerprintService);
+        when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+        when(batchMapper.beginCalculating(batch.getSettlementBatchNo(), "worker-1", 5L, now)).thenReturn(1);
+        when(resultMapper.insertItemsIdempotent(anyList())).thenAnswer(invocation -> {
+            List<SettlementResultItemDO> current = invocation.getArgument(0);
+            items.set(List.copyOf(current));
+            return current.size();
+        });
+        when(resultMapper.selectItemsByBatch(batch.getSettlementBatchNo()))
+                .thenAnswer(invocation -> items.get());
+        when(fingerprintService.result(any())).thenReturn("changed-result-fingerprint");
+
+        assertThatThrownBy(() -> reviewedService.calculateAndPersist(
+                batch, facts(), rates(now), "worker-1", now))
+                .isInstanceOfSatisfying(SettlementProcessingException.class, failure -> {
+                    assertThat(failure.getFailureCode())
+                            .isEqualTo("SETTLEMENT_REVIEW_RESULT_FINGERPRINT_MISMATCH");
+                    assertThat(failure.isRetryable()).isFalse();
+                });
+
+        verify(resultMapper, never()).insertSummariesIdempotent(anyList());
+        verify(batchMapper, never()).markCalculated(any(), any(), any(Long.class), any());
     }
 
     private SettlementBatchDO batch(LocalDateTime now) {

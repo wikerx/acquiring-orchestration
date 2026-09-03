@@ -24,7 +24,15 @@ import javax.sql.DataSource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-/** 验证管理端邮件列表只读取展示字段，不读取投递密文。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminEmailRecordProjectionTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证管理端邮件列表只读取展示字段，不读取投递密文。
+ * @status : create
+ */
 class AdminEmailRecordProjectionTests {
 
     @Test

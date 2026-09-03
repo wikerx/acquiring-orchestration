@@ -19,6 +19,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultPaymentAuthenticationRecordServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 3DS 认证审计按交易逻辑库写入、阶段身份稳定且不持久化渠道敏感原文
+ * @status : create
+ */
 class DefaultPaymentAuthenticationRecordServiceTests {
 
     @Test

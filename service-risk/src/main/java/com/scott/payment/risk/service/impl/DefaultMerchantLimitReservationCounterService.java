@@ -16,7 +16,13 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 按预占时计数模式重建 Redis 投影并执行幂等撤销。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantLimitReservationCounterService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 按预占时计数模式重建 Redis 投影并执行幂等撤销。
+ * @status : create
  */
 @Slf4j
 @Service

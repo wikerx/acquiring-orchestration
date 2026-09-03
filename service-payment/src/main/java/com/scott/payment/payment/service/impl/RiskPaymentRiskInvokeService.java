@@ -185,16 +185,6 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         return url.substring(0, queryIndex) + "?...";
     }
 
-    /**
-     * 构造支付风控评估请求。
-     * <p>
-     * 前置条件：支付创建命令已经生成平台交易号并完成基础参数校验。
-     * 该方法把商户号、交易号、金额币种、请求指纹、来源页面、付款人 IP、账单信息、卡摘要和 3DS 信息复制到
-     * service-risk 内部请求；完整卡号仅限内部风控内存匹配，卡号和安全码不得在日志中明文输出。
-     * </p>
-     * @param commandDTO 支付创建命令，提供风控评估所需的交易、商户、金额、来源和支付工具字段
-     * @return service-risk 支付评估请求 DTO
-     */
     private RiskPaymentEvaluateClientRequestDTO buildRequest(PaymentCreateCommandDTO commandDTO) {
         RiskPaymentEvaluateClientRequestDTO requestDTO = new RiskPaymentEvaluateClientRequestDTO();
         requestDTO.setMerchantId(commandDTO.getMerchantId());
@@ -221,16 +211,6 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         return requestDTO;
     }
 
-    /**
-     * 构造sub商户info对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param requestDTO request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
     private void fillSubMerchantInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.SubMerchantInfoDTO subMerchantInfoDTO = commandDTO.getSubMerchantInfo();
         if (subMerchantInfoDTO == null) {
@@ -244,16 +224,6 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setMerchantBillingAddress(subMerchantInfoDTO.getSubStreet());
     }
 
-    /**
-     * 构造billinginfo对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param requestDTO request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
     private void fillBillingInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.BillingCardHolderInfoDTO billingInfoDTO = commandDTO.getBillingCardHolderInfo();
         if (billingInfoDTO == null) {
@@ -344,16 +314,6 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         return StringUtils.hasText(fullName) ? fullName : null;
     }
 
-    /**
-     * 构造cardinfo对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param requestDTO request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
     private void fillCardInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
         if (transactionInfoDTO != null) {
@@ -373,16 +333,6 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         }
     }
 
-    /**
-     * 构造threedsinfo对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param requestDTO request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
     private void fillThreeDsInfo(PaymentCreateCommandDTO commandDTO, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         PaymentCreateCommandDTO.ThreeDsInfoDTO threeDsInfoDTO = commandDTO.getThreeDsInfo();
         if (threeDsInfoDTO == null) {

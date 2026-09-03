@@ -141,16 +141,16 @@ public class ChannelPaymentResponse implements Serializable {
      */
     private String responseBodyJsonMasked;
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : PaymentMethodSummary
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Payment Method Summary 协作组件，位于 渠道适配库，封装 支付方式汇总 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : 渠道响应中的支付工具摘要，只保留品牌和掩码等非敏感展示字段。
      * @status : create
      */
+    @Data
     public static class PaymentMethodSummary implements Serializable {
 
         private static final long serialVersionUID = 1L;

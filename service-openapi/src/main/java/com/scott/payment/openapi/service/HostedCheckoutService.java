@@ -8,7 +8,13 @@ import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutCardBinVO;
 
 /**
- * Hosted Checkout 开放接口服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : HostedCheckoutService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 开放接口服务。
+ * @status : create
  */
 public interface HostedCheckoutService {
 

@@ -16,7 +16,15 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/** 验证 Gateway 为收银台路由覆盖外部伪造头并签发可信入口凭证。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : CheckoutGatewayIngressFilterTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 Gateway 为收银台路由覆盖外部伪造头并签发可信入口凭证。
+ * @status : create
+ */
 class CheckoutGatewayIngressFilterTests {
 
     private static final long NOW = 1786176000000L;

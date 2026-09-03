@@ -1,7 +1,14 @@
 package com.scott.payment.risk.domain;
 
 /**
- * 预占超时自愈扫描结果。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantLimitReservationReconciliationSummary
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 预占超时自愈扫描结果。
+ * @status : create
+ *
  *
  * @param reserved 恢复为 RESERVED 的数量
  * @param confirmed 确认数量

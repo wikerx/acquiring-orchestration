@@ -5,7 +5,15 @@ import lombok.Data;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/** service-data 单笔商户通知补偿命令。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantNotificationNotifyCommandDTO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : service-data 单笔商户通知补偿命令。
+ * @status : create
+ */
 @Data
 public class MerchantNotificationNotifyCommandDTO implements Serializable {
 

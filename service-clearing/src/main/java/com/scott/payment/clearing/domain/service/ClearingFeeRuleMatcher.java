@@ -8,7 +8,13 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * 清分费用规则适用性判断。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingFeeRuleMatcher
+ * @date : 2026-08-27 19:46
+ * @email : scott_x@163.com
+ * @description : 清分费用规则适用性判断。
+ * @status : update
  *
  * <p>该类只判断动作、支付维度和收费触发条件，不计算金额、不读取累计事实，也不访问外部资源。
  * 费用计算和阶梯累计锁定必须共同使用本判断，避免未命中规则产生无效数据库锁或累计。</p>

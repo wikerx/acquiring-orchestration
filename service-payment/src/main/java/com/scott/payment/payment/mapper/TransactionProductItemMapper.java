@@ -8,7 +8,15 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** Mapper for transaction product item snapshots. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : TransactionProductItemMapper
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Mapper for transaction product item snapshots.
+ * @status : create
+ */
 public interface TransactionProductItemMapper extends BaseMapper<TransactionProductItemDO> {
 
     /** Query product lines in the original merchant order sequence. */

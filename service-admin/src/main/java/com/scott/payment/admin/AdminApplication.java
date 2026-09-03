@@ -4,17 +4,17 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(scanBasePackages = "com.scott.payment")
-@EnableScheduling
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminApplication
  * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : Admin Application 协作组件，位于 运营后台服务，封装 adminapplication 相关的校验、转换、持久化访问或运行时协作入口。
+ * @description : adminapplication协作组件，位于 运营后台服务，封装该业务的本地校验、转换或运行时协作入口。
  * @status : create
  */
+@SpringBootApplication(scanBasePackages = "com.scott.payment")
+@EnableScheduling
 public class AdminApplication {
 
     /**

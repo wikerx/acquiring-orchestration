@@ -15,6 +15,13 @@ import java.util.Objects;
  */
 public class ClearingProcessingException extends RuntimeException {
 
+    /**
+     * 处理失败码，用于补偿策略、告警聚合和后台排障，不直接暴露底层异常。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private final ClearingFailureCodeEnum failureCode;
 
     /**

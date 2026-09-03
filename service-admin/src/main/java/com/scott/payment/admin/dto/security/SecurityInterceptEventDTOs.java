@@ -62,11 +62,11 @@ public final class SecurityInterceptEventDTOs {
          */
         private String requestPath;
         /**
-         * traceId。
+         * 链路追踪号，用于关联本次安全拦截涉及的跨服务日志。
          */
         private String traceId;
         /**
-         * requestId。
+         * 请求号，用于关联一次入口请求内的拦截、响应和审计记录。
          */
         private String requestId;
         /**
@@ -142,11 +142,11 @@ public final class SecurityInterceptEventDTOs {
          */
         private String requestPath;
         /**
-         * traceId。
+         * 链路追踪号，用于关联本次安全拦截涉及的跨服务日志。
          */
         private String traceId;
         /**
-         * requestId。
+         * 请求号，用于关联一次入口请求内的拦截、响应和审计记录。
          */
         private String requestId;
         /**

@@ -25,7 +25,21 @@ public final class SettlementRateNormalizer {
     /** 结算批次汇率固定持久化精度。 */
     public static final int RATE_SCALE = 12;
 
+    /**
+     * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
+    /**
+     * 汇率归一时的统一舍入模式，仅在锁定精度边界使用。
+     * <p>
+     * 单位：比例值；格式：decimal，按费率或汇率精度保存；不允许为空；非敏感字段。
+     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final RoundingMode RATE_ROUNDING_MODE = RoundingMode.HALF_EVEN;
 
     /**

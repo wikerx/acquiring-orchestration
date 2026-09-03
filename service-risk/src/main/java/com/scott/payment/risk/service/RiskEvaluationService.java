@@ -9,7 +9,7 @@ import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
  * @classname : RiskEvaluationService
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : 风控评估服务契约，位于 service-risk 服务层，承载实时规则判断并屏蔽后续规则引擎或模型服务实现差异。
+ * @description : 风控evaluation服务契约，位于 风控服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
  * @status : create
  */
 public interface RiskEvaluationService {

@@ -1,7 +1,14 @@
 package com.scott.payment.risk.domain;
 
 /**
- * 单个频控维度成功名额的原子预占结果。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : FrequencySuccessReservationResult
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 单个频控维度成功名额的原子预占结果。
+ * @status : create
+ *
  *
  * @param outcome 预占结果类型
  * @param currentCount 当前已预占或确认的成功交易数

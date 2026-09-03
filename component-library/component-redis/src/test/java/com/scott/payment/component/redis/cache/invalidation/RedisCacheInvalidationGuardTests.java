@@ -23,7 +23,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 受管共享缓存失效 Redis 门禁测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedisCacheInvalidationGuardTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 受管共享缓存失效 Redis 门禁测试。
+ * @status : create
  */
 @Slf4j
 class RedisCacheInvalidationGuardTests {
@@ -114,7 +120,6 @@ class RedisCacheInvalidationGuardTests {
         log.info("永久缓存短门禁 Key 测试完成，结果: 两个命名空间均符合 acquiring:test 短格式");
     }
 
-    /** 验证节假日月视图使用规范化月份作为失效门禁键。 */
     @Test
     void shouldBuildHolidayCalendarMonthGateKey() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);

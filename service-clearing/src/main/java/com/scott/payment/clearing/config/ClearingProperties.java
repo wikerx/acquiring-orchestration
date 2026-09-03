@@ -93,6 +93,7 @@ public class ClearingProperties {
         }
     }
 
+    /** 启动前约束租约、重试和消费线程范围，防止错误配置导致无限重试或无界并发。 */
     private void validateNumericBounds() {
         if (processingTimeoutSeconds < 1) {
             throw new IllegalStateException("clearing processing timeout must be positive");

@@ -25,7 +25,7 @@ import java.util.Objects;
  * @param targetCurrency 目标结算 ISO 币种
  * @param targetCurrencyExponent 目标币种 ISO 小数位
  * @param batchType 批次类型
- * @param originalBatchNo 冲正或调整引用的原批次号
+ * @param originalBatchNo 冲正引用的原批次号；其他批次为空
  * @param cutoffBeginTime 候选窗口闭区间起点
  * @param cutoffEndTime 候选窗口开区间终点
  */

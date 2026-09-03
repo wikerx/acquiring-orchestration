@@ -9,7 +9,13 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 商户安全缓存失效 Outbox 数据库契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantSecurityCacheInvalidationPersistenceContractTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户安全缓存失效 Outbox 数据库契约测试。
+ * @status : create
  */
 class MerchantSecurityCacheInvalidationPersistenceContractTests {
 

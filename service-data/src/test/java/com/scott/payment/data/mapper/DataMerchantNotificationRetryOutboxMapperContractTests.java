@@ -7,7 +7,15 @@ import java.lang.reflect.Method;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 校验自动重试 Outbox 写入固定逻辑表并携带交易分片字段。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DataMerchantNotificationRetryOutboxMapperContractTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 校验自动重试 Outbox 写入固定逻辑表并携带交易分片字段。
+ * @status : create
+ */
 class DataMerchantNotificationRetryOutboxMapperContractTests {
 
     @Test

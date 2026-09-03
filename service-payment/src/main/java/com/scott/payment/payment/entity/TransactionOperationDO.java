@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -191,14 +192,23 @@ public class TransactionOperationDO implements Serializable {
     private BigDecimal channelRequestAmount;
 
     /**
-     * 动作预计或最终结算币种。
+     * 动作最终结算币种，仅真实交易结算投影写入。
      */
     private String settlementCurrency;
 
     /**
-     * 动作预计或最终结算金额。
+     * 动作最终有符号结算金额，使用结算币种主单位。
      */
     private BigDecimal settlementAmount;
+
+    /** 1 单位动作交易币种兑换的结算币种数量。 */
+    private BigDecimal settlementRate;
+
+    /** 动作最终结算业务日期。 */
+    private LocalDate settlementDate;
+
+    /** 动作最近一次结算或冲正批次号。 */
+    private String settlementBatchNo;
 
     /**
      * 交易币种默认小数位精度。

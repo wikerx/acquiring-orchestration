@@ -16,7 +16,13 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * 按已发布季度节点双频投递交易 Outbox：最近季度高频、历史季度低频，并独立刷新全量运维指标。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : TransactionEventOutboxRelayScheduler
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 按已发布季度节点双频投递交易 Outbox：最近季度高频、历史季度低频，并独立刷新全量运维指标。
+ * @status : create
  */
 @Slf4j
 @Component

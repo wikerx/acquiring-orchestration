@@ -84,6 +84,16 @@ Nacos 配置样例位于 `docs/deployment/nacos/`，Prometheus 规则位于
 * [结算 Phase A 只读前检草案](sql/20260826_02_settlement_phase_a_precheck_draft.sql)
 * [结算 Phase A 只读后检草案](sql/20260826_03_settlement_phase_a_postcheck_draft.sql)
 * [Admin 清分与结算分页查询索引迁移](sql/20260827_01_admin_clearing_settlement_query_index_migration.sql)
+* [结算 P0 一致性增量迁移](sql/20260831_01_settlement_p0_consistency_migration.sql)
+* [结算 P0 一致性只读后检](sql/20260831_02_settlement_p0_consistency_postcheck.sql)
+* [结算预审 Maker-Checker 增量迁移](sql/20260831_03_settlement_review_maker_checker_migration.sql)
+* [结算预审 Maker-Checker 只读后检](sql/20260831_04_settlement_review_maker_checker_postcheck.sql)
+* [结算冲正与交易三层投影增量迁移](sql/20260831_05_settlement_reversal_projection_migration.sql)
+* [结算冲正与交易三层投影只读后检](sql/20260831_06_settlement_reversal_projection_postcheck.sql)
+* [正式结算批次取消审计增量迁移](sql/20260831_07_settlement_cancellation_audit_migration.sql)
+* [正式结算批次取消审计只读后检](sql/20260831_08_settlement_cancellation_audit_postcheck.sql)
+* [结算系统操作人取消审计约束迁移](sql/20260901_05_settlement_system_operator_cancellation_migration.sql)
+* [结算系统操作人取消审计约束只读后检](sql/20260901_06_settlement_system_operator_cancellation_postcheck.sql)
 
 SQL 参考脚本统一放在 `docs/sql/`。
 

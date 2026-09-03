@@ -32,11 +32,11 @@ public class HmacSha256Signer {
     private static final String HMAC_SHA256 = "HmacSHA256";
 
     /**
-     * 使用参数字典序构造规范化文本并计算 HMAC-SHA256 十六进制签名。
-     *
-     * @param parameters 待签名参数
-     * @param secret     签名密钥
-     * @return 小写十六进制签名
+     * 处理{@code sign}安全计算，严格沿用当前算法、密钥边界和敏感日志约束。
+     * @param Map 有界参数集合或键值片段，空元素按当前方法约定忽略或拒绝
+     * @param parameters 有界参数集合或键值片段，空元素按当前方法约定忽略或拒绝
+     * @param secret 敏感认证或加密材料，只能在当前安全边界内使用，禁止明文日志和异常回显
+     * @return 当前方法生成或规范化后的文本值
      */
     public String sign(Map<String, String> parameters, String secret) {
         Objects.requireNonNull(parameters, "parameters can not be null");
@@ -70,15 +70,10 @@ public class HmacSha256Signer {
     }
 
     /**
-     * 规范化hmacsha256，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param content content 输入值，参与 content 的查询、校验、转换、写入或日志摘要
-     * @param secret secret 输入值，参与 secret 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 处理{@code hmacSha256}安全计算，严格沿用当前算法、密钥边界和敏感日志约束。
+     * @param content 序列化业务载荷，持久化或记录日志前必须完成敏感字段检查
+     * @param secret 敏感认证或加密材料，只能在当前安全边界内使用，禁止明文日志和异常回显
+     * @return 当前方法生成的 {@code byte[]} 结果
      */
     private byte[] hmacSha256(String content, String secret) {
         try {
@@ -90,17 +85,6 @@ public class HmacSha256Signer {
         }
     }
 
-    /**
-     * 构造canonical文本对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param parameters parameters 输入值，参与 parameters 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private String buildCanonicalText(Map<String, String> parameters) {
         TreeMap<String, String> sortedParameters = new TreeMap<>(parameters);
         StringBuilder builder = new StringBuilder();
@@ -113,16 +97,6 @@ public class HmacSha256Signer {
         return builder.toString();
     }
 
-    /**
-     * 构造hex对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 构造、转换或解析后的业务值
-     */
     private String toHex(byte[] value) {
         StringBuilder builder = new StringBuilder(value.length * 2);
         for (byte item : value) {

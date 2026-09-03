@@ -3,10 +3,13 @@ package com.scott.payment.admin.client.settlement;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.admin.config.SettlementInternalClientProperties;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchCommandResponse;
-import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchDetailResponse;
-import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchSearchRequest;
-import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalBatchCommandRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewSubmitRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCommandResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReversalDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReversalSubmitRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReversalCommandResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -17,6 +20,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
@@ -41,7 +45,30 @@ import java.util.regex.Pattern;
 public class SettlementInternalRestClient implements SettlementInternalClient {
 
     private static final Pattern IPV4 = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
+    /**
+     * {@code BATCHES}常量，统一 {@code SettlementInternalRestClient} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * </p>
+     */
     private static final String BATCHES = "/internal/settlement/v1/batches";
+    /**
+     * {@code REVIEWS}常量，统一 {@code SettlementInternalRestClient} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * </p>
+     */
+    private static final String REVIEWS = "/internal/settlement/v1/reviews";
+    /**
+     * {@code REVERSALS}常量，统一 {@code SettlementInternalRestClient} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * </p>
+     */
+    private static final String REVERSALS = "/internal/settlement/v1/reversal-orders";
 
     private final RestTemplate direct;
     private final RestTemplate loadBalanced;
@@ -56,30 +83,53 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
         this.properties = properties;
     }
 
-    @Override
-    public BatchSearchResponse search(BatchSearchRequest request) {
-        return post(BATCHES + "/search", request,
-                new TypeReference<CommonResult<BatchSearchResponse>>() { });
-    }
-
-    @Override
-    public BatchDetailResponse detail(String settlementBatchNo) {
-        return exchange(URI.create(baseUrl() + BATCHES + "/" + settlementBatchNo),
-                HttpMethod.GET, null, new TypeReference<CommonResult<BatchDetailResponse>>() { });
-    }
-
+    /** {@inheritDoc} */
     @Override
     public BatchCommandResponse cancel(String settlementBatchNo, InternalBatchCommandRequest request) {
         return post(BATCHES + "/" + settlementBatchNo + "/cancel", request,
                 new TypeReference<CommonResult<BatchCommandResponse>>() { });
     }
 
+    /** {@inheritDoc} */
     @Override
-    public BatchCommandResponse reverse(String settlementBatchNo, InternalBatchCommandRequest request) {
-        return post(BATCHES + "/" + settlementBatchNo + "/reverse", request,
-                new TypeReference<CommonResult<BatchCommandResponse>>() { });
+    public ReviewCommandResponse submitReview(InternalReviewSubmitRequest request) {
+        return post(REVIEWS, request,
+                new TypeReference<CommonResult<ReviewCommandResponse>>() { });
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public ReviewCommandResponse decideReview(String reviewOrderNo,
+                                              InternalReviewDecisionRequest request) {
+        return post(REVIEWS + "/" + reviewOrderNo + "/decisions", request,
+                new TypeReference<CommonResult<ReviewCommandResponse>>() { });
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public ReversalCommandResponse submitReversal(InternalReversalSubmitRequest request) {
+        return post(REVERSALS, request,
+                new TypeReference<CommonResult<ReversalCommandResponse>>() { });
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public ReversalCommandResponse decideReversal(String reversalOrderNo,
+                                                  InternalReversalDecisionRequest request) {
+        return post(REVERSALS + "/" + reversalOrderNo + "/decisions", request,
+                new TypeReference<CommonResult<ReversalCommandResponse>>() { });
+    }
+
+    /**
+     * 通过内部鉴权签名发送结算领域命令，确保 Admin 查询与结算资金状态变更边界保持隔离。
+     *
+     * @param path 结算内部命令路径
+     * @param request 已注入可信操作人、权限快照和幂等键的命令
+     * @param type 业务响应泛型
+     * @param <T> 结算命令结果类型
+     * @return 结算服务返回的命令结果
+     * @throws ServiceException 内部鉴权、网络或结算业务响应失败时抛出
+     */
     private <T> T post(String path, Object request, TypeReference<CommonResult<T>> type) {
         return exchange(URI.create(baseUrl() + path), HttpMethod.POST, request, type);
     }
@@ -100,6 +150,12 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
             }
             return result.getData();
         } catch (HttpStatusCodeException exception) {
+            if (exception.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
+                log.warn("service-settlement internal authentication rejected, path: {}, status: {}",
+                        uri.getPath(), exception.getStatusCode().value());
+                throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
+                        "service-settlement internal authentication failed");
+            }
             log.warn("service-settlement management call rejected, path: {}, status: {}",
                     uri.getPath(), exception.getStatusCode().value());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
@@ -112,6 +168,14 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
         }
     }
 
+    /**
+     * 使用固定 service-admin 身份、时间戳、随机 nonce 和载荷摘要签名内部请求。
+     *
+     * @param uri 规范化 service-settlement 内部地址
+     * @param method HTTP 方法
+     * @param request 不含浏览器自报操作人的内部命令
+     * @return 含 HMAC 防重放请求头和冻结 JSON 的 HTTP 实体
+     */
     private HttpEntity<String> signed(URI uri, HttpMethod method, Object request) {
         String body = request == null ? null : JsonUtils.toJsonString(request);
         long timestamp = InternalServiceSignature.currentTimeMillis();

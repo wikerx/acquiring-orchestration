@@ -18,6 +18,7 @@ public interface SettlementCandidateBulkClaimService {
      *
      * @param settlementBatchNo 目标批次号
      * @param claimedTime 统一认领审计时间
+     * @return 批次封批时持有的候选总数；返回 0 表示并发后已无候选可认领
      */
-    void claimAndSeal(String settlementBatchNo, LocalDateTime claimedTime);
+    int claimAndSeal(String settlementBatchNo, LocalDateTime claimedTime);
 }

@@ -103,6 +103,11 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return prepareWithSnapshot(message, claim, processingOwner, targetSnapshot);
     }
 
+    /**
+     * 使用已确定的费用版本快照组装清分完成命令，并补齐支付维度、风控服务和源交易事实。
+     * <p>
+     * 重算路径传入指定历史版本，普通路径传入当前冻结版本；后续计算只能消费该快照，禁止重新读取最新费率配置。
+     */
     private CompletionCommand prepareWithSnapshot(PaymentTransactionEventMessage message,
                                                   ClearingClaimResult claim,
                                                   String processingOwner,
@@ -131,6 +136,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
                 settlementEligibleDate, expectedReserveReleaseDate);
     }
 
+    /** 事务外准备只接受 Stage A 已领取的动作，并校验消息与领取事实一致。 */
     private ClearingOperationFacts validateRequest(PaymentTransactionEventMessage message,
                                                    ClearingClaimResult claim,
                                                    String processingOwner) {
@@ -149,6 +155,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return operation;
     }
 
+    /** Locator 必须匹配当前动作、根交易、商户和真实分片时间。 */
     private LocatorFacts validateLocator(ClearingTransactionLocatorDO row,
                                          ClearingOperationFacts operation) {
         if (row == null
@@ -164,6 +171,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return toLocatorFacts(row);
     }
 
+    /** 费用维度只读取非敏感支付方式和品牌，缺失时不猜测默认值。 */
     private void validatePaymentMethod(ClearingPaymentMethodInfoDO paymentMethod) {
         if (paymentMethod == null || !StringUtils.hasText(paymentMethod.getPaymentMethod())
                 || !StringUtils.hasText(paymentMethod.getPaymentBrand())) {
@@ -172,6 +180,11 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         }
     }
 
+    /**
+     * 按 locator 的真实分片时间读取退款等后续动作的原交易清分事实和费用快照。
+     * <p>
+     * 原交易尚未清分完成时返回可重试的等待来源失败，禁止使用当前交易配置替代原交易冻结配置计算退款。
+     */
     private SourceContext loadSource(ClearingOperationFacts operation) {
         if (!StringUtils.hasText(operation.sourceTransactionId())) {
             return null;
@@ -204,6 +217,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return new SourceContext(sourceOperation, toLocatorFacts(locatorRow), sourceSnapshot);
     }
 
+    /** 退款等源动作必须按 locator 精确读取并校验生命周期归属。 */
     private ClearingOperationFacts validateSourceOperation(ClearingTransactionOperationDO row,
                                                            ClearingTransactionLocatorDO locator,
                                                            ClearingOperationFacts current) {
@@ -223,6 +237,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
                 row.getTransactionDateTime(), row.getTransactionUtcTime(), row.getTransactionTimeZone(), row.getVersion());
     }
 
+    /** 只有清分完成或无需清分状态可作为退款来源。 */
     private boolean isCompleted(String clearingStatus) {
         if (!StringUtils.hasText(clearingStatus)) {
             return false;
@@ -234,11 +249,13 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         }
     }
 
+    /** 根据支付工具冻结的 3DS 指示判断服务是否实际执行；空值和显式未执行值不得计费。 */
     private boolean hasExecutedThreeDs(String indicator) {
         return StringUtils.hasText(indicator)
                 && !NON_EXECUTED_THREE_DS_INDICATORS.contains(indicator.trim().toUpperCase(Locale.ROOT));
     }
 
+    /** 保证金释放日按动作业务日和冻结留存规则计算，不使用服务器默认时区。 */
     private LocalDate reserveReleaseDate(ClearingOperationFacts operation,
                                          ReservePolicySnapshot reserve) {
         if (reserve == null || !RESERVE_HOLD_TRANSACTION_TYPES.contains(operation.transactionType())
@@ -252,6 +269,11 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return plusWeekdays(businessDate, reserve.delayDays());
     }
 
+    /**
+     * 按自然工作日推算保证金释放日，仅跳过周六和周日。
+     * <p>
+     * 该规则不隐式读取法定节假日表；配置语义变更时必须通过显式日历策略升级，不能改变历史释放日期。
+     */
     private LocalDate plusWeekdays(LocalDate date, int days) {
         LocalDate result = date;
         int remaining = days;

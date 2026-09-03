@@ -28,33 +28,31 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
-@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantAuthApplicationService
  * @date : 2026-06-19 19:12
  * @email : scott_x@163.com
- * @description : Merchant Auth Application Service 应用服务，位于 商户后台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
+ * @description : 商户auth应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
+@Service
 public class MerchantAuthApplicationService {
 
     /**
-     * DEFAULT LOGIN ACCOUNT，表示当前统计、分页、扫描或重试场景中的数量。
+     * 默认登录账号常量，统一 {@code MerchantAuthApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：个或次；格式：整数；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String DEFAULT_LOGIN_ACCOUNT = "admin";
     /**
-     * DEFAULT LOGIN PASSWORD，用于保存 Merchant Auth Application Service 中与 defaultloginpassword 相关的业务属性。
+     * {@code DEFAULT_LOGIN_PASSWORD}常量，统一 {@code MerchantAuthApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String DEFAULT_LOGIN_PASSWORD = "Merchant@123456";
@@ -64,41 +62,9 @@ public class MerchantAuthApplicationService {
      */
     private final SystemAuthService systemAuthService;
 
-    /**
-     * sys App Mapper 依赖，用于 Merchant Auth Application Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysAppMapper sysAppMapper;
-    /**
-     * sys Account Mapper，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysAccountMapper sysAccountMapper;
-    /**
-     * sys Merchant User Mapper 依赖，用于 Merchant Auth Application Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysMerchantUserMapper sysMerchantUserMapper;
-    /**
-     * environment，用于保存 Merchant Auth Application Service 中与 environment 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final Environment environment;
 
     /**

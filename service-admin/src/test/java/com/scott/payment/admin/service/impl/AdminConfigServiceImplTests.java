@@ -29,7 +29,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 管理端系统参数统一永久缓存读写契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminConfigServiceImplTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 管理端系统参数统一永久缓存读写契约测试。
+ * @status : create
  */
 @Slf4j
 class AdminConfigServiceImplTests {

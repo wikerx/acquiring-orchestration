@@ -143,6 +143,13 @@ class DefaultTransactionQueryCacheServiceTests {
             }
         }
 
+        /**
+         * 模拟缓存 SETNX，只允许首个值占用给定键。
+         * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+         * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+         * @param ttl 测试记录的缓存有效期
+         * @return 首次写入时返回 true，键已存在时返回 false
+         */
         @Override
         public boolean setIfAbsent(String key, Object value, Duration ttl) {
             return values.putIfAbsent(key, value) == null;

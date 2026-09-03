@@ -10,7 +10,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-@Component
 /**
  * @author : scott
  * @version : v1.0.0
@@ -20,6 +19,7 @@ import java.util.List;
  * @description : Sharding Quarter Resolver 解析组件，位于 公共组件库，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
  * @status : create
  */
+@Component
 public class ShardingQuarterResolver {
 
     /**
@@ -123,17 +123,6 @@ public class ShardingQuarterResolver {
         return new ShardingQuarter(rule.getEndYear(), rule.getEndQuarter());
     }
 
-    /**
-     * 校验规则quarter输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param year year 输入值，参与 year 的查询、校验、转换、写入或日志摘要
-     * @param quarter quarter 输入值，参与 quarter 的查询、校验、转换、写入或日志摘要
-     * @param label label 输入值，参与 label 的查询、校验、转换、写入或日志摘要
-     */
     private void validateRuleQuarter(Integer year, Integer quarter, String label) {
         if (year == null || quarter == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), label + " sharding year and quarter are required");

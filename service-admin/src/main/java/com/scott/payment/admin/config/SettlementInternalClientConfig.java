@@ -26,7 +26,13 @@ import java.time.Duration;
 @EnableConfigurationProperties(SettlementInternalClientProperties.class)
 public class SettlementInternalClientConfig {
 
-    /** @return 用于 localhost 或 IP 地址的无代理直连客户端 */
+    /**
+     * 构造用于 localhost 或 IP 地址的无代理直连客户端。
+     *
+     * @param customizer traceId 透传定制器
+     * @param properties 已校验的服务根地址、固定身份和超时配置
+     * @return 无代理直连内部客户端
+     */
     @Bean("adminSettlementInternalRestTemplate")
     public RestTemplate direct(TraceIdRestTemplateCustomizer customizer,
                                SettlementInternalClientProperties properties) {
@@ -38,7 +44,14 @@ public class SettlementInternalClientConfig {
         return customizer.customize(new RestTemplate(factory));
     }
 
-    /** @return 用于 service-settlement 服务名解析的负载均衡客户端 */
+    /**
+     * 构造用于 service-settlement 服务名解析的负载均衡客户端。
+     *
+     * @param builder Spring RestTemplate 构建器
+     * @param interceptor traceId 透传拦截器
+     * @param properties 已校验的服务根地址、固定身份和超时配置
+     * @return 支持服务发现的内部客户端
+     */
     @Bean("adminSettlementInternalLoadBalancedRestTemplate")
     @LoadBalanced
     public RestTemplate loadBalanced(RestTemplateBuilder builder,

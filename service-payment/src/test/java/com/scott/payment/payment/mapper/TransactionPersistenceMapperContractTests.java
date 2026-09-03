@@ -99,7 +99,8 @@ class TransactionPersistenceMapperContractTests {
                         "service-merchant",
                         "service-risk",
                         "service-data",
-                        "service-clearing");
+                        "service-clearing",
+                        "service-settlement");
         assertThat(sharding.get("rule-checksum"))
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(toShardingProperties(sharding)));
         assertThat(root).doesNotContainKey("global-payment");
@@ -419,6 +420,16 @@ class TransactionPersistenceMapperContractTests {
         assertLogicalPointSql(orderSelectSql, "transaction_order");
         assertLogicalPointSql(operationSelectSql, "transaction_operation");
         assertLogicalPointSql(orderLockSql, "transaction_order");
+        assertThat(orderSelectSql)
+                .contains("settlement_currency", "settlement_amount", "settlement_rate",
+                        "settlement_date", "settlement_batch_no", "settlement_transaction_id",
+                        "settlement_transaction_date_time")
+                .doesNotContain("SELECT *", "SELECT o.*");
+        assertThat(orderLockSql)
+                .contains("settlement_currency", "settlement_amount", "settlement_rate",
+                        "settlement_date", "settlement_batch_no", "settlement_transaction_id",
+                        "settlement_transaction_date_time")
+                .doesNotContain("SELECT *", "SELECT o.*");
         assertThat(orderLockSql).contains("FOR UPDATE");
         assertThat(notificationUpdateSql)
                 .contains("UPDATE transaction_merchant_notification")
@@ -597,6 +608,24 @@ class TransactionPersistenceMapperContractTests {
                 "channel_match_status IN ('PENDING', 'REVIEW_REQUIRED', 'MISMATCHED', 'FAILED')");
         assertThat(orderUpdateSql).contains("channel_match_status = #{matchStatus}");
         assertThat(orderUpdateSql).doesNotContain("transaction_status =");
+    }
+
+    /**
+     * ShardingSphere 会缓存逻辑表元数据；季度表在线扩列后，SELECT * 可能按旧列序读取成错误类型。
+     */
+    @Test
+    void operationChannelMatchReadsShouldUseExplicitProjection() {
+        String pointReadSql = annotationValue(methodNamed(
+                TransactionOperationMapper.class, "selectByTransactionId"), Select.class);
+        String pendingReadSql = annotationValue(methodNamed(
+                TransactionOperationMapper.class, "selectPendingChannelMatch"), Select.class);
+
+        assertThat(pointReadSql)
+                .contains("next_channel_match_time")
+                .doesNotContain("SELECT *", "SELECT o.*");
+        assertThat(pendingReadSql)
+                .contains("next_channel_match_time")
+                .doesNotContain("SELECT *", "SELECT o.*");
     }
 
     private static <A extends java.lang.annotation.Annotation> String annotationValue(Method method,

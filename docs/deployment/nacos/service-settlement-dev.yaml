@@ -1,11 +1,17 @@
-# service-settlement 专属配置：只保留内部接口安全参数，不提供结算业务启停或资金处理规则。
+# service-settlement 专属配置不承载业务启停、资金规则、汇率、费用或保证金规则。
+# enabled 安全门禁固定在本地；调用方、最小路径权限和时间窗集中维护在当前服务 DataId。
 internal-service:
   auth:
-    enabled: true
-    # 所有环境必须通过 Secret 注入独立密钥，禁止在 Nacos 或仓库中保存明文密钥。
-    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+    callers:
+      service-admin:
+        # 参数说明：Admin 调用手工结算、审批、取消和冲正命令时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.admin-settlement.active-secret}
+        # 参数说明：Admin-Settlement 密钥滚动轮换期间接受的上一版密钥；非轮换窗口为空。
+        previous-secret: ${acquiring.internal-auth.edges.admin-settlement.previous-secret:}
+        allowed-paths:
+          # 路径说明：覆盖结算领域内部命令入口；服务不提供浏览器直接访问的 Admin 管理接口。
+          - /internal/settlement/**
+    # 参数说明：内部 HMAC 请求时间戳允许偏差，使用 Spring Duration，默认 5 分钟。
     allowed-clock-skew: ${INTERNAL_SERVICE_AUTH_CLOCK_SKEW:5m}
+    # 参数说明：nonce 防重放记录保留时间，使用 Spring Duration，默认 10 分钟且必须大于时钟偏差。
     nonce-ttl: ${INTERNAL_SERVICE_AUTH_NONCE_TTL:10m}
-    whitelist:
-      - /actuator/health/**
-      - /error

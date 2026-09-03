@@ -5,7 +5,15 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 验证 Gateway 入口签名在响应式网关和 Servlet 下游之间保持一致。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : GatewayIngressSignatureTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 Gateway 入口签名在响应式网关和 Servlet 下游之间保持一致。
+ * @status : create
+ */
 class GatewayIngressSignatureTests {
 
     private static final String SECRET = "0123456789abcdef0123456789abcdef";

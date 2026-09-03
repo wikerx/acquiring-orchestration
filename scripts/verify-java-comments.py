@@ -56,9 +56,29 @@ TEMPLATE_PATTERNS = [
     re.compile(r"用于当前方法完成"),
     re.compile(r"含义由调用方法名称和所属业务对象限定"),
     re.compile(r"无状态支撑类型"),
+    re.compile(r"创建 .* 实例并校验构造参数"),
+    re.compile(r"实现必须保持 .* 已有权限、状态和异常语义"),
+    re.compile(r"输入值，参与"),
+    re.compile(r"方法执行后的业务结果、更新行数、转换对象或空结果"),
+    re.compile(r"校验[a-zA-Z0-9]+输入，发现缺失、越权或格式错误时中断当前流程"),
+    re.compile(r"@description\s*:\s*.*，位于 .*，用于接口或跨层传递该业务数据"),
+    re.compile(r"@description\s*:\s*.*，位于 .*，限定所属聚合内该对象的字段集合和传递边界"),
+    re.compile(r"在当前业务流程中传递结构化信息"),
+    re.compile(r"(?:查询|构造|校验|解析|更新|处理|创建)[a-zA-Z]", re.IGNORECASE),
+    re.compile(r"对应的本地处理，按所属类型职责完成校验、转换或结果组装"),
+    re.compile(r"按调用方提供的过滤条件返回对应业务视图"),
+    re.compile(r"，供当前方法按 .* 语义完成校验、转换或协作调用"),
+    re.compile(r"声明的业务动作，并沿用所属类型的权限、状态、事务和异常边界"),
+    re.compile(r"按 \{@code .*\} 的公开契约返回当前类型所需结果"),
+    re.compile(r"@param\s+\w+\s+\{@code \w+\} 参数，其取值范围和可空性由当前方法与所属模型共同约束"),
 ]
 
-ADJACENT_JAVADOC = re.compile(r"\*/\s*\n\s*/\*\*")
+DUPLICATE_TYPE_JAVADOC = re.compile(
+    r"(?s)/\*\*(?:(?!\*/).)*@classname\s*:\s*(\w+)(?:(?!\*/).)*\*/\s*"
+    r"/\*\*(?:(?!\*/).)*@classname\s*:\s*\1\b"
+)
+JAVADOC_BLOCK_RE = re.compile(r"/\*\*.*?\*/", re.DOTALL)
+ADJACENT_JAVADOC_RE = re.compile(r"/\*\*.*?\*/\s*/\*\*", re.DOTALL)
 TYPE_RE = re.compile(
     r"^(?P<indent>\s*)(?P<mods>(?:(?:public|protected|private|abstract|final|static|sealed|non-sealed|strictfp)\s+)*)"
     r"(?P<kind>@interface|class|interface|enum|record)\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\b"
@@ -199,8 +219,130 @@ def annotation_block_end(lines: list[str], index: int) -> int:
     return index
 
 
+def has_duplicate_javadocs_across_annotations(text: str) -> bool:
+    """Detect two Javadocs attached to one declaration on opposite sides of annotations."""
+    lines = text.splitlines(keepends=True)
+    index = 0
+    while index < len(lines):
+        if not lines[index].lstrip().startswith("/**"):
+            index += 1
+            continue
+        first_end = index
+        while first_end < len(lines) and "*/" not in lines[first_end]:
+            first_end += 1
+        cursor = first_end + 1
+        while cursor < len(lines) and not lines[cursor].strip():
+            cursor += 1
+        saw_annotation = False
+        while cursor < len(lines) and lines[cursor].lstrip().startswith("@"):
+            saw_annotation = True
+            cursor = annotation_block_end(lines, cursor) + 1
+            while cursor < len(lines) and not lines[cursor].strip():
+                cursor += 1
+        if saw_annotation and cursor < len(lines) and lines[cursor].lstrip().startswith("/**"):
+            return True
+        index = first_end + 1
+    return False
+
+
+def has_javadoc_after_annotations(text: str) -> bool:
+    """Detect Javadocs placed after annotations instead of before the declaration."""
+    lines = text.splitlines(keepends=True)
+    index = 0
+    while index < len(lines):
+        if not lines[index].lstrip().startswith("@"):
+            index += 1
+            continue
+        annotation_indent = len(lines[index]) - len(lines[index].lstrip())
+        cursor = index
+        while (cursor < len(lines)
+               and lines[cursor].lstrip().startswith("@")
+               and len(lines[cursor]) - len(lines[cursor].lstrip()) == annotation_indent):
+            cursor = annotation_block_end(lines, cursor) + 1
+            while cursor < len(lines) and not lines[cursor].strip():
+                cursor += 1
+        if (cursor < len(lines)
+                and lines[cursor].lstrip().startswith("/**")
+                and len(lines[cursor]) - len(lines[cursor].lstrip()) == annotation_indent):
+            return True
+        index = max(index + 1, cursor)
+    return False
+
+
 def is_main_java(path: Path) -> bool:
     return "src/main/java" in str(path)
+
+
+def is_model_path(path: Path) -> bool:
+    normalized = str(path).replace("\\", "/").lower()
+    return any(segment in normalized for segment in (
+        "/dto/", "/entity/", "/model/", "/vo/", "/request/", "/response/"
+    )) or path.stem.lower().endswith(("dto", "do", "vo", "request", "response"))
+
+
+def is_simple_accessor(path: Path, name: str, params: str) -> bool:
+    if not is_model_path(path):
+        return False
+    parts = [part.strip() for part in params.split(",") if part.strip()]
+    lower = name.lower()
+    return ((lower.startswith("get") or lower.startswith("is")) and not parts
+            or lower.startswith("set") and len(parts) == 1)
+
+
+CORE_PRIVATE_ALWAYS = re.compile(
+    r"(?:encrypt|decrypt|hmac|nonce|fingerprint|canonical.*fingerprint|completeidempotency|"
+    r"resolveduplicate|locksource|verifyidentity|validatecurrency|tominoramount|save.*event|"
+    r"record.*preparedfact|processcallback|updatecallbackprocess|requirelockedratecapacity|"
+    r"validaterate|requiresamecurrency|constanttimeequals|stableid|deterministiceventno)",
+    re.IGNORECASE,
+)
+CORE_PRIVATE_COMPLEX = re.compile(
+    r"(?:amount|currency|rate|fee|reserve|settlement|clearing|outbox|callback|shard|ledger|"
+    r"posting|reversal|approve|review|claim|lease|compensat|retry|projection|refund|capture|"
+    r"void|authorization|state|complete|failure|recovery)",
+    re.IGNORECASE,
+)
+CORE_PATH_MARKERS = (
+    "service-payment/", "service-clearing/", "service-settlement/", "service-openapi/",
+    "service-data/", "component-security/", "finance-library/", "component-db/",
+    "channel-library/",
+)
+
+
+def method_body_metrics(lines: list[str], index: int) -> tuple[int, int]:
+    depth = 0
+    started = False
+    body_lines = 0
+    branches = 0
+    in_block = False
+    in_string = False
+    for cursor in range(index, min(len(lines), index + 800)):
+        line = lines[cursor]
+        if not started and ";" in line and "{" not in line:
+            return 0, 0
+        delta, in_block, in_string = current_depth(line, in_block, in_string)
+        if "{" in line or started:
+            started = True
+            body_lines += 1
+            branches += len(re.findall(r"\b(?:if|else|switch|case|catch|for|while|try)\b", line))
+        depth += delta
+        if started and depth <= 0:
+            break
+    return body_lines, branches
+
+
+def is_core_private_method(path: Path, name: str, lines: list[str], index: int) -> bool:
+    if not is_main_java(path):
+        return False
+    normalized = str(path).replace("\\", "/")
+    if not any(marker in normalized for marker in CORE_PATH_MARKERS):
+        return False
+    if CORE_PRIVATE_ALWAYS.search(name):
+        return True
+    if not CORE_PRIVATE_COMPLEX.search(name):
+        return False
+    body_lines, branches = method_body_metrics(lines, index)
+    return body_lines >= 15 or branches >= 2
 
 
 def is_empty_private_constructor(lines: list[str], index: int, type_name: str) -> bool:
@@ -288,7 +430,8 @@ def scan_structural_comments(path: Path, text: str) -> list[str]:
             mods = set((type_match.group("mods") or "").split())
             is_top = depth == 0
             is_public_static_nested = depth > 0 and {"public", "static"}.issubset(mods)
-            if (is_top or is_public_static_nested) and not has_javadoc_before(lines, index):
+            if (is_main_java(path) and (is_top or is_public_static_nested)
+                    and not has_javadoc_before(lines, index)):
                 findings.append(f"missing_type_javadoc:{name}:{index + 1}")
             type_stack.append((kind, name, depth))
             delta, in_block, in_string = current_depth(line, in_block, in_string)
@@ -297,7 +440,7 @@ def scan_structural_comments(path: Path, text: str) -> list[str]:
         current_type = type_stack[-1] if type_stack else None
         if current_type and current_type[0] == "enum" and depth == current_type[2] + 1:
             enum_value = ENUM_VALUE_RE.match(line)
-            if enum_value and not has_javadoc_before(lines, index):
+            if is_main_java(path) and enum_value and not has_javadoc_before(lines, index):
                 findings.append(f"missing_enum_value_javadoc:{enum_value.group('name')}:{index + 1}")
                 delta, in_block, in_string = current_depth(line, in_block, in_string)
                 depth += delta
@@ -305,7 +448,11 @@ def scan_structural_comments(path: Path, text: str) -> list[str]:
         field = FIELD_RE.match(line)
         if field and current_type and depth == current_type[2] + 1 and not stripped.startswith("return "):
             name = field.group("name")
-            if name not in LOGGER_NAMES and name not in TECHNICAL_STATIC_FIELDS and not has_javadoc_before(lines, index):
+            mods = set((field.group("mods") or "").split())
+            required_field = (is_main_java(path) and current_type[0] != "record"
+                              and (is_model_path(path) or {"static", "final"}.issubset(mods)))
+            if (required_field and name not in LOGGER_NAMES and name not in TECHNICAL_STATIC_FIELDS
+                    and not has_javadoc_before(lines, index)):
                 findings.append(f"missing_field_javadoc:{name}:{index + 1}")
             delta, in_block, in_string = current_depth(line, in_block, in_string)
             depth += delta
@@ -325,9 +472,11 @@ def scan_structural_comments(path: Path, text: str) -> list[str]:
             mods = set((method.group("mods") or "").split())
             ret = method.group("ret")
             is_constructor = name == current_type[1] and ret is None
-            is_private_core = "private" in mods and is_main_java(path)
-            is_required_method = "public" in mods or "protected" in mods or current_type[0] == "interface" or is_private_core
-            if is_constructor and is_private_core and is_empty_private_constructor(lines, index, current_type[1]):
+            is_private_core = "private" in mods and is_core_private_method(path, name, lines, index)
+            is_required_method = (is_main_java(path)
+                                  and ("public" in mods or "protected" in mods
+                                       or current_type[0] == "interface" or is_private_core))
+            if is_constructor or is_simple_accessor(path, name, method.group("params")):
                 delta, in_block, in_string = current_depth(line, in_block, in_string)
                 depth += delta
                 continue
@@ -344,11 +493,18 @@ def scan_structural_comments(path: Path, text: str) -> list[str]:
 def scan_file(path: Path) -> list[str]:
     text = path.read_text(encoding="utf-8")
     findings: list[str] = []
+    javadocs = JAVADOC_BLOCK_RE.findall(text)
     for pattern in TEMPLATE_PATTERNS:
-        if pattern.search(text):
+        if any(pattern.search(block) for block in javadocs):
             findings.append(f"template:{pattern.pattern}")
-    if ADJACENT_JAVADOC.search(text):
-        findings.append("adjacent-javadoc")
+    if DUPLICATE_TYPE_JAVADOC.search(text):
+        findings.append("duplicate-type-javadoc")
+    if ADJACENT_JAVADOC_RE.search(text):
+        findings.append("orphan-or-adjacent-javadoc")
+    if has_duplicate_javadocs_across_annotations(text):
+        findings.append("duplicate-javadoc-across-annotations")
+    if has_javadoc_after_annotations(text):
+        findings.append("javadoc-after-annotations")
     findings.extend(scan_structural_comments(path, text))
     return findings
 

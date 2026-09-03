@@ -18,7 +18,13 @@ import java.util.HexFormat;
 import java.util.Locale;
 
 /**
- * 交易链路风控值归一化组件。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskRuntimeValueNormalizer
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 交易链路风控值归一化组件。
+ * @status : create
  */
 @Component
 public class RiskRuntimeValueNormalizer {
@@ -67,10 +73,9 @@ public class RiskRuntimeValueNormalizer {
     }
 
     /**
-     * 规范化完整 PAN，并生成脱敏展示值与不可逆哈希。
-     *
-     * @param cardNo 12 至 19 位卡号，属于敏感支付数据
-     * @return 不可用于日志明文输出的卡号查询值；长度无效时返回 {@code null}
+     * 规范化卡号并生成只包含哈希或脱敏片段的风控查询值。
+     * @param cardNo 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 当前方法生成的 {@code RiskRuntimeLookupValue} 结果
      */
     public RiskRuntimeLookupValue cardNo(String cardNo) {
         if (!StringUtils.hasText(cardNo)) {
@@ -99,10 +104,9 @@ public class RiskRuntimeValueNormalizer {
     }
 
     /**
-     * 将 IPv4 或 IPv6 文本规范化为可做区间比较的无符号整数。
-     *
-     * @param ip 客户端 IP 文本
-     * @return 含规范地址、IP 版本、数值和哈希的查询值；格式无效时返回 {@code null}
+     * 规范化 IP 地址并生成数值区间或摘要形式的风控查询值。
+     * @param ip 待规范化的可识别信息，仅允许以脱敏、哈希或数值区间形式参与匹配
+     * @return 当前方法生成的 {@code RiskRuntimeLookupValue} 结果
      */
     public RiskRuntimeLookupValue ip(String ip) {
         if (!StringUtils.hasText(ip)) {
@@ -170,10 +174,9 @@ public class RiskRuntimeValueNormalizer {
     }
 
     /**
-     * 规范化邮箱大小写和国际化域名，并生成脱敏展示值与不可逆哈希。
-     *
-     * @param email 邮箱地址
-     * @return 邮箱查询值；邮箱结构或域名无效时返回 {@code null}
+     * 规范化邮箱后生成不可逆摘要形式的风控查询值。
+     * @param email 待规范化的可识别信息，仅允许以脱敏、哈希或数值区间形式参与匹配
+     * @return 当前方法生成的 {@code RiskRuntimeLookupValue} 结果
      */
     public RiskRuntimeLookupValue email(String email) {
         String normalizedEmail = normalizedEmail(email);
@@ -281,10 +284,9 @@ public class RiskRuntimeValueNormalizer {
     }
 
     /**
-     * 从绝对来源 URL 中提取并规范化主机名。
-     *
-     * @param sourceUrl 交易来源 URL
-     * @return 含 ASCII 小写主机名和哈希的查询值；URL 无效或无主机名时返回 {@code null}
+     * 规范化来源 URL 主机名，生成只用于白名单匹配的风控查询值。
+     * @param sourceUrl 来源或回跳地址，必须经过协议、主机和长度校验
+     * @return 当前方法生成的 {@code RiskRuntimeLookupValue} 结果
      */
     public RiskRuntimeLookupValue sourceHost(String sourceUrl) {
         String host = normalizeHost(sourceUrl);

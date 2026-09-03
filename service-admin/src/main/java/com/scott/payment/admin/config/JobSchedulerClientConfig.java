@@ -41,7 +41,9 @@ public class JobSchedulerClientConfig {
      * @return 直连 RestTemplate
      */
     @Bean("jobSchedulerRestTemplate")
-    public RestTemplate jobSchedulerRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
+    public RestTemplate jobSchedulerRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer,
+                                                 JobSchedulerClientProperties properties) {
+        properties.validate();
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setProxy(Proxy.NO_PROXY);
         requestFactory.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);

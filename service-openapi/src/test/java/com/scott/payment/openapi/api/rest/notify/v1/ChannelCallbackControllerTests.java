@@ -29,7 +29,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 /**
- * 渠道回调控制器测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ChannelCallbackControllerTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 渠道回调控制器测试。
+ * @status : create
  */
 class ChannelCallbackControllerTests {
 

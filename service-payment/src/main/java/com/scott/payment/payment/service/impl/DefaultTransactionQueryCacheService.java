@@ -30,12 +30,54 @@ import java.util.regex.Pattern;
 @Service
 public class DefaultTransactionQueryCacheService implements TransactionQueryCacheService {
 
+    /**
+     * {@code BASE_TTL_SECONDS}常量，统一 {@code DefaultTransactionQueryCacheService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     static final long BASE_TTL_SECONDS = Duration.ofDays(3).toSeconds();
+    /**
+     * {@code MAX_JITTER_SECONDS}常量，统一 {@code DefaultTransactionQueryCacheService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     static final long MAX_JITTER_SECONDS = Duration.ofDays(1).toSeconds();
+    /**
+     * {@code GENERATION_TTL}常量，统一 {@code DefaultTransactionQueryCacheService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     static final Duration GENERATION_TTL = Duration.ofDays(5);
 
+    /**
+     * {@code CACHE_SCHEMA_VERSION}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CACHE_SCHEMA_VERSION = "v1";
+    /**
+     * {@code INITIAL_GENERATION}常量，统一 {@code DefaultTransactionQueryCacheService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String INITIAL_GENERATION = "0";
+    /**
+     * {@code ORDER_QUERY_VARIANT}常量，统一 {@code DefaultTransactionQueryCacheService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ORDER_QUERY_VARIANT = "order";
 
     /** 禁止任何请求嵌套对象把卡认证字段带入明文查询缓存。 */

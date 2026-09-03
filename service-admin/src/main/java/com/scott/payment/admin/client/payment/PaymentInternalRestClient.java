@@ -69,6 +69,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     /** 请款动作内部接口。 */
     private static final String CAPTURE_PATH = "/internal/payment/capture";
 
+    /** 预授权完成动作内部接口。 */
+    private static final String PRE_AUTH_COMPLETION_PATH = "/internal/payment/pre-auth-completion";
+
     /** 退款动作内部接口。 */
     private static final String REFUND_PATH = "/internal/payment/refund";
 
@@ -78,39 +81,22 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     /** 单笔渠道勾兑内部接口。 */
     private static final String CHANNEL_MATCH_REQUERY_PATH = "/internal/payment/channel-match";
 
+    /**
+     * {@code REFUND_APPROVAL_PATH}，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * </p>
+     */
     private static final String REFUND_APPROVAL_PATH = "/internal/payment/refund-approvals";
 
     private static final String CHANNEL_MATCH_ABNORMAL_PATH =
             "/internal/payment/channel-match/abnormalities";
 
-    /**
-     * direct Rest Template，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final RestTemplate directRestTemplate;
 
-    /**
-     * load Balanced Rest Template，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final RestTemplate loadBalancedRestTemplate;
 
-    /**
-     * properties 依赖，用于 Payment Internal Rest Client 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final PaymentInternalClientProperties properties;
 
     /**
@@ -195,6 +181,16 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 });
     }
 
+    /**
+     * 将异常交易人工动作发送到支付核心，事件号与动作名共同限定远端状态机入口。
+     *
+     * @param eventId 异常事件唯一标识
+     * @param action 支付核心支持的人工动作
+     * @param command 已绑定可信操作人的动作命令
+     * @param typeReference 业务响应泛型
+     * @param <T> 动作结果类型
+     * @return 支付核心返回的动作结果
+     */
     private <T> T postAbnormalAction(String eventId,
                                      String action,
                                      Object command,
@@ -226,6 +222,22 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     public TransactionActionResponse capture(PaymentTransactionActionClientRequestDTO requestDTO) {
         CommonResult<TransactionActionResponse> result = post(
                 servicePaymentUrl(CAPTURE_PATH),
+                requestDTO,
+                new TypeReference<CommonResult<TransactionActionResponse>>() {
+                });
+        return unwrapData(result);
+    }
+
+    /**
+     * 通过支付核心发起预授权完成动作。
+     *
+     * @param requestDTO 支付核心内部预授权完成命令
+     * @return 预授权完成动作结果
+     */
+    @Override
+    public TransactionActionResponse preAuthCompletion(PaymentTransactionActionClientRequestDTO requestDTO) {
+        CommonResult<TransactionActionResponse> result = post(
+                servicePaymentUrl(PRE_AUTH_COMPLETION_PATH),
                 requestDTO,
                 new TypeReference<CommonResult<TransactionActionResponse>>() {
                 });
@@ -274,6 +286,16 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return SERVICE_PAYMENT_BASE_URL + path;
     }
 
+    /**
+     * 对支付核心内部 POST 命令生成完整目标签名并完成响应反序列化，密钥不会进入请求或日志。
+     *
+     * @param url 支付核心内部接口完整地址
+     * @param body 内部命令请求体
+     * @param typeReference 响应泛型
+     * @param <T> 响应类型
+     * @return 反序列化后的内部响应
+     * @throws ServiceException 内部调用被拒绝、网络失败或响应非法时抛出
+     */
     private <T> T post(String url, Object body, TypeReference<T> typeReference) {
         URI uri = URI.create(url);
         try {
@@ -359,18 +381,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return result.getData();
     }
 
-    /**
-     * 转换转换HTTP异常，把下游响应、异常或包装结果映射为当前模块统一语义。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param method HTTP 方法或内部调用方法名，用于构造请求、签名或异常摘要
-     * @param uri 请求地址或路径，用于定位内部服务、渠道接口或商户回调目标
-     * @param exception 下游调用、校验或持久化阶段捕获的异常对象
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private ApiException translateHttpException(HttpMethod method, URI uri, HttpStatusCodeException exception) {
         log.warn("service-payment {} call returned non-success status, targetPath: {}, status: {}, exceptionType: {}",
                 method.name(),

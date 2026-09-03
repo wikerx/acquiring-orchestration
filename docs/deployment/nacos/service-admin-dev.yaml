@@ -10,10 +10,54 @@ acquiring:
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
 
 admin:
+  clearing-client:
+    # 参数说明：清分命令服务地址；管理端页面查询仍使用 service-admin 本地逻辑数据源。
+    # 环境说明：dev 默认使用 Nacos 服务名；跨集群部署时改为本环境内部 HTTPS 地址。
+    base-url: ${ADMIN_CLEARING_BASE_URL:http://service-clearing}
+    # 参数说明：建立清分内部 HTTP 连接的最大等待时间，单位毫秒，必须为正整数。
+    connect-timeout-millis: ${ADMIN_CLEARING_CONNECT_TIMEOUT_MILLIS:3000}
+    # 参数说明：等待清分命令响应的最大时间，单位毫秒，应覆盖单次补偿命令的正常 P99。
+    read-timeout-millis: ${ADMIN_CLEARING_READ_TIMEOUT_MILLIS:30000}
+    # 参数说明：写入内部签名头的固定调用方标识；必须与验签端 callers 键完全一致，不允许环境覆盖。
+    internal-caller: service-admin
+    # 参数说明：Admin 到 Clearing 调用边的当前 HMAC 密钥引用；密钥正文由受控脚本合入当前服务 DataId。
+    internal-secret: ${acquiring.internal-auth.edges.admin-clearing.active-secret}
+  settlement-client:
+    # 参数说明：结算命令服务地址；手工结算、审批、取消和冲正必须通过该内部鉴权接口执行。
+    # 环境说明：dev 默认使用 Nacos 服务名；跨集群部署时改为本环境内部 HTTPS 地址。
+    base-url: ${ADMIN_SETTLEMENT_BASE_URL:http://service-settlement}
+    # 参数说明：建立结算内部 HTTP 连接的最大等待时间，单位毫秒，必须为正整数。
+    connect-timeout-millis: ${ADMIN_SETTLEMENT_CONNECT_TIMEOUT_MILLIS:3000}
+    # 参数说明：等待结算命令响应的最大时间，单位毫秒，应覆盖同步状态机和落库处理的正常 P99。
+    read-timeout-millis: ${ADMIN_SETTLEMENT_READ_TIMEOUT_MILLIS:30000}
+    # 参数说明：结算内部请求的固定可信调用方标识，禁止改成登录用户名或前端上送值。
+    internal-caller: service-admin
+    # 参数说明：Admin 到 Settlement 调用边的当前 HMAC 密钥引用；只能通过密钥管理脚本轮换。
+    internal-secret: ${acquiring.internal-auth.edges.admin-settlement.active-secret}
   payment-client:
-    # 参数说明：指定内部服务调用方标识，必须与被调用方签名白名单一致。
-    # 环境说明：环境变量：PAYMENT_INTERNAL_CALLER，dev 配置默认值为 "service-admin"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
-    internal-caller: ${PAYMENT_INTERNAL_CALLER:service-admin}
-    # 参数说明：配置内部服务 HMAC-SHA256 共享密钥，调用方与被调用方必须使用同一环境的密钥。
-    # 环境说明：环境变量：PAYMENT_INTERNAL_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
-    internal-secret: ${PAYMENT_INTERNAL_SECRET:dev-internal-service-secret}
+    # 参数说明：支付管理命令的固定可信调用方标识，必须保持 service-admin。
+    internal-caller: service-admin
+    # 参数说明：Admin 到 Payment 调用边的当前 HMAC 密钥引用，用于请款、撤销、退款和异常处置命令。
+    internal-secret: ${acquiring.internal-auth.edges.admin-payment.active-secret}
+  job-client:
+    # 参数说明：任务管理命令的固定可信调用方标识，必须保持 service-admin。
+    internal-caller: service-admin
+    # 参数说明：Admin 到 Job 调用边的当前 HMAC 密钥引用，用于后台任务启停和人工触发命令。
+    internal-secret: ${acquiring.internal-auth.edges.admin-job.active-secret}
+
+internal-service:
+  auth:
+    # enabled 安全门禁固定在本地 application.yml；此处只维护调用方凭据、权限路径和防重放时间窗。
+    callers:
+      service-merchant:
+        # 参数说明：遗留 Merchant 到 Admin 兼容接口的当前验签密钥；正常商户查询不得走该远程链路。
+        active-secret: ${acquiring.internal-auth.edges.merchant-admin.active-secret}
+        # 参数说明：兼容接口密钥轮换期间接受的上一版密钥；非轮换窗口解析为空字符串。
+        previous-secret: ${acquiring.internal-auth.edges.merchant-admin.previous-secret:}
+        allowed-paths:
+          # 路径说明：仅覆盖仍保留的遗留商户内部接口，禁止扩展为 Admin 页面或任意通配入口。
+          - /internal/merchant/**
+    # 参数说明：内部签名时间戳允许的最大时钟偏差，使用 Spring Duration；生产节点必须启用 NTP。
+    allowed-clock-skew: 5m
+    # 参数说明：内部请求 nonce 防重放记录保留时间，必须大于允许时钟偏差和请求最长执行时间。
+    nonce-ttl: 10m

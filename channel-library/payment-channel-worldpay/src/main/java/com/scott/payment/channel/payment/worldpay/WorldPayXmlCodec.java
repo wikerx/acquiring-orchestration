@@ -51,14 +51,9 @@ public class WorldPayXmlCodec {
     private static final Pattern DOCTYPE_PATTERN = Pattern.compile("<!DOCTYPE[^>]*>", Pattern.CASE_INSENSITIVE);
 
     /**
-     * 将 WPGXML 请求对象序列化为 XML。
-     * <p>
-     * 前置条件：payload 已由 WorldPayXmlRequestMapper 校验并填充必要节点；PAN/CVC/CAVV 仅进入当前 XML 报文。
-     * 方法使用 DOM 创建节点和 Transformer 输出，避免手工字符串拼接导致转义遗漏或节点结构错误。
-     * </p>
-     *
-     * @param payload WPGXML 请求对象
-     * @return WPGXML 请求原文
+     * 将 Worldpay 请求对象序列化为符合 WPGXML 协议的 XML 文本。
+     * @param payload 已完成业务校验的 Worldpay XML 请求模型
+     * @return 包含受控 DOCTYPE 的 UTF-8 XML 请求文本
      */
     public String writeRequest(WorldPayXmlRequestPayload payload) {
         if (payload == null) {
@@ -117,15 +112,6 @@ public class WorldPayXmlCodec {
         }
     }
 
-    /**
-     * 创建用于 WPGXML 请求序列化的 DOM 文档。
-     * <p>
-     * 前置条件：调用方已校验请求对象；本方法只创建内存 DOM，不读取外部 DTD、不发起网络请求。
-     * </p>
-     *
-     * @return 已启用 XML 安全特性的空 DOM 文档
-     * @throws Exception DOM 工厂初始化失败时抛出，由上层转换为渠道请求异常
-     */
     private Document newDocument() throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         harden(factory);

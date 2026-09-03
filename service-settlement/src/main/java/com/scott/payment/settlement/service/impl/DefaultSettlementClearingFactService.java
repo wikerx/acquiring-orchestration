@@ -9,6 +9,7 @@ import com.scott.payment.settlement.dto.SettlementCurrency;
 import com.scott.payment.settlement.entity.SettlementBatchDO;
 import com.scott.payment.settlement.entity.SettlementCandidateDO;
 import com.scott.payment.settlement.entity.SettlementReserveClearingDetailDO;
+import com.scott.payment.settlement.entity.SettlementReviewOrderDO;
 import com.scott.payment.settlement.entity.SettlementTransactionClearingDetailDO;
 import com.scott.payment.settlement.exception.SettlementProcessingException;
 import com.scott.payment.settlement.mapper.SettlementClearingFactMapper;
@@ -40,9 +41,37 @@ import java.util.Set;
 @Service
 public class DefaultSettlementClearingFactService implements SettlementClearingFactService {
 
+    /**
+     * {@code ACTIVE}常量，统一 {@code DefaultSettlementClearingFactService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ACTIVE = "ACTIVE";
+    /**
+     * {@code CLEARING_REVISION}常量，统一 {@code DefaultSettlementClearingFactService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String CLEARING_REVISION = "CLEARING_REVISION";
+    /**
+     * {@code RESERVE_RELEASE}常量，统一 {@code DefaultSettlementClearingFactService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RESERVE_RELEASE = "RESERVE_RELEASE";
+    /**
+     * {@code ADJUSTMENT}常量，统一 {@code DefaultSettlementClearingFactService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ADJUSTMENT = "ADJUSTMENT";
     private static final Set<String> SOURCE_TYPES = Set.of(
             CLEARING_REVISION, RESERVE_RELEASE, ADJUSTMENT);
@@ -66,6 +95,49 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         validateBatch(batch);
         List<SettlementCandidateDO> candidates = safe(factMapper.selectClaimedCandidates(
                 batch.getSettlementBatchNo()));
+        return load(batch, candidates, "CLAIMED", batch.getSettlementBatchNo(), null);
+    }
+
+    /**
+     * 读取预审单当前独占候选及其完整清分事实，用于审批前指纹复算。
+     *
+     * @param reviewOrder 待复算预审单及冻结批次维度
+     * @return 与 REVIEW_LOCKED 候选一一对应的交易和保证金事实
+     * @throws SettlementProcessingException 候选数量、归属、修订或清分事实不一致时抛出
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public SettlementBatchFacts loadReview(SettlementReviewOrderDO reviewOrder) {
+        SettlementBatchDO batch = reviewBatch(reviewOrder);
+        validateBatch(batch);
+        List<SettlementCandidateDO> candidates = safe(factMapper.selectReviewLockedCandidates(
+                reviewOrder.getReviewOrderNo()));
+        return load(batch, candidates, "REVIEW_LOCKED", null, reviewOrder.getReviewOrderNo());
+    }
+
+    /**
+     * 使用提交事务内已锁定的候选集合加载清分事实，避免重复查询改变候选选择。
+     *
+     * @param reviewOrder 正在创建的预审单维度
+     * @param candidates 已通过版本 CAS 锁定的候选集合
+     * @return 与传入候选一一对应的完整清分事实
+     * @throws SettlementProcessingException 候选路由或清分事实不完整时抛出
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public SettlementBatchFacts loadReviewSelection(SettlementReviewOrderDO reviewOrder,
+                                                    List<SettlementCandidateDO> candidates) {
+        SettlementBatchDO batch = reviewBatch(reviewOrder);
+        validateBatch(batch);
+        return load(batch, safe(candidates), "REVIEW_LOCKED", null, reviewOrder.getReviewOrderNo());
+    }
+
+    /** 精确按候选来源路由加载清分事实，并校验数量、唯一性、币种 exponent 和候选一一归属。 */
+    private SettlementBatchFacts load(SettlementBatchDO batch,
+                                      List<SettlementCandidateDO> candidates,
+                                      String expectedCandidateStatus,
+                                      String expectedBatchNo,
+                                      String expectedReviewOrderNo) {
         if (candidates.size() != batch.getCandidateCount()) {
             throw failure("SETTLEMENT_CANDIDATE_COUNT_MISMATCH",
                     "settlement batch candidate relation count is inconsistent");
@@ -74,7 +146,8 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         Map<FactKey, SettlementCandidateDO> candidateByKey = new LinkedHashMap<>();
         List<SettlementClearingLocator> locators = new ArrayList<>(candidates.size());
         for (SettlementCandidateDO candidate : candidates) {
-            validateCandidate(batch, candidate);
+            validateCandidate(batch, candidate, expectedCandidateStatus,
+                    expectedBatchNo, expectedReviewOrderNo);
             FactKey key = new FactKey(candidate.getSourceTransactionId(),
                     candidate.getSourceTransactionDateTime(), candidate.getSourceRevision());
             if (candidateByKey.putIfAbsent(key, candidate) != null) {
@@ -117,6 +190,27 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return new SettlementBatchFacts(candidates, transactionDetails, reserveDetails, currencies);
     }
 
+    /** 将预审单冻结维度映射为临时批次对象，复用正式批次事实校验口径。 */
+    private SettlementBatchDO reviewBatch(SettlementReviewOrderDO review) {
+        if (review == null || !StringUtils.hasText(review.getReviewOrderNo())) {
+            throw failure("SETTLEMENT_REVIEW_INCOMPLETE", "settlement review identity is incomplete");
+        }
+        SettlementBatchDO batch = new SettlementBatchDO();
+        batch.setSettlementBatchNo(review.getReviewOrderNo());
+        batch.setMerchantId(review.getMerchantId());
+        batch.setSettlementProfileId(review.getSettlementProfileId());
+        batch.setSettlementAccountId(review.getSettlementAccountId());
+        batch.setTargetCurrency(review.getTargetCurrency());
+        batch.setTargetCurrencyExponent(review.getTargetCurrencyExponent());
+        batch.setBatchType(review.getReviewType());
+        batch.setCandidateCount(review.getCandidateCount());
+        batch.setBusinessDate(review.getBusinessDate());
+        batch.setCutoffBeginTime(review.getCutoffBeginTime());
+        batch.setCutoffEndTime(review.getCutoffEndTime());
+        return batch;
+    }
+
+    /** 校验批次或预审具备商户、账户、目标币种、类型和正候选数等完整维度。 */
     private void validateBatch(SettlementBatchDO batch) {
         if (batch == null || !StringUtils.hasText(batch.getSettlementBatchNo())
                 || !StringUtils.hasText(batch.getMerchantId()) || batch.getCandidateCount() == null
@@ -127,7 +221,12 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         }
     }
 
-    private void validateCandidate(SettlementBatchDO batch, SettlementCandidateDO candidate) {
+    /** 校验候选状态、批次/预审独占归属、来源类型、目标币种和非影子模式。 */
+    private void validateCandidate(SettlementBatchDO batch,
+                                   SettlementCandidateDO candidate,
+                                   String expectedCandidateStatus,
+                                   String expectedBatchNo,
+                                   String expectedReviewOrderNo) {
         if (candidate == null || candidate.getId() == null || candidate.getSourceRevision() == null
                 || candidate.getSourceRevision() < 1 || !SOURCE_TYPES.contains(candidate.getSourceType())
                 || !sourceMatchesBatch(candidate.getSourceType(), batch.getBatchType())
@@ -138,14 +237,16 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
                 || !Objects.equals(candidate.getSettlementProfileId(), batch.getSettlementProfileId())
                 || !Objects.equals(candidate.getTargetCurrency(), batch.getTargetCurrency())
                 || !Objects.equals(candidate.getTargetCurrencyExponent(), batch.getTargetCurrencyExponent())
-                || !Objects.equals(candidate.getSettlementBatchNo(), batch.getSettlementBatchNo())
-                || !"CLAIMED".equals(candidate.getCandidateStatus())
+                || !Objects.equals(candidate.getSettlementBatchNo(), expectedBatchNo)
+                || !Objects.equals(candidate.getReviewOrderNo(), expectedReviewOrderNo)
+                || !expectedCandidateStatus.equals(candidate.getCandidateStatus())
                 || !Integer.valueOf(0).equals(candidate.getShadowMode())) {
             throw failure("SETTLEMENT_CANDIDATE_INCONSISTENT",
                     "settlement candidate identity or source type is inconsistent");
         }
     }
 
+    /** 校验交易清分行修订、商户、方向、金额、币种精度和记录终态，并返回精确路由键。 */
     private FactKey validateTransactionDetail(
             SettlementBatchDO batch,
             Map<FactKey, SettlementCandidateDO> candidateByKey,
@@ -172,6 +273,7 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return key;
     }
 
+    /** 校验保证金清分行动作、方向、原标签币种、非负金额和候选来源，并返回精确路由键。 */
     private FactKey validateReserveDetail(
             SettlementBatchDO batch,
             Map<FactKey, SettlementCandidateDO> candidateByKey,
@@ -199,15 +301,17 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return key;
     }
 
+    /** 要求批次类型与候选来源严格对应，REVERSAL 不直接重新读取清分候选。 */
     private boolean sourceMatchesBatch(String sourceType, String batchType) {
         return switch (batchType) {
-            case "REGULAR" -> CLEARING_REVISION.equals(sourceType) || ADJUSTMENT.equals(sourceType);
+            case "REGULAR" -> CLEARING_REVISION.equals(sourceType);
             case "RESERVE_RELEASE" -> RESERVE_RELEASE.equals(sourceType);
             case "ADJUSTMENT" -> ADJUSTMENT.equals(sourceType);
             default -> false;
         };
     }
 
+    /** 要求 RESERVE_RELEASE 只包含 RELEASE，ADJUSTMENT 只包含 ADJUSTMENT，交易清分包含 HOLD/RETURN。 */
     private boolean reserveActionMatchesSource(String actionType, String sourceType) {
         if (CLEARING_REVISION.equals(sourceType)) {
             return "HOLD".equals(actionType) || "RETURN".equals(actionType);
@@ -218,6 +322,7 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return ADJUSTMENT.equals(sourceType) && ADJUSTMENT.equals(actionType);
     }
 
+    /** 从保证金清分行提取动作唯一金额列，拒绝多列同时发生或负金额。 */
     private BigDecimal reserveAmount(SettlementReserveClearingDetailDO row) {
         if (row == null || row.getReserveActionType() == null) {
             return null;
@@ -231,6 +336,7 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         };
     }
 
+    /** 构造交易号、季度分片时间和清分修订组合路由键，任一缺失即阻断。 */
     private FactKey transactionKey(String transactionId, LocalDateTime time, Integer revision) {
         if (!StringUtils.hasText(transactionId) || time == null || revision == null || revision < 1) {
             throw failure("SETTLEMENT_CLEARING_ROUTE_INCOMPLETE",
@@ -239,6 +345,7 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         return new FactKey(transactionId, time, revision);
     }
 
+    /** 汇总清分事实涉及的 ISO 币种及 exponent，并拒绝同币种精度冲突。 */
     private void addCurrency(Map<String, Integer> exponents, String currency, Integer exponent) {
         SettlementCurrency value;
         try {
@@ -257,6 +364,7 @@ public class DefaultSettlementClearingFactService implements SettlementClearingF
         }
     }
 
+    /** 保证清分明细业务号在本批事实集合内唯一，防止一行重复参与金额计算。 */
     private void requireUnique(Set<String> detailNumbers, String value) {
         if (!StringUtils.hasText(value) || !detailNumbers.add(value)) {
             throw failure("SETTLEMENT_CLEARING_DETAIL_DUPLICATED",

@@ -9,6 +9,7 @@ import java.io.Serializable;
  * @version : v1.0.0
  * @classname : RefundApprovalDecisionCommandDTO
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款审批内部决策命令，使用稳定请求号吸收重复提交，并携带认证后的 Admin 操作人快照。
  * @status : create
  */

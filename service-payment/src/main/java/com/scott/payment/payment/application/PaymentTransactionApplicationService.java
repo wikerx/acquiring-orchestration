@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
  * @classname : PaymentTransactionApplicationService
  * @date : 2026-07-14 12:30
  * @email : scott_x@163.com
- * @description : 收单交易应用服务，位于 service-payment 应用编排层，负责承接内部交易动作命令并委托交易服务执行幂等、风控、路由和渠道调用。
+ * @description : 支付交易应用服务，位于 支付核心服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
 @Service

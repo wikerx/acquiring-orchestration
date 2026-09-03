@@ -114,6 +114,7 @@ class DefaultSettlementClearingFactServiceTest {
     @Test
     void shouldRejectTransactionDetailForAdjustmentSource() {
         SettlementBatchDO batch = batch(1);
+        batch.setBatchType("ADJUSTMENT");
         SettlementCandidateDO candidate = candidate();
         candidate.setSourceType("ADJUSTMENT");
         candidate.setSourceBusinessId("RA-1");

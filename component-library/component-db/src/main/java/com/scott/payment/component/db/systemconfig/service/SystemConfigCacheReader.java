@@ -22,6 +22,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class SystemConfigCacheReader {
 
+    /**
+     * {@code NOT_DELETED}常量，统一 {@code SystemConfigCacheReader} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long NOT_DELETED = 0L;
 
     private final SystemConfigMapper systemConfigMapper;
@@ -52,10 +59,12 @@ public class SystemConfigCacheReader {
     }
 
     /**
-     * pending 门禁存在或 Redis 状态未知时绕过缓存读取主库。
-     *
-     * @param configKey 已规范化的全局唯一参数键名
-     * @return 当前主库中的未删除配置快照；不存在时返回 null
+     * 绕过方法级缓存读取当前数据源中的最新业务值。
+     * <p>
+     * 只读操作；实现必须沿用 公共组件库 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param configKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @DS(DataSourceName.MASTER)
     public SystemConfigSnapshot findFresh(String configKey) {

@@ -45,7 +45,13 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Hosted Checkout 开放接口默认实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : HostedCheckoutServiceImpl
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 开放接口默认实现。
+ * @status : create
  */
 @Slf4j
 @Service
@@ -434,6 +440,14 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return vo;
     }
 
+    /**
+     * 构造{@code toCardEncryptionVO}对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
+     * </p>
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private HostedCheckoutSessionVO.CardEncryptionVO toCardEncryptionVO(
             PaymentCheckoutClientDTOs.CardEncryption source) {
         if (source == null) {

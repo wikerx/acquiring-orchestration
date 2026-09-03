@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
  * @version : v1.0.0
  * @classname : RefundExecutionConsumer
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款审批执行 MQ 消费者，仅解析非敏感执行身份并委托数据库状态机处理至少一次投递。
  * @status : create
  */

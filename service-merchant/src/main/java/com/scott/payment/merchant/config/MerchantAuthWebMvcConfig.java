@@ -10,7 +10,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import java.util.List;
 
 
-@Configuration
 /**
  * @author : scott
  * @version : v1.0.0
@@ -20,6 +19,7 @@ import java.util.List;
  * @description : Merchant Auth Web Mvc Config 配置类，位于 商户后台服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
+@Configuration
 public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
 
     /**

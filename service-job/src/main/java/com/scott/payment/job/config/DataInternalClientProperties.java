@@ -1,5 +1,6 @@
 package com.scott.payment.job.config;
 
+import com.scott.payment.component.web.internal.InternalServiceClientCredentialValidator;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -26,5 +27,11 @@ public class DataInternalClientProperties {
     private String internalCaller = "service-job";
 
     /** HMAC-SHA256 共享密钥，UAT 和生产必须由受控配置注入。 */
-    private String internalSecret = "dev-internal-service-secret";
+    private String internalSecret;
+
+    /** 启动前校验固定调用方和 Nacos 注入的 active 密钥。 */
+    public void validate() {
+        InternalServiceClientCredentialValidator.validate(
+                "job data-client", "service-job", internalCaller, internalSecret);
+    }
 }

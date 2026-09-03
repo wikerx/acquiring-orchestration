@@ -3,7 +3,7 @@
 spring:
   config:
     import:
-      # 参数说明：导入当前服务专属 Nacos DataId，承载只属于该服务的业务开关。
+      # 参数说明：导入当前服务专属 Nacos DataId，承载当前服务业务参数和其参与的内部鉴权配置。
       - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入公共 Nacos DataId，统一时间、监控和链路追踪配置。
       - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}

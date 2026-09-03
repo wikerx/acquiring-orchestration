@@ -15,7 +15,13 @@ import java.time.format.DateTimeFormatter;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 商户后台交易列表分片时间序列化契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantTransactionShardingTimeSerializationTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户后台交易列表分片时间序列化契约测试。
+ * @status : create
  */
 class MerchantTransactionShardingTimeSerializationTest {
 

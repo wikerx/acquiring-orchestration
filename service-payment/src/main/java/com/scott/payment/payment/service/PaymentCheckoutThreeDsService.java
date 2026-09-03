@@ -8,7 +8,13 @@ import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.channel.payment.enums.ChannelThreeDsPhase;
 
 /**
- * Hosted Checkout 3DS 后端阶段服务；浏览器 Method/Challenge 与回跳恢复由后续专项流程编排。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutThreeDsService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 3DS 后端阶段服务；浏览器 Method/Challenge 与回跳恢复由后续专项流程编排。
+ * @status : create
  */
 public interface PaymentCheckoutThreeDsService {
 

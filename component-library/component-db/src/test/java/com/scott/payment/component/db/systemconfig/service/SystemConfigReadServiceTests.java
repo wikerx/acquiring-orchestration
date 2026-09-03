@@ -16,7 +16,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 跨服务系统参数永久缓存门禁和降级测试。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SystemConfigReadServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 跨服务系统参数永久缓存门禁和降级测试。
+ * @status : create
+ */
 class SystemConfigReadServiceTests {
 
     /** 前置 pending 门禁存在时必须完全绕过永久缓存。 */

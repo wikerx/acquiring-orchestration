@@ -25,7 +25,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证 Admin 清分本地查询的分片范围、标准分页、稳定排序和金额语义。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JdbcAdminClearingQueryServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 Admin 清分本地查询的分片范围、标准分页、稳定排序和金额语义。
+ * @status : create
+ */
 class JdbcAdminClearingQueryServiceTests {
 
     @Test

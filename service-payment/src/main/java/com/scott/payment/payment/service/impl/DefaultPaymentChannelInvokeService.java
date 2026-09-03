@@ -50,14 +50,6 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
      */
     private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
 
-    /**
-     * payment Channel Executor，用于保存 Default Payment Channel Invoke Service 中与 payment渠道executor 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final PaymentChannelExecutor paymentChannelExecutor;
 
     /**
@@ -625,16 +617,6 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
                 .orElse("");
     }
 
-    /**
-     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -650,11 +632,10 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
     public static class PaymentChannelInvokeException extends RuntimeException {
 
         /**
-         * invoke Result，用于保存 Payment Channel Invoke Exception 中与 invokeresult 相关的业务属性。
+         * 调用结果字段，保存 支付渠道调用异常 当前处理所需的业务取值。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final PaymentChannelInvokeResultDTO invokeResult;

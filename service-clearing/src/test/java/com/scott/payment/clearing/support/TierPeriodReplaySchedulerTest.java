@@ -14,7 +14,15 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-/** 验证阶梯重放随服务自动调度，单次扫描异常不会终止后续调度周期。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : TierPeriodReplaySchedulerTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证阶梯重放随服务自动调度，单次扫描异常不会终止后续调度周期。
+ * @status : create
+ */
 class TierPeriodReplaySchedulerTest {
 
     @Test

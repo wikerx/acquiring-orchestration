@@ -1334,6 +1334,7 @@ CREATE TABLE merchant_settlement_profile (
     target_currency_exponent TINYINT NOT NULL COMMENT '目标币种ISO小数位',
     business_time_zone VARCHAR(64) NOT NULL COMMENT '日切使用的IANA业务时区',
     daily_cutoff_time TIME NOT NULL COMMENT '商户本地每日结算日切时间',
+    processing_mode VARCHAR(16) NOT NULL DEFAULT 'AUTO_POST' COMMENT 'AUTO_POST、AUTO_REVIEW、MANUAL',
     profile_status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE、RETIRED、SUSPENDED',
     active_slot TINYINT NULL COMMENT '活动档案固定为1，非活动档案为空，用于唯一约束',
     effective_date DATE NOT NULL COMMENT '档案生效业务日期',
@@ -1347,6 +1348,7 @@ CREATE TABLE merchant_settlement_profile (
     KEY idx_settlement_profile_account (settlement_account_id, merchant_id, id),
     CONSTRAINT chk_settlement_profile_value CHECK (
         target_currency_exponent BETWEEN 0 AND 8
+        AND processing_mode IN ('AUTO_POST', 'AUTO_REVIEW', 'MANUAL')
         AND profile_status IN ('ACTIVE', 'RETIRED', 'SUSPENDED')
         AND ((profile_status = 'ACTIVE' AND active_slot = 1)
              OR (profile_status <> 'ACTIVE' AND active_slot IS NULL))

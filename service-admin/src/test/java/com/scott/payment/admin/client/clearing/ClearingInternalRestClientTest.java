@@ -26,6 +26,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ClearingInternalRestClientTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 Admin 调用清分内部接口时签名绑定分片时间、完整目标和专用命令资源
+ * @status : create
+ */
 class ClearingInternalRestClientTest {
 
     @Test
