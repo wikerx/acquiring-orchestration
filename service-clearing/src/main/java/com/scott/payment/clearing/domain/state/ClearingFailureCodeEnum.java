@@ -73,6 +73,8 @@ public enum ClearingFailureCodeEnum {
      * </p>
      */
     FEE_RULE_AMBIGUOUS(false),
+    /** 交易结算工作日日历缺失或未确认，禁止猜算可结算日。 */
+    SETTLEMENT_CALENDAR_UNAVAILABLE(true),
     /**
      * AMOUNT INVALID 枚举值，表示当前枚举定义中的一个受控业务取值。
      * <p>

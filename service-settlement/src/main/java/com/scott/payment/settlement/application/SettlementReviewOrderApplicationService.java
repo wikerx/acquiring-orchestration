@@ -285,6 +285,10 @@ public class SettlementReviewOrderApplicationService {
         }
         SettlementReviewOrderDO order = orderMapper.selectByReviewOrderNoForUpdate(reviewOrderNo.trim());
         requirePendingDecision(order, command);
+        if ("MANUAL_ASYNC".equals(order.getCreateMode())) {
+            throw new IllegalStateException(
+                    "large manual settlement review decisions must use the asynchronous decision task");
+        }
         validateMakerChecker(order, command);
         List<SettlementReviewCandidateDO> relations = safe(
                 reviewCandidateMapper.selectByOrderNoForUpdate(order.getReviewOrderNo()));

@@ -84,6 +84,12 @@ docs/sql/*
 !docs/sql/20260901_04_channel_capability_default_currency_postcheck.sql
 !docs/sql/20260901_05_settlement_system_operator_cancellation_migration.sql
 !docs/sql/20260901_06_settlement_system_operator_cancellation_postcheck.sql
+!docs/sql/20260905_01_manual_settlement_async_review_migration.sql
+!docs/sql/20260905_02_manual_settlement_async_review_postcheck.sql
+!docs/sql/20260905_03_settlement_batch_recovery_migration.sql
+!docs/sql/20260905_04_settlement_batch_recovery_postcheck.sql
+!docs/sql/20260908_01_manual_reserve_settlement_review_migration.sql
+!docs/sql/20260908_02_manual_reserve_settlement_review_postcheck.sql
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md

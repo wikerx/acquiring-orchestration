@@ -3,9 +3,12 @@ package com.scott.payment.clearing.service.impl;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.scott.payment.clearing.domain.state.ClearingFailureCodeEnum;
 import com.scott.payment.clearing.dto.FeeVersionCacheEntryDTO;
 import com.scott.payment.clearing.dto.FeeVersionConfigurationDTO;
@@ -25,12 +28,15 @@ import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.Refund
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveBasis;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReservePolicySnapshot;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveRefundPolicy;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.SettlementPolicySnapshot;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -80,6 +86,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
     private final StringRedisTemplate redisTemplate;
     private final PaymentRedisKeyResolver keyResolver;
     private final ObjectMapper canonicalMapper;
+    private final ObjectMapper hashMapper;
     private final LongSupplier randomLongSupplier;
     private final ClearingOperationalMetrics metrics;
 
@@ -116,6 +123,7 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         this.redisTemplate = redisTemplate;
         this.keyResolver = keyResolver;
         this.canonicalMapper = canonicalMapper(objectMapper);
+        this.hashMapper = normalizedHashMapper(this.canonicalMapper);
         this.metrics = metrics;
         this.randomLongSupplier = randomLongSupplier;
     }
@@ -135,21 +143,32 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                 transactionId, transactionDateTime);
         validateRowIdentity(row, merchantId, operationId, transactionId, transactionDateTime);
 
-        FeeVersionSnapshot frozen = readFrozen(row);
-        if (frozen != null) {
+        FrozenSnapshotRead frozenRead = readFrozen(row);
+        if (frozenRead.hashValid()) {
             metrics.recordFeeSource("SNAPSHOT");
-            return frozen;
+            return frozenRead.snapshot();
         }
-        FeeVersionConfigurationDTO configuration = readCached(row);
-        if (configuration == null) {
+
+        FeeVersionConfigurationDTO configuration;
+        if (frozenRead.snapshot() != null) {
             configuration = loadExactVersion(row);
             writeCached(configuration);
         } else {
-            metrics.recordFeeSource("REDIS");
+            configuration = readCached(row);
+            if (configuration == null) {
+                configuration = loadExactVersion(row);
+                writeCached(configuration);
+            } else {
+                metrics.recordFeeSource("REDIS");
+            }
         }
-        FeeVersionSnapshot rebuilt = freeze(configuration, row.getFeeSnapshotTime());
+        int schemaVersion = frozenRead.snapshot() == null
+                ? CURRENT_SCHEMA_VERSION : frozenRead.snapshot().schemaVersion();
+        FeeVersionSnapshot rebuilt = freeze(configuration, row.getFeeSnapshotTime(), schemaVersion);
         validateSnapshotIdentity(rebuilt, row);
         if (!constantTimeEquals(row.getFeeSnapshotHash(), rebuilt.snapshotHash())) {
+            log.warn("event: CLEARING_FEE_SNAPSHOT_HASH_MISMATCH transactionId: {} feePlanVersionId: {}",
+                    row.getTransactionId(), row.getFeePlanVersionId());
             throw failure(ClearingFailureCodeEnum.FEE_SNAPSHOT_HASH_MISMATCH,
                     "exact fee version does not reproduce frozen action hash");
         }
@@ -205,26 +224,22 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
      * <p>
      * 任一身份或完整性校验失败都视为不可用，禁止用损坏快照继续资金计算。
      */
-    private FeeVersionSnapshot readFrozen(ClearingTransactionMerchantSnapshotDO row) {
+    private FrozenSnapshotRead readFrozen(ClearingTransactionMerchantSnapshotDO row) {
         if (!StringUtils.hasText(row.getFeeConfigSnapshotJson())) {
-            return null;
+            return new FrozenSnapshotRead(null, false);
         }
         try {
             FeeVersionSnapshot snapshot = canonicalMapper.readValue(
                     row.getFeeConfigSnapshotJson(), FeeVersionSnapshot.class);
             validateSnapshotIdentity(snapshot, row);
             String calculated = hash(snapshot);
-            if (!constantTimeEquals(snapshot.snapshotHash(), calculated)
-                    || !constantTimeEquals(row.getFeeSnapshotHash(), calculated)) {
-                log.warn("event: CLEARING_FEE_SNAPSHOT_HASH_MISMATCH transactionId: {} feePlanVersionId: {}",
-                        row.getTransactionId(), row.getFeePlanVersionId());
-                return null;
-            }
-            return snapshot;
+            boolean valid = constantTimeEquals(snapshot.snapshotHash(), calculated)
+                    && constantTimeEquals(row.getFeeSnapshotHash(), calculated);
+            return new FrozenSnapshotRead(snapshot, valid);
         } catch (RuntimeException | JsonProcessingException exception) {
             log.warn("event: CLEARING_FEE_SNAPSHOT_JSON_INVALID transactionId: {} exceptionType: {}",
                     row.getTransactionId(), exception.getClass().getSimpleName());
-            return null;
+            return new FrozenSnapshotRead(null, false);
         }
     }
 
@@ -289,33 +304,67 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
      * 百分比项固定按标签币种和标签金额计算，固定单笔费及最低/最高限制继续使用 USD；冻结过程不得改变既有费用口径。
      */
     private FeeVersionSnapshot freeze(FeeVersionConfigurationDTO configuration, LocalDateTime lockTime) {
+        return freeze(configuration, lockTime, CURRENT_SCHEMA_VERSION);
+    }
+
+    /** 历史快照回源时沿用其 schema 和哈希算法，禁止用当前版本摘要误判历史数据。 */
+    private FeeVersionSnapshot freeze(FeeVersionConfigurationDTO configuration,
+                                      LocalDateTime lockTime,
+                                      int schemaVersion) {
         ReservePolicySnapshot reserve = new ReservePolicySnapshot(
                 configuration.reserveRate(), ReserveBasis.LABEL_AMOUNT,
                 configuration.reserveDelayUnit(), configuration.reserveDelayDays(),
                 ReserveRefundPolicy.PROPORTIONAL_RETURN);
-        FeeSnapshotHashMaterial material = new FeeSnapshotHashMaterial(
-                CURRENT_SCHEMA_VERSION, configuration.merchantId(), configuration.feePlanId(),
+        SettlementPolicySnapshot settlementPolicy = schemaVersion == 3
+                ? SettlementPolicySnapshot.legacyImmediate(lockTime.toLocalDate())
+                : new SettlementPolicySnapshot(
+                        configuration.settlementDelayUnit(), configuration.initialSettlementDelayDays(),
+                        configuration.regularSettlementDelayDays(), configuration.settlementFrequency(),
+                        configuration.settlementFrequencyDay(), configuration.settlementFrequencyAnchorDate());
+        String hash;
+        if (schemaVersion == 3) {
+            LegacyFeeSnapshotHashMaterial legacy = new LegacyFeeSnapshotHashMaterial(
+                    schemaVersion, configuration.merchantId(), configuration.feePlanId(),
+                    configuration.feePlanVersionId(), configuration.feePlanVersionNo(), lockTime,
+                    configuration.settlementCurrency(), PercentageBasis.LABEL_AMOUNT,
+                    FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS, RoundingMode.HALF_UP,
+                    reserve, RefundFeeReturnPolicy.NONE, configuration.rules());
+            hash = sha256(canonicalJson(legacy));
+        } else {
+            FeeSnapshotHashMaterial material = new FeeSnapshotHashMaterial(
+                schemaVersion, configuration.merchantId(), configuration.feePlanId(),
                 configuration.feePlanVersionId(), configuration.feePlanVersionNo(), lockTime,
-                configuration.settlementCurrency(), PercentageBasis.LABEL_AMOUNT,
+                configuration.settlementCurrency(), settlementPolicy, PercentageBasis.LABEL_AMOUNT,
                 FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS, RoundingMode.HALF_UP,
                 reserve, RefundFeeReturnPolicy.NONE, configuration.rules());
-        String hash = sha256(canonicalJson(material));
+            hash = sha256(schemaVersion >= 5
+                    ? canonicalHashJson(material) : canonicalJson(material));
+        }
         return new FeeVersionSnapshot(
-                material.schemaVersion(), material.merchantId(), material.feePlanId(),
-                material.feePlanVersionId(), material.feePlanVersionNo(), material.pricingLockTime(),
-                material.settlementCurrency(), material.percentageBasis(), material.feeCurrencyPolicy(),
-                material.roundingMode(), material.reserve(), material.refundFeeReturnPolicy(),
-                material.rules(), hash);
+                schemaVersion, configuration.merchantId(), configuration.feePlanId(),
+                configuration.feePlanVersionId(), configuration.feePlanVersionNo(), lockTime,
+                configuration.settlementCurrency(), settlementPolicy, PercentageBasis.LABEL_AMOUNT,
+                FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS, RoundingMode.HALF_UP,
+                reserve, RefundFeeReturnPolicy.NONE, configuration.rules(), hash);
     }
 
     /** 排除 snapshotHash 自身后重建规范哈希材料，用于校验持久化快照未被修改。 */
     private String hash(FeeVersionSnapshot snapshot) {
+        if (snapshot.schemaVersion() == 3) {
+            LegacyFeeSnapshotHashMaterial legacy = new LegacyFeeSnapshotHashMaterial(
+                    snapshot.schemaVersion(), snapshot.merchantId(), snapshot.feePlanId(),
+                    snapshot.feePlanVersionId(), snapshot.feePlanVersionNo(), snapshot.pricingLockTime(),
+                    snapshot.settlementCurrency(), snapshot.percentageBasis(), snapshot.feeCurrencyPolicy(),
+                    snapshot.roundingMode(), snapshot.reserve(), snapshot.refundFeeReturnPolicy(), snapshot.rules());
+            return sha256(canonicalJson(legacy));
+        }
         FeeSnapshotHashMaterial material = new FeeSnapshotHashMaterial(
                 snapshot.schemaVersion(), snapshot.merchantId(), snapshot.feePlanId(),
                 snapshot.feePlanVersionId(), snapshot.feePlanVersionNo(), snapshot.pricingLockTime(),
-                snapshot.settlementCurrency(), snapshot.percentageBasis(), snapshot.feeCurrencyPolicy(),
+                snapshot.settlementCurrency(), snapshot.settlementPolicy(), snapshot.percentageBasis(), snapshot.feeCurrencyPolicy(),
                 snapshot.roundingMode(), snapshot.reserve(), snapshot.refundFeeReturnPolicy(), snapshot.rules());
-        return sha256(canonicalJson(material));
+        return sha256(snapshot.schemaVersion() >= 5
+                ? canonicalHashJson(material) : canonicalJson(material));
     }
 
     /**
@@ -410,6 +459,15 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         }
     }
 
+    /** v5 哈希忽略 BigDecimal 尾随零，快照 JSON 本身仍保留原业务精度。 */
+    private String canonicalHashJson(Object value) {
+        try {
+            return hashMapper.writeValueAsString(value);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("fee snapshot hash JSON serialization failed", exception);
+        }
+    }
+
     /** 对 UTF-8 规范 JSON 计算小写十六进制 SHA-256 摘要。 */
     private String sha256(String value) {
         try {
@@ -437,6 +495,24 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
         return copy;
     }
 
+    private ObjectMapper normalizedHashMapper(ObjectMapper source) {
+        ObjectMapper copy = source.copy();
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new JsonSerializer<>() {
+            @Override
+            public void serialize(BigDecimal value,
+                                  JsonGenerator generator,
+                                  SerializerProvider serializers) throws IOException {
+                generator.writeNumber(value.stripTrailingZeros());
+            }
+        });
+        copy.registerModule(module);
+        return copy;
+    }
+
+    private record FrozenSnapshotRead(FeeVersionSnapshot snapshot, boolean hashValid) {
+    }
+
     private record FeeSnapshotHashMaterial(int schemaVersion,
                                            String merchantId,
                                            Long feePlanId,
@@ -444,11 +520,27 @@ public class DefaultFeeConfigurationSnapshotService implements FeeConfigurationS
                                            int feePlanVersionNo,
                                            LocalDateTime pricingLockTime,
                                            String settlementCurrency,
+                                           SettlementPolicySnapshot settlementPolicy,
                                            PercentageBasis percentageBasis,
                                            FeeCurrencyPolicy feeCurrencyPolicy,
                                            RoundingMode roundingMode,
                                            ReservePolicySnapshot reserve,
                                            RefundFeeReturnPolicy refundFeeReturnPolicy,
                                            List<FeeRuleConfigurationSnapshot> rules) {
+    }
+
+    private record LegacyFeeSnapshotHashMaterial(int schemaVersion,
+                                                 String merchantId,
+                                                 Long feePlanId,
+                                                 Long feePlanVersionId,
+                                                 int feePlanVersionNo,
+                                                 LocalDateTime pricingLockTime,
+                                                 String settlementCurrency,
+                                                 PercentageBasis percentageBasis,
+                                                 FeeCurrencyPolicy feeCurrencyPolicy,
+                                                 RoundingMode roundingMode,
+                                                 ReservePolicySnapshot reserve,
+                                                 RefundFeeReturnPolicy refundFeeReturnPolicy,
+                                                 List<FeeRuleConfigurationSnapshot> rules) {
     }
 }

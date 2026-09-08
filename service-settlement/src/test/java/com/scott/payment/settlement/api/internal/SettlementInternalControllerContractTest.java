@@ -32,7 +32,9 @@ class SettlementInternalControllerContractTest {
     void routeShouldRemainUnderVersionedInternalSettlementCommandBoundary() {
         RequestMapping root = SettlementInternalController.class.getAnnotation(RequestMapping.class);
         assertThat(root.value()).containsExactly("/internal/settlement/v1/batches");
-        Map<String, String> posts = Map.of("cancel", "/{settlementBatchNo}/cancel");
+        Map<String, String> posts = Map.of(
+                "cancel", "/{settlementBatchNo}/cancel",
+                "retry", "/{settlementBatchNo}/retry");
         posts.forEach((methodName, path) -> assertThat(java.util.Arrays.stream(
                         SettlementInternalController.class.getDeclaredMethods())
                 .filter(method -> method.getName().equals(methodName)).findFirst().orElseThrow()
@@ -70,6 +72,33 @@ class SettlementInternalControllerContractTest {
         invalid.setExpectedVersion(3L);
         assertThatThrownBy(() -> controller.cancel("SB20260826-00000001", invalid))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void retryShouldDelegateTrustedAuditAndReturnRestoredCandidateCount() {
+        SettlementBatchCommandApplicationService commandService =
+                mock(SettlementBatchCommandApplicationService.class);
+        SettlementInternalController controller = new SettlementInternalController(commandService);
+        BatchCommandRequest valid = new BatchCommandRequest();
+        valid.setRequestKey("RETRY-REQ-1");
+        valid.setExpectedVersion(12L);
+        valid.setReason("rate available; retry locking");
+        valid.setOperatorId(88L);
+        valid.setOperatorName("Settlement Operator");
+        valid.setRoleSnapshot("SETTLEMENT_OPERATOR");
+        valid.setClientIp("10.0.0.8");
+        valid.setUserAgent("JUnit Admin");
+        valid.setOperationTime(java.time.LocalDateTime.of(2026, 9, 5, 10, 0));
+        org.mockito.Mockito.when(commandService.retryExhaustedRateLocking(
+                eq("SB20260826-00000001"), eq(12L), any(), any())).thenReturn(371);
+
+        var result = controller.retry("SB20260826-00000001", valid).getData();
+
+        assertThat(result.getSettlementBatchNo()).isEqualTo("SB20260826-00000001");
+        assertThat(result.getResultStatus()).isEqualTo("FAILED_RETRYABLE");
+        assertThat(result.getRestoredCandidateCount()).isEqualTo(371);
+        verify(commandService).retryExhaustedRateLocking(
+                eq("SB20260826-00000001"), eq(12L), any(), any());
     }
 
     @Test

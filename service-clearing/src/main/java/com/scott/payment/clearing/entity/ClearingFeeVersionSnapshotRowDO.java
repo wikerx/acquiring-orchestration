@@ -3,6 +3,7 @@ package com.scott.payment.clearing.entity;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 /**
  * @author : scott
@@ -26,6 +27,18 @@ public class ClearingFeeVersionSnapshotRowDO {
     private Integer feePlanVersionNo;
     /** 档案目标结算币种；清分阶段不据此换汇。 */
     private String settlementCurrency;
+    /** 首次和常规交易结算周期共用单位。 */
+    private String initialDelayUnit;
+    /** 首次交易结算延迟天数。 */
+    private Integer initialDelayDays;
+    /** 常规交易结算延迟天数。 */
+    private Integer regularDelayDays;
+    /** DAILY、WEEKLY、BIWEEKLY 或 MONTHLY。 */
+    private String settlementFrequency;
+    /** 周结星期或月结日期。 */
+    private Integer frequencyDay;
+    /** 费用版本生效时间。 */
+    private LocalDateTime effectiveTime;
     /** 标签币种保证金比例。 */
     private BigDecimal reserveRate;
     /** 保证金留存周期单位。 */

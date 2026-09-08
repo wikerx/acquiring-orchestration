@@ -70,6 +70,18 @@ public final class AdminSettlementDTOs {
         private String businessTimeZone;
         /** 商户业务时区内的每日结算日切时间。 */
         private LocalTime dailyCutoffTime;
+        /** 当前费用版本配置的首次结算周期单位，T 或 D。 */
+        private String initialDelayUnit;
+        /** 当前费用版本配置的首次结算延迟天数。 */
+        private Integer initialDelayDays;
+        /** 当前费用版本配置的常规结算延迟天数。 */
+        private Integer regularDelayDays;
+        /** DAILY、WEEKLY、BIWEEKLY 或 MONTHLY。 */
+        private String settlementFrequency;
+        /** 周结或月结使用的周期日；每日结算可空。 */
+        private Integer frequencyDay;
+        /** 资金账户和当前费用周期均完整时才允许发起手动结算。 */
+        private Boolean manualSettlementAvailable;
         /** 自动或人工结算处理模式。 */
         private String processingMode;
         /** 结算档案当前状态。 */
@@ -358,7 +370,7 @@ public final class AdminSettlementDTOs {
         private String requestKey;
         /** 批次期望乐观锁版本。 */
         private Long expectedVersion;
-        /** 人工取消原因。 */
+        /** 人工操作原因。 */
         private String reason;
     }
 
@@ -370,7 +382,7 @@ public final class AdminSettlementDTOs {
         private String requestKey;
         /** 批次期望乐观锁版本。 */
         private Long expectedVersion;
-        /** 人工取消原因。 */
+        /** 人工操作原因。 */
         private String reason;
         /** 可信 Admin 操作人主键。 */
         private Long operatorId;
@@ -398,6 +410,8 @@ public final class AdminSettlementDTOs {
         private String resultStatus;
         /** 取消后释放回 READY 的候选数量。 */
         private Integer releasedCandidateCount;
+        /** 恢复后重新进入异步处理的候选数量。 */
+        private Integer restoredCandidateCount;
     }
 
     /** 交易或保证金结算候选分页查询条件。 */
@@ -950,6 +964,14 @@ public final class AdminSettlementDTOs {
         private LocalDateTime releasedTime;
     }
 
+    /** 预审候选明细分页参数。 */
+    @Data
+    public static class ReviewCandidateSearchRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private Integer pageNo;
+        private Integer pageSize;
+    }
+
     /** 预审期间锁定的统一直接汇率快照。 */
     @Data
     public static class ReviewRateLine implements Serializable {
@@ -1091,6 +1113,116 @@ public final class AdminSettlementDTOs {
         /** 目标币种预审净额。 */
         private BigDecimal netAmount;
         /** 命令执行后的乐观锁版本。 */
+        private Long version;
+    }
+
+    /** 浏览器创建服务端冻结交易结算预览，不接收候选 ID 列表。 */
+    @Data
+    public static class ManualReviewPreviewRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String requestKey;
+        private String merchantId;
+        private Long settlementProfileId;
+        private String paymentType;
+        private String paymentMethod;
+        private String reason;
+    }
+
+    /** service-admin 注入可信 Maker 后发送到结算服务的冻结预览请求。 */
+    @Data
+    public static class InternalManualReviewPreviewRequest extends ManualReviewPreviewRequest {
+        private static final long serialVersionUID = 1L;
+        private Long operatorId;
+        private String operatorName;
+        private String roleSnapshot;
+        private String clientIp;
+        private String userAgent;
+        private LocalDateTime operationTime;
+    }
+
+    /** 将冻结预览提交到后台异步生成队列。 */
+    @Data
+    public static class ManualReviewStartRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String requestKey;
+        private Long expectedVersion;
+    }
+
+    /** 手动交易结算按来源币种统计行。 */
+    @Data
+    public static class ManualReviewPreviewLine implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String sourceCurrency;
+        private Integer sourceCurrencyExponent;
+        private Long transactionCount;
+        private BigDecimal grossAmount;
+        private BigDecimal platformFeeAmount;
+        private BigDecimal reserveAmount;
+        private BigDecimal releasedReserveAmount;
+        private BigDecimal netSettlementAmount;
+        private Long pendingFeeCount;
+        private String reserveDelayUnit;
+        private Integer minimumReserveDelayDays;
+        private Integer maximumReserveDelayDays;
+        private LocalDate earliestExpectedReleaseDate;
+        private LocalDate latestExpectedReleaseDate;
+    }
+
+    /** 手动交易结算预览、冻结范围和后台生成进度。 */
+    @Data
+    public static class ManualReviewTaskResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String taskNo;
+        private String reviewOrderNo;
+        private String taskStatus;
+        private String reviewType;
+        private String merchantId;
+        private Long settlementProfileId;
+        private Long settlementAccountId;
+        private String targetCurrency;
+        private Integer targetCurrencyExponent;
+        private String paymentType;
+        private String paymentMethod;
+        private String submitReason;
+        private LocalDate businessDate;
+        private LocalDateTime cutoffEndTime;
+        private Long snapshotMaxCandidateId;
+        private Integer expectedCandidateCount;
+        private Integer processedCandidateCount;
+        private Integer lockedCandidateCount;
+        private Integer progressPercent;
+        private String initialDelayUnit;
+        private Integer initialDelayDays;
+        private Integer regularDelayDays;
+        private String settlementFrequency;
+        private Integer frequencyDay;
+        private List<ManualReviewPreviewLine> preview = Collections.emptyList();
+        private Integer retryCount;
+        private String failureCode;
+        private String failureMessage;
+        private LocalDateTime startedTime;
+        private LocalDateTime completedTime;
+        private Long version;
+    }
+
+    /** 大批量预审单异步审批、驳回或取消进度。 */
+    @Data
+    public static class ReviewDecisionTaskResponse implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private String taskNo;
+        private String reviewOrderNo;
+        private String decisionAction;
+        private String taskStatus;
+        private Integer totalSegmentCount;
+        private Integer processedSegmentCount;
+        private Integer resultBatchCount;
+        private Integer progressPercent;
+        private String firstSettlementBatchNo;
+        private Integer retryCount;
+        private String failureCode;
+        private String failureMessage;
+        private LocalDateTime startedTime;
+        private LocalDateTime completedTime;
         private Long version;
     }
 

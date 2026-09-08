@@ -4,6 +4,7 @@ import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.session.Configuration;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -36,6 +37,9 @@ class SettlementPersistenceMapperContractTest {
             SettlementReviewCandidateMapper.class,
             SettlementReviewRateMapper.class,
             SettlementReviewSummaryMapper.class,
+            SettlementManualReviewTaskMapper.class,
+            SettlementReviewSegmentMapper.class,
+            SettlementReviewDecisionTaskMapper.class,
             SettlementRateQuoteMapper.class,
             SettlementResultMapper.class,
             SettlementFundMapper.class,
@@ -94,6 +98,14 @@ class SettlementPersistenceMapperContractTest {
                 .forEach(value -> assertThat(value).doesNotContain("${"));
     }
 
+    /** 真实调用 MyBatis 注解解析器，避免动态 script 结构错误只在服务启动时暴露。 */
+    @Test
+    void allMapperAnnotationsShouldParseWithMyBatis() {
+        Configuration configuration = new Configuration();
+        MAPPER_TYPES.forEach(configuration::addMapper);
+        assertThat(configuration.getMappedStatementNames()).isNotEmpty();
+    }
+
     /** 日序列必须锁行并同时使用当前序号和版本 CAS，禁止 JVM 或 Redis 单独发号。 */
     @Test
     void dailySequenceShouldUseRowLockAndVersionCas() {
@@ -137,6 +149,7 @@ class SettlementPersistenceMapperContractTest {
     void cancellationShouldUseStateCasAndImmutableAudit() {
         assertThat(sql(methodNamed(SettlementBatchMapper.class, "cancelBeforePosting"))).contains(
                 "batch_status IN ('CREATED', 'CLAIMING', 'CLAIMED', 'RATE_LOCKED'",
+                "'FAILED_RETRYABLE', 'MANUAL_REVIEW'",
                 "version = #{expectedVersion}",
                 "version = version + 1");
         assertThat(sql(methodNamed(SettlementBatchMapper.class,
@@ -144,10 +157,41 @@ class SettlementPersistenceMapperContractTest {
                 "settlement_batch_cancellation_audit", "request_key = #{requestKey}");
         assertThat(sql(methodNamed(SettlementBatchMapper.class,
                 "selectCancellationAuditByBatchNo"))).contains(
-                "settlement_batch_cancellation_audit", "settlement_batch_no = #{settlementBatchNo}");
+                "settlement_batch_cancellation_audit", "settlement_batch_no = #{settlementBatchNo}",
+                "FOR UPDATE");
         assertThat(sql(methodNamed(SettlementBatchMapper.class, "insertCancellationAudit"))).contains(
                 "INSERT INTO settlement_batch_cancellation_audit", "request_key", "expected_version",
                 "operator_role_snapshot", "released_candidate_count");
+    }
+
+    /** 人工恢复只允许汇率锁定重试耗尽状态，并由 version CAS、请求唯一键和全量候选恢复保护。 */
+    @Test
+    void recoveryShouldUseNarrowStateCasAndImmutableAudit() {
+        assertThat(sql(methodNamed(SettlementBatchMapper.class, "retryExhaustedRateLocking"))).contains(
+                "batch_status = 'MANUAL_REVIEW'",
+                "last_failure_stage = 'RATE_LOCKING'",
+                "last_failure_code = 'SETTLEMENT_RETRY_EXHAUSTED'",
+                "batch_status = 'FAILED_RETRYABLE'",
+                "retry_count = 0",
+                "processing_deadline = #{now}",
+                "version = #{expectedVersion}",
+                "version = version + 1");
+        assertThat(sql(methodNamed(SettlementCandidateMapper.class, "restoreManualReviewBatch")))
+                .contains("candidate_status = 'MANUAL_REVIEW'", "candidate_status = 'CLAIMED'",
+                        "settlement_batch_no = #{settlementBatchNo}");
+        assertThat(sql(methodNamed(SettlementBatchCandidateMapper.class, "restoreManualReviewBatch")))
+                .contains("relation_status = 'MANUAL_REVIEW'", "relation_status = 'CLAIMED'",
+                        "settlement_batch_no = #{settlementBatchNo}");
+        assertThat(sql(methodNamed(SettlementCandidateMapper.class, "releaseCancelledBatch")))
+                .contains("candidate_status IN ('CLAIMED', 'MANUAL_REVIEW')");
+        assertThat(sql(methodNamed(SettlementBatchCandidateMapper.class, "releaseCancelledBatch")))
+                .contains("relation_status IN ('CLAIMED', 'MANUAL_REVIEW')");
+        assertThat(sql(methodNamed(SettlementBatchMapper.class,
+                "selectRecoveryAuditByRequestKeyForUpdate")))
+                .contains("settlement_batch_recovery_audit", "request_key = #{requestKey}", "FOR UPDATE");
+        assertThat(sql(methodNamed(SettlementBatchMapper.class, "insertRecoveryAudit")))
+                .contains("INSERT INTO settlement_batch_recovery_audit", "recovery_action",
+                        "failure_stage_before", "restored_candidate_count", "operator_role_snapshot");
     }
 
     /** 预审创建、终态决策和候选占用必须由唯一键及当前状态/version CAS 共同保护。 */
@@ -175,6 +219,140 @@ class SettlementPersistenceMapperContractTest {
                         "create_mode = 'MANUAL_REVIEW'");
         assertThat(sql(methodNamed(SettlementBatchRateMapper.class, "insertBatchIdempotent")))
                 .contains("review_rate_id", "ON DUPLICATE KEY UPDATE id = id");
+    }
+
+    /** 大批量人工预审必须冻结高水位并按游标分段处理，决策任务同样按分段租约恢复。 */
+    @Test
+    void asynchronousReviewMappersShouldFreezeScopeAndResumeBySegment() {
+        String profile = sql(methodNamed(SettlementManualReviewTaskMapper.class, "selectProfile"));
+        String snapshotMaxCandidate = sql(methodNamed(
+                SettlementManualReviewTaskMapper.class, "selectSnapshotMaxCandidateId"));
+        String preview = sql(methodNamed(SettlementManualReviewTaskMapper.class, "selectPreviewLines"));
+        String candidates = sql(methodNamed(
+                SettlementManualReviewTaskMapper.class, "selectNextCandidatesForUpdate"));
+        String taskLease = sql(methodNamed(
+                SettlementManualReviewTaskMapper.class, "selectNextDueForUpdate"));
+        String taskClaim = sql(methodNamed(
+                SettlementManualReviewTaskMapper.class, "markProcessing"));
+        String blockingBatch = sql(methodNamed(
+                SettlementManualReviewTaskMapper.class, "selectBlockingManualReviewBatch"));
+        String decisionInsert = sql(methodNamed(
+                SettlementReviewDecisionTaskMapper.class, "insertIdempotent"));
+        String decisionLease = sql(methodNamed(
+                SettlementReviewDecisionTaskMapper.class, "selectNextDueForUpdate"));
+        String decisionAdvance = sql(methodNamed(
+                SettlementReviewDecisionTaskMapper.class, "advance"));
+        String decisionComplete = sql(methodNamed(
+                SettlementReviewDecisionTaskMapper.class, "markCompleted"));
+        String segment = sql(methodNamed(SettlementReviewSegmentMapper.class, "selectNextLockedForUpdate"));
+        String consume = sql(methodNamed(SettlementReviewSegmentMapper.class, "markConsumed"));
+
+        assertThat(profile).contains(
+                "account.account_status = 'NORMAL'",
+                "version.version_status = 'ACTIVE'",
+                "version.settlement_currency = profile.target_currency",
+                "LIMIT 1 FOR UPDATE");
+        assertThat(snapshotMaxCandidate)
+                .contains("ORDER BY candidate.id DESC", "LIMIT 1",
+                        "paymentType != null and paymentType != ''",
+                        "paymentMethod != null and paymentMethod != ''")
+                .doesNotContain("MAX(candidate.id)");
+        assertThat(preview).contains(
+                "candidate.candidate_status = 'READY'",
+                "candidate.settlement_batch_no IS NULL",
+                "candidate.review_order_no IS NULL",
+                "candidate.id &lt;= #{maxCandidateId}",
+                "paymentType != null and paymentType != ''",
+                "paymentMethod != null and paymentMethod != ''",
+                "GROUP BY detail.label_currency, detail.label_currency_exponent");
+        assertThat(blockingBatch).contains(
+                "settlement_profile_id = #{profileId}",
+                "batch_type = #{reviewType}",
+                "batch_status = 'MANUAL_REVIEW'",
+                "candidate_count > 0",
+                "ORDER BY business_date ASC, id ASC",
+                "LIMIT 1");
+        assertThat(candidates).contains(
+                "candidate.id &gt; #{task.lastCandidateId}",
+                "candidate.id &lt;= #{task.snapshotMaxCandidateId}",
+                "ORDER BY candidate.id ASC LIMIT #{limit} FOR UPDATE");
+        assertThat(sql(methodNamed(SettlementManualReviewTaskMapper.class, "start"))).contains(
+                "task_status = 'PREVIEWED'", "version = #{expectedVersion}",
+                "task_status = 'QUEUED'");
+        assertThat(taskLease).contains(
+                "task_status IN ('QUEUED', 'PROCESSING', 'CANCELLING')",
+                "next_retry_time <= #{now}",
+                "processing_deadline <= #{now}",
+                "LIMIT 1 FOR UPDATE SKIP LOCKED");
+        assertThat(taskLease).doesNotContain("&lt;");
+        assertThat(taskClaim)
+                .contains("processing_deadline <= #{now}")
+                .doesNotContain("&lt;");
+        assertThat(decisionInsert).contains(
+                "request_key", "expected_review_version", "total_segment_count",
+                "ON DUPLICATE KEY UPDATE id = id");
+        assertThat(decisionLease).contains(
+                "task_status IN ('QUEUED', 'PROCESSING')", "FOR UPDATE SKIP LOCKED");
+        assertThat(decisionAdvance).contains(
+                "processed_segment_count = processed_segment_count + 1",
+                "result_batch_count = result_batch_count + #{resultBatchDelta}",
+                "first_settlement_batch_no = COALESCE");
+        assertThat(decisionComplete).contains(
+                "task_status = 'COMPLETED'",
+                "processed_segment_count = total_segment_count");
+        assertThat(segment).contains(
+                "segment_status = 'LOCKED'", "LIMIT 1 FOR UPDATE");
+        assertThat(consume).contains(
+                "segment_status = 'CONSUMED'", "settlement_batch_no = #{settlementBatchNo}",
+                "segment_status = 'LOCKED'", "version = #{version}");
+    }
+
+    /** 保证金异步预审只允许已到期 RELEASE，并按原保证金币种汇总且不生成交易投影。 */
+    @Test
+    void reserveManualReviewShouldUseMaturedReleaseFactsAndOriginalCurrency() {
+        String snapshotMaxCandidate = sql(methodNamed(
+                SettlementManualReviewTaskMapper.class, "selectSnapshotMaxCandidateId"));
+        String preview = sql(methodNamed(SettlementManualReviewTaskMapper.class, "selectPreviewLines"));
+        String candidates = sql(methodNamed(
+                SettlementManualReviewTaskMapper.class, "selectNextCandidatesForUpdate"));
+        String currencies = sql(methodNamed(SettlementManualReviewTaskMapper.class, "selectCurrencies"));
+
+        for (String query : List.of(snapshotMaxCandidate, preview, candidates, currencies)) {
+            assertThat(query).contains(
+                    "RESERVE_RELEASE",
+                    "reserve_detail.reserve_action_type = 'RELEASE'",
+                    "reserve_detail.expected_reserve_release_date IS NOT NULL");
+            assertThat(query).doesNotContain("candidate.source_type = 'ADJUSTMENT'");
+        }
+        assertThat(snapshotMaxCandidate).contains(
+                "reserve_detail.expected_reserve_release_date &lt;= #{businessDate}",
+                "candidate.candidate_status = 'READY'",
+                "candidate.shadow_mode = 0",
+                "candidate.settlement_batch_no IS NULL",
+                "candidate.review_order_no IS NULL");
+        assertThat(preview).contains(
+                "reserve_detail.reserve_currency AS source_currency",
+                "reserve_detail.reserve_currency_exponent AS source_currency_exponent",
+                "SUM(reserve_detail.released_amount)",
+                "MIN(reserve_detail.reserve_delay_days)",
+                "MAX(reserve_detail.reserve_delay_days)",
+                "MIN(reserve_detail.expected_reserve_release_date)",
+                "MAX(reserve_detail.expected_reserve_release_date)",
+                "GROUP BY reserve_detail.reserve_currency, reserve_detail.reserve_currency_exponent");
+        assertThat(candidates).contains(
+                "reserve_detail.expected_reserve_release_date &lt;= #{task.businessDate}",
+                "candidate.id &gt; #{task.lastCandidateId}",
+                "candidate.id &lt;= #{task.snapshotMaxCandidateId}",
+                "ORDER BY candidate.id ASC LIMIT #{limit} FOR UPDATE");
+        assertThat(currencies).contains(
+                "reserve_detail.reserve_currency, reserve_detail.reserve_currency_exponent",
+                "reserve_detail.expected_reserve_release_date &lt;= #{task.businessDate}",
+                "GROUP BY currency",
+                "HAVING MIN(currency_exponent) = MAX(currency_exponent)");
+        assertThat(snapshotMaxCandidate).containsOnlyOnce("<script>");
+        assertThat(preview).containsOnlyOnce("<script>");
+        assertThat(candidates).containsOnlyOnce("<script>");
+        assertThat(currencies).containsOnlyOnce("<script>");
     }
 
     /** 候选认领 SQL 必须同时保护状态、批次空值、真实模式、冻结配置和版本。 */

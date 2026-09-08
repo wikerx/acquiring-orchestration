@@ -2,9 +2,12 @@ package com.scott.payment.payment.service.impl;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.scott.payment.component.core.cache.PaymentRedisKeyResolver;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -15,6 +18,7 @@ import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.Refund
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveBasis;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReservePolicySnapshot;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveRefundPolicy;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.SettlementPolicySnapshot;
 import com.scott.payment.payment.entity.MerchantFeeVersionPointerDO;
 import com.scott.payment.payment.service.MerchantFeeVersionQueryService;
 import com.scott.payment.payment.service.MerchantFeeVersionSnapshotService;
@@ -28,6 +32,8 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -124,6 +130,7 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
     private final StringRedisTemplate redisTemplate;
     private final PaymentRedisKeyResolver keyResolver;
     private final ObjectMapper canonicalMapper;
+    private final ObjectMapper hashMapper;
     private final LongSupplier randomLongSupplier;
 
     /**
@@ -153,6 +160,7 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         this.redisTemplate = Objects.requireNonNull(redisTemplate, "Redis template is required");
         this.keyResolver = Objects.requireNonNull(keyResolver, "Redis key resolver is required");
         this.canonicalMapper = canonicalMapper(Objects.requireNonNull(objectMapper, "ObjectMapper is required"));
+        this.hashMapper = normalizedHashMapper(this.canonicalMapper);
         this.randomLongSupplier = Objects.requireNonNull(randomLongSupplier, "random source is required");
     }
 
@@ -291,6 +299,10 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                 configuration.reserveDelayUnit(),
                 configuration.reserveDelayDays(),
                 ReserveRefundPolicy.PROPORTIONAL_RETURN);
+        SettlementPolicySnapshot settlementPolicy = new SettlementPolicySnapshot(
+                configuration.settlementDelayUnit(), configuration.initialSettlementDelayDays(),
+                configuration.regularSettlementDelayDays(), configuration.settlementFrequency(),
+                configuration.settlementFrequencyDay(), configuration.settlementFrequencyAnchorDate());
         FeeSnapshotHashMaterial material = new FeeSnapshotHashMaterial(
                 CURRENT_SCHEMA_VERSION,
                 configuration.merchantId(),
@@ -299,13 +311,14 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                 configuration.feePlanVersionNo(),
                 pricingLockTime,
                 configuration.settlementCurrency(),
+                settlementPolicy,
                 PercentageBasis.LABEL_AMOUNT,
                 FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS,
                 RoundingMode.HALF_UP,
                 reserve,
                 RefundFeeReturnPolicy.NONE,
                 configuration.rules());
-        String snapshotHash = sha256(canonicalJson(material));
+        String snapshotHash = sha256(canonicalHashJson(material));
         FeeVersionSnapshot snapshot = new FeeVersionSnapshot(
                 material.schemaVersion(),
                 material.merchantId(),
@@ -314,6 +327,7 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
                 material.feePlanVersionNo(),
                 material.pricingLockTime(),
                 material.settlementCurrency(),
+                material.settlementPolicy(),
                 material.percentageBasis(),
                 material.feeCurrencyPolicy(),
                 material.roundingMode(),
@@ -373,6 +387,16 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         }
     }
 
+    /** v5 哈希忽略 BigDecimal 尾随零，避免 JSON 存储规范化改变同一数值的摘要。 */
+    private String canonicalHashJson(Object value) {
+        try {
+            return hashMapper.writeValueAsString(value);
+        } catch (JsonProcessingException exception) {
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "Fee snapshot hash JSON serialization failed", exception);
+        }
+    }
+
     private String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -405,6 +429,21 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
         return copy;
     }
 
+    private ObjectMapper normalizedHashMapper(ObjectMapper source) {
+        ObjectMapper copy = source.copy();
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new JsonSerializer<>() {
+            @Override
+            public void serialize(BigDecimal value,
+                                  JsonGenerator generator,
+                                  SerializerProvider serializers) throws IOException {
+                generator.writeNumber(value.stripTrailingZeros());
+            }
+        });
+        copy.registerModule(module);
+        return copy;
+    }
+
     private ServiceException unavailable() {
         return new ServiceException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND.getCode(),
                 "Merchant active fee configuration is unavailable");
@@ -418,6 +457,7 @@ public class DefaultMerchantFeeVersionSnapshotService implements MerchantFeeVers
             int feePlanVersionNo,
             LocalDateTime pricingLockTime,
             String settlementCurrency,
+            SettlementPolicySnapshot settlementPolicy,
             PercentageBasis percentageBasis,
             FeeCurrencyPolicy feeCurrencyPolicy,
             RoundingMode roundingMode,

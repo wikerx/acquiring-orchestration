@@ -3,12 +3,19 @@ package com.scott.payment.settlement.api.internal;
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ReviewCandidateReference;
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ReviewDecisionRequest;
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ReviewSubmitRequest;
+import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ManualReviewPreviewRequest;
+import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ManualReviewStartRequest;
+import com.scott.payment.settlement.application.SettlementManualReviewApplicationService;
 import com.scott.payment.settlement.application.SettlementReviewOrderApplicationService;
+import com.scott.payment.settlement.dto.SettlementManualReviewModels.PreviewCommand;
+import com.scott.payment.settlement.dto.SettlementManualReviewModels.StartCommand;
+import com.scott.payment.settlement.dto.SettlementManualReviewModels.TaskResult;
 import com.scott.payment.settlement.dto.SettlementReviewCommandResult;
 import com.scott.payment.settlement.dto.SettlementReviewCreateCommand;
 import com.scott.payment.settlement.dto.SettlementReviewDecisionCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
@@ -43,6 +50,65 @@ class SettlementReviewInternalControllerContractTest {
         PostMapping decide = method("decide").getAnnotation(PostMapping.class);
         assertThat(submit.value()).isEmpty();
         assertThat(decide.value()).containsExactly("/{reviewOrderNo}/decisions");
+    }
+
+    @Test
+    void manualReserveRoutesShouldUseDedicatedVersionedResources() {
+        assertThat(method("previewManualReserve").getAnnotation(PostMapping.class).value())
+                .containsExactly("/manual-reserve-tasks/preview");
+        assertThat(method("startManualReserve").getAnnotation(PostMapping.class).value())
+                .containsExactly("/manual-reserve-tasks/{taskNo}/start");
+        assertThat(method("manualReserveTask").getAnnotation(GetMapping.class).value())
+                .containsExactly("/manual-reserve-tasks/{taskNo}");
+        assertThat(method("previewManualTransaction").getAnnotation(PostMapping.class).value())
+                .containsExactly("/manual-transaction-tasks/preview");
+    }
+
+    @Test
+    void reserveManualRoutesShouldDelegateOnlyReserveReleaseTasks() {
+        SettlementManualReviewApplicationService manualService =
+                mock(SettlementManualReviewApplicationService.class);
+        SettlementReviewInternalController controller = new SettlementReviewInternalController(
+                mock(SettlementReviewOrderApplicationService.class), manualService);
+        ManualReviewPreviewRequest previewRequest = new ManualReviewPreviewRequest();
+        previewRequest.setRequestKey("RESERVE-PREVIEW-1");
+        previewRequest.setMerchantId("M1001");
+        previewRequest.setSettlementProfileId(11L);
+        previewRequest.setPaymentType(null);
+        previewRequest.setPaymentMethod("VISA");
+        previewRequest.setReason("settle all matured reserve releases");
+        previewRequest.setOperatorId(88L);
+        previewRequest.setOperatorName("Maker");
+        previewRequest.setRoleSnapshot("SETTLEMENT_MAKER");
+        previewRequest.setClientIp("10.0.0.1");
+        previewRequest.setUserAgent("JUnit");
+        previewRequest.setOperationTime(LocalDateTime.of(2026, 9, 8, 8, 30));
+        when(manualService.preview(org.mockito.ArgumentMatchers.any())).thenReturn(manualTask());
+
+        controller.previewManualReserve(previewRequest);
+
+        ArgumentCaptor<PreviewCommand> previewCaptor = ArgumentCaptor.forClass(PreviewCommand.class);
+        verify(manualService).preview(previewCaptor.capture());
+        assertThat(previewCaptor.getValue().reviewType()).isEqualTo("RESERVE_RELEASE");
+        assertThat(previewCaptor.getValue().paymentType()).isNull();
+        assertThat(previewCaptor.getValue().paymentMethod()).isEqualTo("VISA");
+        assertThat(previewCaptor.getValue().operator().accountId()).isEqualTo(88L);
+
+        ManualReviewStartRequest startRequest = new ManualReviewStartRequest();
+        startRequest.setRequestKey("RESERVE-START-1");
+        startRequest.setExpectedVersion(0L);
+        when(manualService.start(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(manualTask());
+        controller.startManualReserve(manualTaskNo(), startRequest);
+        ArgumentCaptor<StartCommand> startCaptor = ArgumentCaptor.forClass(StartCommand.class);
+        verify(manualService).start(org.mockito.ArgumentMatchers.eq(manualTaskNo()),
+                startCaptor.capture(), org.mockito.ArgumentMatchers.eq("RESERVE_RELEASE"));
+        assertThat(startCaptor.getValue().requestKey()).isEqualTo("RESERVE-START-1");
+
+        when(manualService.get(manualTaskNo(), "RESERVE_RELEASE")).thenReturn(manualTask());
+        controller.manualReserveTask(manualTaskNo());
+        verify(manualService).get(manualTaskNo(), "RESERVE_RELEASE");
     }
 
     @Test
@@ -138,6 +204,19 @@ class SettlementReviewInternalControllerContractTest {
     private SettlementReviewCommandResult result(String status, String batchNo, long version) {
         return new SettlementReviewCommandResult("SO20260831-00000001", status, batchNo,
                 1, "USD", 2, "CREDIT", new BigDecimal("10.00"), version);
+    }
+
+    private TaskResult manualTask() {
+        return new TaskResult(manualTaskNo(), "SO20260908-00000001", "PREVIEWED",
+                "RESERVE_RELEASE", "M1001", 11L, 21L, "USD", 2,
+                null, "VISA", "settle all matured reserve releases",
+                LocalDate.of(2026, 9, 8), LocalDateTime.of(2026, 9, 8, 0, 0),
+                101L, 3, 0, 0, 0, null, 0, 0, null, null,
+                List.of(), 0, null, null, null, null, 0L);
+    }
+
+    private String manualTaskNo() {
+        return "MT" + "a".repeat(32);
     }
 
     private java.lang.reflect.Method method(String name) {

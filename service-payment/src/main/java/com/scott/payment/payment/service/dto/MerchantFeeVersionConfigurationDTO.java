@@ -3,6 +3,7 @@ package com.scott.payment.payment.service.dto;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeRuleConfigurationSnapshot;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -18,6 +19,12 @@ import java.util.List;
  * @param feePlanVersionId 不可变版本主键
  * @param feePlanVersionNo 方案内版本号
  * @param settlementCurrency 商户目标结算币种；清分阶段不换汇
+ * @param settlementDelayUnit 交易结算周期单位 D 或 T
+ * @param initialSettlementDelayDays 首次交易结算延迟天数
+ * @param regularSettlementDelayDays 常规交易结算延迟天数
+ * @param settlementFrequency 交易结算频率
+ * @param settlementFrequencyDay 周结星期或月结日期
+ * @param settlementFrequencyAnchorDate 费用版本生效日，作为双周频率锚点
  * @param reserveRate 标签金额保证金百分比
  * @param reserveDelayUnit 保证金留存周期单位 D 或 T
  * @param reserveDelayDays 保证金留存天数
@@ -28,6 +35,12 @@ public record MerchantFeeVersionConfigurationDTO(String merchantId,
                                                  Long feePlanVersionId,
                                                  int feePlanVersionNo,
                                                  String settlementCurrency,
+                                                 String settlementDelayUnit,
+                                                 int initialSettlementDelayDays,
+                                                 int regularSettlementDelayDays,
+                                                 String settlementFrequency,
+                                                 Integer settlementFrequencyDay,
+                                                 LocalDate settlementFrequencyAnchorDate,
                                                  BigDecimal reserveRate,
                                                  String reserveDelayUnit,
                                                  int reserveDelayDays,

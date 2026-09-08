@@ -3,6 +3,9 @@ package com.scott.payment.admin.application.transaction;
 import com.scott.payment.admin.client.settlement.SettlementInternalClient;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewSubmitRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalManualReviewPreviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewPreviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewStartRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateReference;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSubmitRequest;
@@ -25,6 +28,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -86,6 +90,115 @@ class AdminSettlementReviewApplicationServiceTest {
         assertThat(captor.getValue().getDecision()).isEqualTo("APPROVE");
         assertThat(captor.getValue().getOperatorId()).isEqualTo(88L);
         assertThat(captor.getValue().getRoleSnapshot()).isEqualTo("FINANCE,SETTLEMENT_MAKER");
+    }
+
+    @Test
+    void manualPreviewShouldFreezeServerSideScopeWithTrustedMaker() {
+        Fixture fixture = fixture();
+        ManualReviewPreviewRequest request = new ManualReviewPreviewRequest();
+        request.setRequestKey(" MANUAL-PREVIEW-1 ");
+        request.setMerchantId(" M1001 ");
+        request.setSettlementProfileId(11L);
+        request.setPaymentType(" BANK_CARD ");
+        request.setPaymentMethod(" VISA ");
+        request.setReason(" settle all matured transactions ");
+
+        fixture.service.previewManualTransactionReview(request, servletRequest());
+
+        verify(fixture.reviewQueryService).requireMerchantAccess("M1001", fixture.scope);
+        ArgumentCaptor<InternalManualReviewPreviewRequest> captor =
+                ArgumentCaptor.forClass(InternalManualReviewPreviewRequest.class);
+        verify(fixture.client).previewManualReview(captor.capture());
+        InternalManualReviewPreviewRequest internal = captor.getValue();
+        assertThat(internal.getRequestKey()).isEqualTo("MANUAL-PREVIEW-1");
+        assertThat(internal.getMerchantId()).isEqualTo("M1001");
+        assertThat(internal.getSettlementProfileId()).isEqualTo(11L);
+        assertThat(internal.getPaymentType()).isEqualTo("BANK_CARD");
+        assertThat(internal.getPaymentMethod()).isEqualTo("VISA");
+        assertThat(internal.getOperatorId()).isEqualTo(88L);
+        assertThat(internal.getClientIp()).isEqualTo("203.0.113.10");
+    }
+
+    @Test
+    void manualPreviewShouldTreatBlankPaymentDimensionsAsAll() {
+        Fixture fixture = fixture();
+        ManualReviewPreviewRequest request = new ManualReviewPreviewRequest();
+        request.setRequestKey("MANUAL-PREVIEW-ALL");
+        request.setMerchantId("M1001");
+        request.setSettlementProfileId(11L);
+        request.setPaymentType("  ");
+        request.setPaymentMethod(null);
+        request.setReason("settle all matured transactions");
+
+        fixture.service.previewManualTransactionReview(request, servletRequest());
+
+        ArgumentCaptor<InternalManualReviewPreviewRequest> captor =
+                ArgumentCaptor.forClass(InternalManualReviewPreviewRequest.class);
+        verify(fixture.client).previewManualReview(captor.capture());
+        assertThat(captor.getValue().getPaymentType()).isNull();
+        assertThat(captor.getValue().getPaymentMethod()).isNull();
+    }
+
+    @Test
+    void reserveManualPreviewShouldUseDedicatedReserveCommandBoundary() {
+        Fixture fixture = fixture();
+        ManualReviewPreviewRequest request = new ManualReviewPreviewRequest();
+        request.setRequestKey("RESERVE-PREVIEW-1");
+        request.setMerchantId("M1001");
+        request.setSettlementProfileId(11L);
+        request.setReason("settle matured reserve releases");
+
+        fixture.service.previewManualReserveReview(request, servletRequest());
+
+        verify(fixture.reviewQueryService).requireMerchantAccess("M1001", fixture.scope);
+        ArgumentCaptor<InternalManualReviewPreviewRequest> captor =
+                ArgumentCaptor.forClass(InternalManualReviewPreviewRequest.class);
+        verify(fixture.client).previewManualReserveReview(captor.capture());
+        assertThat(captor.getValue().getRequestKey()).isEqualTo("RESERVE-PREVIEW-1");
+        assertThat(captor.getValue().getOperatorId()).isEqualTo(88L);
+    }
+
+    @Test
+    void reserveManualStartAndQueryShouldEnforceReserveTaskScope() {
+        Fixture fixture = fixture();
+        String taskNo = "MT" + "a".repeat(32);
+        ManualReviewStartRequest request = new ManualReviewStartRequest();
+        request.setRequestKey("RESERVE-START-1");
+        request.setExpectedVersion(3L);
+
+        fixture.service.startManualReserveReview(taskNo, request);
+        fixture.service.manualReserveReviewTask(taskNo);
+
+        verify(fixture.reviewQueryService, times(2)).requireManualTaskAccess(
+                taskNo, "RESERVE_RELEASE", fixture.scope);
+        ArgumentCaptor<ManualReviewStartRequest> captor =
+                ArgumentCaptor.forClass(ManualReviewStartRequest.class);
+        verify(fixture.client).startManualReserveReview(
+                org.mockito.ArgumentMatchers.eq(taskNo), captor.capture());
+        assertThat(captor.getValue().getRequestKey()).isEqualTo("RESERVE-START-1");
+        assertThat(captor.getValue().getExpectedVersion()).isEqualTo(3L);
+        verify(fixture.client).getManualReserveReviewTask(taskNo);
+    }
+
+    @Test
+    void asynchronousDecisionShouldPrecheckReviewScopeAndInjectTrustedChecker() {
+        Fixture fixture = fixture();
+        ReviewDecisionRequest request = new ReviewDecisionRequest();
+        request.setRequestKey("DECISION-TASK-1");
+        request.setExpectedVersion(4L);
+        request.setComment("approve frozen server-side segments");
+
+        fixture.service.submitReviewDecisionTask(
+                " SO20260831-00000001 ", "APPROVE", request, servletRequest());
+
+        verify(fixture.reviewQueryService).requireReviewAccess("SO20260831-00000001", fixture.scope);
+        ArgumentCaptor<InternalReviewDecisionRequest> captor =
+                ArgumentCaptor.forClass(InternalReviewDecisionRequest.class);
+        verify(fixture.client).submitReviewDecisionTask(
+                org.mockito.ArgumentMatchers.eq("SO20260831-00000001"), captor.capture());
+        assertThat(captor.getValue().getDecision()).isEqualTo("APPROVE");
+        assertThat(captor.getValue().getOperatorId()).isEqualTo(88L);
+        assertThat(captor.getValue().getOperationTime()).isNotNull();
     }
 
     @Test

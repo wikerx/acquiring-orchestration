@@ -7,6 +7,7 @@ import com.scott.payment.clearing.mapper.ClearingFeeVersionSnapshotMapper;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -104,6 +105,22 @@ class DefaultFeeVersionQueryServiceTest {
     }
 
     @Test
+    void findVersionShouldRejectRowsWithMixedSettlementTerms() {
+        ClearingFeeVersionSnapshotMapper mapper = mock(ClearingFeeVersionSnapshotMapper.class);
+        ClearingFeeVersionSnapshotRowDO first = standardRule(101L);
+        ClearingFeeVersionSnapshotRowDO mixed = standardRule(102L);
+        mixed.setRegularDelayDays(3);
+        when(mapper.selectVersionRows("M-1", 10L, 11L)).thenReturn(List.of(first, mixed));
+
+        DefaultFeeVersionQueryService service = new DefaultFeeVersionQueryService(mapper);
+
+        assertThatThrownBy(() -> service.findVersionFromMaster("M-1", 10L, 11L))
+                .isInstanceOfSatisfying(ClearingProcessingException.class, failure ->
+                        assertThat(failure.getFailureCode())
+                                .isEqualTo(ClearingFailureCodeEnum.FEE_VERSION_NOT_IMMUTABLE));
+    }
+
+    @Test
     void findVersionShouldClassifyMalformedVersionHeader() {
         ClearingFeeVersionSnapshotMapper mapper = mock(ClearingFeeVersionSnapshotMapper.class);
         ClearingFeeVersionSnapshotRowDO row = standardRule(101L);
@@ -173,6 +190,12 @@ class DefaultFeeVersionQueryServiceTest {
         row.setFeePlanVersionId(11L);
         row.setFeePlanVersionNo(2);
         row.setSettlementCurrency("USD");
+        row.setInitialDelayUnit("T");
+        row.setInitialDelayDays(1);
+        row.setRegularDelayDays(1);
+        row.setSettlementFrequency("DAILY");
+        row.setFrequencyDay(null);
+        row.setEffectiveTime(LocalDateTime.of(2026, 9, 1, 0, 0));
         row.setReserveRate(new BigDecimal("10"));
         row.setReserveDelayUnit("D");
         row.setReserveDelayDays(180);

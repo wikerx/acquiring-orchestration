@@ -9,6 +9,12 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDetailR
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewPreviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewStartRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewTaskResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateLine;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateSearchRequest;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
@@ -132,6 +138,16 @@ public class AdminSettlementReviewController {
         return success(applicationService.reviewDetail(reviewOrderNo));
     }
 
+    @PostMapping("/review-orders/{reviewOrderNo}/candidates/search")
+    @RequiresPermission("settlement:review-order:detail")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
+            operation = "分页查询结算预审候选")
+    public CommonResult<PageResult<ReviewCandidateLine>> reviewCandidates(
+            @PathVariable("reviewOrderNo") String reviewOrderNo,
+            @RequestBody(required = false) ReviewCandidateSearchRequest request) {
+        return success(applicationService.reviewCandidates(reviewOrderNo, request));
+    }
+
     /**
      * 创建并提交仅包含真实交易候选的预审单。
      *
@@ -146,6 +162,64 @@ public class AdminSettlementReviewController {
     public CommonResult<ReviewCommandResponse> submitTransactionReview(
             @RequestBody ReviewSubmitRequest request, HttpServletRequest servletRequest) {
         return success(applicationService.submitTransactionReview(request, servletRequest));
+    }
+
+    @PostMapping("/transaction-review-tasks/preview")
+    @RequiresPermission("settlement:transaction-review:create")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.CREATE,
+            operation = "预览手动交易结算")
+    public CommonResult<ManualReviewTaskResponse> previewManualTransactionReview(
+            @RequestBody ManualReviewPreviewRequest request,
+            HttpServletRequest servletRequest) {
+        return success(applicationService.previewManualTransactionReview(request, servletRequest));
+    }
+
+    @PostMapping("/transaction-review-tasks/{taskNo}/start")
+    @RequiresPermission("settlement:transaction-review:create")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.CREATE,
+            operation = "生成交易结算预审单")
+    public CommonResult<ManualReviewTaskResponse> startManualTransactionReview(
+            @PathVariable("taskNo") String taskNo,
+            @RequestBody ManualReviewStartRequest request) {
+        return success(applicationService.startManualTransactionReview(taskNo, request));
+    }
+
+    @GetMapping("/transaction-review-tasks/{taskNo}")
+    @RequiresPermission("settlement:transaction-candidate:list")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
+            operation = "查询手动交易结算任务")
+    public CommonResult<ManualReviewTaskResponse> manualTransactionReviewTask(
+            @PathVariable("taskNo") String taskNo) {
+        return success(applicationService.manualTransactionReviewTask(taskNo));
+    }
+
+    @PostMapping("/reserve-review-tasks/preview")
+    @RequiresPermission("settlement:reserve-review:create")
+    @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.CREATE,
+            operation = "预览手动保证金结算")
+    public CommonResult<ManualReviewTaskResponse> previewManualReserveReview(
+            @RequestBody ManualReviewPreviewRequest request,
+            HttpServletRequest servletRequest) {
+        return success(applicationService.previewManualReserveReview(request, servletRequest));
+    }
+
+    @PostMapping("/reserve-review-tasks/{taskNo}/start")
+    @RequiresPermission("settlement:reserve-review:create")
+    @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.CREATE,
+            operation = "生成保证金结算预审单")
+    public CommonResult<ManualReviewTaskResponse> startManualReserveReview(
+            @PathVariable("taskNo") String taskNo,
+            @RequestBody ManualReviewStartRequest request) {
+        return success(applicationService.startManualReserveReview(taskNo, request));
+    }
+
+    @GetMapping("/reserve-review-tasks/{taskNo}")
+    @RequiresPermission("settlement:reserve-candidate:list")
+    @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.QUERY,
+            operation = "查询手动保证金结算任务")
+    public CommonResult<ManualReviewTaskResponse> manualReserveReviewTask(
+            @PathVariable("taskNo") String taskNo) {
+        return success(applicationService.manualReserveReviewTask(taskNo));
     }
 
     /**
@@ -219,5 +293,47 @@ public class AdminSettlementReviewController {
             @RequestBody ReviewDecisionRequest request, HttpServletRequest servletRequest) {
         return success(applicationService.decideReview(
                 reviewOrderNo, "CANCEL", request, servletRequest));
+    }
+
+    @PostMapping("/review-orders/{reviewOrderNo}/approve-task")
+    @RequiresPermission("settlement:review-order:approve")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.UPDATE,
+            operation = "异步审批结算预审")
+    public CommonResult<ReviewDecisionTaskResponse> approveTask(
+            @PathVariable("reviewOrderNo") String reviewOrderNo,
+            @RequestBody ReviewDecisionRequest request, HttpServletRequest servletRequest) {
+        return success(applicationService.submitReviewDecisionTask(
+                reviewOrderNo, "APPROVE", request, servletRequest));
+    }
+
+    @PostMapping("/review-orders/{reviewOrderNo}/reject-task")
+    @RequiresPermission("settlement:review-order:reject")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.UPDATE,
+            operation = "异步驳回结算预审")
+    public CommonResult<ReviewDecisionTaskResponse> rejectTask(
+            @PathVariable("reviewOrderNo") String reviewOrderNo,
+            @RequestBody ReviewDecisionRequest request, HttpServletRequest servletRequest) {
+        return success(applicationService.submitReviewDecisionTask(
+                reviewOrderNo, "REJECT", request, servletRequest));
+    }
+
+    @PostMapping("/review-orders/{reviewOrderNo}/cancel-task")
+    @RequiresPermission("settlement:review-order:cancel")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.UPDATE,
+            operation = "异步取消结算预审")
+    public CommonResult<ReviewDecisionTaskResponse> cancelTask(
+            @PathVariable("reviewOrderNo") String reviewOrderNo,
+            @RequestBody ReviewDecisionRequest request, HttpServletRequest servletRequest) {
+        return success(applicationService.submitReviewDecisionTask(
+                reviewOrderNo, "CANCEL", request, servletRequest));
+    }
+
+    @GetMapping("/review-decision-tasks/{taskNo}")
+    @RequiresPermission("settlement:review-order:list")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
+            operation = "查询结算预审决策任务")
+    public CommonResult<ReviewDecisionTaskResponse> decisionTask(
+            @PathVariable("taskNo") String taskNo) {
+        return success(applicationService.reviewDecisionTask(taskNo));
     }
 }

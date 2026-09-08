@@ -60,18 +60,22 @@ class MerchantFinanceDataSourceContractTests {
      */
     @Test
     void shouldRoutePendingStatisticsToTransactionReplicas() throws NoSuchMethodException {
-        Method method = JdbcMerchantPendingBalanceQueryService.class
-                .getMethod("sumPendingBalances", String.class);
-        Transactional transactional = method.getAnnotation(Transactional.class);
         assertThat(JdbcMerchantPendingBalanceQueryService.class.getAnnotation(DS.class)).isNull();
-        assertThat(method.getAnnotation(DS.class)).isNull();
-        assertThat(transactional).isNotNull();
-        assertThat(transactional.propagation()).isEqualTo(Propagation.NOT_SUPPORTED);
+        assertTransactionReplicaReadMethod("sumPendingBalances");
+        assertTransactionReplicaReadMethod("sumUnsettledReserveBalances");
         assertThat(TransactionLogicalReadExecutor.class
                 .getMethod("read", java.util.function.Supplier.class)
                 .getAnnotation(DS.class).value()).isEqualTo(DataSourceName.TRANSACTION);
         assertThat(new TransactionShardingProperties().getReplicaDataSources())
                 .containsExactly(DataSourceName.SLAVE_1, DataSourceName.SLAVE_2);
+    }
+
+    private void assertTransactionReplicaReadMethod(String name) throws NoSuchMethodException {
+        Method method = JdbcMerchantPendingBalanceQueryService.class.getMethod(name, String.class);
+        Transactional transactional = method.getAnnotation(Transactional.class);
+        assertThat(method.getAnnotation(DS.class)).isNull();
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.NOT_SUPPORTED);
     }
 
     private Method method(String name, Class<?>... parameterTypes) throws NoSuchMethodException {

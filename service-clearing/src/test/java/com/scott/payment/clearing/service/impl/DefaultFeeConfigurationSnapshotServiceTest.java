@@ -1,11 +1,18 @@
 package com.scott.payment.clearing.service.impl;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.scott.payment.clearing.domain.state.ClearingFailureCodeEnum;
+import com.scott.payment.clearing.dto.FeeVersionConfigurationDTO;
 import com.scott.payment.clearing.exception.ClearingProcessingException;
 import com.scott.payment.clearing.entity.ClearingTransactionMerchantSnapshotDO;
 import com.scott.payment.clearing.mapper.ClearingTransactionMerchantSnapshotMapper;
@@ -22,9 +29,12 @@ import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.Refund
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveBasis;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReservePolicySnapshot;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveRefundPolicy;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.SettlementPolicySnapshot;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
@@ -103,6 +113,97 @@ class DefaultFeeConfigurationSnapshotServiceTest {
     }
 
     @Test
+    void loadShouldAcceptV5SnapshotAfterJsonDecimalScaleNormalization() throws Exception {
+        ObjectMapper objectMapper = canonicalMapper();
+        ObjectMapper hashMapper = normalizedHashMapper();
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 9, 5, 18, 30);
+        LocalDateTime lockTime = transactionTime.minusMinutes(1);
+        SettlementPolicySnapshot settlementPolicy = settlementPolicy(lockTime);
+        FeeRuleConfigurationSnapshot fullScaleRule = percentageRule("2.30000000");
+        ReservePolicySnapshot fullScaleReserve = reserve("10.00000000");
+        CurrentHashMaterial material = new CurrentHashMaterial(
+                5, "M-1", 10L, 11L, 2, lockTime, "USD", settlementPolicy,
+                PercentageBasis.LABEL_AMOUNT, FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS,
+                RoundingMode.HALF_UP, fullScaleReserve, RefundFeeReturnPolicy.NONE,
+                List.of(fullScaleRule));
+        String hash = sha256(hashMapper.writeValueAsString(material));
+        FeeVersionSnapshot normalizedJsonSnapshot = new FeeVersionSnapshot(
+                5, "M-1", 10L, 11L, 2, lockTime, "USD", settlementPolicy,
+                PercentageBasis.LABEL_AMOUNT, FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS,
+                RoundingMode.HALF_UP, reserve("10"), RefundFeeReturnPolicy.NONE,
+                List.of(percentageRule("2.3")), hash);
+        ClearingTransactionMerchantSnapshotDO row = snapshotRow(
+                transactionTime, lockTime, hash, objectMapper.writeValueAsString(normalizedJsonSnapshot));
+
+        ClearingTransactionMerchantSnapshotMapper snapshotMapper =
+                mock(ClearingTransactionMerchantSnapshotMapper.class);
+        FeeVersionQueryService queryService = mock(FeeVersionQueryService.class);
+        when(snapshotMapper.selectByTransaction("TX-1", transactionTime)).thenReturn(row);
+        DefaultFeeConfigurationSnapshotService service = new DefaultFeeConfigurationSnapshotService(
+                snapshotMapper, queryService, mock(StringRedisTemplate.class),
+                mock(PaymentRedisKeyResolver.class), objectMapper, mock(ClearingOperationalMetrics.class),
+                () -> 0L);
+
+        FeeVersionSnapshot loaded = service.load("M-1", "OP-1", "TX-1", transactionTime);
+
+        assertThat(loaded.snapshotHash()).isEqualTo(hash);
+        verify(queryService, never()).findVersionFromSlave("M-1", 10L, 11L);
+        verify(queryService, never()).findVersionFromMaster("M-1", 10L, 11L);
+    }
+
+    @Test
+    void loadShouldVerifyLegacyV4ScaleMismatchAgainstExactImmutableVersionWithoutWarning() throws Exception {
+        ObjectMapper objectMapper = canonicalMapper();
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 9, 5, 18, 31);
+        LocalDateTime lockTime = transactionTime.minusMinutes(1);
+        SettlementPolicySnapshot settlementPolicy = settlementPolicy(lockTime);
+        FeeRuleConfigurationSnapshot fullScaleRule = percentageRule("2.30000000");
+        ReservePolicySnapshot fullScaleReserve = reserve("10.00000000");
+        CurrentHashMaterial material = new CurrentHashMaterial(
+                4, "M-1", 10L, 11L, 2, lockTime, "USD", settlementPolicy,
+                PercentageBasis.LABEL_AMOUNT, FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS,
+                RoundingMode.HALF_UP, fullScaleReserve, RefundFeeReturnPolicy.NONE,
+                List.of(fullScaleRule));
+        String hash = sha256(objectMapper.writeValueAsString(material));
+        FeeVersionSnapshot normalizedJsonSnapshot = new FeeVersionSnapshot(
+                4, "M-1", 10L, 11L, 2, lockTime, "USD", settlementPolicy,
+                PercentageBasis.LABEL_AMOUNT, FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS,
+                RoundingMode.HALF_UP, reserve("10"), RefundFeeReturnPolicy.NONE,
+                List.of(percentageRule("2.3")), hash);
+        ClearingTransactionMerchantSnapshotDO row = snapshotRow(
+                transactionTime, lockTime, hash, objectMapper.writeValueAsString(normalizedJsonSnapshot));
+        FeeVersionConfigurationDTO configuration = new FeeVersionConfigurationDTO(
+                "M-1", 10L, 11L, 2, "USD", "T", 1, 1, "DAILY", null,
+                lockTime.toLocalDate(), new BigDecimal("10.00000000"), "D", 180,
+                List.of(fullScaleRule));
+
+        ClearingTransactionMerchantSnapshotMapper snapshotMapper =
+                mock(ClearingTransactionMerchantSnapshotMapper.class);
+        FeeVersionQueryService queryService = mock(FeeVersionQueryService.class);
+        when(snapshotMapper.selectByTransaction("TX-1", transactionTime)).thenReturn(row);
+        when(queryService.findVersionFromSlave("M-1", 10L, 11L)).thenReturn(configuration);
+        DefaultFeeConfigurationSnapshotService service = new DefaultFeeConfigurationSnapshotService(
+                snapshotMapper, queryService, mock(StringRedisTemplate.class),
+                mock(PaymentRedisKeyResolver.class), objectMapper, mock(ClearingOperationalMetrics.class),
+                () -> 0L);
+        Logger logger = (Logger) LoggerFactory.getLogger(DefaultFeeConfigurationSnapshotService.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            FeeVersionSnapshot loaded = service.load("M-1", "OP-1", "TX-1", transactionTime);
+
+            assertThat(loaded.schemaVersion()).isEqualTo(4);
+            assertThat(loaded.snapshotHash()).isEqualTo(hash);
+            assertThat(appender.list).noneMatch(event -> event.getFormattedMessage()
+                    .contains("CLEARING_FEE_SNAPSHOT_HASH_MISMATCH"));
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
+    @Test
     void loadShouldClassifyMissingActionSnapshotAsControlledFailure() {
         LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 26, 8, 30);
         ClearingTransactionMerchantSnapshotMapper snapshotMapper =
@@ -170,6 +271,34 @@ class DefaultFeeConfigurationSnapshotServiceTest {
         return row;
     }
 
+    private ClearingTransactionMerchantSnapshotDO snapshotRow(LocalDateTime transactionTime,
+                                                               LocalDateTime lockTime,
+                                                               String hash,
+                                                               String snapshotJson) {
+        ClearingTransactionMerchantSnapshotDO row = snapshotRow(transactionTime);
+        row.setFeeSnapshotHash(hash);
+        row.setFeeSnapshotTime(lockTime);
+        row.setFeeConfigSnapshotJson(snapshotJson);
+        return row;
+    }
+
+    private FeeRuleConfigurationSnapshot percentageRule(String percentageRate) {
+        return new FeeRuleConfigurationSnapshot(
+                101L, "TRANSACTION_FEE", "PAYMENT", "BANK_CARD", "VISA", "NONE", "SUCCESS",
+                new FeeRuleSnapshot(101L, FeeMode.STANDARD, new BigDecimal(percentageRate),
+                        null, null, null, null), List.of());
+    }
+
+    private ReservePolicySnapshot reserve(String reserveRate) {
+        return new ReservePolicySnapshot(
+                new BigDecimal(reserveRate), ReserveBasis.LABEL_AMOUNT, "D", 180,
+                ReserveRefundPolicy.PROPORTIONAL_RETURN);
+    }
+
+    private SettlementPolicySnapshot settlementPolicy(LocalDateTime lockTime) {
+        return new SettlementPolicySnapshot("T", 1, 1, "DAILY", null, lockTime.toLocalDate());
+    }
+
     @SuppressWarnings("deprecation")
     private ObjectMapper canonicalMapper() {
         ObjectMapper mapper = new ObjectMapper();
@@ -178,6 +307,21 @@ class DefaultFeeConfigurationSnapshotServiceTest {
         mapper.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
         mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         mapper.getFactory().configure(JsonGenerator.Feature.WRITE_BIGDECIMAL_AS_PLAIN, true);
+        return mapper;
+    }
+
+    private ObjectMapper normalizedHashMapper() {
+        ObjectMapper mapper = canonicalMapper();
+        SimpleModule module = new SimpleModule();
+        module.addSerializer(BigDecimal.class, new JsonSerializer<>() {
+            @Override
+            public void serialize(BigDecimal value,
+                                  JsonGenerator generator,
+                                  SerializerProvider serializers) throws IOException {
+                generator.writeNumber(value.stripTrailingZeros());
+            }
+        });
+        mapper.registerModule(module);
         return mapper;
     }
 
@@ -199,5 +343,21 @@ class DefaultFeeConfigurationSnapshotServiceTest {
                                 ReservePolicySnapshot reserve,
                                 RefundFeeReturnPolicy refundFeeReturnPolicy,
                                 List<FeeRuleConfigurationSnapshot> rules) {
+    }
+
+    private record CurrentHashMaterial(int schemaVersion,
+                                       String merchantId,
+                                       Long feePlanId,
+                                       Long feePlanVersionId,
+                                       int feePlanVersionNo,
+                                       LocalDateTime pricingLockTime,
+                                       String settlementCurrency,
+                                       SettlementPolicySnapshot settlementPolicy,
+                                       PercentageBasis percentageBasis,
+                                       FeeCurrencyPolicy feeCurrencyPolicy,
+                                       RoundingMode roundingMode,
+                                       ReservePolicySnapshot reserve,
+                                       RefundFeeReturnPolicy refundFeeReturnPolicy,
+                                       List<FeeRuleConfigurationSnapshot> rules) {
     }
 }

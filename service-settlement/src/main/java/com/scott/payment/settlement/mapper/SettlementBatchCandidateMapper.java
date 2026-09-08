@@ -85,6 +85,18 @@ public interface SettlementBatchCandidateMapper {
     int markBatchManualReview(@Param("settlementBatchNo") String settlementBatchNo,
                               @Param("now") java.time.LocalDateTime now);
 
+    /** 人工批准重试汇率锁定时恢复本批全部人工复核关系，不改写历史认领时间。 */
+    @Update("""
+            UPDATE settlement_batch_candidate
+            SET relation_status = 'CLAIMED',
+                version = version + 1,
+                update_time = #{now}
+            WHERE settlement_batch_no = #{settlementBatchNo}
+              AND relation_status = 'MANUAL_REVIEW'
+            """)
+    int restoreManualReviewBatch(@Param("settlementBatchNo") String settlementBatchNo,
+                                 @Param("now") java.time.LocalDateTime now);
+
     /** 候选入账后迁移仍为 CLAIMED 的审计关系，禁止覆盖已释放或人工复核关系。 */
     @Update("""
             UPDATE settlement_batch_candidate
@@ -106,7 +118,7 @@ public interface SettlementBatchCandidateMapper {
                 version = version + 1,
                 update_time = #{now}
             WHERE settlement_batch_no = #{settlementBatchNo}
-              AND relation_status = 'CLAIMED'
+              AND relation_status IN ('CLAIMED', 'MANUAL_REVIEW')
             """)
     int releaseCancelledBatch(@Param("settlementBatchNo") String settlementBatchNo,
                               @Param("now") java.time.LocalDateTime now);

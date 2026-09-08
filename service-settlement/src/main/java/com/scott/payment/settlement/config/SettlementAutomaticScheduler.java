@@ -2,11 +2,14 @@ package com.scott.payment.settlement.config;
 
 import com.scott.payment.settlement.application.SettlementAutomaticProcessingApplicationService;
 import com.scott.payment.settlement.application.SettlementProjectionApplicationService;
+import com.scott.payment.settlement.application.SettlementManualReviewApplicationService;
+import com.scott.payment.settlement.application.SettlementReviewDecisionApplicationService;
 import com.scott.payment.settlement.exception.SettlementProjectionProcessingException;
 import com.scott.payment.settlement.service.SettlementEventPublisherService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
@@ -34,13 +37,27 @@ public class SettlementAutomaticScheduler {
     private final SettlementAutomaticProcessingApplicationService applicationService;
     private final SettlementProjectionApplicationService projectionService;
     private final SettlementEventPublisherService eventPublisherService;
+    private final SettlementManualReviewApplicationService manualReviewService;
+    private final SettlementReviewDecisionApplicationService reviewDecisionService;
 
     public SettlementAutomaticScheduler(SettlementAutomaticProcessingApplicationService applicationService,
                                         SettlementProjectionApplicationService projectionService,
-                                        SettlementEventPublisherService eventPublisherService) {
+                                        SettlementEventPublisherService eventPublisherService,
+                                        SettlementManualReviewApplicationService manualReviewService) {
+        this(applicationService, projectionService, eventPublisherService, manualReviewService, null);
+    }
+
+    @Autowired
+    public SettlementAutomaticScheduler(SettlementAutomaticProcessingApplicationService applicationService,
+                                        SettlementProjectionApplicationService projectionService,
+                                        SettlementEventPublisherService eventPublisherService,
+                                        SettlementManualReviewApplicationService manualReviewService,
+                                        SettlementReviewDecisionApplicationService reviewDecisionService) {
         this.applicationService = applicationService;
         this.projectionService = projectionService;
         this.eventPublisherService = eventPublisherService;
+        this.manualReviewService = manualReviewService;
+        this.reviewDecisionService = reviewDecisionService;
     }
 
     /** 每 30 秒有界激活候选并尝试创建成熟日批。 */
@@ -63,6 +80,39 @@ public class SettlementAutomaticScheduler {
                 }
             } catch (RuntimeException exception) {
                 LOGGER.error("Automatic settlement batch processing failed", exception);
+                return;
+            }
+        }
+    }
+
+    /** 每秒有界推进大批量手动交易结算预审，单次数据库事务只处理一个固定分段。 */
+    @Scheduled(initialDelay = 11_000L, fixedDelay = 1_000L)
+    public void processManualReviews() {
+        for (int index = 0; index < 10; index++) {
+            try {
+                if (!manualReviewService.processNext()) {
+                    return;
+                }
+            } catch (RuntimeException exception) {
+                LOGGER.error("Manual settlement review task processing failed", exception);
+                return;
+            }
+        }
+    }
+
+    /** 每秒有界推进大批量预审单审批、驳回或取消，每次只处理一个分段。 */
+    @Scheduled(initialDelay = 11_500L, fixedDelay = 1_000L)
+    public void processReviewDecisions() {
+        if (reviewDecisionService == null) {
+            return;
+        }
+        for (int index = 0; index < 10; index++) {
+            try {
+                if (!reviewDecisionService.processNext()) {
+                    return;
+                }
+            } catch (RuntimeException exception) {
+                LOGGER.error("Settlement review decision task processing failed", exception);
                 return;
             }
         }

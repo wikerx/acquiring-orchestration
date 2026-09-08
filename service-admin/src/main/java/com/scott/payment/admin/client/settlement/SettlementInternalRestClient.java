@@ -10,6 +10,10 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCommand
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReversalDecisionRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReversalSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReversalCommandResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalManualReviewPreviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewStartRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewTaskResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -92,6 +96,13 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
 
     /** {@inheritDoc} */
     @Override
+    public BatchCommandResponse retry(String settlementBatchNo, InternalBatchCommandRequest request) {
+        return post(BATCHES + "/" + settlementBatchNo + "/retry", request,
+                new TypeReference<CommonResult<BatchCommandResponse>>() { });
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public ReviewCommandResponse submitReview(InternalReviewSubmitRequest request) {
         return post(REVIEWS, request,
                 new TypeReference<CommonResult<ReviewCommandResponse>>() { });
@@ -103,6 +114,59 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
                                               InternalReviewDecisionRequest request) {
         return post(REVIEWS + "/" + reviewOrderNo + "/decisions", request,
                 new TypeReference<CommonResult<ReviewCommandResponse>>() { });
+    }
+
+    @Override
+    public ManualReviewTaskResponse previewManualReview(InternalManualReviewPreviewRequest request) {
+        return post(REVIEWS + "/manual-transaction-tasks/preview", request,
+                new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
+    }
+
+    @Override
+    public ManualReviewTaskResponse startManualReview(String taskNo,
+                                                      ManualReviewStartRequest request) {
+        return post(REVIEWS + "/manual-transaction-tasks/" + taskNo + "/start", request,
+                new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
+    }
+
+    @Override
+    public ManualReviewTaskResponse getManualReviewTask(String taskNo) {
+        return get(REVIEWS + "/manual-transaction-tasks/" + taskNo,
+                new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
+    }
+
+    @Override
+    public ManualReviewTaskResponse previewManualReserveReview(
+            InternalManualReviewPreviewRequest request) {
+        return post(REVIEWS + "/manual-reserve-tasks/preview", request,
+                new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
+    }
+
+    @Override
+    public ManualReviewTaskResponse startManualReserveReview(
+            String taskNo, ManualReviewStartRequest request) {
+        return post(REVIEWS + "/manual-reserve-tasks/" + taskNo + "/start", request,
+                new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
+    }
+
+    @Override
+    public ManualReviewTaskResponse getManualReserveReviewTask(String taskNo) {
+        return get(REVIEWS + "/manual-reserve-tasks/" + taskNo,
+                new TypeReference<CommonResult<ManualReviewTaskResponse>>() { });
+    }
+
+    @Override
+    public ReviewDecisionTaskResponse submitReviewDecisionTask(
+            String reviewOrderNo,
+            InternalReviewDecisionRequest request) {
+        return post(REVIEWS + "/" + reviewOrderNo + "/decision-tasks", request,
+                new TypeReference<CommonResult<ReviewDecisionTaskResponse>>() { });
+    }
+
+    @Override
+    public ReviewDecisionTaskResponse getReviewDecisionTask(String taskNo) {
+        return get(REVIEWS + "/decision-tasks/" + taskNo,
+                new TypeReference<CommonResult<ReviewDecisionTaskResponse>>() { });
     }
 
     /** {@inheritDoc} */
@@ -132,6 +196,10 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
      */
     private <T> T post(String path, Object request, TypeReference<CommonResult<T>> type) {
         return exchange(URI.create(baseUrl() + path), HttpMethod.POST, request, type);
+    }
+
+    private <T> T get(String path, TypeReference<CommonResult<T>> type) {
+        return exchange(URI.create(baseUrl() + path), HttpMethod.GET, null, type);
     }
 
     /** 对内部请求签名并统一解包 CommonResult，远端异常不向浏览器暴露服务内部正文。 */

@@ -97,6 +97,37 @@ class AdminSettlementApplicationServiceTest {
         verify(queryService).requireBatchAccess("SB20260826-00000001", scope);
     }
 
+    @Test
+    void retryShouldBindTrustedOperatorAndEnforceBatchDataScope() {
+        SettlementInternalClient client = mock(SettlementInternalClient.class);
+        AdminSettlementQueryService queryService = mock(AdminSettlementQueryService.class);
+        AdminMerchantDataScopeResolver scopeResolver = mock(AdminMerchantDataScopeResolver.class);
+        AdminSettlementApplicationService service = new AdminSettlementApplicationService(
+                client, queryService, scopeResolver);
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        AdminMerchantDataScope scope = AdminMerchantDataScope.limited(java.util.Set.of("M1001"));
+        when(scopeResolver.resolve(account)).thenReturn(scope);
+        BatchCommandRequest request = new BatchCommandRequest();
+        request.setRequestKey(" RETRY-SETTLEMENT-1 ");
+        request.setExpectedVersion(12L);
+        request.setReason(" rate is available; retry locking ");
+        HttpServletRequest servletRequest = mock(HttpServletRequest.class);
+        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn("10.0.0.8");
+        when(servletRequest.getHeader("User-Agent")).thenReturn("JUnit Admin");
+
+        service.retry(" SB20260826-00000001 ", request, servletRequest);
+
+        ArgumentCaptor<InternalBatchCommandRequest> retry =
+                ArgumentCaptor.forClass(InternalBatchCommandRequest.class);
+        verify(client).retry(org.mockito.ArgumentMatchers.eq("SB20260826-00000001"), retry.capture());
+        assertThat(retry.getValue().getRequestKey()).isEqualTo("RETRY-SETTLEMENT-1");
+        assertThat(retry.getValue().getReason()).isEqualTo("rate is available; retry locking");
+        assertThat(retry.getValue().getOperatorId()).isEqualTo(88L);
+        assertThat(retry.getValue().getRoleSnapshot()).isEqualTo("FINANCE,SETTLEMENT_OPERATOR");
+        verify(queryService).requireBatchAccess("SB20260826-00000001", scope);
+    }
+
     private InternalAuthAccount adminAccount() {
         InternalAuthAccount account = new InternalAuthAccount();
         account.setAppCode("ADMIN");

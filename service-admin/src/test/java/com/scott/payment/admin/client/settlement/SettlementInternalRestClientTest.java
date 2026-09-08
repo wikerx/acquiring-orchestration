@@ -5,6 +5,9 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalBatch
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReversalSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewSubmitRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalManualReviewPreviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewStartRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewTaskResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCommandResponse;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -28,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -90,6 +94,38 @@ class SettlementInternalRestClientTest {
                 "\"operationTime\":\"2026-08-31 18:00:00\"");
         assertThat(entityCaptor.getValue().getHeaders()
                 .getFirst(InternalServiceSignature.HEADER_SIGNATURE)).isNotBlank();
+    }
+
+    @Test
+    void rateLockingRecoveryShouldUseDedicatedSignedRetryRoute() {
+        RestTemplate direct = mock(RestTemplate.class);
+        RestTemplate loadBalanced = mock(RestTemplate.class);
+        SettlementInternalClientProperties properties = new SettlementInternalClientProperties();
+        properties.setInternalSecret("unit-test-settlement-secret");
+        when(loadBalanced.exchange(any(URI.class), eq(HttpMethod.POST),
+                any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(JsonUtils.toJsonString(CommonResult.success(
+                        new com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchCommandResponse()))));
+        SettlementInternalRestClient client = new SettlementInternalRestClient(
+                direct, loadBalanced, properties);
+        InternalBatchCommandRequest request = new InternalBatchCommandRequest();
+        request.setRequestKey("RETRY-REQ-1");
+        request.setExpectedVersion(12L);
+        request.setReason("rate is available; retry locking");
+        request.setOperatorId(88L);
+        request.setOperatorName("Settlement Operator");
+        request.setRoleSnapshot("SETTLEMENT_OPERATOR");
+        request.setClientIp("10.0.0.8");
+        request.setUserAgent("JUnit Admin");
+        request.setOperationTime(java.time.LocalDateTime.of(2026, 9, 5, 10, 0));
+
+        client.retry("SB20260826-00000001", request);
+
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        verify(loadBalanced).exchange(uriCaptor.capture(), eq(HttpMethod.POST),
+                any(HttpEntity.class), eq(String.class));
+        assertThat(uriCaptor.getValue().getPath()).isEqualTo(
+                "/internal/settlement/v1/batches/SB20260826-00000001/retry");
     }
 
     @Test
@@ -166,6 +202,36 @@ class SettlementInternalRestClientTest {
                 "\"decision\":\"APPROVE\"", "\"operatorId\":99", "\"expectedVersion\":3");
         assertThat(entityCaptor.getValue().getHeaders()
                 .getFirst(InternalServiceSignature.HEADER_SIGNATURE)).isNotBlank();
+    }
+
+    @Test
+    void reserveManualReviewShouldUseDedicatedSignedPreviewStartAndQueryRoutes() {
+        RestTemplate direct = mock(RestTemplate.class);
+        RestTemplate loadBalanced = mock(RestTemplate.class);
+        SettlementInternalClientProperties properties = new SettlementInternalClientProperties();
+        properties.setInternalSecret("unit-test-settlement-secret");
+        when(loadBalanced.exchange(any(URI.class), any(HttpMethod.class),
+                any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(JsonUtils.toJsonString(
+                        CommonResult.success(new ManualReviewTaskResponse()))));
+        SettlementInternalRestClient client = new SettlementInternalRestClient(
+                direct, loadBalanced, properties);
+        String taskNo = "MT" + "a".repeat(32);
+
+        client.previewManualReserveReview(new InternalManualReviewPreviewRequest());
+        client.startManualReserveReview(taskNo, new ManualReviewStartRequest());
+        client.getManualReserveReviewTask(taskNo);
+
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        ArgumentCaptor<HttpMethod> methodCaptor = ArgumentCaptor.forClass(HttpMethod.class);
+        verify(loadBalanced, times(3)).exchange(uriCaptor.capture(), methodCaptor.capture(),
+                any(HttpEntity.class), eq(String.class));
+        assertThat(uriCaptor.getAllValues()).extracting(URI::getPath).containsExactly(
+                "/internal/settlement/v1/reviews/manual-reserve-tasks/preview",
+                "/internal/settlement/v1/reviews/manual-reserve-tasks/" + taskNo + "/start",
+                "/internal/settlement/v1/reviews/manual-reserve-tasks/" + taskNo);
+        assertThat(methodCaptor.getAllValues()).containsExactly(
+                HttpMethod.POST, HttpMethod.POST, HttpMethod.GET);
     }
 
     @Test

@@ -68,6 +68,10 @@ class JdbcAdminSettlementProfileServiceTest {
                 "FROM merchant_settlement_profile profile",
                 "LEFT JOIN base_merchant_info merchant",
                 "LEFT JOIN merchant_fund_account account",
+                "LEFT JOIN fee_plan_version cycle_version",
+                "cycle_version.initial_delay_unit",
+                "cycle_version.settlement_frequency",
+                "AS manual_settlement_available",
                 "profile.merchant_id IN (:permittedMerchantIds)",
                 "ORDER BY profile.profile_status = 'ACTIVE' DESC, profile.id DESC",
                 "LIMIT :offset, :limit");

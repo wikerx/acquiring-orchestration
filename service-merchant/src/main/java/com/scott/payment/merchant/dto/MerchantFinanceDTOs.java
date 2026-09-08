@@ -305,10 +305,10 @@ public final class MerchantFinanceDTOs {
         private String settlementCurrency;
         /** 可用余额，单位为 settlementCurrency，允许为负。 */
         private BigDecimal availableBalance;
-        /** 保证金余额，单位为 settlementCurrency，不允许为负。 */
-        private BigDecimal reserveBalance;
         /** 按标签币种分别统计的在途余额。 */
         private List<CurrencyBalanceResponse> pendingBalances = new ArrayList<>();
+        /** 按保证金原标签币种分别统计的未结算保证金余额。 */
+        private List<CurrencyBalanceResponse> reserveBalances = new ArrayList<>();
         /** 人工账户状态：NORMAL、FROZEN 或 CLOSED。 */
         private String accountStatus;
         /** 1 表示负余额限制主动逆向交易，0 表示未限制。 */

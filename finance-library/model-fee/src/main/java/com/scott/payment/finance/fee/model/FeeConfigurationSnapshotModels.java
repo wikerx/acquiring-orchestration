@@ -5,6 +5,7 @@ import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeTierSnapshot;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -23,7 +24,9 @@ import java.util.regex.Pattern;
 public final class FeeConfigurationSnapshotModels {
 
     /** 当前可生产清分的费用快照结构版本。 */
-    public static final int CURRENT_SCHEMA_VERSION = 3;
+    public static final int CURRENT_SCHEMA_VERSION = 5;
+    /** 最低可回放历史费用快照版本。 */
+    public static final int MIN_SUPPORTED_SCHEMA_VERSION = 3;
 
     /**
      * ISO币种，表示金额字段使用的币种。
@@ -119,6 +122,51 @@ public final class FeeConfigurationSnapshotModels {
     }
 
     /**
+     * 交易结算周期快照；频率锚点固定双周结算的相位，避免不同服务按自然周奇偶各自猜测。
+     *
+     * @param delayUnit D 表示自然日，T 表示工作日
+     * @param initialDelayDays 首次正式交易结算完成前使用的延迟天数
+     * @param regularDelayDays 首次正式交易结算完成后使用的延迟天数
+     * @param settlementFrequency DAILY、WEEKLY、BIWEEKLY 或 MONTHLY
+     * @param frequencyDay 周结为 ISO 周一至周日 1 至 7，月结为 1 至 28，日结为空
+     * @param frequencyAnchorDate 频率相位锚点，使用费用版本生效日期
+     */
+    public record SettlementPolicySnapshot(String delayUnit,
+                                           int initialDelayDays,
+                                           int regularDelayDays,
+                                           String settlementFrequency,
+                                           Integer frequencyDay,
+                                           LocalDate frequencyAnchorDate) {
+
+        public SettlementPolicySnapshot {
+            if (!Set.of("D", "T").contains(delayUnit)) {
+                throw new IllegalArgumentException("settlement delay unit must be D or T");
+            }
+            if (initialDelayDays < 0 || regularDelayDays < 0) {
+                throw new IllegalArgumentException("settlement delay days must not be negative");
+            }
+            if (!Set.of("DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY").contains(settlementFrequency)) {
+                throw new IllegalArgumentException("unsupported settlement frequency");
+            }
+            boolean validDay = switch (settlementFrequency) {
+                case "DAILY" -> frequencyDay == null;
+                case "WEEKLY", "BIWEEKLY" -> frequencyDay != null && frequencyDay >= 1 && frequencyDay <= 7;
+                case "MONTHLY" -> frequencyDay != null && frequencyDay >= 1 && frequencyDay <= 28;
+                default -> false;
+            };
+            if (!validDay) {
+                throw new IllegalArgumentException("settlement frequency day is invalid");
+            }
+            Objects.requireNonNull(frequencyAnchorDate, "settlement frequency anchor date is required");
+        }
+
+        /** 仅用于回放 schema v3；历史行为是交易日立即可结算。 */
+        public static SettlementPolicySnapshot legacyImmediate(LocalDate anchorDate) {
+            return new SettlementPolicySnapshot("D", 0, 0, "DAILY", null, anchorDate);
+        }
+    }
+
+    /**
      * 带业务匹配维度的单条费用规则快照。
      *
      * @param ruleId 费用规则数据库主键
@@ -160,13 +208,14 @@ public final class FeeConfigurationSnapshotModels {
     /**
      * 单个交易动作冻结的完整费用版本。
      *
-     * @param schemaVersion 快照 JSON 结构版本，当前必须为 3
+     * @param schemaVersion 快照 JSON 结构版本；v5 哈希对等值 BigDecimal 的 scale 不敏感
      * @param merchantId 费用版本所属平台商户号，用于防止跨商户错配
      * @param feePlanId 费用方案主键
      * @param feePlanVersionId 不可变费用版本主键
      * @param feePlanVersionNo 方案内版本号
      * @param pricingLockTime 动作受理时费用锁定时间
      * @param settlementCurrency 商户目标结算币种；清分阶段不据此换汇
+     * @param settlementPolicy 交易结算周期和频率快照
      * @param percentageBasis 百分比费用基数
      * @param feeCurrencyPolicy 固定费用币种口径
      * @param roundingMode 组件金额舍入规则
@@ -182,6 +231,7 @@ public final class FeeConfigurationSnapshotModels {
                                      int feePlanVersionNo,
                                      LocalDateTime pricingLockTime,
                                      String settlementCurrency,
+                                     SettlementPolicySnapshot settlementPolicy,
                                      PercentageBasis percentageBasis,
                                      FeeCurrencyPolicy feeCurrencyPolicy,
                                      RoundingMode roundingMode,
@@ -191,7 +241,7 @@ public final class FeeConfigurationSnapshotModels {
                                      String snapshotHash) {
 
         public FeeVersionSnapshot {
-            if (schemaVersion != CURRENT_SCHEMA_VERSION) {
+            if (schemaVersion < MIN_SUPPORTED_SCHEMA_VERSION || schemaVersion > CURRENT_SCHEMA_VERSION) {
                 throw new IllegalArgumentException("unsupported fee snapshot schema version");
             }
             requireText(merchantId, "merchant id");
@@ -203,6 +253,16 @@ public final class FeeConfigurationSnapshotModels {
             Objects.requireNonNull(pricingLockTime, "pricing lock time is required");
             if (settlementCurrency == null || !ISO_CURRENCY.matcher(settlementCurrency).matches()) {
                 throw new IllegalArgumentException("settlement currency must be an uppercase ISO code");
+            }
+            if (settlementPolicy == null) {
+                if (schemaVersion != 3) {
+                    throw new IllegalArgumentException("settlement policy is required");
+                }
+                settlementPolicy = SettlementPolicySnapshot.legacyImmediate(pricingLockTime.toLocalDate());
+            }
+            if (schemaVersion >= 4
+                    && (settlementPolicy.initialDelayDays() < 1 || settlementPolicy.regularDelayDays() < 1)) {
+                throw new IllegalArgumentException("settlement delay days must be positive");
             }
             Objects.requireNonNull(percentageBasis, "percentage basis is required");
             Objects.requireNonNull(feeCurrencyPolicy, "fee currency policy is required");
@@ -218,6 +278,31 @@ public final class FeeConfigurationSnapshotModels {
             if (snapshotHash == null || !SHA256.matcher(snapshotHash).matches()) {
                 throw new IllegalArgumentException("fee snapshot hash must be a lowercase SHA-256 value");
             }
+        }
+
+        /** 兼容仅关注费用计算的既有调用方；新生产快照必须显式传入结算周期。 */
+        public FeeVersionSnapshot(int schemaVersion,
+                                  String merchantId,
+                                  Long feePlanId,
+                                  Long feePlanVersionId,
+                                  int feePlanVersionNo,
+                                  LocalDateTime pricingLockTime,
+                                  String settlementCurrency,
+                                  PercentageBasis percentageBasis,
+                                  FeeCurrencyPolicy feeCurrencyPolicy,
+                                  RoundingMode roundingMode,
+                                  ReservePolicySnapshot reserve,
+                                  RefundFeeReturnPolicy refundFeeReturnPolicy,
+                                  List<FeeRuleConfigurationSnapshot> rules,
+                                  String snapshotHash) {
+            this(schemaVersion, merchantId, feePlanId, feePlanVersionId, feePlanVersionNo,
+                    pricingLockTime, settlementCurrency,
+                    schemaVersion == 3
+                            ? SettlementPolicySnapshot.legacyImmediate(pricingLockTime.toLocalDate())
+                            : new SettlementPolicySnapshot("D", 1, 1, "DAILY", null,
+                                    pricingLockTime.toLocalDate()),
+                    percentageBasis, feeCurrencyPolicy, roundingMode, reserve,
+                    refundFeeReturnPolicy, rules, snapshotHash);
         }
     }
 

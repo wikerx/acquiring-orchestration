@@ -142,6 +142,15 @@ public final class FundAccountEntities {
         private BigDecimal amount;
     }
 
+    /** 按原标签币种聚合的未完成保证金结算余额查询投影。 */
+    @Data
+    public static class ReserveBalanceAggregate {
+        /** 保证金原标签 ISO 4217 三位币种。 */
+        private String currency;
+        /** 尚未完成保证金结算入账的净额。 */
+        private BigDecimal amount;
+    }
+
     /** 保证金留存与释放跟踪明细。 */
     @Data
     @TableName("merchant_reserve_item")

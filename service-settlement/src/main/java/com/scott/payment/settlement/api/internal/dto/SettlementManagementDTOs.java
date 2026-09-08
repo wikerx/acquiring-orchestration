@@ -56,6 +56,8 @@ public final class SettlementManagementDTOs {
         private String resultStatus;
         /** 入账前取消实际释放候选数；非取消场景允许为空。 */
         private Integer releasedCandidateCount;
+        /** 人工恢复后重新进入异步处理的候选数；非恢复场景允许为空。 */
+        private Integer restoredCandidateCount;
     }
 
     /**
@@ -159,6 +161,105 @@ public final class SettlementManagementDTOs {
         /** 冻结非负净额，单位由 targetCurrencyExponent 决定。 */
         private BigDecimal netAmount;
         /** 决策时使用的预审单乐观锁版本。 */
+        private Long version;
+    }
+
+    /** service-admin 注入可信 Maker 后创建服务端冻结的交易结算预览。 */
+    @Data
+    public static class ManualReviewPreviewRequest {
+        private String requestKey;
+        private String merchantId;
+        private Long settlementProfileId;
+        private String paymentType;
+        private String paymentMethod;
+        private String reason;
+        private Long operatorId;
+        private String operatorName;
+        private String roleSnapshot;
+        private String clientIp;
+        private String userAgent;
+        private LocalDateTime operationTime;
+    }
+
+    /** 将已冻结预览提交到后台异步生成队列。 */
+    @Data
+    public static class ManualReviewStartRequest {
+        private String requestKey;
+        private Long expectedVersion;
+    }
+
+    /** 按来源币种展示的候选统计，金额不得跨币种直接合计。 */
+    @Data
+    public static class ManualReviewPreviewLineResponse {
+        private String sourceCurrency;
+        private Integer sourceCurrencyExponent;
+        private Long transactionCount;
+        private BigDecimal grossAmount;
+        private BigDecimal platformFeeAmount;
+        private BigDecimal reserveAmount;
+        private BigDecimal releasedReserveAmount;
+        private BigDecimal netSettlementAmount;
+        private Long pendingFeeCount;
+        private String reserveDelayUnit;
+        private Integer minimumReserveDelayDays;
+        private Integer maximumReserveDelayDays;
+        private LocalDate earliestExpectedReleaseDate;
+        private LocalDate latestExpectedReleaseDate;
+    }
+
+    /** 手动交易结算预览及后台生成进度。 */
+    @Data
+    public static class ManualReviewTaskResponse {
+        private String taskNo;
+        private String reviewOrderNo;
+        private String taskStatus;
+        private String reviewType;
+        private String merchantId;
+        private Long settlementProfileId;
+        private Long settlementAccountId;
+        private String targetCurrency;
+        private Integer targetCurrencyExponent;
+        private String paymentType;
+        private String paymentMethod;
+        private String submitReason;
+        private LocalDate businessDate;
+        private LocalDateTime cutoffEndTime;
+        private Long snapshotMaxCandidateId;
+        private Integer expectedCandidateCount;
+        private Integer processedCandidateCount;
+        private Integer lockedCandidateCount;
+        private Integer progressPercent;
+        private String initialDelayUnit;
+        private Integer initialDelayDays;
+        private Integer regularDelayDays;
+        private String settlementFrequency;
+        private Integer frequencyDay;
+        private List<ManualReviewPreviewLineResponse> preview = Collections.emptyList();
+        private Integer retryCount;
+        private String failureCode;
+        private String failureMessage;
+        private LocalDateTime startedTime;
+        private LocalDateTime completedTime;
+        private Long version;
+    }
+
+    /** 大批量预审单的异步审批、驳回或取消进度。 */
+    @Data
+    public static class ReviewDecisionTaskResponse {
+        private String taskNo;
+        private String reviewOrderNo;
+        private String decisionAction;
+        private String taskStatus;
+        private Integer totalSegmentCount;
+        private Integer processedSegmentCount;
+        private Integer resultBatchCount;
+        private Integer progressPercent;
+        private String firstSettlementBatchNo;
+        private Integer retryCount;
+        private String failureCode;
+        private String failureMessage;
+        private LocalDateTime startedTime;
+        private LocalDateTime completedTime;
         private Long version;
     }
 

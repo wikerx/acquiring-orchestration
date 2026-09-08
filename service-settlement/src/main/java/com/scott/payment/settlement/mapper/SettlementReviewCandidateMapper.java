@@ -60,6 +60,20 @@ public interface SettlementReviewCandidateMapper {
     List<SettlementReviewCandidateDO> selectByOrderNoForUpdate(
             @Param("reviewOrderNo") String reviewOrderNo);
 
+    @Select("""
+            SELECT *
+            FROM settlement_review_candidate
+            WHERE review_order_no = #{reviewOrderNo}
+              AND candidate_id BETWEEN #{firstCandidateId} AND #{lastCandidateId}
+              AND relation_status = 'LOCKED'
+            ORDER BY candidate_id ASC, id ASC
+            FOR UPDATE
+            """)
+    List<SettlementReviewCandidateDO> selectRangeForUpdate(
+            @Param("reviewOrderNo") String reviewOrderNo,
+            @Param("firstCandidateId") long firstCandidateId,
+            @Param("lastCandidateId") long lastCandidateId);
+
     /**
      * 将预审单全部 LOCKED 关系标记为已被正式批次消费。
      * @param reviewOrderNo 已批准预审单号
@@ -95,4 +109,30 @@ public interface SettlementReviewCandidateMapper {
             """)
     int markReleased(@Param("reviewOrderNo") String reviewOrderNo,
                      @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE settlement_review_candidate
+            SET relation_status = 'RELEASED', released_time = #{now},
+                version = version + 1, update_time = #{now}
+            WHERE review_order_no = #{reviewOrderNo}
+              AND candidate_id BETWEEN #{firstCandidateId} AND #{lastCandidateId}
+              AND relation_status = 'LOCKED'
+            """)
+    int markRangeReleased(@Param("reviewOrderNo") String reviewOrderNo,
+                          @Param("firstCandidateId") long firstCandidateId,
+                          @Param("lastCandidateId") long lastCandidateId,
+                          @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE settlement_review_candidate
+            SET relation_status = 'CONSUMED', consumed_time = #{now},
+                version = version + 1, update_time = #{now}
+            WHERE review_order_no = #{reviewOrderNo}
+              AND candidate_id BETWEEN #{firstCandidateId} AND #{lastCandidateId}
+              AND relation_status = 'LOCKED'
+            """)
+    int markRangeConsumed(@Param("reviewOrderNo") String reviewOrderNo,
+                          @Param("firstCandidateId") long firstCandidateId,
+                          @Param("lastCandidateId") long lastCandidateId,
+                          @Param("now") LocalDateTime now);
 }

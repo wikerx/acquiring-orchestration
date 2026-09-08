@@ -18,11 +18,13 @@ import com.scott.payment.clearing.mapper.ClearingTransactionFinanceStateMapper;
 import com.scott.payment.clearing.mapper.ClearingTransactionOperationMapper;
 import com.scott.payment.clearing.service.ClearingPreparationService;
 import com.scott.payment.clearing.service.FeeConfigurationSnapshotService;
+import com.scott.payment.clearing.service.SettlementEligibilityService;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeVersionSnapshot;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReservePolicySnapshot;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 
 import java.time.DayOfWeek;
@@ -57,6 +59,8 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
     private final ClearingTransactionFinanceStateMapper financeStateMapper;
     /** 加载并校验动作受理时冻结的确切费用版本。 */
     private final FeeConfigurationSnapshotService snapshotService;
+    /** 使用冻结周期和确认日历计算交易最早可结算日。 */
+    private final SettlementEligibilityService eligibilityService;
 
     /**
      * 创建清分事务外准备服务。
@@ -66,14 +70,26 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
      * @param financeStateMapper 动作清分状态 Mapper
      * @param snapshotService 确切费用版本加载服务
      */
+    @Autowired
     public DefaultClearingPreparationService(ClearingTransactionContextMapper contextMapper,
                                              ClearingTransactionOperationMapper operationMapper,
                                              ClearingTransactionFinanceStateMapper financeStateMapper,
-                                             FeeConfigurationSnapshotService snapshotService) {
+                                             FeeConfigurationSnapshotService snapshotService,
+                                             SettlementEligibilityService eligibilityService) {
         this.contextMapper = contextMapper;
         this.operationMapper = operationMapper;
         this.financeStateMapper = financeStateMapper;
         this.snapshotService = snapshotService;
+        this.eligibilityService = eligibilityService;
+    }
+
+    /** 兼容既有单元测试构造器；生产注入始终使用完整周期服务。 */
+    DefaultClearingPreparationService(ClearingTransactionContextMapper contextMapper,
+                                      ClearingTransactionOperationMapper operationMapper,
+                                      ClearingTransactionFinanceStateMapper financeStateMapper,
+                                      FeeConfigurationSnapshotService snapshotService) {
+        this(contextMapper, operationMapper, financeStateMapper, snapshotService,
+                (merchantId, transactionDate, snapshot) -> transactionDate);
     }
 
     /** {@inheritDoc} */
@@ -129,7 +145,8 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         }
 
         SourceContext source = loadSource(operation);
-        LocalDate settlementEligibleDate = operation.transactionDateTime().toLocalDate();
+        LocalDate settlementEligibleDate = eligibilityService.calculate(
+                operation.merchantId(), operation.transactionDateTime().toLocalDate(), currentSnapshot);
         LocalDate expectedReserveReleaseDate = reserveReleaseDate(operation, currentSnapshot.reserve());
         return new CompletionCommand(message, claim, processingOwner, currentSnapshot, currentLocator,
                 paymentMethod.getPaymentMethod(), paymentMethod.getPaymentBrand(), riskServices, source,

@@ -2,6 +2,7 @@ package com.scott.payment.settlement.mapper;
 
 import com.scott.payment.settlement.entity.SettlementBatchDO;
 import com.scott.payment.settlement.entity.SettlementBatchCancellationAuditDO;
+import com.scott.payment.settlement.entity.SettlementBatchRecoveryAuditDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -155,6 +156,39 @@ public interface SettlementBatchMapper {
             """)
     int bindApprovedReview(@Param("row") SettlementBatchDO row,
                            @Param("expectedVersion") long expectedVersion);
+
+    /** 大预审单分段批准时先冻结审计但保持 CLAIMING，整单完成前禁止调度入账。 */
+    @Update("""
+            UPDATE settlement_batch
+            SET review_order_no = #{row.reviewOrderNo}, create_mode = 'MANUAL_REVIEW',
+                batch_status = 'CLAIMING', candidate_count = #{row.candidateCount},
+                projectable_candidate_count = #{row.projectableCandidateCount},
+                result_fingerprint = #{row.resultFingerprint},
+                maker_account_id = #{row.makerAccountId}, maker_account_name = #{row.makerAccountName},
+                maker_role_snapshot = #{row.makerRoleSnapshot}, maker_client_ip = #{row.makerClientIp},
+                maker_user_agent = #{row.makerUserAgent}, maker_reason = #{row.makerReason},
+                maker_time = #{row.makerTime}, checker_account_id = #{row.checkerAccountId},
+                checker_account_name = #{row.checkerAccountName},
+                checker_role_snapshot = #{row.checkerRoleSnapshot},
+                checker_client_ip = #{row.checkerClientIp}, checker_user_agent = #{row.checkerUserAgent},
+                checker_comment = #{row.checkerComment}, checker_time = #{row.checkerTime},
+                version = version + 1, update_time = #{row.checkerTime}
+            WHERE settlement_batch_no = #{row.settlementBatchNo}
+              AND batch_status = 'CREATED' AND candidate_count = 0
+              AND review_order_no IS NULL AND version = #{expectedVersion}
+            """)
+    int bindAsyncApprovedReview(@Param("row") SettlementBatchDO row,
+                                @Param("expectedVersion") long expectedVersion);
+
+    /** 整张预审单进入 APPROVED 后才一次激活全部分段批次。 */
+    @Update("""
+            UPDATE settlement_batch
+            SET batch_status = 'CLAIMED', version = version + 1, update_time = #{now}
+            WHERE review_order_no = #{reviewOrderNo} AND create_mode = 'MANUAL_REVIEW'
+              AND batch_status = 'CLAIMING' AND candidate_count > 0
+            """)
+    int activateAsyncApprovedReviewBatches(@Param("reviewOrderNo") String reviewOrderNo,
+                                           @Param("now") java.time.LocalDateTime now);
 
     /** 候选与审计关系写入后，使用批次状态和版本 CAS 增加计数并进入 CLAIMING。 */
     @Update("""
@@ -322,7 +356,7 @@ public interface SettlementBatchMapper {
                 update_time = #{now}
             WHERE settlement_batch_no = #{settlementBatchNo}
               AND batch_status IN ('CREATED', 'CLAIMING', 'CLAIMED', 'RATE_LOCKED',
-                                   'CALCULATING', 'CALCULATED', 'FAILED_RETRYABLE')
+                                   'CALCULATING', 'CALCULATED', 'FAILED_RETRYABLE', 'MANUAL_REVIEW')
               AND version = #{expectedVersion}
             """)
     int cancelBeforePosting(@Param("settlementBatchNo") String settlementBatchNo,
@@ -345,6 +379,7 @@ public interface SettlementBatchMapper {
             FROM settlement_batch_cancellation_audit
             WHERE settlement_batch_no = #{settlementBatchNo}
             LIMIT 1
+            FOR UPDATE
             """)
     SettlementBatchCancellationAuditDO selectCancellationAuditByBatchNo(
             @Param("settlementBatchNo") String settlementBatchNo);
@@ -364,6 +399,67 @@ public interface SettlementBatchMapper {
              #{row.createTime})
             """)
     int insertCancellationAudit(@Param("row") SettlementBatchCancellationAuditDO row);
+
+    /** 仅将汇率锁定重试耗尽的人工复核批次恢复为可被异步处理器扫描的状态。 */
+    @Update("""
+            UPDATE settlement_batch
+            SET batch_status = 'FAILED_RETRYABLE',
+                retry_count = 0,
+                processing_owner = NULL,
+                processing_deadline = #{now},
+                last_failure_stage = NULL,
+                last_failure_code = NULL,
+                last_failure_message = NULL,
+                version = version + 1,
+                update_time = #{now}
+            WHERE settlement_batch_no = #{settlementBatchNo}
+              AND batch_status = 'MANUAL_REVIEW'
+              AND last_failure_stage = 'RATE_LOCKING'
+              AND last_failure_code = 'SETTLEMENT_RETRY_EXHAUSTED'
+              AND version = #{expectedVersion}
+            """)
+    int retryExhaustedRateLocking(@Param("settlementBatchNo") String settlementBatchNo,
+                                  @Param("expectedVersion") long expectedVersion,
+                                  @Param("now") java.time.LocalDateTime now);
+
+    /** 无锁快速读取既有恢复结果；请求键唯一约束负责最终幂等。 */
+    @Select("""
+            SELECT *
+            FROM settlement_batch_recovery_audit
+            WHERE request_key = #{requestKey}
+            LIMIT 1
+            """)
+    SettlementBatchRecoveryAuditDO selectRecoveryAuditByRequestKey(
+            @Param("requestKey") String requestKey);
+
+    /** 批次行锁获取后使用当前读回查同一请求，覆盖并发请求等待期间提交的恢复审计。 */
+    @Select("""
+            SELECT *
+            FROM settlement_batch_recovery_audit
+            WHERE request_key = #{requestKey}
+            LIMIT 1
+            FOR UPDATE
+            """)
+    SettlementBatchRecoveryAuditDO selectRecoveryAuditByRequestKeyForUpdate(
+            @Param("requestKey") String requestKey);
+
+    /** 批次、候选和关系恢复成功后追加不可变人工恢复审计。 */
+    @Insert("""
+            INSERT INTO settlement_batch_recovery_audit
+            (settlement_batch_no, request_key, expected_version, merchant_id, recovery_action,
+             batch_status_before, failure_stage_before, failure_code_before, retry_count_before,
+             restored_candidate_count, operator_account_id, operator_account_name,
+             operator_role_snapshot, client_ip, user_agent, reason, operation_time,
+             recovered_time, create_time)
+            VALUES
+            (#{row.settlementBatchNo}, #{row.requestKey}, #{row.expectedVersion}, #{row.merchantId},
+             #{row.recoveryAction}, #{row.batchStatusBefore}, #{row.failureStageBefore},
+             #{row.failureCodeBefore}, #{row.retryCountBefore}, #{row.restoredCandidateCount},
+             #{row.operatorAccountId}, #{row.operatorAccountName}, #{row.operatorRoleSnapshot},
+             #{row.clientIp}, #{row.userAgent}, #{row.reason}, #{row.operationTime},
+             #{row.recoveredTime}, #{row.createTime})
+            """)
+    int insertRecoveryAudit(@Param("row") SettlementBatchRecoveryAuditDO row);
 
     /** 原批次由 POSTED 进入 REVERSING，禁止并发创建多条冲正链。 */
     @Update("""

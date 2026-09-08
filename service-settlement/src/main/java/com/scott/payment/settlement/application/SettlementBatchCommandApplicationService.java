@@ -14,6 +14,7 @@ import com.scott.payment.settlement.entity.MerchantReserveActionDO;
 import com.scott.payment.settlement.entity.MerchantReserveItemDO;
 import com.scott.payment.settlement.entity.SettlementBatchDO;
 import com.scott.payment.settlement.entity.SettlementBatchCancellationAuditDO;
+import com.scott.payment.settlement.entity.SettlementBatchRecoveryAuditDO;
 import com.scott.payment.settlement.entity.SettlementProjectionTaskDO;
 import com.scott.payment.settlement.entity.SettlementResultItemDO;
 import com.scott.payment.settlement.mapper.SettlementBatchCandidateMapper;
@@ -175,6 +176,105 @@ public class SettlementBatchCommandApplicationService {
         row.setReason(audit.reason());
         row.setOperationTime(audit.operator().operationTime());
         row.setCancelledTime(now);
+        row.setCreateTime(now);
+        return row;
+    }
+
+    /**
+     * 将仅因汇率锁定重试耗尽进入人工复核的批次恢复给现有异步处理器。
+     * 同一请求键重放返回首次恢复数量，其他人工复核原因一律拒绝。
+     */
+    @DS(DataSourceName.TRANSACTION)
+    @Transactional(rollbackFor = Exception.class)
+    public int retryExhaustedRateLocking(String settlementBatchNo,
+                                         long expectedVersion,
+                                         SettlementCommandAudit audit,
+                                         LocalDateTime now) {
+        if (settlementBatchNo == null || settlementBatchNo.isBlank()
+                || expectedVersion < 0 || audit == null || now == null) {
+            throw new IllegalArgumentException("settlement recovery command is invalid");
+        }
+        String batchNo = settlementBatchNo.trim();
+        SettlementBatchRecoveryAuditDO requestReplay =
+                batchMapper.selectRecoveryAuditByRequestKey(audit.requestKey());
+        if (requestReplay != null) {
+            return recoveryReplayResult(batchNo, audit.requestKey(), requestReplay);
+        }
+
+        SettlementBatchDO batch = requireBatch(batchNo);
+        SettlementBatchRecoveryAuditDO concurrentReplay =
+                batchMapper.selectRecoveryAuditByRequestKeyForUpdate(audit.requestKey());
+        if (concurrentReplay != null) {
+            return recoveryReplayResult(batchNo, audit.requestKey(), concurrentReplay);
+        }
+        if (batch.getVersion() != expectedVersion) {
+            throw new IllegalStateException("settlement batch command uses a stale version");
+        }
+        if (batch.getProcessingDeadline() != null && batch.getProcessingDeadline().isAfter(now)) {
+            throw new IllegalStateException("settlement batch has an active processing lease");
+        }
+        if (!SettlementBatchStatus.MANUAL_REVIEW.name().equals(batch.getBatchStatus())
+                || !"RATE_LOCKING".equals(batch.getLastFailureStage())
+                || !"SETTLEMENT_RETRY_EXHAUSTED".equals(batch.getLastFailureCode())) {
+            throw new IllegalStateException("settlement batch does not allow rate locking recovery");
+        }
+        int expected = Objects.requireNonNullElse(batch.getCandidateCount(), 0);
+        if (expected <= 0) {
+            throw new IllegalStateException("settlement recovery candidate count is invalid");
+        }
+        if (batchMapper.retryExhaustedRateLocking(batchNo, expectedVersion, now) != 1) {
+            throw new IllegalStateException("settlement rate locking recovery state CAS failed");
+        }
+        int candidates = candidateMapper.restoreManualReviewBatch(batchNo, now);
+        int relations = relationMapper.restoreManualReviewBatch(batchNo, now);
+        if (candidates != expected || relations != expected) {
+            throw new IllegalStateException("settlement recovery restore count is inconsistent");
+        }
+        if (batchMapper.insertRecoveryAudit(recoveryAudit(
+                batch, expectedVersion, candidates, audit, now)) != 1) {
+            throw new IllegalStateException("settlement recovery audit insert failed");
+        }
+        return candidates;
+    }
+
+    private int recoveryReplayResult(String batchNo,
+                                     String requestKey,
+                                     SettlementBatchRecoveryAuditDO existing) {
+        if (!batchNo.equals(existing.getSettlementBatchNo())
+                || !requestKey.equals(existing.getRequestKey())) {
+            throw new IllegalStateException("settlement recovery request key is already in use");
+        }
+        if (existing.getRestoredCandidateCount() == null
+                || existing.getRestoredCandidateCount() < 0) {
+            throw new IllegalStateException("settlement recovery audit result is incomplete");
+        }
+        return existing.getRestoredCandidateCount();
+    }
+
+    private SettlementBatchRecoveryAuditDO recoveryAudit(SettlementBatchDO batch,
+                                                          long expectedVersion,
+                                                          int restoredCandidates,
+                                                          SettlementCommandAudit audit,
+                                                          LocalDateTime now) {
+        SettlementBatchRecoveryAuditDO row = new SettlementBatchRecoveryAuditDO();
+        row.setSettlementBatchNo(batch.getSettlementBatchNo());
+        row.setRequestKey(audit.requestKey());
+        row.setExpectedVersion(expectedVersion);
+        row.setMerchantId(batch.getMerchantId());
+        row.setRecoveryAction("RETRY_RATE_LOCKING");
+        row.setBatchStatusBefore(batch.getBatchStatus());
+        row.setFailureStageBefore(batch.getLastFailureStage());
+        row.setFailureCodeBefore(batch.getLastFailureCode());
+        row.setRetryCountBefore(Objects.requireNonNullElse(batch.getRetryCount(), 0));
+        row.setRestoredCandidateCount(restoredCandidates);
+        row.setOperatorAccountId(audit.operator().accountId());
+        row.setOperatorAccountName(audit.operator().accountName());
+        row.setOperatorRoleSnapshot(audit.operator().roleSnapshot());
+        row.setClientIp(audit.operator().clientIp());
+        row.setUserAgent(audit.operator().userAgent());
+        row.setReason(audit.reason());
+        row.setOperationTime(audit.operator().operationTime());
+        row.setRecoveredTime(now);
         row.setCreateTime(now);
         return row;
     }

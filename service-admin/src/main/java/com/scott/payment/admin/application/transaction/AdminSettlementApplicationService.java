@@ -37,6 +37,13 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDetailR
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalManualReviewPreviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewPreviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewStartRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewTaskResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateLine;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateSearchRequest;
 
 /**
  * @author : scott
@@ -120,6 +127,17 @@ public class AdminSettlementApplicationService {
         return client.cancel(settlementBatchNo.trim(), command(request, account, servletRequest));
     }
 
+    /** 校验数据范围后注入可信操作人并恢复汇率锁定重试耗尽批次。 */
+    public BatchCommandResponse retry(String settlementBatchNo,
+                                      BatchCommandRequest request,
+                                      HttpServletRequest servletRequest) {
+        requireBatchNo(settlementBatchNo);
+        InternalAuthAccount account = currentAdminAccount();
+        AdminMerchantDataScope dataScope = dataScopeResolver.resolve(account);
+        queryService.requireBatchAccess(settlementBatchNo.trim(), dataScope);
+        return client.retry(settlementBatchNo.trim(), command(request, account, servletRequest));
+    }
+
     /**
      * 查询当前数据范围内仅来源于真实 CLEARING_REVISION 的交易候选。
      *
@@ -184,6 +202,14 @@ public class AdminSettlementApplicationService {
         return reviewQueries().reviewDetail(reviewOrderNo.trim(), currentDataScope());
     }
 
+    /** 大预审单候选明细使用标准分页，不随详情一次返回。 */
+    public PageResult<ReviewCandidateLine> reviewCandidates(
+            String reviewOrderNo,
+            ReviewCandidateSearchRequest request) {
+        requireReviewNo(reviewOrderNo);
+        return reviewQueries().reviewCandidates(reviewOrderNo.trim(), request, currentDataScope());
+    }
+
     /**
      * 校验交易候选数据范围后注入可信 Maker，提交 REGULAR 人工预审。
      *
@@ -195,6 +221,106 @@ public class AdminSettlementApplicationService {
                                                          HttpServletRequest servletRequest) {
         validateReviewSubmit(request, Set.of("REGULAR"));
         return submitReview(request, servletRequest);
+    }
+
+    /** 创建服务端冻结的全量交易结算预览，不接受页面候选 ID 列表。 */
+    public ManualReviewTaskResponse previewManualTransactionReview(
+            ManualReviewPreviewRequest request,
+            HttpServletRequest servletRequest) {
+        if (request == null || !validText(request.getRequestKey(), 128)
+                || !validText(request.getMerchantId(), 64)
+                || request.getSettlementProfileId() == null || request.getSettlementProfileId() <= 0
+                || !optionalCode(request.getPaymentType(), 64)
+                || !optionalCode(request.getPaymentMethod(), 64)
+                || !validText(request.getReason(), 400)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        InternalAuthAccount account = currentAdminAccount();
+        AdminMerchantDataScope scope = dataScopeResolver.resolve(account);
+        reviewQueries().requireMerchantAccess(request.getMerchantId().trim(), scope);
+        InternalManualReviewPreviewRequest internal = new InternalManualReviewPreviewRequest();
+        internal.setRequestKey(request.getRequestKey().trim());
+        internal.setMerchantId(request.getMerchantId().trim());
+        internal.setSettlementProfileId(request.getSettlementProfileId());
+        internal.setPaymentType(trimToNull(request.getPaymentType()));
+        internal.setPaymentMethod(trimToNull(request.getPaymentMethod()));
+        internal.setReason(request.getReason().trim());
+        enrichOperator(internal, account, servletRequest);
+        return client.previewManualReview(internal);
+    }
+
+    /** 将冻结预览提交后台异步生成，操作人可离开页面后再按任务号查看进度。 */
+    public ManualReviewTaskResponse startManualTransactionReview(
+            String taskNo,
+            ManualReviewStartRequest request) {
+        requireManualTaskNo(taskNo);
+        if (request == null || !validText(request.getRequestKey(), 128)
+                || request.getExpectedVersion() == null || request.getExpectedVersion() < 0) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        reviewQueries().requireManualTaskAccess(taskNo.trim(), "REGULAR", currentDataScope());
+        ManualReviewStartRequest internal = new ManualReviewStartRequest();
+        internal.setRequestKey(request.getRequestKey().trim());
+        internal.setExpectedVersion(request.getExpectedVersion());
+        return client.startManualReview(taskNo.trim(), internal);
+    }
+
+    /** 查询服务端冻结范围、只读结算周期和后台任务进度。 */
+    public ManualReviewTaskResponse manualTransactionReviewTask(String taskNo) {
+        requireManualTaskNo(taskNo);
+        reviewQueries().requireManualTaskAccess(taskNo.trim(), "REGULAR", currentDataScope());
+        return client.getManualReviewTask(taskNo.trim());
+    }
+
+    /** 创建服务端冻结的全量到期保证金释放预览，不接受页面候选 ID 列表。 */
+    public ManualReviewTaskResponse previewManualReserveReview(
+            ManualReviewPreviewRequest request,
+            HttpServletRequest servletRequest) {
+        if (request == null || !validText(request.getRequestKey(), 128)
+                || !validText(request.getMerchantId(), 64)
+                || request.getSettlementProfileId() == null || request.getSettlementProfileId() <= 0
+                || !optionalCode(request.getPaymentType(), 64)
+                || !optionalCode(request.getPaymentMethod(), 64)
+                || !validText(request.getReason(), 400)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        InternalAuthAccount account = currentAdminAccount();
+        AdminMerchantDataScope scope = dataScopeResolver.resolve(account);
+        reviewQueries().requireMerchantAccess(request.getMerchantId().trim(), scope);
+        InternalManualReviewPreviewRequest internal = new InternalManualReviewPreviewRequest();
+        internal.setRequestKey(request.getRequestKey().trim());
+        internal.setMerchantId(request.getMerchantId().trim());
+        internal.setSettlementProfileId(request.getSettlementProfileId());
+        internal.setPaymentType(trimToNull(request.getPaymentType()));
+        internal.setPaymentMethod(trimToNull(request.getPaymentMethod()));
+        internal.setReason(request.getReason().trim());
+        enrichOperator(internal, account, servletRequest);
+        return client.previewManualReserveReview(internal);
+    }
+
+    /** 将冻结的保证金释放预览提交后台异步生成。 */
+    public ManualReviewTaskResponse startManualReserveReview(
+            String taskNo,
+            ManualReviewStartRequest request) {
+        requireManualTaskNo(taskNo);
+        if (request == null || !validText(request.getRequestKey(), 128)
+                || request.getExpectedVersion() == null || request.getExpectedVersion() < 0) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        reviewQueries().requireManualTaskAccess(
+                taskNo.trim(), "RESERVE_RELEASE", currentDataScope());
+        ManualReviewStartRequest internal = new ManualReviewStartRequest();
+        internal.setRequestKey(request.getRequestKey().trim());
+        internal.setExpectedVersion(request.getExpectedVersion());
+        return client.startManualReserveReview(taskNo.trim(), internal);
+    }
+
+    /** 查询保证金释放预览、独立释放周期快照和后台任务进度。 */
+    public ManualReviewTaskResponse manualReserveReviewTask(String taskNo) {
+        requireManualTaskNo(taskNo);
+        reviewQueries().requireManualTaskAccess(
+                taskNo.trim(), "RESERVE_RELEASE", currentDataScope());
+        return client.getManualReserveReviewTask(taskNo.trim());
     }
 
     /**
@@ -240,6 +366,39 @@ public class AdminSettlementApplicationService {
         internal.setDecision(decision);
         enrichOperator(internal, account, servletRequest);
         return client.decideReview(reviewOrderNo.trim(), internal);
+    }
+
+    /** 大批量 MANUAL_ASYNC 预审单使用可恢复后台决策任务。 */
+    public ReviewDecisionTaskResponse submitReviewDecisionTask(
+            String reviewOrderNo,
+            String decision,
+            ReviewDecisionRequest request,
+            HttpServletRequest servletRequest) {
+        requireReviewNo(reviewOrderNo);
+        if (!Set.of("APPROVE", "REJECT", "CANCEL").contains(decision)
+                || request == null || !validText(request.getRequestKey(), 128)
+                || request.getExpectedVersion() == null || request.getExpectedVersion() < 0
+                || !validText(request.getComment(), 400)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        InternalAuthAccount account = currentAdminAccount();
+        AdminMerchantDataScope dataScope = dataScopeResolver.resolve(account);
+        reviewQueries().requireReviewAccess(reviewOrderNo.trim(), dataScope);
+        InternalReviewDecisionRequest internal = new InternalReviewDecisionRequest();
+        internal.setRequestKey(request.getRequestKey().trim());
+        internal.setExpectedVersion(request.getExpectedVersion());
+        internal.setComment(request.getComment().trim());
+        internal.setDecision(decision);
+        enrichOperator(internal, account, servletRequest);
+        return client.submitReviewDecisionTask(reviewOrderNo.trim(), internal);
+    }
+
+    public ReviewDecisionTaskResponse reviewDecisionTask(String taskNo) {
+        if (!StringUtils.hasText(taskNo) || !taskNo.trim().matches("DT[0-9a-f]{32}")) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        reviewQueries().requireDecisionTaskAccess(taskNo.trim(), currentDataScope());
+        return client.getReviewDecisionTask(taskNo.trim());
     }
 
     private ReviewCommandResponse submitReview(ReviewSubmitRequest request,
@@ -300,6 +459,17 @@ public class AdminSettlementApplicationService {
 
     /** 将当前可信登录账号、角色快照和客户端环境注入预审 Checker 命令。 */
     private void enrichOperator(InternalReviewDecisionRequest command,
+                                InternalAuthAccount account,
+                                HttpServletRequest request) {
+        command.setOperatorId(account.getAccountId());
+        command.setOperatorName(operatorName(account));
+        command.setRoleSnapshot(roleSnapshot(account));
+        command.setClientIp(clientIp(request));
+        command.setUserAgent(userAgent(request));
+        command.setOperationTime(LocalDateTime.now());
+    }
+
+    private void enrichOperator(InternalManualReviewPreviewRequest command,
                                 InternalAuthAccount account,
                                 HttpServletRequest request) {
         command.setOperatorId(account.getAccountId());
@@ -378,6 +548,21 @@ public class AdminSettlementApplicationService {
         if (!StringUtils.hasText(value) || !value.trim().matches("SB\\d{8}-\\d{8}")) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+    }
+
+    private void requireManualTaskNo(String value) {
+        if (!StringUtils.hasText(value) || !value.trim().matches("MT[0-9a-f]{32}")) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+    }
+
+    private boolean optionalCode(String value, int maxLength) {
+        return !StringUtils.hasText(value)
+                || value.trim().length() <= maxLength && value.trim().matches("[A-Za-z0-9_.:-]+" );
+    }
+
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private boolean validText(String value, int maxLength) {

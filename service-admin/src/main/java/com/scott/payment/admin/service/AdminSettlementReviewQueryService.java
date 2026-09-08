@@ -3,6 +3,8 @@ package com.scott.payment.admin.service;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateLine;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSummary;
 import com.scott.payment.component.core.model.PageResult;
@@ -66,6 +68,11 @@ public interface AdminSettlementReviewQueryService {
      */
     ReviewDetailResponse reviewDetail(String reviewOrderNo, AdminMerchantDataScope dataScope);
 
+    /** 分页读取预审候选，禁止详情接口一次加载大批量关系。 */
+    PageResult<ReviewCandidateLine> reviewCandidates(String reviewOrderNo,
+                                                     ReviewCandidateSearchRequest request,
+                                                     AdminMerchantDataScope dataScope);
+
     /**
      * 校验当前操作人是否有权访问指定结算候选。
      * <p>
@@ -85,4 +92,13 @@ public interface AdminSettlementReviewQueryService {
      * @param dataScope 可信登录上下文解析出的商户数据范围，查询不得越过该范围
      */
     void requireReviewAccess(String reviewOrderNo, AdminMerchantDataScope dataScope);
+
+    /** 校验商户号属于当前 Admin 数据范围。 */
+    void requireMerchantAccess(String merchantId, AdminMerchantDataScope dataScope);
+
+    /** 校验异步手动结算任务属于当前 Admin 数据范围。 */
+    void requireManualTaskAccess(String taskNo, String reviewType, AdminMerchantDataScope dataScope);
+
+    /** 校验异步预审决策任务属于当前 Admin 数据范围。 */
+    void requireDecisionTaskAccess(String taskNo, AdminMerchantDataScope dataScope);
 }

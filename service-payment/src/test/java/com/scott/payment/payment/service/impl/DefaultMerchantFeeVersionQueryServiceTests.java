@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -130,6 +131,11 @@ class DefaultMerchantFeeVersionQueryServiceTests {
         row.setFeePlanVersionId(1008L);
         row.setFeePlanVersionNo(8);
         row.setSettlementCurrency("USD");
+        row.setInitialDelayUnit("T");
+        row.setInitialDelayDays(1);
+        row.setRegularDelayDays(1);
+        row.setSettlementFrequency("DAILY");
+        row.setEffectiveTime(LocalDateTime.of(2026, 8, 25, 10, 0));
         row.setReserveRate(new BigDecimal("10.00000000"));
         row.setReserveDelayUnit("D");
         row.setReserveDelayDays(180);

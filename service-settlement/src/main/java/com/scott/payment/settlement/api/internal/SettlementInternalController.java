@@ -57,6 +57,22 @@ public class SettlementInternalController {
         return success(response);
     }
 
+    /** 将汇率锁定重试耗尽批次恢复为可异步处理状态。 */
+    @PostMapping("/{settlementBatchNo}/retry")
+    public CommonResult<BatchCommandResponse> retry(
+            @PathVariable("settlementBatchNo") String settlementBatchNo,
+            @RequestBody BatchCommandRequest request) {
+        validateCommand(request);
+        int restored = commandService.retryExhaustedRateLocking(
+                settlementBatchNo, request.getExpectedVersion(), commandAudit(request), LocalDateTime.now());
+        BatchCommandResponse response = new BatchCommandResponse();
+        response.setSettlementBatchNo(settlementBatchNo);
+        response.setResultBatchNo(settlementBatchNo);
+        response.setResultStatus("FAILED_RETRYABLE");
+        response.setRestoredCandidateCount(restored);
+        return success(response);
+    }
+
     /**
      * 校验可信 Admin 注入的命令字段，防止不完整主体进入业务审计。
      *

@@ -59,6 +59,16 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
             account.account_status AS settlement_account_status,
             profile.target_currency, profile.target_currency_exponent,
             profile.business_time_zone, profile.daily_cutoff_time,
+            cycle_version.initial_delay_unit, cycle_version.initial_delay_days,
+            cycle_version.regular_delay_days, cycle_version.settlement_frequency,
+            cycle_version.frequency_day,
+            CASE WHEN account.account_status = 'NORMAL'
+                       AND account.settlement_currency = profile.target_currency
+                       AND cycle_version.initial_delay_unit IN ('T', 'D')
+                       AND cycle_version.initial_delay_days >= 1
+                       AND cycle_version.regular_delay_days >= 1
+                       AND cycle_version.settlement_frequency IS NOT NULL
+                 THEN 1 ELSE 0 END AS manual_settlement_available,
             profile.processing_mode, profile.profile_status,
             profile.effective_date, profile.expire_date, profile.version,
             profile.create_time, profile.update_time
@@ -208,6 +218,20 @@ public class JdbcAdminSettlementProfileService implements AdminSettlementProfile
                  LEFT JOIN merchant_fund_account account
                    ON account.id = profile.settlement_account_id
                   AND account.merchant_id = profile.merchant_id AND account.deleted = 0
+                 LEFT JOIN fee_plan_version cycle_version
+                   ON cycle_version.id = (
+                        SELECT plan.current_version_id
+                        FROM fee_plan plan
+                        WHERE plan.merchant_id = profile.merchant_id
+                          AND plan.plan_type = 'MERCHANT'
+                          AND plan.status = 'ENABLED'
+                          AND plan.deleted = 0
+                        ORDER BY plan.id DESC
+                        LIMIT 1
+                   )
+                  AND cycle_version.version_status = 'ACTIVE'
+                  AND cycle_version.deleted = 0
+                  AND cycle_version.settlement_currency = profile.target_currency
                 """;
     }
 

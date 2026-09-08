@@ -4,6 +4,7 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSear
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultSummaryLine;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateLine;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewRateLine;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
@@ -227,6 +228,22 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return readExecutor.read(() -> detail(orderNo, scope));
     }
 
+    @Override
+    public PageResult<ReviewCandidateLine> reviewCandidates(
+            String reviewOrderNo,
+            ReviewCandidateSearchRequest request,
+            AdminMerchantDataScope dataScope) {
+        String orderNo = requireReviewNo(reviewOrderNo);
+        AdminMerchantDataScope scope = requireScope(dataScope);
+        int pageNo = request == null || request.getPageNo() == null ? 1 : request.getPageNo();
+        int pageSize = request == null || request.getPageSize() == null
+                ? DEFAULT_PAGE_SIZE : request.getPageSize();
+        if (pageNo < 1 || pageSize < 1 || pageSize > maxResultRows) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return readExecutor.read(() -> reviewCandidatePage(orderNo, pageNo, pageSize, scope));
+    }
+
     /**
      * 命令提交前校验全部候选均在当前数据范围内；任一缺失或越权均按资源不存在处理。
      *
@@ -271,6 +288,75 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         AdminMerchantDataScope scope = requireScope(dataScope);
         readExecutor.read(() -> {
             requireReview(orderNo, scope);
+            return null;
+        });
+    }
+
+    @Override
+    public void requireMerchantAccess(String merchantId, AdminMerchantDataScope dataScope) {
+        String normalized = trim(merchantId);
+        AdminMerchantDataScope scope = requireScope(dataScope);
+        if (normalized == null || scope.empty()
+                || !scope.allMerchants() && !scope.merchantIds().contains(normalized)) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+    }
+
+    @Override
+    public void requireManualTaskAccess(String taskNo,
+                                        String reviewType,
+                                        AdminMerchantDataScope dataScope) {
+        if (taskNo == null || !taskNo.trim().matches("MT[0-9a-f]{32}")) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        String normalizedReviewType = reviewType == null ? null : reviewType.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("REGULAR", "RESERVE_RELEASE").contains(normalizedReviewType)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        AdminMerchantDataScope scope = requireScope(dataScope);
+        readExecutor.read(() -> {
+            if (scope.empty()) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            MapSqlParameterSource parameters = new MapSqlParameterSource("taskNo", taskNo.trim())
+                    .addValue("reviewType", normalizedReviewType)
+                    .addValue("permittedMerchantIds", scope.merchantIds());
+            Long count = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(1)
+                    FROM settlement_manual_review_task
+                    WHERE task_no = :taskNo
+                      AND review_type = :reviewType
+                    """ + scopeSql(scope), parameters, Long.class);
+            if (count == null || count != 1L) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            return null;
+        });
+    }
+
+    @Override
+    public void requireDecisionTaskAccess(String taskNo, AdminMerchantDataScope dataScope) {
+        if (taskNo == null || !taskNo.trim().matches("DT[0-9a-f]{32}")) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        AdminMerchantDataScope scope = requireScope(dataScope);
+        readExecutor.read(() -> {
+            if (scope.empty()) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            MapSqlParameterSource parameters = new MapSqlParameterSource("taskNo", taskNo.trim())
+                    .addValue("permittedMerchantIds", scope.merchantIds());
+            Long count = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(1)
+                    FROM settlement_review_decision_task task
+                    JOIN settlement_review_order review
+                      ON review.review_order_no = task.review_order_no
+                    WHERE task.task_no = :taskNo
+                    """ + (scope.allMerchants() ? "" :
+                    " AND review.merchant_id IN (:permittedMerchantIds)\n"), parameters, Long.class);
+            if (count == null || count != 1L) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
             return null;
         });
     }
@@ -420,7 +506,7 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         MapSqlParameterSource parameters = new MapSqlParameterSource("reviewOrderNo", reviewOrderNo);
         ReviewDetailResponse response = new ReviewDetailResponse();
         response.setReview(review);
-        response.setCandidates(jdbcTemplate.query("""
+        response.setCandidates("MANUAL_ASYNC".equals(review.getCreateMode()) ? List.of() : jdbcTemplate.query("""
                 SELECT review_candidate_no, candidate_id, candidate_no, source_type, source_business_id,
                        source_revision, source_transaction_id, source_transaction_date_time,
                        relation_status, locked_time, consumed_time, released_time
@@ -456,6 +542,32 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
                          summary.source_currency, summary.target_currency, summary.id
                 """, parameters, BeanPropertyRowMapper.newInstance(ResultSummaryLine.class)));
         return response;
+    }
+
+    private PageResult<ReviewCandidateLine> reviewCandidatePage(String reviewOrderNo,
+                                                                int pageNo,
+                                                                int pageSize,
+                                                                AdminMerchantDataScope scope) {
+        requireReview(reviewOrderNo, scope);
+        MapSqlParameterSource parameters = new MapSqlParameterSource("reviewOrderNo", reviewOrderNo);
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(1) FROM settlement_review_candidate
+                WHERE review_order_no = :reviewOrderNo
+                """, parameters, Long.class);
+        long total = count == null ? 0L : count;
+        long offset = (long) (pageNo - 1) * pageSize;
+        List<ReviewCandidateLine> rows = offset >= total ? List.of() : jdbcTemplate.query("""
+                SELECT review_candidate_no, candidate_id, candidate_no, source_type, source_business_id,
+                       source_revision, source_transaction_id, source_transaction_date_time,
+                       relation_status, locked_time, consumed_time, released_time
+                FROM settlement_review_candidate
+                WHERE review_order_no = :reviewOrderNo
+                ORDER BY candidate_id ASC, id ASC
+                LIMIT :offset, :limit
+                """, new MapSqlParameterSource(parameters.getValues())
+                .addValue("offset", offset).addValue("limit", pageSize),
+                BeanPropertyRowMapper.newInstance(ReviewCandidateLine.class));
+        return PageResult.of(total, pageNo, pageSize, rows);
     }
 
     /** 在数据范围内锁定唯一预审单视图；不存在或越权统一抛出资源不存在。 */

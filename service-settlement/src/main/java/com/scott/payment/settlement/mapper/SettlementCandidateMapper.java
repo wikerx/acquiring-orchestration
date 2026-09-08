@@ -120,6 +120,12 @@ public interface SettlementCandidateMapper {
               AND candidate.settlement_eligible_date <= batch.business_date
               AND candidate.create_time < batch.cutoff_end_time
               AND NOT EXISTS (
+                    SELECT 1 FROM settlement_manual_review_task manual_task
+                    WHERE manual_task.settlement_profile_id = batch.settlement_profile_id
+                      AND manual_task.task_status IN
+                          ('PREVIEWED', 'QUEUED', 'PROCESSING', 'FINALIZING', 'CANCELLING')
+              )
+              AND NOT EXISTS (
                     SELECT 1
                     FROM settlement_candidate_dependency dependency
                     INNER JOIN settlement_candidate required_candidate
@@ -175,6 +181,12 @@ public interface SettlementCandidateMapper {
                        AND candidate.source_type = 'ADJUSTMENT'))
               AND candidate.settlement_eligible_date <= #{businessDate}
               AND candidate.create_time < #{cutoffEndTime}
+              AND NOT EXISTS (
+                    SELECT 1 FROM settlement_manual_review_task manual_task
+                    WHERE manual_task.settlement_profile_id = #{settlementProfileId}
+                      AND manual_task.task_status IN
+                          ('PREVIEWED', 'QUEUED', 'PROCESSING', 'FINALIZING', 'CANCELLING')
+              )
               AND NOT EXISTS (
                     SELECT 1
                     FROM settlement_candidate_dependency dependency
@@ -313,6 +325,22 @@ public interface SettlementCandidateMapper {
             """)
     long countUnresolvedReviewDependencies(@Param("candidateIds") List<Long> candidateIds);
 
+    @Select("""
+            SELECT COUNT(1)
+            FROM settlement_candidate_dependency dependency
+            INNER JOIN settlement_candidate required_candidate
+                    ON required_candidate.id = dependency.depends_on_candidate_id
+            INNER JOIN settlement_review_candidate selected
+                    ON selected.candidate_id = dependency.candidate_id
+                   AND selected.review_order_no = #{reviewOrderNo}
+            LEFT JOIN settlement_review_candidate required_selected
+                   ON required_selected.candidate_id = dependency.depends_on_candidate_id
+                  AND required_selected.review_order_no = #{reviewOrderNo}
+            WHERE required_candidate.candidate_status != 'POSTED'
+              AND required_selected.id IS NULL
+            """)
+    long countUnresolvedDependenciesOutsideReview(@Param("reviewOrderNo") String reviewOrderNo);
+
     /** 批量认领已锁定候选；每个 OR 分支都校验主键、version、配置和真实 READY 状态。 */
     @Update("""
             <script>
@@ -408,6 +436,19 @@ public interface SettlementCandidateMapper {
     int markBatchManualReview(@Param("settlementBatchNo") String settlementBatchNo,
                               @Param("now") LocalDateTime now);
 
+    /** 人工批准重试汇率锁定时恢复本批全部人工复核候选，不改变批次归属。 */
+    @Update("""
+            UPDATE settlement_candidate
+            SET candidate_status = 'CLAIMED',
+                version = version + 1,
+                update_time = #{now}
+            WHERE settlement_batch_no = #{settlementBatchNo}
+              AND candidate_status = 'MANUAL_REVIEW'
+              AND shadow_mode = 0
+            """)
+    int restoreManualReviewBatch(@Param("settlementBatchNo") String settlementBatchNo,
+                                 @Param("now") LocalDateTime now);
+
     /** 资金提交后将本批全部 CLAIMED 候选原子迁移到 POSTED。 */
     @Update("""
             UPDATE settlement_candidate
@@ -431,7 +472,7 @@ public interface SettlementCandidateMapper {
                 version = version + 1,
                 update_time = #{now}
             WHERE settlement_batch_no = #{settlementBatchNo}
-              AND candidate_status = 'CLAIMED'
+              AND candidate_status IN ('CLAIMED', 'MANUAL_REVIEW')
               AND shadow_mode = 0
             """)
     int releaseCancelledBatch(@Param("settlementBatchNo") String settlementBatchNo,

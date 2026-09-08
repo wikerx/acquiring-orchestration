@@ -125,6 +125,28 @@ class DefaultMerchantFeeVersionSnapshotServiceTests {
     }
 
     @Test
+    void shouldGenerateSameV5HashForEquivalentDecimalScales() {
+        when(valueOperations.get(VERSION_KEY)).thenReturn(null);
+        when(valueOperations.get(VERSION_MISS_KEY)).thenReturn(null);
+        when(queryService.findVersionFromSlave(MERCHANT_ID, 1001L, 1008L))
+                .thenReturn(configuration(
+                        "10.00000000", "2.30000000", "0.30000000", "0.50000000", "5.00000000"));
+        DefaultMerchantFeeVersionSnapshotService service = service(3L);
+
+        FrozenMerchantFeeVersionSnapshotDTO fullScale =
+                service.freezeActiveVersion(MERCHANT_ID, lockTime());
+
+        when(queryService.findVersionFromSlave(MERCHANT_ID, 1001L, 1008L))
+                .thenReturn(configuration("10", "2.3", "0.3", "0.5", "5"));
+        FrozenMerchantFeeVersionSnapshotDTO reducedScale =
+                service.freezeActiveVersion(MERCHANT_ID, lockTime());
+
+        assertThat(fullScale.snapshot().schemaVersion()).isEqualTo(5);
+        assertThat(reducedScale.snapshot().snapshotHash())
+                .isEqualTo(fullScale.snapshot().snapshotHash());
+    }
+
+    @Test
     void shouldUseHashValidatedImmutableCacheWithoutReloadingRules() {
         when(valueOperations.get(VERSION_KEY)).thenReturn(null);
         when(valueOperations.get(VERSION_MISS_KEY)).thenReturn(null);
@@ -169,6 +191,12 @@ class DefaultMerchantFeeVersionSnapshotServiceTests {
                 1008L,
                 8,
                 "usd",
+                "T",
+                1,
+                1,
+                "DAILY",
+                null,
+                lockTime().toLocalDate(),
                 new BigDecimal("10.00000000"),
                 "D",
                 180,
@@ -252,6 +280,12 @@ class DefaultMerchantFeeVersionSnapshotServiceTests {
                 1008L,
                 8,
                 "usd",
+                "T",
+                1,
+                1,
+                "DAILY",
+                null,
+                lockTime().toLocalDate(),
                 new BigDecimal("10.00000000"),
                 "D",
                 180,
@@ -299,13 +333,22 @@ class DefaultMerchantFeeVersionSnapshotServiceTests {
     }
 
     private MerchantFeeVersionConfigurationDTO configuration() {
+        return configuration(
+                "10.00000000", "2.30000000", "0.30000000", "0.50000000", "5.00000000");
+    }
+
+    private MerchantFeeVersionConfigurationDTO configuration(String reserveRate,
+                                                              String percentageRate,
+                                                              String fixedFee,
+                                                              String minimumFee,
+                                                              String maximumFee) {
         FeeRuleSnapshot rule = new FeeRuleSnapshot(
                 2001L,
                 FeeMode.STANDARD,
-                new BigDecimal("2.30000000"),
-                new Money(new BigDecimal("0.30000000"), "USD", 2),
-                new Money(new BigDecimal("0.50000000"), "USD", 2),
-                new Money(new BigDecimal("5.00000000"), "USD", 2),
+                new BigDecimal(percentageRate),
+                new Money(new BigDecimal(fixedFee), "USD", 2),
+                new Money(new BigDecimal(minimumFee), "USD", 2),
+                new Money(new BigDecimal(maximumFee), "USD", 2),
                 null);
         FeeRuleConfigurationSnapshot configuredRule = new FeeRuleConfigurationSnapshot(
                 2001L,
@@ -323,7 +366,13 @@ class DefaultMerchantFeeVersionSnapshotServiceTests {
                 1008L,
                 8,
                 "USD",
-                new BigDecimal("10.00000000"),
+                "T",
+                1,
+                1,
+                "DAILY",
+                null,
+                lockTime().toLocalDate(),
+                new BigDecimal(reserveRate),
                 "D",
                 180,
                 List.of(configuredRule));

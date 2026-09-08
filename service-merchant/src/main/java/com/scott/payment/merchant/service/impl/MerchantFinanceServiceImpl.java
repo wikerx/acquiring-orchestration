@@ -22,13 +22,13 @@ import com.scott.payment.merchant.entity.MerchantFinanceEntities.FeeRuleTierDO;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.FundAccountDO;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.FundLedgerDO;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.PendingBalanceAggregate;
+import com.scott.payment.merchant.entity.MerchantFinanceEntities.ReserveBalanceAggregate;
 import com.scott.payment.merchant.mapper.MerchantFeePlanMapper;
 import com.scott.payment.merchant.mapper.MerchantFeePlanVersionMapper;
 import com.scott.payment.merchant.mapper.MerchantFeeRuleMapper;
 import com.scott.payment.merchant.mapper.MerchantFeeRuleTierMapper;
 import com.scott.payment.merchant.mapper.MerchantPortalFundAccountMapper;
 import com.scott.payment.merchant.mapper.MerchantPortalFundLedgerMapper;
-import com.scott.payment.merchant.mapper.MerchantPortalReserveFundMapper;
 import com.scott.payment.merchant.service.MerchantFinanceService;
 import com.scott.payment.merchant.service.MerchantPendingBalanceQueryService;
 import org.springframework.cache.annotation.Cacheable;
@@ -89,7 +89,6 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
     private final MerchantPortalFundAccountMapper accountMapper;
     private final MerchantPortalFundLedgerMapper ledgerMapper;
     private final MerchantPendingBalanceQueryService pendingBalanceQueryService;
-    private final MerchantPortalReserveFundMapper reserveMapper;
 
     /**
      * 构造商户财务只读服务；所有查询均由调用方认证商户号限定数据边界。
@@ -100,8 +99,7 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
      * @param tierMapper 当前阶梯费率只读数据访问
      * @param accountMapper 商户资金账户只读数据访问
      * @param ledgerMapper 商户不可变余额流水只读数据访问
-     * @param pendingBalanceQueryService 认证商户交易副本在途余额实时汇总服务
-     * @param reserveMapper 商户保证金留存净额汇总数据访问
+     * @param pendingBalanceQueryService 认证商户交易副本在途与未结算保证金实时汇总服务
      */
     public MerchantFinanceServiceImpl(MerchantFeePlanMapper planMapper,
                                       MerchantFeePlanVersionMapper versionMapper,
@@ -109,8 +107,7 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
                                       MerchantFeeRuleTierMapper tierMapper,
                                       MerchantPortalFundAccountMapper accountMapper,
                                       MerchantPortalFundLedgerMapper ledgerMapper,
-                                      MerchantPendingBalanceQueryService pendingBalanceQueryService,
-                                      MerchantPortalReserveFundMapper reserveMapper) {
+                                      MerchantPendingBalanceQueryService pendingBalanceQueryService) {
         this.planMapper = planMapper;
         this.versionMapper = versionMapper;
         this.ruleMapper = ruleMapper;
@@ -118,7 +115,6 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         this.accountMapper = accountMapper;
         this.ledgerMapper = ledgerMapper;
         this.pendingBalanceQueryService = pendingBalanceQueryService;
-        this.reserveMapper = reserveMapper;
     }
 
     /** {@inheritDoc} */
@@ -302,12 +298,11 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
         response.setAccountNo(account.getAccountNo());
         response.setSettlementCurrency(account.getSettlementCurrency());
         response.setAvailableBalance(account.getAvailableBalance());
-        BigDecimal reserveBalance = reserveMapper.sumHeldBalance(account.getId(), account.getMerchantId());
-        response.setReserveBalance(reserveBalance == null ? BigDecimal.ZERO : reserveBalance);
         response.setAccountStatus(normalizeManualStatus(account.getAccountStatus()));
         response.setReverseRestricted(account.getAvailableBalance().signum() < 0 ? 1 : 0);
         response.setUpdateTime(account.getUpdateTime());
         response.setPendingBalances(pendingBalances(account.getMerchantId()));
+        response.setReserveBalances(reserveBalances(account.getMerchantId()));
         applyAccountCapabilities(response);
         return response;
     }
@@ -323,8 +318,22 @@ public class MerchantFinanceServiceImpl implements MerchantFinanceService {
                 .map(this::toCurrencyBalance).toList();
     }
 
+    /** 按原标签币种分别汇总尚未完成保证金结算入账的余额。 */
+    private List<CurrencyBalanceResponse> reserveBalances(String merchantId) {
+        return pendingBalanceQueryService.sumUnsettledReserveBalances(merchantId).stream()
+                .map(this::toCurrencyBalance).toList();
+    }
+
     /** 将在途余额聚合投影转换为币种余额响应。 */
     private CurrencyBalanceResponse toCurrencyBalance(PendingBalanceAggregate aggregate) {
+        CurrencyBalanceResponse response = new CurrencyBalanceResponse();
+        response.setCurrency(aggregate.getCurrency());
+        response.setAmount(aggregate.getAmount());
+        return response;
+    }
+
+    /** 将未结算保证金聚合投影转换为币种余额响应。 */
+    private CurrencyBalanceResponse toCurrencyBalance(ReserveBalanceAggregate aggregate) {
         CurrencyBalanceResponse response = new CurrencyBalanceResponse();
         response.setCurrency(aggregate.getCurrency());
         response.setAmount(aggregate.getAmount());

@@ -88,4 +88,16 @@ public class AdminSettlementController {
         return success(applicationService.cancel(settlementBatchNo, request, servletRequest));
     }
 
+    /** 恢复仅因汇率锁定重试耗尽进入人工复核的正式批次。 */
+    @PostMapping("/{settlementBatchNo}/retry")
+    @RequiresPermission("settlement:batch:retry")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.UPDATE,
+            operation = "重新处理汇率锁定失败批次")
+    public CommonResult<BatchCommandResponse> retry(
+            @PathVariable("settlementBatchNo") String settlementBatchNo,
+            @RequestBody BatchCommandRequest request,
+            HttpServletRequest servletRequest) {
+        return success(applicationService.retry(settlementBatchNo, request, servletRequest));
+    }
+
 }

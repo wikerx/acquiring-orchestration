@@ -20,11 +20,11 @@ import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundDeduc
 import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundLedgerDO;
 import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundRechargeDO;
 import com.scott.payment.admin.entity.fund.FundAccountEntities.PendingBalanceAggregate;
+import com.scott.payment.admin.entity.fund.FundAccountEntities.ReserveBalanceAggregate;
 import com.scott.payment.admin.mapper.MerchantFundAccountMapper;
 import com.scott.payment.admin.mapper.MerchantFundDeductionMapper;
 import com.scott.payment.admin.mapper.MerchantFundLedgerMapper;
 import com.scott.payment.admin.mapper.MerchantFundRechargeMapper;
-import com.scott.payment.admin.mapper.MerchantReserveItemMapper;
 import com.scott.payment.admin.service.AdminFundAccountService;
 import com.scott.payment.admin.service.AdminTransactionFundQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -130,7 +130,6 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
     private final MerchantFundRechargeMapper rechargeMapper;
     private final MerchantFundDeductionMapper deductionMapper;
     private final AdminTransactionFundQueryService transactionFundQueryService;
-    private final MerchantReserveItemMapper reserveMapper;
     private final BaseMerchantInfoMapper merchantInfoMapper;
 
     /**
@@ -141,7 +140,6 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
      * @param rechargeMapper 充值申请及审批行锁数据访问
      * @param deductionMapper 扣减申请及审批行锁数据访问
      * @param transactionFundQueryService 交易副本在途资金实时汇总服务
-     * @param reserveMapper 保证金留存净额汇总数据访问
      * @param merchantInfoMapper 商户名称和账户归属查询数据访问
      */
     public AdminFundAccountServiceImpl(MerchantFundAccountMapper accountMapper,
@@ -149,14 +147,12 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
                                        MerchantFundRechargeMapper rechargeMapper,
                                        MerchantFundDeductionMapper deductionMapper,
                                        AdminTransactionFundQueryService transactionFundQueryService,
-                                       MerchantReserveItemMapper reserveMapper,
                                        BaseMerchantInfoMapper merchantInfoMapper) {
         this.accountMapper = accountMapper;
         this.ledgerMapper = ledgerMapper;
         this.rechargeMapper = rechargeMapper;
         this.deductionMapper = deductionMapper;
         this.transactionFundQueryService = transactionFundQueryService;
-        this.reserveMapper = reserveMapper;
         this.merchantInfoMapper = merchantInfoMapper;
     }
 
@@ -192,7 +188,7 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         Map<String, String> names = merchantNames(page.getRecords().stream()
                 .map(MerchantFundAccountDO::getMerchantId).collect(Collectors.toSet()));
         List<FundAccountResponse> records = page.getRecords().stream()
-                .map(account -> toAccount(account, names.get(account.getMerchantId()), List.of(), null)).toList();
+                .map(account -> toAccount(account, names.get(account.getMerchantId()), List.of(), List.of())).toList();
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), records);
     }
 
@@ -204,7 +200,8 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         return toAccount(account, merchantNames(Set.of(account.getMerchantId())).get(account.getMerchantId()),
                 transactionFundQueryService.sumPendingBalances(account.getMerchantId()).stream()
                         .map(this::toCurrencyBalance).toList(),
-                reserveMapper.sumHeldBalance(account.getId(), account.getMerchantId()));
+                transactionFundQueryService.sumUnsettledReserveBalances(account.getMerchantId()).stream()
+                        .map(this::toCurrencyBalance).toList());
     }
 
     /** {@inheritDoc} */
@@ -728,14 +725,13 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         account.setUpdateBy(operatorName + "：" + reason.trim());
         account.setUpdateTime(LocalDateTime.now());
         accountMapper.updateById(account);
-        return toAccount(account, merchantName(account.getMerchantId()), List.of(),
-                reserveMapper.sumHeldBalance(account.getId(), account.getMerchantId()));
+        return toAccount(account, merchantName(account.getMerchantId()), List.of(), List.of());
     }
 
     private FundAccountResponse toAccount(MerchantFundAccountDO account,
                                           String merchantName,
                                           List<CurrencyBalanceResponse> pendingBalances,
-                                          BigDecimal reserveBalance) {
+                                          List<CurrencyBalanceResponse> reserveBalances) {
         FundAccountResponse response = new FundAccountResponse();
         response.setId(account.getId());
         response.setAccountNo(account.getAccountNo());
@@ -743,7 +739,6 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         response.setMerchantName(merchantName);
         response.setSettlementCurrency(account.getSettlementCurrency());
         response.setAvailableBalance(account.getAvailableBalance());
-        response.setReserveBalance(reserveBalance);
         response.setAccountStatus(normalizeManualStatus(account.getAccountStatus()));
         response.setReverseRestricted(account.getAvailableBalance().signum() < 0 ? 1 : 0);
         applyAccountCapabilities(response);
@@ -751,11 +746,20 @@ public class AdminFundAccountServiceImpl implements AdminFundAccountService {
         response.setCreateTime(account.getCreateTime());
         response.setUpdateTime(account.getUpdateTime());
         response.setPendingBalances(pendingBalances);
+        response.setReserveBalances(reserveBalances);
         return response;
     }
 
     /** 将标签币种在途聚合投影转换为账户详情响应。 */
     private CurrencyBalanceResponse toCurrencyBalance(PendingBalanceAggregate aggregate) {
+        CurrencyBalanceResponse response = new CurrencyBalanceResponse();
+        response.setCurrency(aggregate.getCurrency());
+        response.setAmount(aggregate.getAmount());
+        return response;
+    }
+
+    /** 将未结算保证金聚合投影转换为原币种余额响应。 */
+    private CurrencyBalanceResponse toCurrencyBalance(ReserveBalanceAggregate aggregate) {
         CurrencyBalanceResponse response = new CurrencyBalanceResponse();
         response.setCurrency(aggregate.getCurrency());
         response.setAmount(aggregate.getAmount());

@@ -116,7 +116,10 @@ public class DefaultFeeVersionQueryService implements FeeVersionQueryService {
         return new FeeVersionConfigurationDTO(
                 first.getMerchantId(), first.getFeePlanId(), first.getFeePlanVersionId(),
                 first.getFeePlanVersionNo(),
-                first.getSettlementCurrency(), first.getReserveRate(), first.getReserveDelayUnit(),
+                first.getSettlementCurrency(), first.getInitialDelayUnit(),
+                first.getInitialDelayDays(), first.getRegularDelayDays(),
+                first.getSettlementFrequency(), first.getFrequencyDay(),
+                first.getEffectiveTime().toLocalDate(), first.getReserveRate(), first.getReserveDelayUnit(),
                 first.getReserveDelayDays(), snapshots);
     }
 
@@ -128,13 +131,40 @@ public class DefaultFeeVersionQueryService implements FeeVersionQueryService {
                 || row.getFeePlanVersionNo() == null || row.getFeePlanVersionNo() < 1
                 || row.getSettlementCurrency() == null
                 || !ISO_CURRENCY.matcher(row.getSettlementCurrency()).matches()
+                || !validDelayUnit(row.getInitialDelayUnit())
+                || row.getInitialDelayDays() == null || row.getInitialDelayDays() < 1
+                || row.getRegularDelayDays() == null || row.getRegularDelayDays() < 1
+                || !validSettlementFrequency(row.getSettlementFrequency())
+                || !validFrequencyDay(row.getSettlementFrequency(), row.getFrequencyDay())
+                || row.getEffectiveTime() == null
                 || row.getReserveRate() == null || row.getReserveRate().signum() < 0
                 || row.getReserveRate().compareTo(new BigDecimal("100")) > 0
-                || !Set.of("D", "T").contains(row.getReserveDelayUnit())
+                || !validDelayUnit(row.getReserveDelayUnit())
                 || row.getReserveDelayDays() == null || row.getReserveDelayDays() < 1) {
             throw failure(ClearingFailureCodeEnum.FEE_VERSION_NOT_IMMUTABLE,
                     "immutable fee version header is malformed");
         }
+    }
+
+    private boolean validDelayUnit(String delayUnit) {
+        return "D".equals(delayUnit) || "T".equals(delayUnit);
+    }
+
+    private boolean validSettlementFrequency(String frequency) {
+        return "DAILY".equals(frequency) || "WEEKLY".equals(frequency)
+                || "BIWEEKLY".equals(frequency) || "MONTHLY".equals(frequency);
+    }
+
+    private boolean validFrequencyDay(String frequency, Integer day) {
+        if (frequency == null) {
+            return false;
+        }
+        return switch (frequency) {
+            case "DAILY" -> day == null;
+            case "WEEKLY", "BIWEEKLY" -> day != null && day >= 1 && day <= 7;
+            case "MONTHLY" -> day != null && day >= 1 && day <= 28;
+            default -> false;
+        };
     }
 
     /** 同一不可变版本内禁止出现重复规则维度，避免一笔动作重复收费。 */
@@ -164,6 +194,12 @@ public class DefaultFeeVersionQueryService implements FeeVersionQueryService {
                 || !Objects.equals(expected.getFeePlanVersionId(), actual.getFeePlanVersionId())
                 || !Objects.equals(expected.getFeePlanVersionNo(), actual.getFeePlanVersionNo())
                 || !Objects.equals(expected.getSettlementCurrency(), actual.getSettlementCurrency())
+                || !Objects.equals(expected.getInitialDelayUnit(), actual.getInitialDelayUnit())
+                || !Objects.equals(expected.getInitialDelayDays(), actual.getInitialDelayDays())
+                || !Objects.equals(expected.getRegularDelayDays(), actual.getRegularDelayDays())
+                || !Objects.equals(expected.getSettlementFrequency(), actual.getSettlementFrequency())
+                || !Objects.equals(expected.getFrequencyDay(), actual.getFrequencyDay())
+                || !Objects.equals(expected.getEffectiveTime(), actual.getEffectiveTime())
                 || !decimalEquals(expected.getReserveRate(), actual.getReserveRate())
                 || !Objects.equals(expected.getReserveDelayUnit(), actual.getReserveDelayUnit())
                 || !Objects.equals(expected.getReserveDelayDays(), actual.getReserveDelayDays())) {

@@ -8,6 +8,10 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCommand
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReversalDecisionRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReversalSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReversalCommandResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalManualReviewPreviewRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewStartRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewTaskResponse;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResponse;
 
 /**
  * @author : scott
@@ -29,6 +33,9 @@ public interface SettlementInternalClient {
      */
     BatchCommandResponse cancel(String settlementBatchNo, InternalBatchCommandRequest request);
 
+    /** 发送仅限汇率锁定重试耗尽场景的人工恢复命令。 */
+    BatchCommandResponse retry(String settlementBatchNo, InternalBatchCommandRequest request);
+
     /**
      * 发送已注入可信 Maker 的结算预审提交命令。
      *
@@ -45,6 +52,23 @@ public interface SettlementInternalClient {
      * @return 决策后的预审状态和正式批次关联
      */
     ReviewCommandResponse decideReview(String reviewOrderNo, InternalReviewDecisionRequest request);
+
+    ManualReviewTaskResponse previewManualReview(InternalManualReviewPreviewRequest request);
+
+    ManualReviewTaskResponse startManualReview(String taskNo, ManualReviewStartRequest request);
+
+    ManualReviewTaskResponse getManualReviewTask(String taskNo);
+
+    ManualReviewTaskResponse previewManualReserveReview(InternalManualReviewPreviewRequest request);
+
+    ManualReviewTaskResponse startManualReserveReview(String taskNo, ManualReviewStartRequest request);
+
+    ManualReviewTaskResponse getManualReserveReviewTask(String taskNo);
+
+    ReviewDecisionTaskResponse submitReviewDecisionTask(
+            String reviewOrderNo, InternalReviewDecisionRequest request);
+
+    ReviewDecisionTaskResponse getReviewDecisionTask(String taskNo);
 
     /**
      * 发送已注入可信 Maker 的已入账批次冲正申请。

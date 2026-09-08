@@ -82,6 +82,36 @@ class SettlementCancellationAuditSqlContractTest {
                 "DELETE FROM", "TRUNCATE TABLE");
     }
 
+    @Test
+    void recoveryMigrationShouldAddImmutableAuditAndAllowManualReviewCancellation() throws IOException {
+        String migration = readRepositoryFile(
+                "docs/sql/20260905_03_settlement_batch_recovery_migration.sql");
+        String postcheck = readRepositoryFile(
+                "docs/sql/20260905_04_settlement_batch_recovery_postcheck.sql");
+
+        assertThat(migration).contains(
+                "CREATE TABLE settlement_batch_recovery_audit",
+                "UNIQUE KEY uk_settlement_batch_recovery_request (request_key)",
+                "recovery_action = 'RETRY_RATE_LOCKING'",
+                "batch_status_before = 'MANUAL_REVIEW'",
+                "failure_stage_before = 'RATE_LOCKING'",
+                "failure_code_before = 'SETTLEMENT_RETRY_EXHAUSTED'",
+                "DROP CHECK chk_settlement_batch_cancellation_value",
+                "'FAILED_RETRYABLE', 'MANUAL_REVIEW'");
+        assertThat(postcheck).contains(
+                "missing_recovery_audit_table_count",
+                "missing_or_invalid_recovery_audit_column_count",
+                "missing_recovery_audit_unique_index_count",
+                "invalid_recovery_audit_value_count",
+                "invalid_recovery_batch_reference_count",
+                "invalid_recovery_relation_count",
+                "missing_manual_review_cancellation_check_count");
+        assertThat(migration.toUpperCase()).doesNotContain(
+                "DELETE FROM", "TRUNCATE TABLE", "UPDATE SETTLEMENT_BATCH SET");
+        assertThat(postcheck.toUpperCase()).doesNotContain(
+                "DELETE FROM", "TRUNCATE TABLE", "UPDATE SETTLEMENT_BATCH SET");
+    }
+
     private String readRepositoryFile(String relativePath) throws IOException {
         Path direct = Path.of(relativePath);
         Path path = Files.exists(direct) ? direct : Path.of("..").resolve(relativePath).normalize();

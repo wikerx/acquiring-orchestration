@@ -41,6 +41,27 @@ public interface SettlementReviewSummaryMapper {
             """)
     int insertBatchIdempotent(@Param("rows") List<SettlementReviewSummaryDO> rows);
 
+    @Insert("""
+            <script>
+            INSERT INTO settlement_review_summary
+            (review_order_no, merchant_id, payment_type, payment_method, transaction_type,
+             result_item_type, fee_category, direction, source_currency, target_currency,
+             transaction_count, source_amount, target_amount, create_time)
+            VALUES
+            <foreach collection="rows" item="row" separator=",">
+                (#{row.reviewOrderNo}, #{row.merchantId}, #{row.paymentType}, #{row.paymentMethod},
+                 #{row.transactionType}, #{row.resultItemType}, #{row.feeCategory}, #{row.direction},
+                 #{row.sourceCurrency}, #{row.targetCurrency}, #{row.transactionCount},
+                 #{row.sourceAmount}, #{row.targetAmount}, #{row.createTime})
+            </foreach>
+            ON DUPLICATE KEY UPDATE
+                transaction_count = transaction_count + VALUES(transaction_count),
+                source_amount = source_amount + VALUES(source_amount),
+                target_amount = target_amount + VALUES(target_amount)
+            </script>
+            """)
+    int addBatch(@Param("rows") List<SettlementReviewSummaryDO> rows);
+
     /**
      * 读取预审单全部金额汇总供审批展示和复核。
      * @param reviewOrderNo 结算预审单号

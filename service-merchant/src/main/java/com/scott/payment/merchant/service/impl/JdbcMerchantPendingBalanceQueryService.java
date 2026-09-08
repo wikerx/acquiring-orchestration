@@ -6,6 +6,7 @@ import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.PendingBalanceAggregate;
+import com.scott.payment.merchant.entity.MerchantFinanceEntities.ReserveBalanceAggregate;
 import com.scott.payment.merchant.service.MerchantPendingBalanceQueryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
@@ -121,6 +122,47 @@ public class JdbcMerchantPendingBalanceQueryService implements MerchantPendingBa
                 GROUP BY label_currency
                 ORDER BY label_currency
                 """, parameters, BeanPropertyRowMapper.newInstance(PendingBalanceAggregate.class)));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public List<ReserveBalanceAggregate> sumUnsettledReserveBalances(String merchantId) {
+        String normalizedMerchantId = requireMerchantId(merchantId);
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("merchantId", normalizedMerchantId)
+                .addValue("beginTime", registeredNodeBegin)
+                .addValue("endTime", LocalDateTime.now(clock));
+        return transactionLogicalReadExecutor.read(() -> jdbcTemplate.query("""
+                SELECT reserve_currency AS currency,
+                       SUM(CASE
+                           WHEN reserve_status = 'FULLY_RELEASED' THEN released_amount
+                           ELSE remaining_amount
+                       END) AS amount
+                FROM transaction_reserve_clearing_state reserve_state
+                WHERE merchant_id = :merchantId
+                  AND transaction_date_time >= :beginTime
+                  AND transaction_date_time < :endTime
+                  AND CASE
+                          WHEN reserve_status = 'FULLY_RELEASED' THEN released_amount
+                          ELSE remaining_amount
+                      END > 0
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM settlement_candidate candidate
+                      WHERE candidate.source_type = 'RESERVE_RELEASE'
+                        AND candidate.source_business_id = reserve_state.reserve_state_id
+                        AND candidate.candidate_status = 'POSTED'
+                        AND EXISTS (
+                            SELECT 1
+                            FROM settlement_batch batch
+                            WHERE batch.settlement_batch_no = candidate.settlement_batch_no
+                              AND batch.batch_status = 'POSTED'
+                        )
+                  )
+                GROUP BY reserve_currency
+                ORDER BY reserve_currency
+                """, parameters, BeanPropertyRowMapper.newInstance(ReserveBalanceAggregate.class)));
     }
 
     /** 拒绝空认证商户号，避免交易聚合退化为跨商户查询。 */

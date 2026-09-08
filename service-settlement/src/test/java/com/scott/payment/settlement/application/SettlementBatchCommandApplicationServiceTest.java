@@ -10,6 +10,7 @@ import com.scott.payment.settlement.entity.MerchantReserveActionDO;
 import com.scott.payment.settlement.entity.MerchantReserveItemDO;
 import com.scott.payment.settlement.entity.SettlementBatchDO;
 import com.scott.payment.settlement.entity.SettlementBatchCancellationAuditDO;
+import com.scott.payment.settlement.entity.SettlementBatchRecoveryAuditDO;
 import com.scott.payment.settlement.entity.SettlementProjectionTaskDO;
 import com.scott.payment.settlement.entity.SettlementResultItemDO;
 import com.scott.payment.settlement.mapper.SettlementBatchCandidateMapper;
@@ -174,6 +175,132 @@ class SettlementBatchCommandApplicationServiceTest {
         verify(batchMapper, never()).cancelBeforePosting(any(), anyLong(), any());
         verify(candidateMapper, never()).releaseCancelledBatch(any(), any());
         verify(batchMapper, never()).insertCancellationAudit(any());
+    }
+
+    /** 汇率锁定重试耗尽进入人工复核后，可受控恢复全部候选并重新交给异步处理器。 */
+    @Test
+    void shouldRetryExhaustedRateLockingBatchAndRestoreExactlyAllCandidates() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 5, 10, 0);
+        SettlementBatchDO batch = originalBatch("MANUAL_REVIEW");
+        batch.setCandidateCount(371);
+        batch.setRetryCount(8);
+        batch.setLastFailureStage("RATE_LOCKING");
+        batch.setLastFailureCode("SETTLEMENT_RETRY_EXHAUSTED");
+        batch.setVersion(12L);
+        when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+        when(batchMapper.retryExhaustedRateLocking(
+                batch.getSettlementBatchNo(), 12L, now)).thenReturn(1);
+        when(candidateMapper.restoreManualReviewBatch(batch.getSettlementBatchNo(), now)).thenReturn(371);
+        when(relationMapper.restoreManualReviewBatch(batch.getSettlementBatchNo(), now)).thenReturn(371);
+        when(batchMapper.insertRecoveryAudit(any())).thenReturn(1);
+
+        assertThat(service.retryExhaustedRateLocking(
+                batch.getSettlementBatchNo(), 12L, recoveryAudit(now), now)).isEqualTo(371);
+
+        ArgumentCaptor<SettlementBatchRecoveryAuditDO> audit =
+                ArgumentCaptor.forClass(SettlementBatchRecoveryAuditDO.class);
+        verify(batchMapper).insertRecoveryAudit(audit.capture());
+        assertThat(audit.getValue().getRecoveryAction()).isEqualTo("RETRY_RATE_LOCKING");
+        assertThat(audit.getValue().getBatchStatusBefore()).isEqualTo("MANUAL_REVIEW");
+        assertThat(audit.getValue().getFailureStageBefore()).isEqualTo("RATE_LOCKING");
+        assertThat(audit.getValue().getFailureCodeBefore()).isEqualTo("SETTLEMENT_RETRY_EXHAUSTED");
+        assertThat(audit.getValue().getRetryCountBefore()).isEqualTo(8);
+        assertThat(audit.getValue().getRestoredCandidateCount()).isEqualTo(371);
+        assertThat(audit.getValue().getOperatorAccountId()).isEqualTo(88L);
+    }
+
+    /** 同一恢复请求重放只返回首次结果，不得再次改变批次或候选。 */
+    @Test
+    void shouldTreatRepeatedRateLockingRecoveryAsIdempotent() {
+        SettlementBatchRecoveryAuditDO existing = recoveryAuditRow("RETRY-REQ-1", 371);
+        when(batchMapper.selectRecoveryAuditByRequestKey("RETRY-REQ-1")).thenReturn(existing);
+
+        assertThat(service.retryExhaustedRateLocking(
+                existing.getSettlementBatchNo(), 12L,
+                recoveryAudit(LocalDateTime.of(2026, 9, 5, 10, 5)),
+                LocalDateTime.of(2026, 9, 5, 10, 5))).isEqualTo(371);
+
+        verify(batchMapper, never()).selectByBatchNoForUpdate(any());
+        verify(candidateMapper, never()).restoreManualReviewBatch(any(), any());
+        verify(relationMapper, never()).restoreManualReviewBatch(any(), any());
+    }
+
+    /** 过期页面版本不得恢复人工复核批次。 */
+    @Test
+    void shouldRejectStaleRateLockingRecoveryVersion() {
+        SettlementBatchDO batch = exhaustedRateLockingBatch();
+        batch.setVersion(13L);
+        when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+
+        assertThatThrownBy(() -> service.retryExhaustedRateLocking(
+                batch.getSettlementBatchNo(), 12L,
+                recoveryAudit(LocalDateTime.of(2026, 9, 5, 10, 5)),
+                LocalDateTime.of(2026, 9, 5, 10, 5)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("stale version");
+
+        verify(batchMapper, never()).retryExhaustedRateLocking(any(), anyLong(), any());
+    }
+
+    /** 资金入账或其他阶段的人工复核不得借用汇率恢复入口。 */
+    @Test
+    void shouldRejectManualRecoveryOutsideExhaustedRateLocking() {
+        for (String stage : List.of("LEDGER_POSTING", "RESULT_CALCULATION")) {
+            SettlementBatchDO batch = exhaustedRateLockingBatch();
+            batch.setLastFailureStage(stage);
+            when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+
+            assertThatThrownBy(() -> service.retryExhaustedRateLocking(
+                    batch.getSettlementBatchNo(), batch.getVersion(),
+                    recoveryAudit(LocalDateTime.of(2026, 9, 5, 10, 5)),
+                    LocalDateTime.of(2026, 9, 5, 10, 5)))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("does not allow rate locking recovery");
+        }
+
+        verify(batchMapper, never()).retryExhaustedRateLocking(any(), anyLong(), any());
+    }
+
+    /** 候选或关系恢复数量不完整必须终止命令，事务层负责回滚此前批次 CAS。 */
+    @Test
+    void shouldRejectIncompleteRateLockingRecovery() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 5, 10, 5);
+        SettlementBatchDO batch = exhaustedRateLockingBatch();
+        when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+        when(batchMapper.retryExhaustedRateLocking(
+                batch.getSettlementBatchNo(), batch.getVersion(), now)).thenReturn(1);
+        when(candidateMapper.restoreManualReviewBatch(batch.getSettlementBatchNo(), now)).thenReturn(371);
+        when(relationMapper.restoreManualReviewBatch(batch.getSettlementBatchNo(), now)).thenReturn(370);
+
+        assertThatThrownBy(() -> service.retryExhaustedRateLocking(
+                batch.getSettlementBatchNo(), batch.getVersion(), recoveryAudit(now), now))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("restore count is inconsistent");
+
+        verify(batchMapper, never()).insertRecoveryAudit(any());
+    }
+
+    /** 人工复核批次允许取消并把全部候选释放回 READY。 */
+    @Test
+    void shouldCancelManualReviewBatchAndReleaseAllCandidates() {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 5, 10, 10);
+        SettlementBatchDO batch = exhaustedRateLockingBatch();
+        when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
+        when(batchMapper.cancelBeforePosting(
+                batch.getSettlementBatchNo(), batch.getVersion(), now)).thenReturn(1);
+        when(candidateMapper.releaseCancelledBatch(batch.getSettlementBatchNo(), now)).thenReturn(371);
+        when(relationMapper.releaseCancelledBatch(batch.getSettlementBatchNo(), now)).thenReturn(371);
+        when(batchMapper.insertCancellationAudit(any())).thenReturn(1);
+
+        assertThat(service.cancelBeforePosting(
+                batch.getSettlementBatchNo(), batch.getVersion(), cancellationAudit(now), now))
+                .isEqualTo(371);
+
+        ArgumentCaptor<SettlementBatchCancellationAuditDO> audit =
+                ArgumentCaptor.forClass(SettlementBatchCancellationAuditDO.class);
+        verify(batchMapper).insertCancellationAudit(audit.capture());
+        assertThat(audit.getValue().getBatchStatusBefore()).isEqualTo("MANUAL_REVIEW");
+        assertThat(audit.getValue().getReleasedCandidateCount()).isEqualTo(371);
     }
 
     /** 已入账批次通过独立 REVERSAL 批次冲正资金，但交易投影必须保留原结算事实。 */
@@ -427,6 +554,30 @@ class SettlementBatchCommandApplicationServiceTest {
         return new SettlementCommandAudit("CANCEL-REQ-1", "cancel before ledger posting",
                 new SettlementOperatorSnapshot(88L, "Settlement Operator", "SETTLEMENT_OPERATOR",
                         "10.0.0.8", "JUnit Admin", now));
+    }
+
+    private SettlementCommandAudit recoveryAudit(LocalDateTime now) {
+        return new SettlementCommandAudit("RETRY-REQ-1", "rate is available; retry locking",
+                new SettlementOperatorSnapshot(88L, "Settlement Operator", "SETTLEMENT_OPERATOR",
+                        "10.0.0.8", "JUnit Admin", now));
+    }
+
+    private SettlementBatchDO exhaustedRateLockingBatch() {
+        SettlementBatchDO batch = originalBatch("MANUAL_REVIEW");
+        batch.setCandidateCount(371);
+        batch.setRetryCount(8);
+        batch.setLastFailureStage("RATE_LOCKING");
+        batch.setLastFailureCode("SETTLEMENT_RETRY_EXHAUSTED");
+        batch.setVersion(12L);
+        return batch;
+    }
+
+    private SettlementBatchRecoveryAuditDO recoveryAuditRow(String requestKey, int restoredCount) {
+        SettlementBatchRecoveryAuditDO row = new SettlementBatchRecoveryAuditDO();
+        row.setSettlementBatchNo("SB20260826-00000001");
+        row.setRequestKey(requestKey);
+        row.setRestoredCandidateCount(restoredCount);
+        return row;
     }
 
     private SettlementBatchCancellationAuditDO cancellationAuditRow(String requestKey, int releasedCount) {

@@ -23,7 +23,8 @@ class AdminSettlementControllerContractTest {
         Map<String, String> expected = Map.of(
                 "search", "settlement:batch:list",
                 "detail", "settlement:batch:detail",
-                "cancel", "settlement:batch:cancel");
+                "cancel", "settlement:batch:cancel",
+                "retry", "settlement:batch:retry");
         expected.forEach((methodName, permission) -> {
             RequiresPermission annotation = java.util.Arrays.stream(
                             AdminSettlementController.class.getDeclaredMethods())

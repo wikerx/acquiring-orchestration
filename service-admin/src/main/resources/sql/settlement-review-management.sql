@@ -52,11 +52,11 @@ SELECT @admin_app_id, parent.id, item.menu_code, item.menu_name, 'MENU', item.ro
        item.component_path, item.permission_code, item.icon, 1, item.sort_no, 1, 0
 FROM sys_menu parent
 JOIN (
-    SELECT 'admin_settlement_transaction_candidate_v1' menu_code, '交易结算候选' menu_name,
+    SELECT 'admin_settlement_transaction_candidate_v1' menu_code, '交易结算' menu_name,
            '/settlement/transaction-candidates' route_path,
            'settlement/transaction-candidate' component_path,
            'settlement:transaction-candidate:list' permission_code, 'Tickets' icon, 1 sort_no
-    UNION ALL SELECT 'admin_settlement_reserve_candidate_v1', '保证金结算候选',
+    UNION ALL SELECT 'admin_settlement_reserve_candidate_v1', '保证金结算',
            '/settlement/reserve-candidates', 'settlement/reserve-candidate',
            'settlement:reserve-candidate:list', 'Lock', 2
     UNION ALL SELECT 'admin_settlement_review_order_v1', '结算预审单',
@@ -89,10 +89,10 @@ WHERE parent.app_id = @admin_app_id AND parent.menu_code = 'admin_settlement' AN
 
 UPDATE sys_menu menu
 JOIN (
-    SELECT 'admin_settlement_transaction_candidate_v1' menu_code, '交易结算候选' menu_name,
+    SELECT 'admin_settlement_transaction_candidate_v1' menu_code, '交易结算' menu_name,
            '/settlement/transaction-candidates' route_path, 'settlement/transaction-candidate' component_path,
            'settlement:transaction-candidate:list' permission_code, 'Tickets' icon, 1 sort_no
-    UNION ALL SELECT 'admin_settlement_reserve_candidate_v1', '保证金结算候选',
+    UNION ALL SELECT 'admin_settlement_reserve_candidate_v1', '保证金结算',
            '/settlement/reserve-candidates', 'settlement/reserve-candidate',
            'settlement:reserve-candidate:list', 'Lock', 2
     UNION ALL SELECT 'admin_settlement_review_order_v1', '结算预审单',
@@ -138,7 +138,7 @@ SELECT @admin_app_id, parent.id, item.menu_code, item.menu_name, 'BUTTON', item.
        0, item.sort_no, 1, 0
 FROM sys_menu parent
 JOIN (
-    SELECT 'admin_settlement_transaction_review_create_v1' menu_code, '提交交易预审' menu_name,
+    SELECT 'admin_settlement_transaction_review_create_v1' menu_code, '生成交易结算预审单' menu_name,
            'settlement:transaction-review:create' permission_code,
            'admin_settlement_transaction_candidate_v1' parent_code, 1 sort_no
     UNION ALL SELECT 'admin_settlement_transaction_candidate_detail_v1', '交易候选详情',
@@ -159,8 +159,10 @@ JOIN (
            'settlement:review-order:export', 'admin_settlement_review_order_v1', 5
     UNION ALL SELECT 'admin_settlement_batch_detail_v1', '批次详情',
            'settlement:batch:detail', 'admin_settlement_batch_v1', 1
-    UNION ALL SELECT 'admin_settlement_batch_cancel_v1', '取消批次',
-           'settlement:batch:cancel', 'admin_settlement_batch_v1', 2
+    UNION ALL SELECT 'admin_settlement_batch_retry_v1', '重新处理批次',
+           'settlement:batch:retry', 'admin_settlement_batch_v1', 2
+    UNION ALL SELECT 'admin_settlement_batch_cancel_v1', '取消并释放批次',
+           'settlement:batch:cancel', 'admin_settlement_batch_v1', 3
     UNION ALL SELECT 'admin_settlement_reversal_detail_v1', '冲正单详情',
            'settlement:reversal-order:detail', 'admin_settlement_reversal_order_v1', 1
     UNION ALL SELECT 'admin_settlement_reversal_create_v1', '提交冲正申请',
@@ -188,7 +190,7 @@ WHERE parent.app_id = @admin_app_id AND parent.deleted = 0
 
 UPDATE sys_menu menu
 JOIN (
-    SELECT 'admin_settlement_transaction_review_create_v1' menu_code, '提交交易预审' menu_name,
+    SELECT 'admin_settlement_transaction_review_create_v1' menu_code, '生成交易结算预审单' menu_name,
            'settlement:transaction-review:create' permission_code,
            'admin_settlement_transaction_candidate_v1' parent_code, 1 sort_no
     UNION ALL SELECT 'admin_settlement_transaction_candidate_detail_v1', '交易候选详情',
@@ -209,8 +211,10 @@ JOIN (
            'settlement:review-order:export', 'admin_settlement_review_order_v1', 5
     UNION ALL SELECT 'admin_settlement_batch_detail_v1', '批次详情',
            'settlement:batch:detail', 'admin_settlement_batch_v1', 1
-    UNION ALL SELECT 'admin_settlement_batch_cancel_v1', '取消批次',
-           'settlement:batch:cancel', 'admin_settlement_batch_v1', 2
+    UNION ALL SELECT 'admin_settlement_batch_retry_v1', '重新处理批次',
+           'settlement:batch:retry', 'admin_settlement_batch_v1', 2
+    UNION ALL SELECT 'admin_settlement_batch_cancel_v1', '取消并释放批次',
+           'settlement:batch:cancel', 'admin_settlement_batch_v1', 3
     UNION ALL SELECT 'admin_settlement_reversal_detail_v1', '冲正单详情',
            'settlement:reversal-order:detail', 'admin_settlement_reversal_order_v1', 1
     UNION ALL SELECT 'admin_settlement_reversal_create_v1', '提交冲正申请',
@@ -267,23 +271,25 @@ FROM (
     UNION ALL SELECT 'admin_settlement_review_detail_v1', 'settlement:review-order:detail',
            '预审单详情', 'BUTTON', 'GET', '/admin/settlement/review-orders/*', '查询结算预审单不可变快照'
     UNION ALL SELECT 'admin_settlement_transaction_review_create_v1', 'settlement:transaction-review:create',
-           '提交交易预审', 'BUTTON', 'POST', '/admin/settlement/transaction-review-orders', '锁定交易候选并提交Maker-Checker预审'
+           '生成交易结算预审单', 'BUTTON', 'POST', '/admin/settlement/transaction-review-**', '冻结服务端筛选范围并异步生成Maker-Checker交易结算预审单'
     UNION ALL SELECT 'admin_settlement_reserve_review_create_v1', 'settlement:reserve-review:create',
-           '提交保证金预审', 'BUTTON', 'POST', '/admin/settlement/reserve-review-orders', '锁定保证金候选并提交Maker-Checker预审'
+           '生成保证金结算预审单', 'BUTTON', 'POST', '/admin/settlement/reserve-review-**', '支持指定候选或服务端全量冻结并异步生成保证金Maker-Checker预审单'
     UNION ALL SELECT 'admin_settlement_review_approve_v1', 'settlement:review-order:approve',
-           '审批通过预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/approve', 'Maker-Checker审批并创建正式批次'
+           '审批通过预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/approve*', 'Maker-Checker审批并创建正式批次；大批量预审使用异步任务'
     UNION ALL SELECT 'admin_settlement_review_reject_v1', 'settlement:review-order:reject',
-           '拒绝预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/reject', '拒绝预审并释放候选'
+           '拒绝预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/reject*', '拒绝预审并释放候选；大批量预审使用异步任务'
     UNION ALL SELECT 'admin_settlement_review_cancel_v1', 'settlement:review-order:cancel',
-           '取消预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/cancel', 'Maker取消自己的待审批预审'
+           '取消预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/cancel*', 'Maker取消自己的待审批预审；大批量预审使用异步任务'
     UNION ALL SELECT 'admin_settlement_review_export_v1', 'settlement:review-order:export',
            '导出预审单', 'BUTTON', 'POST', '/admin/settlement/review-orders/export', '按当前筛选和Admin商户数据范围导出预审单'
     UNION ALL SELECT 'admin_settlement_batch_v1', 'settlement:batch:list',
            '正式结算批次查询', 'MENU', 'POST', '/admin/settlement/batches/search', '按Admin商户数据范围查询正式批次'
     UNION ALL SELECT 'admin_settlement_batch_detail_v1', 'settlement:batch:detail',
            '正式结算批次详情', 'BUTTON', 'GET', '/admin/settlement/batches/*', '查询正式批次详情'
+    UNION ALL SELECT 'admin_settlement_batch_retry_v1', 'settlement:batch:retry',
+           '重新处理汇率锁定失败批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/retry', '仅恢复汇率锁定重试耗尽的人工复核批次并重新进入异步处理'
     UNION ALL SELECT 'admin_settlement_batch_cancel_v1', 'settlement:batch:cancel',
-           '取消未入账批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/cancel', '取消未入账正式批次'
+           '取消并释放未入账批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/cancel', '取消未入账或人工复核批次并释放候选'
     UNION ALL SELECT 'admin_settlement_result_item_v1', 'settlement:result-item:list',
            '结算结果明细查询', 'MENU', 'POST', '/admin/settlement/result-items/search', '按Admin商户数据范围查询不可变结算结果明细'
     UNION ALL SELECT 'admin_settlement_result_item_export_v1', 'settlement:result-item:export',
@@ -339,23 +345,25 @@ JOIN (
     UNION ALL SELECT 'admin_settlement_review_detail_v1', 'settlement:review-order:detail',
            '预审单详情', 'BUTTON', 'GET', '/admin/settlement/review-orders/*', '查询结算预审单不可变快照'
     UNION ALL SELECT 'admin_settlement_transaction_review_create_v1', 'settlement:transaction-review:create',
-           '提交交易预审', 'BUTTON', 'POST', '/admin/settlement/transaction-review-orders', '锁定交易候选并提交Maker-Checker预审'
+           '生成交易结算预审单', 'BUTTON', 'POST', '/admin/settlement/transaction-review-**', '冻结服务端筛选范围并异步生成Maker-Checker交易结算预审单'
     UNION ALL SELECT 'admin_settlement_reserve_review_create_v1', 'settlement:reserve-review:create',
-           '提交保证金预审', 'BUTTON', 'POST', '/admin/settlement/reserve-review-orders', '锁定保证金候选并提交Maker-Checker预审'
+           '生成保证金结算预审单', 'BUTTON', 'POST', '/admin/settlement/reserve-review-**', '支持指定候选或服务端全量冻结并异步生成保证金Maker-Checker预审单'
     UNION ALL SELECT 'admin_settlement_review_approve_v1', 'settlement:review-order:approve',
-           '审批通过预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/approve', 'Maker-Checker审批并创建正式批次'
+           '审批通过预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/approve*', 'Maker-Checker审批并创建正式批次；大批量预审使用异步任务'
     UNION ALL SELECT 'admin_settlement_review_reject_v1', 'settlement:review-order:reject',
-           '拒绝预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/reject', '拒绝预审并释放候选'
+           '拒绝预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/reject*', '拒绝预审并释放候选；大批量预审使用异步任务'
     UNION ALL SELECT 'admin_settlement_review_cancel_v1', 'settlement:review-order:cancel',
-           '取消预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/cancel', 'Maker取消自己的待审批预审'
+           '取消预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/cancel*', 'Maker取消自己的待审批预审；大批量预审使用异步任务'
     UNION ALL SELECT 'admin_settlement_review_export_v1', 'settlement:review-order:export',
            '导出预审单', 'BUTTON', 'POST', '/admin/settlement/review-orders/export', '按当前筛选和Admin商户数据范围导出预审单'
     UNION ALL SELECT 'admin_settlement_batch_v1', 'settlement:batch:list',
            '正式结算批次查询', 'MENU', 'POST', '/admin/settlement/batches/search', '按Admin商户数据范围查询正式批次'
     UNION ALL SELECT 'admin_settlement_batch_detail_v1', 'settlement:batch:detail',
            '正式结算批次详情', 'BUTTON', 'GET', '/admin/settlement/batches/*', '查询正式批次详情'
+    UNION ALL SELECT 'admin_settlement_batch_retry_v1', 'settlement:batch:retry',
+           '重新处理汇率锁定失败批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/retry', '仅恢复汇率锁定重试耗尽的人工复核批次并重新进入异步处理'
     UNION ALL SELECT 'admin_settlement_batch_cancel_v1', 'settlement:batch:cancel',
-           '取消未入账批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/cancel', '取消未入账正式批次'
+           '取消并释放未入账批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/cancel', '取消未入账或人工复核批次并释放候选'
     UNION ALL SELECT 'admin_settlement_result_item_v1', 'settlement:result-item:list',
            '结算结果明细查询', 'MENU', 'POST', '/admin/settlement/result-items/search', '按Admin商户数据范围查询不可变结算结果明细'
     UNION ALL SELECT 'admin_settlement_result_item_export_v1', 'settlement:result-item:export',
