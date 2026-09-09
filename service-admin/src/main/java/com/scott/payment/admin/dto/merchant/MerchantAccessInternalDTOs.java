@@ -10,6 +10,7 @@ import java.util.List;
  * @version : v1.0.0
  * @classname : MerchantAccessInternalDTOs
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : service-merchant 调用 service-admin 的访问配置内部 DTO，商户号仅由商户服务认证上下文写入。
  * @status : create
  */

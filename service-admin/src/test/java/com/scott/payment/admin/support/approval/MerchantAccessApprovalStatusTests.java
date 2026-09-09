@@ -6,7 +6,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 商户访问配置审批状态与交易状态绑定规则测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantAccessApprovalStatusTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户访问配置审批状态与交易状态绑定规则测试。
+ * @status : create
  */
 class MerchantAccessApprovalStatusTests {
 

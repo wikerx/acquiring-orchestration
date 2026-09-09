@@ -4,16 +4,16 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminMerchantKeyMaterialDTO
  * @date : 2026-06-13 17:17
  * @email : scott_x@163.com
- * @description : Admin Merchant Key Material DTO 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : Admin 商户密钥材料 DTO，仅在受控创建、轮换或下载流程中短暂承载公钥、密文和指纹信息。
  * @status : create
  */
+@Data
 public class AdminMerchantKeyMaterialDTO {
 
     /**

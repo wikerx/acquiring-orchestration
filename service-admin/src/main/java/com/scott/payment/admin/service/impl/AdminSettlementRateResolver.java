@@ -33,8 +33,29 @@ import java.util.stream.Collectors;
 @Service
 public class AdminSettlementRateResolver {
 
+    /**
+     * {@code USD}常量，统一 {@code AdminSettlementRateResolver} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String USD = "USD";
+    /**
+     * 结算汇率常量，统一 {@code AdminSettlementRateResolver} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String SETTLEMENT_RATE = "SETTLEMENT_RATE";
+    /**
+     * 启用标识，表示当前配置项或业务能力的启停开关。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ENABLED = "ENABLED";
 
     private final ExchangeBusinessRateMapper businessRateMapper;

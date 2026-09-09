@@ -1,6 +1,5 @@
 package com.scott.payment.job.service.impl;
 
-import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalculator;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
 import com.scott.payment.component.db.sharding.ShardingQuarter;
@@ -10,6 +9,7 @@ import com.scott.payment.component.db.sharding.ShardingTableInspectionResult;
 import com.scott.payment.component.db.sharding.ShardingTableSchemaInspector;
 import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import com.scott.payment.component.db.sharding.TransactionShardingRuleChecksum;
 import com.scott.payment.job.dto.sharding.ShardingTablePreCreateRequest;
 import com.scott.payment.job.dto.sharding.ShardingTablePreCreateResult;
 import com.scott.payment.job.entity.SysShardingTableCreateLogDO;
@@ -30,7 +30,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 交易季度物理表预建和候选节点发布门禁测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingTablePreCreateServiceImplTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 交易季度物理表预建和候选节点发布门禁测试。
+ * @status : create
  */
 class ShardingTablePreCreateServiceImplTests {
 
@@ -94,9 +100,38 @@ class ShardingTablePreCreateServiceImplTests {
 
         assertThatThrownBy(() -> fixture.service.preCreate(nextQuarterRequest(true), null))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("exactly 25 formal tables");
+                .hasMessageContaining("exactly 28 formal tables");
 
         verify(fixture.ddlService, never()).createPhysicalTableIfAbsent(any(), any(), any());
+    }
+
+    /** 旧 25 表发布基线只能生成完整 28 表候选，旧节点必须在本轮按 28 表重新核验。 */
+    @Test
+    void legacyTopologyShouldProduceFormalCandidateOnlyAfterAllNodesAreRevalidated() {
+        Fixture fixture = fixture();
+        fixture.transactionProperties.setLogicTables(TransactionShardingProperties.legacyLogicTables());
+        fixture.transactionProperties.setPhysicalNodes(List.of("202603"));
+        when(fixture.schemaInspector.tableExists(any())).thenReturn(true);
+        when(fixture.ddlService.createPhysicalTableIfAbsent(any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    ShardingQuarter quarter = invocation.getArgument(2);
+                    return validInspection(Long.parseLong(quarter.suffix() + "000000000001"));
+                });
+        ShardingTablePreCreateRequest request = nextQuarterRequest(false);
+        request.setIncludeCurrentQuarter(true);
+
+        ShardingTablePreCreateResult result = fixture.service.preCreate(request, null);
+
+        assertThat(result.getTableResults())
+                .hasSize(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT * 2);
+        assertThat(result.getVerifiedPhysicalNodes()).containsExactly("202603", "202604");
+        assertThat(result.getPublicationBlockers()).isEmpty();
+        assertThat(result.getPublicationReady()).isTrue();
+        TransactionShardingProperties candidate = new TransactionShardingProperties();
+        candidate.setRuleVersion(result.getCandidateRuleVersion());
+        candidate.setPhysicalNodes(result.getVerifiedPhysicalNodes());
+        assertThat(result.getCandidateRuleChecksum())
+                .isEqualTo(TransactionShardingRuleChecksum.calculate(candidate));
     }
 
     private Fixture fixture() {
@@ -123,7 +158,7 @@ class ShardingTablePreCreateServiceImplTests {
                 ddlService,
                 physicalMapper,
                 createLogMapper);
-        return new Fixture(governance, inspector, ddlService, createLogMapper, service);
+        return new Fixture(governance, transaction, inspector, ddlService, createLogMapper, service);
     }
 
     private TransactionShardingGovernanceProperties governanceProperties() {
@@ -169,6 +204,7 @@ class ShardingTablePreCreateServiceImplTests {
 
     private record Fixture(
             TransactionShardingGovernanceProperties governanceProperties,
+            TransactionShardingProperties transactionProperties,
             ShardingTableSchemaInspector schemaInspector,
             ShardingTableDdlService ddlService,
             SysShardingTableCreateLogMapper createLogMapper,

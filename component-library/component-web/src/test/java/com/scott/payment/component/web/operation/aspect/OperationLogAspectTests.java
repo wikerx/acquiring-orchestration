@@ -1,5 +1,6 @@
 package com.scott.payment.component.web.operation.aspect;
 
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.web.operation.dto.OperationLogRecord;
 import com.scott.payment.component.web.operation.service.OperationLogPublisher;
@@ -62,6 +63,21 @@ class OperationLogAspectTests {
         assertThat(record.getErrorMsg())
                 .doesNotContain("4111111111111111")
                 .doesNotContain("plain-text-secret");
+    }
+
+    @Test
+    void shouldUseStableInternalErrorCodeForUnexpectedException() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<OperationLogPublisher> publisherProvider = mock(ObjectProvider.class);
+        OperationLogAspect aspect = new OperationLogAspect(publisherProvider);
+        OperationLogRecord record = new OperationLogRecord();
+        IllegalStateException failure = new IllegalStateException("internal implementation detail");
+
+        ReflectionTestUtils.invokeMethod(aspect, "fillFailure", record, failure);
+
+        assertThat(record.getErrorCode()).isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode());
+        assertThat(record.getErrorMsg()).isEqualTo(IllegalStateException.class.getSimpleName());
+        assertThat(record.getErrorMsg()).doesNotContain("internal implementation detail");
     }
 
     private record ExportQuery(String merchantId) {

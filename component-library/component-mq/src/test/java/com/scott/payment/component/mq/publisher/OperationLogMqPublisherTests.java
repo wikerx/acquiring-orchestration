@@ -53,4 +53,31 @@ class OperationLogMqPublisherTests {
         assertThat(message.getRequestParams()).hasSize(properties.getMaxMessageLength());
         assertThat(message.getResponseResult()).hasSize(properties.getMaxMessageLength());
     }
+
+    /** 错误码必须在发布前符合数据库契约，避免不合规消息进入 RocketMQ 重试链路。 */
+    @Test
+    void shouldLimitErrorCodeToDatabaseContract() {
+        IndependentReliableMqPublisher mqPublisher = mock(IndependentReliableMqPublisher.class);
+        OperationLogMqProperties properties = new OperationLogMqProperties();
+        OperationLogMqPublisher publisher = new OperationLogMqPublisher(
+                mqPublisher,
+                properties,
+                OperationLogSystemCode.ADMIN,
+                new OperationLogTopicResolver(properties),
+                new OperationLogMessageSanitizer(properties));
+        OperationLogRecord record = new OperationLogRecord();
+        record.setRequestId("request-long-error-code");
+        record.setMethodName("AdminOperation.execute");
+        record.setBusinessType(4);
+        record.setErrorCode("InvalidDataAccessApiUsageException");
+
+        publisher.publish(record);
+
+        ArgumentCaptor<BaseMqMessage> captor = ArgumentCaptor.forClass(BaseMqMessage.class);
+        verify(mqPublisher).publish(eq(properties.getAdminTopic()), isNull(), captor.capture());
+        OperationLogMessage message = (OperationLogMessage) captor.getValue();
+        assertThat(message.getErrorCode())
+                .hasSize(OperationLogMessage.ERROR_CODE_MAX_LENGTH)
+                .isEqualTo("InvalidDataAccessApiUsageExcepti");
+    }
 }

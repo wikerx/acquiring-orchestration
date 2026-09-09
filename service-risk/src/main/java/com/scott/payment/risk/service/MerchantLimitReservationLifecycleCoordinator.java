@@ -3,7 +3,13 @@ package com.scott.payment.risk.service;
 import com.scott.payment.risk.domain.MerchantLimitReservationTransitionSummary;
 
 /**
- * 商户累计限额预占终态编排。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantLimitReservationLifecycleCoordinator
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户累计限额预占终态编排。
+ * @status : create
  */
 public interface MerchantLimitReservationLifecycleCoordinator {
 

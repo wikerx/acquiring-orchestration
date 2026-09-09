@@ -11,7 +11,13 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 
 /**
- * 商户累计限额预占超时扫描调度器。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantLimitReservationReconciliationScheduler
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户累计限额预占超时扫描调度器。
+ * @status : create
  */
 @Slf4j
 @Component

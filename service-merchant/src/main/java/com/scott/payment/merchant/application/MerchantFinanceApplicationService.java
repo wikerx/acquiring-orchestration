@@ -35,7 +35,22 @@ import java.util.Locale;
 @Service
 public class MerchantFinanceApplicationService {
 
+    /**
+     * {@code EXPORT_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int EXPORT_PAGE_SIZE = 200;
+    /**
+     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code MerchantFinanceApplicationService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final MerchantFinanceService financeService;

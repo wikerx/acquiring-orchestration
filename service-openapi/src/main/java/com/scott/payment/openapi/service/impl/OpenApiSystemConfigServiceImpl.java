@@ -8,7 +8,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * OpenAPI 运行参数读取默认实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiSystemConfigServiceImpl
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : OpenAPI 运行参数读取默认实现。
+ * @status : create
  */
 @Service
 public class OpenApiSystemConfigServiceImpl implements OpenApiSystemConfigService {

@@ -39,7 +39,7 @@ import java.util.regex.Pattern;
  * @classname : MerchantTemplateEmailServiceImpl
  * @date : 2026-07-19 00:00
  * @email : scott_x@163.com
- * @description : 商户模板邮件服务实现，位于 service-merchant 服务实现层；读取管理系统维护的邮件模板与发件账户发送商户 MFA 安全通知。
+ * @description : 商户模板邮件服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
 @Service
@@ -109,32 +109,8 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
      */
     private static final Pattern TEMPLATE_VARIABLE_PATTERN = Pattern.compile("\\$\\{([A-Za-z][A-Za-z0-9_]*)}");
 
-    /**
-     * email Account Mapper，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final MerchantEmailAccountMapper emailAccountMapper;
-    /**
-     * email Send Record Mapper 依赖，用于 Merchant Template Email Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：长度和格式由接口校验约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final MerchantEmailSendRecordMapper emailSendRecordMapper;
-    /**
-     * object Mapper 依赖，用于 Merchant Template Email Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final ObjectMapper objectMapper;
     /** 邮件真实正文加密组件。 */
     private final EmailPayloadCrypto payloadCrypto;
@@ -277,19 +253,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         throw new IllegalStateException("available email account not found");
     }
 
-/**
- * 整理账号routewrapper，返回当前业务步骤需要的规范化结果。
- * <p>
- * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
- * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param appCode app Code 输入值，参与 app编码 的查询、校验、转换、写入或日志摘要
- * @param scopeType scope Type 输入值，参与 scopetype 的查询、校验、转换、写入或日志摘要
- * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
- * @param sceneCode scene Code 输入值，参与 scene编码 的查询、校验、转换、写入或日志摘要
- * @return 方法执行后的业务结果、更新行数、转换对象或空结果
- */
     private LambdaQueryWrapper<MerchantEmailAccountDO> accountRouteWrapper(String appCode,
                                                                           String scopeType,
                                                                           String merchantId,
@@ -305,18 +268,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
                 .orderByDesc(MerchantEmailAccountDO::getId);
     }
 
-/**
- * 构造记录对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 商户后台服务 所需的源对象、配置或协议字段。
- * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
- * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
- * </p>
- * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param template template 输入值，参与 模板 的查询、校验、转换、写入或日志摘要
- * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
- * @return 构造、转换或解析后的业务值
- */
     private MerchantEmailSendRecordDO buildRecord(MerchantEmailSendCommand request,
                                                   MerchantEmailTemplateDO template,
                                                   MerchantEmailAccountDO account) {
@@ -354,34 +305,12 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return record;
     }
 
-    /**
-     * 整理缺失模板变量，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param template template 输入值，参与 模板 的查询、校验、转换、写入或日志摘要
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param variables variables 输入值，参与 变量 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Set<String> missingVariables(String template, Map<String, Object> variables) {
         Set<String> required = extractVariables(template);
         required.removeIf(key -> variables.containsKey(key) && variables.get(key) != null);
         return required;
     }
 
-    /**
-     * 整理模板变量提取结果，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param template template 输入值，参与 模板 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Set<String> extractVariables(String template) {
         Set<String> variables = new LinkedHashSet<>();
         if (!StringUtils.hasText(template)) {
@@ -394,18 +323,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return variables;
     }
 
-    /**
-     * 规范化render，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param template template 输入值，参与 模板 的查询、校验、转换、写入或日志摘要
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param variables variables 输入值，参与 变量 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String render(String template, Map<String, Object> variables) {
         Matcher matcher = TEMPLATE_VARIABLE_PATTERN.matcher(template);
         StringBuilder builder = new StringBuilder();
@@ -417,19 +334,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return builder.toString();
     }
 
-    /**
-     * 脱敏sensitivecontent，返回可安全写入日志或展示的摘要文本。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param template template 输入值，参与 模板 的查询、校验、转换、写入或日志摘要
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param variables variables 输入值，参与 variables 的查询、校验、转换、写入或日志摘要
-     * @param sensitiveNames sensitive Names 输入值，参与 sensitivenames 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String maskSensitiveContent(String template, Map<String, Object> variables, List<String> sensitiveNames) {
         if (CollectionUtils.isEmpty(sensitiveNames)) {
             return render(template, variables);
@@ -437,18 +341,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return render(template, maskVariables(variables, sensitiveNames));
     }
 
-    /**
-     * 脱敏variables，返回可安全写入日志或展示的摘要文本。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param variables variables 输入值，参与 variables 的查询、校验、转换、写入或日志摘要
-     * @param sensitiveNames sensitive Names 输入值，参与 sensitivenames 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Map<String, Object> maskVariables(Map<String, Object> variables, List<String> sensitiveNames) {
         Map<String, Object> masked = new LinkedHashMap<>(variables);
         for (String name : sensitiveNames) {
@@ -459,16 +351,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return masked;
     }
 
-    /**
-     * 解析parsestringlist，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param json json 输入值，参与 json 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private List<String> parseStringList(String json) {
         if (!StringUtils.hasText(json)) {
             return List.of();
@@ -481,16 +363,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         }
     }
 
-    /**
-     * 解析parse邮件array，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param json json 输入值，参与 json 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private String[] parseEmailArray(String json) {
         if (!StringUtils.hasText(json)) {
             return new String[0];
@@ -503,16 +375,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         }
     }
 
-    /**
-     * 构造json对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 构造、转换或解析后的业务值
-     */
     private String toJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -521,15 +383,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         }
     }
 
-    /**
-     * 构造operator对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param record record 输入值，参与 记录 的查询、校验、转换、写入或日志摘要
-     */
     private void fillOperator(MerchantEmailSendRecordDO record) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -540,15 +393,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         record.setOperatorName(currentOperatorName());
     }
 
-    /**
-     * 整理当前操作人名称，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -563,75 +407,23 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return "system";
     }
 
-    /**
-     * 整理默认list，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private List<String> defaultList(List<String> source) {
         return source == null ? List.of() : source;
     }
 
-    /**
-     * 规范化trim，返回调用链后续步骤可直接使用的业务值。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }
 
-    /**
-     * 规范化trimupper，返回调用链后续步骤可直接使用的业务值。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String trimUpper(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toUpperCase();
     }
 
-    /**
-     * 整理默认ifblank，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param defaultValue default Value 输入值，参与 默认value 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
-    /**
-     * 规范化truncate，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param maxLength max Length 输入值，参与 maxlength 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String truncate(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
@@ -639,16 +431,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return value.substring(0, maxLength);
     }
 
-    /**
-     * 创建编码，完成必要校验后写入或委托下游服务处理。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param prefix prefix 输入值，参与 prefix 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String generateCode(String prefix) {
         return prefix + "_" + System.currentTimeMillis();
     }

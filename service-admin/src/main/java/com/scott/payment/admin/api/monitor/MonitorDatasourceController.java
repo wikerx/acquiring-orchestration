@@ -15,17 +15,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
-@RestController
-@RequestMapping("/admin/monitor/datasource")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : MonitorDatasourceController
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : Monitor Datasource Controller 控制器，位于 运营后台服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
+ * @description : 监控datasource HTTP 控制器，位于 运营后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  * @status : create
  */
+@RestController
+@RequestMapping("/admin/monitor/datasource")
 public class MonitorDatasourceController {
 
     /**

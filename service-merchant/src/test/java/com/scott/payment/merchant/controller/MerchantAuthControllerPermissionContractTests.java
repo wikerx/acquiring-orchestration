@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @version : v1.0.0
  * @classname : MerchantAuthControllerPermissionContractTests
  * @date : 2026-08-02 19:45
+ * @email : scott_x@163.com
  * @description : 锁定商户会话自查询与退出接口只要求有效登录态，不错误依赖任一业务菜单权限。
  * @status : create
  */

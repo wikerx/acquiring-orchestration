@@ -238,11 +238,9 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造商户infovo对象，完成字段复制、格式标准化和敏感数据处理。
+     * 构造商户信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
      * </p>
      * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
      * @return 构造、转换或解析后的业务值
@@ -258,11 +256,9 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造商户infovo对象，完成字段复制、格式标准化和敏感数据处理。
+     * 构造商户信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
      * </p>
      * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      * @return 构造、转换或解析后的业务值
@@ -278,11 +274,9 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造sub商户infovo对象，完成字段复制、格式标准化和敏感数据处理。
+     * 将内部或 OpenAPI 子商户信息转换为对外响应视图，并限制敏感字段集合。
      * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
      * </p>
      * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
      * @return 构造、转换或解析后的业务值
@@ -310,11 +304,9 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造sub商户infovo对象，完成字段复制、格式标准化和敏感数据处理。
+     * 将内部或 OpenAPI 子商户信息转换为对外响应视图，并限制敏感字段集合。
      * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
      * </p>
      * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
      * @return 构造、转换或解析后的业务值
@@ -366,11 +358,9 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造billingcardholderinfovo对象，完成字段复制、格式标准化和敏感数据处理。
+     * 构造账单卡持有人信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
      * </p>
      * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
      * @return 构造、转换或解析后的业务值
@@ -469,13 +459,8 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 整理overridesettlement币种，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param vo VO 输入值，参与 vo 的查询、校验、转换、写入或日志摘要
+     * 把可信商户配置中的结算币种写入 OpenAPI 账单响应，不使用请求参数覆盖。
+     * @param vo 待组装或返回的接口视图对象，只允许写入调用方有权查看的字段
      * @param merchantSettlementCurrency 币种代码，格式为 ISO 4217 三位大写字母
      */
     private void overrideSettlementCurrency(PaymentCreateVO vo, String merchantSettlementCurrency) {
@@ -489,13 +474,11 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 解析normalizecreateaction累计金额，将原始输入转换为当前调用链需要的规范化结果。
+     * 按初始支付、授权或预授权终态归一累计授权、请款和退款金额。
      * <p>
-     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * 仅返回规范化或计算结果，不直接提交交易状态。
      * </p>
-     * @param orderInfoVO order Info VO 输入值，参与 订单信息vo 的查询、校验、转换、写入或日志摘要
+     * @param orderInfoVO 待组装或返回的接口视图对象，只允许写入调用方有权查看的字段
      * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      */
     private void normalizeCreateActionTotals(PaymentCreateVO.OrderInfoVO orderInfoVO, PaymentCreateClientResponseDTO responseDTO) {
@@ -522,13 +505,11 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 解析normalize商户失败说明，将原始输入转换为当前调用链需要的规范化结果。
+     * 解析商户失败说明，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * 仅返回规范化或计算结果，不直接提交交易状态。
      * </p>
-     * @param vo VO 输入值，参与 vo 的查询、校验、转换、写入或日志摘要
+     * @param vo 待组装或返回的接口视图对象，只允许写入调用方有权查看的字段
      * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      */
     private void normalizeMerchantFailureMessage(PaymentCreateVO vo, PaymentCreateClientResponseDTO responseDTO) {
@@ -543,14 +524,9 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 整理shoulduse默认rejected说明，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param merchantResponseMessage merchant Response Message 输入值，参与 商户响应说明 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 判断渠道或内部失败说明是否缺失或仍为通用 Rejected，以决定是否回退统一商户文案。
+     * @param merchantResponseMessage 候选商户可见响应说明，内部错误和渠道敏感细节不得直接透传
+     * @return 当前业务条件成立时返回 true，否则返回 false
      */
     private boolean shouldUseDefaultRejectedMessage(String merchantResponseMessage) {
         return !StringUtils.hasText(merchantResponseMessage)
@@ -558,13 +534,11 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 判断 is initial create action 条件是否成立，用于控制 Open API Request Converter 的后续分支。
+     * 判断交易类型是否属于支付、授权或预授权等初始创建动作。
      * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
+     * 纯判断操作，不修改业务状态。
      * </p>
-     * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
+     * @param transactionType 交易类型，取值来自平台交易类型枚举并决定状态机和渠道能力
      * @return 条件满足时返回 true，否则返回 false
      */
     private boolean isInitialCreateAction(String transactionType) {
@@ -574,25 +548,18 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 整理默认zero，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
+     * 规范化{@code defaultZero}，返回调用链后续步骤可直接使用的业务值。
      * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * @return 当前方法生成的 {@code BigDecimal} 结果
      */
     private BigDecimal defaultZero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
     /**
-     * 构造billinginfovo对象，完成字段复制、格式标准化和敏感数据处理。
+     * 构造账单信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
      * </p>
      * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      * @return 构造、转换或解析后的业务值
@@ -629,11 +596,9 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造billinginfovo对象，完成字段复制、格式标准化和敏感数据处理。
+     * 构造账单信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
      * </p>
      * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      * @return 构造、转换或解析后的业务值
@@ -701,17 +666,15 @@ public interface OpenApiRequestConverter {
         }).toList();
     }
 
-/**
- * 构造query交易infovo对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 商户开放接口服务 所需的源对象、配置或协议字段。
- * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
- * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
- * </p>
- * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
- * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @return 构造、转换或解析后的业务值
- */
+    /**
+     * 构造查询交易信息响应视图对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
+     * </p>
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 构造、转换或解析后的业务值
+     */
     private PaymentQueryVO.TransactionInfoVO toQueryTransactionInfoVO(PaymentQueryClientResponseDTO.TransactionInfoDTO source,
                                                                       String timeZone) {
         PaymentQueryVO.TransactionInfoVO target = new PaymentQueryVO.TransactionInfoVO();
@@ -741,13 +704,11 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 解析normalize汇率，将原始输入转换为当前调用链需要的规范化结果。
+     * 将非空汇率统一保留八位小数，使用 HALF_UP 舍入。
      * <p>
-     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * 仅返回规范化或计算结果，不直接提交交易状态。
      * </p>
-     * @param rate rate 输入值，参与 汇率 的查询、校验、转换、写入或日志摘要
+     * @param rate 汇率、费率或币种小数位，必须使用明确精度且禁止隐式浮点换算
      * @return 构造、转换或解析后的业务值
      */
     private BigDecimal normalizeRate(BigDecimal rate) {
@@ -755,11 +716,9 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 构造offsetdatetime对象，完成字段复制、格式标准化和敏感数据处理。
+     * 按指定 IANA 时区把本地日期时间转换为带 UTC 偏移的时间。
      * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
      * </p>
      * @param dateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释

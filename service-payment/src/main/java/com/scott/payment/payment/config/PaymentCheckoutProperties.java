@@ -5,7 +5,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * Hosted Checkout 运行配置。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutProperties
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 运行配置。
+ * @status : create
  */
 @Data
 @Component
@@ -58,6 +64,15 @@ public class PaymentCheckoutProperties {
     /** 不含 CVV 的卡资料异步归档配置，默认关闭。 */
     private CardVault cardVault = new CardVault();
 
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : CardEncryption
+     * @date : 2026-09-02 08:03
+     * @email : scott_x@163.com
+     * @description : 卡encryption嵌套数据模型，定义所属聚合内固定的字段集合和传递边界。
+     * @status : create
+     */
     @Data
     public static class CardEncryption {
         /** 当前 RSA 密钥版本，浏览器信封必须原样回传。 */
@@ -74,6 +89,15 @@ public class PaymentCheckoutProperties {
         private boolean replayStoreRequired = true;
     }
 
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : CardVault
+     * @date : 2026-09-02 08:03
+     * @email : scott_x@163.com
+     * @description : 卡vault嵌套数据模型，定义所属聚合内固定的字段集合和传递边界。
+     * @status : create
+     */
     @Data
     public static class CardVault {
         /** 是否向 service-data 发送卡资料密文；表、Topic、分片规则和密钥就绪后才能开启。 */

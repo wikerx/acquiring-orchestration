@@ -9,7 +9,15 @@ import java.lang.reflect.Method;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 验证今日风险事件分页接口始终使用当前菜单自己的权限边界。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminRiskDashboardControllerContractTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证今日风险事件分页接口始终使用当前菜单自己的权限边界。
+ * @status : create
+ */
 class AdminRiskDashboardControllerContractTests {
 
     @Test

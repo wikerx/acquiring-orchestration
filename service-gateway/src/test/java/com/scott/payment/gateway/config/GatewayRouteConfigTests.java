@@ -17,7 +17,15 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-/** 验证四类收银台公网路径都由 service-gateway 显式路由。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : GatewayRouteConfigTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证四类收银台公网路径都由 service-gateway 显式路由。
+ * @status : create
+ */
 class GatewayRouteConfigTests {
 
     /** 商户建单、付款人 API、公开配置和健康入口必须分别命中明确路由。 */

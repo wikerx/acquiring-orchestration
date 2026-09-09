@@ -51,78 +51,35 @@ import java.util.Set;
 public class AdminMenuServiceImpl implements AdminMenuService {
 
     /**
-     * ROOT PARENT ID，用于定位 Admin Menu Service Impl 关联的上游配置、渠道、账号、角色或业务记录。
+     * {@code ROOT_PARENT_ID}，用于定位 {@code AdminMenuServiceImpl} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final long ROOT_PARENT_ID = 0L;
     /**
-     * NOT DELETED，用于保存 Admin Menu Service Impl 中与 notdeleted 相关的业务属性。
+     * {@code NOT_DELETED}常量，统一 {@code AdminMenuServiceImpl} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final long NOT_DELETED = 0L;
     /**
-     * DEFAULT SORT NO，用于控制列表展示或规则匹配时的排序优先级。
+     * {@code DEFAULT_SORT_NO}，用于控制列表展示或规则匹配时的排序优先级。
      * <p>
      * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int DEFAULT_SORT_NO = 100;
     private static final Set<String> MENU_TYPES = Set.of("CATALOG", "MENU", "BUTTON", "LINK");
 
-    /**
-     * sys App Mapper 依赖，用于 Admin Menu Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysAppMapper sysAppMapper;
-    /**
-     * sys Menu Mapper 依赖，用于 Admin Menu Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysMenuMapper sysMenuMapper;
-    /**
-     * sys Permission Mapper 依赖，用于 Admin Menu Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysPermissionMapper sysPermissionMapper;
-    /**
-     * sys Role Menu Mapper 依赖，用于 Admin Menu Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysRoleMenuMapper sysRoleMenuMapper;
-    /**
-     * sys Role Permission Mapper 依赖，用于 Admin Menu Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysRolePermissionMapper sysRolePermissionMapper;
 
     /**
@@ -501,16 +458,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return value.trim();
     }
 
-    /**
-     * 整理sync权限，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
-     * @param menu menu 输入值，参与 菜单 的查询、校验、转换、写入或日志摘要
-     */
     private void syncPermission(Long appId, SysMenuDO menu) {
         String permissionCode = normalize(menu.getPermissionCode());
         SysPermissionDO existing = sysPermissionMapper.selectOne(
@@ -556,16 +503,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         sysPermissionMapper.updateById(permission);
     }
 
-    /**
-     * 应用应用权限fields，把校验后的配置、金额、状态或字段值写入目标对象。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param permission permission 输入值，参与 权限 的查询、校验、转换、写入或日志摘要
-     * @param menu menu 输入值，参与 菜单 的查询、校验、转换、写入或日志摘要
-     */
     private void applyPermissionFields(SysPermissionDO permission, SysMenuDO menu) {
         permission.setPermissionName(menu.getMenuName());
         permission.setPermissionType("BUTTON".equals(menu.getMenuType()) ? "BUTTON" : "MENU");
@@ -574,30 +511,10 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         permission.setStatus(validStatus(menu.getStatus()));
     }
 
-    /**
-     * 整理默认resourcemethod，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param menuType menu Type 输入值，参与 菜单type 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String defaultResourceMethod(String menuType) {
         return "BUTTON".equals(menuType) ? "*" : "GET";
     }
 
-    /**
-     * 更新softdelete角色菜单，保持业务状态、配置项或展示字段与请求意图一致。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
-     * @param menuId menu ID 输入值，参与 菜单ID 的查询、校验、转换、写入或日志摘要
-     */
     private void softDeleteRoleMenus(Long appId, Long menuId) {
         List<SysRoleMenuDO> grants = sysRoleMenuMapper.selectList(
                 Wrappers.<SysRoleMenuDO>lambdaQuery()
@@ -611,16 +528,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         });
     }
 
-    /**
-     * 更新softdelete菜单权限，保持业务状态、配置项或展示字段与请求意图一致。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
-     * @param menuId menu ID 输入值，参与 菜单ID 的查询、校验、转换、写入或日志摘要
-     */
     private void softDeleteMenuPermissions(Long appId, Long menuId) {
         List<SysPermissionDO> permissions = sysPermissionMapper.selectList(
                 Wrappers.<SysPermissionDO>lambdaQuery()
@@ -636,16 +543,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         });
     }
 
-    /**
-     * 更新softdelete角色权限，保持业务状态、配置项或展示字段与请求意图一致。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
-     * @param permissionId permission ID 输入值，参与 权限ID 的查询、校验、转换、写入或日志摘要
-     */
     private void softDeleteRolePermissions(Long appId, Long permissionId) {
         List<SysRolePermissionDO> grants = sysRolePermissionMapper.selectList(
                 Wrappers.<SysRolePermissionDO>lambdaQuery()
@@ -659,16 +556,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         });
     }
 
-    /**
-     * 构造树对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param menus menus 输入值，参与 菜单 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private List<SysMenuDTO> buildTree(List<SysMenuDO> menus) {
         Map<Long, SysMenuDTO> menuMap = new LinkedHashMap<>();
         menus.forEach(menu -> menuMap.put(menu.getId(), toDTO(menu)));
@@ -684,16 +571,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return roots;
     }
 
-    /**
-     * 构造dto对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param menu menu 输入值，参与 菜单 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private SysMenuDTO toDTO(SysMenuDO menu) {
         return menuConverter.toDTO(menu);
     }

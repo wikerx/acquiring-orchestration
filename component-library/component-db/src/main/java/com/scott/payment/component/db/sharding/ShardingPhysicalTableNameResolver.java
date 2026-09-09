@@ -6,7 +6,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.regex.Pattern;
 
-@Component
 /**
  * @author : scott
  * @version : v1.0.0
@@ -16,6 +15,7 @@ import java.util.regex.Pattern;
  * @description : Sharding Physical Table Name Resolver 解析组件，位于 公共组件库，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
  * @status : create
  */
+@Component
 public class ShardingPhysicalTableNameResolver {
 
     private static final Pattern SAFE_IDENTIFIER = Pattern.compile("^[A-Za-z][A-Za-z0-9_]{0,127}$");

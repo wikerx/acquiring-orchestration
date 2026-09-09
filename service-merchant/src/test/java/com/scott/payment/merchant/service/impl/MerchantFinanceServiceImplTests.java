@@ -18,13 +18,13 @@ import com.scott.payment.merchant.entity.MerchantFinanceEntities.FeeRuleTierDO;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.FundAccountDO;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.FundLedgerDO;
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.PendingBalanceAggregate;
+import com.scott.payment.merchant.entity.MerchantFinanceEntities.ReserveBalanceAggregate;
 import com.scott.payment.merchant.mapper.MerchantFeePlanMapper;
 import com.scott.payment.merchant.mapper.MerchantFeePlanVersionMapper;
 import com.scott.payment.merchant.mapper.MerchantFeeRuleMapper;
 import com.scott.payment.merchant.mapper.MerchantFeeRuleTierMapper;
 import com.scott.payment.merchant.mapper.MerchantPortalFundAccountMapper;
 import com.scott.payment.merchant.mapper.MerchantPortalFundLedgerMapper;
-import com.scott.payment.merchant.mapper.MerchantPortalReserveFundMapper;
 import com.scott.payment.merchant.service.MerchantPendingBalanceQueryService;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
@@ -200,28 +200,52 @@ class MerchantFinanceServiceImplTests {
         assertThat(hasParams(ledgerQuery.get(), "M10001", 31L)).isTrue();
     }
 
-    /** 在途余额必须按标签币种分别汇总，并按资金方向保留正负影响。 */
+    /** 在途与未结算保证金必须分别按原标签币种汇总。 */
     @Test
-    void shouldKeepPendingBalancesSeparatedByLabelCurrency() {
+    void shouldKeepDerivedBalancesSeparatedByOriginalCurrency() {
         Fixture fixture = new Fixture();
         when(fixture.accountMapper.selectOne(any())).thenReturn(account(31L, "M10001"));
-        when(fixture.reserveMapper.sumHeldBalance(31L, "M10001")).thenReturn(new BigDecimal("18.75"));
         when(fixture.pendingBalanceQueryService.sumPendingBalances("M10001")).thenReturn(List.of(
                 pendingBalance("EUR", "50"),
                 pendingBalance("USD", "80")
         ));
+        when(fixture.pendingBalanceQueryService.sumUnsettledReserveBalances("M10001")).thenReturn(List.of(
+                reserveBalance("EUR", "8.75"),
+                reserveBalance("USD", "10.00")
+        ));
 
         FundAccountResponse response = fixture.service.getFundAccount("M10001");
 
-        System.out.println("在途余额汇总：验证 USD 与 EUR 不直接相加，借方金额独立扣减");
+        System.out.println("派生余额汇总：验证在途和未结算保证金均按原币种独立展示");
         assertThat(response.getPendingBalances()).hasSize(2);
         assertThat(response.getPendingBalances().get(0).getCurrency()).isEqualTo("EUR");
         assertThat(response.getPendingBalances().get(0).getAmount()).isEqualByComparingTo("50");
         assertThat(response.getPendingBalances().get(1).getCurrency()).isEqualTo("USD");
         assertThat(response.getPendingBalances().get(1).getAmount()).isEqualByComparingTo("80");
-        assertThat(response.getReserveBalance()).isEqualByComparingTo("18.75");
+        assertThat(response.getReserveBalances()).extracting("currency", "amount").containsExactly(
+                org.assertj.core.groups.Tuple.tuple("EUR", new BigDecimal("8.75")),
+                org.assertj.core.groups.Tuple.tuple("USD", new BigDecimal("10.00")));
         assertThat(response.getCreditAllowed()).isTrue();
         assertThat(response.getSettlementAllowed()).isTrue();
+    }
+
+    /** 商户端必须与管理端保持同一冻结口径：冻结账户不得继续发起结算。 */
+    @Test
+    void shouldDisableSettlementCapabilityForFrozenAccount() {
+        Fixture fixture = new Fixture();
+        FundAccountDO account = account(31L, "M10001");
+        account.setAccountStatus("FROZEN");
+        when(fixture.accountMapper.selectOne(any())).thenReturn(account);
+        when(fixture.pendingBalanceQueryService.sumPendingBalances("M10001")).thenReturn(List.of());
+        when(fixture.pendingBalanceQueryService.sumUnsettledReserveBalances("M10001")).thenReturn(List.of());
+
+        FundAccountResponse response = fixture.service.getFundAccount("M10001");
+
+        assertThat(response.getCreditAllowed()).isTrue();
+        assertThat(response.getDebitAllowed()).isFalse();
+        assertThat(response.getWithdrawalAllowed()).isFalse();
+        assertThat(response.getSettlementAllowed()).isFalse();
+        assertThat(response.getReverseTransactionAllowed()).isFalse();
     }
 
     /** 余额流水查询应包含入账起止时间，且结束时间不得早于开始时间。 */
@@ -286,6 +310,13 @@ class MerchantFinanceServiceImplTests {
         return aggregate;
     }
 
+    private static ReserveBalanceAggregate reserveBalance(String currency, String amount) {
+        ReserveBalanceAggregate aggregate = new ReserveBalanceAggregate();
+        aggregate.setCurrency(currency);
+        aggregate.setAmount(new BigDecimal(amount));
+        return aggregate;
+    }
+
     private static boolean hasParams(Wrapper<?> wrapper, Object... expectedValues) {
         if (!(wrapper instanceof AbstractWrapper<?, ?, ?> queryWrapper)) {
             return false;
@@ -304,9 +335,8 @@ class MerchantFinanceServiceImplTests {
         private final MerchantPortalFundLedgerMapper ledgerMapper = mock(MerchantPortalFundLedgerMapper.class);
         private final MerchantPendingBalanceQueryService pendingBalanceQueryService =
                 mock(MerchantPendingBalanceQueryService.class);
-        private final MerchantPortalReserveFundMapper reserveMapper = mock(MerchantPortalReserveFundMapper.class);
         private final MerchantFinanceServiceImpl service = new MerchantFinanceServiceImpl(
                 planMapper, versionMapper, ruleMapper, tierMapper,
-                accountMapper, ledgerMapper, pendingBalanceQueryService, reserveMapper);
+                accountMapper, ledgerMapper, pendingBalanceQueryService);
     }
 }

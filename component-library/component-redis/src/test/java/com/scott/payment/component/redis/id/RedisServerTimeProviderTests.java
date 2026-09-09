@@ -50,24 +50,8 @@ class RedisServerTimeProviderTests {
 
     private static class TimeStringRedisTemplate extends StringRedisTemplate {
 
-        /**
-         * current Millis，用于保存 Time String Redis Template 中与 currentmillis 相关的业务属性。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private final Long currentMillis;
 
-        /**
-         * failure，用于保存 Time String Redis Template 中与 failure 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private final RuntimeException failure;
 
         TimeStringRedisTemplate(Long currentMillis, RuntimeException failure) {

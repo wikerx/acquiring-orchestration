@@ -6,16 +6,25 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>component-library</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>component-db</artifactId>
     <packaging>jar</packaging>
+    <name>component-db</name>
+    <description>统一实体、Mapper、MyBatis、动态数据源及 ShardingSphere 数据访问基础组件。</description>
+
+    <!--
+        本模块负责数据访问基础设施和共享数据模型，不编排支付、清分、结算等业务流程。
+        写库事务和数据所有权由对应业务服务控制，Mapper 中禁止放置业务状态机逻辑。
+    -->
     <dependencies>
+        <!--复用统一枚举、异常、缓存契约和基础值对象。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--MyBatis-Plus Spring Boot 集成及 SQL 解析扩展。-->
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
@@ -24,14 +33,20 @@
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-jsqlparser</artifactId>
         </dependency>
+        <!--主从数据源注册和运行时路由。-->
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>dynamic-datasource-spring-boot3-starter</artifactId>
         </dependency>
+        <!--MySQL JDBC 驱动。-->
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
         </dependency>
+        <!--
+            ShardingSphere JDBC 统一处理交易分片和读写分离。
+            排除 commons-logging，避免与平台 SLF4J 日志体系重复绑定。
+        -->
         <dependency>
             <groupId>org.apache.shardingsphere</groupId>
             <artifactId>shardingsphere-jdbc</artifactId>
@@ -42,6 +57,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!--ShardingSphere 分片、读写分离和 MySQL SQL 解析运行模块。-->
         <dependency>
             <groupId>org.apache.shardingsphere</groupId>
             <artifactId>shardingsphere-sharding-core</artifactId>
@@ -54,6 +70,7 @@
             <groupId>org.apache.shardingsphere</groupId>
             <artifactId>shardingsphere-parser-sql-engine-mysql</artifactId>
         </dependency>
+        <!--单机内存治理仓库、Hikari 连接池适配和简单权限实现。-->
         <dependency>
             <groupId>org.apache.shardingsphere</groupId>
             <artifactId>shardingsphere-standalone-mode-repository-memory</artifactId>
@@ -66,19 +83,26 @@
             <groupId>org.apache.shardingsphere</groupId>
             <artifactId>shardingsphere-authority-simple</artifactId>
         </dependency>
+        <!--
+            某些缓存联动仓储会使用 Spring Data Redis 类型。
+            optional=true 防止纯数据库调用方被强制引入 Redis 运行时。
+        -->
         <dependency>
             <groupId>org.springframework.data</groupId>
             <artifactId>spring-data-redis</artifactId>
             <optional>true</optional>
         </dependency>
+        <!--暴露数据源、连接池和分片运行状态。-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-actuator</artifactId>
         </dependency>
+        <!--共享实体和查询对象的 Bean Validation 注解。-->
         <dependency>
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>
         </dependency>
+        <!--以下依赖仅用于数据库、分片和 Mapper 测试，不进入生产制品。-->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>

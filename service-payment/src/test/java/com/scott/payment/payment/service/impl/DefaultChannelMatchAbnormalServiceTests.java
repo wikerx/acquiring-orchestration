@@ -33,6 +33,7 @@ import static org.mockito.Mockito.when;
  * @version : v1.0.0
  * @classname : DefaultChannelMatchAbnormalServiceTests
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 勾兑异常服务测试，覆盖确定性去重键、脱敏建案、受控处置和正常状态机恢复后的案件关闭。
  * @status : create
  */

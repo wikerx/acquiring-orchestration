@@ -31,6 +31,7 @@ import static org.mockito.Mockito.when;
  * @version : v1.0.0
  * @classname : AdminTransactionManagementIdentityTests
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 管理端退款审批和异常领取身份测试，验证操作人只从认证上下文生成。
  * @status : create
  */

@@ -99,16 +99,6 @@ public class MerchantJwtVerifier {
         return validatePayload(jwt, nowEpochSeconds);
     }
 
-    /**
-     * 解析parsetoken，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 公共组件库 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param token 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @return 构造、转换或解析后的业务值
-     */
     private JWT parseToken(String token) {
         if (!StringUtils.hasText(token)) {
             throw new ApiException(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
@@ -120,15 +110,6 @@ public class MerchantJwtVerifier {
         }
     }
 
-    /**
-     * 校验请求头输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param jwt JWT 输入值，参与 jwt 的查询、校验、转换、写入或日志摘要
-     */
     private void validateHeader(JWT jwt) {
         if (!JWT_TYPE.equalsIgnoreCase(asString(jwt.getHeader(JWTHeader.TYPE)))) {
             throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
@@ -138,16 +119,6 @@ public class MerchantJwtVerifier {
         }
     }
 
-    /**
-     * 校验signature输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param jwt JWT 输入值，参与 jwt 的查询、校验、转换、写入或日志摘要
-     * @param merchantKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     */
     private void validateSignature(JWT jwt, String merchantKey) {
         JWTSigner signer = JWTSignerUtil.hs256(merchantKey.getBytes(StandardCharsets.UTF_8));
         if (!jwt.verify(signer)) {
@@ -155,17 +126,6 @@ public class MerchantJwtVerifier {
         }
     }
 
-    /**
-     * 校验payload输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param jwt JWT 输入值，参与 jwt 的查询、校验、转换、写入或日志摘要
-     * @param nowEpochSeconds now Epoch Seconds 输入值，参与 nowepochseconds 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private JwtMerchantClaims validatePayload(JWT jwt, long nowEpochSeconds) {
         validateAudience(jwt.getPayload(RegisteredPayload.AUDIENCE));
         if (!EXPECTED_ISSUER.equals(asString(jwt.getPayload(RegisteredPayload.ISSUER)))) {
@@ -191,15 +151,6 @@ public class MerchantJwtVerifier {
         return claims;
     }
 
-    /**
-     * 校验audience输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param audiences audiences 输入值，参与 audiences 的查询、校验、转换、写入或日志摘要
-     */
     private void validateAudience(Object audiences) {
         if (audiences instanceof Collection<?> audienceCollection && audienceCollection.contains(EXPECTED_AUDIENCE)) {
             return;
@@ -210,17 +161,6 @@ public class MerchantJwtVerifier {
         throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_AUD_INVALID);
     }
 
-    /**
-     * 构造epochseconds对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param errorCode error Code 输入值，参与 错误编码 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private long toEpochSeconds(Object value, ApiResultEnum errorCode) {
         if (value instanceof Instant instant) {
             return instant.getEpochSecond();
@@ -241,17 +181,6 @@ public class MerchantJwtVerifier {
         }
     }
 
-    /**
-     * 校验时间window输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param issuedAt issued At 输入值，参与 issuedat 的查询、校验、转换、写入或日志摘要
-     * @param expiresAt expires At 输入值，参与 expiresat 的查询、校验、转换、写入或日志摘要
-     * @param nowEpochSeconds now Epoch Seconds 输入值，参与 nowepochseconds 的查询、校验、转换、写入或日志摘要
-     */
     private void validateTimeWindow(long issuedAt, long expiresAt, long nowEpochSeconds) {
         if (issuedAt <= 0L || expiresAt <= 0L || expiresAt <= issuedAt) {
             throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_EXPIRED);
@@ -267,16 +196,6 @@ public class MerchantJwtVerifier {
         }
     }
 
-    /**
-     * 规范化asstring，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String asString(Object value) {
         return value == null ? null : String.valueOf(value);
     }

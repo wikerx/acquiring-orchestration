@@ -23,7 +23,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Redis 集群级并发租约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedisConcurrencyLimiterTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Redis 集群级并发租约测试。
+ * @status : create
  */
 class RedisConcurrencyLimiterTests {
 

@@ -10,7 +10,13 @@ import lombok.Setter;
 import java.io.Serializable;
 
 /**
- * 付款人浏览器 Hosted Checkout 请求模型集合。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : HostedCheckoutBrowserRequestDTOs
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 付款人浏览器 Hosted Checkout 请求模型集合。
+ * @status : create
  */
 public final class HostedCheckoutBrowserRequestDTOs {
 
@@ -105,10 +111,31 @@ public final class HostedCheckoutBrowserRequestDTOs {
     @Setter
     public static class CardBinRequest implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 请求中的{@code opaqueToken}，用于限定本次操作的输入和校验范围。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "opaqueToken is required")
         private String opaqueToken;
+        /**
+         * {@code checkoutSessionId}，用于定位 卡BIN请求 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "checkoutSessionId is required")
         private String checkoutSessionId;
+        /**
+         * 卡 BIN，用于识别发卡行、卡组织、国家地区和风控规则。
+         * <p>
+         * 单位：无；格式：卡 BIN 或尾号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅保存识别片段，不保存完整 PAN；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardBin is required")
         @Pattern(regexp = "^\\d{6,11}$", message = "cardBin format does not match")
         private String cardBin;
@@ -157,19 +184,61 @@ public final class HostedCheckoutBrowserRequestDTOs {
     public static class CardDataEnvelopeDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
+        /**
+         * 卡数据混合加密协议标识，调用双方必须使用完全一致的算法组合。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.algorithm is required")
         private String algorithm;
+        /**
+         * 密钥ID，用于定位 {@code CardDataEnvelopeDTO} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.keyId is required")
         private String keyId;
+        /**
+         * {@code encryptedKey}字段，保存 {@code CardDataEnvelopeDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.encryptedKey is required")
         @Pattern(regexp = "^[A-Za-z0-9_-]{64,1024}$", message = "cardDataEnvelope.encryptedKey format does not match")
         private String encryptedKey;
+        /**
+         * {@code iv}字段，保存 {@code CardDataEnvelopeDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.iv is required")
         @Pattern(regexp = "^[A-Za-z0-9_-]{16,32}$", message = "cardDataEnvelope.iv format does not match")
         private String iv;
+        /**
+         * {@code ciphertext}字段，保存 {@code CardDataEnvelopeDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.ciphertext is required")
         @Pattern(regexp = "^[A-Za-z0-9_-]{16,8192}$", message = "cardDataEnvelope.ciphertext format does not match")
         private String ciphertext;
+        /**
+         * 随机数字段，保存 {@code CardDataEnvelopeDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.nonce is required")
         @Pattern(regexp = "^[A-Za-z0-9_-]{16,128}$", message = "cardDataEnvelope.nonce format does not match")
         private String nonce;

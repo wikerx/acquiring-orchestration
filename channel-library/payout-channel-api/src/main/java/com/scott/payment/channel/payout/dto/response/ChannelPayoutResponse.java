@@ -12,6 +12,7 @@ import java.util.Map;
  * @version : v1.0.0
  * @classname : ChannelPayoutResponse
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 平台统一代付渠道响应，保留标准状态和脱敏排障信息，不决定平台代付终态。
  * @status : create
  */

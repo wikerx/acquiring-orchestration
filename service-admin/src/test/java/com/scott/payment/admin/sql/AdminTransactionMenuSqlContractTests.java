@@ -10,7 +10,13 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 管理端交易菜单和商户支付接入菜单的 SQL 契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminTransactionMenuSqlContractTests
+ * @date : 2026-09-01 23:20
+ * @email : scott_x@163.com
+ * @description : 验证管理端交易、清分和结算菜单及权限迁移 SQL 的契约完整性
+ * @status : create
  */
 class AdminTransactionMenuSqlContractTests {
 
@@ -45,6 +51,24 @@ class AdminTransactionMenuSqlContractTests {
             "transaction:analytics:failures",
             "transaction:analytics:channels",
             "transaction:analytics:three-ds"
+    );
+
+    private static final Set<String> CLEARING_PERMISSIONS = Set.of(
+            "clearing:record:list",
+            "clearing:record:detail",
+            "clearing:record:retry",
+            "clearing:record:review",
+            "clearing:record:recalculate",
+            "clearing:reserve-adjustment:submit",
+            "clearing:reserve-adjustment:review",
+            "clearing:tier-period-replay:submit",
+            "clearing:tier-period-replay:review"
+    );
+
+    private static final Set<String> SETTLEMENT_PERMISSIONS = Set.of(
+            "settlement:batch:list",
+            "settlement:batch:detail",
+            "settlement:batch:cancel"
     );
 
     private static final String MERCHANT_ANALYTICS_PERMISSION = "merchant:transaction:analytics:view";
@@ -175,6 +199,55 @@ class AdminTransactionMenuSqlContractTests {
         assertThat(adminMigration.toUpperCase()).doesNotContain("DELETE FROM", "DROP TABLE", "TRUNCATE TABLE");
         assertThat(merchantMigration.toUpperCase()).doesNotContain("DELETE FROM", "DROP TABLE", "TRUNCATE TABLE");
         assertThat(schema + merchantMigration).contains(MERCHANT_ANALYTICS_PERMISSION);
+    }
+
+    @Test
+    void clearingMenuShouldMatchControllerPermissionsAndRemainIdempotent() throws IOException {
+        String migration = readRepositoryFile(
+                "service-admin/src/main/resources/sql/transaction-clearing-management-menu.sql");
+        String controller = readRepositoryFile(
+                "service-admin/src/main/java/com/scott/payment/admin/api/transaction/AdminClearingController.java");
+        String reserveController = readRepositoryFile(
+                "service-admin/src/main/java/com/scott/payment/admin/api/transaction/"
+                        + "AdminReserveAdjustmentController.java");
+        String tierReplayController = readRepositoryFile(
+                "service-admin/src/main/java/com/scott/payment/admin/api/transaction/"
+                        + "AdminTierPeriodReplayController.java");
+        String settlementController = readRepositoryFile(
+                "service-admin/src/main/java/com/scott/payment/admin/api/transaction/"
+                        + "AdminSettlementController.java");
+
+        assertThat(migration).contains(
+                "START TRANSACTION",
+                "COMMIT",
+                "app.app_code = 'ADMIN'",
+                "admin_transaction_catalog_v1",
+                "admin_transaction_clearing_v1",
+                "'/transaction/clearing'",
+                "'transaction/clearing'",
+                "admin_transaction_settlement_v1",
+                "'/transaction/settlement'",
+                "'transaction/settlement'",
+                "role.role_code = 'SUPER_ADMIN'",
+                "NOT EXISTS",
+                "INSERT IGNORE INTO sys_role_menu",
+                "INSERT IGNORE INTO sys_role_permission",
+                "menu.menu_name = BINARY item.menu_name",
+                "permission.permission_name = BINARY item.permission_name",
+                "permission.description = BINARY item.description"
+        );
+        for (String permission : CLEARING_PERMISSIONS) {
+            assertThat(migration).contains(permission);
+            assertThat(controller + reserveController + tierReplayController)
+                    .contains("@RequiresPermission(\"" + permission + "\")");
+        }
+        for (String permission : SETTLEMENT_PERMISSIONS) {
+            assertThat(migration).contains(permission);
+            assertThat(settlementController)
+                    .contains("@RequiresPermission(\"" + permission + "\")");
+        }
+
+        assertThat(migration.toUpperCase()).doesNotContain("DELETE FROM", "DROP TABLE", "TRUNCATE TABLE");
     }
 
     private String readRepositoryFile(String relativePath) throws IOException {

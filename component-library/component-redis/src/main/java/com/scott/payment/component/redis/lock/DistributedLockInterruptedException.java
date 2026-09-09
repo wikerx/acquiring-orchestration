@@ -1,7 +1,13 @@
 package com.scott.payment.component.redis.lock;
 
 /**
- * 等待分布式锁时线程被中断，调用线程的中断标记已恢复。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DistributedLockInterruptedException
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 等待分布式锁时线程被中断，调用线程的中断标记已恢复。
+ * @status : create
  */
 public class DistributedLockInterruptedException extends RuntimeException {
 

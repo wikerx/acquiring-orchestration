@@ -9,7 +9,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证商户路由永久缓存的失效门禁与结构升级。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantRouteProfileCacheServiceTests
+ * @date : 2026-09-01 23:20
+ * @email : scott_x@163.com
+ * @description : 验证商户路由永久缓存的失效门禁、generation 联动和结构版本升级
+ * @status : create
+ */
 class DefaultMerchantRouteProfileCacheServiceTests {
 
     /** 旧 Redis 快照缺少新增能力字段时必须从主库重建并覆盖原 Key。 */
@@ -19,6 +27,7 @@ class DefaultMerchantRouteProfileCacheServiceTests {
         CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
         MerchantRouteProfile legacy = new MerchantRouteProfile();
         legacy.setMerchantId("200045");
+        legacy.setSchemaVersion(2);
         MerchantRouteProfile current = new MerchantRouteProfile();
         current.setMerchantId("200045");
         current.setSchemaVersion(MerchantRouteProfile.CURRENT_SCHEMA_VERSION);

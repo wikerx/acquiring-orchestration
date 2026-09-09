@@ -48,7 +48,8 @@ class MerchantRouteProfileCacheReaderTests {
                 .contains(
                         "capabilitySupportedCardBrands",
                         "capabilitySupport3ds",
-                        "capabilitySupportIncrementalAuthorization"
+                        "capabilitySupportIncrementalAuthorization",
+                        "defaultTransactionCurrency"
                 );
     }
 
@@ -105,6 +106,7 @@ class MerchantRouteProfileCacheReaderTests {
             assertThat(option.getCapabilitySupport3ds()).isEqualTo(1);
             assertThat(option.getCapabilitySupportIncrementalAuthorization()).isZero();
             assertThat(option.getSupportedCurrencies()).containsExactly("USD");
+            assertThat(option.getDefaultTransactionCurrency()).isEqualTo("USD");
         });
         assertThat(List.of(MerchantRouteProfile.RouteOption.class.getDeclaredFields()))
                 .extracting(Field::getName)
@@ -171,6 +173,7 @@ class MerchantRouteProfileCacheReaderTests {
         row.setBusinessType("ACQUIRING");
         row.setPaymentMethod("BANK_CARD");
         row.setTransactionType("PAYMENT");
+        row.setDefaultTransactionCurrency("USD");
         row.setSupport3ds(1);
         row.setSupportIncrementalAuthorization(0);
         row.setCapabilityStatus(1);

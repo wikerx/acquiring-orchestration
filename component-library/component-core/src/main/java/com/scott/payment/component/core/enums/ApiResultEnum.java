@@ -14,15 +14,6 @@ import lombok.Getter;
  */
 
 @Getter
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : ApiResultEnum
- * @date : 2026-05-28 18:16
- * @email : scott_x@163.com
- * @description : API Result Enum 枚举，位于 公共组件库，定义交易状态、配置类型或协议结果的受控取值，供状态机、接口返回和日志字段统一引用。
- * @status : create
- */
 public enum ApiResultEnum implements IResult {
 
     /**
@@ -124,6 +115,12 @@ public enum ApiResultEnum implements IResult {
      * 商户号不存在、状态不可用或与请求不匹配。
      */
     MERCHANT_INVALID("F401009", "Merchant is invalid or unavailable"),
+    /**
+     * MERCHANT FROZEN 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     MERCHANT_FROZEN("F401010", "Merchant account is frozen"),
 
     /**

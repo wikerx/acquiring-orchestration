@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Bean;
  * @version : v1.0.0
  * @classname : WorldPayChannelAutoConfiguration
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : Worldpay provider 自动配置，同时注册 WPGJSON/WPGXML 客户端、回调处理器和验签实现。
  * @status : create
  */

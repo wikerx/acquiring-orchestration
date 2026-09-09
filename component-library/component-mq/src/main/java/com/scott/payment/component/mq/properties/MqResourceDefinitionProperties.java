@@ -2,6 +2,7 @@ package com.scott.payment.component.mq.properties;
 
 import com.scott.payment.component.mq.admin.MqResourceType;
 import lombok.Data;
+import org.apache.rocketmq.common.attribute.TopicMessageType;
 
 /**
  * @author : scott
@@ -44,6 +45,14 @@ public class MqResourceDefinitionProperties {
      * Topic 权限位。
      */
     private Integer perm;
+
+    /**
+     * RocketMQ 5.x Topic 消息类型。
+     *
+     * <p>仅对 {@link MqResourceType#TOPIC} 生效。普通 Topic 默认保持 NORMAL；
+     * 定时消息 Topic 必须显式声明 DELAY，初始化时会与 Broker 已有类型做一致性校验。</p>
+     */
+    private TopicMessageType messageType = TopicMessageType.NORMAL;
 
     /**
      * Consumer Group 是否允许消费。

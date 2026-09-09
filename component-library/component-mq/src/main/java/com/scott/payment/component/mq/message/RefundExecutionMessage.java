@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
  * @version : v1.0.0
  * @classname : RefundExecutionMessage
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款审批执行消息契约，只携带稳定审批标识和数据库路由时间，不携带卡数据、渠道凭据或完整报文。
  * @status : create
  */

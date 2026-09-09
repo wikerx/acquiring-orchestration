@@ -15,7 +15,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * 基于单个 Spring 管理的 RedissonClient 提供有界、可重入的分布式锁能力。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedissonDistributedLockService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 基于单个 Spring 管理的 RedissonClient 提供有界、可重入的分布式锁能力。
+ * @status : create
  */
 public class RedissonDistributedLockService implements DistributedLockService {
 

@@ -7,17 +7,17 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-@Data
-@TableName("sys_merchant_menu_grant")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysMerchantMenuGrantDO
  * @date : 2026-06-06 10:36
  * @email : scott_x@163.com
- * @description : Sys Merchant Menu Grant DO 持久化模型，位于 公共组件库，映射数据库记录字段，承载主键、业务标识、状态、时间和审计信息。
+ * @description : sys商户菜单授权持久化模型，位于 公共组件库，映射数据库中的业务事实、状态、版本和审计字段，不作为外部接口模型。
  * @status : create
  */
+@Data
+@TableName("sys_merchant_menu_grant")
 public class SysMerchantMenuGrantDO {
 
     /**

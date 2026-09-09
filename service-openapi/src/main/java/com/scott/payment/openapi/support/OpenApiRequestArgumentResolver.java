@@ -14,7 +14,6 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 import jakarta.servlet.http.HttpServletRequest;
 
 
-@Component
 /**
  * @author : scott
  * @version : v1.0.0
@@ -24,6 +23,7 @@ import jakarta.servlet.http.HttpServletRequest;
  * @description : Open API Request Argument Resolver 解析组件，位于 商户开放接口服务，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
  * @status : create
  */
+@Component
 public class OpenApiRequestArgumentResolver implements HandlerMethodArgumentResolver {
 
     /**

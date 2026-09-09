@@ -72,7 +72,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private PaymentCreateClientResponseDTO.ThreeDsInfoDTO threeDSInfo;
 
     /**
-     * order Amount，表示当前交易、费用、限额或统计口径下的金额值。
+     * 订单金额，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -82,7 +82,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private BigDecimal orderAmount;
 
     /**
-     * order Currency，表示金额字段使用的币种。
+     * 订单币种，表示金额字段使用的币种。
      * <p>
      * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -92,7 +92,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private String orderCurrency;
 
     /**
-     * total Authorized Amount，表示当前交易、费用、限额或统计口径下的金额值。
+     * {@code totalAuthorizedAmount}，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -102,7 +102,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private BigDecimal totalAuthorizedAmount;
 
     /**
-     * total Captured Amount，表示当前交易、费用、限额或统计口径下的金额值。
+     * {@code totalCapturedAmount}，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -112,7 +112,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private BigDecimal totalCapturedAmount;
 
     /**
-     * total Refund Amount，表示当前交易、费用、限额或统计口径下的金额值。
+     * 合计退款金额，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -122,7 +122,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private BigDecimal totalRefundAmount;
 
     /**
-     * total Authorized Cancel Amount，表示当前交易、费用、限额或统计口径下的金额值。
+     * {@code totalAuthorizedCancelAmount}，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -132,7 +132,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private BigDecimal totalAuthorizedCancelAmount;
 
     /**
-     * total Refuse Amount，表示当前交易、费用、限额或统计口径下的金额值。
+     * {@code totalRefuseAmount}，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -142,7 +142,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private BigDecimal totalRefuseAmount;
 
     /**
-     * label Amount，表示当前交易、费用、限额或统计口径下的金额值。
+     * 标签金额，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -152,7 +152,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private BigDecimal labelAmount;
 
     /**
-     * label Currency，表示金额字段使用的币种。
+     * 标签币种，表示金额字段使用的币种。
      * <p>
      * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -162,7 +162,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private String labelCurrency;
 
     /**
-     * transaction Amount，表示当前交易、费用、限额或统计口径下的金额值。
+     * 交易金额，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -172,7 +172,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private BigDecimal transactionAmount;
 
     /**
-     * transaction Currency，表示金额字段使用的币种。
+     * 交易币种，表示金额字段使用的币种。
      * <p>
      * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -182,37 +182,34 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private String transactionCurrency;
 
     /**
-     * transaction Rate，用于保存 Payment Query Client Response DTO 中与 交易汇率 相关的业务属性。
+     * 交易汇率字段，保存 {@code PaymentQueryClientResponseDTO} 当前处理所需的业务取值。
      * <p>
      * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private BigDecimal transactionRate;
 
     /**
-     * rate Source，用于保存 Payment Query Client Response DTO 中与 汇率来源 相关的业务属性。
+     * 汇率来源字段，保存 {@code PaymentQueryClientResponseDTO} 当前处理所需的业务取值。
      * <p>
      * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String rateSource;
 
     /**
-     * rate Time，用于保存 Payment Query Client Response DTO 中与 汇率time 相关的业务属性。
+     * 汇率时间字段，保存 {@code PaymentQueryClientResponseDTO} 当前处理所需的业务取值。
      * <p>
-     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private LocalDateTime rateTime;
 
     /**
-     * settlement Amount，表示当前交易、费用、限额或统计口径下的金额值。
+     * 结算金额，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -222,7 +219,7 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private BigDecimal settlementAmount;
 
     /**
-     * settlement Currency，表示金额字段使用的币种。
+     * 结算币种，表示金额字段使用的币种。
      * <p>
      * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -241,21 +238,20 @@ public class PaymentQueryClientResponseDTO implements Serializable {
     private List<PaymentCreateClientResponseDTO.FeeItemDTO> feeItems = new ArrayList<>();
 
     /**
-     * transaction Time Zone，用于保存 Payment Query Client Response DTO 中与 交易timezone 相关的业务属性。
+     * 交易业务时区，使用 IANA 时区标识解释本地交易时间。
      * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private String transactionTimeZone;
 
     /**
-     * transaction Info，用于保存 Payment Query Client Response DTO 中与 交易info 相关的业务属性。
+     * 交易信息集合，承载 {@code PaymentQueryClientResponseDTO} 当前请求或响应中的多值数据。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
      * </p>
      */
     private List<TransactionInfoDTO> transactionInfo = new ArrayList<>();
@@ -293,21 +289,19 @@ public class PaymentQueryClientResponseDTO implements Serializable {
         private LocalDateTime sourceTransactionDateTime;
 
         /**
-         * code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * 编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String code;
 
         /**
-         * message，用于保存 Transaction Info DTO 中与 message 相关的业务属性。
+         * 说明字段，保存 {@code TransactionInfoDTO} 当前处理所需的业务取值。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String message;
@@ -317,7 +311,6 @@ public class PaymentQueryClientResponseDTO implements Serializable {
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String transactionType;
@@ -326,11 +319,10 @@ public class PaymentQueryClientResponseDTO implements Serializable {
         private String transactionStatus;
 
         /**
-         * transaction Date Time，用于保存 Transaction Info DTO 中与 交易datetime 相关的业务属性。
+         * 交易受理时刻，按交易业务时区解释并保留毫秒精度。
          * <p>
-         * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
@@ -341,21 +333,19 @@ public class PaymentQueryClientResponseDTO implements Serializable {
         private LocalDateTime rootTransactionDateTime;
 
         /**
-         * payment Method，表示支付方式、通知方式或调用方式。
+         * 支付方式，表示支付方式、通知方式或调用方式。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String paymentMethod;
 
         /**
-         * card Brand，用于保存 Transaction Info DTO 中与 cardbrand 相关的业务属性。
+         * 卡品牌编码，用于渠道能力匹配、路由和运营展示。
          * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String cardBrand;
@@ -363,45 +353,41 @@ public class PaymentQueryClientResponseDTO implements Serializable {
         /**
          * 卡 BIN，用于识别发卡行、卡组织、国家地区和风控规则。
          * <p>
-         * 单位：无；格式：卡 BIN 或尾号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 单位：无；格式：卡 BIN 或尾号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：仅保存识别片段，不保存完整 PAN；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String cardBin;
 
         /**
-         * auth Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * {@code authCode}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String authCode;
 
         /**
-         * ARN，用于保存 Transaction Info DTO 中与 arn 相关的业务属性。
+         * {@code arn}字段，保存 {@code TransactionInfoDTO} 当前处理所需的业务取值。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String arn;
 
         /**
-         * description，用于保存人工备注、交易说明或配置补充说明。
+         * 说明，用于保存人工备注、交易说明或配置补充说明。
          * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String description;
 
         /**
-         * callback URL，表示回调、通知、来源站点或远程接口地址。
+         * 回调地址，表示回调、通知、来源站点或远程接口地址。
          * <p>
          * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
          * 取值范围：长度和协议由调用方校验；数据来源：上游接口请求、内部服务调用或远程服务响应。

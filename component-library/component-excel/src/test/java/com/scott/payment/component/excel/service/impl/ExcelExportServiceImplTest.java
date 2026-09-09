@@ -115,6 +115,32 @@ class ExcelExportServiceImplTest {
         }
     }
 
+    /** 验证超长业务标识使用文本格式，避免 Excel 显示为科学计数法。 */
+    @Test
+    void shouldApplyTextFormatToLongBusinessIdentifier() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        service.export(
+                ExcelExportRequest.<TextIdentifierExportRow>builder()
+                        .fileName("identifier-demo")
+                        .sheetName("identifier-demo")
+                        .titleKey("excel.user.title")
+                        .operator("tester")
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .rowClass(TextIdentifierExportRow.class)
+                        .dataList(List.of(new TextIdentifierExportRow("202608271446158230848", "启用")))
+                        .build(),
+                response
+        );
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(response.body.toByteArray()))) {
+            var cell = workbook.getSheetAt(0).getRow(3).getCell(0);
+            Assertions.assertEquals("202608271446158230848", cell.getStringCellValue());
+            Assertions.assertEquals("@", cell.getCellStyle().getDataFormatString());
+        }
+    }
+
     /**
      * 验证动态列导出也使用统一标题、表头和数据区布局。
      *
@@ -203,6 +229,21 @@ class ExcelExportServiceImplTest {
          */
         DemoExportRow(String loginAccount, String status) {
             this.loginAccount = loginAccount;
+            this.status = status;
+        }
+    }
+
+    /** 测试超长业务标识导出行。 */
+    public static class TextIdentifierExportRow {
+
+        @ExcelExportColumn(order = 1, headerKey = "excel.settlement.transactionId", forceText = true)
+        private final String transactionId;
+
+        @ExcelExportColumn(order = 2, headerKey = "excel.user.status")
+        private final String status;
+
+        TextIdentifierExportRow(String transactionId, String status) {
+            this.transactionId = transactionId;
             this.status = status;
         }
     }

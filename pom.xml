@@ -6,68 +6,96 @@
 
     <groupId>com.scott.payment</groupId>
     <artifactId>acquiring-orchestration</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>acquiring-orchestration</name>
-    <description>Global acquiring orchestration system based on Spring Cloud.</description>
+    <description>跨境收单编排平台的 Maven 根工程，统一聚合模块、版本、依赖和构建规则。</description>
 
+    <!--
+        全仓 Reactor 模块清单。根工程只负责聚合和统一治理，不承载可运行的业务代码。
+        各服务之间通过明确的 API、数据库所有权和异步消息边界协作，禁止通过 Maven 依赖直接耦合服务实现。
+    -->
     <modules>
-        <!--基础组件工具-->
+        <!--通用技术组件库：沉淀跨服务复用的 Core、Web、DB、Redis、MQ、安全和任务能力。-->
         <module>component-library</module>
-        <!--渠道集成包-->
+        <!--渠道适配器库：定义支付/代付渠道 SPI、执行框架及具体渠道实现。-->
         <module>channel-library</module>
-        <!--所有内部、外部请求的统一网关-->
+        <!--财务领域库：提供费用、保证金及后续结算共用的纯模型和纯计算内核。-->
+        <module>finance-library</module>
+        <!--统一流量网关：负责路由、入口过滤、链路标识和网关级安全控制。-->
         <module>service-gateway</module>
-        <!--管理系统后端服务-->
+        <!--运营管理服务：承载平台配置、商户、渠道、费用、风控和资金管理后台能力。-->
         <module>service-admin</module>
-        <!--商户系统后端服务-->
+        <!--商户工作台服务：承载商户账户、配置、交易查询、退款和经营数据能力。-->
         <module>service-merchant</module>
-        <!--收银台备用服务：暂未使用-->
+        <!--托管收银台服务：承载付款链接和收银台展示所需的轻量配置接口。-->
         <module>service-checkout</module>
-        <!--对外 OpenAPI 服务，所有对外API的统一入口-->
+        <!--商户 OpenAPI 服务：统一受理支付、退款、查询、代付和托管收银台请求。-->
         <module>service-openapi</module>
-        <!--支付（收单）核心服务-->
+        <!--支付核心服务：拥有收单交易事实、状态机、渠道执行和交易终态事件。-->
         <module>service-payment</module>
-        <!--风控服务-->
+        <!--交易清分服务：消费终态交易事件，形成不可变费用和保证金清分事实；不负责结算汇率或余额入账。-->
+        <module>service-clearing</module>
+        <!--交易结算服务：自动认领清分候选，锁定批次统一汇率，生成结算结果并执行幂等净额入账、保证金资金化和异步投影。-->
+        <module>service-settlement</module>
+        <!--风控服务：负责交易风险评估、3DS 策略和商户限额预占。-->
         <module>service-risk</module>
-        <!--数据服务：主要用于消费MQ及回调相关业务-->
+        <!--异步数据服务：消费审计、通知、卡信息保管等非核心交易消息，不承载清分。-->
         <module>service-data</module>
-        <!--payout服务-->
+        <!--代付核心服务：拥有代付交易状态机并编排代付渠道执行。-->
         <module>service-payout</module>
-        <!--定时任务调度服务-->
+        <!--任务调度服务：负责补偿、重试、分表预建和外部汇率抓取等后台任务。-->
         <module>service-job</module>
     </modules>
 
     <properties>
+        <!--统一 Java 编译版本和文本编码，所有子模块继承该设置。-->
         <java.version>17</java.version>
+        <!--财务领域库与平台统一发布，所有 model/core 子模块禁止独立漂移版本。-->
+        <finance-library.version>${project.version}</finance-library.version>
+
+        <!--Spring Cloud 技术栈版本，由下方三个 BOM 统一管理其传递依赖。-->
         <spring-boot.version>3.5.14</spring-boot.version>
         <spring-cloud.version>2025.0.2</spring-cloud.version>
         <spring-cloud-alibaba.version>2025.0.0.0</spring-cloud-alibaba.version>
+
+        <!--消息、任务、数据库、分库分表和缓存等基础设施组件版本。-->
         <rocketmq-spring.version>2.3.5</rocketmq-spring.version>
         <rocketmq.version>5.3.1</rocketmq.version>
         <xxl-job.version>3.4.0</xxl-job.version>
         <mybatis-plus.version>3.5.16</mybatis-plus.version>
         <dynamic-datasource.version>4.5.0</dynamic-datasource.version>
         <shardingsphere.version>5.5.3</shardingsphere.version>
-        <commons-lang3.version>3.18.0</commons-lang3.version>
         <mysql.version>8.4.0</mysql.version>
+        <redisson.version>3.50.0</redisson.version>
+
+        <!--序列化、工具、对象映射和文件处理等通用库版本。-->
+        <commons-lang3.version>3.18.0</commons-lang3.version>
         <lombok.version>1.18.46</lombok.version>
         <fastjson2.version>2.0.62</fastjson2.version>
         <fastjson2-spring.version>2.0.61</fastjson2-spring.version>
         <hutool.version>5.8.46</hutool.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <easyexcel.version>4.0.3</easyexcel.version>
-        <redisson.version>3.50.0</redisson.version>
+
+        <!--Maven 构建插件版本，避免不同开发环境使用隐式默认版本。-->
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
         <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
+
+        <!--资源过滤使用的环境标识；实际值可由下方 Maven Profile 覆盖。-->
         <profiles.active>dev</profiles.active>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
 
+    <!--
+        全仓依赖版本目录。这里只锁定版本，不会自动把依赖加入子模块；
+        子模块仍需显式声明自身真正使用的依赖，避免公共父工程扩大运行时 classpath。
+    -->
     <dependencyManagement>
         <dependencies>
+            <!--Spring Boot、Spring Cloud 和 Spring Cloud Alibaba 的兼容版本矩阵。-->
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
@@ -89,6 +117,8 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+
+            <!--RocketMQ 客户端集成及资源管理工具。-->
             <dependency>
                 <groupId>org.apache.rocketmq</groupId>
                 <artifactId>rocketmq-spring-boot-starter</artifactId>
@@ -99,11 +129,15 @@
                 <artifactId>rocketmq-tools</artifactId>
                 <version>${rocketmq.version}</version>
             </dependency>
+
+            <!--分布式任务执行内核。-->
             <dependency>
                 <groupId>com.xuxueli</groupId>
                 <artifactId>xxl-job-core</artifactId>
                 <version>${xxl-job.version}</version>
             </dependency>
+
+            <!--MyBatis-Plus、动态数据源和 MySQL 驱动。-->
             <dependency>
                 <groupId>com.baomidou</groupId>
                 <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
@@ -124,11 +158,14 @@
                 <artifactId>mysql-connector-j</artifactId>
                 <version>${mysql.version}</version>
             </dependency>
+
+            <!--ShardingSphere JDBC、分片、读写分离、解析器和运行模式所需模块。-->
             <dependency>
                 <groupId>org.apache.shardingsphere</groupId>
                 <artifactId>shardingsphere-jdbc</artifactId>
                 <version>${shardingsphere.version}</version>
             </dependency>
+
             <dependency>
                 <groupId>org.apache.shardingsphere</groupId>
                 <artifactId>shardingsphere-sharding-core</artifactId>
@@ -164,6 +201,8 @@
                 <artifactId>shardingsphere-authority-simple</artifactId>
                 <version>${shardingsphere.version}</version>
             </dependency>
+
+            <!--通用工具、编译期代码生成、序列化、HTTP、缓存和 Excel 处理库。-->
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
@@ -217,12 +256,15 @@
         </dependencies>
     </dependencyManagement>
 
+    <!--所有 Java 子模块默认具备的编译期和测试依赖。-->
     <dependencies>
+        <!--Lombok 只参与编译，不进入业务服务运行时制品。-->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!--统一 JUnit 5、Mockito、Spring Test 等测试基础设施。-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -231,14 +273,17 @@
     </dependencies>
 
     <build>
+        <!--开启主资源过滤，用 @property@ 注入环境标识，避免与 Spring 的 ${...} 占位符冲突。-->
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
             </resource>
         </resources>
+        <!--插件版本和默认参数只在此治理，子模块按需在 plugins 中显式启用。-->
         <pluginManagement>
             <plugins>
+                <!--统一使用 Java 17，并注册 Lombok、MapStruct 注解处理器。-->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
@@ -260,11 +305,13 @@
                         </annotationProcessorPaths>
                     </configuration>
                 </plugin>
+                <!--可运行服务使用该插件执行 Spring Boot repackage。-->
                 <plugin>
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-maven-plugin</artifactId>
                     <version>${spring-boot.version}</version>
                 </plugin>
+                <!--限定资源过滤分隔符为 @，防止误处理应用配置中的 Spring 占位符。-->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
@@ -277,6 +324,7 @@
                         </delimiters>
                     </configuration>
                 </plugin>
+                <!--统一单元测试和集成测试的 Surefire 执行版本。-->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
@@ -285,6 +333,7 @@
             </plugins>
         </pluginManagement>
         <plugins>
+            <!--父工程主动启用资源插件，使所有子模块继承统一过滤规则。-->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
@@ -292,7 +341,9 @@
         </plugins>
     </build>
 
+    <!--环境 Profile 仅切换资源过滤标识；连接信息仍由 Nacos 和外部配置中心管理。-->
     <profiles>
+        <!--本地开发默认环境。-->
         <profile>
             <id>dev</id>
             <properties>
@@ -302,18 +353,21 @@
                 <activeByDefault>true</activeByDefault>
             </activation>
         </profile>
+        <!--自动化测试环境。-->
         <profile>
             <id>test</id>
             <properties>
                 <profiles.active>test</profiles.active>
             </properties>
         </profile>
+        <!--用户验收环境。-->
         <profile>
             <id>uat</id>
             <properties>
                 <profiles.active>uat</profiles.active>
             </properties>
         </profile>
+        <!--生产环境；构建时必须显式使用 -Pprod。-->
         <profile>
             <id>prod</id>
             <properties>

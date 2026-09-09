@@ -13,15 +13,6 @@ import lombok.Getter;
  */
 
 @Getter
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRiskLevelEnum
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : Merchant Risk Level Enum 枚举，位于 商户开放接口服务，定义交易状态、配置类型或协议结果的受控取值，供状态机、接口返回和日志字段统一引用。
- * @status : create
- */
 public enum MerchantRiskLevelEnum {
 
     /**

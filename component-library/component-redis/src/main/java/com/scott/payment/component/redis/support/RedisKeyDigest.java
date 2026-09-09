@@ -6,7 +6,14 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * Redis Key 动态维度摘要工具。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedisKeyDigest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Redis Key 动态维度摘要工具。
+ * @status : create
+ *
  *
  * <p>IP、Host、邮箱、卡号衍生值和长业务幂等键不得直接暴露在物理 Key 中，
  * 统一使用 SHA-256 摘要作为稳定匹配维度。</p>

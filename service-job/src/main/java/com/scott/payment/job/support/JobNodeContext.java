@@ -21,56 +21,50 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class JobNodeContext {
 
     /**
-     * app Name，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * {@code appName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final String appName;
     /**
-     * configured Host，表示远程服务主机、商户域名或渠道访问域名。
+     * {@code configuredHost}，表示远程服务主机、商户域名或渠道访问域名。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final String configuredHost;
     /**
-     * port，用于保存 Job Node Context 中与 port 相关的业务属性。
+     * {@code port}字段，保存 任务节点上下文 当前处理所需的业务取值。
      * <p>
      * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final int port;
     /**
-     * registration，用于保存 Job Node Context 中与 registration 相关的业务属性。
+     * {@code registration}字段，保存 任务节点上下文 当前处理所需的业务取值。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final Registration registration;
     /**
-     * job Scheduler Properties，用于保存 Job Node Context 中与 jobschedulerproperties 相关的业务属性。
+     * {@code jobSchedulerProperties}字段，保存 任务节点上下文 当前处理所需的业务取值。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final JobSchedulerProperties jobSchedulerProperties;
     /**
-     * running Count，表示当前统计、分页、扫描或重试场景中的数量。
+     * {@code runningCount}，表示当前统计、分页、扫描或重试场景中的数量。
      * <p>
      * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final AtomicInteger runningCount = new AtomicInteger();

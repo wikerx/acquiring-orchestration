@@ -6,10 +6,18 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>service-admin</artifactId>
+    <name>service-admin</name>
+    <description>平台运营管理服务，承载商户、渠道、费用、风控、资金和系统配置后台能力。</description>
+
+    <!--
+        本服务负责管理配置和运营操作，不拥有支付交易状态机，也不直接执行清分或结算入账。
+        对费用和保证金的管理端试算复用 finance-library，配置版本选择和审批仍由本服务编排。
+    -->
     <dependencies>
+        <!--服务注册、配置中心和服务间负载均衡。-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -22,54 +30,94 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+        <!--平台通用值对象、异常、响应和基础工具。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--
+            财务领域模型和纯计算内核：用于费用方案校验、试算和保证金预览。
+            统一使用 finance-library.version，禁止单个财务子模块版本漂移。
+        -->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-money</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-fee</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-reserve</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>core-fee</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>core-reserve</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+        <!--后台 Excel 导入导出能力。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-excel</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--同步管理 API、统一异常处理和参数校验。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-web</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--管理员鉴权、商户密钥材料和敏感操作安全能力。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-security</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--管理配置、商户、渠道、费用和资金数据访问。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--配置缓存、分布式锁、幂等和缓存失效联动。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-redis</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--运营日志、安全审计和配置变更事件的异步发送。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-mq</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--邮件模板通知和投递能力。-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
+        <!--管理端任务 Handler 和执行契约。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-job</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--DTO、实体和视图对象的编译期映射。-->
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
         </dependency>
+        <!--仅用于无需外部 MySQL 的管理服务单元/集成测试。-->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
@@ -79,6 +127,7 @@
 
     <build>
         <plugins>
+            <!--将服务及其运行时依赖重打包为可独立启动的 Spring Boot 制品。-->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

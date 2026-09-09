@@ -9,7 +9,13 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 
 /**
- * 交易认证审计 Mapper。认证流程按 authentication_info_id 实现阶段级数据库幂等。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : TransactionAuthenticationInfoMapper
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 交易认证审计 Mapper。认证流程按 authentication_info_id 实现阶段级数据库幂等。
+ * @status : create
  */
 public interface TransactionAuthenticationInfoMapper extends BaseMapper<TransactionAuthenticationInfoDO> {
 

@@ -33,6 +33,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @version : v1.0.0
  * @classname : AdminChannelMatchAbnormalController
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 管理端勾兑异常接口，提供查询和受控案件处置；不注册 repair 或人工确认交易成功接口。
  * @status : create
  */

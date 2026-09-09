@@ -16,7 +16,13 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 支付终态驱动的商户累计限额预占确认与撤销编排。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantLimitReservationLifecycleCoordinator
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 支付终态驱动的商户累计限额预占确认与撤销编排。
+ * @status : create
  */
 @Slf4j
 @Service

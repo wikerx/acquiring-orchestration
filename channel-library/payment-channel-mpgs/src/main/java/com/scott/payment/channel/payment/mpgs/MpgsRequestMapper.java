@@ -24,14 +24,12 @@ import java.util.Locale;
 public class MpgsRequestMapper {
 
     /**
-     * 将平台统一交易请求转换为 MPGS 请求体。
+     * 将平台统一支付请求映射为 MPGS 协议请求，统一校验金额、币种、卡信息和 3DS 字段。
      * <p>
-     * 前置条件：request、channelOrderNo、channelTransactionId、transactionType 必须存在；支付、授权和预授权必须携带卡号、有效期和安全码；撤销类交易必须在 extension.targetTransactionId 中提供原渠道交易号。
-     * 本方法只做本地对象映射和参数校验，不写数据库、不发起外部系统调用、不改变交易状态；幂等由调用方使用平台交易号和渠道订单号控制。
-     * 卡号、有效期、安全码和 3DS CAVV 属于敏感或高敏感数据，只进入渠道请求对象，禁止在日志和异常消息中输出明文。
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
      * </p>
-     * @param request 平台统一渠道请求，来源于支付核心渠道调用链，包含交易类型、金额币种、平台交易号、渠道订单号、卡数据和可选 3DS 认证数据
-     * @return MPGS 请求体，包含 apiOperation、order、transaction、sourceOfFunds 和 authentication 等渠道协议字段
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     public MpgsRequestPayload toMpgsRequest(ChannelPaymentRequest request) {
         validateCommonRequest(request);

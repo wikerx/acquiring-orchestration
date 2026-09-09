@@ -26,7 +26,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * 收银台卡资料密文发布安全边界测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutCardVaultPublisherTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 收银台卡资料密文发布安全边界测试。
+ * @status : create
  */
 class PaymentCheckoutCardVaultPublisherTests {
 

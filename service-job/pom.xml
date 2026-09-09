@@ -6,10 +6,18 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>service-job</artifactId>
+    <name>service-job</name>
+    <description>后台任务调度服务，负责补偿、重试、分表预建、汇率抓取和任务执行治理。</description>
+
+    <!--
+        本服务只负责调度和调用拥有业务事实的服务，不直接修改支付、通知或未来清分结算状态。
+        任务执行必须支持分片、锁、超时、重试和可审计运行记录，避免多节点重复执行。
+    -->
     <dependencies>
+        <!--服务注册、配置中心和服务间负载均衡。-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -22,35 +30,42 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+        <!--平台通用值对象、任务枚举、异常和 ID。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--任务 Handler、执行上下文、结果和注册契约。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-job</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--内部任务管理 API、参数校验和统一异常处理。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-web</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--任务定义、节点、锁、运行日志和分表元数据访问。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--节点心跳、任务锁、幂等和短期调度状态。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-redis</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--任务内部接口和健康检查使用的 Spring MVC 能力。-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!--任务 DTO、实体和结果对象的编译期映射。-->
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
@@ -59,6 +74,7 @@
 
     <build>
         <plugins>
+            <!--将服务及其运行时依赖重打包为可独立启动的 Spring Boot 制品。-->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

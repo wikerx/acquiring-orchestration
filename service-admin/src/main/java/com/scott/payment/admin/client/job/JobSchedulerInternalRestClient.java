@@ -17,6 +17,7 @@ import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.web.internal.InternalServiceSignature;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
@@ -24,6 +25,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -36,6 +38,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -111,32 +114,8 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
     /** 分表创建执行内部接口，调用前必须经过预演和权限确认。 */
     private static final String SHARDING_TABLE_CREATE_EXECUTE_PATH = "/internal/job/sharding/table-create/execute";
 
-    /**
-     * direct Rest Template，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final RestTemplate directRestTemplate;
-    /**
-     * job Scheduler Client Properties 依赖，用于 Job Scheduler Internal Rest Client 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final JobSchedulerClientProperties jobSchedulerClientProperties;
-    /**
-     * discovery Client 依赖，用于 Job Scheduler Internal Rest Client 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final DiscoveryClient discoveryClient;
 
     /**
@@ -331,14 +310,10 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
     }
 
     /**
-     * 整理清理run日志，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 请求任务调度服务按筛选条件批量清理运行日志。
+     *
+     * @param request 日志时间范围、状态和任务筛选条件
+     * @return 实际删除或软删除的运行日志数量
      */
     @Override
     public int cleanRunLogs(JobRunLogQueryRequest request) {
@@ -498,23 +473,46 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
      * @return 响应体
      */
     private String executeRequest(URI targetUri, HttpMethod httpMethod, Object body) {
-        ResponseEntity<String> response = directRestTemplate.exchange(targetUri, httpMethod, buildRequestEntity(body), String.class);
+        ResponseEntity<String> response = directRestTemplate.exchange(
+                targetUri, httpMethod, buildRequestEntity(targetUri, httpMethod, body), String.class);
         return response.getBody();
     }
 
     /**
      * 构建携带当前登录态的请求实体。
      *
+     * @param targetUri 已完成服务发现解析的目标地址
+     * @param httpMethod HTTP 方法
      * @param body 请求体
      * @return 请求实体
      */
-    private HttpEntity<Object> buildRequestEntity(Object body) {
+    private HttpEntity<Object> buildRequestEntity(URI targetUri, HttpMethod httpMethod, Object body) {
         HttpHeaders headers = new HttpHeaders();
         String authorization = resolveAuthorizationHeader();
         if (StringUtils.hasText(authorization)) {
             headers.set(AUTHORIZATION_HEADER, authorization);
         }
-        return new HttpEntity<>(body, headers);
+        String requestBody = body == null ? null : JsonUtils.toJsonString(body);
+        if (requestBody != null) {
+            headers.setContentType(MediaType.APPLICATION_JSON);
+        }
+        long timestamp = InternalServiceSignature.currentTimeMillis();
+        String nonce = UUID.randomUUID().toString();
+        String caller = jobSchedulerClientProperties.getInternalCaller();
+        String signature = InternalServiceSignature.sign(
+                httpMethod.name(),
+                InternalServiceSignature.requestTarget(targetUri.getRawPath(), targetUri.getRawQuery()),
+                timestamp,
+                nonce,
+                caller,
+                InternalServiceSignature.payloadSha256(requestBody),
+                jobSchedulerClientProperties.getInternalSecret()
+        );
+        headers.set(InternalServiceSignature.HEADER_CALLER, caller);
+        headers.set(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
+        headers.set(InternalServiceSignature.HEADER_NONCE, nonce);
+        headers.set(InternalServiceSignature.HEADER_SIGNATURE, signature);
+        return new HttpEntity<>(requestBody, headers);
     }
 
     /**

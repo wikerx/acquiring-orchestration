@@ -6,10 +6,18 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>service-openapi</artifactId>
+    <name>service-openapi</name>
+    <description>商户 OpenAPI 统一入口，受理支付、退款、查询、代付和托管收银台请求。</description>
+
+    <!--
+        本服务负责商户身份校验、验签解密、防重放、参数标准化和请求编排，不拥有支付交易终态。
+        支付状态推进委托 service-payment；渠道适配器在本服务仅用于公网回调验签和协议识别。
+    -->
     <dependencies>
+        <!--服务注册、配置中心和服务间负载均衡。-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -22,46 +30,58 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+        <!--平台通用值对象、异常、响应和基础工具。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--对外同步 API、统一异常、参数校验和链路治理。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-web</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--商户验签、请求解密、响应加密、防重放和密钥材料管理。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-security</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--请求幂等、Nonce、防重放和交易查询缓存。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-redis</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--安全审计、请求事件及后续异步处理消息。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-mq</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--商户、密钥、幂等记录和交易查询所需数据访问。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--服务间同步调用的通用 HTTP 客户端。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-http</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--支付渠道回调验签器注册和通用回调安全支持。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>payment-channel-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--
+            具体渠道仅在运行时提供回调验签和协议适配实现；OpenAPI 不直接引用 Provider 实现类。
+            渠道交易执行仍由 service-payment 负责，新增渠道时保持相同 runtime 装配方式。
+        -->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>payment-channel-mpgs</artifactId>
@@ -74,6 +94,7 @@
             <version>${project.version}</version>
             <scope>runtime</scope>
         </dependency>
+        <!--DTO、渠道请求和响应对象的编译期映射。-->
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
@@ -82,6 +103,7 @@
 
     <build>
         <plugins>
+            <!--将服务及其运行时依赖重打包为可独立启动的 Spring Boot 制品。-->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

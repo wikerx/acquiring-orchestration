@@ -32,14 +32,50 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Applies session and notification side effects for merchant freeze state transitions. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantStatusLifecycleService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Applies session and notification side effects for merchant freeze state transitions.
+ * @status : create
+ */
 @Slf4j
 @Service
 public class AdminMerchantStatusLifecycleService {
 
+    /**
+     * {@code TEMPLATE_FROZEN}，用于定位邮件、通知或渠道参数模板。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     public static final String TEMPLATE_FROZEN = "MERCHANT_FROZEN";
+    /**
+     * {@code TEMPLATE_UNFROZEN}，用于定位邮件、通知或渠道参数模板。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     public static final String TEMPLATE_UNFROZEN = "MERCHANT_UNFROZEN";
+    /**
+     * 场景常量，统一 {@code AdminMerchantStatusLifecycleService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String SCENE = "MERCHANT_STATUS_CHANGED";
+    /**
+     * 时间格式化器常量，统一 {@code AdminMerchantStatusLifecycleService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final SysAppMapper appMapper;
@@ -66,6 +102,12 @@ public class AdminMerchantStatusLifecycleService {
         this.emailService = emailService;
     }
 
+    /**
+     * 响应{@code onStatusChanged}事件，按所属服务的事务提交顺序执行后续联动。
+     * @param merchant 已读取的商户资料记录，状态变更前必须校验当前版本和目标状态
+     * @param targetStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param operationTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     public void onStatusChanged(BaseMerchantInfoDO merchant, int targetStatus, LocalDateTime operationTime) {
         SysAppDO app = merchantApp();
         List<SysAccountDO> merchantAccounts = activeMerchantAccounts(app.getId(), merchant.getMerchantId());

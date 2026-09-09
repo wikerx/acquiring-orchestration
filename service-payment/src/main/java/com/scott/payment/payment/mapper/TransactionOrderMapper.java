@@ -22,6 +22,33 @@ import java.time.LocalDateTime;
 public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
 
     /**
+     * 主单稳定投影。显式列序保证结算字段与 ShardingSphere 缓存的逻辑表元数据解耦。
+     */
+    String ORDER_SELECT_COLUMNS = """
+            id, operation_id, root_transaction_id, latest_transaction_id,
+            merchant_id, merchant_order_no, merchant_order_id, source_transaction_id,
+            payment_method, payment_brand, transaction_type, transaction_status, process_stage,
+            pending_reason_code, fail_reason_code, fail_reason_message,
+            merchant_visible_message, payer_visible_message,
+            label_currency, label_amount, transaction_currency, transaction_amount,
+            channel_request_currency, channel_request_amount,
+            settlement_currency, settlement_amount, settlement_rate, settlement_date,
+            settlement_transaction_id, settlement_transaction_date_time,
+            currency_exponent, dcc_enabled, edc_enabled, transaction_rate, rate_source, rate_time,
+            authorized_amount, authorized_cancel_amount, captured_amount, refunded_amount,
+            chargeback_amount, available_capture_amount, available_refund_amount,
+            channel_match_status, settlement_status, reconciliation_status, accounting_status,
+            channel_match_result, channel_match_count, last_channel_match_request_id,
+            last_channel_match_time, next_channel_match_time, channel_match_fail_reason,
+            settlement_batch_no, reconciliation_batch_no,
+            channel_id, channel_code, channel_mid_config_id, channel_merchant_id, channel_order_no,
+            internal_risk_decision, internal_risk_record_no,
+            merchant_website, callback_url, redirect_url, language,
+            transaction_date_time, transaction_utc_time, transaction_time_zone,
+            transaction_timezone_offset, last_status_time, version, deleted, create_time, update_time
+            """;
+
+    /**
      * 通过交易分片时间在逻辑表中查询生命周期主单。
      *
      * @param operationId 平台内部生命周期关联标识
@@ -29,7 +56,8 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
      * @return 交易生命周期主单，不存在时返回 null
      */
     @Select("""
-            SELECT *
+            SELECT
+            """ + ORDER_SELECT_COLUMNS + """
             FROM transaction_order
             WHERE operation_id = #{operationId}
               AND transaction_date_time = #{transactionDateTime}
@@ -47,7 +75,8 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
      * @return 已在当前事务内锁定的生命周期主单，不存在时返回 null
      */
     @Select("""
-            SELECT *
+            SELECT
+            """ + ORDER_SELECT_COLUMNS + """
             FROM transaction_order
             WHERE operation_id = #{operationId}
               AND transaction_date_time = #{transactionDateTime}

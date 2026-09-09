@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @version : v1.0.0
  * @classname : RefundScopeServiceTests
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款范围金额规则测试，确保 FULL 相对原始本金判断而不是相对当前剩余可退额度判断。
  * @status : create
  */

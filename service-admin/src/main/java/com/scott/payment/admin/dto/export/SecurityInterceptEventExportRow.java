@@ -72,7 +72,7 @@ public class SecurityInterceptEventExportRow {
     private String requestPath;
 
     /**
-     * traceId。
+     * 链路追踪号，用于关联本次安全拦截涉及的跨服务日志。
      */
     @ExcelExportColumn(order = 10, headerKey = "excel.securityIntercept.traceId", width = 24)
     private String traceId;

@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.config;
 
+import com.scott.payment.component.web.internal.InternalServiceClientCredentialValidator;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -31,5 +32,13 @@ public class PaymentClientProperties {
     /**
      * 调用 service-payment 内部接口的 HMAC-SHA256 共享密钥。
      */
-    private String internalSecret = "dev-internal-service-secret";
+    private String internalSecret;
+
+    /** 远程调用开启时校验固定调用方和 Nacos 注入的 active 密钥。 */
+    public void validate() {
+        if (remoteEnabled) {
+            InternalServiceClientCredentialValidator.validate(
+                    "openapi payment-client", "service-openapi", internalCaller, internalSecret);
+        }
+    }
 }

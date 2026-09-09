@@ -18,7 +18,7 @@ import static org.mockito.Mockito.when;
  * @classname : CheckoutCountryConfigApplicationServiceTest
  * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : Checkout Country Config Application Service Test 应用服务，位于 收银台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
+ * @description : 收银台国家或地区配置应用服务，位于 收银台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
 class CheckoutCountryConfigApplicationServiceTest {

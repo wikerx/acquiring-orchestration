@@ -47,15 +47,11 @@ public class WorldPayXmlRequestMapper {
     }
 
     /**
-     * 构造 WPG XML 请求报文。
-     * <p>
-     * 前置条件：request、transactionType、channelOrderNo 或 transactionId 必须存在；首笔交易必须携带 PAN、有效期和 CVC；
-     * 金额类交易必须携带币种和大于 0 的主币种金额。本方法不手工拼接 XML，只负责对象映射和金额精度校验。
-     * </p>
+     * 将平台渠道请求映射并序列化为 Worldpay WPGXML 请求。
      *
-     * @param request 平台统一渠道请求
-     * @param merchantCode Worldpay merchantCode，来源于后台 MID 配置
-     * @return WPG XML 请求原文
+     * @param request 已完成路由和金额币种校验的平台渠道请求
+     * @param merchantCode 当前路由命中的 Worldpay MID 商户代码
+     * @return 可直接发送给 Worldpay 的 XML 请求文本
      */
     public String toWorldPayRequest(ChannelPaymentRequest request, String merchantCode) {
         return xmlCodec.writeRequest(toWorldPayPayload(request, merchantCode));
@@ -189,15 +185,6 @@ public class WorldPayXmlRequestMapper {
         return paymentDetails;
     }
 
-    /**
-     * 构造 CARD-SSL 明文卡节点。
-     * <p>
-     * 前置条件：首笔交易必须包含 PAN、有效期和安全码；PAN/CVC 属于高敏感认证数据，只允许在当前渠道请求中短暂使用。
-     * </p>
-     *
-     * @param request 平台统一渠道请求，包含卡号、有效期、CVC 和账单信息
-     * @return CARD-SSL 节点对象
-     */
     private WorldPayXmlRequestPayload.CardSsl cardSsl(ChannelPaymentRequest request) {
         requiredText(request.getCardNo(), "WorldPay XML card number is required");
         requiredText(request.getExpirationMonth(), "WorldPay XML card expiry month is required");

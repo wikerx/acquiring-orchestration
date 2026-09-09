@@ -4,7 +4,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 管理端交易风控时间轴只读查询服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminRiskTimelineQueryService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 管理端交易风控时间轴只读查询服务。
+ * @status : create
  */
 public interface AdminRiskTimelineQueryService {
 

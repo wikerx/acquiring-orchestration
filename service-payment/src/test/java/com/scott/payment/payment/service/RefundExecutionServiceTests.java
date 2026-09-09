@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
  * @version : v1.0.0
  * @classname : RefundExecutionServiceTests
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款 MQ 执行幂等测试，验证首次抢占、重复消费转 QUERY 和终态保护。
  * @status : create
  */

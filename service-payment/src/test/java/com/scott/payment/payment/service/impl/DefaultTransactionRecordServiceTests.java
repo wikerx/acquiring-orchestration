@@ -35,6 +35,7 @@ import com.scott.payment.payment.mapper.TransactionMerchantApiInteractionLogMapp
 import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.mapper.TransactionLocatorMapper;
 import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
+import com.scott.payment.payment.service.MerchantTransactionSnapshotService;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import org.mockito.ArgumentCaptor;
@@ -566,8 +567,11 @@ class DefaultTransactionRecordServiceTests {
                 paymentMethodInfoMapper,
                 new TransactionShardingKeyParser(),
                 logicalShardingProperties());
+        MerchantTransactionSnapshotService snapshotService = mock(MerchantTransactionSnapshotService.class);
+        ReflectionTestUtils.setField(recordService, "merchantTransactionSnapshotService", snapshotService);
 
-        recordService.recordFollowUpTransaction(followUpRecord());
+        TransactionFollowUpRecordDTO recordDTO = followUpRecord();
+        recordService.recordFollowUpTransaction(recordDTO);
 
         assertThat(operationCapture.value.getTransactionId()).isEqualTo("TX202610011000000000001");
         assertThat(operationCapture.value.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 10, 1, 10, 0));
@@ -579,6 +583,8 @@ class DefaultTransactionRecordServiceTests {
                 "TX202610011000000000001",
                 new BigDecimal("5.00"),
                 0);
+        verify(snapshotService).recordActionSnapshot(
+                eq(recordDTO.getCommandDTO()), eq(recordDTO.getResultDTO()), any(LocalDateTime.class));
     }
 
     /**
@@ -1099,6 +1105,112 @@ class DefaultTransactionRecordServiceTests {
                 contains("\"transactionStatus\":\"SUCCESS\""),
                 any(),
                 any());
+    }
+
+    @Test
+    void shouldAcceptSameSuccessfulChannelRequestResultAfterConcurrentCasMiss() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
+        when(operationMapper.selectByTransactionId(
+                "202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(processingInitialOperation());
+        when(orderMapper.selectByOperationId(
+                "OP202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(processingInitialOrder());
+        when(channelRequestMapper.selectByRequestId(
+                "CR202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(channelRequestFact("SENT", 0), channelRequestFact("SUCCESS", 1));
+        when(channelRequestMapper.updateStatusLogical(anyString(), any(LocalDateTime.class), any(), any(), anyString(),
+                any(), any(), any(), any(), any(), any(), anyString(), any(), any(), any()))
+                .thenReturn(0);
+        when(interactionLogMapper.updateByRequestIdLogical(anyString(), any(LocalDateTime.class), anyString(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(),
+                any(), any(), any(), any(), any(), any(), any(), anyString()))
+                .thenReturn(1);
+        when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any(), anyString()))
+                .thenReturn(1);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                mock(TransactionStatusHistoryMapper.class),
+                channelRequestMapper,
+                interactionLogMapper,
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+
+        boolean changed = recordService.completeInitialChannelResultAndReport(
+                baseCommand(),
+                routeResult(),
+                initialResultInvokeResult("SUCCESS", channelResponse()),
+                initialResultDTO(PaymentTransactionStatusEnum.SUCCESS.getCode(), PaymentProcessStageEnum.FINISHED.getCode()),
+                PaymentRiskDecisionEnum.PASS,
+                2);
+
+        assertThat(changed).isTrue();
+        verify(channelRequestMapper, times(2)).selectByRequestId(
+                "CR202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30));
+        verify(operationMapper).completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(),
+                any(), any(), any(), any(), any(), any(), any(), anyString());
+    }
+
+    @Test
+    void shouldRejectConflictingChannelRequestTerminalAfterConcurrentCasMiss() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
+        when(operationMapper.selectByTransactionId(
+                "202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(processingInitialOperation());
+        when(orderMapper.selectByOperationId(
+                "OP202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(processingInitialOrder());
+        TransactionChannelRequestDO concurrentFailure = channelRequestFact("FAILED", 1);
+        concurrentFailure.setPlatformResultCode(PaymentTransactionStatusEnum.FAILED.getCode());
+        when(channelRequestMapper.selectByRequestId(
+                "CR202607010030000000001", LocalDateTime.of(2026, 7, 1, 0, 30)))
+                .thenReturn(channelRequestFact("SENT", 0), concurrentFailure);
+        when(channelRequestMapper.updateStatusLogical(anyString(), any(LocalDateTime.class), any(), any(), anyString(),
+                any(), any(), any(), any(), any(), any(), anyString(), any(), any(), any()))
+                .thenReturn(0);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                mock(TransactionStatusHistoryMapper.class),
+                channelRequestMapper,
+                interactionLogMapper,
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+
+        assertThatThrownBy(() -> recordService.completeInitialChannelResult(
+                baseCommand(),
+                routeResult(),
+                initialResultInvokeResult("SUCCESS", channelResponse()),
+                initialResultDTO(PaymentTransactionStatusEnum.SUCCESS.getCode(), PaymentProcessStageEnum.FINISHED.getCode()),
+                PaymentRiskDecisionEnum.PASS,
+                2))
+                .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class)
+                .hasMessageContaining("channel request state has changed");
+
+        verify(interactionLogMapper, never()).updateByRequestIdLogical(anyString(), any(LocalDateTime.class), anyString(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(operationMapper, never()).completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(),
+                any(), any(), any(), any(), any(), any(), any(), any(), anyString());
     }
 
     /**
@@ -1972,27 +2084,11 @@ class DefaultTransactionRecordServiceTests {
 
     private static class Captured<T> {
 
-        /**
-         * value，用于保存 Captured 中与 value 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private T value;
     }
 
     private static class CapturedList<T> {
 
-        /**
-         * values，用于保存 Captured List 中与 values 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private final List<T> values = new ArrayList<>();
     }
 

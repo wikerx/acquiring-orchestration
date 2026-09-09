@@ -37,6 +37,7 @@ public class PayoutInternalAuthWebMvcConfig implements WebMvcConfigurer {
      */
     public PayoutInternalAuthWebMvcConfig(InternalServiceAuthProperties internalServiceAuthProperties,
                                           InternalRequestReplayGuard replayGuard) {
+        internalServiceAuthProperties.validate();
         this.internalServiceAuthProperties = internalServiceAuthProperties;
         this.replayGuard = replayGuard;
     }

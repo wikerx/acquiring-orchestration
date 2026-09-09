@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @version : v1.0.0
  * @classname : PaymentChannelCallbackVerifierRegistryTests
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 回调验签注册器测试，覆盖 Provider 优先、迁移回退和重复渠道编码保护。
  * @status : create
  */

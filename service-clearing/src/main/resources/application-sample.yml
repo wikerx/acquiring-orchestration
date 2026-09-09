@@ -1,0 +1,33 @@
+# 示例环境接入配置；正式环境必须覆盖 Nacos 命名空间和全部凭据。
+spring:
+  config:
+    import:
+      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:dataSource-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:sharding-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:redis-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:rocketmq-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+  cloud:
+    bootstrap:
+      enabled: true
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:sample}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        register-enabled: true
+      config:
+        server-addr: ${NACOS_SERVER:127.0.0.1:8848}
+        namespace: ${spring.cloud.nacos.discovery.namespace}
+        username: ${spring.cloud.nacos.discovery.username}
+        password: ${spring.cloud.nacos.discovery.password}
+        group: DEFAULT_GROUP
+        file-extension: yaml
+        encode: UTF-8
+        refresh-enabled: true
+        config-retry-time: 3
+
+logging:
+  config: classpath:log-config/logback-spring.xml

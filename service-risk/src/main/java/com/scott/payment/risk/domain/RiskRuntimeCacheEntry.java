@@ -6,7 +6,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 风控运行时缓存条目。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskRuntimeCacheEntry
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控运行时缓存条目。
+ * @status : create
+ *
  *
  * <p>使用明确的 found 状态表达负缓存，避免将 {@code __MISS__} 等魔法字符串与业务对象混存。</p>
  */

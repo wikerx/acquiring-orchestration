@@ -38,7 +38,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Redis Cluster 下累计限额和频率脚本的真实执行验证。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultRiskListRuntimeRepositoryClusterIntegrationTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Redis Cluster 下累计限额和频率脚本的真实执行验证。
+ * @status : create
  */
 @Slf4j
 @EnabledIfSystemProperty(named = "risk.redis.cluster.integration.enabled", matches = "true")

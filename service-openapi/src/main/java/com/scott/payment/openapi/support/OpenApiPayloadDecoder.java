@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 
-@Component
 /**
  * @author : scott
  * @version : v1.0.0
@@ -21,6 +20,7 @@ import org.springframework.util.StringUtils;
  * @description : Open API Payload Decoder 解码组件，位于 商户开放接口服务，解析加密或外部协议报文，转换为内部 DTO 并保持异常边界清晰。
  * @status : create
  */
+@Component
 public class OpenApiPayloadDecoder {
 
     /**

@@ -1,13 +1,18 @@
 package com.scott.payment.payment.service.impl;
 
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mapper.TransactionEventOutboxMapper;
+import com.scott.payment.payment.model.TransactionEventOutboxMetricsSnapshot;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -33,6 +38,91 @@ class DefaultTransactionEventOutboxServiceTests {
         service.save(eventDO);
 
         verify(mapper).insertLogical(eventDO);
+    }
+
+    @Test
+    void scheduledDeliveryShouldRequireDeliverAt() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        TransactionEventOutboxDO eventDO = event(LocalDateTime.of(2026, 8, 25, 10, 0));
+        eventDO.setDeliveryMode("SCHEDULED");
+
+        assertThatThrownBy(() -> service.save(eventDO))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("requires deliverAt");
+    }
+
+    @Test
+    void orderlyDeliveryShouldRequireMessageGroup() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        TransactionEventOutboxDO eventDO = event(LocalDateTime.of(2026, 8, 25, 10, 0));
+        eventDO.setDeliveryMode("ORDERLY");
+
+        assertThatThrownBy(() -> service.save(eventDO))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("requires messageGroup");
+    }
+
+    @Test
+    void blankDeliveryModeShouldNormalizeToAutoBeforeInsert() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        TransactionEventOutboxDO eventDO = event(LocalDateTime.of(2026, 8, 25, 10, 0));
+        eventDO.setDeliveryMode(" ");
+        when(mapper.insertLogical(eventDO)).thenReturn(1);
+
+        service.save(eventDO);
+
+        assertThat(eventDO.getDeliveryMode()).isEqualTo("AUTO");
+        verify(mapper).insertLogical(eventDO);
+    }
+
+    /** 生命周期事件只能进入 FIFO Topic，历史 AUTO 模式在落库前规范为 ORDERLY。 */
+    @Test
+    void lifecycleEventShouldRequireFifoTopicAndNormalizeAutoToOrderly() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        TransactionEventOutboxDO eventDO = event(LocalDateTime.of(2026, 8, 25, 10, 0));
+        eventDO.setEventType(MqTag.TRANSACTION_STATUS_CHANGED);
+        eventDO.setTag(MqTag.TRANSACTION_STATUS_CHANGED);
+        eventDO.setTopic(MqTopic.PAYMENT_TRANSACTION_FIFO);
+        eventDO.setMessageGroup("operation-1");
+        when(mapper.insertLogical(eventDO)).thenReturn(1);
+
+        service.save(eventDO);
+
+        assertThat(eventDO.getDeliveryMode()).isEqualTo("ORDERLY");
+        verify(mapper).insertLogical(eventDO);
+    }
+
+    /** 生命周期事件写入普通 Topic 必须失败，避免 RocketMQ 5.x 消息类型混用。 */
+    @Test
+    void lifecycleEventShouldRejectNormalTopic() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        TransactionEventOutboxDO eventDO = event(LocalDateTime.of(2026, 8, 25, 10, 0));
+        eventDO.setEventType(MqTag.TRANSACTION_STATUS_CHANGED);
+        eventDO.setTag(MqTag.TRANSACTION_STATUS_CHANGED);
+        eventDO.setTopic(MqTopic.PAYMENT_EVENT);
+        eventDO.setMessageGroup("operation-1");
+
+        assertThatThrownBy(() -> service.save(eventDO))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("FIFO topic");
+    }
+
+    @Test
+    void nonScheduledDeliveryShouldRejectDeliverAt() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        TransactionEventOutboxDO eventDO = event(LocalDateTime.of(2026, 8, 25, 10, 0));
+        eventDO.setDeliveryMode("NORMAL");
+        eventDO.setDeliverAt(LocalDateTime.of(2026, 8, 25, 10, 5));
+
+        assertThatThrownBy(() -> service.save(eventDO))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("only allowed for SCHEDULED");
     }
 
     @Test
@@ -84,6 +174,36 @@ class DefaultTransactionEventOutboxServiceTests {
 
         verify(mapper).rearmForRedeliveryLogical(
                 "refund-event-1", transactionTime, "REFUND_EXECUTION_REQUESTED", now);
+    }
+
+    @Test
+    void shouldReadMetricsWithinOnlyTheRequestedQuarter() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 24, 20, 0);
+        TransactionEventOutboxMetricsSnapshot snapshot = new TransactionEventOutboxMetricsSnapshot();
+        snapshot.setClosedCount(2L);
+        when(mapper.selectMetricsSnapshotLogical(
+                LocalDateTime.of(2026, 7, 1, 0, 0),
+                LocalDateTime.of(2026, 10, 1, 0, 0))).thenReturn(snapshot);
+
+        assertThat(service.metricsSnapshot(transactionTime)).isSameAs(snapshot);
+    }
+
+    @Test
+    void shouldRecoverClosedEventUsingShardKeyAndVersionCas() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 24, 20, 0);
+        LocalDateTime now = transactionTime.plusMinutes(5);
+        when(mapper.recoverClosedLogical(
+                "event-closed", transactionTime, 7, "operator approved retry", now)).thenReturn(1);
+
+        assertThat(service.recoverClosed(
+                "event-closed", transactionTime, 7, "operator approved retry", now)).isTrue();
+
+        verify(mapper).recoverClosedLogical(
+                "event-closed", transactionTime, 7, "operator approved retry", now);
     }
 
     private TransactionEventOutboxDO event(LocalDateTime transactionTime) {

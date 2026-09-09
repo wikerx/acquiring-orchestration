@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.scott.payment</groupId>
+        <artifactId>finance-library</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>model-fee</artifactId>
+    <packaging>jar</packaging>
+    <name>model-fee</name>
+    <description>不可变费用规则、阶梯配置、退款返费、计算命令和结果契约。</description>
+
+    <!--
+        本模块只定义费用领域语言和计算契约，不选择商户费用版本，不读取汇率或持久化清分结果。
+        Admin 费用换汇预览契约仅用于展示试算，不得充当真实结算模型。
+    -->
+    <dependencies>
+        <!--所有费用金额统一复用底层金额和币种值对象。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-money</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+    </dependencies>
+</project>

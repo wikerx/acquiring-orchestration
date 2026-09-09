@@ -36,12 +36,20 @@ import java.math.BigDecimal;
  * @version : v1.0.0
  * @classname : DefaultApprovedRefundChannelExecutor
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 已批准退款渠道执行实现，从持久化快照恢复固定渠道身份，并复用现有退款结果 CAS、金额累计和终态通知链路。
  * @status : create
  */
 @Service
 public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChannelExecutor {
 
+    /**
+     * 交易动作范围常量，统一 {@code DefaultApprovedRefundChannelExecutor} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
 
     private final TransactionRecordService transactionRecordService;
@@ -255,6 +263,15 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
                 operation.getMerchantId(), merchantOperationNo, PaymentTransactionTypeEnum.REFUND.getCode());
     }
 
+    /**
+     * 构造最小货币单位金额对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
+     * </p>
+     * @param amount 金额值，单位必须结合 currency 或同名币种字段解释
+     * @param exponent 汇率、费率或币种小数位，必须使用明确精度且禁止隐式浮点换算
+     * @return 构造、转换或解析后的业务值
+     */
     private Long toMinorAmount(BigDecimal amount, Integer exponent) {
         if (amount == null || exponent == null || exponent < 0) {
             return null;

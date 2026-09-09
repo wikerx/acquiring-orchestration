@@ -24,7 +24,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证 Merchant 邮件消费者的重复消息吸收、CAS 抢占和失败退避。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantEmailDeliveryServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 Merchant 邮件消费者的重复消息吸收、CAS 抢占和失败退避。
+ * @status : create
+ */
 class MerchantEmailDeliveryServiceTests {
 
     /** 商户邮件记录 CAS Mapper。 */

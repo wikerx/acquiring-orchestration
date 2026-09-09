@@ -5,16 +5,16 @@ import lombok.Data;
 import java.util.ArrayList;
 import java.util.List;
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingTablePreCreateInternalRequest
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : Sharding Table Pre Create Internal Request 传输模型，位于 调度任务服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : 分表表precreateinternal请求模型，位于 调度任务服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
  * @status : create
  */
+@Data
 public class ShardingTablePreCreateInternalRequest {
 
     /**

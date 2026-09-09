@@ -35,25 +35,8 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 @RequestMapping("/admin/channel/mid-bindings")
 public class AdminMerchantChannelMidBindingController {
 
-    /**
-     * channel Application Service 依赖，用于 Admin Merchant Channel MID Binding Controller 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：构造器注入的应用服务或 HTTP 请求对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final AdminChannelApplicationService channelApplicationService;
 
-    /**
-     * 整理admin商户渠道midbindingcontroller，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param channelApplicationService channel Application Service 输入值，参与 渠道applicationservice 的查询、校验、转换、写入或日志摘要
-     */
     public AdminMerchantChannelMidBindingController(AdminChannelApplicationService channelApplicationService) {
         this.channelApplicationService = channelApplicationService;
     }

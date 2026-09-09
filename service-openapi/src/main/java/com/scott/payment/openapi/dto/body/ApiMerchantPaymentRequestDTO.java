@@ -21,17 +21,17 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 
-@Data
-@NoArgsConstructor
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ApiMerchantPaymentRequestDTO
  * @date : 2026-05-28 16:48
  * @email : scott_x@163.com
- * @description : API Merchant Payment Request DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : API商户支付请求模型，位于 商户开放接口服务，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
  * @status : create
  */
+@Data
+@NoArgsConstructor
 public class ApiMerchantPaymentRequestDTO implements Serializable {
 
     /**
@@ -235,19 +235,49 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /**
+         * 名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "goodsInfo.name", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Size(max = 128, message = "goodsInfo.name format does not match", groups = {Format.class})
         private String name;
 
+        /**
+         * {@code quantity}字段，保存 {@code GoodsInfoDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotNull(message = "goodsInfo.quantity", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Positive(message = "goodsInfo.quantity must be greater than 0", groups = {Format.class})
         private Integer quantity;
 
+        /**
+         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         @NotNull(message = "goodsInfo.amount", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @DecimalMin(value = "0", inclusive = false, message = "goodsInfo.amount must be greater than 0", groups = {Format.class})
         @Digits(integer = 12, fraction = 3, message = "goodsInfo.amount format does not match", groups = {Format.class})
         private BigDecimal amount;
 
+        /**
+         * 币种，表示金额字段使用的币种。
+         * <p>
+         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+         * </p>
+         */
         @NotBlank(message = "goodsInfo.currency", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^[A-Z]{3}$", message = "goodsInfo.currency format does not match", groups = {Format.class})
         private String currency;
@@ -260,34 +290,132 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /**
+         * {@code payerId}，用于定位 {@code PayerInfoDTO} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 64, message = "payerInfo.payerId format does not match", groups = {Format.class})
         private String payerId;
+        /**
+         * 首个名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 32, message = "payerInfo.firstName format does not match", groups = {Format.class})
         private String firstName;
+        /**
+         * {@code lastName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 32, message = "payerInfo.lastName format does not match", groups = {Format.class})
         private String lastName;
+        /**
+         * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 32, message = "payerInfo.phone format does not match", groups = {Format.class})
         private String phone;
+        /**
+         * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 64, message = "payerInfo.email format does not match", groups = {Format.class})
         private String email;
+        /**
+         * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
+         * <p>
+         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Pattern(regexp = "^$|^[A-Z]{3}$", message = "payerInfo.country format does not match", groups = {Format.class})
         private String country;
+        /**
+         * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 64, message = "payerInfo.state format does not match", groups = {Format.class})
         private String state;
+        /**
+         * 城市，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 64, message = "payerInfo.city format does not match", groups = {Format.class})
         private String city;
+        /**
+         * 街道，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 128, message = "payerInfo.street format does not match", groups = {Format.class})
         private String street;
+        /**
+         * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 32, message = "payerInfo.postal format does not match", groups = {Format.class})
         private String postal;
 
+        /**
+         * {@code ipAddress}字段，保存 {@code PayerInfoDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "payerInfo.ipAddress", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Size(max = 64, message = "payerInfo.ipAddress format does not match", groups = {Format.class})
         private String ipAddress;
 
+        /**
+         * {@code sessionId}，用于定位 {@code PayerInfoDTO} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 128, message = "payerInfo.sessionId format does not match", groups = {Format.class})
         private String sessionId;
+        /**
+         * {@code browserInfo}字段，保存 {@code PayerInfoDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Map<String, Object> browserInfo;
+        /**
+         * {@code userAgent}字段，保存 {@code PayerInfoDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 512, message = "payerInfo.userAgent format does not match", groups = {Format.class})
         private String userAgent;
     }
@@ -299,37 +427,100 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /**
+         * 首个名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 32, message = "shippingInfo.firstName format does not match", groups = {Format.class})
         private String firstName;
+        /**
+         * {@code lastName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 32, message = "shippingInfo.lastName format does not match", groups = {Format.class})
         private String lastName;
+        /**
+         * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 32, message = "shippingInfo.phone format does not match", groups = {Format.class})
         private String phone;
+        /**
+         * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 64, message = "shippingInfo.email format does not match", groups = {Format.class})
         private String email;
+        /**
+         * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
+         * <p>
+         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Pattern(regexp = "^$|^[A-Z]{3}$", message = "shippingInfo.country format does not match", groups = {Format.class})
         private String country;
+        /**
+         * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 3, message = "shippingInfo.state format does not match", groups = {Format.class})
         private String state;
+        /**
+         * 城市，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 64, message = "shippingInfo.city format does not match", groups = {Format.class})
         private String city;
+        /**
+         * 街道，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 128, message = "shippingInfo.street format does not match", groups = {Format.class})
         private String street;
+        /**
+         * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @Size(max = 32, message = "shippingInfo.postal format does not match", groups = {Format.class})
         private String postal;
     }
 
-    @Data
-    @NoArgsConstructor
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : MerchantInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : Merchant Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 开放支付请求的商户扩展信息，承载订单展示和渠道风控所需的商户属性。
      * @status : create
      */
+    @Data
+    @NoArgsConstructor
     public static class MerchantInfoDTO implements Serializable {
 
         /**
@@ -351,17 +542,17 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private SubMerchantInfoDTO subMerchantInfo;
     }
 
-    @Data
-    @NoArgsConstructor
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : SubMerchantInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : Sub Merchant Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 开放支付请求的子商户信息，供平台型商户传递实际经营主体快照。
      * @status : create
      */
+    @Data
+    @NoArgsConstructor
     public static class SubMerchantInfoDTO implements Serializable {
 
         /**
@@ -488,17 +679,17 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         }
     }
 
-    @Data
-    @NoArgsConstructor
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : OrderInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : Order Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 开放支付请求的订单信息，承载商品描述、回调地址、跳转地址和语言等交易上下文。
      * @status : create
      */
+    @Data
+    @NoArgsConstructor
     public static class OrderInfoDTO implements Serializable {
 
         /**
@@ -535,17 +726,17 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String orderId;
     }
 
-    @Data
-    @NoArgsConstructor
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : BillingCardHolderInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : Billing Card Holder Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 开放支付请求的账单持卡人信息，属于可识别数据，转换和日志链路必须最小化及脱敏。
      * @status : create
      */
+    @Data
+    @NoArgsConstructor
     public static class BillingCardHolderInfoDTO implements Serializable {
 
         /**
@@ -627,17 +818,17 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         }
     }
 
-    @Data
-    @NoArgsConstructor
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : CardInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : Card Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 开放支付请求的银行卡认证信息；PAN 和安全码只允许在受控内存链路使用，禁止明文落库或日志输出。
      * @status : create
      */
+    @Data
+    @NoArgsConstructor
     public static class CardInfoDTO implements Serializable {
 
         /**
@@ -674,17 +865,17 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String securityCode;
     }
 
-    @Data
-    @NoArgsConstructor
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : ThreeDsInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : Three Ds Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 商户支付请求中的 3DS 认证信息模型，位于 service-openapi 入站 DTO 层，字段按开放接口协议校验且不承担认证状态写入职责。
      * @status : create
      */
+    @Data
+    @NoArgsConstructor
     public static class ThreeDsInfoDTO implements Serializable {
 
         /**
@@ -717,17 +908,17 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String threeDsVersion;
     }
 
-    @Data
-    @NoArgsConstructor
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : TransactionInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : Transaction Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 开放支付请求的交易关联信息，承载来源交易、描述、网站、回调和页面跳转上下文。
      * @status : create
      */
+    @Data
+    @NoArgsConstructor
     public static class TransactionInfoDTO implements Serializable {
 
         /**

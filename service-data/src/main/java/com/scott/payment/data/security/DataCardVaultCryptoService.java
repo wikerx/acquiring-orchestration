@@ -132,10 +132,22 @@ public class DataCardVaultCryptoService {
         }
     }
 
+    /**
+     * 处理字段安全计算，严格沿用当前算法、密钥边界和敏感日志约束。
+     * @param plaintext 敏感认证或加密材料，只能在当前安全边界内使用，禁止明文日志和异常回显
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param aad 敏感认证或加密材料，只能在当前安全边界内使用，禁止明文日志和异常回显
+     * @return 当前方法生成的 {@code FieldEnvelope} 结果
+     */
     private FieldEnvelope encryptField(String plaintext, byte[] key, String aad) {
         return encryptBytes(plaintext.getBytes(StandardCharsets.UTF_8), key, aad);
     }
 
+    /**
+     * 使用独立随机 IV 和业务身份 AAD 执行单字段 AES-256-GCM 加密。
+     * <p>
+     * GCM 输出被拆为密文和认证标签分别持久化；AAD 绑定商户、交易和字段用途，防止不同记录或字段之间替换密文。
+     */
     private FieldEnvelope encryptBytes(byte[] plaintext, byte[] key, String aad) {
         byte[] iv = randomBytes(IV_BYTES);
         try {
@@ -153,10 +165,22 @@ public class DataCardVaultCryptoService {
         }
     }
 
+    /**
+     * 处理字段安全计算，严格沿用当前算法、密钥边界和敏感日志约束。
+     * @param envelope 敏感认证或加密材料，只能在当前安全边界内使用，禁止明文日志和异常回显
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param aad 敏感认证或加密材料，只能在当前安全边界内使用，禁止明文日志和异常回显
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String decryptField(FieldEnvelope envelope, byte[] key, String aad) {
         return new String(decryptBytes(envelope, key, aad), StandardCharsets.UTF_8);
     }
 
+    /**
+     * 按持久化信封重组 GCM 密文并校验 AAD 和认证标签后解密。
+     * <p>
+     * IV、标签长度或认证结果不合法时统一失败，禁止在未通过完整性校验的情况下返回任何卡资料明文。
+     */
     private byte[] decryptBytes(FieldEnvelope envelope, byte[] key, String aad) {
         try {
             Base64.Decoder decoder = Base64.getUrlDecoder();
@@ -178,6 +202,11 @@ public class DataCardVaultCryptoService {
         }
     }
 
+    /**
+     * 处理{@code hmacSha256}安全计算，严格沿用当前算法、密钥边界和敏感日志约束。
+     * @param pan 敏感认证或加密材料，只能在当前安全边界内使用，禁止明文日志和异常回显
+     * @return 当前方法生成或规范化后的文本值
+     */
     private String hmacSha256(String pan) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");

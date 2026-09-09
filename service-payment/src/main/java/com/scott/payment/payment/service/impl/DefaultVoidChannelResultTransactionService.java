@@ -19,20 +19,13 @@ import org.springframework.transaction.annotation.Transactional;
  * @version : v1.0.0
  * @classname : DefaultVoidChannelResultTransactionService
  * @date : 2026-07-24 00:00
+ * @email : scott_x@163.com
  * @description : Void 渠道结果默认事务实现，使用 REQUIRES_NEW 保存同步结果并通过 CAS 推进撤销动作。
  * @status : create
  */
 @Service
 public class DefaultVoidChannelResultTransactionService implements VoidChannelResultTransactionService {
 
-    /**
-     * transaction Record Service 依赖，用于 Default Void Channel Result Transaction Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final TransactionRecordService transactionRecordService;
 
     /**

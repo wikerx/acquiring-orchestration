@@ -5,16 +5,16 @@ import lombok.Data;
 import java.util.ArrayList;
 import java.util.List;
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : DataSourceMonitorResponse
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : Data Source Monitor Response 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : data来源监控响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
  * @status : create
  */
+@Data
 public class DataSourceMonitorResponse {
 
     /**

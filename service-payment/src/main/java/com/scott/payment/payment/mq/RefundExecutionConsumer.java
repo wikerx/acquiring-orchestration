@@ -8,6 +8,7 @@ import com.scott.payment.component.mq.message.RefundExecutionMessage;
 import com.scott.payment.payment.domain.refund.RefundExecutionOutcomeEnum;
 import com.scott.payment.payment.service.RefundExecutionService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.MessageModel;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
@@ -20,6 +21,7 @@ import org.springframework.util.StringUtils;
  * @version : v1.0.0
  * @classname : RefundExecutionConsumer
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款审批执行 MQ 消费者，仅解析非敏感执行身份并委托数据库状态机处理至少一次投递。
  * @status : create
  */
@@ -27,9 +29,10 @@ import org.springframework.util.StringUtils;
 @Component
 @ConditionalOnProperty(prefix = "payment.refund.management", name = "execution-mq-enabled", havingValue = "true")
 @RocketMQMessageListener(
-        topic = MqTopic.PAYMENT_EVENT,
+        topic = MqTopic.PAYMENT_TRANSACTION_FIFO,
         consumerGroup = "service-payment-refund-execution",
         selectorExpression = MqTag.REFUND_EXECUTION_REQUESTED,
+        consumeMode = ConsumeMode.ORDERLY,
         messageModel = MessageModel.CLUSTERING
 )
 public class RefundExecutionConsumer implements RocketMQListener<String> {

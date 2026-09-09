@@ -18,7 +18,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 /**
- * 商户后台交易详情接口契约测试，验证真实交易时间和登录商户边界共同进入详情查询。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantTransactionDetailControllerTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户后台交易详情接口契约测试，验证真实交易时间和登录商户边界共同进入详情查询。
+ * @status : create
  */
 class MerchantTransactionDetailControllerTests {
 

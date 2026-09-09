@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.scott.payment</groupId>
+        <artifactId>finance-library</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>model-money</artifactId>
+    <packaging>jar</packaging>
+    <name>model-money</name>
+    <description>费用、保证金和后续结算共用的不可变金额与币种值对象。</description>
+
+    <!--
+        财务库最底层模型：金额允许有符号值并按 ISO 币种 exponent 校验精度。
+        本模块不包含费用、保证金、汇率、清分状态或结算批次语义，也不依赖任何内部模块。
+    -->
+</project>

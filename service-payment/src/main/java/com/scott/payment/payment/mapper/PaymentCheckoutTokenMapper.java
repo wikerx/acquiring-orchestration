@@ -9,7 +9,13 @@ import org.apache.ibatis.annotations.Update;
 import java.time.LocalDateTime;
 
 /**
- * Hosted Checkout URL token Mapper。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutTokenMapper
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout URL token Mapper。
+ * @status : create
  */
 public interface PaymentCheckoutTokenMapper extends BaseMapper<PaymentCheckoutTokenDO> {
 

@@ -26,7 +26,9 @@ public class RiskClientConfig {
      * @return 直连 RestTemplate
      */
     @Bean("riskRestTemplate")
-    public RestTemplate riskRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
+    public RestTemplate riskRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer,
+                                         RiskClientProperties properties) {
+        properties.validate();
         return traceIdRestTemplateCustomizer.customize(new RestTemplate());
     }
 

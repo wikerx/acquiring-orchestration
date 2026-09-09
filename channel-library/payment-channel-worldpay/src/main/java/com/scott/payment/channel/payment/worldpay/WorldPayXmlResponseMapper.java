@@ -120,6 +120,14 @@ public class WorldPayXmlResponseMapper {
         return response;
     }
 
+    /**
+     * 构造渠道金额对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
+     * </p>
+     * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     * @param amount 金额值，单位必须结合 currency 或同名币种字段解释
+     */
     private void mapChannelAmount(ChannelPaymentResponse response, WorldPayXmlResponsePayload.Amount amount) {
         if (amount == null || !StringUtils.hasText(amount.getValue())
                 || !StringUtils.hasText(amount.getCurrencyCode())

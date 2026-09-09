@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
  * @classname : RiskEvaluationApplicationService
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : 风控评估应用服务，位于 service-risk 应用编排层，负责内部接口到领域风控服务的用例编排边界。
+ * @description : 风控evaluation应用服务，位于 风控服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
 @Service

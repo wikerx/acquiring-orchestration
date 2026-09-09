@@ -24,6 +24,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @version : v1.0.0
  * @classname : MerchantAccessInternalController
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 商户访问配置内部接口，仅供通过 HMAC 鉴权的 service-merchant 查询和提交当前认证商户数据。
  * @status : create
  */

@@ -12,13 +12,11 @@ package com.scott.payment.openapi.security;
 public interface MerchantKeyProvider {
 
     /**
-     * 查询商户密钥，按调用方提供的过滤条件返回对应业务视图。
+     * 查询商户密钥；筛选条件、分页上限和数据范围由方法参数共同限定。
      * <p>
-     * 前置条件：调用方已按 商户开放接口服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * 只读操作；实现必须沿用 商户开放接口服务 既有权限、数据范围和空结果约定。
      * </p>
-     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
      * @return 查询得到的业务对象、分页结果或空结果
      */
     String getMerchantKey(String merchantId);

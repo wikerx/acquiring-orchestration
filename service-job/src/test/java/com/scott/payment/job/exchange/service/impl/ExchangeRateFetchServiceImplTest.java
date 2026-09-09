@@ -31,77 +31,29 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ExchangeRateFetchServiceImplTest
  * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : Exchange Rate Fetch Service Impl Test 服务实现，位于 调度任务服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
+ * @description : 汇率汇率fetch服务实现，位于 调度任务服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
+@ExtendWith(MockitoExtension.class)
 class ExchangeRateFetchServiceImplTest {
 
     @Mock
-    /**
-     * source Mapper 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ExchangeJobRateSourceMapper sourceMapper;
     @Mock
-    /**
-     * raw Rate Mapper 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ExchangeJobRawRateMapper rawRateMapper;
     @Mock
-    /**
-     * rule Mapper 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ExchangeJobRateRuleMapper ruleMapper;
     @Mock
-    /**
-     * business Rate Mapper 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ExchangeJobBusinessRateMapper businessRateMapper;
     @Mock
-    /**
-     * fetch Log Mapper 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ExchangeRateFetchLogMapper fetchLogMapper;
 
-    /**
-     * service 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ExchangeRateFetchServiceImpl service;
 
     @BeforeEach

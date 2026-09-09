@@ -18,38 +18,34 @@ import java.util.Locale;
 public final class IpAddressNormalizer {
 
     /**
-     * IPV 4，用于保存 IP Address Normalizer 中与 ipv4 相关的业务属性。
+     * {@code IPV4}常量，统一 {@code IpAddressNormalizer} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String IPV4 = "IPv4";
     /**
-     * IPV 6，用于保存 IP Address Normalizer 中与 ipv6 相关的业务属性。
+     * {@code IPV6}常量，统一 {@code IpAddressNormalizer} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String IPV6 = "IPv6";
     /**
-     * IPV 4 PATTERN，用于保存 IP Address Normalizer 中与 ipv4pattern 相关的业务属性。
+     * {@code IPV4_PATTERN}常量，统一 {@code IpAddressNormalizer} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String IPV4_PATTERN = "^[0-9.]+$";
     /**
-     * IPV 6 PATTERN，用于保存 IP Address Normalizer 中与 ipv6pattern 相关的业务属性。
+     * {@code IPV6_PATTERN}常量，统一 {@code IpAddressNormalizer} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String IPV6_PATTERN = "^[0-9A-Fa-f:.]+$";
@@ -58,10 +54,12 @@ public final class IpAddressNormalizer {
     }
 
     /**
-     * 将输入规范化为可持久化和可精确匹配的 IP 地址。
-     *
-     * @param value 原始 IP 字符串
-     * @return 规范化结果
+     * 解析精确值，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 仅返回规范化或计算结果，不直接提交交易状态。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
      */
     public static NormalizedIp normalizeExact(String value) {
         if (value == null) {
@@ -80,16 +78,6 @@ public final class IpAddressNormalizer {
         return normalizeIpv4(candidate);
     }
 
-    /**
-     * 解析normalizeipv4，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 公共组件库 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param candidate 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 构造、转换或解析后的业务值
-     */
     private static NormalizedIp normalizeIpv4(String candidate) {
         if (!candidate.matches(IPV4_PATTERN)) {
             throw new IllegalArgumentException("IPv4 地址格式不正确");
@@ -121,16 +109,6 @@ public final class IpAddressNormalizer {
         return new NormalizedIp(IPV4, builder.toString());
     }
 
-    /**
-     * 解析normalizeipv6，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 公共组件库 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param candidate 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 构造、转换或解析后的业务值
-     */
     private static NormalizedIp normalizeIpv6(String candidate) {
         if (!candidate.matches(IPV6_PATTERN)) {
             throw new IllegalArgumentException("IPv6 地址格式不正确");

@@ -32,7 +32,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 商户 IP 白名单审批状态、CAS 更新和通知参数测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantIpWhitelistServiceImplTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户 IP 白名单审批状态、CAS 更新和通知参数测试。
+ * @status : create
  */
 class AdminMerchantIpWhitelistServiceImplTests {
 

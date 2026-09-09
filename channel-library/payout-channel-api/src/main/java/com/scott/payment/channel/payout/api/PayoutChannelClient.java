@@ -13,6 +13,7 @@ import java.util.Set;
  * @version : v1.0.0
  * @classname : PayoutChannelClient
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 代付渠道 SPI，独立定义提交与查询能力，不复用收单支付接口或模型。
  * @status : create
  */

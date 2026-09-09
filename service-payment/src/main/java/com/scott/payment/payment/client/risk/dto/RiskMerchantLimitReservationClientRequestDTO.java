@@ -5,7 +5,13 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * service-risk 商户累计限额预占补偿请求。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskMerchantLimitReservationClientRequestDTO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : service-risk 商户累计限额预占补偿请求。
+ * @status : create
  */
 @Data
 public class RiskMerchantLimitReservationClientRequestDTO implements Serializable {

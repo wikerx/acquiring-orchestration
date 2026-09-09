@@ -35,14 +35,6 @@ public abstract class AbstractWorldPayCallbackHandler implements PaymentChannelC
      */
     private static final Pattern DOCTYPE_PATTERN = Pattern.compile("<!DOCTYPE[^>]*>", Pattern.CASE_INSENSITIVE);
 
-    /**
-     * Worldpay 回调原始状态映射器。
-     * <p>
-     * 单位：无；格式：本地无状态映射对象；不允许为空；非敏感字段。
-     * 数据来源：当前 handler 内部创建，用于把 AUTHORISED、CAPTURED、REFUSED 等 WPGXML/WPGJSON 原始状态转换为渠道统一状态。
-     * 字段关系：只参与回调结果归一，不直接推进 service-payment 平台交易终态。
-     * </p>
-     */
     private final WorldPayTradeStatusMapper tradeStatusMapper = new WorldPayTradeStatusMapper();
 
     /**

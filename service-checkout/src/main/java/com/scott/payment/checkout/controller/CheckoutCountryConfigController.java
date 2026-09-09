@@ -8,16 +8,16 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-@RestController
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : CheckoutCountryConfigController
  * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : Checkout Country Config Controller 控制器，位于 收银台服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
+ * @description : 收银台国家或地区配置 HTTP 控制器，位于 收银台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  * @status : create
  */
+@RestController
 public class CheckoutCountryConfigController {
 
     /**

@@ -10,7 +10,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 风控规则缓存失效事件数据访问接口。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskCacheInvalidationOutboxMapper
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控规则缓存失效事件数据访问接口。
+ * @status : create
  */
 public interface RiskCacheInvalidationOutboxMapper {
 

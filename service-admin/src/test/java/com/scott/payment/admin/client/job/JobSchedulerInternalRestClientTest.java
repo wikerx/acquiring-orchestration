@@ -62,8 +62,10 @@ class JobSchedulerInternalRestClientTest {
         appender.start();
         logger.addAppender(appender);
         try {
+            JobSchedulerClientProperties properties = new JobSchedulerClientProperties();
+            properties.setInternalSecret("unit-test-admin-job-secret-at-least-32-bytes");
             JobSchedulerInternalRestClient client = new JobSchedulerInternalRestClient(
-                    restTemplate, new JobSchedulerClientProperties(), discoveryClient);
+                    restTemplate, properties, discoveryClient);
 
             assertThatThrownBy(client::listHandlers)
                     .isInstanceOfSatisfying(ApiException.class, exception -> {

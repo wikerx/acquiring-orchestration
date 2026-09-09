@@ -2,13 +2,17 @@ package com.scott.payment.payment.mq;
 
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.RefundExecutionMessage;
 import com.scott.payment.payment.domain.refund.RefundExecutionOutcomeEnum;
 import com.scott.payment.payment.service.RefundExecutionService;
+import org.apache.rocketmq.spring.annotation.ConsumeMode;
+import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -25,6 +29,16 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class RefundExecutionConsumerTests {
+
+    /** 退款执行命令必须按操作号所在 FIFO 队列顺序消费。 */
+    @Test
+    void listenerContractShouldUsePaymentTransactionFifoTopicAndOrderlyMode() {
+        RocketMQMessageListener listener = RefundExecutionConsumer.class
+                .getAnnotation(RocketMQMessageListener.class);
+
+        assertThat(listener.topic()).isEqualTo(MqTopic.PAYMENT_TRANSACTION_FIFO);
+        assertThat(listener.consumeMode()).isEqualTo(ConsumeMode.ORDERLY);
+    }
 
     /** 完整退款执行命令应交给数据库状态机且不改变消息身份。 */
     @Test

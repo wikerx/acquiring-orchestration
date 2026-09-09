@@ -5,15 +5,41 @@ package com.scott.payment.admin.support.approval;
  * @version : v1.0.0
  * @classname : MerchantAccessApprovalStatus
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 商户来源网址和 IP 白名单共用的审批状态，约束待审、通过、拒绝三种状态及其交易状态组合。
  * @status : create
  */
 public enum MerchantAccessApprovalStatus {
 
+    /**
+     * PENDING 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     PENDING(0),
+    /**
+     * APPROVED 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     APPROVED(1),
+    /**
+     * REJECTED 枚举值，表示当前枚举定义中的一个受控业务取值。
+     * <p>
+     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
+     * </p>
+     */
     REJECTED(2);
 
+    /**
+     * 编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private final int code;
 
     MerchantAccessApprovalStatus(int code) {

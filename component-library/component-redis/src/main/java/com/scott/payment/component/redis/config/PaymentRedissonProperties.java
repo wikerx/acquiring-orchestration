@@ -6,7 +6,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 
 /**
- * Redisson Cluster 的线程、拓扑刷新和连接池边界配置。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentRedissonProperties
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Redisson Cluster 的线程、拓扑刷新和连接池边界配置。
+ * @status : create
  */
 @Data
 @ConfigurationProperties(prefix = "payment.redis.redisson")

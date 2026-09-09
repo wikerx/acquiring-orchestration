@@ -3,8 +3,12 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mapper.TransactionEventOutboxMapper;
+import com.scott.payment.payment.model.TransactionEventDeliveryMode;
+import com.scott.payment.payment.model.TransactionEventOutboxMetricsSnapshot;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -204,6 +208,47 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         return true;
     }
 
+    /** 查询指定季度的 pending、CLOSED 和最老积压时间聚合快照。 */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionEventOutboxMetricsSnapshot metricsSnapshot(LocalDateTime eventTime) {
+        if (eventTime == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "eventTime is required");
+        }
+        LocalDateTime beginTime = quarterBegin(eventTime);
+        return eventOutboxMapper.selectMetricsSnapshotLogical(beginTime, beginTime.plusMonths(3));
+    }
+
+    /**
+     * 使用当前版本 CAS 将一条交易 Outbox CLOSED 事件恢复为 FAILED 待重试。
+     * CLOSED 仅为 Outbox 投递状态，不属于支付交易状态。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public boolean recoverClosed(String eventNo,
+                                 LocalDateTime transactionDateTime,
+                                 Integer expectedVersion,
+                                 String recoveryReason,
+                                 LocalDateTime now) {
+        if (!StringUtils.hasText(eventNo)
+                || transactionDateTime == null
+                || expectedVersion == null
+                || expectedVersion < 0
+                || !StringUtils.hasText(recoveryReason)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        String safeReason = recoveryReason.trim();
+        if (safeReason.length() > 512) {
+            safeReason = safeReason.substring(0, 512);
+        }
+        return eventOutboxMapper.recoverClosedLogical(
+                eventNo,
+                transactionDateTime,
+                expectedVersion,
+                safeReason,
+                now == null ? LocalDateTime.now() : now) == 1;
+    }
+
     /**
      * 校验新 Outbox 事件的业务身份、路由和分片时间。
      *
@@ -223,6 +268,57 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
                 || eventDO.getEventTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+        TransactionEventDeliveryMode deliveryMode;
+        try {
+            deliveryMode = TransactionEventDeliveryMode.from(eventDO.getDeliveryMode());
+        } catch (IllegalArgumentException exception) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "unsupported transaction outbox delivery mode");
+        }
+        if (isPaymentTransactionLifecycleEvent(eventDO.getEventType())) {
+            if (!MqTopic.PAYMENT_TRANSACTION_FIFO.equals(eventDO.getTopic())) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                        "transaction lifecycle event requires the payment transaction FIFO topic");
+            }
+            if (!StringUtils.hasText(eventDO.getMessageGroup())) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                        "transaction lifecycle event requires messageGroup");
+            }
+            if (deliveryMode == TransactionEventDeliveryMode.AUTO) {
+                deliveryMode = TransactionEventDeliveryMode.ORDERLY;
+            } else if (deliveryMode != TransactionEventDeliveryMode.ORDERLY) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                        "transaction lifecycle event requires ORDERLY delivery");
+            }
+        }
+        eventDO.setDeliveryMode(deliveryMode.name());
+        if (deliveryMode == TransactionEventDeliveryMode.ORDERLY
+                && !StringUtils.hasText(eventDO.getMessageGroup())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "ORDERLY transaction outbox requires messageGroup");
+        }
+        if (deliveryMode == TransactionEventDeliveryMode.SCHEDULED && eventDO.getDeliverAt() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "SCHEDULED transaction outbox requires deliverAt");
+        }
+        if (deliveryMode != TransactionEventDeliveryMode.SCHEDULED && eventDO.getDeliverAt() != null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "deliverAt is only allowed for SCHEDULED transaction outbox");
+        }
+    }
+
+    /**
+     * 判断事件是否属于必须按 operationId 顺序投递的交易生命周期。
+     *
+     * @param eventType Outbox 事件类型
+     * @return true 表示只能写入交易 FIFO Topic
+     */
+    private boolean isPaymentTransactionLifecycleEvent(String eventType) {
+        return MqTag.TRANSACTION_CREATED.equals(eventType)
+                || MqTag.TRANSACTION_STATUS_CHANGED.equals(eventType)
+                || MqTag.TRANSACTION_CALLBACK_PROCESSED.equals(eventType)
+                || MqTag.TRANSACTION_CLEARING_COMPLETED.equals(eventType)
+                || MqTag.REFUND_EXECUTION_REQUESTED.equals(eventType);
     }
 
     /**

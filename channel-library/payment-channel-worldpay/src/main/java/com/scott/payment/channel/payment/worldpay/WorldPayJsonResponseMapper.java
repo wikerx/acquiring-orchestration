@@ -107,6 +107,14 @@ public class WorldPayJsonResponseMapper {
         return target;
     }
 
+    /**
+     * 构造渠道金额对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
+     * </p>
+     * @param target 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     */
     private void mapChannelAmount(ChannelPaymentResponse target,
                                   WorldPayJsonResponsePayload.ValuePayload value) {
         if (value == null || value.getAmount() == null || !StringUtils.hasText(value.getCurrency())) {

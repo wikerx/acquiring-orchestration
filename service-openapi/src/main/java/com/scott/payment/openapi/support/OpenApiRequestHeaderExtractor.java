@@ -276,16 +276,6 @@ public class OpenApiRequestHeaderExtractor {
         return request.getRemoteAddr();
     }
 
-    /**
-     * 解析resolvereplayeventtype，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param exception 下游调用、校验或持久化阶段捕获的异常对象
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolveReplayEventType(RuntimeException exception) {
         String reasonCode = securityInterceptEventRecorder.reasonCode(exception);
         if (ApiResultEnum.INTERNAL_SERVER_ERROR.getCode().equals(reasonCode)) {

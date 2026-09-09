@@ -128,7 +128,8 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
         message.setOperationStatus(record.getStatus());
         message.setCostTimeMs(record.getCostTime());
         message.setOperationTime(operationTime);
-        message.setErrorCode(record.getErrorCode());
+        message.setErrorCode(messageSanitizer.sanitize(
+                record.getErrorCode(), OperationLogMessage.ERROR_CODE_MAX_LENGTH));
         message.setIdempotentKey(buildIdempotentKey(record, operationTime));
         return message;
     }

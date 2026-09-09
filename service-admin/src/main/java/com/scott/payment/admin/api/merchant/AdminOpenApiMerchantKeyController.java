@@ -39,25 +39,24 @@ import java.util.List;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
-@RestController
-@RequestMapping("/admin/openapi/merchant-keys")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminOpenApiMerchantKeyController
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : Admin Open API Merchant Key Controller 控制器，位于 运营后台服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
+ * @description : adminopenAPI商户密钥 HTTP 控制器，位于 运营后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  * @status : create
  */
+@RestController
+@RequestMapping("/admin/openapi/merchant-keys")
 public class AdminOpenApiMerchantKeyController {
 
     /**
-     * OPENAPI KEY MODULE NAME，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * {@code OPENAPI_KEY_MODULE_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：构造器注入的应用服务或 HTTP 请求对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：构造器注入的应用服务或 HTTP 请求对象。
      * </p>
      */
     private static final String OPENAPI_KEY_MODULE_NAME = "OpenAPI对接材料";
@@ -70,23 +69,7 @@ public class AdminOpenApiMerchantKeyController {
      * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
     private final OpenApiKeyAuditService keyAuditService;
-    /**
-     * merchant Info Application Service 依赖，用于 Admin Open API Merchant Key Controller 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：构造器注入的应用服务或 HTTP 请求对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final AdminMerchantInfoApplicationService merchantInfoApplicationService;
-    /**
-     * admin Oper Log Application Service 依赖，用于 Admin Open API Merchant Key Controller 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：构造器注入的应用服务或 HTTP 请求对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final AdminOperLogApplicationService adminOperLogApplicationService;
 
     /**

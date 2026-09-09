@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @version : v1.0.0
  * @classname : HmacPaymentChannelCallbackVerifierTests
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 协议中立回调验签测试，锁定平台签名原文、Event-Signature 和稳定失败分类。
  * @status : create
  */

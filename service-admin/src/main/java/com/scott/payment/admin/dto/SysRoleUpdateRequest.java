@@ -22,51 +22,47 @@ public class SysRoleUpdateRequest implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @NotNull(message = "roleId")
     /**
-     * role ID，用于定位 Sys Role Update Request 关联的上游配置、渠道、账号、角色或业务记录。
+     * 角色ID，用于定位 {@code SysRoleUpdateRequest} 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @NotNull(message = "roleId")
     private Long roleId;
 
-    @Size(max = 100, message = "roleName length must be less than 100")
     /**
-     * role Name，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private String roleName;
-
-    /**
-     * data Scope，用于保存 Sys Role Update Request 中与 datascope 相关的业务属性。
+     * 角色名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    @Size(max = 100, message = "roleName length must be less than 100")
+    private String roleName;
+
+    /**
+     * 请求中的{@code dataScope}，用于限定本次操作的输入和校验范围。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private String dataScope;
 
-    @Size(max = 500, message = "description length must be less than 500")
     /**
-     * description，用于保存人工备注、交易说明或配置补充说明。
+     * 说明，用于保存人工备注、交易说明或配置补充说明。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @Size(max = 500, message = "description length must be less than 500")
     private String description;
 
     /**
-     * status，表示当前记录在业务流程中的处理状态。
+     * 状态，表示当前记录在业务流程中的处理状态。
      * <p>
      * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -76,11 +72,10 @@ public class SysRoleUpdateRequest implements Serializable {
     private Integer status;
 
     /**
-     * sort No，用于控制列表展示或规则匹配时的排序优先级。
+     * 排序号，数值越小越优先展示或匹配。
      * <p>
      * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private Integer sortNo;

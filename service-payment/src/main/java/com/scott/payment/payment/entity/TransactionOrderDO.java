@@ -7,6 +7,7 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -149,14 +150,26 @@ public class TransactionOrderDO implements Serializable {
     private BigDecimal channelRequestAmount;
 
     /**
-     * 预计或最终结算币种。
+     * 最近真实动作的最终结算币种。
      */
     private String settlementCurrency;
 
     /**
-     * 预计或最终结算金额。
+     * 最近真实动作的最终有符号结算金额，使用结算币种主单位。
      */
     private BigDecimal settlementAmount;
+
+    /** 最近真实动作中 1 单位交易币种兑换的结算币种数量。 */
+    private BigDecimal settlementRate;
+
+    /** 最近真实动作的结算业务日期。 */
+    private LocalDate settlementDate;
+
+    /** 当前结算快照来源的动作交易号。 */
+    private String settlementTransactionId;
+
+    /** 当前结算快照来源的动作分片时间。 */
+    private LocalDateTime settlementTransactionDateTime;
 
     /**
      * 交易币种默认小数位精度，来自 ISO 字典。
@@ -274,7 +287,7 @@ public class TransactionOrderDO implements Serializable {
     private String channelMatchFailReason;
 
     /**
-     * 最近一次结算批次号。
+     * 最近真实动作的结算或冲正批次号。
      */
     private String settlementBatchNo;
 

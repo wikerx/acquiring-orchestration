@@ -9,6 +9,7 @@ import java.util.Set;
  * @version : v1.0.0
  * @classname : PaymentChannelCallbackVerifier
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 收单渠道回调验签 SPI，由渠道模块声明支持的渠道编码并校验渠道原始回调，不处理平台交易状态。
  * @status : create
  */

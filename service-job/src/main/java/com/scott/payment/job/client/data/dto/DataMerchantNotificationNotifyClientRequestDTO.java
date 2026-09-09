@@ -5,7 +5,15 @@ import lombok.Data;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/** service-job 调用 service-data 精确重试单笔商户通知的请求。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DataMerchantNotificationNotifyClientRequestDTO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : service-job 调用 service-data 精确重试单笔商户通知的请求。
+ * @status : create
+ */
 @Data
 public class DataMerchantNotificationNotifyClientRequestDTO implements Serializable {
 

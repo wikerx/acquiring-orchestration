@@ -25,7 +25,7 @@ import java.util.List;
  * @classname : MerchantDictServiceImpl
  * @date : 2026-07-20 00:00
  * @email : scott_x@163.com
- * @description : 商户后台只读字典服务实现，位于 service-merchant 服务实现层，仅读取启用字典项供页面筛选和展示。
+ * @description : 商户dict服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
 @Service
@@ -46,14 +46,6 @@ public class MerchantDictServiceImpl implements MerchantDictService {
      */
     private static final String DEFAULT_LOCALE = "zh-CN";
 
-    /**
-     * dict Data Mapper 依赖，用于 Merchant Dict Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysDictDataMapper dictDataMapper;
     private final DictionaryOptionCacheReader dictionaryOptionCacheReader;
 

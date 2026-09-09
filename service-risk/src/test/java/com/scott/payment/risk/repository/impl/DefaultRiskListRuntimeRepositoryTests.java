@@ -49,7 +49,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 风控运行时 Redis 缓存行为测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultRiskListRuntimeRepositoryTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控运行时 Redis 缓存行为测试。
+ * @status : create
  */
 @Slf4j
 class DefaultRiskListRuntimeRepositoryTests {

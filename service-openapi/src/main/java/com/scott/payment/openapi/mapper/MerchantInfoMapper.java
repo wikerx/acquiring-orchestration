@@ -15,14 +15,5 @@ import org.apache.ibatis.annotations.Mapper;
  */
 
 @Mapper
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantInfoMapper
- * @date : 2026-05-30 00:00
- * @email : scott_x@163.com
- * @description : Merchant Info Mapper 映射组件，位于 商户开放接口服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
- * @status : create
- */
 public interface MerchantInfoMapper extends BaseMapper<MerchantInfoDO> {
 }

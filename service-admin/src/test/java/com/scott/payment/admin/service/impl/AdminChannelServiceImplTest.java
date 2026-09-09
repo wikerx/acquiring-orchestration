@@ -50,27 +50,19 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
 
-@ExtendWith(MockitoExtension.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminChannelServiceImplTest
  * @date : 2026-07-03 16:10
  * @email : scott_x@163.com
- * @description : Admin Channel Service Impl Test 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
+ * @description : admin渠道服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
+@ExtendWith(MockitoExtension.class)
 class AdminChannelServiceImplTest {
 
     @Mock
-    /**
-     * channel Info Mapper 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ChannelInfoMapper channelInfoMapper;
     /**
      * 渠道 MID 参数模板数据访问对象。
@@ -78,14 +70,6 @@ class AdminChannelServiceImplTest {
     @Mock
     private ChannelMetadataSchemaMapper metadataSchemaMapper;
     @Mock
-    /**
-     * capability Mapper 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ChannelPaymentCapabilityMapper capabilityMapper;
     /**
      * 收单支付币种字段，通常使用 ISO 4217 三位字母代码，不能为空时由上层校验。
@@ -93,24 +77,8 @@ class AdminChannelServiceImplTest {
     @Mock
     private ChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
     @Mock
-    /**
-     * capability Card Brand Mapper 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ChannelCapabilityCardBrandMapper capabilityCardBrandMapper;
     @Mock
-    /**
-     * limit Rule Mapper，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：Spring 容器构造器注入。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private ChannelLimitRuleMapper limitRuleMapper;
     /**
      * 渠道真实 MID 配置数据访问对象，用于验证 MID 配置新增、更新和重复校验。
@@ -123,28 +91,12 @@ class AdminChannelServiceImplTest {
     @Mock
     private MerchantChannelMidBindingMapper midBindingMapper;
     @Mock
-    /**
-     * dict Data Mapper 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private SysDictDataMapper dictDataMapper;
 
     /** 商户路由永久快照可靠失效协调器。 */
     @Mock
     private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
-    /**
-     * service 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private AdminChannelServiceImpl service;
 
     @BeforeEach
@@ -240,8 +192,56 @@ class AdminChannelServiceImplTest {
         assertThat(response.getSupportIncrementalAuthorization()).isEqualTo(1);
         assertThat(response.getCardBrands()).containsExactly("VISA", "MASTERCARD");
         assertThat(response.getCurrencyCodes()).containsExactly("USD");
-        verify(capabilityMapper).insert(any(ChannelPaymentCapabilityDO.class));
+        assertThat(response.getDefaultTransactionCurrency()).isEqualTo("USD");
+        ArgumentCaptor<ChannelPaymentCapabilityDO> capabilityCaptor =
+                ArgumentCaptor.forClass(ChannelPaymentCapabilityDO.class);
+        verify(capabilityMapper).insert(capabilityCaptor.capture());
+        assertThat(capabilityCaptor.getValue().getDefaultTransactionCurrency()).isEqualTo("USD");
         verify(capabilityCardBrandMapper, times(2)).insert(any(ChannelCapabilityCardBrandDO.class));
+    }
+
+    @Test
+    void shouldRejectDefaultTransactionCurrencyOutsideAllowedCurrencies() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        CapabilitySaveRequest request = bankCardCapabilityRequest(List.of("VISA"));
+        request.setCurrencyCodes(List.of("USD", "EUR"));
+        request.setDefaultTransactionCurrency("JPY");
+
+        assertThatThrownBy(() -> service.createCapability(request))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("默认交易币种必须属于允许币种");
+    }
+
+    @Test
+    void shouldInvalidateMerchantRouteBeforeUpdatingDefaultTransactionCurrency() {
+        ChannelPaymentCapabilityDO existing = enabledCapability();
+        existing.setDefaultTransactionCurrency("EUR");
+        when(capabilityMapper.selectOne(any())).thenReturn(existing);
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectCount(any())).thenReturn(0L);
+        when(midConfigMapper.selectList(any())).thenReturn(List.of(enabledMid()));
+        MerchantChannelMidBindingDO binding = new MerchantChannelMidBindingDO();
+        binding.setMerchantId("200001");
+        binding.setMidConfigId(501L);
+        binding.setDeleted(0L);
+        when(midBindingMapper.selectList(any())).thenReturn(List.of(binding));
+        when(capabilityCurrencyMapper.selectList(any()))
+                .thenReturn(List.of(currency("EUR")))
+                .thenReturn(List.of(currency("USD")));
+        when(capabilityCardBrandMapper.selectList(any()))
+                .thenReturn(List.of(cardBrand("VISA", 1)))
+                .thenReturn(List.of(cardBrand("VISA", 1)));
+        CapabilitySaveRequest request = bankCardCapabilityRequest(List.of("VISA"));
+
+        CapabilityResponse response = service.updateCapability(101L, request);
+
+        assertThat(response.getDefaultTransactionCurrency()).isEqualTo("USD");
+        org.mockito.InOrder mutationOrder = inOrder(cacheInvalidationCoordinator, capabilityMapper);
+        mutationOrder.verify(cacheInvalidationCoordinator)
+                .prepare(PaymentCacheNames.MERCHANT_ROUTE, "200001");
+        mutationOrder.verify(capabilityMapper).updateById(any(ChannelPaymentCapabilityDO.class));
     }
 
     @Test
@@ -636,6 +636,7 @@ class AdminChannelServiceImplTest {
         request.setPaymentMethod("bank_card");
         request.setTransactionTypes(List.of("payment", "authorization"));
         request.setCurrencyCodes(List.of("usd"));
+        request.setDefaultTransactionCurrency("usd");
         request.setCardBrands(cardBrands);
         request.setSupport3ds(1);
         request.setSupportIncrementalAuthorization(1);
@@ -760,6 +761,7 @@ class AdminChannelServiceImplTest {
         row.setBusinessType("ACQUIRING");
         row.setPaymentMethod("BANK_CARD");
         row.setTransactionType("PAYMENT,AUTHORIZATION");
+        row.setDefaultTransactionCurrency("USD");
         row.setSupport3ds(1);
         row.setSupportIncrementalAuthorization(0);
         row.setCapabilityStatus(1);

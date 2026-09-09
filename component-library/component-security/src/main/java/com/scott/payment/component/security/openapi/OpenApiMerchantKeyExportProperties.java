@@ -3,8 +3,6 @@ package com.scott.payment.component.security.openapi;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@Data
-@ConfigurationProperties(prefix = "acquiring.openapi.merchant-key-export")
 /**
  * @author : scott
  * @version : v1.0.0
@@ -14,6 +12,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @description : Open API Merchant Key Export Properties 配置属性模型，位于 公共组件库，绑定 application 配置项并提供运行时默认值。
  * @status : create
  */
+@Data
+@ConfigurationProperties(prefix = "acquiring.openapi.merchant-key-export")
 public class OpenApiMerchantKeyExportProperties {
 
     /**

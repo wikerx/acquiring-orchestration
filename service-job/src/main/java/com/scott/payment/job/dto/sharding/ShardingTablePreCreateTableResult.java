@@ -2,16 +2,16 @@ package com.scott.payment.job.dto.sharding;
 
 import lombok.Data;
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingTablePreCreateTableResult
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : Sharding Table Pre Create Table Result 协作组件，位于 调度任务服务，封装 shardingtableprecreatetableresult 相关的校验、转换、持久化访问或运行时协作入口。
+ * @description : 分表表precreate表协作组件，位于 调度任务服务，封装该业务的本地校验、转换或运行时协作入口。
  * @status : create
  */
+@Data
 public class ShardingTablePreCreateTableResult {
 
     /**

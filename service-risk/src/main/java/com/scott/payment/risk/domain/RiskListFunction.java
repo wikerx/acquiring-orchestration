@@ -3,7 +3,13 @@ package com.scott.payment.risk.domain;
 import java.util.Set;
 
 /**
- * 运行时可查询的风控名单或规则功能。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskListFunction
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 运行时可查询的风控名单或规则功能。
+ * @status : create
  */
 public enum RiskListFunction {
 

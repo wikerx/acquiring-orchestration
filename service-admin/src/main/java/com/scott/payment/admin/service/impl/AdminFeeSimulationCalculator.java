@@ -4,12 +4,26 @@ import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationRequest;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationResponse;
 import com.scott.payment.admin.entity.fee.FeeEntities.FeeRuleDO;
 import com.scott.payment.admin.entity.fee.FeeEntities.FeeRuleTierDO;
+import com.scott.payment.component.core.iso.IsoCurrencyResolver;
+import com.scott.payment.finance.fee.core.FeeConversionPreviewCalculator;
+import com.scott.payment.finance.fee.core.FeeComponentCalculator;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeCalculationCommand;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeComponentType;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeMode;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeRuleSnapshot;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.TierContext;
+import com.scott.payment.finance.fee.model.FeeConversionPreviewModels.FeeConversionPreviewCommand;
+import com.scott.payment.finance.money.model.Money;
+import com.scott.payment.finance.reserve.core.ReserveCalculator;
+import com.scott.payment.finance.reserve.model.ReserveCalculationModels.ReserveHoldCommand;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
+import java.math.RoundingMode;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -23,8 +37,43 @@ import java.util.List;
 @Component
 public class AdminFeeSimulationCalculator {
 
-    private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+    /**
+     * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
+    /**
+     * 展示小数位常量，统一 {@code AdminFeeSimulationCalculator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final int DISPLAY_SCALE = 2;
+    /**
+     * {@code USD_EXPONENT}常量，统一 {@code AdminFeeSimulationCalculator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final int USD_EXPONENT = 2;
+    /**
+     * 费用舍入模式常量，统一 {@code AdminFeeSimulationCalculator} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final RoundingMode FEE_ROUNDING_MODE = RoundingMode.HALF_UP;
+
+    private final FeeComponentCalculator feeComponentCalculator = new FeeComponentCalculator();
+    private final ReserveCalculator reserveCalculator = new ReserveCalculator();
+    private final FeeConversionPreviewCalculator feeConversionPreviewCalculator =
+            new FeeConversionPreviewCalculator();
 
     /**
      * 兼容不涉及保证金的独立费用计算调用。
@@ -64,27 +113,31 @@ public class AdminFeeSimulationCalculator {
         BigDecimal minimumUsd = tier == null ? rule.getMinimumAmountUsd() : tier.getMinimumAmountUsd();
         BigDecimal maximumUsd = tier == null ? rule.getMaximumAmountUsd() : tier.getMaximumAmountUsd();
 
-        BigDecimal percentageFeeLabel = request.getLabelAmount()
-                .multiply(percentageRate, CALCULATION_CONTEXT)
-                .divide(ONE_HUNDRED, CALCULATION_CONTEXT);
-        BigDecimal percentageFeeUsd = percentageFeeLabel
-                .multiply(labelToUsdRate, CALCULATION_CONTEXT);
-        BigDecimal rawFeeUsd = percentageFeeUsd.add(fixedUsd, CALCULATION_CONTEXT);
-        BigDecimal finalFeeUsd = rawFeeUsd;
-        String appliedLimit = "NONE";
-        if (minimumUsd != null && finalFeeUsd.compareTo(minimumUsd) < 0) {
-            finalFeeUsd = minimumUsd;
-            appliedLimit = "MINIMUM";
-        }
-        if (maximumUsd != null && finalFeeUsd.compareTo(maximumUsd) > 0) {
-            finalFeeUsd = maximumUsd;
-            appliedLimit = "MAXIMUM";
-        }
+        int labelExponent = resolveCurrencyExponent(request.getLabelCurrency());
+        Money labelAmount = new Money(request.getLabelAmount(), request.getLabelCurrency(),
+                labelExponent);
+        FeeRuleSnapshot configuredRule = new FeeRuleSnapshot(rule.getId(), FeeMode.STANDARD, percentageRate,
+                usdAmount(fixedUsd), optionalUsdAmount(minimumUsd), optionalUsdAmount(maximumUsd), null);
+        var componentResult = feeComponentCalculator.calculate(new FeeCalculationCommand(labelAmount, configuredRule,
+                List.of(), TierContext.empty(), FEE_ROUNDING_MODE));
+        Map<String, BigDecimal> directRates = labelAmount.currency().equals("USD")
+                ? Map.of()
+                : Map.of(labelAmount.currency(), labelToUsdRate);
+        var preview = feeConversionPreviewCalculator.calculate(new FeeConversionPreviewCommand(
+                componentResult, "USD", USD_EXPONENT, directRates));
+        BigDecimal percentageFeeLabel = componentResult.components().stream()
+                .filter(component -> component.componentType() == FeeComponentType.PERCENTAGE)
+                .map(component -> component.amount().amount())
+                .reduce(BigDecimal.ZERO, (left, right) -> left.add(right, CALCULATION_CONTEXT));
         BigDecimal labelAmountUsd = request.getLabelAmount().multiply(labelToUsdRate, CALCULATION_CONTEXT);
         BigDecimal effectiveReserveRate = zero(reserveRate);
-        BigDecimal reserveAmountUsd = "TRANSACTION_FEE".equalsIgnoreCase(request.getFeeCategory())
-                ? labelAmountUsd.multiply(effectiveReserveRate, CALCULATION_CONTEXT)
-                        .divide(ONE_HUNDRED, CALCULATION_CONTEXT)
+        boolean appliesReserve = "TRANSACTION_FEE".equalsIgnoreCase(request.getFeeCategory());
+        BigDecimal reserveAmountLabel = appliesReserve
+                ? reserveCalculator.hold(new ReserveHoldCommand(labelAmount, effectiveReserveRate,
+                        FEE_ROUNDING_MODE)).amount().amount()
+                : BigDecimal.ZERO;
+        BigDecimal reserveAmountUsd = appliesReserve
+                ? reserveAmountLabel.multiply(labelToUsdRate, CALCULATION_CONTEXT)
                 : BigDecimal.ZERO;
 
         FeeSimulationResponse response = new FeeSimulationResponse();
@@ -92,19 +145,39 @@ public class AdminFeeSimulationCalculator {
         response.setMatchedTierId(tier == null ? null : tier.getId());
         response.setPercentageFeeLabel(percentageFeeLabel);
         response.setPercentageFeeCurrency(request.getLabelCurrency());
-        response.setRawFeeUsd(rawFeeUsd);
-        response.setFinalFeeUsd(finalFeeUsd);
+        response.setRawFeeUsd(preview.rawFee().amount());
+        response.setFinalFeeUsd(preview.finalFee().amount());
         response.setLabelAmountUsd(labelAmountUsd);
         response.setReserveRate(effectiveReserveRate);
+        response.setReserveAmountLabel(reserveAmountLabel);
+        response.setReserveAmountCurrency(request.getLabelCurrency());
         response.setReserveAmountUsd(reserveAmountUsd);
         response.setEstimatedNetSettlementUsd(labelAmountUsd
-                .subtract(finalFeeUsd, CALCULATION_CONTEXT)
+                .subtract(preview.finalFee().amount(), CALCULATION_CONTEXT)
                 .subtract(reserveAmountUsd, CALCULATION_CONTEXT));
-        response.setAppliedLimit(appliedLimit);
+        response.setAppliedLimit(preview.appliedLimit().name());
         response.setLabelToUsdRate(labelToUsdRate);
         response.setFormulaSnapshot(buildFormula(request, labelToUsdRate,
                 percentageRate, fixedUsd, minimumUsd, maximumUsd));
         return response;
+    }
+
+    private int resolveCurrencyExponent(String currency) {
+        int exponent = IsoCurrencyResolver.resolve(currency)
+                .orElseThrow(() -> new IllegalArgumentException("unsupported ISO 4217 label currency"))
+                .defaultFractionDigits();
+        if (exponent < 0 || exponent > 8) {
+            throw new IllegalArgumentException("label currency exponent must be between 0 and 8");
+        }
+        return exponent;
+    }
+
+    private Money usdAmount(BigDecimal amount) {
+        return new Money(zero(amount), "USD", USD_EXPONENT);
+    }
+
+    private Money optionalUsdAmount(BigDecimal amount) {
+        return amount == null ? null : usdAmount(amount);
     }
 
     private FeeRuleTierDO selectTier(FeeSimulationRequest request,
@@ -154,14 +227,33 @@ public class AdminFeeSimulationCalculator {
                                 BigDecimal fixedUsd,
                                 BigDecimal minimumUsd,
                                 BigDecimal maximumUsd) {
-        return request.getLabelCurrency() + " " + request.getLabelAmount().toPlainString()
-                + " * " + percentageRate.toPlainString() + "% * "
-                + labelToUsdRate.toPlainString() + " + USD " + fixedUsd.toPlainString()
-                + "; min=" + valueOrDash(minimumUsd) + "; max=" + valueOrDash(maximumUsd);
+        StringBuilder formula;
+        if (percentageRate.signum() == 0) {
+            formula = new StringBuilder("USD ").append(displayDecimal(fixedUsd));
+        } else {
+            formula = new StringBuilder(request.getLabelCurrency())
+                    .append(" ").append(displayDecimal(request.getLabelAmount()))
+                    .append(" * ").append(displayDecimal(percentageRate)).append("% * ")
+                    .append(displayRate(labelToUsdRate));
+            if (fixedUsd.signum() != 0) {
+                formula.append(" + USD ").append(displayDecimal(fixedUsd));
+            }
+        }
+        if (minimumUsd != null) {
+            formula.append("; min=USD ").append(displayDecimal(minimumUsd));
+        }
+        if (maximumUsd != null) {
+            formula.append("; max=USD ").append(displayDecimal(maximumUsd));
+        }
+        return formula.toString();
     }
 
-    private String valueOrDash(BigDecimal value) {
-        return value == null ? "-" : "USD " + value.toPlainString();
+    private String displayDecimal(BigDecimal value) {
+        return zero(value).setScale(DISPLAY_SCALE, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private String displayRate(BigDecimal value) {
+        return zero(value).stripTrailingZeros().toPlainString();
     }
 
     private BigDecimal zero(BigDecimal value) {

@@ -44,4 +44,20 @@ public class ReliableMqOutboxRelayScheduler {
                     exception.getClass().getSimpleName());
         }
     }
+
+    /** 低频刷新通用 Outbox 数据库状态 Gauge，避免每秒执行聚合查询。 */
+    @Scheduled(
+            initialDelayString = "${acquiring.mq.outbox.metrics-initial-delay-ms:30000}",
+            fixedDelayString = "${acquiring.mq.outbox.metrics-delay-ms:60000}")
+    public void refreshMetrics() {
+        if (!properties.isRelayEnabled()) {
+            return;
+        }
+        try {
+            relayService.refreshMetrics();
+        } catch (RuntimeException exception) {
+            log.warn("event: RELIABLE_MQ_OUTBOX_METRICS_REFRESH_FAILED exceptionType: {}",
+                    exception.getClass().getSimpleName());
+        }
+    }
 }

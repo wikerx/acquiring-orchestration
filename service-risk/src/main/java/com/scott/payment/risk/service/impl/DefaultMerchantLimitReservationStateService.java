@@ -21,7 +21,13 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 基于数据库唯一键和版本号 CAS 的商户累计限额预占状态服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantLimitReservationStateService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 基于数据库唯一键和版本号 CAS 的商户累计限额预占状态服务。
+ * @status : create
  */
 @Service
 public class DefaultMerchantLimitReservationStateService implements MerchantLimitReservationStateService {

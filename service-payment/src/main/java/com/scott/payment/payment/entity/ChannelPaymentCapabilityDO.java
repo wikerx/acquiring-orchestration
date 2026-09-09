@@ -50,6 +50,10 @@ public class ChannelPaymentCapabilityDO {
      */
     private String transactionType;
 
+    /** 渠道不直接支持请求币种时使用的默认交易币种。 */
+    @TableField("default_transaction_currency")
+    private String defaultTransactionCurrency;
+
     /** 是否支持 3DS：0 不支持，1 支持。 */
     @TableField("support_3ds")
     private Integer support3ds;

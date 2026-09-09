@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- 必须使用 logback-spring.xml -->
+    <springProperty
+            scope="context"
+            name="applicationName"
+            source="spring.application.name"
+            defaultValue="service-settlement"/>
+
+    <!-- 日志基础配置 -->
+    <property name="logPath" value="${LOG_PATH:-logs}"/>
+    <property name="instanceId" value="${INSTANCE_ID:-default}"/>
+    <property name="maxFileSize" value="${LOG_MAX_FILE_SIZE:-100MB}"/>
+    <property name="totalSizeCap" value="${LOG_TOTAL_SIZE_CAP:-20GB}"/>
+
+    <!-- 统一日志格式 -->
+    <property name="logPattern"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS,Asia/Shanghai} %-5level [%thread] [traceId=%X{traceId:-}] ${applicationName} %logger{36} - %msg%n"/>
+
+    <!-- 控制台日志 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>${logPattern}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 文件日志 -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${logPath}/${applicationName}-${instanceId}.log</file>
+        <append>true</append>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${logPath}/archive/${applicationName}-${instanceId}.%d{yyyy-MM-dd,Asia/Shanghai}.%i.log.gz</fileNamePattern>
+            <maxFileSize>${maxFileSize}</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>${totalSizeCap}</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <charset>UTF-8</charset>
+            <pattern>${logPattern}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 异步文件日志 -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>8192</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>false</neverBlock>
+        <maxFlushTime>10000</maxFlushTime>
+        <includeCallerData>false</includeCallerData>
+        <appender-ref ref="FILE"/>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+    </root>
+</configuration>

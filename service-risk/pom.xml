@@ -6,10 +6,18 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>service-risk</artifactId>
+    <name>service-risk</name>
+    <description>交易风控服务，负责风险评估、3DS 策略和商户交易限额预占。</description>
+
+    <!--
+        本服务输出风险决策和限额预占结果，不执行支付渠道请求，也不修改支付交易终态。
+        风控规则和结果需可审计；异步审计消息通过公共 MQ 契约发送至数据服务持久化。
+    -->
     <dependencies>
+        <!--服务注册和配置中心。-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -18,26 +26,31 @@
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
         </dependency>
+        <!--平台通用值对象、风险枚举、异常和响应模型。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--内部风控 API、参数校验和统一异常处理。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-web</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--风控规则、评估结果和商户限额数据访问。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--规则缓存、限额并发预占和请求幂等。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-redis</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--风险评估审计和安全拦截事件异步发送。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-mq</artifactId>
@@ -47,6 +60,7 @@
 
     <build>
         <plugins>
+            <!--将服务及其运行时依赖重打包为可独立启动的 Spring Boot 制品。-->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

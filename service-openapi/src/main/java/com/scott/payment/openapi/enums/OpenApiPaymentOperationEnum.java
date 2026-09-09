@@ -8,7 +8,7 @@ import lombok.Getter;
  * @classname : OpenApiPaymentOperationEnum
  * @date : 2026-07-14 12:30
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 收单交易动作枚举，位于 service-openapi 枚举层，用于把独立 API 入口映射到 transaction_type 字典和内部支付服务路径。
+ * @description : openAPI支付动作枚举，位于 商户开放接口服务，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  * @status : create
  */
 @Getter

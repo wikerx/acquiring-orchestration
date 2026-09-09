@@ -39,16 +39,16 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminMonitorDatasourceApplicationService
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : Admin Monitor Datasource Application Service 应用服务，位于 运营后台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
+ * @description : admin监控datasource应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
+@Service
 public class AdminMonitorDatasourceApplicationService {
 
     /**
@@ -91,34 +91,10 @@ public class AdminMonitorDatasourceApplicationService {
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
-    /**
-     * sharding Quarter Resolver，用于保存 Admin Monitor Datasource Application Service 中与 shardingquarterresolver 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final ShardingQuarterResolver shardingQuarterResolver = new ShardingQuarterResolver();
 
-    /**
-     * sharding Physical Table Name Resolver，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final ShardingPhysicalTableNameResolver shardingPhysicalTableNameResolver = new ShardingPhysicalTableNameResolver();
 
-    /**
-     * sharding Auto Increment Value Calculator，用于保存 Admin Monitor Datasource Application Service 中与 shardingautoincrementvaluecalculator 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final ShardingAutoIncrementValueCalculator shardingAutoIncrementValueCalculator = new ShardingAutoIncrementValueCalculator();
 
     /**
@@ -401,17 +377,6 @@ public class AdminMonitorDatasourceApplicationService {
         return physicalTables;
     }
 
-    /**
-     * 解析resolve物理表name，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param rule rule 输入值，参与 规则 的查询、校验、转换、写入或日志摘要
-     * @param quarter quarter 输入值，参与 quarter 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolvePhysicalTableName(TransactionShardingGovernanceProperties.TableRule rule, ShardingQuarter quarter) {
         if (!shardingQuarterResolver.inRange(rule, quarter)) {
             return null;

@@ -58,6 +58,32 @@ class JdbcAdminTransactionFundQueryServiceTests {
         verify(readExecutor, never()).readPrimary(any());
     }
 
+    /** 保证金清分生成后立即计入；释放候选只有最终入账后才从原币种余额移除。 */
+    @Test
+    void shouldAggregateReserveUntilReserveSettlementIsPosted() {
+        JdbcDataSource dataSource = dataSource("admin-reserve-balance");
+        JdbcTemplate jdbc = prepareReserveTables(dataSource);
+        insertReserveState(jdbc, "merchant-a", "RS-USD-OPEN", "USD", "10.00", "0.00", "OPEN");
+        insertReserveState(jdbc, "merchant-a", "RS-EUR-OPEN", "EUR", "7.00", "0.00", "OPEN");
+        insertReserveState(jdbc, "merchant-a", "RS-USD-READY", "USD", "0.00", "4.00", "FULLY_RELEASED");
+        insertReserveCandidate(jdbc, "RS-USD-READY", "READY", null);
+        insertReserveState(jdbc, "merchant-a", "RS-GBP-POSTED", "GBP", "0.00", "5.00", "FULLY_RELEASED");
+        insertSettlementBatch(jdbc, "SB-POSTED", "POSTED");
+        insertReserveCandidate(jdbc, "RS-GBP-POSTED", "POSTED", "SB-POSTED");
+        insertReserveState(jdbc, "merchant-a", "RS-JPY-REVERSED", "JPY", "0.00", "6.00", "FULLY_RELEASED");
+        insertSettlementBatch(jdbc, "SB-REVERSED", "REVERSED");
+        insertReserveCandidate(jdbc, "RS-JPY-REVERSED", "POSTED", "SB-REVERSED");
+        insertReserveState(jdbc, "merchant-b", "RS-OTHER", "USD", "99.00", "0.00", "OPEN");
+        JdbcAdminTransactionFundQueryService service = service(dataSource, executingReadExecutor());
+
+        var balances = service.sumUnsettledReserveBalances("merchant-a");
+
+        assertThat(balances).extracting("currency", "amount").containsExactly(
+                org.assertj.core.groups.Tuple.tuple("EUR", new BigDecimal("7.000000")),
+                org.assertj.core.groups.Tuple.tuple("JPY", new BigDecimal("6.000000")),
+                org.assertj.core.groups.Tuple.tuple("USD", new BigDecimal("14.000000")));
+    }
+
     /** 历史成功资金动作即使已经结算，也必须阻止结算币种被直接修改。 */
     @Test
     void shouldDetectHistoricalSuccessfulFundActivity() {
@@ -101,6 +127,71 @@ class JdbcAdminTransactionFundQueryServiceTests {
                 )
                 """);
         return jdbc;
+    }
+
+    private JdbcTemplate prepareReserveTables(JdbcDataSource dataSource) {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.execute("""
+                CREATE TABLE transaction_reserve_clearing_state (
+                    reserve_state_id VARCHAR(64) NOT NULL,
+                    merchant_id VARCHAR(64) NOT NULL,
+                    reserve_currency CHAR(3) NOT NULL,
+                    remaining_amount DECIMAL(20,6) NOT NULL,
+                    released_amount DECIMAL(20,6) NOT NULL,
+                    reserve_status VARCHAR(24) NOT NULL,
+                    transaction_date_time TIMESTAMP NOT NULL
+                )
+                """);
+        jdbc.execute("""
+                CREATE TABLE settlement_candidate (
+                    source_type VARCHAR(32) NOT NULL,
+                    source_business_id VARCHAR(64) NOT NULL,
+                    candidate_status VARCHAR(24) NOT NULL,
+                    settlement_batch_no VARCHAR(64)
+                )
+                """);
+        jdbc.execute("""
+                CREATE TABLE settlement_batch (
+                    settlement_batch_no VARCHAR(64) NOT NULL,
+                    batch_status VARCHAR(24) NOT NULL
+                )
+                """);
+        return jdbc;
+    }
+
+    private void insertReserveState(JdbcTemplate jdbc,
+                                    String merchantId,
+                                    String reserveStateId,
+                                    String currency,
+                                    String remainingAmount,
+                                    String releasedAmount,
+                                    String reserveStatus) {
+        jdbc.update("""
+                        INSERT INTO transaction_reserve_clearing_state (
+                            reserve_state_id, merchant_id, reserve_currency, remaining_amount,
+                            released_amount, reserve_status, transaction_date_time
+                        ) VALUES (?, ?, ?, ?, ?, ?, TIMESTAMP '2026-08-18 10:00:00')
+                        """,
+                reserveStateId, merchantId, currency, new BigDecimal(remainingAmount),
+                new BigDecimal(releasedAmount), reserveStatus);
+    }
+
+    private void insertReserveCandidate(JdbcTemplate jdbc,
+                                        String reserveStateId,
+                                        String candidateStatus,
+                                        String settlementBatchNo) {
+        jdbc.update("""
+                        INSERT INTO settlement_candidate (
+                            source_type, source_business_id, candidate_status, settlement_batch_no
+                        ) VALUES ('RESERVE_RELEASE', ?, ?, ?)
+                        """, reserveStateId, candidateStatus, settlementBatchNo);
+    }
+
+    private void insertSettlementBatch(JdbcTemplate jdbc, String settlementBatchNo, String batchStatus) {
+        jdbc.update("""
+                        INSERT INTO settlement_batch (settlement_batch_no, batch_status)
+                        VALUES (?, ?)
+                        """, settlementBatchNo, batchStatus);
     }
 
     private void insert(JdbcTemplate jdbc,

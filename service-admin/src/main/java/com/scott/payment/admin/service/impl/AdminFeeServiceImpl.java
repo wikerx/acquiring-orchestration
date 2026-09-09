@@ -12,6 +12,7 @@ import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeRuleRequest;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeRuleResponse;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeRuleTierRequest;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeRuleTierResponse;
+import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationDetailResponse;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationRequest;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationRecordQuery;
 import com.scott.payment.admin.dto.fee.AdminFeeDTOs.FeeSimulationRecordResponse;
@@ -25,11 +26,13 @@ import com.scott.payment.admin.entity.fee.FeeEntities.FeePlanVersionDO;
 import com.scott.payment.admin.entity.fee.FeeEntities.FeeRuleDO;
 import com.scott.payment.admin.entity.fee.FeeEntities.FeeRuleTierDO;
 import com.scott.payment.admin.entity.fee.FeeEntities.FeeSimulationRecordDO;
+import com.scott.payment.admin.entity.fee.FeeEntities.FeeSimulationRecordDetailDO;
 import com.scott.payment.admin.mapper.FeePlanMapper;
 import com.scott.payment.admin.mapper.FeePlanVersionMapper;
 import com.scott.payment.admin.mapper.FeeRuleMapper;
 import com.scott.payment.admin.mapper.FeeRuleTierMapper;
 import com.scott.payment.admin.mapper.FeeSimulationRecordMapper;
+import com.scott.payment.admin.mapper.FeeSimulationRecordDetailMapper;
 import com.scott.payment.admin.service.impl.AdminSettlementRateResolver.ResolvedSettlementRate;
 import com.scott.payment.admin.service.AdminFeeService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -45,6 +48,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -73,21 +78,222 @@ import java.util.stream.Collectors;
 @Service
 public class AdminFeeServiceImpl implements AdminFeeService {
 
+    /**
+     * {@code NOT_DELETED}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final long NOT_DELETED = 0L;
+    /**
+     * 模板，用于定位邮件、通知或渠道参数模板。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String TEMPLATE = "TEMPLATE";
+    /**
+     * 商户常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String MERCHANT = "MERCHANT";
+    /**
+     * 草稿常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String DRAFT = "DRAFT";
+    /**
+     * 等待审核常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String PENDING_REVIEW = "PENDING_REVIEW";
+    /**
+     * {@code ACTIVE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ACTIVE = "ACTIVE";
+    /**
+     * {@code REJECTED}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String REJECTED = "REJECTED";
+    /**
+     * {@code SUPERSEDED}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String SUPERSEDED = "SUPERSEDED";
+    /**
+     * {@code ALL}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ALL = "ALL";
+    /**
+     * {@code BANK_CARD}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String BANK_CARD = "BANK_CARD";
+    /**
+     * 交易费用常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final String TRANSACTION_FEE = "TRANSACTION_FEE";
+    /**
+     * 风控费用常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String RISK_FEE = "RISK_FEE";
+    /**
+     * {@code DISPUTE_FEE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final String DISPUTE_FEE = "DISPUTE_FEE";
+    /**
+     * 结算处理中费用常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final String SETTLEMENT_PROCESSING_FEE = "SETTLEMENT_PROCESSING_FEE";
+    /**
+     * {@code SETTLEMENT_FX_FEE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String SETTLEMENT_FX_FEE = "SETTLEMENT_FX_FEE";
+    /**
+     * {@code SETTLEMENT_FX_FEE_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String SETTLEMENT_FX_FEE_NAME = "结算货币兑换费";
+    /**
+     * {@code NONE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String NONE = "NONE";
+    /**
+     * 费用常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final String FEE = "FEE";
+    /**
+     * 保证金常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final String RESERVE = "RESERVE";
+    /**
+     * {@code CALCULATED}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final String CALCULATED = "CALCULATED";
+    /**
+     * {@code NOT_APPLICABLE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String NOT_APPLICABLE = "NOT_APPLICABLE";
+    /**
+     * {@code NOT_CONFIGURED}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final String NOT_CONFIGURED = "NOT_CONFIGURED";
+    /**
+     * {@code DETAIL_COMPLETE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final String DETAIL_COMPLETE = "COMPLETE";
+    /**
+     * {@code DETAIL_LEGACY_INCOMPLETE}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final String DETAIL_LEGACY_INCOMPLETE = "LEGACY_INCOMPLETE";
+    private static final Set<String> RISK_SERVICE_TYPES = Set.of("INTERNAL", "EXTERNAL", "THREE_DS");
+    /**
+     * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
+    /**
+     * 百分比换算基数 100，用于把百分数转换为比例值。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
+    private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
+    /**
+     * {@code MAX_EXPANDED_RULES}常量，统一 {@code AdminFeeServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_EXPANDED_RULES = 200;
 
     private final FeePlanMapper planMapper;
@@ -95,6 +301,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     private final FeeRuleMapper ruleMapper;
     private final FeeRuleTierMapper tierMapper;
     private final FeeSimulationRecordMapper simulationRecordMapper;
+    private final FeeSimulationRecordDetailMapper simulationRecordDetailMapper;
     private final BaseMerchantInfoMapper merchantInfoMapper;
     private final AdminFeeSimulationCalculator simulationCalculator;
     private final AdminSettlementRateResolver settlementRateResolver;
@@ -107,6 +314,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                                FeeRuleMapper ruleMapper,
                                FeeRuleTierMapper tierMapper,
                                FeeSimulationRecordMapper simulationRecordMapper,
+                               FeeSimulationRecordDetailMapper simulationRecordDetailMapper,
                                BaseMerchantInfoMapper merchantInfoMapper,
                                AdminFeeSimulationCalculator simulationCalculator,
                                AdminSettlementRateResolver settlementRateResolver,
@@ -117,6 +325,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         this.ruleMapper = ruleMapper;
         this.tierMapper = tierMapper;
         this.simulationRecordMapper = simulationRecordMapper;
+        this.simulationRecordDetailMapper = simulationRecordDetailMapper;
         this.merchantInfoMapper = merchantInfoMapper;
         this.simulationCalculator = simulationCalculator;
         this.settlementRateResolver = settlementRateResolver;
@@ -533,9 +742,170 @@ public class AdminFeeServiceImpl implements AdminFeeService {
             throw conflict("商户当前费率版本未生效");
         }
         String feeCategory = upper(request.getFeeCategory());
-        String riskServiceType = normalizeSimulationRiskServiceType(feeCategory, request.getRiskServiceType());
+        List<String> selectedRiskServiceTypes = selectedRiskServiceTypes(request, feeCategory);
+        ResolvedSettlementRate resolvedRate = settlementRateResolver.resolve(
+                request.getLabelCurrency(), LocalDateTime.now());
+        List<CalculatedFeeDetail> calculatedDetails = new ArrayList<>();
+        if (!RISK_FEE.equals(feeCategory)) {
+            calculatedDetails.add(calculateFeeDetail(
+                    request, version, resolvedRate.rate(), feeCategory, NONE, version.getReserveRate()));
+        }
+        for (String riskServiceType : selectedRiskServiceTypes) {
+            calculatedDetails.add(calculateFeeDetail(
+                    request, version, resolvedRate.rate(), RISK_FEE, riskServiceType, BigDecimal.ZERO));
+        }
+        FeeSimulationDetailResponse settlementFxStatusDetail = null;
+        if (!RISK_FEE.equals(feeCategory) && !SETTLEMENT_FX_FEE.equals(feeCategory)) {
+            String settlementCurrency = trimUpper(version.getSettlementCurrency());
+            if (!StringUtils.hasText(settlementCurrency)) {
+                throw conflict("当前生效费用版本未配置结算币种");
+            }
+            String labelCurrency = trimUpper(request.getLabelCurrency());
+            if (settlementCurrency.equals(labelCurrency)) {
+                settlementFxStatusDetail = statusDetail(SETTLEMENT_FX_FEE, NOT_APPLICABLE);
+            } else {
+                CalculatedFeeDetail settlementFxDetail = calculateOptionalSettlementFxFeeDetail(
+                        request, version, resolvedRate.rate());
+                if (settlementFxDetail == null) {
+                    settlementFxStatusDetail = statusDetail(SETTLEMENT_FX_FEE, NOT_CONFIGURED);
+                } else {
+                    calculatedDetails.add(settlementFxDetail);
+                }
+            }
+        }
+        FeeSimulationResponse response = aggregateSimulationResponse(calculatedDetails);
+        List<FeeSimulationDetailResponse> detailRows = new ArrayList<>(calculatedDetails.stream()
+                .map(CalculatedFeeDetail::detail)
+                .toList());
+        if (!DISPUTE_FEE.equals(feeCategory)) {
+            detailRows.add(statusDetail(DISPUTE_FEE, NOT_APPLICABLE));
+        }
+        if (settlementFxStatusDetail != null) {
+            detailRows.add(settlementFxStatusDetail);
+        }
+        detailRows.add(reserveDetail(request, response));
+        for (int index = 0; index < detailRows.size(); index++) {
+            detailRows.get(index).setLineNo(index + 1);
+        }
+        response.setFeeDetails(detailRows);
+        String simulationNo = generateCode("FS");
+        response.setSimulationNo(simulationNo);
+        response.setPlanVersionId(version.getId());
+        response.setSettlementRateId(resolvedRate.businessRateId());
+        response.setSettlementRateSource(resolvedRate.sourceCode());
+        response.setRateEffectiveTime(resolvedRate.effectiveTime());
+        response.setRateValuationTime(resolvedRate.valuationTime());
+        FeeSimulationRecordDO simulationRecord = toSimulationRecord(
+                simulationNo, version.getId(), request, response, resolvedRate, operatorId, operatorName);
+        simulationRecordMapper.insert(simulationRecord);
+        insertSimulationDetailSnapshots(simulationRecord, detailRows);
+        return response;
+    }
+
+    /**
+     * 匹配并计算一项基础费用或风控服务费，不产生独立审计记录。
+     */
+    private CalculatedFeeDetail calculateFeeDetail(FeeSimulationRequest sourceRequest,
+                                                   FeePlanVersionDO version,
+                                                   BigDecimal labelToUsdRate,
+                                                   String feeCategory,
+                                                   String riskServiceType,
+                                                   BigDecimal reserveRate) {
+        FeeRuleDO rule = resolveSimulationRule(version.getId(), sourceRequest, feeCategory, riskServiceType);
+        List<FeeRuleTierDO> tiers = tierMapper.selectList(Wrappers.<FeeRuleTierDO>lambdaQuery()
+                .eq(FeeRuleTierDO::getFeeRuleId, rule.getId())
+                .eq(FeeRuleTierDO::getDeleted, NOT_DELETED)
+                .orderByAsc(FeeRuleTierDO::getLowerBound));
+        FeeSimulationRequest calculationRequest = copySimulationRequest(
+                sourceRequest, feeCategory, riskServiceType);
+        FeeSimulationResponse calculated;
+        try {
+            calculated = simulationCalculator.calculate(
+                    calculationRequest, rule, tiers, labelToUsdRate, reserveRate);
+        } catch (IllegalArgumentException exception) {
+            throw invalid(exception.getMessage());
+        }
+        FeeSimulationDetailResponse detail = new FeeSimulationDetailResponse();
+        detail.setFeeCategory(feeCategory);
+        detail.setRiskServiceType(riskServiceType);
+        detail.setChargeTrigger(rule.getChargeTrigger());
+        detail.setRuleName(rule.getRuleName());
+        detail.setFeeMode(rule.getFeeMode());
+        detail.setMatchedRuleId(calculated.getMatchedRuleId());
+        detail.setMatchedTierId(calculated.getMatchedTierId());
+        detail.setPercentageFeeLabel(calculated.getPercentageFeeLabel());
+        detail.setPercentageFeeCurrency(calculated.getPercentageFeeCurrency());
+        detail.setRawFeeUsd(calculated.getRawFeeUsd());
+        detail.setFinalFeeUsd(calculated.getFinalFeeUsd());
+        detail.setAppliedLimit(calculated.getAppliedLimit());
+        detail.setFormulaSnapshot(calculated.getFormulaSnapshot());
+        return new CalculatedFeeDetail(detail, calculated);
+    }
+
+    /** 匹配版本级结算货币兑换费；未配置时返回空，由明细状态明确说明。 */
+    private CalculatedFeeDetail calculateOptionalSettlementFxFeeDetail(FeeSimulationRequest sourceRequest,
+                                                                       FeePlanVersionDO version,
+                                                                       BigDecimal labelToUsdRate) {
+        FeeRuleDO rule = findSettlementFxRule(version.getId());
+        if (rule == null) {
+            return null;
+        }
+        List<FeeRuleTierDO> tiers = tierMapper.selectList(Wrappers.<FeeRuleTierDO>lambdaQuery()
+                .eq(FeeRuleTierDO::getFeeRuleId, rule.getId())
+                .eq(FeeRuleTierDO::getDeleted, NOT_DELETED)
+                .orderByAsc(FeeRuleTierDO::getLowerBound));
+        FeeSimulationRequest calculationRequest = copySimulationRequest(
+                sourceRequest, SETTLEMENT_FX_FEE, NONE);
+        FeeSimulationResponse calculated;
+        try {
+            calculated = simulationCalculator.calculate(
+                    calculationRequest, rule, tiers, labelToUsdRate, BigDecimal.ZERO);
+        } catch (IllegalArgumentException exception) {
+            throw invalid(exception.getMessage());
+        }
+        FeeSimulationDetailResponse detail = toCalculatedDetail(SETTLEMENT_FX_FEE, NONE, rule, calculated);
+        return new CalculatedFeeDetail(detail, calculated);
+    }
+
+    private FeeSimulationDetailResponse toCalculatedDetail(String feeCategory,
+                                                           String riskServiceType,
+                                                           FeeRuleDO rule,
+                                                           FeeSimulationResponse calculated) {
+        FeeSimulationDetailResponse detail = new FeeSimulationDetailResponse();
+        detail.setFeeCategory(feeCategory);
+        detail.setRiskServiceType(riskServiceType);
+        detail.setChargeTrigger(rule.getChargeTrigger());
+        detail.setRuleName(rule.getRuleName());
+        detail.setFeeMode(rule.getFeeMode());
+        detail.setMatchedRuleId(calculated.getMatchedRuleId());
+        detail.setMatchedTierId(calculated.getMatchedTierId());
+        detail.setPercentageFeeLabel(calculated.getPercentageFeeLabel());
+        detail.setPercentageFeeCurrency(calculated.getPercentageFeeCurrency());
+        detail.setRawFeeUsd(calculated.getRawFeeUsd());
+        detail.setFinalFeeUsd(calculated.getFinalFeeUsd());
+        detail.setAppliedLimit(calculated.getAppliedLimit());
+        detail.setFormulaSnapshot(calculated.getFormulaSnapshot());
+        return detail;
+    }
+
+    /** 按费用分类、风控服务和交易维度解析唯一适用规则。 */
+    private FeeRuleDO resolveSimulationRule(Long versionId,
+                                            FeeSimulationRequest request,
+                                            String feeCategory,
+                                            String riskServiceType) {
+        FeeRuleDO rule = findSimulationRule(versionId, request, feeCategory, riskServiceType);
+        if (rule == null) {
+            throw conflict("当前版本未匹配到费用规则");
+        }
+        return rule;
+    }
+
+    private FeeRuleDO findSimulationRule(Long versionId,
+                                         FeeSimulationRequest request,
+                                         String feeCategory,
+                                         String riskServiceType) {
         List<FeeRuleDO> candidates = ruleMapper.selectList(Wrappers.<FeeRuleDO>lambdaQuery()
-                .eq(FeeRuleDO::getPlanVersionId, version.getId())
+                .eq(FeeRuleDO::getPlanVersionId, versionId)
                 .eq(FeeRuleDO::getFeeCategory, feeCategory)
                 .eq(FeeRuleDO::getRiskServiceType, riskServiceType)
                 .eq(FeeRuleDO::getTransactionType, upper(request.getTransactionType()))
@@ -544,34 +914,165 @@ public class AdminFeeServiceImpl implements AdminFeeService {
                 .orderByAsc(FeeRuleDO::getSortNo)
                 .orderByAsc(FeeRuleDO::getId));
         String method = upper(request.getPaymentMethod());
-        FeeRuleDO rule = candidates.stream()
+        return candidates.stream()
+                .filter(item -> feeCategory.equals(upper(item.getFeeCategory())))
+                .filter(item -> riskServiceType.equals(upper(item.getRiskServiceType())))
+                .filter(item -> upper(request.getTransactionType()).equals(upper(item.getTransactionType())))
+                .filter(item -> upper(request.getPaymentType()).equals(upper(item.getPaymentType())))
                 .filter(item -> method.equals(item.getPaymentMethod()))
                 .findFirst()
-                .or(() -> candidates.stream().filter(item -> "ALL".equals(item.getPaymentMethod())).findFirst())
-                .orElseThrow(() -> conflict("当前版本未匹配到费用规则"));
-        List<FeeRuleTierDO> tiers = tierMapper.selectList(Wrappers.<FeeRuleTierDO>lambdaQuery()
-                .eq(FeeRuleTierDO::getFeeRuleId, rule.getId())
-                .eq(FeeRuleTierDO::getDeleted, NOT_DELETED)
-                .orderByAsc(FeeRuleTierDO::getLowerBound));
-        ResolvedSettlementRate resolvedRate = settlementRateResolver.resolve(
-                request.getLabelCurrency(), LocalDateTime.now());
-        FeeSimulationResponse response;
-        try {
-            response = simulationCalculator.calculate(request, rule, tiers, resolvedRate.rate(),
-                    version.getReserveRate());
-        } catch (IllegalArgumentException exception) {
-            throw invalid(exception.getMessage());
+                .or(() -> candidates.stream()
+                        .filter(item -> feeCategory.equals(upper(item.getFeeCategory())))
+                        .filter(item -> riskServiceType.equals(upper(item.getRiskServiceType())))
+                        .filter(item -> upper(request.getTransactionType()).equals(upper(item.getTransactionType())))
+                        .filter(item -> upper(request.getPaymentType()).equals(upper(item.getPaymentType())))
+                        .filter(item -> ALL.equals(upper(item.getPaymentMethod())))
+                        .findFirst())
+                .orElse(null);
+    }
+
+    /** 结算货币兑换费是版本级规则，不参与交易类型、支付类型和支付方式匹配。 */
+    private FeeRuleDO findSettlementFxRule(Long versionId) {
+        return ruleMapper.selectList(Wrappers.<FeeRuleDO>lambdaQuery()
+                        .eq(FeeRuleDO::getPlanVersionId, versionId)
+                        .eq(FeeRuleDO::getFeeCategory, SETTLEMENT_FX_FEE)
+                        .eq(FeeRuleDO::getRiskServiceType, NONE)
+                        .eq(FeeRuleDO::getDeleted, NOT_DELETED)
+                        .orderByAsc(FeeRuleDO::getSortNo)
+                        .orderByAsc(FeeRuleDO::getId)).stream()
+                .filter(item -> SETTLEMENT_FX_FEE.equals(upper(item.getFeeCategory())))
+                .filter(item -> NONE.equals(upper(item.getRiskServiceType())))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** 兼容旧版单选字段，并按选择顺序去重、校验风控服务。 */
+    private List<String> selectedRiskServiceTypes(FeeSimulationRequest request, String feeCategory) {
+        List<String> requested = request.getRiskServiceTypes();
+        if (requested == null || requested.isEmpty()) {
+            return RISK_FEE.equals(feeCategory)
+                    ? List.of(normalizeSimulationRiskServiceType(feeCategory, request.getRiskServiceType()))
+                    : List.of();
         }
-        String simulationNo = generateCode("FS");
-        response.setSimulationNo(simulationNo);
-        response.setPlanVersionId(version.getId());
-        response.setSettlementRateId(resolvedRate.businessRateId());
-        response.setSettlementRateSource(resolvedRate.sourceCode());
-        response.setRateEffectiveTime(resolvedRate.effectiveTime());
-        response.setRateValuationTime(resolvedRate.valuationTime());
-        simulationRecordMapper.insert(toSimulationRecord(
-                simulationNo, version.getId(), request, response, resolvedRate, operatorId, operatorName));
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String requestedType : requested) {
+            String riskServiceType = upper(requestedType);
+            if (!RISK_SERVICE_TYPES.contains(riskServiceType)) {
+                throw invalid("风控手续费试算只支持内风控、外风控或3DS");
+            }
+            normalized.add(riskServiceType);
+        }
+        return new ArrayList<>(normalized);
+    }
+
+    /** 为单项计算复制输入，避免在聚合编排中修改原始请求。 */
+    private FeeSimulationRequest copySimulationRequest(FeeSimulationRequest source,
+                                                       String feeCategory,
+                                                       String riskServiceType) {
+        FeeSimulationRequest target = new FeeSimulationRequest();
+        target.setMerchantId(source.getMerchantId());
+        target.setFeeCategory(feeCategory);
+        target.setTransactionType(source.getTransactionType());
+        target.setPaymentType(source.getPaymentType());
+        target.setPaymentMethod(source.getPaymentMethod());
+        target.setRiskServiceType(riskServiceType);
+        target.setLabelAmount(source.getLabelAmount());
+        target.setLabelCurrency(source.getLabelCurrency());
+        target.setMonthlyCountBefore(source.getMonthlyCountBefore());
+        target.setMonthlyAmountUsdBefore(source.getMonthlyAmountUsdBefore());
+        return target;
+    }
+
+    /** 使用 DECIMAL128 汇总各项费用，保证金只取基础费用计算结果。 */
+    private FeeSimulationResponse aggregateSimulationResponse(List<CalculatedFeeDetail> calculatedDetails) {
+        if (calculatedDetails.isEmpty()) {
+            throw invalid("费用试算至少需要一项费用");
+        }
+        CalculatedFeeDetail primary = calculatedDetails.get(0);
+        BigDecimal percentageFeeLabel = BigDecimal.ZERO;
+        BigDecimal rawFeeUsd = BigDecimal.ZERO;
+        BigDecimal finalFeeUsd = BigDecimal.ZERO;
+        for (CalculatedFeeDetail item : calculatedDetails) {
+            percentageFeeLabel = percentageFeeLabel.add(
+                    zero(item.calculated().getPercentageFeeLabel()), CALCULATION_CONTEXT);
+            rawFeeUsd = rawFeeUsd.add(zero(item.detail().getRawFeeUsd()), CALCULATION_CONTEXT);
+            finalFeeUsd = finalFeeUsd.add(zero(item.detail().getFinalFeeUsd()), CALCULATION_CONTEXT);
+        }
+        BigDecimal reserveAmountUsd = zero(primary.calculated().getReserveAmountUsd());
+        FeeSimulationResponse response = new FeeSimulationResponse();
+        response.setMatchedRuleId(primary.detail().getMatchedRuleId());
+        response.setMatchedTierId(primary.detail().getMatchedTierId());
+        response.setPercentageFeeLabel(percentageFeeLabel);
+        response.setPercentageFeeCurrency(primary.calculated().getPercentageFeeCurrency());
+        response.setRawFeeUsd(rawFeeUsd);
+        response.setFinalFeeUsd(finalFeeUsd);
+        response.setLabelAmountUsd(primary.calculated().getLabelAmountUsd());
+        response.setReserveRate(primary.calculated().getReserveRate());
+        response.setReserveAmountLabel(primary.calculated().getReserveAmountLabel());
+        response.setReserveAmountCurrency(primary.calculated().getReserveAmountCurrency());
+        response.setReserveAmountUsd(reserveAmountUsd);
+        response.setEstimatedNetSettlementUsd(primary.calculated().getLabelAmountUsd()
+                .subtract(finalFeeUsd, CALCULATION_CONTEXT)
+                .subtract(reserveAmountUsd, CALCULATION_CONTEXT));
+        response.setAppliedLimit(primary.detail().getAppliedLimit());
+        response.setLabelToUsdRate(primary.calculated().getLabelToUsdRate());
+        String feeTotalFormula = calculatedDetails.stream()
+                .map(item -> "USD " + decimalText(item.detail().getFinalFeeUsd()))
+                .collect(Collectors.joining(" + "))
+                + " = USD " + decimalText(finalFeeUsd);
+        String netSettlementFormula = "USD " + decimalText(response.getLabelAmountUsd())
+                + " - USD " + decimalText(finalFeeUsd)
+                + " - USD " + decimalText(reserveAmountUsd)
+                + " = USD " + decimalText(response.getEstimatedNetSettlementUsd());
+        response.setFormulaSnapshot(feeTotalFormula);
+        response.setFeeTotalFormulaSnapshot(feeTotalFormula);
+        response.setNetSettlementFormulaSnapshot(netSettlementFormula);
         return response;
+    }
+
+    private FeeSimulationDetailResponse statusDetail(String feeCategory, String calculationStatus) {
+        FeeSimulationDetailResponse detail = new FeeSimulationDetailResponse();
+        detail.setItemType(FEE);
+        detail.setFeeCategory(feeCategory);
+        detail.setRiskServiceType(NONE);
+        detail.setCalculationStatus(calculationStatus);
+        detail.setIncludedInFeeTotal(false);
+        detail.setChargeTrigger(NOT_APPLICABLE);
+        return detail;
+    }
+
+    private FeeSimulationDetailResponse reserveDetail(FeeSimulationRequest request,
+                                                      FeeSimulationResponse response) {
+        FeeSimulationDetailResponse detail = new FeeSimulationDetailResponse();
+        detail.setItemType(RESERVE);
+        detail.setFeeCategory(RESERVE);
+        detail.setRiskServiceType(NONE);
+        detail.setCalculationStatus(CALCULATED);
+        detail.setIncludedInFeeTotal(false);
+        detail.setChargeTrigger(NOT_APPLICABLE);
+        detail.setRuleName("滚动保证金");
+        detail.setFeeMode("STANDARD");
+        detail.setRawFeeUsd(response.getReserveAmountUsd());
+        detail.setFinalFeeUsd(response.getReserveAmountUsd());
+        String labelCurrency = upper(response.getReserveAmountCurrency());
+        StringBuilder formula = new StringBuilder(labelCurrency)
+                .append(" ").append(decimalText(request.getLabelAmount()))
+                .append(" * ").append(decimalText(response.getReserveRate())).append("%");
+        if (!"USD".equals(labelCurrency)) {
+            formula.append(" * (").append(labelCurrency).append("转USD结算汇率 ")
+                    .append(rateText(response.getLabelToUsdRate())).append(")");
+        }
+        formula.append(" = USD ").append(decimalText(response.getReserveAmountUsd()));
+        detail.setFormulaSnapshot(formula.toString());
+        return detail;
+    }
+
+    private String decimalText(BigDecimal value) {
+        return zero(value).setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private String rateText(BigDecimal value) {
+        return zero(value).stripTrailingZeros().toPlainString();
     }
 
     /** {@inheritDoc} */
@@ -591,8 +1092,30 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
         Page<FeeSimulationRecordDO> page = simulationRecordMapper.selectPage(
                 new Page<>(query.safePageNo(), query.safePageSize()), wrapper);
+        List<Long> recordIds = page.getRecords().stream()
+                .map(FeeSimulationRecordDO::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        Map<Long, List<FeeSimulationRecordDetailDO>> detailsByRecordId = new HashMap<>();
+        if (!recordIds.isEmpty()) {
+            List<FeeSimulationRecordDetailDO> details = simulationRecordDetailMapper.selectList(
+                    Wrappers.<FeeSimulationRecordDetailDO>lambdaQuery()
+                            .in(FeeSimulationRecordDetailDO::getSimulationRecordId, recordIds)
+                            .orderByAsc(FeeSimulationRecordDetailDO::getSimulationRecordId)
+                            .orderByAsc(FeeSimulationRecordDetailDO::getLineNo));
+            if (details != null) {
+                detailsByRecordId = details.stream().collect(Collectors.groupingBy(
+                        FeeSimulationRecordDetailDO::getSimulationRecordId,
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+            }
+        }
+        Map<Long, List<FeeSimulationRecordDetailDO>> detailSnapshots = detailsByRecordId;
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(),
-                page.getRecords().stream().map(this::toSimulationRecordResponse).toList());
+                page.getRecords().stream()
+                        .map(row -> toSimulationRecordResponse(
+                                row, detailSnapshots.getOrDefault(row.getId(), List.of())))
+                        .toList());
     }
 
     private FeePlanDO createMerchantPlan(BaseMerchantInfoDO merchant,
@@ -902,7 +1425,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         }
         String category = upper(rule.getFeeCategory());
         if (!Set.of("TRANSACTION_FEE", "REFUND_FEE", RISK_FEE,
-                "DISPUTE_FEE", SETTLEMENT_FX_FEE).contains(category)) {
+                DISPUTE_FEE, SETTLEMENT_PROCESSING_FEE, SETTLEMENT_FX_FEE).contains(category)) {
             throw invalid("不支持的费用分类");
         }
         rule.setFeeCategory(category);
@@ -1554,6 +2077,7 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         record.setLabelAmount(request.getLabelAmount());
         record.setLabelCurrency(upper(request.getLabelCurrency()));
         record.setLabelToUsdRate(resolvedRate.rate());
+        record.setLabelAmountUsd(response.getLabelAmountUsd());
         record.setSettlementRateId(resolvedRate.businessRateId());
         record.setSettlementRateSource(resolvedRate.sourceCode());
         record.setRateEffectiveTime(resolvedRate.effectiveTime());
@@ -1565,16 +2089,47 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         record.setPercentageFeeLabel(response.getPercentageFeeLabel());
         record.setRawFeeUsd(response.getRawFeeUsd());
         record.setFinalFeeUsd(response.getFinalFeeUsd());
+        record.setReserveRate(response.getReserveRate());
         record.setReserveAmountUsd(response.getReserveAmountUsd());
         record.setEstimatedNetSettlementUsd(response.getEstimatedNetSettlementUsd());
         record.setFormulaSnapshot(response.getFormulaSnapshot());
+        record.setNetSettlementFormulaSnapshot(response.getNetSettlementFormulaSnapshot());
         record.setOperatorId(operatorId);
         record.setOperatorName(operatorName);
         record.setCreateTime(LocalDateTime.now());
         return record;
     }
 
-    private FeeSimulationRecordResponse toSimulationRecordResponse(FeeSimulationRecordDO row) {
+    private void insertSimulationDetailSnapshots(FeeSimulationRecordDO simulationRecord,
+                                                 List<FeeSimulationDetailResponse> details) {
+        for (FeeSimulationDetailResponse detail : details) {
+            FeeSimulationRecordDetailDO row = new FeeSimulationRecordDetailDO();
+            row.setSimulationRecordId(simulationRecord.getId());
+            row.setLineNo(detail.getLineNo());
+            row.setItemType(detail.getItemType());
+            row.setFeeCategory(detail.getFeeCategory());
+            row.setRiskServiceType(detail.getRiskServiceType());
+            row.setCalculationStatus(detail.getCalculationStatus());
+            row.setIncludedInFeeTotal(detail.isIncludedInFeeTotal() ? 1 : 0);
+            row.setChargeTrigger(detail.getChargeTrigger());
+            row.setRuleName(detail.getRuleName());
+            row.setFeeMode(detail.getFeeMode());
+            row.setMatchedRuleId(detail.getMatchedRuleId());
+            row.setMatchedTierId(detail.getMatchedTierId());
+            row.setPercentageFeeLabel(detail.getPercentageFeeLabel());
+            row.setPercentageFeeCurrency(detail.getPercentageFeeCurrency());
+            row.setRawFeeUsd(detail.getRawFeeUsd());
+            row.setFinalFeeUsd(detail.getFinalFeeUsd());
+            row.setAppliedLimit(detail.getAppliedLimit());
+            row.setFormulaSnapshot(detail.getFormulaSnapshot());
+            row.setCreateTime(simulationRecord.getCreateTime());
+            simulationRecordDetailMapper.insert(row);
+        }
+    }
+
+    private FeeSimulationRecordResponse toSimulationRecordResponse(
+            FeeSimulationRecordDO row,
+            List<FeeSimulationRecordDetailDO> detailRows) {
         FeeSimulationRecordResponse response = new FeeSimulationRecordResponse();
         response.setId(row.getId());
         response.setSimulationNo(row.getSimulationNo());
@@ -1588,17 +2143,68 @@ public class AdminFeeServiceImpl implements AdminFeeService {
         response.setLabelAmount(row.getLabelAmount());
         response.setLabelCurrency(row.getLabelCurrency());
         response.setLabelToUsdRate(row.getLabelToUsdRate());
+        response.setLabelAmountUsd(row.getLabelAmountUsd());
         response.setSettlementRateId(row.getSettlementRateId());
         response.setSettlementRateSource(row.getSettlementRateSource());
         response.setRateEffectiveTime(row.getRateEffectiveTime());
         response.setRateValuationTime(row.getRateValuationTime());
         response.setMatchedRuleId(row.getMatchedRuleId());
         response.setMatchedTierId(row.getMatchedTierId());
+        response.setRawFeeUsd(row.getRawFeeUsd());
         response.setFinalFeeUsd(row.getFinalFeeUsd());
+        response.setReserveRate(row.getReserveRate());
+        response.setReserveAmountLabel(TRANSACTION_FEE.equals(upper(row.getFeeCategory()))
+                ? zero(row.getLabelAmount())
+                        .multiply(zero(row.getReserveRate()), CALCULATION_CONTEXT)
+                        .divide(ONE_HUNDRED, CALCULATION_CONTEXT)
+                : BigDecimal.ZERO);
+        response.setReserveAmountCurrency(row.getLabelCurrency());
         response.setReserveAmountUsd(row.getReserveAmountUsd());
         response.setEstimatedNetSettlementUsd(row.getEstimatedNetSettlementUsd());
+        response.setFormulaSnapshot(row.getFormulaSnapshot());
+        response.setNetSettlementFormulaSnapshot(row.getNetSettlementFormulaSnapshot());
+        List<FeeSimulationDetailResponse> details = detailRows.stream()
+                .map(this::toSimulationDetailResponse)
+                .toList();
+        response.setFeeDetails(details);
+        if (details.isEmpty()) {
+            response.setDetailSnapshotStatus(DETAIL_LEGACY_INCOMPLETE);
+            if (RISK_SERVICE_TYPES.contains(upper(row.getRiskServiceType()))) {
+                response.setRiskServiceTypes(List.of(upper(row.getRiskServiceType())));
+            }
+        } else {
+            response.setDetailSnapshotStatus(DETAIL_COMPLETE);
+            response.setRiskServiceTypes(details.stream()
+                    .filter(detail -> RISK_FEE.equals(detail.getFeeCategory()))
+                    .map(FeeSimulationDetailResponse::getRiskServiceType)
+                    .filter(RISK_SERVICE_TYPES::contains)
+                    .distinct()
+                    .toList());
+        }
         response.setOperatorName(row.getOperatorName());
         response.setCreateTime(row.getCreateTime());
+        return response;
+    }
+
+    private FeeSimulationDetailResponse toSimulationDetailResponse(FeeSimulationRecordDetailDO row) {
+        FeeSimulationDetailResponse response = new FeeSimulationDetailResponse();
+        response.setLineNo(row.getLineNo());
+        response.setItemType(row.getItemType());
+        response.setFeeCategory(row.getFeeCategory());
+        response.setRiskServiceType(row.getRiskServiceType());
+        response.setCalculationStatus(row.getCalculationStatus());
+        response.setIncludedInFeeTotal(Objects.equals(row.getIncludedInFeeTotal(), 1));
+        response.setChargeTrigger(row.getChargeTrigger());
+        response.setRuleName(row.getRuleName());
+        response.setFeeMode(row.getFeeMode());
+        response.setMatchedRuleId(row.getMatchedRuleId());
+        response.setMatchedTierId(row.getMatchedTierId());
+        response.setPercentageFeeLabel(row.getPercentageFeeLabel());
+        response.setPercentageFeeCurrency(row.getPercentageFeeCurrency());
+        response.setRawFeeUsd(row.getRawFeeUsd());
+        response.setFinalFeeUsd(row.getFinalFeeUsd());
+        response.setAppliedLimit(row.getAppliedLimit());
+        response.setFormulaSnapshot(row.getFormulaSnapshot());
         return response;
     }
 
@@ -1808,8 +2414,20 @@ public class AdminFeeServiceImpl implements AdminFeeService {
     private record AtomicRuleDimension(String transactionType, String paymentType, String paymentMethod) {
     }
 
+    /** 聚合试算中的单项明细及其完整计算上下文。 */
+    private record CalculatedFeeDetail(FeeSimulationDetailResponse detail,
+                                       FeeSimulationResponse calculated) {
+    }
+
     /** 服务端内部原子规则，分组编码不接受外部请求赋值。 */
     private static final class ExpandedFeeRuleRequest extends FeeRuleRequest {
+        /**
+         * 规则分组编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private final String ruleGroupCode;
 
         private ExpandedFeeRuleRequest(String ruleGroupCode) {
@@ -1838,6 +2456,10 @@ public class AdminFeeServiceImpl implements AdminFeeService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private BigDecimal zero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private ServiceException invalid(String message) {

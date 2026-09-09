@@ -22,7 +22,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 渠道交易勾兑任务测试，验证默认跨季度回看和任务参数保护。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ChannelTransactionMatchJobTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 渠道交易勾兑任务测试，验证默认跨季度回看和任务参数保护。
+ * @status : create
  */
 class ChannelTransactionMatchJobTest {
 

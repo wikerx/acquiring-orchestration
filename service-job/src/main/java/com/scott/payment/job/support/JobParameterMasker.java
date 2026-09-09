@@ -31,11 +31,10 @@ public final class JobParameterMasker {
     );
 
     /**
-     * MASKED VALUE，用于保存 Job Parameter Masker 中与 maskedvalue 相关的业务属性。
+     * 脱敏值常量，统一 {@code JobParameterMasker} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String MASKED_VALUE = "******";

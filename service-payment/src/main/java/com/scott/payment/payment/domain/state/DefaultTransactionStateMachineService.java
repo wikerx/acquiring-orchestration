@@ -63,7 +63,7 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
      * @param sourceOrderDO 原交易生命周期主单
      * @param nextTransactionType 后续交易类型
      * @param requestAmount 本次请求金额
-     */
+    */
     @Override
     public void validateFollowUpAction(TransactionOrderDO sourceOrderDO,
                                        PaymentTransactionTypeEnum nextTransactionType,
@@ -130,33 +130,18 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
-    /**
-     * 校验positive金额输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param requestAmount 金额值，单位必须结合 currency 或同名币种字段解释
-     * @param nextTransactionType next Transaction Type 输入值，参与 next交易type 的查询、校验、转换、写入或日志摘要
-     */
     private void validatePositiveAmount(BigDecimal requestAmount, PaymentTransactionTypeEnum nextTransactionType) {
         if (requestAmount == null || requestAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), nextTransactionType.getCode() + " amount must be greater than zero");
         }
     }
 
-/**
- * 校验币种输入，发现缺失、越权或格式错误时中断当前流程。
- * <p>
- * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
- * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
- * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
- * </p>
- * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
- * @param requestCurrency 币种代码，格式为 ISO 4217 三位大写字母
- * @param nextTransactionType next Transaction Type 输入值，参与 next交易type 的查询、校验、转换、写入或日志摘要
- */
+    /**
+     * 校验后续动作币种与原交易币种一致。
+     * <p>
+     * 请款、退款和授权撤销只能在原交易币种口径下扣减可用金额，禁止在状态机层隐式换汇，
+     * 否则累计金额比较会失去同币种前提。
+     */
     private void validateCurrency(TransactionOrderDO sourceOrderDO,
                                   String requestCurrency,
                                   PaymentTransactionTypeEnum nextTransactionType) {
@@ -168,17 +153,16 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
-/**
- * 校验optional币种输入，发现缺失、越权或格式错误时中断当前流程。
- * <p>
- * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
- * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
- * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
- * </p>
- * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
- * @param requestCurrency 币种代码，格式为 ISO 4217 三位大写字母
- * @param nextTransactionType next Transaction Type 输入值，参与 next交易type 的查询、校验、转换、写入或日志摘要
- */
+    /**
+     * 校验可选后续动作币种；未传币种时沿用原交易币种口径。
+     *
+     * <p>调用方显式传入币种后必须与原交易币种一致，状态机层不执行隐式换汇，
+     * 从而保证退款等动作的可用金额比较始终建立在同币种基础上。</p>
+     *
+     * @param sourceOrderDO 原交易生命周期主单
+     * @param requestCurrency 可选的 ISO 4217 后续动作币种
+     * @param nextTransactionType 当前校验的后续交易类型
+     */
     private void validateOptionalCurrency(TransactionOrderDO sourceOrderDO,
                                           String requestCurrency,
                                           PaymentTransactionTypeEnum nextTransactionType) {
@@ -190,17 +174,6 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
-/**
- * 校验available金额输入，发现缺失、越权或格式错误时中断当前流程。
- * <p>
- * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
- * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
- * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
- * </p>
- * @param requestAmount 金额值，单位必须结合 currency 或同名币种字段解释
- * @param availableAmount 金额值，单位必须结合 currency 或同名币种字段解释
- * @param nextTransactionType next Transaction Type 输入值，参与 next交易type 的查询、校验、转换、写入或日志摘要
- */
     private void validateAvailableAmount(BigDecimal requestAmount,
                                          BigDecimal availableAmount,
                                          PaymentTransactionTypeEnum nextTransactionType) {
@@ -211,15 +184,6 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
-    /**
-     * 校验void金额输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
-     */
     private void validateVoidAmount(TransactionOrderDO sourceOrderDO) {
         BigDecimal capturedAmount = sourceOrderDO.getCapturedAmount() == null ? BigDecimal.ZERO : sourceOrderDO.getCapturedAmount();
         BigDecimal refundedAmount = sourceOrderDO.getRefundedAmount() == null ? BigDecimal.ZERO : sourceOrderDO.getRefundedAmount();

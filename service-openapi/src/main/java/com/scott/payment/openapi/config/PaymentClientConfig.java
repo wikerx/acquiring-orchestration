@@ -8,8 +8,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
 
 
-@Configuration
-@EnableConfigurationProperties({PaymentClientProperties.class, HostedCheckoutProperties.class})
 /**
  * @author : scott
  * @version : v1.0.0
@@ -19,6 +17,8 @@ import org.springframework.web.client.RestTemplate;
  * @description : Payment Client Config 配置类，位于 商户开放接口服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
+@Configuration
+@EnableConfigurationProperties({PaymentClientProperties.class, HostedCheckoutProperties.class})
 public class PaymentClientConfig {
 
     /**
@@ -30,7 +30,9 @@ public class PaymentClientConfig {
      * @return RestTemplate
      */
     @Bean("paymentRestTemplate")
-    public RestTemplate paymentRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
+    public RestTemplate paymentRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer,
+                                            PaymentClientProperties properties) {
+        properties.validate();
         return traceIdRestTemplateCustomizer.customize(new RestTemplate());
     }
 

@@ -1,7 +1,14 @@
 package com.scott.payment.risk.domain;
 
 /**
- * 风控对支付交易状态的只读查询结果。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentTransactionLookupResult
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控对支付交易状态的只读查询结果。
+ * @status : create
+ *
  *
  * @param availability 查询结果类型
  * @param paymentStatus payment 当前状态，仅 FOUND 时有值

@@ -82,14 +82,6 @@ class PaymentChannelRegistryTests {
 
     private static class StubChannelClient implements PaymentChannelClient {
 
-        /**
-         * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
         private final String channelCode;
 
         private StubChannelClient(String channelCode) {

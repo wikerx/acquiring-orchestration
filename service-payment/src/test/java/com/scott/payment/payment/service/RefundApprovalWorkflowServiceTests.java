@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
  * @version : v1.0.0
  * @classname : RefundApprovalWorkflowServiceTests
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款审批工作流行为测试，覆盖决策幂等、自审限制、动作 CAS 和执行 Outbox 原子编排。
  * @status : create
  */

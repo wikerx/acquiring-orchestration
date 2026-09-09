@@ -35,8 +35,29 @@ import java.util.Map;
 @Component
 public class OpenApiCallbackSecuritySupport {
 
+    /**
+     * {@code MAX_VERIFICATION_HEADER_COUNT}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_VERIFICATION_HEADER_COUNT = 32;
+    /**
+     * {@code MAX_VERIFICATION_HEADER_NAME_LENGTH}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_VERIFICATION_HEADER_NAME_LENGTH = 128;
+    /**
+     * {@code MAX_VERIFICATION_HEADER_VALUE_LENGTH}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MAX_VERIFICATION_HEADER_VALUE_LENGTH = 4096;
 
     /**
@@ -390,20 +411,6 @@ public class OpenApiCallbackSecuritySupport {
         return channelCode == null ? null : channelCode.trim().toUpperCase(Locale.ROOT);
     }
 
-/**
- * 记录andreturnopenapi异常，写入安全、审计或链路排障所需的脱敏上下文。
- * <p>
- * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
- * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param eventType event Type 输入值，参与 eventtype 的查询、校验、转换、写入或日志摘要
- * @param riskLevel risk Level 输入值，参与 风控level 的查询、校验、转换、写入或日志摘要
- * @param hitRuleCode hit Rule Code 输入值，参与 hit规则编码 的查询、校验、转换、写入或日志摘要
- * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
- * @return 方法执行后的业务结果、更新行数、转换对象或空结果
- */
     private ApiException recordAndReturnOpenApiException(HttpServletRequest request,
                                                          String eventType,
                                                          String riskLevel,
@@ -423,20 +430,6 @@ public class OpenApiCallbackSecuritySupport {
         return exception;
     }
 
-/**
- * 记录andreturn渠道异常，写入安全、审计或链路排障所需的脱敏上下文。
- * <p>
- * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
- * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param eventType event Type 输入值，参与 eventtype 的查询、校验、转换、写入或日志摘要
- * @param riskLevel risk Level 输入值，参与 风控level 的查询、校验、转换、写入或日志摘要
- * @param hitRuleCode hit Rule Code 输入值，参与 hit规则编码 的查询、校验、转换、写入或日志摘要
- * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
- * @return 方法执行后的业务结果、更新行数、转换对象或空结果
- */
     private ApiException recordAndReturnChannelException(HttpServletRequest request,
                                                          String eventType,
                                                          String riskLevel,

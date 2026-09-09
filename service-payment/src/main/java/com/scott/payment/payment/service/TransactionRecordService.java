@@ -14,6 +14,7 @@ import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -124,6 +125,17 @@ public interface TransactionRecordService {
             String transactionId,
             LocalDateTime transactionDateTime) {
         return null;
+    }
+
+    /**
+     * 按一次查询涉及的生命周期动作批量读取支付工具脱敏摘要，避免逐动作访问数据库。
+     *
+     * @param operations 已按生命周期查询出的交易动作
+     * @return 以 transactionId 为键的支付工具摘要；没有数据时返回空 Map
+     */
+    default Map<String, TransactionPaymentMethodInfoDO> findPaymentMethodInfos(
+            List<TransactionOperationDO> operations) {
+        return Map.of();
     }
 
     /**
@@ -273,7 +285,7 @@ public interface TransactionRecordService {
      * 查询同一授权生命周期下结果尚未明确的 Incremental Authorization 动作。
      * <p>
      * PROCESSING/PENDING/UNKNOWN 等价未确认增量授权可能已经被渠道受理；恢复为 SUCCESS/FAILED 前必须阻断新的
-     * Incremental Authorization，避免 timeout/unknown 重试导致重复增加授权金额。
+     * 增量授权幂等口径，避免超时或结果未知后的重试重复增加授权金额。
      *
      * @param merchantId  平台商户号
      * @param operationId 平台内部生命周期关联标识

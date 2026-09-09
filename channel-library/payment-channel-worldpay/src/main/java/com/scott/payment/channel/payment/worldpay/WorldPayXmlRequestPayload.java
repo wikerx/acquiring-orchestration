@@ -17,46 +17,46 @@ import java.time.LocalDate;
 public class WorldPayXmlRequestPayload {
 
     /**
-     * WPG XML 接口版本。
+     * 版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
      * <p>
-     * 单位：无；格式：Worldpay DTD 版本字符串，默认 1.4；非敏感字段；不允许为空。
-     * 数据来源：MID 扩展配置 mid.version 或系统默认值。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private String version;
 
     /**
-     * Worldpay XML 商户编码。
+     * 商户编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
      * <p>
-     * 单位：无；格式：Worldpay merchantCode；非敏感但属于商户配置字段；不允许为空。
-     * 数据来源：后台渠道 MID 配置，必须与 Basic Auth 凭据匹配。
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private String merchantCode;
 
     /**
-     * WPG submit 请求节点，支付、授权和预授权首笔交易使用。
+     * 提交字段，保存 {@code WorldPayXmlRequestPayload} 当前处理所需的业务取值。
      * <p>
-     * 单位：无；格式：对象；首笔交易不允许为空；包含 order 节点和卡支付明细。
-     * 数据来源：平台交易类型映射结果；与 modify、inquiry 三者在同一个请求中只应出现一种。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private Submit submit;
 
     /**
-     * WPG modify 请求节点，请款、退款、撤销和冲正后续动作使用。
+     * {@code modify}字段，保存 {@code WorldPayXmlRequestPayload} 当前处理所需的业务取值。
      * <p>
-     * 单位：无；格式：对象；后续交易不允许为空；不包含 PAN/CVC。
-     * 数据来源：平台后续动作请求；与 submit、inquiry 三者在同一个请求中只应出现一种。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private Modify modify;
 
     /**
-     * WPG inquiry 请求节点，交易查询和勾兑使用。
+     * {@code inquiry}字段，保存 {@code WorldPayXmlRequestPayload} 当前处理所需的业务取值。
      * <p>
-     * 单位：无；格式：对象；查询交易不允许为空；不包含金额和敏感卡数据。
-     * 数据来源：平台查询请求；与 submit、modify 三者在同一个请求中只应出现一种。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     private Inquiry inquiry;
@@ -74,10 +74,10 @@ public class WorldPayXmlRequestPayload {
     public static class Submit {
 
         /**
-         * 首笔交易订单节点。
+         * 订单字段，保存 提交 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：对象；submit 请求不允许为空；封装 orderCode、金额、支付明细和消费者摘要。
-         * 数据来源：WorldPayXmlRequestMapper 根据平台统一渠道请求组装。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private Order order;
@@ -96,10 +96,10 @@ public class WorldPayXmlRequestPayload {
     public static class Order {
 
         /**
-         * Worldpay orderCode，通常使用平台渠道订单号或平台交易号。
+         * 订单编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
-         * 单位：无；格式：Worldpay 允许的订单编号文本；不允许为空；非敏感字段。
-         * 数据来源：channelOrderNo 或 transactionId；用于后续请款、退款、撤销、查询和回调匹配。
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String orderCode;
@@ -123,10 +123,11 @@ public class WorldPayXmlRequestPayload {
         private String description;
 
         /**
-         * 订单金额，value 为最小辅币单位。
+         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：由 amount.currencyCode 与 amount.exponent 决定；格式：对象；金额类首笔交易不允许为空；非敏感字段。
-         * 数据来源：平台交易金额转换结果；必须与 transaction currency 保持一致。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private Amount amount;
@@ -141,10 +142,10 @@ public class WorldPayXmlRequestPayload {
         private String orderContent;
 
         /**
-         * 支付明细节点，当前支持 CARD-SSL。
+         * {@code paymentDetails}字段，保存 订单 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：对象；首笔卡交易不允许为空；包含 PAN、CVC、有效期、会话和 3DS 信息。
-         * 数据来源：商户请求解密后的内存卡信息；高敏字段禁止日志明文输出。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private PaymentDetails paymentDetails;
@@ -181,10 +182,10 @@ public class WorldPayXmlRequestPayload {
     public static class PaymentDetails {
 
         /**
-         * CARD-SSL 明文卡支付节点。
+         * {@code cardSsl}字段，保存 {@code PaymentDetails} 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：对象；首笔卡交易不允许为空；包含 PAN、有效期、持卡人姓名、CVC 和账单地址。
-         * 数据来源：平台统一渠道请求；节点内高敏字段只允许当前渠道请求内短暂使用。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private CardSsl cardSsl;
@@ -221,19 +222,19 @@ public class WorldPayXmlRequestPayload {
     public static class CardSsl {
 
         /**
-         * 完整 PAN 卡号。
+         * 卡编号，表示银行卡号或脱敏卡号字段。
          * <p>
-         * 高敏感字段；格式：银行卡号数字串；不允许为空；数据来源：商户 OpenAPI 明文解密后的内存请求。
-         * 禁止入库、禁止日志明文、禁止异常消息输出。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；银行卡敏感字段，只允许脱敏或摘要化使用。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String cardNumber;
 
         /**
-         * 卡有效期。
+         * 有效期日期字段，保存 {@code CardSsl} 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：month 两位、year 四位；不允许为空；非敏感认证辅助字段。
-         * 数据来源：商户交易请求；与 cardNumber 共同描述支付卡。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private ExpiryDate expiryDate;
@@ -248,10 +249,10 @@ public class WorldPayXmlRequestPayload {
         private String cardHolderName;
 
         /**
-         * CVC/CVV 安全码。
+         * {@code cvc}，表示卡组织或 3DS 认证链路使用的安全认证值。
          * <p>
-         * 高敏感认证数据；格式：3 到 4 位数字；不允许为空；数据来源：商户交易请求。
-         * 禁止入库、禁止日志明文、禁止写入异常消息。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String cvc;
@@ -279,19 +280,19 @@ public class WorldPayXmlRequestPayload {
     public static class ExpiryDate {
 
         /**
-         * 卡有效期月份。
+         * {@code month}字段，保存 有效期日期 当前处理所需的业务取值。
          * <p>
-         * 单位：月；格式：两位数字 01 至 12；不允许为空；非敏感字段。
-         * 数据来源：商户交易请求 expirationMonth；与 year 共同组成卡有效期。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String month;
 
         /**
-         * 卡有效期年份。
+         * 年份字段，保存 有效期日期 当前处理所需的业务取值。
          * <p>
-         * 单位：年；格式：四位数字；不允许为空；非敏感字段。
-         * 数据来源：商户交易请求 expirationYear；两位年份会归一为 20xx。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String year;
@@ -541,10 +542,10 @@ public class WorldPayXmlRequestPayload {
     public static class Modify {
 
         /**
-         * 订单修改节点。
+         * {@code orderModification}字段，保存 {@code Modify} 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：对象；modify 请求不允许为空；包含原 orderCode 和单一后续动作。
-         * 数据来源：平台请款、退款、撤销或冲正请求。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private OrderModification orderModification;
@@ -563,37 +564,37 @@ public class WorldPayXmlRequestPayload {
     public static class OrderModification {
 
         /**
-         * 原 Worldpay orderCode。
+         * 订单编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
-         * 单位：无；格式：Worldpay 原订单号；后续动作不允许为空；非敏感字段。
-         * 数据来源：sourceOrderCode、worldpayOrderCode、channelOrderNo 或原交易号；用于定位首笔交易。
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String orderCode;
 
         /**
-         * 请款动作节点。
+         * 请款字段，保存 {@code OrderModification} 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：对象；请款或预授权完成时不允许为空；非敏感字段。
-         * 数据来源：平台请款动作；与 refund、cancel 互斥。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private Capture capture;
 
         /**
-         * 退款动作节点。
+         * 退款字段，保存 {@code OrderModification} 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：对象；退款时不允许为空；非敏感字段。
-         * 数据来源：平台退款动作；与 capture、cancel 互斥。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private Refund refund;
 
         /**
-         * 撤销动作节点。
+         * {@code cancel}字段，保存 {@code OrderModification} 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：空节点；撤销或冲正时不允许为空；非敏感字段。
-         * 数据来源：平台撤销/冲正动作；与 capture、refund 互斥。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private Cancel cancel;
@@ -612,19 +613,20 @@ public class WorldPayXmlRequestPayload {
     public static class Capture {
 
         /**
-         * 请款日期。
+         * 日期字段，保存 请款 当前处理所需的业务取值。
          * <p>
-         * 单位：日历日期；格式：dayOfMonth、month、year 三属性；不允许为空；非敏感字段。
-         * 数据来源：平台当前业务日期；与 amount 共同构成请款请求。
+         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private DateValue date;
 
         /**
-         * 请款金额。
+         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：最小辅币单位；格式：amount 对象；不允许为空；非敏感字段。
-         * 数据来源：平台请款金额和币种辅币位；不能超过授权可请款余额。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private Amount amount;
@@ -652,10 +654,11 @@ public class WorldPayXmlRequestPayload {
         private String reference;
 
         /**
-         * 退款金额。
+         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：最小辅币单位；格式：amount 对象并携带 debitCreditIndicator=credit；不允许为空；非敏感字段。
-         * 数据来源：平台退款金额和币种辅币位；不能超过原交易可退余额。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private Amount amount;
@@ -687,10 +690,10 @@ public class WorldPayXmlRequestPayload {
     public static class Inquiry {
 
         /**
-         * 订单查询节点。
+         * {@code orderInquiry}字段，保存 {@code Inquiry} 当前处理所需的业务取值。
          * <p>
-         * 单位：无；格式：对象；查询请求不允许为空；不包含敏感字段。
-         * 数据来源：平台查询动作；用于按原 Worldpay orderCode 查询订单状态。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private OrderInquiry orderInquiry;
@@ -709,10 +712,10 @@ public class WorldPayXmlRequestPayload {
     public static class OrderInquiry {
 
         /**
-         * 原 Worldpay orderCode。
+         * 订单编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
          * <p>
-         * 单位：无；格式：Worldpay 原订单号；查询请求不允许为空；非敏感字段。
-         * 数据来源：sourceOrderCode、worldpayOrderCode、channelOrderNo 或原交易号。
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private String orderCode;
@@ -740,19 +743,20 @@ public class WorldPayXmlRequestPayload {
         private long value;
 
         /**
-         * ISO 4217 三位币种代码。
+         * 币种编码，表示金额字段使用的币种。
          * <p>
-         * 单位：无；格式：三位大写 ISO 4217；金额类交易不允许为空；非敏感字段。
-         * 数据来源：平台交易币种；决定 value 的主币种还原方式。
+         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
          * </p>
          */
         private String currencyCode;
 
         /**
-         * 币种辅币位。
+         * 小数位字段，保存 金额 当前处理所需的业务取值。
          * <p>
-         * 单位：位；格式：0 至 9 的整数；金额类交易不允许为空；非敏感字段。
-         * 数据来源：currencyExponent 扩展或币种解析器；与 value、currencyCode 共同解释金额。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private int exponent;
@@ -780,28 +784,28 @@ public class WorldPayXmlRequestPayload {
     public static class DateValue {
 
         /**
-         * 月内日期。
+         * {@code dayOfMonth}字段，保存 日期值 当前处理所需的业务取值。
          * <p>
-         * 单位：日；格式：1 至 31 整数；不允许为空；非敏感字段。
-         * 数据来源：LocalDate；与 month、year 共同组成请款日期。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private int dayOfMonth;
 
         /**
-         * 月份。
+         * {@code month}字段，保存 日期值 当前处理所需的业务取值。
          * <p>
-         * 单位：月；格式：1 至 12 整数；不允许为空；非敏感字段。
-         * 数据来源：LocalDate；与 dayOfMonth、year 共同组成请款日期。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private int month;
 
         /**
-         * 年份。
+         * 年份字段，保存 日期值 当前处理所需的业务取值。
          * <p>
-         * 单位：年；格式：四位年份；不允许为空；非敏感字段。
-         * 数据来源：LocalDate；与 dayOfMonth、month 共同组成请款日期。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
          * </p>
          */
         private int year;

@@ -6,10 +6,18 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>service-payout</artifactId>
+    <name>service-payout</name>
+    <description>代付核心服务，拥有代付交易事实、状态机和代付渠道执行编排。</description>
+
+    <!--
+        本服务是代付交易事实的所有者，负责请求幂等、状态推进、渠道执行和结果落库。
+        不承载收单支付状态机，也不把具体渠道协议模型暴露给 OpenAPI 或其他业务服务。
+    -->
     <dependencies>
+        <!--服务注册和配置中心。-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -18,36 +26,43 @@
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
         </dependency>
+        <!--平台通用值对象、代付枚举、异常、响应和 ID。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--内部代付 API、参数校验和统一异常处理。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-web</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--代付交易事实、状态记录和渠道请求数据访问。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--代付幂等、并发控制和交易查询缓存。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-redis</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--代付状态事件和后续异步处理消息。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-mq</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--内部接口签名和敏感代付数据保护。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-security</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--代付渠道标准 SPI 和统一执行框架。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>payout-channel-api</artifactId>
@@ -62,6 +77,7 @@
 
     <build>
         <plugins>
+            <!--将服务及其运行时依赖重打包为可独立启动的 Spring Boot 制品。-->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

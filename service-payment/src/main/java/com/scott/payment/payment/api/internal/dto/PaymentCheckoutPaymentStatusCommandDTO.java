@@ -6,7 +6,13 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * Hosted Checkout 查询支付状态内部命令。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutPaymentStatusCommandDTO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 查询支付状态内部命令。
+ * @status : create
  */
 @Data
 public class PaymentCheckoutPaymentStatusCommandDTO implements Serializable {

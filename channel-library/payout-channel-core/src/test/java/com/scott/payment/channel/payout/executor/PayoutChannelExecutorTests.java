@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @version : v1.0.0
  * @classname : PayoutChannelExecutorTests
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 代付执行器测试，验证提交/查询委托和 Provider 能力边界。
  * @status : create
  */

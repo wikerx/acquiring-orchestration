@@ -69,69 +69,21 @@ import static org.mockito.Mockito.when;
  * @classname : SystemAuthServiceImplTest
  * @date : 2026-06-26 15:24
  * @email : scott_x@163.com
- * @description : System Auth Service Impl Test 服务实现，位于 公共组件库，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
+ * @description : 系统auth服务实现，位于 公共组件库，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
 class SystemAuthServiceImplTest {
 
-    /**
-     * RAW TOKEN，用于保存 System Auth Service Impl Test 中与 rawtoken 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private static final String RAW_TOKEN = "token-for-test";
 
-    /**
-     * sys App Mapper 依赖，用于 System Auth Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private SysAppMapper sysAppMapper;
-    /**
-     * sys User Mapper 依赖，用于 System Auth Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private SysUserMapper sysUserMapper;
-    /**
-     * sys Account Mapper，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private SysAccountMapper sysAccountMapper;
-    /**
-     * sys Account Role Mapper，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private SysAccountRoleMapper sysAccountRoleMapper;
     /**
      * 系统角色 Mapper，用于验证登录响应中的角色名称展示。
      */
     private SysRoleMapper sysRoleMapper;
-    /**
-     * sys Login Session Mapper 依赖，用于 System Auth Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private SysLoginSessionMapper sysLoginSessionMapper;
     /**
      * 登录页图形验证码 Mapper，用于验证验证码生成与校验规则。
@@ -161,14 +113,6 @@ class SystemAuthServiceImplTest {
     private ApplicationEventPublisher applicationEventPublisher;
     /** 登录日志 Mapper，仅用于断言认证服务不再同步写审计表。 */
     private SysLoginLogMapper sysLoginLogMapper;
-    /**
-     * system Auth Service 依赖，用于 System Auth Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private SystemAuthServiceImpl systemAuthService;
 
     /**

@@ -39,14 +39,6 @@ public class DefaultPaymentExchangeRateService implements PaymentExchangeRateSer
      */
     private static final String RATE_STATUS_ENABLED = "ENABLED";
 
-    /**
-     * exchange Business Rate Mapper 依赖，用于 Default Payment Exchange Rate Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final PaymentExchangeBusinessRateMapper exchangeBusinessRateMapper;
 
     /**

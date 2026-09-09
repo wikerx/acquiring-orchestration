@@ -7,18 +7,23 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>channel-library</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>payment-channel-core</artifactId>
     <packaging>jar</packaging>
+    <name>payment-channel-core</name>
+    <description>支付渠道注册、路由、执行模板和通用安全处理核心模块。</description>
 
+    <!--本模块只实现渠道执行框架，不包含任何 MPGS、Worldpay 等供应商专属协议字段。-->
     <dependencies>
+        <!--面向稳定的支付渠道 SPI 和标准请求响应模型编程。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>payment-channel-api</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--提供渠道实现注册、依赖注入和生命周期管理。-->
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>

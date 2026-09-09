@@ -182,6 +182,14 @@ public interface PaymentChannelClient {
         return new ChannelUnsupportedOperationException(channelCode(), capability.getCode());
     }
 
+    /**
+     * 判断 has text 条件是否成立，用于控制 Payment Channel Client 的后续分支。
+     * <p>
+     * 纯判断操作，不修改业务状态。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 条件满足时返回 true，否则返回 false
+     */
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }

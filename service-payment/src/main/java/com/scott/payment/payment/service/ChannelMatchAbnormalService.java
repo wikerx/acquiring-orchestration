@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
  * @version : v1.0.0
  * @classname : ChannelMatchAbnormalService
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 勾兑异常领域服务，负责幂等建案、领取、重查和不修改交易终态的案件处置；管理端只读查询由 service-admin 承载。
  * @status : create
  */

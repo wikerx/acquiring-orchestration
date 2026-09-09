@@ -7,6 +7,7 @@ import com.scott.payment.risk.domain.FrequencySuccessReservationTransitionSummar
 import com.scott.payment.risk.mq.message.RiskPaymentTransactionEventMessage;
 import com.scott.payment.risk.service.FrequencySuccessReservationService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.MessageModel;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
@@ -33,11 +34,12 @@ import java.util.Locale;
         havingValue = "true",
         matchIfMissing = true)
 @RocketMQMessageListener(
-        topic = MqTopic.PAYMENT_EVENT,
+        topic = MqTopic.PAYMENT_TRANSACTION_FIFO,
         consumerGroup = RiskMqConstants.FREQUENCY_SUCCESS_LIFECYCLE_CONSUMER_GROUP,
         selectorExpression = RiskMqConstants.PAYMENT_TRANSACTION_CREATED_TAG
                 + " || " + RiskMqConstants.PAYMENT_TRANSACTION_CALLBACK_PROCESSED_TAG
                 + " || " + RiskMqConstants.PAYMENT_TRANSACTION_STATUS_CHANGED_TAG,
+        consumeMode = ConsumeMode.ORDERLY,
         messageModel = MessageModel.CLUSTERING)
 public class FrequencySuccessReservationPaymentEventConsumer
         implements RocketMQListener<String> {

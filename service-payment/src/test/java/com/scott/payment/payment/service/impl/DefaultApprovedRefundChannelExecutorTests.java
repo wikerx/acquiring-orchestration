@@ -38,6 +38,7 @@ import static org.mockito.Mockito.when;
  * @version : v1.0.0
  * @classname : DefaultApprovedRefundChannelExecutorTests
  * @date : 2026-08-06
+ * @email : scott_x@163.com
  * @description : 已批准退款渠道执行测试，锁定固定渠道恢复、请求身份复用和未知结果非终态语义。
  * @status : create
  */

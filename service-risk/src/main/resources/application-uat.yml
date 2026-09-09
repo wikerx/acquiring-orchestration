@@ -3,7 +3,7 @@
 spring:
   config:
     import:
-      # 参数说明：导入当前服务专属 Nacos DataId，承载只属于该服务的业务开关。
+      # 参数说明：导入当前服务专属 Nacos DataId，承载当前服务业务参数和其参与的内部鉴权配置。
       - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入公共 Nacos DataId，统一时间、监控和链路追踪配置。
       - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
@@ -59,11 +59,3 @@ spring:
 logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml
-
-internal-service:
-  auth:
-    # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
-    enabled: true
-    # UAT 内部服务 HMAC-SHA256 共享密钥，必须与 service-payment 的 payment.risk-client.internal-secret 保持一致。
-    # 推荐通过 K8s Secret、CI/CD Secret 或主机环境变量注入：INTERNAL_SERVICE_AUTH_SECRET=<32位以上随机高强度密钥>。
-    secret: ${INTERNAL_SERVICE_AUTH_SECRET}

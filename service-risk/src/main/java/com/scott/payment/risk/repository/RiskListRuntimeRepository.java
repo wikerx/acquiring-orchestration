@@ -11,7 +11,13 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 风控运行时名单和规则查询仓储。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskListRuntimeRepository
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控运行时名单和规则查询仓储。
+ * @status : create
  */
 public interface RiskListRuntimeRepository {
 
@@ -37,20 +43,24 @@ public interface RiskListRuntimeRepository {
     boolean hasActiveListRule(RiskListFunction function, String merchantId);
 
     /**
-     * 查询与当前来源主机匹配的启用来源网址规则。
-     *
-     * @param merchantId 当前商户号
-     * @param lookupValue 已提取规范化主机名的来源网址查询值
-     * @return 命中的来源网址规则；未命中时返回空
+     * 查询当前商户可用的来源主机白名单规则，命中时返回受控放行结论。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param lookupValue 已完成哈希、脱敏或区间归一化的风控查询值，禁止携带可直接识别的敏感原文
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     Optional<RiskListMatch> findSourceUrlRule(String merchantId, RiskRuntimeLookupValue lookupValue);
 
     /**
-     * 检查来源网址限制是否已配置但当前主机未命中。
-     *
-     * @param merchantId 当前商户号
-     * @param lookupValue 已提取规范化主机名的来源网址查询值
-     * @return 限制生效且当前来源不在允许范围内时返回拒绝明细
+     * 判断来源主机是否未命中商户白名单，并返回对应风控处置规则。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @param lookupValue 已完成哈希、脱敏或区间归一化的风控查询值，禁止携带可直接识别的敏感原文
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     Optional<RiskListMatch> findSourceUrlRestrictionMiss(String merchantId, RiskRuntimeLookupValue lookupValue);
 
@@ -197,10 +207,12 @@ public interface RiskListRuntimeRepository {
     boolean hasActiveFrequencyRule(String merchantId);
 
     /**
-     * 根据卡 BIN 查询发卡行国家或地区。
-     *
-     * @param cardBinLookup 已规范化为 BIN 区间数值的查询值
-     * @return ISO 国家或地区代码；无有效 BIN 记录时返回空
+     * 查询{@code findIssuerCountryByCardBin}；筛选条件、分页上限和数据范围由方法参数共同限定。
+     * <p>
+     * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param cardBinLookup 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     Optional<String> findIssuerCountryByCardBin(RiskRuntimeLookupValue cardBinLookup);
 

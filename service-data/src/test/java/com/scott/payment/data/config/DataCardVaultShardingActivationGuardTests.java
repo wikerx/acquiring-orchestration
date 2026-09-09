@@ -8,7 +8,15 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-/** 验证卡资料消费开关与交易分片拓扑必须同步启用。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DataCardVaultShardingActivationGuardTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证卡资料消费开关与交易分片拓扑必须同步启用。
+ * @status : create
+ */
 class DataCardVaultShardingActivationGuardTests {
 
     /** 缺少卡资料表的兼容基线不能承载卡资料消费。 */

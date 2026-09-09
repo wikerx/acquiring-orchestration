@@ -49,7 +49,8 @@ public class ExcelExportMetadataResolver {
                 column.order(),
                 column.headerKey(),
                 column.width(),
-                column.align()
+                column.align(),
+                column.forceText()
         );
     }
 }

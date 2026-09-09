@@ -8,3 +8,10 @@ acquiring:
       # 参数说明：声明 OpenAPI SDK 使用的签名与加密套件，仅可选择双方已实现并完成安全评审的模式。
       # 环境说明：环境变量：OPENAPI_CRYPTO_MODE，dev 配置默认值为 "JWT + RSA-OAEP-256 + A256GCM"；test/uat/prod 必须选择已完成该环境验证的模式，切换时保留回退方案。
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
+
+merchant:
+  payment-client:
+    # 商户查询留在 service-merchant 本地；退款、撤销和预授权完成等写操作调用 service-payment。
+    internal-caller: service-merchant
+    # 参数说明：Merchant 到 Payment 调用边的当前 HMAC 密钥引用；只用于交易写操作，禁止用于本地查询。
+    internal-secret: ${acquiring.internal-auth.edges.merchant-payment.active-secret}

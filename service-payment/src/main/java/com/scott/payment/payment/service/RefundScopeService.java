@@ -12,6 +12,7 @@ import java.math.BigDecimal;
  * @version : v1.0.0
  * @classname : RefundScopeService
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款范围金额规则服务，以原始交易本金和历史退款事实判定 FULL/PARTIAL，不按当前剩余额度误判全额退款。
  * @status : create
  */

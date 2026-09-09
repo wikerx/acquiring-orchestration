@@ -14,7 +14,13 @@ import com.scott.payment.payment.api.internal.dto.PaymentCheckoutCardBinResultDT
 import java.time.LocalDateTime;
 
 /**
- * Hosted Checkout 内部服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 内部服务。
+ * @status : create
  */
 public interface PaymentCheckoutService {
 

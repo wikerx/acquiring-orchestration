@@ -93,10 +93,12 @@ public class MerchantRuntimeProfileCacheReader {
     }
 
     /**
-     * 失效门禁 pending 或状态未知时绕过缓存并直读主库。
-     *
-     * @param merchantId 已规范化的商户号
-     * @return 商户运行时资料；不存在时返回 null
+     * 绕过方法级缓存读取当前数据源中的最新业务值。
+     * <p>
+     * 只读操作；实现必须沿用 公共组件库 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @DS(DataSourceName.MASTER)
     public MerchantRuntimeProfile findFresh(String merchantId) {
@@ -136,16 +138,6 @@ public class MerchantRuntimeProfileCacheReader {
         return profile;
     }
 
-    /**
-     * 在有界许可内查询商户主库。
-     *
-     * <p>许可不足表示回源已达到单实例保护上限。此时抛出可重试的 F503，而不是返回 null，
-     * 因为 null 会被上层解释成商户不存在并可能写入负缓存。</p>
-     *
-     * @param merchantId 已规范化商户号
-     * @return 商户运行时资料；数据库明确不存在时返回 null
-     * @throws ServiceException 回源并发达到上限时抛出 F503
-     */
     private MerchantRuntimeProfile load(String merchantId) {
         if (!databaseLoadPermits.tryAcquire()) {
             throw new ServiceException(

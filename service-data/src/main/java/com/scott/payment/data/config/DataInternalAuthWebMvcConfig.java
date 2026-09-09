@@ -35,6 +35,7 @@ public class DataInternalAuthWebMvcConfig implements WebMvcConfigurer {
      */
     public DataInternalAuthWebMvcConfig(InternalServiceAuthProperties properties,
                                         InternalRequestReplayGuard replayGuard) {
+        properties.validate();
         this.properties = properties;
         this.replayGuard = replayGuard;
     }

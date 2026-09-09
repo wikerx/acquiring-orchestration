@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : RiskEvaluationApplicationServiceTests
  * @date : 2026-07-12 22:43
  * @email : scott_x@163.com
- * @description : Risk Evaluation Application Service Tests 应用服务，位于 风控服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
+ * @description : 风控evaluation应用服务，位于 风控服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
 class RiskEvaluationApplicationServiceTests {

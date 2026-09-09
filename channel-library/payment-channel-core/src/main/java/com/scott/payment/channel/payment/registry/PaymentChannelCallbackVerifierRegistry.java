@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
  * @version : v1.0.0
  * @classname : PaymentChannelCallbackVerifierRegistry
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 渠道回调验签注册器，优先选择 provider verifier，并为迁移期未知渠道保留唯一协议中立回退实现。
  * @status : create
  */
@@ -46,6 +47,14 @@ public class PaymentChannelCallbackVerifierRegistry {
         this.fallbackVerifier = fallback;
     }
 
+    /**
+     * 按规范化渠道编码选择回调验签器并执行校验。
+     *
+     * <p>未注册渠道专用实现时才使用唯一兜底验签器；两者均不存在时直接失败，
+     * 禁止未验签回调进入渠道回调处理链。</p>
+     *
+     * @param request 渠道回调验签上下文，必须包含可识别的渠道编码
+     */
     public void verify(ChannelCallbackVerificationRequest request) {
         PaymentChannelCallbackVerifier verifier = verifiers.get(normalize(request.channelCode()));
         if (verifier == null) {
@@ -57,6 +66,13 @@ public class PaymentChannelCallbackVerifierRegistry {
         verifier.verify(request);
     }
 
+    /**
+     * 返回按规范化渠道编码注册的回调验签器只读视图。
+     * <p>
+     * 返回不可变注册表视图，不修改验签器注册状态。
+     * </p>
+     * @return 符合当前条件的只读集合或映射结果
+     */
     public Map<String, PaymentChannelCallbackVerifier> registeredVerifiers() {
         return verifiers;
     }

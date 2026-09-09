@@ -5,7 +5,15 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Internal payment command JSON contract tests. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCreateCommandDTOTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Internal payment command JSON contract tests.
+ * @status : create
+ */
 class PaymentCreateCommandDTOTests {
 
     @Test

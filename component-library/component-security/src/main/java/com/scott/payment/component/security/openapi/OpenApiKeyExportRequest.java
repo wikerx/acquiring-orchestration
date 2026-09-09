@@ -2,16 +2,16 @@ package com.scott.payment.component.security.openapi;
 
 import lombok.Data;
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiKeyExportRequest
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : Open API Key Export Request 传输模型，位于 公共组件库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : openAPI密钥export请求模型，位于 公共组件库，定义调用方必须提供或可选提供的字段，不直接执行业务逻辑。
  * @status : create
  */
+@Data
 public class OpenApiKeyExportRequest {
 
     /**

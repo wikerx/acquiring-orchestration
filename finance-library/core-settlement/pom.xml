@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.scott.payment</groupId>
+        <artifactId>finance-library</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>core-settlement</artifactId>
+    <name>core-settlement</name>
+    <description>结算批次统一汇率归一、原币种换汇和跨币种费用上下限求值的纯计算内核。</description>
+
+    <!--
+        本模块只执行确定性 BigDecimal 计算；不允许 Spring Bean、Mapper、Redis、MQ、Nacos 或余额账户依赖。
+        中间过程统一使用 DECIMAL128，目标币种只在最终结果处按明确 exponent 和舍入规则处理一次。
+    -->
+    <dependencies>
+        <!--结算汇率矩阵、换汇命令和费用组结果契约。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>model-settlement</artifactId>
+            <version>${finance-library.version}</version>
+        </dependency>
+    </dependencies>
+</project>

@@ -1,6 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.mq.enums.PaymentTransactionEventStatus;
+import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionLifecycleEventService;
@@ -23,7 +24,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
  * @classname : DefaultTransactionLifecycleEventServiceTests
  * @date : 2026-08-02 23:10
  * @email : scott_x@163.com
- * @description : 交易生命周期事件公开契约测试，验证只有成功或失败终态才能在当前事务中写入商户通知 Outbox
+ * @description : 交易生命周期事件公开契约测试，验证只有成功或失败终态才能在当前事务中写入 FIFO Outbox。
  * @status : create
  */
 @Slf4j
@@ -79,6 +80,11 @@ class DefaultTransactionLifecycleEventServiceTests {
         assertThat(eventCaptor.getAllValues())
                 .extracting(TransactionEventOutboxDO::getTransactionDateTime)
                 .containsExactly(successTime, failedTime);
+        assertThat(eventCaptor.getAllValues())
+                .allSatisfy(event -> {
+                    assertThat(event.getTopic()).isEqualTo(MqTopic.PAYMENT_TRANSACTION_FIFO);
+                    assertThat(event.getMessageGroup()).isEqualTo(event.getOperationId());
+                });
         assertThat(eventCaptor.getAllValues())
                 .extracting(TransactionEventOutboxDO::getPayloadJson)
                 .allSatisfy(payload -> assertThat(payload).contains("transactionStatus"))

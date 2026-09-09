@@ -50,27 +50,45 @@ def iter_java_files(root: Path):
             yield path
 
 
-def has_javadoc_before(lines: list[str], index: int) -> bool:
+def has_javadoc_before(lines: list[str], index: int, declaration_indent: int) -> bool:
+    """Return whether the declaration is already documented across annotations."""
     j = index - 1
     while j >= 0 and not lines[j].strip():
         j -= 1
-    if j >= 0 and not lines[j].strip().endswith("*/"):
-        prev_doc_end = None
-        for k in range(j, max(-1, j - 120), -1):
-            stripped = lines[k].strip()
-            if stripped.endswith("*/"):
-                prev_doc_end = k
-                break
-        if prev_doc_end is not None:
-            segment = lines[prev_doc_end + 1:index]
-            nonblank = [item.strip() for item in segment if item.strip()]
-            if any(item.startswith("@") for item in nonblank):
-                return True
-    while j >= 0 and lines[j].lstrip().startswith("@"):
-        j -= 1
-        while j >= 0 and lines[j].strip().startswith("."):
-            j -= 1
-    return j >= 0 and lines[j].strip().endswith("*/")
+    if j < 0:
+        return False
+    if lines[j].strip().endswith("*/"):
+        return True
+
+    # Find the nearest preceding Javadoc, then prove that every nonblank line
+    # between it and the declaration belongs to a complete annotation block.
+    # Forward parsing is required because a multiline annotation commonly ends
+    # with a value or a closing parenthesis rather than a line beginning with @.
+    doc_end = None
+    for k in range(j, max(-1, j - 400), -1):
+        if lines[k].strip().endswith("*/"):
+            doc_end = k
+            break
+    if doc_end is None:
+        return False
+
+    cursor = doc_end + 1
+    saw_annotation = False
+    while cursor < index:
+        while cursor < index and not lines[cursor].strip():
+            cursor += 1
+        if cursor >= index:
+            break
+        stripped = lines[cursor].lstrip()
+        indent = len(lines[cursor]) - len(stripped)
+        if not stripped.startswith("@") or indent != declaration_indent:
+            return False
+        saw_annotation = True
+        annotation_end = annotation_block_end(lines, cursor)
+        if annotation_end < cursor or annotation_end >= index:
+            return False
+        cursor = annotation_end + 1
+    return saw_annotation
 
 
 def generated_javadoc_start(lines: list[str], index: int) -> int | None:
@@ -97,6 +115,16 @@ def generated_javadoc_start(lines: list[str], index: int) -> int | None:
         "层级边界：",
         "状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准",
         "当前方法计算或转换后的业务结果",
+        "接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致",
+        "层级边界：",
+        "输入值，参与",
+        "方法执行后的业务结果、更新行数、转换对象或空结果",
+        "查询得到的业务对象、分页结果或空结果",
+        "构造、转换或解析后的业务值",
+        "只读操作；实现必须沿用",
+        "写操作；实现必须沿用",
+        "本地协作不得扩大",
+        "按当前方法契约生成的业务处理结果",
     ]
     return j if any(marker in block for marker in generated_markers) else None
 
@@ -121,6 +149,55 @@ def collected_method_signature(lines: list[str], index: int) -> tuple[str, int] 
                 return joined, offset + 1
             return None
     return None
+
+
+def annotation_block_end(lines: list[str], index: int) -> int:
+    """Return the final line of an annotation without counting text-block contents."""
+    if not lines[index].lstrip().startswith("@"):
+        return index
+    parenthesis_depth = 0
+    saw_parenthesis = False
+    in_string = False
+    in_text_block = False
+    escaped = False
+    for line_index in range(index, min(len(lines), index + 400)):
+        line = lines[line_index]
+        cursor = 0
+        while cursor < len(line):
+            if in_text_block:
+                closing = line.find('"""', cursor)
+                if closing < 0:
+                    cursor = len(line)
+                    continue
+                in_text_block = False
+                cursor = closing + 3
+                continue
+            if in_string:
+                char = line[cursor]
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                cursor += 1
+                continue
+            if line.startswith('"""', cursor):
+                in_text_block = True
+                cursor += 3
+                continue
+            char = line[cursor]
+            if char == '"':
+                in_string = True
+            elif char == "(":
+                parenthesis_depth += 1
+                saw_parenthesis = True
+            elif char == ")":
+                parenthesis_depth -= 1
+            cursor += 1
+        if not saw_parenthesis or (parenthesis_depth <= 0 and not in_string and not in_text_block):
+            return line_index
+    return index
 
 
 def package_name(text: str) -> str:
@@ -519,6 +596,21 @@ def is_empty_private_constructor(lines: list[str], index: int, type_name: str) -
     return False
 
 
+def is_model_path(path: Path) -> bool:
+    normalized = str(path).replace("\\", "/").lower()
+    return any(segment in normalized for segment in (
+        "/dto/", "/entity/", "/model/", "/vo/", "/request/", "/response/"
+    )) or path.stem.lower().endswith(("dto", "do", "vo", "request", "response"))
+
+
+def is_simple_accessor(path: Path, name: str, params: list[str]) -> bool:
+    if not is_model_path(path):
+        return False
+    lower = name.lower()
+    return ((lower.startswith("get") or lower.startswith("is")) and not params
+            or lower.startswith("set") and len(params) == 1)
+
+
 def current_depth(line: str, in_block_comment: bool, in_string: bool) -> tuple[int, bool, bool]:
     depth = 0
     i = 0
@@ -556,6 +648,62 @@ def current_depth(line: str, in_block_comment: bool, in_string: bool) -> tuple[i
     return depth, in_block_comment, in_string
 
 
+CORE_PRIVATE_ALWAYS = re.compile(
+    r"(?:encrypt|decrypt|hmac|nonce|fingerprint|canonical.*fingerprint|completeidempotency|"
+    r"resolveduplicate|locksource|verifyidentity|validatecurrency|tominoramount|save.*event|"
+    r"record.*preparedfact|processcallback|updatecallbackprocess|requirelockedratecapacity|"
+    r"validaterate|requiresamecurrency|constanttimeequals|stableid|deterministiceventno)",
+    re.IGNORECASE,
+)
+CORE_PRIVATE_COMPLEX = re.compile(
+    r"(?:amount|currency|rate|fee|reserve|settlement|clearing|outbox|callback|shard|ledger|"
+    r"posting|reversal|approve|review|claim|lease|compensat|retry|projection|refund|capture|"
+    r"void|authorization|state|complete|failure|recovery)",
+    re.IGNORECASE,
+)
+CORE_PATH_MARKERS = (
+    "service-payment/", "service-clearing/", "service-settlement/", "service-openapi/",
+    "service-data/", "component-security/", "finance-library/", "component-db/",
+    "channel-library/",
+)
+
+
+def method_body_metrics(lines: list[str], index: int) -> tuple[int, int]:
+    depth = 0
+    started = False
+    body_lines = 0
+    branches = 0
+    in_block = False
+    in_string = False
+    for cursor in range(index, min(len(lines), index + 800)):
+        line = lines[cursor]
+        if not started and ";" in line and "{" not in line:
+            return 0, 0
+        delta, in_block, in_string = current_depth(line, in_block, in_string)
+        if "{" in line or started:
+            started = True
+            body_lines += 1
+            branches += len(re.findall(r"\b(?:if|else|switch|case|catch|for|while|try)\b", line))
+        depth += delta
+        if started and depth <= 0:
+            break
+    return body_lines, branches
+
+
+def is_core_private_method(path: Path, name: str, lines: list[str], index: int) -> bool:
+    if not is_main_java(path):
+        return False
+    normalized = str(path).replace("\\", "/")
+    if not any(marker in normalized for marker in CORE_PATH_MARKERS):
+        return False
+    if CORE_PRIVATE_ALWAYS.search(name):
+        return True
+    if not CORE_PRIVATE_COMPLEX.search(name):
+        return False
+    body_lines, branches = method_body_metrics(lines, index)
+    return body_lines >= 15 or branches >= 2
+
+
 def remove_generated_duplicate_blocks(lines: list[str]) -> tuple[list[str], bool]:
     """Remove generated Javadocs inserted between annotations and a method that already had Javadoc."""
     changed = False
@@ -582,11 +730,24 @@ def remove_generated_duplicate_blocks(lines: list[str]) -> tuple[list[str], bool
             if stripped.endswith("*/"):
                 prev_doc_end = j
                 break
-        segment = lines[prev_doc_end + 1:start] if prev_doc_end is not None else []
-        nonblank = [item.strip() for item in segment if item.strip()]
-        saw_annotation = any(item.startswith("@") for item in nonblank)
-        previous_is_javadoc = prev_doc_end is not None
-        if is_generated and saw_annotation and previous_is_javadoc:
+        cursor = prev_doc_end + 1 if prev_doc_end is not None else start
+        saw_annotation = False
+        valid_annotation_chain = prev_doc_end is not None
+        while valid_annotation_chain and cursor < start:
+            while cursor < start and not lines[cursor].strip():
+                cursor += 1
+            if cursor >= start:
+                break
+            if not lines[cursor].lstrip().startswith("@"):
+                valid_annotation_chain = False
+                break
+            saw_annotation = True
+            annotation_end = annotation_block_end(lines, cursor)
+            if annotation_end < cursor or annotation_end >= start:
+                valid_annotation_chain = False
+                break
+            cursor = annotation_end + 1
+        if is_generated and valid_annotation_chain and saw_annotation and cursor == start:
             changed = True
             i = end + 1
             continue
@@ -681,6 +842,9 @@ def process_file(path: Path) -> bool:
     lines = text.splitlines(keepends=True)
     lines, duplicate_changed = remove_generated_duplicate_blocks(lines)
     lines, parameter_changed = remove_generated_parameter_blocks(lines)
+    # Javadoc must precede the annotation block to document the declaration.
+    # Keeping it between annotations and a method leaves an orphan comment and
+    # also prevents architecture scanners from recognizing the annotated method.
     lines, placement_changed = move_generated_blocks_before_annotations(lines)
     pkg = package_name(text)
     date = created_date(path, text)
@@ -690,6 +854,8 @@ def process_file(path: Path) -> bool:
     in_block = False
     in_string = False
     type_stack: list[TypeContext] = []
+    method_signature_end = -1
+    annotation_end = -1
 
     i = 0
     while i < len(lines):
@@ -697,6 +863,21 @@ def process_file(path: Path) -> bool:
         stripped = line.strip()
         while type_stack and depth <= type_stack[-1].depth:
             type_stack.pop()
+        if i <= method_signature_end:
+            out.append(line)
+            delta, in_block, in_string = current_depth(line, in_block, in_string)
+            depth += delta
+            i += 1
+            continue
+        if i <= annotation_end:
+            out.append(line)
+            i += 1
+            continue
+        if stripped.startswith("@") and not TYPE_RE.match(line):
+            annotation_end = annotation_block_end(lines, i)
+            out.append(line)
+            i += 1
+            continue
 
         match_type = TYPE_RE.match(line)
         if match_type and not stripped.startswith("*") and not stripped.startswith("//"):
@@ -706,7 +887,8 @@ def process_file(path: Path) -> bool:
             mods = match_type.group("mods") or ""
             is_top = depth == 0
             is_public_static_nested = depth > 0 and "public" in mods.split() and "static" in mods.split()
-            if (is_top or is_public_static_nested) and not has_javadoc_before(out, len(out)):
+            if (is_main_java(path) and (is_top or is_public_static_nested)
+                    and not has_javadoc_before(out, len(out), len(indent))):
                 out.extend(type_javadoc(path, kind, name, pkg, date, indent))
                 changed = True
             type_stack.append(TypeContext(kind, name, depth))
@@ -718,7 +900,9 @@ def process_file(path: Path) -> bool:
 
         current_type = type_stack[-1] if type_stack else None
         enum_value = ENUM_VALUE_RE.match(line)
-        if current_type and current_type.kind == "enum" and depth == current_type.depth + 1 and enum_value and not has_javadoc_before(out, len(out)):
+        if (is_main_java(path) and current_type and current_type.kind == "enum"
+                and depth == current_type.depth + 1 and enum_value
+                and not has_javadoc_before(out, len(out), len(enum_value.group("indent")))):
             out.extend(enum_value_javadoc(enum_value.group("name"), enum_value.group("indent")))
             changed = True
             out.append(line)
@@ -733,7 +917,11 @@ def process_file(path: Path) -> bool:
             first_name = re.split(r"\s*=|,", names_raw, maxsplit=1)[0].strip()
             mods = set((field.group("mods") or "").split())
             type_name = field.group("type").split()[-1].strip()
-            if first_name not in LOGGER_NAMES and first_name not in TECHNICAL_STATIC_FIELDS and not has_javadoc_before(out, len(out)):
+            required_field = (is_main_java(path) and current_type.kind != "record"
+                              and (is_model_path(path) or {"static", "final"}.issubset(mods)))
+            if (required_field and first_name not in LOGGER_NAMES
+                    and first_name not in TECHNICAL_STATIC_FIELDS
+                    and not has_javadoc_before(out, len(out), len(field.group("indent")))):
                 out.extend(field_javadoc(first_name, type_name, field.group("indent"), {"static", "final"}.issubset(mods)))
                 changed = True
             out.append(line)
@@ -748,31 +936,46 @@ def process_file(path: Path) -> bool:
             collected_signature = collected_method_signature(lines, i)
             if collected_signature:
                 method = METHOD_RE.match(collected_signature[0])
+                if method:
+                    method_signature_end = i + collected_signature[1] - 1
         if method and current_type and depth == current_type.depth + 1:
             name = method.group("name")
             mods = set((method.group("mods") or "").split())
             ret = method.group("ret")
+            declaration_indent = line[:len(line) - len(line.lstrip())]
             is_constructor = name == current_type.name and ret is None
-            is_private_core = "private" in mods and is_main_java(path)
-            is_required_method = "public" in mods or "protected" in mods or current_type.kind == "interface" or is_private_core
+            method_params = params_from_signature(method.group("params"))
+            # Simple dependency-injection constructors and model accessors are
+            # self-explanatory and explicitly excluded by AGENTS.md.
+            if is_constructor or is_simple_accessor(path, name, method_params):
+                out.append(line)
+                delta, in_block, in_string = current_depth(line, in_block, in_string)
+                depth += delta
+                i += 1
+                continue
+            # Private methods require comments only when a reviewer has identified a
+            # non-obvious business rule. Set the opt-in flag for that focused pass;
+            # the default gate must not annotate every local helper mechanically.
+            is_private_core = ("private" in mods
+                               and is_core_private_method(path, name, lines, i))
+            is_required_method = (is_main_java(path)
+                                  and ("public" in mods or "protected" in mods
+                                       or current_type.kind == "interface" or is_private_core))
             if is_constructor and is_private_core and is_empty_private_constructor(lines, i, current_type.name):
                 out.append(line)
                 delta, in_block, in_string = current_depth(line, in_block, in_string)
                 depth += delta
                 i += 1
                 continue
-            replace_start = generated_javadoc_start(out, len(out))
-            has_existing_javadoc = has_javadoc_before(out, len(out)) and replace_start is None
+            has_existing_javadoc = has_javadoc_before(out, len(out), len(declaration_indent))
             if is_required_method and name not in SKIP_METHOD_NAMES and not has_existing_javadoc:
-                if replace_start is not None:
-                    del out[replace_start:]
                 has_return = ret is not None and ret.strip() != "void"
                 out.extend(method_javadoc(
                     name,
-                    params_from_signature(method.group("params")),
+                    method_params,
                     has_return,
                     current_type.kind == "interface",
-                    method.group("indent"),
+                    declaration_indent,
                     owner_name=current_type.name,
                     layer=file_layer(path),
                     constructor=is_constructor,
@@ -790,9 +993,11 @@ def process_file(path: Path) -> bool:
         depth += delta
         i += 1
 
-    if changed:
-        path.write_text("".join(out), encoding="utf-8")
-    return changed
+    rendered = "".join(out)
+    if rendered != text:
+        path.write_text(rendered, encoding="utf-8")
+        return True
+    return False
 
 
 def main() -> int:

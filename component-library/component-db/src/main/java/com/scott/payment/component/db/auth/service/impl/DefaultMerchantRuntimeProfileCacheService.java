@@ -170,12 +170,6 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
         // Spring Cache 负责删除物理缓存，本方法只表达跨模块失效语义。
     }
 
-    /**
-     * 查询商户运行时资料 miss marker。
-     *
-     * @param merchantId 已规范化商户号
-     * @return marker 三态；未配置存储或读取异常时返回 UNAVAILABLE
-     */
     private CacheMissMarkerStore.LookupStatus lookupMissMarker(String merchantId) {
         if (missMarkerStore == null) {
             return CacheMissMarkerStore.LookupStatus.UNAVAILABLE;
@@ -195,14 +189,6 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
         }
     }
 
-    /**
-     * 在主库明确返回空记录后写入短 TTL marker。
-     *
-     * <p>写入失败只会失去穿透保护，不改变主库已确认的“不存在”结果，因此记录告警后返回 null；
-     * Redis 读取状态为 UNAVAILABLE 时调用方不会进入本方法。</p>
-     *
-     * @param merchantId 已规范化商户号
-     */
     private void markConfirmedMissing(String merchantId) {
         if (missMarkerStore == null) {
             return;

@@ -20,6 +20,18 @@ public final class MqTag {
     /** 同步渠道结果或主动查询推进交易状态的事件标签。 */
     public static final String TRANSACTION_STATUS_CHANGED = "TRANSACTION_STATUS_CHANGED";
 
+    /** 交易动作清分完成并可刷新查询投影的事件标签。 */
+    public static final String TRANSACTION_CLEARING_COMPLETED = "TRANSACTION_CLEARING_COMPLETED";
+
+    /** 交易动作结算资金提交完成并可刷新查询投影的事件标签。 */
+    public static final String TRANSACTION_SETTLEMENT_COMPLETED = "TRANSACTION_SETTLEMENT_COMPLETED";
+
+    /** 交易动作已入账结算被资金冲正并可刷新查询投影的事件标签。 */
+    public static final String TRANSACTION_SETTLEMENT_REVERSED = "TRANSACTION_SETTLEMENT_REVERSED";
+
+    /** 清分失败等待期结束后重新进入处理的定时消息标签。 */
+    public static final String TRANSACTION_CLEARING_RETRY_DUE = "TRANSACTION_CLEARING_RETRY_DUE";
+
     /** 风控评估审计消息标签。 */
     public static final String RISK_EVALUATION_AUDIT = "risk-evaluation-audit";
 
@@ -46,6 +58,9 @@ public final class MqTag {
 
     /** 收银台卡资料密文入库标签。 */
     public static final String CHECKOUT_CARD_VAULT_STORE = "CHECKOUT_CARD_VAULT_STORE";
+
+    /** Card BIN 全局 generation 变更标签。 */
+    public static final String CARD_BIN_CACHE_CHANGED = "CARD_BIN_CACHE_CHANGED";
 
     private MqTag() {
     }

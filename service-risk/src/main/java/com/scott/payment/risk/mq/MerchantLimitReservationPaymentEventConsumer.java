@@ -7,6 +7,7 @@ import com.scott.payment.risk.domain.MerchantLimitReservationTransitionSummary;
 import com.scott.payment.risk.mq.message.RiskPaymentTransactionEventMessage;
 import com.scott.payment.risk.service.MerchantLimitReservationLifecycleCoordinator;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.rocketmq.spring.annotation.ConsumeMode;
 import org.apache.rocketmq.spring.annotation.MessageModel;
 import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.apache.rocketmq.spring.core.RocketMQListener;
@@ -31,11 +32,12 @@ import org.springframework.util.StringUtils;
         havingValue = "true",
         matchIfMissing = true)
 @RocketMQMessageListener(
-        topic = MqTopic.PAYMENT_EVENT,
+        topic = MqTopic.PAYMENT_TRANSACTION_FIFO,
         consumerGroup = RiskMqConstants.MERCHANT_LIMIT_LIFECYCLE_CONSUMER_GROUP,
         selectorExpression = RiskMqConstants.PAYMENT_TRANSACTION_CREATED_TAG
                 + " || " + RiskMqConstants.PAYMENT_TRANSACTION_CALLBACK_PROCESSED_TAG
                 + " || " + RiskMqConstants.PAYMENT_TRANSACTION_STATUS_CHANGED_TAG,
+        consumeMode = ConsumeMode.ORDERLY,
         messageModel = MessageModel.CLUSTERING)
 public class MerchantLimitReservationPaymentEventConsumer
         implements RocketMQListener<String> {

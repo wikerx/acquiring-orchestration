@@ -6,7 +6,7 @@
             scope="context"
             name="applicationName"
             source="spring.application.name"
-            defaultValue="global-payment"/>
+            defaultValue="service-openApi"/>
 
     <!-- 日志基础配置 -->
     <property name="logPath" value="${LOG_PATH:-logs}"/>

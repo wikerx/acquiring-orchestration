@@ -36,9 +36,37 @@ import java.util.stream.IntStream;
 @Service
 public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupService {
 
+    /**
+     * {@code IPV4}常量，统一 {@code ReferenceDataLookupServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String IPV4 = "IPV4";
+    /**
+     * {@code IPV6}常量，统一 {@code ReferenceDataLookupServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String IPV6 = "IPV6";
+    /**
+     * {@code MIN_BIN_LENGTH}常量，统一 {@code ReferenceDataLookupServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int MIN_BIN_LENGTH = 6;
+    /**
+     * {@code NORMALIZED_BIN_LENGTH}常量，统一 {@code ReferenceDataLookupServiceImpl} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final int NORMALIZED_BIN_LENGTH = 11;
     private static final Set<String> IP_TABLE_ALLOWLIST = IntStream.rangeClosed(1, 8)
             .mapToObj(index -> String.format("%02d", index))

@@ -75,17 +75,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
-@Slf4j
-@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminUserServiceImpl
  * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : Admin User Service Impl 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
+ * @description : admin用户服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
+@Slf4j
+@Service
 public class AdminUserServiceImpl implements AdminUserService {
 
     /**
@@ -1413,17 +1413,6 @@ public class AdminUserServiceImpl implements AdminUserService {
         dto.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
     }
 
-    /**
-     * 构造角色dto对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param role role 输入值，参与 角色 的查询、校验、转换、写入或日志摘要
-     * @param assignable assignable 输入值，参与 assignable 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private SysRoleDTO toRoleDTO(SysRoleDO role, boolean assignable) {
         SysRoleDTO dto = new SysRoleDTO();
         dto.setRoleId(role.getId());

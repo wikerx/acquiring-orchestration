@@ -1,11 +1,15 @@
 package com.scott.payment.risk.mq;
 
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.risk.domain.MerchantLimitReservationTransitionSummary;
 import com.scott.payment.risk.mq.message.RiskPaymentTransactionEventMessage;
 import com.scott.payment.risk.service.MerchantLimitReservationLifecycleCoordinator;
+import org.apache.rocketmq.spring.annotation.ConsumeMode;
+import org.apache.rocketmq.spring.annotation.RocketMQMessageListener;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -13,9 +17,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 支付状态事件消费者测试，验证成功确认、失败取消和处理中状态保留预占。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantLimitReservationPaymentEventConsumerTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 支付状态事件消费者测试，验证成功确认、失败取消和处理中状态保留预占。
+ * @status : create
  */
 class MerchantLimitReservationPaymentEventConsumerTests {
+
+    /** 限额预占状态机必须顺序消费交易生命周期 FIFO Topic。 */
+    @Test
+    void listenerContractShouldUsePaymentTransactionFifoTopicAndOrderlyMode() {
+        RocketMQMessageListener listener = MerchantLimitReservationPaymentEventConsumer.class
+                .getAnnotation(RocketMQMessageListener.class);
+
+        assertThat(listener.topic()).isEqualTo(MqTopic.PAYMENT_TRANSACTION_FIFO);
+        assertThat(listener.consumeMode()).isEqualTo(ConsumeMode.ORDERLY);
+    }
 
     @Test
     void shouldApplySuccessAndFailureButRetainPendingReservation() {

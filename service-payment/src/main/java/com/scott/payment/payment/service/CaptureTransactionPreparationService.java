@@ -9,6 +9,7 @@ import com.scott.payment.payment.service.dto.CapturePreparationResultDTO;
  * @version : v1.0.0
  * @classname : CaptureTransactionPreparationService
  * @date : 2026-07-24 00:00
+ * @email : scott_x@163.com
  * @description : Capture 本地准备事务服务，负责在渠道调用前提交幂等、动作事实和渠道请求 INIT。
  * @status : create
  */

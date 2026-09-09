@@ -6,32 +6,45 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>component-library</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>component-redis</artifactId>
     <packaging>jar</packaging>
+    <name>component-redis</name>
+    <description>Redis 缓存、分布式并发控制、幂等、防重和 ID 生成基础组件。</description>
+
+    <!--
+        本模块提供 Redis 技术能力和通用缓存模式，不拥有任何具体业务缓存数据。
+        缓存 Key、TTL、失效联动和回源策略仍由拥有数据事实的业务服务决定。
+    -->
     <dependencies>
+        <!--复用缓存契约、异常、ID 和序列化基础模型。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--Spring Data Redis 连接、模板和序列化集成。-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
+        <!--暴露连接池和缓存健康指标。-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!--分布式锁、信号量及其他高阶 Redis 数据结构。-->
         <dependency>
             <groupId>org.redisson</groupId>
             <artifactId>redisson</artifactId>
         </dependency>
+        <!--向 Prometheus 暴露缓存命中、降级和并发控制指标。-->
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
+        <!--保证 Java 时间类型可稳定写入和读取缓存。-->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>

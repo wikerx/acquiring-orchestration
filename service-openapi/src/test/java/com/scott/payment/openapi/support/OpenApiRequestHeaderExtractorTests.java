@@ -19,7 +19,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * OpenAPI 请求头安全提取测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiRequestHeaderExtractorTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : OpenAPI 请求头安全提取测试。
+ * @status : create
  */
 class OpenApiRequestHeaderExtractorTests {
 

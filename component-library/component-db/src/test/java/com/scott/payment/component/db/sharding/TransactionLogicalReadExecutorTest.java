@@ -6,7 +6,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Transaction 逻辑只读执行器测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : TransactionLogicalReadExecutorTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Transaction 逻辑只读执行器测试。
+ * @status : create
  */
 class TransactionLogicalReadExecutorTest {
 

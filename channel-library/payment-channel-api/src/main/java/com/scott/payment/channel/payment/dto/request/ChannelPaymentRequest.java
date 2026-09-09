@@ -137,121 +137,112 @@ public class ChannelPaymentRequest implements Serializable {
      */
     private Map<String, String> extension = new HashMap<>();
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : BillingInfo
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Billing Info 协作组件，位于 渠道适配库，封装 billinginfo 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : 渠道支付请求的账单地址信息，供渠道风控和认证使用且不得完整写入普通日志。
      * @status : create
      */
+    @Data
     public static class BillingInfo implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
         /**
-         * first Name，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * 首个名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String firstName;
 
         /**
-         * last Name，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * {@code lastName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String lastName;
 
         /**
-         * phone，用于保存 Billing Info 中与 phone 相关的业务属性。
+         * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
          * <p>
          * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
          * 取值范围：长度和格式由接口校验约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String phone;
 
         /**
-         * email，用于保存 Billing Info 中与 email 相关的业务属性。
+         * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
          * <p>
          * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
          * 取值范围：长度和格式由接口校验约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String email;
 
         /**
-         * country，表示当前统计、分页、扫描或重试场景中的数量。
+         * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
          * <p>
          * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自平台支持国家地区；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String country;
 
         /**
-         * state，用于保存 Billing Info 中与 state 相关的业务属性。
+         * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String state;
 
         /**
-         * city，用于保存 Billing Info 中与 city 相关的业务属性。
+         * 城市，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String city;
 
         /**
-         * street，用于保存 Billing Info 中与 street 相关的业务属性。
+         * 街道，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
          * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String street;
 
         /**
-         * postal，用于保存 Billing Info 中与 postal 相关的业务属性。
+         * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
          * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String postal;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : ThreeDsInfo
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Three Ds Info 协作组件，位于 渠道适配库，封装 threedsinfo 相关的校验、转换、持久化访问或运行时协作入口。
+     * @description : 渠道支付请求中的 3DS 认证信息模型，位于 payment-channel-api 协议层，仅承载渠道适配所需字段，不记录平台认证状态。
      * @status : create
      */
+    @Data
     public static class ThreeDsInfo implements Serializable {
 
         private static final long serialVersionUID = 1L;
@@ -262,11 +253,10 @@ public class ChannelPaymentRequest implements Serializable {
         private String authenticationTransactionId;
 
         /**
-         * eci，用于保存 Three Ds Info 中与 eci 相关的业务属性。
+         * {@code eci}字段，保存 {@code ThreeDsInfo} 当前处理所需的业务取值。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String eci;
@@ -281,17 +271,15 @@ public class ChannelPaymentRequest implements Serializable {
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String dsTransactionId;
 
         /**
-         * three Ds Version，用于保存 Three Ds Info 中与 threedsversion 相关的业务属性。
+         * {@code threeDsVersion}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String threeDsVersion;

@@ -3,17 +3,17 @@ package com.scott.payment.component.security.openapi;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
-@Data
-@AllArgsConstructor
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiKeyCopyResponse
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : Open API Key Copy Response 传输模型，位于 公共组件库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : openAPI密钥副本响应模型，位于 公共组件库，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
  * @status : create
  */
+@Data
+@AllArgsConstructor
 public class OpenApiKeyCopyResponse {
 
     /**

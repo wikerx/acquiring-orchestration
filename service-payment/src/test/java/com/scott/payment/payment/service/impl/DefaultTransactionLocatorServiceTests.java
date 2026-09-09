@@ -12,7 +12,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** Transaction locator behavior tests. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultTransactionLocatorServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Transaction locator behavior tests.
+ * @status : create
+ */
 class DefaultTransactionLocatorServiceTests {
 
     @Test

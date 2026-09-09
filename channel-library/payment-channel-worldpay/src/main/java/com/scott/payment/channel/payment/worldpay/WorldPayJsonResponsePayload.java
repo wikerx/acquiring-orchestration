@@ -223,10 +223,10 @@ public class WorldPayJsonResponsePayload {
     private Map<String, LinkPayload> links;
 
     /**
-     * Access Worldpay 可执行动作集合；部分版本把动作放在 _actions 中。
+     * {@code actions}字段，保存 {@code WorldPayJsonResponsePayload} 当前处理所需的业务取值。
      * <p>
-     * 单位：无；格式：Map&lt;String, LinkPayload&gt;；允许为空；非敏感字段集合。
-     * 数据来源：渠道 _actions 节点；用于保存请款、退款、撤销或查询的后续动作链接。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
      * </p>
      */
     @JSONField(name = "_actions")

@@ -6,16 +6,16 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : BaseMqMessage
  * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : Base MQ Message 协作组件，位于 公共组件库，封装 basemqmessage 相关的校验、转换、持久化访问或运行时协作入口。
+ * @description : 基础mq说明协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
  * @status : create
  */
+@Data
 public class BaseMqMessage implements Serializable {
 
     /**

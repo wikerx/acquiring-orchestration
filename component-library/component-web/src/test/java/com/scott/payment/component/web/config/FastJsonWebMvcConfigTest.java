@@ -121,17 +121,25 @@ class FastJsonWebMvcConfigTest {
 
         private LocalDateTime transactionDateTime;
 
-        public DateTimePayload() {
-        }
-
         public DateTimePayload(LocalDateTime transactionDateTime) {
             this.transactionDateTime = transactionDateTime;
         }
 
+        /**
+         * 查询交易日期时间；筛选条件、分页上限和数据范围由方法参数共同限定。
+         * <p>
+         * 只读操作；实现必须沿用 公共组件库 既有权限、数据范围和空结果约定。
+         * </p>
+         * @return 查询得到的业务对象、分页结果或空结果
+         */
         public LocalDateTime getTransactionDateTime() {
             return transactionDateTime;
         }
 
+        /**
+         * 写入set交易date时间，保持配置属性或测试夹具中的字段值与调用方输入一致。
+         * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+         */
         public void setTransactionDateTime(LocalDateTime transactionDateTime) {
             this.transactionDateTime = transactionDateTime;
         }

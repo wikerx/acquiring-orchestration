@@ -19,70 +19,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminJobSchedulerApplicationServiceTest
  * @date : 2026-06-19 23:36
  * @email : scott_x@163.com
- * @description : Admin Job Scheduler Application Service Test 应用服务，位于 运营后台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
+ * @description : admin任务调度器应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
  * @status : create
  */
+@ExtendWith(MockitoExtension.class)
 class AdminJobSchedulerApplicationServiceTest {
 
     @Mock
-    /**
-     * job Scheduler Internal Client 依赖，用于 Admin Job Scheduler Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private JobSchedulerInternalClient jobSchedulerInternalClient;
 
     @Mock
-    /**
-     * excel Export Service 依赖，用于 Admin Job Scheduler Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ExcelExportService excelExportService;
 
     @Mock
-    /**
-     * excel I 18 n Message Resolver，用于保存 Admin Job Scheduler Application Service Test 中与 exceli18nmessageresolver 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ExcelI18nMessageResolver excelI18nMessageResolver;
 
     @Mock
-    /**
-     * excel Locale Resolver，用于保存 Admin Job Scheduler Application Service Test 中与 excellocaleresolver 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private ExcelLocaleResolver excelLocaleResolver;
 
-    /**
-     * admin Job Scheduler Application Service 依赖，用于 Admin Job Scheduler Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private AdminJobSchedulerApplicationService adminJobSchedulerApplicationService;
 
     @BeforeEach

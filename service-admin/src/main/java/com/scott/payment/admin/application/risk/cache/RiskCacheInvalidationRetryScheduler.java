@@ -5,7 +5,13 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 定时补偿未成功发布的风控规则缓存失效事件。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskCacheInvalidationRetryScheduler
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 定时补偿未成功发布的风控规则缓存失效事件。
+ * @status : create
  */
 @Slf4j
 @Component

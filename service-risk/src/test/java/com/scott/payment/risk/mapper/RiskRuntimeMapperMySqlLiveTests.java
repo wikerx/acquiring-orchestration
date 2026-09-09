@@ -17,7 +17,13 @@ import java.sql.Statement;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 风控运行时 Mapper 的真实 MySQL 表结构契约测试，默认关闭。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskRuntimeMapperMySqlLiveTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控运行时 Mapper 的真实 MySQL 表结构契约测试，默认关闭。
+ * @status : create
  */
 class RiskRuntimeMapperMySqlLiveTests {
 

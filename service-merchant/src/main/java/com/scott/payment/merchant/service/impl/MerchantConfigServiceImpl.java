@@ -12,7 +12,7 @@ import java.util.Optional;
  * @classname : MerchantConfigServiceImpl
  * @date : 2026-07-19 00:00
  * @email : scott_x@163.com
- * @description : 商户系统只读参数服务实现，位于 service-merchant 服务实现层，只读取 Admin 参数管理维护的启用配置。
+ * @description : 商户配置服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
 @Service

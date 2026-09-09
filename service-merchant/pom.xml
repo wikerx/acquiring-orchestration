@@ -6,10 +6,18 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>acquiring-orchestration</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>service-merchant</artifactId>
+    <name>service-merchant</name>
+    <description>商户工作台服务，提供账户、配置、交易查询、退款、费用和经营数据能力。</description>
+
+    <!--
+        本服务面向已登录商户提供管理能力，不作为外部交易受理入口，也不推进支付交易状态机。
+        交易和资金数据以对应核心服务/数据库事实为准，本地缓存用于查询抗压并按数据所有权失效。
+    -->
     <dependencies>
+        <!--服务注册、配置中心和服务间负载均衡。-->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
@@ -22,49 +30,59 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
+        <!--平台通用值对象、异常、响应和基础工具。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--商户端同步 API、鉴权上下文、异常处理和参数校验。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-web</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--交易和经营数据的 Excel 导入导出。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-excel</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--商户、用户、配置、交易查询和资金数据访问。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--商户登录、OpenAPI 密钥和敏感配置安全能力。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-security</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--商户操作日志和异步通知事件。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-mq</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--商户配置、交易查询和会话缓存。-->
         <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-redis</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--商户邮件通知和投递能力。-->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
+        <!--DTO、实体和视图对象的编译期映射。-->
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
         </dependency>
+        <!--仅用于无需外部 MySQL 的商户服务单元/集成测试。-->
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
@@ -74,6 +92,7 @@
 
     <build>
         <plugins>
+            <!--将服务及其运行时依赖重打包为可独立启动的 Spring Boot 制品。-->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

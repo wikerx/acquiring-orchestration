@@ -5,14 +5,17 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 /**
- * 风控名单查询输入值。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskRuntimeLookupValue
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 风控名单查询输入值。
+ * @status : create
  */
 @Data
 public class RiskRuntimeLookupValue {
 
-    /**
-     * 仅供需要明文范围计算的规范化原值；不得写入 Redis、审计日志或异常。
-     */
     private String rawValue;
 
     /**

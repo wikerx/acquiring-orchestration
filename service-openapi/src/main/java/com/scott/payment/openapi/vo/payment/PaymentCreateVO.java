@@ -9,16 +9,16 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentCreateVO
  * @date : 2026-05-28 10:23
  * @email : scott_x@163.com
- * @description : Payment Create VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : 支付create响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
  * @status : create
  */
+@Data
 public class PaymentCreateVO implements Serializable {
 
     /**
@@ -75,16 +75,16 @@ public class PaymentCreateVO implements Serializable {
     @JSONField(serialize = false)
     private String status;
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : MerchantInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : Merchant Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 商户信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      * @status : create
      */
+    @Data
     public static class MerchantInfoVO implements Serializable {
 
         /**
@@ -103,16 +103,16 @@ public class PaymentCreateVO implements Serializable {
         private SubMerchantInfoVO subMerchantInfo;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : SubMerchantInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : Sub Merchant Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : sub商户信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      * @status : create
      */
+    @Data
     public static class SubMerchantInfoVO implements Serializable {
 
         /**
@@ -191,16 +191,16 @@ public class PaymentCreateVO implements Serializable {
         private String chargeType;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : BillingCardHolderInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : Billing Card Holder Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 账单持卡人信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      * @status : create
      */
+    @Data
     public static class BillingCardHolderInfoVO implements Serializable {
 
         /**
@@ -254,16 +254,16 @@ public class PaymentCreateVO implements Serializable {
         private String postal;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : OrderInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : Order Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 订单信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      * @status : create
      */
+    @Data
     public static class OrderInfoVO implements Serializable {
 
         /**
@@ -317,16 +317,16 @@ public class PaymentCreateVO implements Serializable {
         private BigDecimal totalRefuseAmount;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : TransactionInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : Transaction Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 交易信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      * @status : create
      */
+    @Data
     public static class TransactionInfoVO implements Serializable {
 
         /**
@@ -450,9 +450,39 @@ public class PaymentCreateVO implements Serializable {
     @Data
     public static class GoodsInfoVO implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String name;
+        /**
+         * 响应中的{@code quantity}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Integer quantity;
+        /**
+         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal amount;
+        /**
+         * 币种，表示金额字段使用的币种。
+         * <p>
+         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+         * </p>
+         */
         private String currency;
     }
 
@@ -460,19 +490,117 @@ public class PaymentCreateVO implements Serializable {
     @Data
     public static class PayerInfoVO implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * {@code payerId}，用于定位 {@code PayerInfoVO} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String payerId;
+        /**
+         * 首个名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String firstName;
+        /**
+         * {@code lastName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String lastName;
+        /**
+         * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String phone;
+        /**
+         * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String email;
+        /**
+         * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
+         * <p>
+         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String country;
+        /**
+         * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String state;
+        /**
+         * 城市，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String city;
+        /**
+         * 街道，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String street;
+        /**
+         * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String postal;
+        /**
+         * 响应中的{@code ipAddress}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String ipAddress;
+        /**
+         * {@code sessionId}，用于定位 {@code PayerInfoVO} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String sessionId;
+        /**
+         * 响应中的{@code browserInfo}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private java.util.Map<String, Object> browserInfo;
+        /**
+         * 响应中的{@code userAgent}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String userAgent;
     }
 
@@ -480,14 +608,77 @@ public class PaymentCreateVO implements Serializable {
     @Data
     public static class ShippingInfoVO implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 首个名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String firstName;
+        /**
+         * {@code lastName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String lastName;
+        /**
+         * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String phone;
+        /**
+         * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String email;
+        /**
+         * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
+         * <p>
+         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String country;
+        /**
+         * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String state;
+        /**
+         * 城市，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String city;
+        /**
+         * 街道，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String street;
+        /**
+         * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String postal;
     }
 
@@ -495,10 +686,46 @@ public class PaymentCreateVO implements Serializable {
     @Data
     public static class ThreeDsInfoVO implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 响应中的{@code eci}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String eci;
+        /**
+         * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String dsTransactionId;
+        /**
+         * {@code threeDsVersion}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String threeDsVersion;
+        /**
+         * 状态，表示当前记录在业务流程中的处理状态。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+         * </p>
+         */
         private String status;
+        /**
+         * {@code liabilityShifted}，用于明确 {@code ThreeDsInfoVO} 当前业务分支是否成立。
+         * <p>
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private Boolean liabilityShifted;
     }
 
@@ -506,22 +733,52 @@ public class PaymentCreateVO implements Serializable {
     @Data
     public static class FeeItemVO implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 响应中的{@code categories}，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private String categories;
+        /**
+         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal amount;
+        /**
+         * 币种，表示金额字段使用的币种。
+         * <p>
+         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+         * </p>
+         */
         private String currency;
+        /**
+         * 响应中的汇率，用于管理端或商户端展示当前处理结果。
+         * <p>
+         * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         private BigDecimal rate;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
      * @classname : BillingInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : Billing Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @description : 账单信息响应模型，位于 商户开放接口服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
      * @status : create
      */
+    @Data
     public static class BillingInfoVO implements Serializable {
 
         /**

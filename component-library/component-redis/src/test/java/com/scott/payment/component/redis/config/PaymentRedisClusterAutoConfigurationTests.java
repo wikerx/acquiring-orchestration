@@ -12,7 +12,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 验证 Lettuce Master 读取策略和条件化 Redisson Cluster 客户端装配。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentRedisClusterAutoConfigurationTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 Lettuce Master 读取策略和条件化 Redisson Cluster 客户端装配。
+ * @status : create
  */
 class PaymentRedisClusterAutoConfigurationTests {
 

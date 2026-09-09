@@ -21,7 +21,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * @author : scott
@@ -36,6 +35,13 @@ import java.util.UUID;
 @Service
 public class MerchantNotificationRetryReconciliationService {
 
+    /**
+     * 平台时区ID，用于定位 {@code MerchantNotificationRetryReconciliationService} 关联的上游配置、渠道、账号、角色或业务记录。
+     * <p>
+     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID);
 
     /** 通知任务 Mapper。 */
@@ -157,7 +163,7 @@ public class MerchantNotificationRetryReconciliationService {
     private MerchantNotificationRetryDueMessage retryMessage(DataMerchantNotificationTaskDO task,
                                                               LocalDateTime now) {
         MerchantNotificationRetryDueMessage message = new MerchantNotificationRetryDueMessage();
-        message.setMessageId("MNR-JOB-" + UUID.randomUUID());
+        message.setMessageId("MNR-RECON-" + task.getNotifyId() + "-" + task.getVersion());
         message.setCreatedAt(now);
         message.setTraceId(TraceContext.getOrCreateTraceId());
         message.setRetryCount(0);
@@ -166,7 +172,8 @@ public class MerchantNotificationRetryReconciliationService {
         message.setTransactionDateTime(task.getTransactionDateTime());
         message.setExpectedVersion(task.getVersion());
         message.setAttemptNo(task.getLastAttemptNo() == null ? 1 : task.getLastAttemptNo() + 1);
-        message.setDeliverAt(now);
+        message.setDeliverAt(task.getNextRetryTime() == null
+                ? task.getTransactionDateTime() : task.getNextRetryTime());
         message.setEventType(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE);
         return message;
     }

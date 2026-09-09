@@ -10,7 +10,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Hosted Checkout 会话 Mapper。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutSessionMapper
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 会话 Mapper。
+ * @status : create
  */
 public interface PaymentCheckoutSessionMapper extends BaseMapper<PaymentCheckoutSessionDO> {
 

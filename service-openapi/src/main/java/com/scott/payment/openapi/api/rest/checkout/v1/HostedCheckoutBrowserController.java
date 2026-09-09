@@ -32,7 +32,13 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 付款人浏览器 Hosted Checkout API 控制器。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : HostedCheckoutBrowserController
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 付款人浏览器 Hosted Checkout API 控制器。
+ * @status : create
  */
 @RestController
 @RequestMapping("/checkout/api/v1")

@@ -67,10 +67,45 @@ import java.util.Set;
 @Service
 public class AdminMerchantPrimaryAccountProvisioningService {
 
+    /**
+     * 账号创建模板，用于定位邮件、通知或渠道参数模板。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ACCOUNT_CREATED_TEMPLATE = "MERCHANT_ACCOUNT_CREATED";
+    /**
+     * 账号创建场景常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ACCOUNT_CREATED_SCENE = "ACCOUNT_CREATED";
+    /**
+     * 角色类型系统，用于区分 {@code AdminMerchantPrimaryAccountProvisioningService} 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String ROLE_TYPE_SYSTEM = "SYSTEM";
+    /**
+     * {@code DATA_SCOPE_SELF}常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String DATA_SCOPE_SELF = "SELF";
+    /**
+     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final SysAppMapper appMapper;

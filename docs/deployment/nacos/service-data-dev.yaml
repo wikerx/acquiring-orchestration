@@ -3,11 +3,17 @@ data:
   card-vault:
     # 默认关闭；所有密钥必须由 K8s Secret、CI/CD Secret 或 KMS 注入，禁止写入 Nacos 明文。
     enabled: ${CHECKOUT_CARD_VAULT_CONSUME_ENABLED:false}
+    # 参数说明：Checkout 传输密钥标识，用于选择对应 RSA 私钥；轮换时必须先发布新公钥再切换该标识。
     transfer-key-id: ${CHECKOUT_CARD_VAULT_TRANSFER_KEY_ID:checkout-card-vault-v1}
+    # 参数说明：Card Vault 传输 RSA 私钥的 PKCS#8 Base64；必须由外部 Secret 注入，配置中心默认必须为空。
     transfer-private-key-pkcs8-base64: ${CHECKOUT_CARD_VAULT_TRANSFER_PRIVATE_KEY_PKCS8_BASE64:}
+    # 参数说明：PAN HMAC Pepper 版本号，写入卡资料记录用于后续多版本校验和安全轮换。
     pan-hmac-key-version: ${CHECKOUT_CARD_VAULT_PAN_HMAC_KEY_VERSION:v1}
+    # 参数说明：PAN 去重 HMAC Pepper；属于高敏密钥，必须由 KMS/Secret 注入且不得记录日志。
     pan-hmac-pepper: ${CHECKOUT_CARD_VAULT_PAN_HMAC_PEPPER:}
+    # 参数说明：包裹数据加密密钥的 KEK 版本号，必须与 KMS 中真实版本保持一致。
     kek-version: ${CHECKOUT_CARD_VAULT_KEK_VERSION:v1}
+    # 参数说明：KEK 的 Base64 密钥正文；必须由外部 Secret 注入，生产禁止保存到普通 Nacos DataId。
     kek-base64: ${CHECKOUT_CARD_VAULT_KEK_BASE64:}
   merchant-notification:
     mq:
@@ -30,26 +36,26 @@ data:
     callback-jwt-ttl-seconds: ${DATA_MERCHANT_NOTIFICATION_CALLBACK_JWT_TTL_SECONDS:180}
     # JWT Secret 和响应公钥正文只在当前 JVM 短时驻留，禁止写入 Redis。
     security-material-cache-ttl: ${DATA_MERCHANT_NOTIFICATION_SECURITY_MATERIAL_CACHE_TTL:2m}
+    # 参数说明：单实例最多缓存的商户回调安全材料数量；超过后按缓存策略淘汰，防止堆内存无界增长。
     security-material-cache-max-entries: ${DATA_MERCHANT_NOTIFICATION_SECURITY_MATERIAL_CACHE_MAX_ENTRIES:2048}
     # 默认只允许 HTTPS 公网地址。隔离 dev 使用本地 SDK 回调服务时，必须通过环境变量显式开启并在验收后关闭。
     allow-http: ${DATA_MERCHANT_NOTIFICATION_ALLOW_HTTP:false}
+    # 参数说明：是否允许回调解析到私网、回环或链路本地地址；仅隔离开发环境可临时开启，生产必须为 false。
     allow-private-network: ${DATA_MERCHANT_NOTIFICATION_ALLOW_PRIVATE_NETWORK:false}
 
 internal-service:
   auth:
-    # 参数说明：控制当前功能是否启用：true 开启，false 关闭；UAT/生产变更前必须确认依赖和降级影响。
-    enabled: true
-    # 参数说明：声明内部签名调用方标识，必须与服务白名单中的名称完全一致。
-    caller: service-job
-    # 参数说明：配置内部服务签名密钥，所有通信方必须使用同一环境的高强度 Secret。
-    # 环境说明：环境变量：DATA_INTERNAL_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
-    secret: ${DATA_INTERNAL_SECRET:dev-internal-service-secret}
-    # 参数说明：内部请求签名允许的客户端与服务端时钟偏差，使用 Spring Duration（如 5m 或 PT5M）。
+    # enabled 安全门禁固定在本地，补偿调用仅允许 service-job 访问数据内部接口。
+    callers:
+      service-job:
+        # 参数说明：Job 调用 Data 补偿接口时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.job-data.active-secret}
+        # 参数说明：Job-Data 密钥滚动轮换期间接受的上一版密钥；非轮换窗口为空。
+        previous-secret: ${acquiring.internal-auth.edges.job-data.previous-secret:}
+        allowed-paths:
+          # 路径说明：允许 Job 执行数据落库和商户通知补偿；不得暴露为浏览器或商户直接访问接口。
+          - /internal/data/**
+    # 参数说明：内部 HMAC 请求时间戳允许的最大偏差，默认 5 分钟；所有节点必须保持时钟同步。
     allowed-clock-skew: 5m
-    # nonce 记录必须覆盖完整时钟偏差窗口；Redis 异常时内部请求失败关闭。
+    # 参数说明：内部请求 nonce 防重放记录保留时间，默认 10 分钟，必须覆盖签名有效窗口。
     nonce-ttl: 10m
-    whitelist:
-      # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
-      - /actuator/health/**
-      # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
-      - /error

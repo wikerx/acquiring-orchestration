@@ -16,6 +16,7 @@ import java.util.Optional;
  * @version : v1.0.0
  * @classname : PayoutChannelRegistry
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 代付 Provider 注册器，按规范化 channel_code 定位实现并阻止重复注册。
  * @status : create
  */

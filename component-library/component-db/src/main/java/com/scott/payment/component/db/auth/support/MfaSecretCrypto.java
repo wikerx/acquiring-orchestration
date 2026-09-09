@@ -110,15 +110,6 @@ public final class MfaSecretCrypto {
         }
     }
 
-    /**
-     * 整理master密钥，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private static byte[] masterKey() {
         try {
             return MessageDigest.getInstance("SHA-256")
@@ -128,15 +119,6 @@ public final class MfaSecretCrypto {
         }
     }
 
-    /**
-     * 解析resolvemastersecret，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 公共组件库 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @return 构造、转换或解析后的业务值
-     */
     private static String resolveMasterSecret() {
         String property = System.getProperty("payment.mfa.secret");
         if (property != null && !property.isBlank()) {

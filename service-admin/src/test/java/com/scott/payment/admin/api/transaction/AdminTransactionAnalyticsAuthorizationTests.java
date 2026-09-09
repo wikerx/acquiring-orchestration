@@ -23,7 +23,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 /**
- * 管理端交易分析权限边界测试，确保权限不足时请求不会进入统计应用服务和数据库查询链路。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminTransactionAnalyticsAuthorizationTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 管理端交易分析权限边界测试，确保权限不足时请求不会进入统计应用服务和数据库查询链路。
+ * @status : create
  */
 class AdminTransactionAnalyticsAuthorizationTests {
 

@@ -30,12 +30,15 @@
 ### 业务模块
 
 * `channel-library`：渠道适配抽象，包含收单渠道和代付渠道。
+* `finance-library`：财务领域共享模型和纯计算内核，包含金额、费用、保证金与结算模块。
 * `service-gateway`：网关服务。
 * `service-admin`：管理后台服务。
 * `service-merchant`：商户后台服务。
 * `service-checkout`：Hosted Checkout 收银台服务。
 * `service-openapi`：商户开放接口入口服务。
 * `service-payment`：收单支付核心服务。
+* `service-clearing`：交易终态费用和保证金清分服务，不处理汇率和余额入账。
+* `service-settlement`：结算候选激活、批次认领、统一汇率、结果聚合、资金入账、保证金资金化、交易投影和可靠 Outbox 服务。
 * `service-payout`：代付核心服务。
 * `service-job`：轻量级任务调度中心与定时任务服务。
 
@@ -212,6 +215,38 @@ converter
 * 某个渠道的特殊逻辑
 * 某个后台页面的业务逻辑
 * 某个商户功能的私有规则
+
+### `finance-library`
+
+`finance-library` 是财务领域纯 Java 共享库，父模块只负责 Maven 聚合，不包含业务代码。
+
+当前子模块职责：
+
+* `model-money`：有符号金额、ISO 币种和 exponent 值对象，不包含汇率。
+* `model-fee`：费用规则、阶梯、退款返费和费用预览契约。
+* `model-reserve`：标签币种保证金扣留和返还契约。
+* `core-fee`：费用、退款返费和 Admin 费用换汇预览纯计算。
+* `core-reserve`：保证金扣留和返还纯计算，接口中禁止出现汇率。
+* `model-settlement`：结算批次锁定汇率、原币种输入和目标币种结果契约。
+* `core-settlement`：直接/反向/恒等汇率归一、统一换汇和跨币种费用限额纯计算。
+
+禁止放入：
+
+* Spring Bean、Controller、ApplicationService
+* Mapper、DO、数据库查询
+* Redis、RocketMQ、Nacos 配置读取
+* 费用版本选择、清分状态机和结算批次编排
+* 真实结算汇率锁定和资金账户入账
+
+`model-settlement`、`core-settlement` 不能使用 Admin 费用预览模型代替真实结算模型，也不能读取或更新结算批次表。
+
+版本规则：
+
+* 所有 `finance-library` 子模块使用根工程的 `finance-library.version`，当前解析为 `1.0.0-SNAPSHOT`。
+* `model-*` 和 `core-*` 必须同版本发布，禁止单独修改某个子模块版本。
+* 删除或修改公开模型字段、枚举语义、计算结果含义属于不兼容变更，必须提升主版本。
+* 新增向后兼容的模型或计算能力提升次版本；不改变契约的缺陷修复提升修订版本。
+* `SNAPSHOT` 只用于开发验证，生产发布必须使用固定版本并保留对应 Git Tag。
 
 ### `channel-library`
 

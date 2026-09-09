@@ -96,10 +96,12 @@ public class AdminMerchantSettlementCurrencyService {
     }
 
     /**
-     * 校验并规范化费用版本准备保存的商户结算币种。
-     *
-     * @param settlementCurrency ISO 4217 三位币种代码
-     * @return 大写三位币种代码
+     * 校验{@code validateConfiguredCurrency}输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 校验失败时按 运营后台服务 统一异常语义中断流程，不返回部分校验结果。
+     * </p>
+     * @param settlementCurrency 币种代码，格式为 ISO 4217 三位大写字母
+     * @return 当前方法生成或规范化后的文本值
      */
     @DS(DataSourceName.MASTER)
     public String validateConfiguredCurrency(String settlementCurrency) {

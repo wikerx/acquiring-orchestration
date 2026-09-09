@@ -1,8 +1,9 @@
 # service-openapi 专属配置：开放 API 鉴权、幂等、回调重试等参数。
 acquiring:
   gateway-ingress:
-    # 与 dev Gateway 保持一致；环境变量优先覆盖，非 dev 环境禁止复用该默认值。
-    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:2acee5d27b34b556d0a9b0123e2277870558d57f39968820a0b00edc1d3b7a12}
+    # OpenAPI 外部入口必须由 Gateway 签发；密钥正文由受控脚本合入同一服务 DataId。
+    secret: ${acquiring.internal-auth.edges.gateway-checkout.active-secret}
+    # 参数说明：Gateway 入口签名时间戳允许偏差，单位毫秒；过大会扩大重放窗口，过小会放大时钟抖动。
     allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}
 
 openapi:
@@ -19,3 +20,21 @@ openapi:
   payment-client:
     # dev 联调默认走 service-payment 微服务，调用链路为 service-gateway -> service-openapi -> service-payment。
     remote-enabled: true
+    # 参数说明：支付内部协议的固定调用方标识，必须保持 service-openapi。
+    internal-caller: service-openapi
+    # 参数说明：OpenAPI 到 Payment 调用边的当前 HMAC 密钥引用。
+    internal-secret: ${acquiring.internal-auth.edges.openapi-payment.active-secret}
+  payout-client:
+    # 参数说明：代付内部协议的固定调用方标识，必须保持 service-openapi。
+    internal-caller: service-openapi
+    # 参数说明：OpenAPI 到 Payout 调用边的当前 HMAC 密钥引用。
+    internal-secret: ${acquiring.internal-auth.edges.openapi-payout.active-secret}
+  security:
+    secret-cache:
+      # 密钥正文只允许在当前 JVM 短时驻留，Redis 仅保存非敏感 revision。
+      ttl: PT2M
+      # 参数说明：单实例最多缓存的商户安全材料数量；超过后必须淘汰，禁止形成无界高敏缓存。
+      max-entries: 2048
+    replay:
+      # dev 允许 Redis 暂不可用时联调；UAT/生产由本地 Profile 强制为 true。
+      required: false

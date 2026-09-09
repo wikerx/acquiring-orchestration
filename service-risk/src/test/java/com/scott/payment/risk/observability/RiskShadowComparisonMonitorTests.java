@@ -9,7 +9,13 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 验证数据库基线 shadow 观察计数在差异分类、并发记录和周期清零时保持准确。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskShadowComparisonMonitorTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证数据库基线 shadow 观察计数在差异分类、并发记录和周期清零时保持准确。
+ * @status : create
  */
 class RiskShadowComparisonMonitorTests {
 

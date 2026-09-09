@@ -9,7 +9,15 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** MPGS Webhook notification secret verification tests. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MpgsCallbackVerifierTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : MPGS Webhook notification secret verification tests.
+ * @status : create
+ */
 class MpgsCallbackVerifierTests {
 
     private static final String CONFIGURED_SECRET = "0123456789abcdef0123456789abcdef";

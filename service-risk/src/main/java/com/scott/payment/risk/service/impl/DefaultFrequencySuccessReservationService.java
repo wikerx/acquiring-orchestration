@@ -16,7 +16,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 使用 Redis Cluster 同槽脚本实现频控成功名额生命周期。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultFrequencySuccessReservationService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 使用 Redis Cluster 同槽脚本实现频控成功名额生命周期。
+ * @status : create
+ *
  *
  * <p>同一商户的计数器和交易索引使用同一摘要 Hash Tag，使规则维度预占和终态释放
  * 保持原子性；物理 Key 不包含商户号、交易号或风控元素原文。</p>

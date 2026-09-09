@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
  * @version : v1.0.0
  * @classname : RefundManagementProperties
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : 退款管理运行配置；默认保留既有同步退款行为，审批能力只有显式启用并选择策略后才生效。
  * @status : create
  */

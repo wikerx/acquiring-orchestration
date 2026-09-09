@@ -277,6 +277,7 @@ public class MerchantRouteProfileCacheReader {
         option.setCapabilityStatus(capability.getCapabilityStatus());
         option.setCapabilitySortOrder(capability.getSortOrder());
         option.setSupportedCurrencies(new ArrayList<>(supportedCurrencies));
+        option.setDefaultTransactionCurrency(normalize(capability.getDefaultTransactionCurrency()));
         return option;
     }
 

@@ -51,7 +51,7 @@ import java.util.Set;
  * @classname : AdminUserMfaServiceImpl
  * @date : 2026-07-19 00:00
  * @email : scott_x@163.com
- * @description : 后台用户 MFA 管理服务实现，位于 service-admin 服务实现层；负责多因素认证策略状态变更、会话失效、邮件通知和安全审计。
+ * @description : admin用户MFA服务实现，位于 运营后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
 @Slf4j
@@ -113,77 +113,13 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
      */
     private static final String MFA_TOKEN_TYPE_LOGIN = "LOGIN_MFA";
 
-    /**
-     * sys App Mapper 依赖，用于 Admin User Mfa Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysAppMapper sysAppMapper;
-    /**
-     * sys Account Mapper，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysAccountMapper sysAccountMapper;
-    /**
-     * sys Account Mfa Mapper，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysAccountMfaMapper sysAccountMfaMapper;
-    /**
-     * sys Account Mfa Token Mapper，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysAccountMfaTokenMapper sysAccountMfaTokenMapper;
-    /**
-     * sys Account Mfa Log Mapper，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysAccountMfaLogMapper sysAccountMfaLogMapper;
-    /**
-     * sys Login Session Mapper 依赖，用于 Admin User Mfa Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final SysLoginSessionMapper sysLoginSessionMapper;
-    /**
-     * admin Email Service 依赖，用于 Admin User Mfa Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：长度和格式由接口校验约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final AdminEmailService adminEmailService;
-    /**
-     * admin Config Service 依赖，用于 Admin User Mfa Service Impl 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final AdminConfigService adminConfigService;
 
     /**
@@ -375,14 +311,9 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 规范化unlockMFA，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
+     * 清零 MFA 失败次数和锁定截止时间，并注销现有会话使解锁状态重新生效。
      * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * @return 解锁后的后台账号 MFA 状态
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -492,17 +423,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return app;
     }
 
-    /**
-     * 查询账号，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
-     * @param accountId account ID 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
     private SysAccountDO getAccount(Long appId, Long accountId) {
         SysAccountDO account = sysAccountMapper.selectOne(
                 Wrappers.<SysAccountDO>lambdaQuery()
@@ -517,18 +437,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return account;
     }
 
-    /**
-     * 校验确保mfa输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param app app 输入值，参与 app 的查询、校验、转换、写入或日志摘要
-     * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
-     * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private SysAccountMfaDO ensureMfa(SysAppDO app, SysAccountDO account, LocalDateTime now) {
         SysAccountMfaDO mfa = sysAccountMfaMapper.selectOne(
                 Wrappers.<SysAccountMfaDO>lambdaQuery()
@@ -560,17 +468,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return created;
     }
 
-    /**
-     * 整理失效openmfatokens，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
-     * @param accountId account ID 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
-     * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
-     */
     private void expireOpenMfaTokens(Long appId, Long accountId, LocalDateTime now) {
         sysAccountMfaTokenMapper.update(
                 Wrappers.<SysAccountMfaTokenDO>lambdaUpdate()
@@ -585,17 +482,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         );
     }
 
-    /**
-     * 记录会话，写入安全、审计或链路排障所需的脱敏上下文。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
-     * @param accountId account ID 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
-     * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
-     */
     private void logoutSessions(Long appId, Long accountId, LocalDateTime now) {
         sysLoginSessionMapper.update(
                 Wrappers.<SysLoginSessionDO>lambdaUpdate()
@@ -608,18 +494,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         );
     }
 
-    /**
-     * 发送公告消息或请求，补齐目标地址、链路标识和业务载荷。
-     * <p>
-     * 前置条件：调用方已确定 运营后台服务 的目标地址、消息主题、业务编号和重试策略。
-     * 该方法可能调用外部系统、内部服务或 MQ；traceId 必须沿调用链透传，重试应保留原业务标识。
-     * 异常边界：网络异常、超时或投递失败需转换为当前模块可识别的失败结果并记录脱敏摘要。
-     * </p>
-     * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
-     * @param templateCode template Code 输入值，参与 template编码 的查询、校验、转换、写入或日志摘要
-     * @param reason reason 输入值，参与 reason 的查询、校验、转换、写入或日志摘要
-     * @param exemptUntil exempt Until 输入值，参与 exemptuntil 的查询、校验、转换、写入或日志摘要
-     */
     private void sendNotice(SysAccountDO account, String templateCode, String reason, LocalDateTime exemptUntil) {
         if (!StringUtils.hasText(account.getEmail())) {
             return;
@@ -646,18 +520,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         }
     }
 
-    /**
-     * 整理邮件变量，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
-     * @param reason reason 输入值，参与 reason 的查询、校验、转换、写入或日志摘要
-     * @param exemptUntil exempt Until 输入值，参与 exemptuntil 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Map<String, Object> emailVariables(SysAccountDO account, String reason, LocalDateTime exemptUntil) {
         Map<String, Object> variables = new LinkedHashMap<>();
         variables.put("loginAccount", account.getLoginAccount());
@@ -668,15 +530,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return variables;
     }
 
-    /**
-     * 整理admin登录url，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String adminLoginUrl() {
         Map<String, String> configValues = adminConfigService.enabledConfigValues(Set.of(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL));
         String baseUrl = configValues.get(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL);
@@ -686,25 +539,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return baseUrl.replaceAll("/+$", "") + "/login";
     }
 
-/**
- * 记录日志，写入安全、审计或链路排障所需的脱敏上下文。
- * <p>
- * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
- * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param app app 输入值，参与 app 的查询、校验、转换、写入或日志摘要
- * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
- * @param mfa mfa 输入值，参与 多因子认证 的查询、校验、转换、写入或日志摘要
- * @param actionType action Type 输入值，参与 actiontype 的查询、校验、转换、写入或日志摘要
- * @param result 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
- * @param reason reason 输入值，参与 reason 的查询、校验、转换、写入或日志摘要
- * @param beforePolicy before Policy 输入值，参与 beforepolicy 的查询、校验、转换、写入或日志摘要
- * @param beforeStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
- * @param operator operator 输入值，参与 operator 的查询、校验、转换、写入或日志摘要
- * @param clientIp client IP 输入值，参与 clientip 的查询、校验、转换、写入或日志摘要
- * @param userAgent user Agent 输入值，参与 用户agent 的查询、校验、转换、写入或日志摘要
- */
     private void recordLog(SysAppDO app,
                            SysAccountDO account,
                            SysAccountMfaDO mfa,
@@ -737,17 +571,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         sysAccountMfaLogMapper.insert(logRow);
     }
 
-    /**
-     * 构造状态响应对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
-     * @param mfa mfa 输入值，参与 多因子认证 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private UserMfaStatusResponse toStatusResponse(SysAccountDO account, SysAccountMfaDO mfa) {
         UserMfaStatusResponse response = new UserMfaStatusResponse();
         response.setAccountId(account.getId());
@@ -761,16 +584,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return response;
     }
 
-    /**
-     * 构造日志响应对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
-     */
     private UserMfaLogResponse toLogResponse(SysAccountMfaLogDO row) {
         UserMfaLogResponse response = new UserMfaLogResponse();
         response.setId(row.getId());
@@ -789,16 +602,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return response;
     }
 
-    /**
-     * 整理账号登录账号，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param accountId account ID 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String accountLoginAccount(Long accountId) {
         if (accountId == null) {
             return "-";
@@ -807,17 +610,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return account == null ? "-" : account.getLoginAccount();
     }
 
-    /**
-     * 解析resolveoperator登录账号，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @param targetLoginAccount target Login Account 输入值，参与 target登录账号 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolveOperatorLoginAccount(SysAccountMfaLogDO row, String targetLoginAccount) {
         if (StringUtils.hasText(row.getOperatorLoginAccount())) {
             return row.getOperatorLoginAccount();
@@ -831,16 +623,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return targetLoginAccount;
     }
 
-    /**
-     * 校验断言notself输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param targetAccountId target Account ID 输入值，参与 target账号ID 的查询、校验、转换、写入或日志摘要
-     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     */
     private void assertNotSelf(Long targetAccountId, String message) {
         InternalAuthAccount operator = currentOperator();
         if (operator != null && Objects.equals(operator.getAccountId(), targetAccountId)) {
@@ -848,56 +630,19 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         }
     }
 
-    /**
-     * 整理当前operatorID，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Long currentOperatorId() {
         InternalAuthAccount operator = currentOperator();
         return operator == null ? null : operator.getAccountId();
     }
 
-    /**
-     * 整理当前操作人，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private InternalAuthAccount currentOperator() {
         return InternalAuthContextHolder.get();
     }
 
-    /**
-     * 规范化clientipfallback，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String clientIpFallback() {
         return "-";
     }
 
-    /**
-     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 构造、转换或解析后的业务值
-     */
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }

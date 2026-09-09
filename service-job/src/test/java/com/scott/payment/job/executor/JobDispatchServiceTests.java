@@ -37,7 +37,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** 调度分发锁和手动非阻塞执行测试。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JobDispatchServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 调度分发锁和手动非阻塞执行测试。
+ * @status : create
+ */
 class JobDispatchServiceTests {
 
     /** Executes manually triggered jobs without blocking the caller. */

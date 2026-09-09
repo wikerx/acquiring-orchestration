@@ -29,15 +29,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 
 @RestController
 @RequestMapping("/admin/base/currencies")
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseCurrencyController
- * @date : 2026-06-19 21:06
- * @email : scott_x@163.com
- * @description : Admin Base Currency Controller 控制器，位于 运营后台服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
- * @status : create
- */
 public class AdminBaseCurrencyController {
 
     /**

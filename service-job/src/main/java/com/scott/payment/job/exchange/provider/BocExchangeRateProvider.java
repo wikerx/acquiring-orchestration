@@ -16,36 +16,27 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 
-@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : BocExchangeRateProvider
  * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : Boc Exchange Rate Provider 协作组件，位于 调度任务服务，封装 bocexchange汇率provider 相关的校验、转换、持久化访问或运行时协作入口。
+ * @description : boc汇率汇率提供方协作组件，位于 调度任务服务，封装该业务的本地校验、转换或运行时协作入口。
  * @status : create
  */
+@Component
 public class BocExchangeRateProvider implements ExchangeRateProvider {
 
     /**
-     * SOURCE CODE，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     public static final String SOURCE_CODE = "BOC";
 
-    /**
-     * parser，用于保存 Boc Exchange Rate Provider 中与 parser 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final BocExchangeRateHtmlParser parser;
 
     /**

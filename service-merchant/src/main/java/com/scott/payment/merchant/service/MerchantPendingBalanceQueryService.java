@@ -1,6 +1,7 @@
 package com.scott.payment.merchant.service;
 
 import com.scott.payment.merchant.entity.MerchantFinanceEntities.PendingBalanceAggregate;
+import com.scott.payment.merchant.entity.MerchantFinanceEntities.ReserveBalanceAggregate;
 
 import java.util.List;
 
@@ -22,4 +23,12 @@ public interface MerchantPendingBalanceQueryService {
      * @return 标签币种维度的在途净额；不同币种不会直接相加
      */
     List<PendingBalanceAggregate> sumPendingBalances(String merchantId);
+
+    /**
+     * 按保证金原币种汇总尚未完成保证金结算入账的余额。
+     *
+     * @param merchantId 认证商户号，不允许为空
+     * @return 原币种维度的未结算保证金；保证金释放最终入账后不再返回
+     */
+    List<ReserveBalanceAggregate> sumUnsettledReserveBalances(String merchantId);
 }

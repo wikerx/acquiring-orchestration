@@ -12,7 +12,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 创建 Hosted Checkout 会话内部命令。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutSessionCreateCommandDTO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 创建 Hosted Checkout 会话内部命令。
+ * @status : create
  */
 @Data
 public class PaymentCheckoutSessionCreateCommandDTO implements Serializable {

@@ -1,0 +1,17 @@
+# 清分服务本地启动基线；容量、调用方、允许路径和观测参数统一由 service-clearing-{env}.yaml 提供。
+server:
+  port: 8010
+  shutdown: graceful
+
+spring:
+  application:
+    name: service-clearing
+  profiles:
+    active: @profiles.active@
+  main:
+    allow-bean-definition-overriding: true
+
+internal-service:
+  auth:
+    # 安全门禁固定留在本地；Nacos 只提供调用方凭据、路径和时间窗。
+    enabled: ${INTERNAL_SERVICE_AUTH_ENABLED:true}

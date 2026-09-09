@@ -5,17 +5,17 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 
-@SpringBootApplication(scanBasePackages = "com.scott.payment")
-@EnableScheduling
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentApplication
  * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : Payment Application 协作组件，位于 支付核心服务，封装 paymentapplication 相关的校验、转换、持久化访问或运行时协作入口。
+ * @description : 支付application协作组件，位于 支付核心服务，封装该业务的本地校验、转换或运行时协作入口。
  * @status : create
  */
+@SpringBootApplication(scanBasePackages = "com.scott.payment")
+@EnableScheduling
 public class PaymentApplication {
 
     /**

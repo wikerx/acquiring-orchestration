@@ -16,7 +16,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 累计限额 Redis 投影测试，验证同槽 Key、单投影回滚和异常三态。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultMerchantLimitReservationCounterServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 累计限额 Redis 投影测试，验证同槽 Key、单投影回滚和异常三态。
+ * @status : create
  */
 class DefaultMerchantLimitReservationCounterServiceTests {
 

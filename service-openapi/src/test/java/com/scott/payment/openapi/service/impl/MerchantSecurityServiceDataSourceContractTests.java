@@ -10,7 +10,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 商户鉴权关键读取的数据源路由契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantSecurityServiceDataSourceContractTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户鉴权关键读取的数据源路由契约测试。
+ * @status : create
  */
 class MerchantSecurityServiceDataSourceContractTests {
 

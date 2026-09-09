@@ -20,7 +20,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 频控成功名额 Redis 生命周期测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultFrequencySuccessReservationServiceTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 频控成功名额 Redis 生命周期测试。
+ * @status : create
  */
 class DefaultFrequencySuccessReservationServiceTests {
 

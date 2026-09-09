@@ -12,7 +12,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * Hosted Checkout token 摘要支撑。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : HostedCheckoutTokenSupport
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout token 摘要支撑。
+ * @status : create
  */
 public final class HostedCheckoutTokenSupport {
 

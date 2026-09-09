@@ -4,7 +4,13 @@ import com.scott.payment.risk.domain.FrequencySuccessReservationResult;
 import com.scott.payment.risk.domain.FrequencySuccessReservationTransitionSummary;
 
 /**
- * 管理频率规则成功次数上限的 Redis 预占、确认和释放生命周期。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : FrequencySuccessReservationService
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 管理频率规则成功次数上限的 Redis 预占、确认和释放生命周期。
+ * @status : create
  */
 public interface FrequencySuccessReservationService {
 

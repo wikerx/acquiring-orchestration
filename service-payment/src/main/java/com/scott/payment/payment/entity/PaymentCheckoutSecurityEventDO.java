@@ -10,7 +10,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Hosted Checkout 安全事件实体。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutSecurityEventDO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 安全事件实体。
+ * @status : create
  */
 @Data
 @TableName("payment_checkout_security_event")

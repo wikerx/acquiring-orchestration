@@ -14,16 +14,16 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 
-@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PayoutTransactionServiceImpl
  * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : Payout Transaction Service Impl 服务实现，位于 代付服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
+ * @description : 代付交易服务实现，位于 代付服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
  * @status : create
  */
+@Service
 public class PayoutTransactionServiceImpl implements PayoutTransactionService {
 
     /**

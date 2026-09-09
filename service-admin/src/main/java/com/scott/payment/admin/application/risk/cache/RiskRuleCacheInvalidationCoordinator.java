@@ -14,7 +14,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * 将风控规则缓存失效意图绑定到当前数据库事务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskRuleCacheInvalidationCoordinator
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 将风控规则缓存失效意图绑定到当前数据库事务。
+ * @status : create
  */
 @Slf4j
 @Service

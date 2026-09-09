@@ -13,7 +13,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * 商户 OpenAPI 访问策略读取器，为 facade 提供可代理的缓存与直读入口。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantOpenApiAccessPolicyCacheReader
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPI 访问策略读取器，为 facade 提供可代理的缓存与直读入口。
+ * @status : create
  */
 @Service
 public class MerchantOpenApiAccessPolicyCacheReader {
@@ -64,25 +70,18 @@ public class MerchantOpenApiAccessPolicyCacheReader {
     }
 
     /**
-     * 失效门禁 pending 或状态未知时绕过缓存并直读主库。
-     *
-     * @param merchantId 已规范化的商户号
-     * @return 商户访问策略
+     * 绕过方法级缓存读取当前数据源中的最新业务值。
+     * <p>
+     * 只读操作；实现必须沿用 商户开放接口服务 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @DS(DataSourceName.MASTER)
     public MerchantOpenApiAccessPolicy findFresh(String merchantId) {
         return load(merchantId);
     }
 
-    /**
-     * 从主库组装商户 IP 白名单策略。
-     *
-     * <p>访问开关和白名单记录均以数据库为事实来源。白名单未启用时返回显式关闭策略；
-     * 启用时仅装载状态正常、未删除且非空的 IP，不读取或缓存商户密钥材料。</p>
-     *
-     * @param merchantId 已规范化的商户号
-     * @return 当前数据库状态对应的访问策略
-     */
     private MerchantOpenApiAccessPolicy load(String merchantId) {
         MerchantOpenApiAccessPolicy policy = new MerchantOpenApiAccessPolicy();
         MerchantOpenApiAccessConfigDO config = accessConfigMapper.selectOne(

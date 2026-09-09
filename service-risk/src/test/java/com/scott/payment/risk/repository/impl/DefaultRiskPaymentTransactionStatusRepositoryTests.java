@@ -13,7 +13,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 校验 Risk 使用持久化业务时间范围查询 ShardingSphere 交易逻辑表。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultRiskPaymentTransactionStatusRepositoryTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 校验 Risk 使用持久化业务时间范围查询 ShardingSphere 交易逻辑表。
+ * @status : create
  */
 class DefaultRiskPaymentTransactionStatusRepositoryTests {
 

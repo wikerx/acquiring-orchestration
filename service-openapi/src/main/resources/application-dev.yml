@@ -60,12 +60,6 @@ spring:
         # 参数说明：配置 Nacos 拉取配置失败后的重试次数，必须为非负整数。
         config-retry-time: 3
 
-acquiring:
-  gateway-ingress:
-    # 必须与 dev Gateway 一致；环境变量可覆盖，test/uat/prod 禁止使用此开发密钥。
-    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:2acee5d27b34b556d0a9b0123e2277870558d57f39968820a0b00edc1d3b7a12}
-    allowed-clock-skew-millis: ${CHECKOUT_GATEWAY_INGRESS_ALLOWED_SKEW_MILLIS:60000}
-
 logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml

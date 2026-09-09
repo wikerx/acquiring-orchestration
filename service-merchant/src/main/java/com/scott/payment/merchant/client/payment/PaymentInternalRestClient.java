@@ -65,40 +65,19 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     /** 商户发起请款时调用的支付核心内部接口。 */
     private static final String CAPTURE_PATH = "/internal/payment/capture";
 
+    /** 商户发起预授权完成时调用的支付核心内部接口。 */
+    private static final String PRE_AUTH_COMPLETION_PATH = "/internal/payment/pre-auth-completion";
+
     /** 商户发起退款时调用的支付核心内部接口。 */
     private static final String REFUND_PATH = "/internal/payment/refund";
 
     /** 商户发起撤销时调用的支付核心内部接口。 */
     private static final String VOID_PATH = "/internal/payment/void";
 
-    /**
-     * direct Rest Template，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final RestTemplate directRestTemplate;
 
-    /**
-     * load Balanced Rest Template，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final RestTemplate loadBalancedRestTemplate;
 
-    /**
-     * properties 依赖，用于 Payment Internal Rest Client 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final PaymentInternalClientProperties properties;
 
     /**
@@ -126,6 +105,22 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     public TransactionActionResponse capture(PaymentTransactionActionClientRequestDTO requestDTO) {
         CommonResult<TransactionActionResponse> result = post(
                 servicePaymentUrl(CAPTURE_PATH),
+                requestDTO,
+                new TypeReference<CommonResult<TransactionActionResponse>>() {
+                });
+        return unwrapData(result);
+    }
+
+    /**
+     * 通过支付核心发起预授权完成动作。
+     *
+     * @param requestDTO 支付核心内部预授权完成命令
+     * @return 预授权完成动作结果
+     */
+    @Override
+    public TransactionActionResponse preAuthCompletion(PaymentTransactionActionClientRequestDTO requestDTO) {
+        CommonResult<TransactionActionResponse> result = post(
+                servicePaymentUrl(PRE_AUTH_COMPLETION_PATH),
                 requestDTO,
                 new TypeReference<CommonResult<TransactionActionResponse>>() {
                 });
@@ -164,6 +159,16 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return unwrapData(result);
     }
 
+    /**
+     * 对商户交易状态变更命令生成支付核心内部签名并解析响应；普通查询不经过该远程边界。
+     *
+     * @param url 支付核心内部命令地址
+     * @param body 已绑定认证商户身份的交易命令
+     * @param typeReference 响应泛型
+     * @param <T> 响应类型
+     * @return 支付核心内部响应
+     * @throws ApiException 内部鉴权、网络或响应协议失败时抛出
+     */
     private <T> T post(String url, Object body, TypeReference<T> typeReference) {
         URI uri = URI.create(url);
         try {
@@ -258,18 +263,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return result.getData();
     }
 
-    /**
-     * 转换转换HTTP异常，把下游响应、异常或包装结果映射为当前模块统一语义。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param method HTTP 方法或内部调用方法名，用于构造请求、签名或异常摘要
-     * @param uri 请求地址或路径，用于定位内部服务、渠道接口或商户回调目标
-     * @param exception 下游调用、校验或持久化阶段捕获的异常对象
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private ApiException translateHttpException(HttpMethod method, URI uri, HttpStatusCodeException exception) {
         log.warn("service-payment {} call returned non-success status, targetPath: {}, status: {}, exceptionType: {}",
                 method.name(),

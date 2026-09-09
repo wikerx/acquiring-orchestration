@@ -14,18 +14,18 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
-@ApiVersion(apiVersion = 1)
-@RestController
-@RequestMapping("/api/rest/payout/{version}")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiPayoutController
  * @date : 2026-05-28 10:23
  * @email : scott_x@163.com
- * @description : Open API Payout Controller 控制器，位于 商户开放接口服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
+ * @description : openAPI代付 HTTP 控制器，位于 商户开放接口服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  * @status : create
  */
+@ApiVersion(apiVersion = 1)
+@RestController
+@RequestMapping("/api/rest/payout/{version}")
 public class OpenApiPayoutController {
 
     /**

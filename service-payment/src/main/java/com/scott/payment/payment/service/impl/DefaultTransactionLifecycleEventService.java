@@ -108,7 +108,7 @@ public class DefaultTransactionLifecycleEventService implements TransactionLifec
         eventDO.setTransactionType(transactionType);
         eventDO.setEventType(TransactionMqConstants.TRANSACTION_STATUS_CHANGED_TAG);
         eventDO.setEventStatus(EVENT_STATUS_INIT);
-        eventDO.setTopic(MqTopic.PAYMENT_EVENT);
+        eventDO.setTopic(MqTopic.PAYMENT_TRANSACTION_FIFO);
         eventDO.setTag(TransactionMqConstants.TRANSACTION_STATUS_CHANGED_TAG);
         eventDO.setMessageKey(eventNo);
         eventDO.setMessageGroup(operationId);

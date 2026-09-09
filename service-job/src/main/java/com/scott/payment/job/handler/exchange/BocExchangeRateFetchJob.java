@@ -11,7 +11,6 @@ import com.scott.payment.job.dto.exchange.ExchangeRateFetchDTOs.ExchangeRateFetc
 import com.scott.payment.job.exchange.service.ExchangeRateFetchService;
 import org.springframework.stereotype.Component;
 
-@Component
 /**
  * @author : scott
  * @version : v1.0.0
@@ -21,24 +20,23 @@ import org.springframework.stereotype.Component;
  * @description : Boc Exchange Rate Fetch Job 任务组件，位于 调度任务服务，执行定时扫描、分片调度、补偿处理或后台同步，并记录任务执行结果。
  * @status : create
  */
+@Component
 public class BocExchangeRateFetchJob implements JobHandler {
 
     /**
-     * HANDLER CODE，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * {@code HANDLER_CODE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     public static final String HANDLER_CODE = "bocExchangeRateFetchJob";
 
     /**
-     * exchange Rate Fetch Service 依赖，用于 Boc Exchange Rate Fetch Job 调用对应的数据访问、远程调用或领域服务能力。
+     * {@code exchangeRateFetchService} 依赖，用于 {@code BocExchangeRateFetchJob} 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
      * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final ExchangeRateFetchService exchangeRateFetchService;

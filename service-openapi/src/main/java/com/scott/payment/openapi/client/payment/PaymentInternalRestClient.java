@@ -480,6 +480,14 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         );
     }
 
+    /**
+     * 解析{@code resolveCheckoutCardBin}，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 仅返回规范化或计算结果，不直接提交交易状态。
+     * </p>
+     * @param requestDTO request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     @Override
     public PaymentCheckoutClientDTOs.CardBinResponse resolveCheckoutCardBin(
             PaymentCheckoutClientDTOs.CardBinRequest requestDTO) {

@@ -7,10 +7,12 @@ import com.scott.payment.component.redis.cache.invalidation.ImmediateCacheEvicti
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.config.PaymentRedisSerializerFactory;
 import com.scott.payment.component.redis.observability.RedisBusinessMetrics;
+import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -126,6 +128,27 @@ public class PaymentRedisCacheAutoConfiguration {
     }
 
     /**
+     * 注册跨服务共享的缓存 generation 存储，供管理端写链路和业务读模型使用同一原子协议。
+     *
+     * @param stringRedisTemplate Redis 字符串模板
+     * @param redisProperties Redis Key 规范配置
+     * @param metricsProvider Redis 指标提供器
+     * @return generation 门禁与切换服务
+     */
+    @Bean
+    @ConditionalOnBean(StringRedisTemplate.class)
+    @ConditionalOnMissingBean(RedisCacheGenerationStore.class)
+    public RedisCacheGenerationStore redisCacheGenerationStore(
+            StringRedisTemplate stringRedisTemplate,
+            PaymentRedisProperties redisProperties,
+            ObjectProvider<RedisBusinessMetrics> metricsProvider) {
+        return new RedisCacheGenerationStore(
+                stringRedisTemplate,
+                redisProperties,
+                metricsProvider.getIfAvailable(RedisBusinessMetrics::noop));
+    }
+
+    /**
      * 缓存属于数据库读路径的减压层，Redis 短暂异常时回源数据库，不能直接中断交易查询或商户校验。
      *
      * <p>该降级只影响 Spring Cache。请求幂等、MQ 去重、全局编号和风控并发计数仍使用各自的
@@ -225,16 +248,6 @@ public class PaymentRedisCacheAutoConfiguration {
         return configuration;
     }
 
-    /**
-     * 规范化 Spring Cache 的 Redis Key 前缀。
-     * <p>
-     * 输入前缀移除尾部重复冒号后只保留一个分隔符，确保最终格式稳定为
-     * {@code acquiring:{environment}:{cacheName}:{businessKey}}。
-     * </p>
-     *
-     * @param keyPrefix 配置的缓存 Key 前缀
-     * @return 以单个冒号结尾的规范前缀
-     */
     private String normalizeKeyPrefix(String keyPrefix) {
         String normalized = keyPrefix.trim();
         while (normalized.endsWith(":")) {

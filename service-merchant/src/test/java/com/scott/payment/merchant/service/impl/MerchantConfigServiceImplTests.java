@@ -10,7 +10,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 商户服务统一系统参数读取契约测试。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantConfigServiceImplTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户服务统一系统参数读取契约测试。
+ * @status : create
+ */
 class MerchantConfigServiceImplTests {
 
     /** 商户服务必须原样委托公共读取服务，不能维护私有缓存命名空间。 */

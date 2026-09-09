@@ -4,16 +4,16 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysOperLogDTO
  * @date : 2026-06-06 00:09
  * @email : scott_x@163.com
- * @description : Sys Oper Log DTO 传输模型，位于 商户后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+ * @description : 商户后台操作日志 DTO，返回操作人、业务类型、请求摘要、结果和客户端环境等审计信息。
  * @status : create
  */
+@Data
 public class SysOperLogDTO {
 
     /**

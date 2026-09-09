@@ -15,24 +15,8 @@ import org.springframework.util.StringUtils;
  */
 public class MpgsResponseMapper {
 
-    /**
-     * trade Status Mapper，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private final MpgsTradeStatusMapper tradeStatusMapper;
 
-    /**
-     * error Code Mapper，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final MpgsErrorCodeMapper errorCodeMapper;
 
     /**
@@ -220,16 +204,6 @@ public class MpgsResponseMapper {
         return paymentMethodSummary;
     }
 
-    /**
-     * 判断 has payment method summary 条件是否成立，用于控制 Mpgs Response Mapper 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @param summary summary 输入值，参与 汇总数据 的查询、校验、转换、写入或日志摘要
-     * @return 条件满足时返回 true，否则返回 false
-     */
     private boolean hasPaymentMethodSummary(MpgsResponseSummary summary) {
         return StringUtils.hasText(summary.getSourceOfFundsType())
                 || StringUtils.hasText(summary.getCardBrand())
@@ -240,16 +214,6 @@ public class MpgsResponseMapper {
                 || StringUtils.hasText(summary.getStoredOnFile());
     }
 
-    /**
-     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {

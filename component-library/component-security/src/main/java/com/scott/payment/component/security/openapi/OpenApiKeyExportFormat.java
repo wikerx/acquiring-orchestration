@@ -7,7 +7,7 @@ package com.scott.payment.component.security.openapi;
  * @classname : OpenApiKeyExportFormat
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : Open API Key Export Format 枚举，位于 公共组件库，定义交易状态、配置类型或协议结果的受控取值，供状态机、接口返回和日志字段统一引用。
+ * @description : OpenAPI 密钥导出格式枚举，位于 公共组件库，集中定义该状态或类型的受控取值，禁止业务代码使用未声明字符串替代。
  * @status : create
  */
 public enum OpenApiKeyExportFormat {

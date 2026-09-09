@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @version : v1.0.0
  * @classname : WorldPayChannelAutoConfigurationTests
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : Worldpay 插件自动配置测试，验证 JSON/XML Provider 成组启用和关闭。
  * @status : create
  */

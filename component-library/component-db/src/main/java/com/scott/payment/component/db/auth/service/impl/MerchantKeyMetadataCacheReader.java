@@ -80,10 +80,12 @@ public class MerchantKeyMetadataCacheReader {
     }
 
     /**
-     * 失效门禁存在或 Redis 状态未知时绕过缓存并读取主库。
-     *
-     * @param merchantId 已规范化商户号
-     * @return 主库最新非敏感密钥元数据
+     * 绕过方法级缓存读取当前数据源中的最新业务值。
+     * <p>
+     * 只读操作；实现必须沿用 公共组件库 既有权限、数据范围和空结果约定。
+     * </p>
+     * @param merchantId 业务记录主键或主键集合，用于精确定位当前操作对象
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     @DS(DataSourceName.MASTER)
     public MerchantKeyMetadata findFresh(String merchantId) {
@@ -91,10 +93,9 @@ public class MerchantKeyMetadataCacheReader {
     }
 
     /**
-     * 从主库重建并覆盖永久密钥元数据缓存。
-     *
-     * @param merchantId 已规范化商户号
-     * @return 主库最新非敏感密钥元数据
+     * 刷新{@code refresh}，使后续读取切换到最新且已验证的数据版本。
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 当前方法生成的 {@code MerchantKeyMetadata} 结果
      */
     @DS(DataSourceName.MASTER)
     @CachePut(cacheNames = PaymentCacheNames.MERCHANT_KEY_METADATA,

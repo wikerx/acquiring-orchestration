@@ -36,7 +36,7 @@ import static com.scott.payment.component.core.model.ApiResult.success;
  * @classname : ChannelCallbackController
  * @date : 2026-05-28 10:58
  * @email : scott_x@163.com
- * @description : 渠道回调入口控制器，位于 service-openapi 接口层，负责渠道维度签名/IP 边界校验并把回调原文转发到支付核心落库。
+ * @description : 渠道回调 HTTP 控制器，位于 商户开放接口服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
  * @status : create
  */
 @RestController
@@ -64,9 +64,6 @@ public class ChannelCallbackController {
      */
     private final OpenApiCallbackSecuritySupport callbackSecuritySupport;
 
-    /**
-     * 支付核心内部客户端，用于保存渠道回调原文和业务幂等记录。
-     */
     private final PaymentInternalClient paymentInternalClient;
 
     /**
@@ -341,16 +338,6 @@ public class ChannelCallbackController {
         }
     }
 
-    /**
-     * 解析resolveclientip，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolveClientIp(HttpServletRequest request) {
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (StringUtils.hasText(forwardedFor)) {
@@ -363,16 +350,6 @@ public class ChannelCallbackController {
         return request.getRemoteAddr();
     }
 
-    /**
-     * 整理耗时毫秒数，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param startNanos start Nanos 输入值，参与 startnanos 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }

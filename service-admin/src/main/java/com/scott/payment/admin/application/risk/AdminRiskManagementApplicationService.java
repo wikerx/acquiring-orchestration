@@ -81,169 +81,154 @@ public class AdminRiskManagementApplicationService {
     private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     /**
-     * DEFAULT SCOPE，用于保存 Admin Risk Management Application Service 中与 defaultscope 相关的业务属性。
+     * 默认范围常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String DEFAULT_SCOPE = "GLOBAL";
     /**
-     * DEFAULT RISK LEVEL，用于保存 Admin Risk Management Application Service 中与 defaultrisklevel 相关的业务属性。
+     * 默认风控等级常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String DEFAULT_RISK_LEVEL = "MEDIUM";
     /**
-     * DEFAULT DECISION ACTION，用于保存 Admin Risk Management Application Service 中与 defaultdecisionaction 相关的业务属性。
+     * 默认结论动作常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String DEFAULT_DECISION_ACTION = "REVIEW";
     /**
-     * VALIDITY SUPER LONG，用于保存 Admin Risk Management Application Service 中与 validitysuperlong 相关的业务属性。
+     * {@code VALIDITY_SUPER_LONG}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String VALIDITY_SUPER_LONG = "SUPER_LONG";
     /**
-     * VALIDITY LONG，用于保存 Admin Risk Management Application Service 中与 validitylong 相关的业务属性。
+     * {@code VALIDITY_LONG}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String VALIDITY_LONG = "LONG";
     /**
-     * VALIDITY LIMITED，用于控制分页查询、批量扫描或任务单次处理规模。
+     * {@code VALIDITY_LIMITED}，用于控制分页查询、批量扫描或任务单次处理规模。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final String VALIDITY_LIMITED = "LIMITED";
     /**
-     * SOURCE MANUAL，用于保存 Admin Risk Management Application Service 中与 来源manual 相关的业务属性。
+     * {@code SOURCE_MANUAL}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String SOURCE_MANUAL = "MANUAL";
     /**
-     * SOURCE IMPORT，用于保存 Admin Risk Management Application Service 中与 来源import 相关的业务属性。
+     * {@code SOURCE_IMPORT}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String SOURCE_IMPORT = "IMPORT";
     /**
-     * MODULE AML，用于保存 Admin Risk Management Application Service 中与 moduleaml 相关的业务属性。
+     * {@code MODULE_AML}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String MODULE_AML = "AML";
     /**
-     * MODULE BLACK，用于保存 Admin Risk Management Application Service 中与 moduleblack 相关的业务属性。
+     * {@code MODULE_BLACK}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String MODULE_BLACK = "BLACK";
     /**
-     * MODULE WHITE，用于保存 Admin Risk Management Application Service 中与 modulewhite 相关的业务属性。
+     * {@code MODULE_WHITE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String MODULE_WHITE = "WHITE";
     /**
-     * MODULE RULE，用于保存 Admin Risk Management Application Service 中与 module规则 相关的业务属性。
+     * {@code MODULE_RULE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String MODULE_RULE = "RULE";
     /**
-     * MODULE TRADE BLACK，用于保存 Admin Risk Management Application Service 中与 moduletradeblack 相关的业务属性。
+     * {@code MODULE_TRADE_BLACK}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String MODULE_TRADE_BLACK = "TRADE_BLACK";
     /**
-     * FUNCTION REGION，用于保存 Admin Risk Management Application Service 中与 functionregion 相关的业务属性。
+     * {@code FUNCTION_REGION}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String FUNCTION_REGION = "region";
     /**
-     * FUNCTION SOURCE URL，表示回调、通知、来源站点或远程接口地址。
+     * {@code FUNCTION_SOURCE_URL}，表示回调、通知、来源站点或远程接口地址。
      * <p>
-     * 单位：无；格式：HTTP/HTTPS URL 或服务路径；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：长度和协议由调用方校验；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String FUNCTION_SOURCE_URL = "sourceUrl";
     /**
-     * FUNCTION MERCHANT LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
+     * {@code FUNCTION_MERCHANT_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final String FUNCTION_MERCHANT_LIMIT = "merchantLimit";
     /**
-     * FUNCTION THREE DS，用于保存 Admin Risk Management Application Service 中与 functionthreeds 相关的业务属性。
+     * {@code FUNCTION_THREE_DS}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String FUNCTION_THREE_DS = "threeDs";
     /**
-     * FIXED LIMIT CURRENCY USD，表示金额字段使用的币种。
+     * {@code FIXED_LIMIT_CURRENCY_USD}，表示金额字段使用的币种。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
      * </p>
      */
     private static final String FIXED_LIMIT_CURRENCY_USD = "USD";
     /**
-     * MERCHANT LIMIT AMOUNT SCALE，表示当前交易、费用、限额或统计口径下的金额值。
+     * {@code MERCHANT_LIMIT_AMOUNT_SCALE}，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -252,79 +237,72 @@ public class AdminRiskManagementApplicationService {
      */
     private static final int MERCHANT_LIMIT_AMOUNT_SCALE = 2;
     /**
-     * THREE DS ALL DIMENSION，用于保存 Admin Risk Management Application Service 中与 threedsalldimension 相关的业务属性。
+     * {@code THREE_DS_ALL_DIMENSION}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String THREE_DS_ALL_DIMENSION = "ALL";
     /**
-     * THREE DS BANK CARD PAYMENT METHOD，表示支付方式、通知方式或调用方式。
+     * {@code THREE_DS_BANK_CARD_PAYMENT_METHOD}，表示支付方式、通知方式或调用方式。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String THREE_DS_BANK_CARD_PAYMENT_METHOD = "BANK_CARD";
     /**
-     * THREE DS DEFAULT PAYMENT METHOD，表示支付方式、通知方式或调用方式。
+     * {@code THREE_DS_DEFAULT_PAYMENT_METHOD}，表示支付方式、通知方式或调用方式。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String THREE_DS_DEFAULT_PAYMENT_METHOD = THREE_DS_ALL_DIMENSION;
     /**
-     * THREE DS RULE TYPE RISK，用于区分 Admin Risk Management Application Service 记录的处理类别、配置维度或外部协议枚举。
+     * {@code THREE_DS_RULE_TYPE_RISK}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String THREE_DS_RULE_TYPE_RISK = "RISK_STRATEGY";
     /**
-     * THREE DS AMOUNT ALL，表示当前交易、费用、限额或统计口径下的金额值。
+     * {@code THREE_DS_AMOUNT_ALL}，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：必须与 currency 或同名币种字段一起解释。
      * </p>
      */
     private static final String THREE_DS_AMOUNT_ALL = "ALL";
     /**
-     * THREE DS RISK ANY，用于保存 Admin Risk Management Application Service 中与 threedsriskany 相关的业务属性。
+     * {@code THREE_DS_RISK_ANY}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String THREE_DS_RISK_ANY = "ANY";
     /**
-     * THREE DS ACTION FORCE，用于保存 Admin Risk Management Application Service 中与 threedsactionforce 相关的业务属性。
+     * {@code THREE_DS_ACTION_FORCE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String THREE_DS_ACTION_FORCE = "FORCE_3DS";
     /**
-     * THREE DS DEFAULT PRIORITY，用于保存 Admin Risk Management Application Service 中与 threedsdefaultpriority 相关的业务属性。
+     * {@code THREE_DS_DEFAULT_PRIORITY}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int THREE_DS_DEFAULT_PRIORITY = 100;
     /**
-     * THREE DS AMOUNT SCALE，表示当前交易、费用、限额或统计口径下的金额值。
+     * {@code THREE_DS_AMOUNT_SCALE}，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -333,218 +311,200 @@ public class AdminRiskManagementApplicationService {
      */
     private static final int THREE_DS_AMOUNT_SCALE = 2;
     /**
-     * LIMIT TYPE DAILY，用于区分 Admin Risk Management Application Service 记录的处理类别、配置维度或外部协议枚举。
+     * {@code LIMIT_TYPE_DAILY}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final String LIMIT_TYPE_DAILY = "DAILY";
     /**
-     * LIMIT TYPE WEEKLY，用于区分 Admin Risk Management Application Service 记录的处理类别、配置维度或外部协议枚举。
+     * {@code LIMIT_TYPE_WEEKLY}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final String LIMIT_TYPE_WEEKLY = "WEEKLY";
     /**
-     * LIMIT TYPE MONTHLY，用于区分 Admin Risk Management Application Service 记录的处理类别、配置维度或外部协议枚举。
+     * {@code LIMIT_TYPE_MONTHLY}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final String LIMIT_TYPE_MONTHLY = "MONTHLY";
     /**
-     * WEEKLY LIMIT MULTIPLIER，用于控制分页查询、批量扫描或任务单次处理规模。
+     * {@code WEEKLY_LIMIT_MULTIPLIER}，用于控制分页查询、批量扫描或任务单次处理规模。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final BigDecimal WEEKLY_LIMIT_MULTIPLIER = BigDecimal.valueOf(7);
     /**
-     * MONTHLY LIMIT MULTIPLIER，用于控制分页查询、批量扫描或任务单次处理规模。
+     * {@code MONTHLY_LIMIT_MULTIPLIER}，用于控制分页查询、批量扫描或任务单次处理规模。
      * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final BigDecimal MONTHLY_LIMIT_MULTIPLIER = BigDecimal.valueOf(4);
     /**
-     * TRADE BLACK FUNCTION SYSTEM，用于保存 Admin Risk Management Application Service 中与 tradeblackfunctionsystem 相关的业务属性。
+     * {@code TRADE_BLACK_FUNCTION_SYSTEM}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String TRADE_BLACK_FUNCTION_SYSTEM = "system";
     /**
-     * TRADE BLACK DISPLAY NAME，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * {@code TRADE_BLACK_DISPLAY_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String TRADE_BLACK_DISPLAY_NAME = "系统交易加黑";
     /**
-     * TRADE BLACK RELEASE DISPLAY NAME，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * {@code TRADE_BLACK_RELEASE_DISPLAY_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String TRADE_BLACK_RELEASE_DISPLAY_NAME = "解除系统交易加黑";
     /**
-     * TRADE BLACK ACTION ADD，用于保存 Admin Risk Management Application Service 中与 tradeblackactionadd 相关的业务属性。
+     * {@code TRADE_BLACK_ACTION_ADD}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String TRADE_BLACK_ACTION_ADD = "ADD";
     /**
-     * CHANGE OPERATION CREATE，用于保存 Admin Risk Management Application Service 中与 change动作create 相关的业务属性。
+     * {@code CHANGE_OPERATION_CREATE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String CHANGE_OPERATION_CREATE = "CREATE";
     /**
-     * CHANGE OPERATION UPDATE，用于保存 Admin Risk Management Application Service 中与 change动作update 相关的业务属性。
+     * {@code CHANGE_OPERATION_UPDATE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String CHANGE_OPERATION_UPDATE = "UPDATE";
     /**
-     * CHANGE OPERATION DELETE，用于保存 Admin Risk Management Application Service 中与 change动作delete 相关的业务属性。
+     * {@code CHANGE_OPERATION_DELETE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String CHANGE_OPERATION_DELETE = "DELETE";
     /**
-     * CHANGE OPERATION STATUS，表示当前记录在业务流程中的处理状态。
+     * 变更动作状态，表示当前记录在业务流程中的处理状态。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
      * </p>
      */
     private static final String CHANGE_OPERATION_STATUS = "STATUS";
     /**
-     * CHANGE OPERATION IMPORT，用于保存 Admin Risk Management Application Service 中与 change动作import 相关的业务属性。
+     * {@code CHANGE_OPERATION_IMPORT}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String CHANGE_OPERATION_IMPORT = "IMPORT";
     /**
-     * CHANGE OPERATION BATCH，用于保存 Admin Risk Management Application Service 中与 change动作batch 相关的业务属性。
+     * 变更动作批次常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String CHANGE_OPERATION_BATCH = "BATCH";
     /**
-     * CHANGE OPERATION RELEASE，用于保存 Admin Risk Management Application Service 中与 change动作release 相关的业务属性。
+     * {@code CHANGE_OPERATION_RELEASE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String CHANGE_OPERATION_RELEASE = "RELEASE";
     /**
-     * EMPTY DISPLAY TEXT，用于保存 Admin Risk Management Application Service 中与 emptydisplaytext 相关的业务属性。
+     * {@code EMPTY_DISPLAY_TEXT}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String EMPTY_DISPLAY_TEXT = "-";
     /**
-     * SNAPSHOT DISPLAY TEXT，用于保存 Admin Risk Management Application Service 中与 snapshotdisplaytext 相关的业务属性。
+     * 快照展示文本常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String SNAPSHOT_DISPLAY_TEXT = "查看快照";
     /**
-     * CONFIG ID DISPLAY PREFIX，用于保存 Admin Risk Management Application Service 中与 配置IDdisplayprefix 相关的业务属性。
+     * {@code CONFIG_ID_DISPLAY_PREFIX}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final String CONFIG_ID_DISPLAY_PREFIX = "配置ID：";
     /**
-     * ENABLED，表示当前配置项或业务能力的启停开关。
+     * 启用标识，表示当前配置项或业务能力的启停开关。
      * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
+     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
     private static final int ENABLED = 1;
     /**
-     * LONG VALIDITY MIN DAYS，用于保存 Admin Risk Management Application Service 中与 longvaliditymindays 相关的业务属性。
+     * {@code LONG_VALIDITY_MIN_DAYS}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int LONG_VALIDITY_MIN_DAYS = 120;
     /**
-     * IMPORT ERROR MESSAGE MAX LENGTH，用于保存 Admin Risk Management Application Service 中与 importerrormessagemaxlength 相关的业务属性。
+     * {@code IMPORT_ERROR_MESSAGE_MAX_LENGTH}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int IMPORT_ERROR_MESSAGE_MAX_LENGTH = 1000;
     /**
-     * IMPORT RAW CONTENT MAX LENGTH，用于保存 Admin Risk Management Application Service 中与 importrawcontentmaxlength 相关的业务属性。
+     * {@code IMPORT_RAW_CONTENT_MAX_LENGTH}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int IMPORT_RAW_CONTENT_MAX_LENGTH = 4000;
     /**
-     * EXCEL IMPORT HEADER SCAN ROWS，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
+     * {@code EXCEL_IMPORT_HEADER_SCAN_ROWS}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
      * <p>
      * 单位：个或次；格式：整数；不允许为空；非敏感字段。
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int EXCEL_IMPORT_HEADER_SCAN_ROWS = 10;
@@ -556,7 +516,7 @@ public class AdminRiskManagementApplicationService {
     private static final Set<String> THREE_DS_TRIGGER_ACTIONS = Set.of("FORCE_3DS", "SKIP_3DS", "FOLLOW_DEFAULT");
     private static final Set<String> FREQUENCY_ELEMENT_CODES = Set.of("cardNo", "cardFingerprint", "ip", "email", "phone", "customerId", "deviceFingerprint");
     /**
-     * AMOUNT TEXT PATTERN，表示当前交易、费用、限额或统计口径下的金额值。
+     * 金额文本正则模式，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
      * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
      * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
@@ -635,64 +595,16 @@ public class AdminRiskManagementApplicationService {
             "expireTime"
     );
 
-    /**
-     * risk Management Mapper 依赖，用于 Admin Risk Management Application Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final RiskManagementMapper riskManagementMapper;
-    /**
-     * risk List Value Normalizer，用于保存 Admin Risk Management Application Service 中与 risklistvaluenormalizer 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final RiskListValueNormalizer riskListValueNormalizer;
-    /**
-     * import Log Service 依赖，用于 Admin Risk Management Application Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final AdminRiskImportLogService importLogService;
 
     /**
      * 风控运行时规则缓存可靠失效协调器。
      */
     private final RiskRuleCacheInvalidationCoordinator cacheInvalidationCoordinator;
-    /**
-     * excel Export Service 依赖，用于 Admin Risk Management Application Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final ExcelExportService excelExportService;
-    /**
-     * excel I 18 n Message Resolver，用于保存 Admin Risk Management Application Service 中与 exceli18nmessageresolver 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
-    /**
-     * excel Locale Resolver，用于保存 Admin Risk Management Application Service 中与 excellocaleresolver 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     /** 商户基础资料 Mapper，用于审批通知收件人与语言读取。 */
@@ -1214,16 +1126,6 @@ public class AdminRiskManagementApplicationService {
         return records;
     }
 
-    /**
-     * 判断 has three ds card brands 条件是否成立，用于控制 Admin Risk Management Application Service 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 条件满足时返回 true，否则返回 false
-     */
     private boolean hasThreeDsCardBrands(RiskDTOs.RiskRuleSaveRequest request) {
         return request != null && request.getCardBrands() != null && !request.getCardBrands().isEmpty();
     }
@@ -1902,18 +1804,6 @@ public class AdminRiskManagementApplicationService {
         return response;
     }
 
-    /**
-     * 查询数据集合，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param sourceType source Type 输入值，参与 来源type 的查询、校验、转换、写入或日志摘要
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
     private Map<String, Object> listData(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request, String sourceType) {
         if (isCountryListFunction(definition)) {
             normalizeCountryListRequest(request);
@@ -1957,17 +1847,6 @@ public class AdminRiskManagementApplicationService {
         return data;
     }
 
-    /**
-     * 规范化expandcountrylistrequests，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private List<RiskDTOs.RiskListSaveRequest> expandCountryListRequests(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request) {
         if (!isCountryListFunction(definition) || request.getCountryAlpha2List() == null || request.getCountryAlpha2List().isEmpty()) {
             return List.of(request);
@@ -1980,17 +1859,6 @@ public class AdminRiskManagementApplicationService {
                 .toList();
     }
 
-    /**
-     * 构造countrylist请求对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @param countryAlpha2 country Alpha 2 输入值，参与 countryalpha2 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private RiskDTOs.RiskListSaveRequest copyCountryListRequest(RiskDTOs.RiskListSaveRequest source, String countryAlpha2) {
         RiskDTOs.RiskListSaveRequest target = new RiskDTOs.RiskListSaveRequest();
         target.setMerchantScope(source.getMerchantScope());
@@ -2017,15 +1885,6 @@ public class AdminRiskManagementApplicationService {
         return target;
     }
 
-    /**
-     * 解析normalizecountrylist请求，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
     private void normalizeCountryListRequest(RiskDTOs.RiskListSaveRequest request) {
         String countryAlpha2 = upper(defaultIfBlank(request.getCountryAlpha2(), request.getMatchValuePlain()));
         if (!StringUtils.hasText(countryAlpha2)) {
@@ -2042,17 +1901,6 @@ public class AdminRiskManagementApplicationService {
         request.setMatchValuePlain(countryAlpha3);
     }
 
-    /**
-     * 规范化regiondata，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param sourceType source Type 输入值，参与 来源type 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Map<String, Object> regionData(RiskDTOs.RegionSaveRequest request, String sourceType) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("merchantScope", defaultIfBlank(request.getMerchantScope(), DEFAULT_SCOPE));
@@ -2077,16 +1925,6 @@ public class AdminRiskManagementApplicationService {
         return data;
     }
 
-    /**
-     * 规范化regioncreatecountrycodes，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private List<String> regionCreateCountryCodes(RiskDTOs.RegionSaveRequest request) {
         String regionMatchLevel = defaultIfBlank(request.getRegionMatchLevel(), "COUNTRY").toUpperCase(Locale.ROOT);
         List<String> sourceCodes = "COUNTRY".equals(regionMatchLevel) && request.getCountryAlpha2List() != null && !request.getCountryAlpha2List().isEmpty()
@@ -2674,17 +2512,6 @@ public class AdminRiskManagementApplicationService {
         return null;
     }
 
-    /**
-     * 构造记录响应对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
-     */
     private RiskDTOs.RiskRecordResponse toRecordResponse(Map<String, Object> row) {
         RiskDTOs.RiskRecordResponse response = new RiskDTOs.RiskRecordResponse();
         response.setId(asLong(row.get("id")));
@@ -2975,33 +2802,12 @@ public class AdminRiskManagementApplicationService {
         data.put("priority", priority);
     }
 
-    /**
-     * 校验threeds编码输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param label label 输入值，参与 label 的查询、校验、转换、写入或日志摘要
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param allowedValues allowed Values 输入值，参与 allowedvalues 的查询、校验、转换、写入或日志摘要
-     */
     private void validateThreeDsCode(String label, String value, Set<String> allowedValues) {
         if (!StringUtils.hasText(value) || !allowedValues.contains(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), label + "不正确");
         }
     }
 
-    /**
-     * 校验threedsdimension输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
-     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
-     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
-     * </p>
-     * @param label label 输入值，参与 label 的查询、校验、转换、写入或日志摘要
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     */
     private void requireThreeDsDimension(String label, String value) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请选择" + label);
@@ -3119,19 +2925,6 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
-    /**
-     * 整理existing商户limitamounts，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param tableName table Name 输入值，参与 表name 的查询、校验、转换、写入或日志摘要
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param data data 输入值，参与 数据集合 的查询、校验、转换、写入或日志摘要
-     * @param excludeId exclude ID 输入值，参与 excludeID 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Map<String, BigDecimal> existingMerchantLimitAmounts(String tableName, Map<String, Object> data, Long excludeId) {
         List<Map<String, Object>> rows = riskManagementMapper.selectMerchantLimitAmounts(
                 tableName,
@@ -3151,17 +2944,6 @@ public class AdminRiskManagementApplicationService {
         return amounts;
     }
 
-    /**
-     * 整理商户limit金额，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param data data 输入值，参与 数据集合 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private BigDecimal merchantLimitAmount(Map<String, Object> data) {
         return "SINGLE_MIN".equals(asString(data.get("limitType"))) || "SINGLE_MIN".equals(asString(data.get("limit_type")))
                 ? (BigDecimal) data.getOrDefault("amountMin", data.get("amount_min"))
@@ -3337,16 +3119,6 @@ public class AdminRiskManagementApplicationService {
         data.put("countryAlpha3", upper(asString(country.get("extra"))));
     }
 
-    /**
-     * 统计countryalpha3fromalpha2，返回分页、扫描或报表汇总所需的数量结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param countryAlpha2 country Alpha 2 输入值，参与 countryalpha2 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String countryAlpha3FromAlpha2(String countryAlpha2) {
         if (!StringUtils.hasText(countryAlpha2)) {
             return null;
@@ -3358,16 +3130,6 @@ public class AdminRiskManagementApplicationService {
         return upper(asString(country.get("extra")));
     }
 
-    /**
-     * 解析normalizeregionlevelfields，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param data data 输入值，参与 数据集合 的查询、校验、转换、写入或日志摘要
-     */
     private void normalizeRegionLevelFields(Map<String, Object> data) {
         String level = (String) data.get("regionMatchLevel");
         if (!List.of("COUNTRY", "STATE", "CITY").contains(level)) {
@@ -3390,17 +3152,6 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
-    /**
-     * 解析resolvecard品牌，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
-     */
     private String resolveCardBrand(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request) {
         if (!hasCardBrandField(definition)) {
             return trim(request.getCardBrand());
@@ -3418,16 +3169,6 @@ public class AdminRiskManagementApplicationService {
         return detectCardBrand(digits);
     }
 
-    /**
-     * 整理detectcard品牌，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param cardNo 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String detectCardBrand(String cardNo) {
         if (cardNo.matches("^4.*")) {
             return "VISA";
@@ -3456,16 +3197,6 @@ public class AdminRiskManagementApplicationService {
         return null;
     }
 
-    /**
-     * 解析normalizescope，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param data data 输入值，参与 数据集合 的查询、校验、转换、写入或日志摘要
-     */
     private void normalizeScope(Map<String, Object> data) {
         String merchantScope = defaultIfBlank((String) data.get("merchantScope"), DEFAULT_SCOPE).toUpperCase(Locale.ROOT);
         data.put("merchantScope", merchantScope);
@@ -3526,45 +3257,14 @@ public class AdminRiskManagementApplicationService {
         return !isAmlFunction(definition) && !isMerchantWhitelist(definition);
     }
 
-    /**
-     * 整理商户name，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String merchantName(String merchantId) {
         return StringUtils.hasText(merchantId) ? riskManagementMapper.selectMerchantName(merchantId) : null;
     }
 
-    /**
-     * 整理默认effective时间，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param effectiveTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private LocalDateTime defaultEffectiveTime(LocalDateTime effectiveTime) {
         return effectiveTime == null ? LocalDateTime.now() : effectiveTime;
     }
 
-    /**
-     * 应用应用validity，把校验后的配置、金额、状态或字段值写入目标对象。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param data data 输入值，参与 数据集合 的查询、校验、转换、写入或日志摘要
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
     private void applyValidity(Map<String, Object> data, RiskDTOs.RiskListSaveRequest request) {
         String validityType = defaultIfBlank(request.getValidityType(), VALIDITY_SUPER_LONG).toUpperCase(Locale.ROOT);
         data.put("validityType", validityType);
@@ -3588,17 +3288,6 @@ public class AdminRiskManagementApplicationService {
         data.put("expireTime", effectiveTime.plusDays(validityDays));
     }
 
-    /**
-     * 应用应用regionvalidity，把校验后的配置、金额、状态或字段值写入目标对象。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param data data 输入值，参与 数据集合 的查询、校验、转换、写入或日志摘要
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
     private void applyRegionValidity(Map<String, Object> data, RiskDTOs.RegionSaveRequest request) {
         String validityType = defaultIfBlank(request.getValidityType(), VALIDITY_SUPER_LONG).toUpperCase(Locale.ROOT);
         data.put("validityType", validityType);
@@ -3622,16 +3311,6 @@ public class AdminRiskManagementApplicationService {
         data.put("expireTime", effectiveTime.plusDays(validityDays));
     }
 
-    /**
-     * 整理默认风控level，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String defaultRiskLevel(RiskFunctionDefinition definition) {
         if ("RULE".equalsIgnoreCase(definition.getModuleType())) {
             if ("frequency".equals(definition.getFunctionCode()) || FUNCTION_MERCHANT_LIMIT.equals(definition.getFunctionCode())) {
@@ -3651,16 +3330,6 @@ public class AdminRiskManagementApplicationService {
         return DEFAULT_RISK_LEVEL;
     }
 
-    /**
-     * 整理默认结论action，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String defaultDecisionAction(RiskFunctionDefinition definition) {
         if ("WHITE".equalsIgnoreCase(definition.getModuleType())) {
             return "PASS";
@@ -3675,17 +3344,6 @@ public class AdminRiskManagementApplicationService {
         return DEFAULT_DECISION_ACTION;
     }
 
-    /**
-     * 脱敏snapshot，返回可安全写入日志或展示的摘要文本。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Map<String, Object> sanitizeSnapshot(Map<String, Object> source) {
         Map<String, Object> copy = new LinkedHashMap<>(source);
         copy.remove("match_value_cipher");
@@ -3701,17 +3359,6 @@ public class AdminRiskManagementApplicationService {
         return copy;
     }
 
-    /**
-     * 构造options对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param List List 输入值，参与 list 的查询、校验、转换、写入或日志摘要
-     * @param rows 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 构造、转换或解析后的业务值
-     */
     private List<RiskDTOs.OptionItem> toOptions(List<Map<String, Object>> rows) {
         return rows.stream().map(row -> {
             RiskDTOs.OptionItem item = option(asString(row.get("label")), asString(row.get("value")), asString(row.get("extra")));
@@ -3723,18 +3370,6 @@ public class AdminRiskManagementApplicationService {
         }).toList();
     }
 
-    /**
-     * 规范化option，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param label label 输入值，参与 label 的查询、校验、转换、写入或日志摘要
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param extra extra 输入值，参与 extra 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private RiskDTOs.OptionItem option(String label, String value, String extra) {
         RiskDTOs.OptionItem item = new RiskDTOs.OptionItem();
         item.setLabel(label);
@@ -3743,16 +3378,6 @@ public class AdminRiskManagementApplicationService {
         return item;
     }
 
-    /**
-     * 校验确保function权限输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @param action action 输入值，参与 action 的查询、校验、转换、写入或日志摘要
-     */
     private void ensureFunctionPermission(RiskFunctionDefinition definition, String action) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -3768,16 +3393,6 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
-    /**
-     * 整理template行，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private Map<String, Object> templateRow(RiskFunctionDefinition definition) {
         Map<String, Object> row = new LinkedHashMap<>();
         if (definition.isRegionFunction()) {
@@ -3820,43 +3435,14 @@ public class AdminRiskManagementApplicationService {
         return toCsvRow(definition, row);
     }
 
-    /**
-     * 整理templatesample规则name，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String templateSampleRuleName() {
         return isEnglishLocale() ? "Sample Rule" : "示例规则";
     }
 
-    /**
-     * 规范化templatesampleremark，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String templateSampleRemark() {
         return isEnglishLocale() ? "Delete this sample row before import" : "导入时请删除示例行";
     }
 
-    /**
-     * 构造规则templatevalue对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     */
     private void fillRuleTemplateValue(RiskFunctionDefinition definition, Map<String, Object> row) {
         String code = definition.getFunctionCode();
         if ("sourceUrl".equals(code)) {
@@ -3909,17 +3495,6 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
-    /**
-     * 构造listtemplatevalue对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     */
     private void fillListTemplateValue(RiskFunctionDefinition definition, Map<String, Object> row) {
         String code = definition.getFunctionCode();
         row.put("matchValuePlain", "example");
@@ -3957,17 +3532,6 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
-    /**
-     * 整理prunelisttemplate行，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     */
     private void pruneListTemplateRow(RiskFunctionDefinition definition, Map<String, Object> row) {
         if (!hasRangeFields(definition)) {
             row.remove("matchValueStart");
@@ -3983,30 +3547,10 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
-    /**
-     * 规范化importbatchno，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String importBatchNo(RiskFunctionDefinition definition) {
         return "RISK-" + definition.getModuleType() + "-" + definition.getFunctionCode() + "-" + UUID.randomUUID().toString().replace("-", "");
     }
 
-    /**
-     * 规范化markimportbatchsuccessaftercommit，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param batchNo batch No 输入值，参与 batchno 的查询、校验、转换、写入或日志摘要
-     * @param successCount success Count 输入值，参与 success计数 的查询、校验、转换、写入或日志摘要
-     */
     private void markImportBatchSuccessAfterCommit(String batchNo, int successCount) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             importLogService.markSuccess(batchNo, successCount);
@@ -4046,59 +3590,19 @@ public class AdminRiskManagementApplicationService {
         return definition == RiskFunctionDefinition.RULE_SOURCE_URL;
     }
 
-    /**
-     * 判断 is merchant limit rule 条件是否成立，用于控制 Admin Risk Management Application Service 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @return 条件满足时返回 true，否则返回 false
-     */
     private boolean isMerchantLimitRule(RiskFunctionDefinition definition) {
         return definition == RiskFunctionDefinition.RULE_MERCHANT_LIMIT;
     }
 
-    /**
-     * 判断 is three ds rule 条件是否成立，用于控制 Admin Risk Management Application Service 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
-     * @return 条件满足时返回 true，否则返回 false
-     */
     private boolean isThreeDsRule(RiskFunctionDefinition definition) {
         return FUNCTION_THREE_DS.equals(definition.getFunctionCode());
     }
 
-    /**
-     * 整理import错误说明，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param exception 下游调用、校验或持久化阶段捕获的异常对象
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String importErrorMessage(RuntimeException exception) {
         String message = exception.getMessage();
         return StringUtils.hasText(message) ? message : exception.getClass().getSimpleName();
     }
 
-    /**
-     * 脱敏import错误说明，返回可安全写入日志或展示的摘要文本。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param exception 下游调用、校验或持久化阶段捕获的异常对象
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String sanitizeImportErrorMessage(RuntimeException exception) {
         String message = importErrorMessage(exception)
                 .replaceAll("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+", "***")
@@ -4106,17 +3610,6 @@ public class AdminRiskManagementApplicationService {
         return truncate(message, IMPORT_ERROR_MESSAGE_MAX_LENGTH);
     }
 
-    /**
-     * 脱敏importrow，返回可安全写入日志或展示的摘要文本。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String sanitizeImportRow(Map<String, String> row) {
         Map<String, String> sanitized = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : row.entrySet()) {
@@ -4125,16 +3618,6 @@ public class AdminRiskManagementApplicationService {
         return truncate(JsonUtils.toJsonString(sanitized), IMPORT_RAW_CONTENT_MAX_LENGTH);
     }
 
-    /**
-     * 规范化sensitiveimportcolumn，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param columnName column Name 输入值，参与 columnname 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private boolean sensitiveImportColumn(String columnName) {
         String normalized = columnName == null ? "" : columnName.toLowerCase(Locale.ROOT).replace("_", "");
         return normalized.contains("matchvalue")
@@ -4154,30 +3637,10 @@ public class AdminRiskManagementApplicationService {
                 || normalized.contains("指纹");
     }
 
-    /**
-     * 整理import行，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param file file 输入值，参与 file 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private List<ImportRow> readImportRows(MultipartFile file) {
         return isExcelImportFile(file) ? readExcel(file) : readCsv(file);
     }
 
-    /**
-     * 判断 is excel import file 条件是否成立，用于控制 Admin Risk Management Application Service 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @param file file 输入值，参与 file 的查询、校验、转换、写入或日志摘要
-     * @return 条件满足时返回 true，否则返回 false
-     */
     private boolean isExcelImportFile(MultipartFile file) {
         String fileName = file.getOriginalFilename();
         String contentType = file.getContentType();
@@ -4189,16 +3652,6 @@ public class AdminRiskManagementApplicationService {
                 || normalizedContentType.contains("excel");
     }
 
-    /**
-     * 规范化csv，返回调用链后续步骤可直接使用的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param file file 输入值，参与 file 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private List<ImportRow> readCsv(MultipartFile file) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
             String headerLine = reader.readLine();
@@ -4227,16 +3680,6 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
-    /**
-     * 规范化excel，返回调用链后续步骤可直接使用的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param file file 输入值，参与 file 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private List<ImportRow> readExcel(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream(); Workbook workbook = WorkbookFactory.create(inputStream)) {
             if (workbook.getNumberOfSheets() == 0) {
@@ -4270,16 +3713,6 @@ public class AdminRiskManagementApplicationService {
         }
     }
 
-    /**
-     * 查询Excel 表头行，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param sheet sheet 输入值，参与 sheet 的查询、校验、转换、写入或日志摘要
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
     private int findExcelHeaderRow(Sheet sheet) {
         DataFormatter formatter = new DataFormatter();
         int maxRowIndex = Math.min(sheet.getLastRowNum(), EXCEL_IMPORT_HEADER_SCAN_ROWS - 1);
@@ -4302,16 +3735,6 @@ public class AdminRiskManagementApplicationService {
         return -1;
     }
 
-    /**
-     * 判断 is import header 条件是否成立，用于控制 Admin Risk Management Application Service 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @param header header 输入值，参与 请求头 的查询、校验、转换、写入或日志摘要
-     * @return 条件满足时返回 true，否则返回 false
-     */
     private boolean isImportHeader(String header) {
         if (!StringUtils.hasText(header)) {
             return false;
@@ -4325,17 +3748,6 @@ public class AdminRiskManagementApplicationService {
         return false;
     }
 
-    /**
-     * 整理excel请求头，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param headerRow header Row 输入值，参与 请求头行 的查询、校验、转换、写入或日志摘要
-     * @param formatter formatter 输入值，参与 formatter 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private List<String> excelHeaders(Row headerRow, DataFormatter formatter) {
         if (headerRow == null) {
             return List.of();
@@ -4348,18 +3760,6 @@ public class AdminRiskManagementApplicationService {
         return headers;
     }
 
-    /**
-     * 判断 is blank excel row 条件是否成立，用于控制 Admin Risk Management Application Service 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @param columnSize column Size 输入值，参与 columnsize 的查询、校验、转换、写入或日志摘要
-     * @param formatter formatter 输入值，参与 formatter 的查询、校验、转换、写入或日志摘要
-     * @return 条件满足时返回 true，否则返回 false
-     */
     private boolean isBlankExcelRow(Row row, int columnSize, DataFormatter formatter) {
         for (int columnIndex = 0; columnIndex < columnSize; columnIndex++) {
             if (StringUtils.hasText(excelCellText(row.getCell(columnIndex), formatter))) {
@@ -4369,31 +3769,10 @@ public class AdminRiskManagementApplicationService {
         return true;
     }
 
-    /**
-     * 整理excelcell文本，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param cell cell 输入值，参与 cell 的查询、校验、转换、写入或日志摘要
-     * @param formatter formatter 输入值，参与 formatter 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
     private String excelCellText(Cell cell, DataFormatter formatter) {
         return cell == null ? null : trim(formatter.formatCellValue(cell));
     }
 
-    /**
-     * 解析parsecsvline，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param line line 输入值，参与 line 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
     private List<String> parseCsvLine(String line) {
         List<String> values = new ArrayList<>();
         StringBuilder current = new StringBuilder();

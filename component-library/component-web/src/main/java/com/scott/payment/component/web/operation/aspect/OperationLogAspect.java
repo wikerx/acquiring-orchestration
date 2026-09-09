@@ -2,6 +2,7 @@ package com.scott.payment.component.web.operation.aspect;
 
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
@@ -250,7 +251,7 @@ public class OperationLogAspect {
             record.setErrorMsg(failure.getClass().getSimpleName());
             return;
         }
-        record.setErrorCode(failure.getClass().getSimpleName());
+        record.setErrorCode(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode());
         record.setErrorMsg(failure.getClass().getSimpleName());
     }
 

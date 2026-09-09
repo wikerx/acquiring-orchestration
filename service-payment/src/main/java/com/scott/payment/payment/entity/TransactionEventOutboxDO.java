@@ -83,12 +83,12 @@ public class TransactionEventOutboxDO implements Serializable {
     private String eventStatus;
 
     /**
-     * RocketMQ Topic。
+     * RocketMQ 主题，用于限定交易事件的投递通道。
      */
     private String topic;
 
     /**
-     * RocketMQ Tag。
+     * RocketMQ 标签，用于区分交易状态、清分完成等事件类型。
      */
     private String tag;
 
@@ -101,6 +101,16 @@ public class TransactionEventOutboxDO implements Serializable {
      * 顺序消息分组键，如 transaction_id。
      */
     private String messageGroup;
+
+    /**
+     * 投递模式：AUTO、NORMAL、ORDERLY 或 SCHEDULED；历史记录默认 AUTO。
+     */
+    private String deliveryMode = "AUTO";
+
+    /**
+     * SCHEDULED 消息的 Broker 最早投递 UTC 时间；其它模式为空，数据库使用 DATETIME(3)。
+     */
+    private LocalDateTime deliverAt;
 
     /**
      * 消息体 JSON，禁止保存完整卡号、CVV、JWT、私钥或 API Key。

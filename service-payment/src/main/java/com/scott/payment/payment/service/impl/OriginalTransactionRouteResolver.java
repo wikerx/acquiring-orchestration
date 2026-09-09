@@ -8,7 +8,15 @@ import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.util.StringUtils;
 
-/** Restores the immutable channel identity selected by the original transaction. */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OriginalTransactionRouteResolver
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Restores the immutable channel identity selected by the original transaction.
+ * @status : create
+ */
 final class OriginalTransactionRouteResolver {
 
     private OriginalTransactionRouteResolver() {

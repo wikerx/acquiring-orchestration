@@ -6,16 +6,16 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 
-@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysUserAccountExportRow
  * @date : 2026-06-20 01:15
  * @email : scott_x@163.com
- * @description : Sys User Account Export Row 协作组件，位于 运营后台服务，封装 sys用户账号exportrow 相关的校验、转换、持久化访问或运行时协作入口。
+ * @description : sys用户账号导出行模型，位于 运营后台服务，定义 Excel 列及运营可见值，不承载数据库写入规则。
  * @status : create
  */
+@Data
 public class SysUserAccountExportRow {
 
     /**

@@ -10,6 +10,7 @@ import java.util.Map;
  * @version : v1.0.0
  * @classname : ChannelCallbackVerificationRequest
  * @date : 2026-08-12 00:00
+ * @email : scott_x@163.com
  * @description : 渠道回调验签输入，只承载协议中立 HTTP 元数据和由安全配置解析后的密钥，不包含 Servlet 或平台交易模型。
  * @status : create
  */

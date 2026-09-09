@@ -20,9 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class TransactionShardingRuleChecksumTest {
 
-    /** 当前 25 表规则缺少任一正式表时必须拒绝激活，避免服务启动后才暴露缺表。 */
+    /** 当前 28 表规则缺少任一正式表且又不构成完整旧 25 表时必须拒绝激活。 */
     @Test
-    void shouldRejectPreviousTwentyThreeTableBaselineAfterMigration() {
+    void shouldRejectIncompleteTwentySevenTableFormalTopology() {
         TransactionShardingProperties properties = validProperties();
         List<String> previousBaseline = new ArrayList<>(TransactionShardingProperties.defaultLogicTables());
         previousBaseline.remove("transaction_card_vault");
@@ -32,9 +32,35 @@ class TransactionShardingRuleChecksumTest {
         assertThrows(IllegalStateException.class, properties::validateForActivation);
     }
 
+    /** 滚动迁移期间允许完整旧 25 表继续启动，但不能混入任意清分表形成 26/27 表半拓扑。 */
+    @Test
+    void shouldAcceptOnlyCompleteLegacyTopologyDuringClearingMigration() {
+        TransactionShardingProperties legacy = validProperties();
+        legacy.setLogicTables(TransactionShardingProperties.legacyLogicTables());
+        legacy.setRuleChecksum(TransactionShardingRuleChecksum.calculate(legacy));
+        legacy.validateForActivation();
+
+        List<String> partial = new ArrayList<>(TransactionShardingProperties.legacyLogicTables());
+        partial.add(TransactionShardingProperties.TRANSACTION_CLEARING_DETAIL_LOGIC_TABLE);
+        legacy.setLogicTables(partial);
+        legacy.setRuleChecksum(TransactionShardingRuleChecksum.calculate(legacy));
+
+        assertThrows(IllegalStateException.class, legacy::validateForActivation);
+    }
+
+    /** 默认正式拓扑必须完整包含三张清分表。 */
+    @Test
+    void shouldExposeCompleteTwentyEightTableFormalTopology() {
+        TransactionShardingProperties properties = validProperties();
+
+        assertEquals(TransactionShardingProperties.FORMAL_LOGIC_TABLE_COUNT,
+                properties.getLogicTables().size());
+        assertEquals(true, properties.usesFormalLogicTableTopology());
+    }
+
     /** 兼容集合也不能把未知表误判为正式拓扑。 */
     @Test
-    void shouldRejectUnknownTableInsideTwentyThreeTableTopology() {
+    void shouldRejectUnknownTableInsideHistoricalTopology() {
         TransactionShardingProperties properties = validProperties();
         List<String> invalidTopology = new ArrayList<>(TransactionShardingProperties.previousLogicTables());
         invalidTopology.set(0, "transaction_unknown");

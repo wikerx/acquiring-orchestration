@@ -13,6 +13,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * @version : v1.0.0
  * @classname : AdminInternalAuthWebMvcConfig
  * @date : 2026-08-06 00:00
+ * @email : scott_x@163.com
  * @description : service-admin 内部接口 HMAC 鉴权配置，保护商户访问配置查询与提交边界。
  * @status : create
  */
@@ -33,6 +34,7 @@ public class AdminInternalAuthWebMvcConfig implements WebMvcConfigurer {
      */
     public AdminInternalAuthWebMvcConfig(InternalServiceAuthProperties properties,
                                          InternalRequestReplayGuard replayGuard) {
+        properties.validate();
         this.properties = properties;
         this.replayGuard = replayGuard;
     }

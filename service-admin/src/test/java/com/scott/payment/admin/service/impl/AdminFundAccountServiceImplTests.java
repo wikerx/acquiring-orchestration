@@ -15,11 +15,11 @@ import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundDeduc
 import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundLedgerDO;
 import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundRechargeDO;
 import com.scott.payment.admin.entity.fund.FundAccountEntities.PendingBalanceAggregate;
+import com.scott.payment.admin.entity.fund.FundAccountEntities.ReserveBalanceAggregate;
 import com.scott.payment.admin.mapper.MerchantFundAccountMapper;
 import com.scott.payment.admin.mapper.MerchantFundDeductionMapper;
 import com.scott.payment.admin.mapper.MerchantFundLedgerMapper;
 import com.scott.payment.admin.mapper.MerchantFundRechargeMapper;
-import com.scott.payment.admin.mapper.MerchantReserveItemMapper;
 import com.scott.payment.admin.service.AdminTransactionFundQueryService;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
@@ -84,9 +84,9 @@ class AdminFundAccountServiceImplTests {
         System.out.println("资金账户列表：验证只返回可用余额，详情型在途和保证金统计不会在列表执行");
         assertThat(response.getMerchantName()).isEqualTo("示例商户");
         assertThat(response.getPendingBalances()).isEmpty();
-        assertThat(response.getReserveBalance()).isNull();
+        assertThat(response.getReserveBalances()).isEmpty();
         verify(fixture.transactionFundQueryService, never()).sumPendingBalances(any());
-        verify(fixture.reserveMapper, never()).sumHeldBalance(any(), any());
+        verify(fixture.transactionFundQueryService, never()).sumUnsettledReserveBalances(any());
     }
 
     /** 账户详情按标签币种汇总在途，并从保证金明细实时计算留存余额。 */
@@ -99,16 +99,18 @@ class AdminFundAccountServiceImplTests {
         when(fixture.accountMapper.selectOne(any())).thenReturn(account);
         when(fixture.merchantInfoMapper.selectList(any())).thenReturn(List.of(merchant()));
         when(fixture.transactionFundQueryService.sumPendingBalances("M10001")).thenReturn(List.of(eur, usd));
-        when(fixture.reserveMapper.sumHeldBalance(100L, "M10001")).thenReturn(new BigDecimal("18.75"));
+        when(fixture.transactionFundQueryService.sumUnsettledReserveBalances("M10001")).thenReturn(List.of(
+                reserve("EUR", "8.75"), reserve("USD", "10.00")));
 
         FundAccountResponse response = fixture.service.getAccount(100L);
 
         System.out.println("资金账户详情：验证在途按币种分组、保证金从留存明细实时汇总");
         assertThat(response.getPendingBalances()).extracting("currency", "amount")
                 .containsExactly(tuple("EUR", new BigDecimal("50")), tuple("USD", new BigDecimal("80")));
-        assertThat(response.getReserveBalance()).isEqualByComparingTo("18.75");
+        assertThat(response.getReserveBalances()).extracting("currency", "amount")
+                .containsExactly(tuple("EUR", new BigDecimal("8.75")), tuple("USD", new BigDecimal("10.00")));
         verify(fixture.transactionFundQueryService).sumPendingBalances("M10001");
-        verify(fixture.reserveMapper).sumHeldBalance(100L, "M10001");
+        verify(fixture.transactionFundQueryService).sumUnsettledReserveBalances("M10001");
     }
 
     /** 人工账户状态只允许按已确认矩阵流转，并在每次成功变更后递增版本。 */
@@ -164,7 +166,7 @@ class AdminFundAccountServiceImplTests {
         when(fixture.accountMapper.selectOne(any())).thenReturn(account);
         when(fixture.merchantInfoMapper.selectList(any())).thenReturn(List.of(merchant()));
         when(fixture.transactionFundQueryService.sumPendingBalances("M10001")).thenReturn(List.of());
-        when(fixture.reserveMapper.sumHeldBalance(100L, "M10001")).thenReturn(BigDecimal.ZERO);
+        when(fixture.transactionFundQueryService.sumUnsettledReserveBalances("M10001")).thenReturn(List.of());
 
         FundAccountResponse response = fixture.service.getAccount(100L);
 
@@ -174,6 +176,26 @@ class AdminFundAccountServiceImplTests {
         assertThat(response.getSettlementAllowed()).isTrue();
         assertThat(response.getReverseTransactionAllowed()).isFalse();
         System.out.println("账户能力：验证 NORMAL 负余额账户仍可入账、提现和结算，但禁止主动逆向交易");
+    }
+
+    /** 冻结账户只允许被动入账，不得继续发起结算、提现、扣减或主动逆向。 */
+    @Test
+    void shouldDisableSettlementCapabilityForFrozenAccount() {
+        Fixture fixture = new Fixture();
+        MerchantFundAccountDO account = account();
+        account.setAccountStatus("FROZEN");
+        when(fixture.accountMapper.selectOne(any())).thenReturn(account);
+        when(fixture.merchantInfoMapper.selectList(any())).thenReturn(List.of(merchant()));
+        when(fixture.transactionFundQueryService.sumPendingBalances("M10001")).thenReturn(List.of());
+        when(fixture.transactionFundQueryService.sumUnsettledReserveBalances("M10001")).thenReturn(List.of());
+
+        FundAccountResponse response = fixture.service.getAccount(100L);
+
+        assertThat(response.getCreditAllowed()).isTrue();
+        assertThat(response.getDebitAllowed()).isFalse();
+        assertThat(response.getWithdrawalAllowed()).isFalse();
+        assertThat(response.getSettlementAllowed()).isFalse();
+        assertThat(response.getReverseTransactionAllowed()).isFalse();
     }
 
     /** 全局余额明细必须组合商户、账户、业务类型、方向、币种和入账闭区间条件。 */
@@ -459,7 +481,6 @@ class AdminFundAccountServiceImplTests {
         account.setAccountStatus(status);
         when(fixture.accountMapper.selectByIdForUpdate(100L)).thenReturn(account);
         when(fixture.merchantInfoMapper.selectList(any())).thenReturn(List.of(merchant()));
-        when(fixture.reserveMapper.sumHeldBalance(100L, "M10001")).thenReturn(BigDecimal.ZERO);
         return fixture;
     }
 
@@ -581,6 +602,13 @@ class AdminFundAccountServiceImplTests {
         return aggregate;
     }
 
+    private static ReserveBalanceAggregate reserve(String currency, String amount) {
+        ReserveBalanceAggregate aggregate = new ReserveBalanceAggregate();
+        aggregate.setCurrency(currency);
+        aggregate.setAmount(new BigDecimal(amount));
+        return aggregate;
+    }
+
     private static BaseMerchantInfoDO merchant() {
         BaseMerchantInfoDO merchant = new BaseMerchantInfoDO();
         merchant.setMerchantId("M10001");
@@ -600,10 +628,9 @@ class AdminFundAccountServiceImplTests {
         private final MerchantFundDeductionMapper deductionMapper = mock(MerchantFundDeductionMapper.class);
         private final AdminTransactionFundQueryService transactionFundQueryService =
                 mock(AdminTransactionFundQueryService.class);
-        private final MerchantReserveItemMapper reserveMapper = mock(MerchantReserveItemMapper.class);
         private final BaseMerchantInfoMapper merchantInfoMapper = mock(BaseMerchantInfoMapper.class);
         private final AdminFundAccountServiceImpl service = new AdminFundAccountServiceImpl(
                 accountMapper, ledgerMapper, rechargeMapper, deductionMapper, transactionFundQueryService,
-                reserveMapper, merchantInfoMapper);
+                merchantInfoMapper);
     }
 }

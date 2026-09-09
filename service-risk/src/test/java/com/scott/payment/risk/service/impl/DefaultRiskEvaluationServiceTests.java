@@ -50,14 +50,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class DefaultRiskEvaluationServiceTests {
 
-    /**
-     * service 依赖，用于 Default Risk Evaluation Service Tests 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
     private final DefaultRiskEvaluationService service = new DefaultRiskEvaluationService();
 
     @Test
@@ -1175,9 +1167,6 @@ class DefaultRiskEvaluationServiceTests {
             return this;
         }
 
-        /**
-         * 记录规范化查询值并返回对应名单功能的预置命中。
-         */
         @Override
         public Optional<RiskListMatch> findListMatch(RiskListFunction function,
                                                      String merchantId,

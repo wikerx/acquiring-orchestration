@@ -11,7 +11,13 @@ import lombok.Setter;
 
 import java.io.Serializable;
 /**
- * Hosted Checkout 提交支付内部命令。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentCheckoutPaymentSubmitCommandDTO
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 提交支付内部命令。
+ * @status : create
  */
 @Getter
 @Setter
@@ -93,23 +99,65 @@ public class PaymentCheckoutPaymentSubmitCommandDTO implements Serializable {
     @Setter
     public static class CardDataEnvelopeDTO implements Serializable {
         private static final long serialVersionUID = 1L;
+        /**
+         * 卡数据混合加密协议标识，调用双方必须使用完全一致的算法组合。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.algorithm is required")
         private String algorithm;
+        /**
+         * 密钥ID，用于定位 {@code CardDataEnvelopeDTO} 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.keyId is required")
         @Size(max = 64, message = "cardDataEnvelope.keyId is too long")
         private String keyId;
+        /**
+         * {@code encryptedKey}字段，保存 {@code CardDataEnvelopeDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.encryptedKey is required")
         @Size(max = 1024, message = "cardDataEnvelope.encryptedKey is too long")
         @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "cardDataEnvelope.encryptedKey format does not match")
         private String encryptedKey;
+        /**
+         * {@code iv}字段，保存 {@code CardDataEnvelopeDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.iv is required")
         @Size(max = 32, message = "cardDataEnvelope.iv is too long")
         @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "cardDataEnvelope.iv format does not match")
         private String iv;
+        /**
+         * {@code ciphertext}字段，保存 {@code CardDataEnvelopeDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.ciphertext is required")
         @Size(max = 8192, message = "cardDataEnvelope.ciphertext is too long")
         @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "cardDataEnvelope.ciphertext format does not match")
         private String ciphertext;
+        /**
+         * 随机数字段，保存 {@code CardDataEnvelopeDTO} 当前处理所需的业务取值。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * </p>
+         */
         @NotBlank(message = "cardDataEnvelope.nonce is required")
         @Size(max = 128, message = "cardDataEnvelope.nonce is too long")
         @Pattern(regexp = "^[A-Za-z0-9_-]+$", message = "cardDataEnvelope.nonce format does not match")

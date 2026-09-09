@@ -1,5 +1,5 @@
-# 本地基础配置：只保留服务端口、服务名、激活环境和 Spring Boot 基础开关。
-# MQ、数据库、分表、Seata 等配置统一从 Nacos yaml DataId 读取。
+# 本地启动基线：只保留服务身份、端口和不可远程关闭的内部鉴权门禁。
+# 调用方、允许路径和鉴权时间窗统一从 service-payout-{env}.yaml 读取。
 server:
   # 参数说明：配置服务监听端口，有效范围 1-65535；同一主机上的服务端口不得冲突。
   port: 8006
@@ -16,3 +16,8 @@ spring:
   main:
     # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
     allow-bean-definition-overriding: true
+
+internal-service:
+  auth:
+    # 安全门禁固定留在本地，调用凭据和路径由服务专属 Nacos DataId 提供。
+    enabled: true

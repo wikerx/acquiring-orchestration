@@ -3,7 +3,13 @@ package com.scott.payment.risk.domain;
 import lombok.Getter;
 
 /**
- * 运行时风控模块类型。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskModuleTypeEnum
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 运行时风控模块类型。
+ * @status : create
  */
 @Getter
 public enum RiskModuleTypeEnum {

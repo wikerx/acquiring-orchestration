@@ -1,26 +1,4 @@
-# service-risk 专属配置：实时风控内部接口鉴权和规则骨架参数。
-internal-service:
-  auth:
-    # dev 可开启内部 HMAC 校验，调用方 service-payment 必须使用相同共享密钥签名。
-    # 环境说明：环境变量：RISK_INTERNAL_AUTH_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
-    enabled: ${RISK_INTERNAL_AUTH_ENABLED:true}
-    # 参数说明：声明内部签名调用方标识，必须与服务白名单中的名称完全一致。
-    caller: service-payment
-    # 参数说明：配置内部服务签名密钥，所有通信方必须使用同一环境的高强度 Secret。
-    # 环境说明：环境变量：INTERNAL_SERVICE_AUTH_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
-    secret: ${INTERNAL_SERVICE_AUTH_SECRET:dev-internal-service-secret}
-    # 参数说明：内部请求签名允许的客户端与服务端时钟偏差，使用 Spring Duration（如 5m 或 PT5M）。
-    allowed-clock-skew: 5m
-    # nonce 记录必须覆盖完整时钟偏差窗口；Redis 异常时内部请求失败关闭。
-    nonce-ttl: 10m
-    whitelist:
-      # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
-      - /risk/health
-      # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
-      - /actuator/health/**
-      # 参数说明：声明无需内部签名即可访问的路径模式；仅允许健康检查和错误处理端点，禁止加入业务接口。
-      - /error
-
+# service-risk 配置源模板：内部 HMAC 身份和路径由应用基线固定，发布时与 payment-risk 密钥合并为加密服务 DataId。
 risk:
   evaluation:
     # 是否启用运行时名单库和规则库。运行时查询优先走 Redis 缓存，缓存未命中再查从库。
@@ -107,3 +85,20 @@ risk:
     # 无运行时规则命中时保留本地骨架规则兜底，避免 dev 环境空库导致风险完全放行。
     # 环境说明：环境变量：RISK_SKELETON_FALLBACK_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     skeleton-fallback-enabled: ${RISK_SKELETON_FALLBACK_ENABLED:true}
+
+internal-service:
+  auth:
+    # enabled 安全门禁固定在本地，实时风控只接受 service-payment 调用。
+    callers:
+      service-payment:
+        # 参数说明：Payment 调用实时风控评估时使用的当前验签密钥引用。
+        active-secret: ${acquiring.internal-auth.edges.payment-risk.active-secret}
+        # 参数说明：Payment-Risk 密钥滚动轮换期间接受的上一版密钥；非轮换窗口为空。
+        previous-secret: ${acquiring.internal-auth.edges.payment-risk.previous-secret:}
+        allowed-paths:
+          # 路径说明：仅允许支付核心访问实时风控内部接口，禁止扩大为管理或公网访问路径。
+          - /internal/risk/**
+    # 参数说明：内部 HMAC 请求时间戳允许偏差，默认 5 分钟；所有实例必须保持时间同步。
+    allowed-clock-skew: 5m
+    # 参数说明：nonce 防重放记录保留时间，默认 10 分钟，必须覆盖完整签名有效窗口。
+    nonce-ttl: 10m

@@ -19,7 +19,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 验证 Redis Serializer v2 与历史格式对真实商户缓存 DTO 的双向兼容性。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentRedisSerializerBusinessCompatibilityTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 验证 Redis Serializer v2 与历史格式对真实商户缓存 DTO 的双向兼容性。
+ * @status : create
  */
 class PaymentRedisSerializerBusinessCompatibilityTests {
 

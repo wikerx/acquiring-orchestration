@@ -1,6 +1,7 @@
 package com.scott.payment.component.db.outbox.mapper;
 
 import com.scott.payment.component.db.outbox.entity.ReliableMqOutboxDO;
+import com.scott.payment.component.db.outbox.model.ReliableMqOutboxMetricsSnapshot;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -130,4 +131,37 @@ public interface ReliableMqOutboxMapper {
             """)
     int recoverStale(@Param("staleBefore") LocalDateTime staleBefore,
                      @Param("now") LocalDateTime now);
+
+    /** 查询低基数 Outbox 运维指标快照。 */
+    @Select("""
+            SELECT
+              COALESCE(SUM(CASE WHEN event_status = 'INIT' THEN 1 ELSE 0 END), 0) AS init_count,
+              COALESCE(SUM(CASE WHEN event_status = 'PROCESSING' THEN 1 ELSE 0 END), 0) AS processing_count,
+              COALESCE(SUM(CASE WHEN event_status = 'RETRY_WAIT' THEN 1 ELSE 0 END), 0) AS retry_wait_count,
+              COALESCE(SUM(CASE WHEN event_status = 'CLOSED' THEN 1 ELSE 0 END), 0) AS closed_count,
+              MIN(CASE WHEN event_status IN ('INIT', 'PROCESSING', 'RETRY_WAIT')
+                       THEN create_time ELSE NULL END) AS oldest_pending_time
+            FROM sys_mq_outbox
+            """)
+    ReliableMqOutboxMetricsSnapshot selectMetricsSnapshot();
+
+    /** 使用事件号和版本 CAS 将一条 CLOSED 消息恢复为待投递状态。 */
+    @Update("""
+            UPDATE sys_mq_outbox
+            SET event_status = 'RETRY_WAIT',
+                retry_count = 0,
+                next_retry_time = #{now},
+                processing_started_time = NULL,
+                sent_time = NULL,
+                failure_reason = #{recoveryReason},
+                version = version + 1,
+                update_time = #{now}
+            WHERE event_id = #{eventId}
+              AND version = #{expectedVersion}
+              AND event_status = 'CLOSED'
+            """)
+    int recoverClosed(@Param("eventId") String eventId,
+                      @Param("expectedVersion") Integer expectedVersion,
+                      @Param("recoveryReason") String recoveryReason,
+                      @Param("now") LocalDateTime now);
 }

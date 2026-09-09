@@ -8,7 +8,13 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 商户支付接入配置响应的字段边界契约测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantAccessConfigSerializationTest
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 商户支付接入配置响应的字段边界契约测试。
+ * @status : create
  */
 class MerchantAccessConfigSerializationTest {
 

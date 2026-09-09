@@ -1,7 +1,14 @@
 package com.scott.payment.risk.domain;
 
 /**
- * 支付终态推进频控成功名额生命周期的汇总。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : FrequencySuccessReservationTransitionSummary
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 支付终态推进频控成功名额生命周期的汇总。
+ * @status : create
+ *
  *
  * @param applied 实际确认或释放的名额数
  * @param idempotent 已经处于目标状态的交易数

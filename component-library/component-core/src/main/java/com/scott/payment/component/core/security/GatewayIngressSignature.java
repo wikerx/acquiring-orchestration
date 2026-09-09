@@ -33,7 +33,21 @@ public final class GatewayIngressSignature {
     /** 共享密钥最低字符数，实际部署建议使用 32 字节以上随机值。 */
     public static final int MINIMUM_SECRET_LENGTH = 32;
 
+    /**
+     * {@code HMAC_SHA256}常量，统一 {@code GatewayIngressSignature} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String HMAC_SHA256 = "HmacSHA256";
+    /**
+     * {@code LINE_SEPARATOR}常量，统一 {@code GatewayIngressSignature} 内部使用的配置值、状态码或协议字段。
+     * <p>
+     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
+     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * </p>
+     */
     private static final String LINE_SEPARATOR = "\n";
 
     private GatewayIngressSignature() {

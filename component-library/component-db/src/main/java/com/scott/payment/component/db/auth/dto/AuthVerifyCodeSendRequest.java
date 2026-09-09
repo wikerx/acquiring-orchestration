@@ -10,6 +10,7 @@ import java.io.Serializable;
  * @version : v1.0.0
  * @classname : AuthVerifyCodeSendRequest
  * @date : 2026-06-06 00:00
+ * @email : scott_x@163.com
  * @description : 登录动态验证码发送请求
  * @status : create
  */

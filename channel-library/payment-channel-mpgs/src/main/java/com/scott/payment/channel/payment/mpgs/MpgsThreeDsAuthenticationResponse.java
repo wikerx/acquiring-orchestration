@@ -7,7 +7,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * MPGS 3DS Direct API 认证响应摘要。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MpgsThreeDsAuthenticationResponse
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : MPGS 3DS Direct API 认证响应摘要。
+ * @status : create
  */
 @Data
 public class MpgsThreeDsAuthenticationResponse implements Serializable {

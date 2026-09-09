@@ -6,24 +6,35 @@
     <parent>
         <groupId>com.scott.payment</groupId>
         <artifactId>component-library</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>component-core</artifactId>
     <packaging>jar</packaging>
+    <name>component-core</name>
+    <description>全平台最底层的通用值对象、枚举、异常、契约和基础工具组件。</description>
+
+    <!--
+        本模块不得依赖其他内部组件或具体业务服务，确保所有上层模块都能安全复用。
+        仅保留基础日志、JSON 和少量容器通用类型支持，不承载数据库、缓存或消息实现。
+    -->
     <dependencies>
+        <!--统一日志门面；具体日志实现由运行时提供。-->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
+        <!--平台运行时日志实现；runtime scope 避免业务代码在编译期绑定 Logback API。-->
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!--通用 JSON 序列化能力。-->
         <dependency>
             <groupId>com.alibaba.fastjson2</groupId>
             <artifactId>fastjson2</artifactId>
         </dependency>
+        <!--提供少量 Servlet/Tomcat 通用类型，模块本身不启动 Web 容器。-->
         <dependency>
             <groupId>org.apache.tomcat.embed</groupId>
             <artifactId>tomcat-embed-core</artifactId>

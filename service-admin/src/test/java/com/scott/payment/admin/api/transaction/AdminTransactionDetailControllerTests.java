@@ -18,7 +18,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 /**
- * 管理后台交易详情接口契约测试，验证列表返回的毫秒交易时间可直接用于分片详情查询。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminTransactionDetailControllerTests
+ * @date : 2026-09-02 08:03
+ * @email : scott_x@163.com
+ * @description : 管理后台交易详情接口契约测试，验证列表返回的毫秒交易时间可直接用于分片详情查询。
+ * @status : create
  */
 class AdminTransactionDetailControllerTests {
 

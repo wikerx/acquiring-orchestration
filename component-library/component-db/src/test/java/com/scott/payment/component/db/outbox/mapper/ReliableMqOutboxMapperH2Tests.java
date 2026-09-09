@@ -1,6 +1,7 @@
 package com.scott.payment.component.db.outbox.mapper;
 
 import com.scott.payment.component.db.outbox.entity.ReliableMqOutboxDO;
+import com.scott.payment.component.db.outbox.model.ReliableMqOutboxMetricsSnapshot;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.junit.jupiter.api.BeforeEach;
@@ -113,6 +114,49 @@ class ReliableMqOutboxMapperH2Tests {
             assertThat(mapper.selectByEventId("event-stale-retry").getEventStatus()).isEqualTo("RETRY_WAIT");
             assertThat(mapper.selectByEventId("event-stale-close").getEventStatus()).isEqualTo("CLOSED");
             assertThat(mapper.selectByEventId("event-closed").getEventStatus()).isEqualTo("CLOSED");
+        }
+    }
+
+    /** 指标聚合必须返回各待处理状态、CLOSED 数量和最老积压时间。 */
+    @Test
+    void shouldReadOperationalMetricsSnapshot() {
+        try (SqlSession session = sqlSessionFactory.openSession(true)) {
+            ReliableMqOutboxMapper mapper = session.getMapper(ReliableMqOutboxMapper.class);
+            LocalDateTime now = LocalDateTime.of(2026, 8, 24, 19, 30);
+            mapper.insert(event("event-init", "INIT", 0, 3, null, now.minusMinutes(10)));
+            mapper.insert(event("event-processing", "PROCESSING", 0, 3, null, now.minusMinutes(5)));
+            mapper.insert(event("event-retry", "RETRY_WAIT", 1, 3, now, now.minusMinutes(3)));
+            mapper.insert(event("event-closed", "CLOSED", 3, 3, null, now.minusMinutes(20)));
+
+            ReliableMqOutboxMetricsSnapshot snapshot = mapper.selectMetricsSnapshot();
+
+            assertThat(snapshot.getInitCount()).isEqualTo(1L);
+            assertThat(snapshot.getProcessingCount()).isEqualTo(1L);
+            assertThat(snapshot.getRetryWaitCount()).isEqualTo(1L);
+            assertThat(snapshot.getClosedCount()).isEqualTo(1L);
+            assertThat(snapshot.getOldestPendingTime()).isEqualTo(now.minusMinutes(10));
+        }
+    }
+
+    /** 人工恢复只能使用当前版本从 CLOSED CAS 进入 RETRY_WAIT。 */
+    @Test
+    void shouldRecoverClosedWithVersionCasOnlyOnce() {
+        try (SqlSession session = sqlSessionFactory.openSession(true)) {
+            ReliableMqOutboxMapper mapper = session.getMapper(ReliableMqOutboxMapper.class);
+            LocalDateTime now = LocalDateTime.of(2026, 8, 24, 19, 30);
+            mapper.insert(event("event-closed", "CLOSED", 3, 3, null, now.minusMinutes(20)));
+            ReliableMqOutboxDO closed = mapper.selectByEventId("event-closed");
+
+            assertThat(mapper.recoverClosed(
+                    "event-closed", closed.getVersion(), "operator approved retry", now)).isOne();
+            assertThat(mapper.recoverClosed(
+                    "event-closed", closed.getVersion(), "duplicate retry", now)).isZero();
+
+            ReliableMqOutboxDO recovered = mapper.selectByEventId("event-closed");
+            assertThat(recovered.getEventStatus()).isEqualTo("RETRY_WAIT");
+            assertThat(recovered.getRetryCount()).isZero();
+            assertThat(recovered.getNextRetryTime()).isEqualTo(now);
+            assertThat(recovered.getVersion()).isEqualTo(closed.getVersion() + 1);
         }
     }
 
