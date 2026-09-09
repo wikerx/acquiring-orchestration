@@ -3,6 +3,7 @@ package com.scott.payment.admin.client.settlement;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchCommandResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalBatchCommandRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionTaskResumeRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCommandResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReversalDecisionRequest;
@@ -69,6 +70,9 @@ public interface SettlementInternalClient {
             String reviewOrderNo, InternalReviewDecisionRequest request);
 
     ReviewDecisionTaskResponse getReviewDecisionTask(String taskNo);
+
+    ReviewDecisionTaskResponse resumeReviewDecisionTask(
+            String taskNo, InternalReviewDecisionTaskResumeRequest request);
 
     /**
      * 发送已注入可信 Maker 的已入账批次冲正申请。

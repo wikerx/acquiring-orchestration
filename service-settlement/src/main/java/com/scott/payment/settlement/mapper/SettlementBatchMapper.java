@@ -190,6 +190,13 @@ public interface SettlementBatchMapper {
     int activateAsyncApprovedReviewBatches(@Param("reviewOrderNo") String reviewOrderNo,
                                            @Param("now") java.time.LocalDateTime now);
 
+    @Select("""
+            SELECT COUNT(1) FROM settlement_batch
+            WHERE review_order_no = #{reviewOrderNo} AND create_mode = 'MANUAL_REVIEW'
+              AND batch_status = 'CLAIMING' AND candidate_count > 0
+            """)
+    int countAsyncApprovedReviewBatches(@Param("reviewOrderNo") String reviewOrderNo);
+
     /** 候选与审计关系写入后，使用批次状态和版本 CAS 增加计数并进入 CLAIMING。 */
     @Update("""
             UPDATE settlement_batch

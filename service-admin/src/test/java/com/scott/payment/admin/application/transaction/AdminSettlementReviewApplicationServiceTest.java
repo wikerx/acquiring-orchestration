@@ -2,12 +2,14 @@ package com.scott.payment.admin.application.transaction;
 
 import com.scott.payment.admin.client.settlement.SettlementInternalClient;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionTaskResumeRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalManualReviewPreviewRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewPreviewRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewStartRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateReference;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResumeRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSubmitRequest;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
@@ -202,11 +204,36 @@ class AdminSettlementReviewApplicationServiceTest {
     }
 
     @Test
+    void decisionTaskRecoveryShouldPrecheckTaskScopeAndInjectTrustedOperator() {
+        Fixture fixture = fixture();
+        String taskNo = "DT" + "a".repeat(32);
+        ReviewDecisionTaskResumeRequest request = new ReviewDecisionTaskResumeRequest();
+        request.setRequestKey("RESUME-1");
+        request.setExpectedVersion(7L);
+        request.setReason("database connectivity restored");
+
+        fixture.service.resumeReviewDecisionTask(taskNo, request, servletRequest());
+
+        verify(fixture.reviewQueryService).requireDecisionTaskAccess(taskNo, fixture.scope);
+        ArgumentCaptor<InternalReviewDecisionTaskResumeRequest> captor =
+                ArgumentCaptor.forClass(InternalReviewDecisionTaskResumeRequest.class);
+        verify(fixture.client).resumeReviewDecisionTask(
+                org.mockito.ArgumentMatchers.eq(taskNo), captor.capture());
+        assertThat(captor.getValue().getRequestKey()).isEqualTo("RESUME-1");
+        assertThat(captor.getValue().getExpectedVersion()).isEqualTo(7L);
+        assertThat(captor.getValue().getOperatorId()).isEqualTo(88L);
+        assertThat(captor.getValue().getClientIp()).isEqualTo("203.0.113.10");
+    }
+
+    @Test
     void browserDtosShouldNotExposeOperatorIdentityFields() {
         assertThat(Arrays.stream(ReviewSubmitRequest.class.getDeclaredFields())
                 .map(java.lang.reflect.Field::getName)).doesNotContain(
                 "operatorId", "operatorName", "roleSnapshot", "clientIp", "userAgent", "operationTime");
         assertThat(Arrays.stream(ReviewDecisionRequest.class.getDeclaredFields())
+                .map(java.lang.reflect.Field::getName)).doesNotContain(
+                "operatorId", "operatorName", "roleSnapshot", "clientIp", "userAgent", "operationTime");
+        assertThat(Arrays.stream(ReviewDecisionTaskResumeRequest.class.getDeclaredFields())
                 .map(java.lang.reflect.Field::getName)).doesNotContain(
                 "operatorId", "operatorName", "roleSnapshot", "clientIp", "userAgent", "operationTime");
     }

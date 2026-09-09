@@ -1,5 +1,5 @@
 -- Admin settlement review and reversal menus and endpoint permissions.
--- High-risk create/approve permissions are granted only to SUPER_ADMIN by this migration.
+-- High-risk create, approve and failed-task recovery permissions are granted only to SUPER_ADMIN.
 
 START TRANSACTION;
 
@@ -155,8 +155,10 @@ JOIN (
            'settlement:review-order:reject', 'admin_settlement_review_order_v1', 3
     UNION ALL SELECT 'admin_settlement_review_cancel_v1', '取消预审',
            'settlement:review-order:cancel', 'admin_settlement_review_order_v1', 4
+    UNION ALL SELECT 'admin_settlement_review_recover_v1', '恢复失败决策任务',
+           'settlement:review-order:recover', 'admin_settlement_review_order_v1', 5
     UNION ALL SELECT 'admin_settlement_review_export_v1', '导出预审单',
-           'settlement:review-order:export', 'admin_settlement_review_order_v1', 5
+           'settlement:review-order:export', 'admin_settlement_review_order_v1', 6
     UNION ALL SELECT 'admin_settlement_batch_detail_v1', '批次详情',
            'settlement:batch:detail', 'admin_settlement_batch_v1', 1
     UNION ALL SELECT 'admin_settlement_batch_retry_v1', '重新处理批次',
@@ -207,8 +209,10 @@ JOIN (
            'settlement:review-order:reject', 'admin_settlement_review_order_v1', 3
     UNION ALL SELECT 'admin_settlement_review_cancel_v1', '取消预审',
            'settlement:review-order:cancel', 'admin_settlement_review_order_v1', 4
+    UNION ALL SELECT 'admin_settlement_review_recover_v1', '恢复失败决策任务',
+           'settlement:review-order:recover', 'admin_settlement_review_order_v1', 5
     UNION ALL SELECT 'admin_settlement_review_export_v1', '导出预审单',
-           'settlement:review-order:export', 'admin_settlement_review_order_v1', 5
+           'settlement:review-order:export', 'admin_settlement_review_order_v1', 6
     UNION ALL SELECT 'admin_settlement_batch_detail_v1', '批次详情',
            'settlement:batch:detail', 'admin_settlement_batch_v1', 1
     UNION ALL SELECT 'admin_settlement_batch_retry_v1', '重新处理批次',
@@ -280,6 +284,8 @@ FROM (
            '拒绝预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/reject*', '拒绝预审并释放候选；大批量预审使用异步任务'
     UNION ALL SELECT 'admin_settlement_review_cancel_v1', 'settlement:review-order:cancel',
            '取消预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/cancel*', 'Maker取消自己的待审批预审；大批量预审使用异步任务'
+    UNION ALL SELECT 'admin_settlement_review_recover_v1', 'settlement:review-order:recover',
+           '恢复失败预审决策任务', 'BUTTON', 'POST', '/admin/settlement/review-decision-tasks/*/resume', '仅在故障排除且进度一致时原地恢复可恢复的失败决策任务'
     UNION ALL SELECT 'admin_settlement_review_export_v1', 'settlement:review-order:export',
            '导出预审单', 'BUTTON', 'POST', '/admin/settlement/review-orders/export', '按当前筛选和Admin商户数据范围导出预审单'
     UNION ALL SELECT 'admin_settlement_batch_v1', 'settlement:batch:list',
@@ -354,6 +360,8 @@ JOIN (
            '拒绝预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/reject*', '拒绝预审并释放候选；大批量预审使用异步任务'
     UNION ALL SELECT 'admin_settlement_review_cancel_v1', 'settlement:review-order:cancel',
            '取消预审', 'BUTTON', 'POST', '/admin/settlement/review-orders/*/cancel*', 'Maker取消自己的待审批预审；大批量预审使用异步任务'
+    UNION ALL SELECT 'admin_settlement_review_recover_v1', 'settlement:review-order:recover',
+           '恢复失败预审决策任务', 'BUTTON', 'POST', '/admin/settlement/review-decision-tasks/*/resume', '仅在故障排除且进度一致时原地恢复可恢复的失败决策任务'
     UNION ALL SELECT 'admin_settlement_review_export_v1', 'settlement:review-order:export',
            '导出预审单', 'BUTTON', 'POST', '/admin/settlement/review-orders/export', '按当前筛选和Admin商户数据范围导出预审单'
     UNION ALL SELECT 'admin_settlement_batch_v1', 'settlement:batch:list',
@@ -485,7 +493,7 @@ WHERE role.app_id = @admin_app_id AND role.role_code = 'SUPER_ADMIN' AND role.de
   AND (permission.permission_code = 'admin:settlement:view'
        OR permission.permission_code LIKE 'settlement:%');
 
--- ADMIN_OPERATOR is not a default holder of high-risk reversal command permissions.
+-- ADMIN_OPERATOR is not a default holder of recovery or high-risk reversal permissions.
 UPDATE sys_role_permission role_permission
 JOIN sys_role role
   ON role.app_id = role_permission.app_id
@@ -499,6 +507,7 @@ WHERE role.app_id = @admin_app_id
   AND role.deleted = 0
   AND permission.deleted = 0
   AND permission.permission_code IN (
+      'settlement:review-order:recover',
       'settlement:reversal-order:create',
       'settlement:reversal-order:approve',
       'settlement:reversal-order:reject'

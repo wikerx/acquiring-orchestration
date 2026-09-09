@@ -2,10 +2,12 @@ package com.scott.payment.settlement.api.internal;
 
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ReviewCandidateReference;
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ReviewDecisionRequest;
+import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ReviewDecisionTaskResumeRequest;
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ReviewSubmitRequest;
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ManualReviewPreviewRequest;
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ManualReviewStartRequest;
 import com.scott.payment.settlement.application.SettlementManualReviewApplicationService;
+import com.scott.payment.settlement.application.SettlementReviewDecisionApplicationService;
 import com.scott.payment.settlement.application.SettlementReviewOrderApplicationService;
 import com.scott.payment.settlement.dto.SettlementManualReviewModels.PreviewCommand;
 import com.scott.payment.settlement.dto.SettlementManualReviewModels.StartCommand;
@@ -13,6 +15,7 @@ import com.scott.payment.settlement.dto.SettlementManualReviewModels.TaskResult;
 import com.scott.payment.settlement.dto.SettlementReviewCommandResult;
 import com.scott.payment.settlement.dto.SettlementReviewCreateCommand;
 import com.scott.payment.settlement.dto.SettlementReviewDecisionCommand;
+import com.scott.payment.settlement.dto.SettlementCommandAudit;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -166,6 +169,39 @@ class SettlementReviewInternalControllerContractTest {
         assertThat(captor.getValue().decision()).isEqualTo("APPROVE");
         assertThat(captor.getValue().operator().accountId()).isEqualTo(99L);
         assertThat(captor.getValue().operator().operationTime()).isEqualTo(request.getOperationTime());
+    }
+
+    @Test
+    void decisionTaskResumeShouldUseDedicatedRouteAndTrustedRecoveryAudit() {
+        SettlementReviewDecisionApplicationService decisionService =
+                mock(SettlementReviewDecisionApplicationService.class);
+        SettlementReviewInternalController controller = new SettlementReviewInternalController(
+                mock(SettlementReviewOrderApplicationService.class),
+                mock(SettlementManualReviewApplicationService.class), decisionService);
+        ReviewDecisionTaskResumeRequest request = new ReviewDecisionTaskResumeRequest();
+        request.setRequestKey("RESUME-1");
+        request.setExpectedVersion(7L);
+        request.setReason("database connectivity restored");
+        request.setOperatorId(88L);
+        request.setOperatorName("Settlement Operator");
+        request.setRoleSnapshot("SETTLEMENT_RECOVERY");
+        request.setClientIp("10.0.0.8");
+        request.setUserAgent("JUnit Admin");
+        request.setOperationTime(LocalDateTime.of(2026, 9, 8, 10, 0));
+        when(decisionService.resume(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(mock(com.scott.payment.settlement.dto.SettlementReviewDecisionModels.TaskResult.class));
+
+        controller.resumeDecisionTask("DT" + "a".repeat(32), request);
+
+        assertThat(method("resumeDecisionTask").getAnnotation(PostMapping.class).value())
+                .containsExactly("/decision-tasks/{taskNo}/resume");
+        ArgumentCaptor<SettlementCommandAudit> captor = ArgumentCaptor.forClass(SettlementCommandAudit.class);
+        verify(decisionService).resume(org.mockito.ArgumentMatchers.eq("DT" + "a".repeat(32)),
+                org.mockito.ArgumentMatchers.eq(7L), captor.capture());
+        assertThat(captor.getValue().requestKey()).isEqualTo("RESUME-1");
+        assertThat(captor.getValue().reason()).isEqualTo("database connectivity restored");
+        assertThat(captor.getValue().operator().accountId()).isEqualTo(88L);
     }
 
     @Test

@@ -12,6 +12,7 @@ import com.scott.payment.settlement.dto.SettlementBatchCreateCommand;
 import com.scott.payment.settlement.dto.SettlementBatchCreateResult;
 import com.scott.payment.settlement.dto.SettlementBatchFacts;
 import com.scott.payment.settlement.dto.SettlementCalculationPreview;
+import com.scott.payment.settlement.dto.SettlementCommandAudit;
 import com.scott.payment.settlement.dto.SettlementLockedRateMatrix;
 import com.scott.payment.settlement.dto.SettlementOperatorSnapshot;
 import com.scott.payment.settlement.dto.SettlementReviewDecisionCommand;
@@ -22,6 +23,7 @@ import com.scott.payment.settlement.entity.SettlementBatchDO;
 import com.scott.payment.settlement.entity.SettlementBatchRateDO;
 import com.scott.payment.settlement.entity.SettlementCandidateDO;
 import com.scott.payment.settlement.entity.SettlementReviewCandidateDO;
+import com.scott.payment.settlement.entity.SettlementReviewDecisionRecoveryAuditDO;
 import com.scott.payment.settlement.entity.SettlementReviewDecisionTaskDO;
 import com.scott.payment.settlement.entity.SettlementReviewOrderDO;
 import com.scott.payment.settlement.entity.SettlementReviewRateDO;
@@ -67,6 +69,19 @@ import java.util.Set;
 /** 大预审单按分段批准、释放和最终状态收口的本地事务边界。 */
 @Service
 public class SettlementReviewDecisionTransactionService {
+
+    private static final Set<String> RECOVERABLE_FAILURE_CODES = Set.of(
+            "SETTLEMENT_REVIEW_DECISION_PROGRESS_CAS_FAILED",
+            "SETTLEMENT_REVIEW_DECISION_BATCH_BIND_CAS_FAILED",
+            "SETTLEMENT_REVIEW_DECISION_CANDIDATE_CONSUME_FAILED",
+            "SETTLEMENT_REVIEW_DECISION_SEGMENT_CONSUME_INCOMPLETE",
+            "SETTLEMENT_REVIEW_DECISION_SEGMENT_RELEASE_INCOMPLETE",
+            "SETTLEMENT_REVIEW_DECISION_PROGRESS_INCOMPLETE",
+            "SETTLEMENT_REVIEW_DECISION_BATCH_SET_INCOMPLETE",
+            "SETTLEMENT_REVIEW_DECISION_FINAL_APPROVAL_CAS_FAILED",
+            "SETTLEMENT_REVIEW_DECISION_FINAL_TERMINATION_CAS_FAILED",
+            "SETTLEMENT_REVIEW_DECISION_COMPLETION_CAS_FAILED",
+            "SETTLEMENT_REVIEW_DECISION_LEASE_LOST");
 
     private final SettlementReviewDecisionTaskMapper taskMapper;
     private final SettlementReviewOrderMapper orderMapper;
@@ -168,6 +183,45 @@ public class SettlementReviewDecisionTransactionService {
     @DS(DataSourceName.TRANSACTION)
     public TaskResult get(String taskNo) {
         return result(requireTask(taskMapper.selectByTaskNo(requireTaskNo(taskNo))));
+    }
+
+    @DS(DataSourceName.TRANSACTION)
+    @Transactional(rollbackFor = Exception.class)
+    public TaskResult resume(String taskNo, long expectedVersion, SettlementCommandAudit audit) {
+        String normalizedTaskNo = requireTaskNo(taskNo);
+        if (expectedVersion < 0 || audit == null) {
+            throw new IllegalArgumentException("settlement review decision recovery command is invalid");
+        }
+        SettlementReviewDecisionRecoveryAuditDO replay =
+                taskMapper.selectRecoveryAuditByRequestKey(audit.requestKey());
+        if (replay != null) {
+            verifyRecoveryReplay(normalizedTaskNo, expectedVersion, audit, replay);
+            return result(requireTask(taskMapper.selectByTaskNo(normalizedTaskNo)));
+        }
+
+        SettlementReviewDecisionTaskDO task = requireTask(
+                taskMapper.selectByTaskNoForUpdate(normalizedTaskNo));
+        SettlementReviewDecisionRecoveryAuditDO concurrentReplay =
+                taskMapper.selectRecoveryAuditByRequestKeyForUpdate(audit.requestKey());
+        if (concurrentReplay != null) {
+            verifyRecoveryReplay(normalizedTaskNo, expectedVersion, audit, concurrentReplay);
+            return result(task);
+        }
+        requireRecoverableTask(task, expectedVersion);
+        validateRecoveryProgress(task);
+
+        SettlementReviewDecisionRecoveryAuditDO recoveryAudit = recoveryAudit(task, audit, nowUtc());
+        taskMapper.insertRecoveryAuditIdempotent(recoveryAudit);
+        SettlementReviewDecisionRecoveryAuditDO stored =
+                taskMapper.selectRecoveryAuditByRequestKeyForUpdate(audit.requestKey());
+        verifyRecoveryReplay(normalizedTaskNo, expectedVersion, audit, stored);
+        LocalDateTime now = recoveryAudit.getRecoveredTime();
+        if (taskMapper.resumeFailed(normalizedTaskNo, expectedVersion, now) != 1) {
+            throw failure("SETTLEMENT_REVIEW_DECISION_RECOVERY_CAS_FAILED", true,
+                    "settlement review decision recovery CAS failed");
+        }
+        applyResumedState(task, now);
+        return result(task);
     }
 
     @DS(DataSourceName.TRANSACTION)
@@ -624,7 +678,114 @@ public class SettlementReviewDecisionTransactionService {
                 task.getTaskStatus(), total, processed, value(task.getResultBatchCount()), progress,
                 task.getFirstSettlementBatchNo(), value(task.getRetryCount()), task.getLastFailureCode(),
                 task.getLastFailureMessage(), task.getStartedTime(), task.getCompletedTime(),
-                task.getVersion() == null ? 0L : task.getVersion());
+                task.getVersion() == null ? 0L : task.getVersion(), isRecoverableFailure(task));
+    }
+
+    private void requireRecoverableTask(SettlementReviewDecisionTaskDO task, long expectedVersion) {
+        if (task.getVersion() == null || task.getVersion() != expectedVersion) {
+            throw failure("SETTLEMENT_REVIEW_DECISION_RECOVERY_VERSION_STALE", false,
+                    "settlement review decision recovery version is stale");
+        }
+        if (!"FAILED".equals(task.getTaskStatus())) {
+            throw failure("SETTLEMENT_REVIEW_DECISION_RECOVERY_STATE_INVALID", false,
+                    "settlement review decision task is not failed");
+        }
+        if (!isRecoverableFailure(task)) {
+            throw failure("SETTLEMENT_REVIEW_DECISION_FAILURE_NOT_RECOVERABLE", false,
+                    "settlement review decision failure is not recoverable");
+        }
+    }
+
+    private void validateRecoveryProgress(SettlementReviewDecisionTaskDO task) {
+        SettlementReviewOrderDO order = orderMapper.selectByReviewOrderNoForUpdate(task.getReviewOrderNo());
+        requirePendingAsyncOrder(order, command(task));
+        int total = segmentMapper.countByOrderNo(task.getReviewOrderNo());
+        int locked = segmentMapper.countByOrderNoAndStatus(task.getReviewOrderNo(), "LOCKED");
+        int consumed = segmentMapper.countByOrderNoAndStatus(task.getReviewOrderNo(), "CONSUMED");
+        int released = segmentMapper.countByOrderNoAndStatus(task.getReviewOrderNo(), "RELEASED");
+        int processed = value(task.getProcessedSegmentCount());
+        if (total != value(task.getTotalSegmentCount()) || locked + consumed + released != total
+                || locked != total - processed) {
+            throw failure("SETTLEMENT_REVIEW_DECISION_RECOVERY_PROGRESS_INCONSISTENT", false,
+                    "settlement review decision segment progress is inconsistent");
+        }
+        int batches = batchMapper.countAsyncApprovedReviewBatches(task.getReviewOrderNo());
+        if ("APPROVE".equals(task.getDecisionAction())) {
+            if (consumed != processed || released != 0 || value(task.getResultBatchCount()) != consumed
+                    || batches != consumed || (consumed > 0) != (task.getFirstSettlementBatchNo() != null)) {
+                throw failure("SETTLEMENT_REVIEW_DECISION_RECOVERY_BATCH_INCONSISTENT", false,
+                        "settlement review decision batch progress is inconsistent");
+            }
+            return;
+        }
+        if (released != processed || consumed != 0 || value(task.getResultBatchCount()) != 0
+                || task.getFirstSettlementBatchNo() != null || batches != 0) {
+            throw failure("SETTLEMENT_REVIEW_DECISION_RECOVERY_RELEASE_INCONSISTENT", false,
+                    "settlement review decision release progress is inconsistent");
+        }
+    }
+
+    private SettlementReviewDecisionRecoveryAuditDO recoveryAudit(
+            SettlementReviewDecisionTaskDO task,
+            SettlementCommandAudit audit,
+            LocalDateTime now) {
+        SettlementReviewDecisionRecoveryAuditDO row = new SettlementReviewDecisionRecoveryAuditDO();
+        row.setTaskNo(task.getTaskNo());
+        row.setReviewOrderNo(task.getReviewOrderNo());
+        row.setRequestKey(audit.requestKey());
+        row.setExpectedVersion(task.getVersion());
+        row.setTaskStatusBefore(task.getTaskStatus());
+        row.setProcessedSegmentCountBefore(value(task.getProcessedSegmentCount()));
+        row.setResultBatchCountBefore(value(task.getResultBatchCount()));
+        row.setRetryCountBefore(value(task.getRetryCount()));
+        row.setFailureCodeBefore(task.getLastFailureCode());
+        row.setFailureMessageBefore(task.getLastFailureMessage());
+        row.setStartedTimeBefore(task.getStartedTime());
+        row.setCompletedTimeBefore(task.getCompletedTime());
+        row.setOperatorAccountId(audit.operator().accountId());
+        row.setOperatorAccountName(audit.operator().accountName());
+        row.setOperatorRoleSnapshot(audit.operator().roleSnapshot());
+        row.setClientIp(audit.operator().clientIp());
+        row.setUserAgent(audit.operator().userAgent());
+        row.setReason(audit.reason());
+        row.setOperationTime(audit.operator().operationTime());
+        row.setRecoveredTime(now);
+        row.setCreateTime(now);
+        return row;
+    }
+
+    private void verifyRecoveryReplay(String taskNo,
+                                      long expectedVersion,
+                                      SettlementCommandAudit command,
+                                      SettlementReviewDecisionRecoveryAuditDO existing) {
+        if (existing == null || !Objects.equals(existing.getTaskNo(), taskNo)
+                || !Objects.equals(existing.getRequestKey(), command.requestKey())
+                || !Objects.equals(existing.getExpectedVersion(), expectedVersion)
+                || !Objects.equals(existing.getReason(), command.reason())
+                || !Objects.equals(existing.getOperatorAccountId(), command.operator().accountId())) {
+            throw failure("SETTLEMENT_REVIEW_DECISION_RECOVERY_REQUEST_CONFLICT", false,
+                    "settlement review decision recovery request key contains mismatched identity");
+        }
+    }
+
+    private void applyResumedState(SettlementReviewDecisionTaskDO task, LocalDateTime now) {
+        task.setTaskStatus("QUEUED");
+        task.setProcessingOwner(null);
+        task.setProcessingDeadline(null);
+        task.setRetryCount(0);
+        task.setNextRetryTime(now);
+        task.setLastFailureCode(null);
+        task.setLastFailureMessage(null);
+        task.setStartedTime(null);
+        task.setCompletedTime(null);
+        task.setVersion(task.getVersion() + 1);
+        task.setUpdateTime(now);
+    }
+
+    private boolean isRecoverableFailure(SettlementReviewDecisionTaskDO task) {
+        String failureCode = task.getLastFailureCode();
+        return "FAILED".equals(task.getTaskStatus()) && failureCode != null
+                && RECOVERABLE_FAILURE_CODES.contains(failureCode);
     }
 
     private void verifyReplay(SettlementReviewDecisionTaskDO task,

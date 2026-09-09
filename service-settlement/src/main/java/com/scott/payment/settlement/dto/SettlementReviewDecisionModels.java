@@ -22,6 +22,7 @@ public final class SettlementReviewDecisionModels {
                              String failureMessage,
                              LocalDateTime startedTime,
                              LocalDateTime completedTime,
-                             long version) {
+                             long version,
+                             boolean recoverable) {
     }
 }

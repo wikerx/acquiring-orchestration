@@ -10,11 +10,13 @@ import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.Ma
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ManualReviewStartRequest;
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ManualReviewTaskResponse;
 import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ReviewDecisionTaskResponse;
+import com.scott.payment.settlement.api.internal.dto.SettlementManagementDTOs.ReviewDecisionTaskResumeRequest;
 import com.scott.payment.settlement.application.SettlementManualReviewApplicationService;
 import com.scott.payment.settlement.application.SettlementReviewDecisionApplicationService;
 import com.scott.payment.settlement.application.SettlementReviewOrderApplicationService;
 import com.scott.payment.settlement.domain.model.SettlementBatchType;
 import com.scott.payment.settlement.dto.SettlementOperatorSnapshot;
+import com.scott.payment.settlement.dto.SettlementCommandAudit;
 import com.scott.payment.settlement.dto.SettlementReviewCommandResult;
 import com.scott.payment.settlement.dto.SettlementReviewCreateCommand;
 import com.scott.payment.settlement.dto.SettlementReviewDecisionCommand;
@@ -197,6 +199,21 @@ public class SettlementReviewInternalController {
         return success(decisionResponse(decisionTasks().get(taskNo)));
     }
 
+    @PostMapping("/decision-tasks/{taskNo}/resume")
+    public CommonResult<ReviewDecisionTaskResponse> resumeDecisionTask(
+            @PathVariable("taskNo") String taskNo,
+            @RequestBody ReviewDecisionTaskResumeRequest request) {
+        if (request == null || request.getExpectedVersion() == null) {
+            throw new IllegalArgumentException("settlement review decision recovery request is required");
+        }
+        SettlementCommandAudit audit = new SettlementCommandAudit(
+                request.getRequestKey(), request.getReason(),
+                operator(request.getOperatorId(), request.getOperatorName(), request.getRoleSnapshot(),
+                        request.getClientIp(), request.getUserAgent(), request.getOperationTime()));
+        return success(decisionResponse(decisionTasks().resume(
+                taskNo, request.getExpectedVersion(), audit)));
+    }
+
     private SettlementReviewCreateCommand.CandidateReference candidate(ReviewCandidateReference row) {
         if (row == null || row.getExpectedVersion() == null) {
             throw new IllegalArgumentException("settlement review candidate reference is invalid");
@@ -314,6 +331,7 @@ public class SettlementReviewInternalController {
         response.setStartedTime(result.startedTime());
         response.setCompletedTime(result.completedTime());
         response.setVersion(result.version());
+        response.setRecoverable(result.recoverable());
         return response;
     }
 }

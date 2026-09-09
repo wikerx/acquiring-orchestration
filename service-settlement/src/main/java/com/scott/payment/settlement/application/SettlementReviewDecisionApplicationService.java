@@ -1,6 +1,7 @@
 package com.scott.payment.settlement.application;
 
 import com.scott.payment.settlement.dto.SettlementReviewDecisionCommand;
+import com.scott.payment.settlement.dto.SettlementCommandAudit;
 import com.scott.payment.settlement.dto.SettlementReviewDecisionModels.TaskResult;
 import com.scott.payment.settlement.entity.SettlementReviewDecisionTaskDO;
 import com.scott.payment.settlement.support.SettlementWorkerIdentity;
@@ -58,6 +59,10 @@ public class SettlementReviewDecisionApplicationService {
 
     public TaskResult get(String taskNo) {
         return transactions.get(taskNo);
+    }
+
+    public TaskResult resume(String taskNo, long expectedVersion, SettlementCommandAudit audit) {
+        return transactions.resume(taskNo, expectedVersion, audit);
     }
 
     public boolean processNext() {

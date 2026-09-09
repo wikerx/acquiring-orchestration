@@ -1,6 +1,7 @@
 package com.scott.payment.settlement.mapper;
 
 import com.scott.payment.settlement.entity.SettlementReviewDecisionTaskDO;
+import com.scott.payment.settlement.entity.SettlementReviewDecisionRecoveryAuditDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -37,6 +38,41 @@ public interface SettlementReviewDecisionTaskMapper {
 
     @Select("SELECT * FROM settlement_review_decision_task WHERE task_no = #{taskNo} LIMIT 1 FOR UPDATE")
     SettlementReviewDecisionTaskDO selectByTaskNoForUpdate(@Param("taskNo") String taskNo);
+
+    @Select("""
+            SELECT * FROM settlement_review_decision_recovery_audit
+            WHERE request_key = #{requestKey} LIMIT 1
+            """)
+    SettlementReviewDecisionRecoveryAuditDO selectRecoveryAuditByRequestKey(
+            @Param("requestKey") String requestKey);
+
+    @Select("""
+            SELECT * FROM settlement_review_decision_recovery_audit
+            WHERE request_key = #{requestKey} LIMIT 1 FOR UPDATE
+            """)
+    SettlementReviewDecisionRecoveryAuditDO selectRecoveryAuditByRequestKeyForUpdate(
+            @Param("requestKey") String requestKey);
+
+    @Insert("""
+            INSERT INTO settlement_review_decision_recovery_audit
+            (task_no, review_order_no, request_key, expected_version, task_status_before,
+             processed_segment_count_before, result_batch_count_before, retry_count_before,
+             failure_code_before, failure_message_before, started_time_before,
+             completed_time_before, operator_account_id,
+             operator_account_name, operator_role_snapshot, client_ip, user_agent, reason,
+             operation_time, recovered_time, create_time)
+            VALUES
+            (#{row.taskNo}, #{row.reviewOrderNo}, #{row.requestKey}, #{row.expectedVersion},
+             #{row.taskStatusBefore}, #{row.processedSegmentCountBefore},
+             #{row.resultBatchCountBefore}, #{row.retryCountBefore}, #{row.failureCodeBefore},
+             #{row.failureMessageBefore}, #{row.startedTimeBefore}, #{row.completedTimeBefore},
+             #{row.operatorAccountId}, #{row.operatorAccountName},
+             #{row.operatorRoleSnapshot}, #{row.clientIp}, #{row.userAgent}, #{row.reason},
+             #{row.operationTime}, #{row.recoveredTime}, #{row.createTime})
+            ON DUPLICATE KEY UPDATE id = id
+            """)
+    int insertRecoveryAuditIdempotent(
+            @Param("row") SettlementReviewDecisionRecoveryAuditDO row);
 
     @Select("""
             SELECT * FROM settlement_review_decision_task
@@ -122,4 +158,16 @@ public interface SettlementReviewDecisionTaskMapper {
                    @Param("failureCode") String failureCode,
                    @Param("failureMessage") String failureMessage,
                    @Param("now") LocalDateTime now);
+
+    @Update("""
+            UPDATE settlement_review_decision_task
+            SET task_status = 'QUEUED', processing_owner = NULL, processing_deadline = NULL,
+                retry_count = 0, next_retry_time = #{now}, last_failure_code = NULL,
+                last_failure_message = NULL, started_time = NULL, completed_time = NULL,
+                version = version + 1, update_time = #{now}
+            WHERE task_no = #{taskNo} AND task_status = 'FAILED' AND version = #{expectedVersion}
+            """)
+    int resumeFailed(@Param("taskNo") String taskNo,
+                     @Param("expectedVersion") long expectedVersion,
+                     @Param("now") LocalDateTime now);
 }

@@ -48,7 +48,8 @@ class AdminSettlementReviewControllerContractTest {
                 Map.entry("approveTask", "settlement:review-order:approve"),
                 Map.entry("rejectTask", "settlement:review-order:reject"),
                 Map.entry("cancelTask", "settlement:review-order:cancel"),
-                Map.entry("decisionTask", "settlement:review-order:list"));
+                Map.entry("decisionTask", "settlement:review-order:list"),
+                Map.entry("resumeDecisionTask", "settlement:review-order:recover"));
 
         expected.forEach((methodName, permission) -> {
             java.lang.reflect.Method method = java.util.Arrays.stream(
@@ -72,6 +73,12 @@ class AdminSettlementReviewControllerContractTest {
                 .containsExactly("/reserve-review-tasks/{taskNo}");
         assertThat(method("previewManualTransactionReview").getAnnotation(PostMapping.class).value())
                 .containsExactly("/transaction-review-tasks/preview");
+    }
+
+    @Test
+    void decisionTaskRecoveryShouldUseDedicatedCommandRoute() {
+        assertThat(method("resumeDecisionTask").getAnnotation(PostMapping.class).value())
+                .containsExactly("/review-decision-tasks/{taskNo}/resume");
     }
 
     private java.lang.reflect.Method method(String methodName) {

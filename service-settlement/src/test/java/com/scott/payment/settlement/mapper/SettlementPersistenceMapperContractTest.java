@@ -194,6 +194,25 @@ class SettlementPersistenceMapperContractTest {
                         "failure_stage_before", "restored_candidate_count", "operator_role_snapshot");
     }
 
+    /** 分段决策任务恢复必须保留进度，并以失败状态、版本和只追加审计共同保护。 */
+    @Test
+    void reviewDecisionRecoveryShouldUseStateCasAndImmutableAudit() {
+        assertThat(sql(methodNamed(SettlementReviewDecisionTaskMapper.class, "resumeFailed")))
+                .contains("task_status = 'QUEUED'", "task_status = 'FAILED'",
+                        "version = #{expectedVersion}", "version = version + 1")
+                .doesNotContain("processed_segment_count = 0", "result_batch_count = 0");
+        assertThat(sql(methodNamed(SettlementReviewDecisionTaskMapper.class,
+                "selectRecoveryAuditByRequestKeyForUpdate")))
+                .contains("settlement_review_decision_recovery_audit",
+                        "request_key = #{requestKey}", "FOR UPDATE");
+        assertThat(sql(methodNamed(SettlementReviewDecisionTaskMapper.class,
+                "insertRecoveryAuditIdempotent")))
+                .contains("INSERT INTO settlement_review_decision_recovery_audit",
+                        "expected_version", "failure_code_before", "started_time_before",
+                        "completed_time_before", "operator_role_snapshot",
+                        "ON DUPLICATE KEY UPDATE id = id");
+    }
+
     /** 预审创建、终态决策和候选占用必须由唯一键及当前状态/version CAS 共同保护。 */
     @Test
     void reviewMappersShouldProtectIdempotencyAndStateTransitions() {

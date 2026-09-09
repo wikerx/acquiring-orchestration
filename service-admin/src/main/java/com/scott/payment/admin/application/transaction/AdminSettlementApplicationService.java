@@ -30,9 +30,11 @@ import java.util.Set;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionTaskResumeRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCommandResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResumeRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSubmitRequest;
@@ -394,11 +396,32 @@ public class AdminSettlementApplicationService {
     }
 
     public ReviewDecisionTaskResponse reviewDecisionTask(String taskNo) {
-        if (!StringUtils.hasText(taskNo) || !taskNo.trim().matches("DT[0-9a-f]{32}")) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
-        }
+        requireDecisionTaskNo(taskNo);
         reviewQueries().requireDecisionTaskAccess(taskNo.trim(), currentDataScope());
         return client.getReviewDecisionTask(taskNo.trim());
+    }
+
+    /** 校验任务数据范围后注入可信操作人，原地恢复可恢复的失败决策任务。 */
+    public ReviewDecisionTaskResponse resumeReviewDecisionTask(
+            String taskNo,
+            ReviewDecisionTaskResumeRequest request,
+            HttpServletRequest servletRequest) {
+        requireDecisionTaskNo(taskNo);
+        if (request == null || !validText(request.getRequestKey(), 64)
+                || request.getExpectedVersion() == null || request.getExpectedVersion() < 0
+                || !validText(request.getReason(), 400)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        InternalAuthAccount account = currentAdminAccount();
+        AdminMerchantDataScope dataScope = dataScopeResolver.resolve(account);
+        reviewQueries().requireDecisionTaskAccess(taskNo.trim(), dataScope);
+        InternalReviewDecisionTaskResumeRequest internal =
+                new InternalReviewDecisionTaskResumeRequest();
+        internal.setRequestKey(request.getRequestKey().trim());
+        internal.setExpectedVersion(request.getExpectedVersion());
+        internal.setReason(request.getReason().trim());
+        enrichOperator(internal, account, servletRequest);
+        return client.resumeReviewDecisionTask(taskNo.trim(), internal);
     }
 
     private ReviewCommandResponse submitReview(ReviewSubmitRequest request,
@@ -459,6 +482,17 @@ public class AdminSettlementApplicationService {
 
     /** 将当前可信登录账号、角色快照和客户端环境注入预审 Checker 命令。 */
     private void enrichOperator(InternalReviewDecisionRequest command,
+                                InternalAuthAccount account,
+                                HttpServletRequest request) {
+        command.setOperatorId(account.getAccountId());
+        command.setOperatorName(operatorName(account));
+        command.setRoleSnapshot(roleSnapshot(account));
+        command.setClientIp(clientIp(request));
+        command.setUserAgent(userAgent(request));
+        command.setOperationTime(LocalDateTime.now());
+    }
+
+    private void enrichOperator(InternalReviewDecisionTaskResumeRequest command,
                                 InternalAuthAccount account,
                                 HttpServletRequest request) {
         command.setOperatorId(account.getAccountId());
@@ -552,6 +586,12 @@ public class AdminSettlementApplicationService {
 
     private void requireManualTaskNo(String value) {
         if (!StringUtils.hasText(value) || !value.trim().matches("MT[0-9a-f]{32}")) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+    }
+
+    private void requireDecisionTaskNo(String value) {
+        if (!StringUtils.hasText(value) || !value.trim().matches("DT[0-9a-f]{32}")) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }

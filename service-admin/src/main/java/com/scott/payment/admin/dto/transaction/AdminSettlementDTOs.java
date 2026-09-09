@@ -1054,6 +1054,18 @@ public final class AdminSettlementDTOs {
         private String comment;
     }
 
+    /** 浏览器恢复失败决策任务的命令，不接受可信操作人字段。 */
+    @Data
+    public static class ReviewDecisionTaskResumeRequest implements Serializable {
+        private static final long serialVersionUID = 1L;
+        /** 恢复命令数据库幂等键。 */
+        private String requestKey;
+        /** 页面读取到的决策任务乐观锁版本。 */
+        private Long expectedVersion;
+        /** 人工确认故障已排除的恢复原因。 */
+        private String reason;
+    }
+
     /** service-admin 注入可信 Maker 后发送给 service-settlement 的预审命令。 */
     @Data
     public static class InternalReviewSubmitRequest extends ReviewSubmitRequest {
@@ -1089,6 +1101,19 @@ public final class AdminSettlementDTOs {
         /** 操作来源 User-Agent。 */
         private String userAgent;
         /** service-admin 记录的操作时间。 */
+        private LocalDateTime operationTime;
+    }
+
+    /** service-admin 注入可信操作人后发送给 service-settlement 的任务恢复命令。 */
+    @Data
+    public static class InternalReviewDecisionTaskResumeRequest
+            extends ReviewDecisionTaskResumeRequest {
+        private static final long serialVersionUID = 1L;
+        private Long operatorId;
+        private String operatorName;
+        private String roleSnapshot;
+        private String clientIp;
+        private String userAgent;
         private LocalDateTime operationTime;
     }
 
@@ -1224,6 +1249,7 @@ public final class AdminSettlementDTOs {
         private LocalDateTime startedTime;
         private LocalDateTime completedTime;
         private Long version;
+        private Boolean recoverable;
     }
 
     /** Admin 结算冲正单分页查询条件。 */

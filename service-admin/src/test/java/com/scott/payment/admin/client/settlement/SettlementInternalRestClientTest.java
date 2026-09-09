@@ -4,6 +4,7 @@ import com.scott.payment.admin.config.SettlementInternalClientProperties;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalBatchCommandRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReversalSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionTaskResumeRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalManualReviewPreviewRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ManualReviewStartRequest;
@@ -202,6 +203,38 @@ class SettlementInternalRestClientTest {
                 "\"decision\":\"APPROVE\"", "\"operatorId\":99", "\"expectedVersion\":3");
         assertThat(entityCaptor.getValue().getHeaders()
                 .getFirst(InternalServiceSignature.HEADER_SIGNATURE)).isNotBlank();
+    }
+
+    @Test
+    void reviewDecisionRecoveryShouldUseDedicatedSignedResumeRoute() {
+        RestTemplate direct = mock(RestTemplate.class);
+        RestTemplate loadBalanced = mock(RestTemplate.class);
+        SettlementInternalClientProperties properties = new SettlementInternalClientProperties();
+        properties.setInternalSecret("unit-test-settlement-secret");
+        when(loadBalanced.exchange(any(URI.class), eq(HttpMethod.POST),
+                any(HttpEntity.class), eq(String.class)))
+                .thenReturn(ResponseEntity.ok(JsonUtils.toJsonString(CommonResult.success(
+                        new com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResponse()))));
+        SettlementInternalRestClient client = new SettlementInternalRestClient(
+                direct, loadBalanced, properties);
+        InternalReviewDecisionTaskResumeRequest request = new InternalReviewDecisionTaskResumeRequest();
+        request.setRequestKey("RESUME-1");
+        request.setExpectedVersion(7L);
+        request.setReason("database connectivity restored");
+        request.setOperatorId(88L);
+        request.setOperatorName("Settlement Operator");
+        request.setRoleSnapshot("SETTLEMENT_RECOVERY");
+        request.setClientIp("10.0.0.8");
+        request.setUserAgent("JUnit Admin");
+
+        String taskNo = "DT" + "a".repeat(32);
+        client.resumeReviewDecisionTask(taskNo, request);
+
+        ArgumentCaptor<URI> uriCaptor = ArgumentCaptor.forClass(URI.class);
+        verify(loadBalanced).exchange(uriCaptor.capture(), eq(HttpMethod.POST),
+                any(HttpEntity.class), eq(String.class));
+        assertThat(uriCaptor.getValue().getPath()).isEqualTo(
+                "/internal/settlement/v1/reviews/decision-tasks/" + taskNo + "/resume");
     }
 
     @Test

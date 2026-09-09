@@ -5,6 +5,7 @@ import com.scott.payment.admin.config.SettlementInternalClientProperties;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchCommandResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalBatchCommandRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewDecisionTaskResumeRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReviewSubmitRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCommandResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.InternalReversalDecisionRequest;
@@ -166,6 +167,13 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
     @Override
     public ReviewDecisionTaskResponse getReviewDecisionTask(String taskNo) {
         return get(REVIEWS + "/decision-tasks/" + taskNo,
+                new TypeReference<CommonResult<ReviewDecisionTaskResponse>>() { });
+    }
+
+    @Override
+    public ReviewDecisionTaskResponse resumeReviewDecisionTask(
+            String taskNo, InternalReviewDecisionTaskResumeRequest request) {
+        return post(REVIEWS + "/decision-tasks/" + taskNo + "/resume", request,
                 new TypeReference<CommonResult<ReviewDecisionTaskResponse>>() { });
     }
 

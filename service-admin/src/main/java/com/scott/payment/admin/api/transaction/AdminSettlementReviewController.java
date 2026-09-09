@@ -5,6 +5,7 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSear
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCommandResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionRequest;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDecisionTaskResumeRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSubmitRequest;
@@ -335,5 +336,17 @@ public class AdminSettlementReviewController {
     public CommonResult<ReviewDecisionTaskResponse> decisionTask(
             @PathVariable("taskNo") String taskNo) {
         return success(applicationService.reviewDecisionTask(taskNo));
+    }
+
+    @PostMapping("/review-decision-tasks/{taskNo}/resume")
+    @RequiresPermission("settlement:review-order:recover")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.UPDATE,
+            operation = "恢复失败结算预审决策任务")
+    public CommonResult<ReviewDecisionTaskResponse> resumeDecisionTask(
+            @PathVariable("taskNo") String taskNo,
+            @RequestBody ReviewDecisionTaskResumeRequest request,
+            HttpServletRequest servletRequest) {
+        return success(applicationService.resumeReviewDecisionTask(
+                taskNo, request, servletRequest));
     }
 }

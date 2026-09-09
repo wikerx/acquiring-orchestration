@@ -133,6 +133,20 @@ public final class SettlementManagementDTOs {
         private LocalDateTime operationTime;
     }
 
+    /** service-admin 注入可信操作人后的失败复核任务恢复命令。 */
+    @Data
+    public static class ReviewDecisionTaskResumeRequest {
+        private String requestKey;
+        private Long expectedVersion;
+        private String reason;
+        private Long operatorId;
+        private String operatorName;
+        private String roleSnapshot;
+        private String clientIp;
+        private String userAgent;
+        private LocalDateTime operationTime;
+    }
+
     /**
      * @author : scott
      * @version : v1.0.0
@@ -261,6 +275,7 @@ public final class SettlementManagementDTOs {
         private LocalDateTime startedTime;
         private LocalDateTime completedTime;
         private Long version;
+        private Boolean recoverable;
     }
 
     /** service-admin 注入可信 Maker 后的冲正申请。 */

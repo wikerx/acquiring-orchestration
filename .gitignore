@@ -90,6 +90,8 @@ docs/sql/*
 !docs/sql/20260905_04_settlement_batch_recovery_postcheck.sql
 !docs/sql/20260908_01_manual_reserve_settlement_review_migration.sql
 !docs/sql/20260908_02_manual_reserve_settlement_review_postcheck.sql
+!docs/sql/20260908_03_settlement_review_decision_recovery_migration.sql
+!docs/sql/20260908_04_settlement_review_decision_recovery_postcheck.sql
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md
