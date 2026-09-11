@@ -808,6 +808,8 @@ public final class AdminSettlementDTOs {
         private String merchantId;
         /** 保证金资金账户主键。 */
         private Long accountId;
+        /** 平台资金账户号，用于管理端识别对应资金账户。 */
+        private String accountNo;
         /** 来源真实平台交易号。 */
         private String sourceTransactionId;
         /** 来源交易时间。 */

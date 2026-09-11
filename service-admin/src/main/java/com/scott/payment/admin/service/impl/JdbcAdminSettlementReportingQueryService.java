@@ -95,7 +95,8 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
     private static final String RESERVE_COLUMNS = """
             action.id AS action_id, action.reserve_action_no, action.reserve_item_id,
             action.reserve_no, action.settlement_batch_no, batch.business_date,
-            reserve.merchant_id, reserve.account_id, candidate.source_transaction_id,
+            reserve.merchant_id, reserve.account_id, fund_account.account_no AS account_no,
+            candidate.source_transaction_id,
             candidate.source_transaction_date_time, reserve.source_business_no,
             action.source_reserve_detail_no, action.action_type,
             action.direction, action.currency,
@@ -254,6 +255,10 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 JOIN settlement_candidate candidate
                   ON candidate.id = action.candidate_id AND candidate.merchant_id = reserve.merchant_id
                 JOIN settlement_batch batch ON batch.settlement_batch_no = action.settlement_batch_no
+                LEFT JOIN merchant_fund_account fund_account
+                  ON fund_account.id = reserve.account_id
+                 AND fund_account.merchant_id = reserve.merchant_id
+                 AND fund_account.deleted = 0
                 LEFT JOIN base_iso_currency currency
                   ON currency.alpha3_code = action.currency AND currency.deleted = 0
                 """;

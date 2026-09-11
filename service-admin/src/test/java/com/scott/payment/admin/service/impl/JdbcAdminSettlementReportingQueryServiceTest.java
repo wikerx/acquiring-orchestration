@@ -113,11 +113,16 @@ class JdbcAdminSettlementReportingQueryServiceTest {
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
         assertThat(sql.getValue()).contains(
+                "fund_account.account_no AS account_no",
                 "candidate.source_transaction_id",
                 "candidate.source_transaction_date_time",
                 "candidate.source_transaction_id = :transactionId",
                 "JOIN settlement_candidate candidate",
                 "candidate.merchant_id = reserve.merchant_id",
+                "LEFT JOIN merchant_fund_account fund_account",
+                "fund_account.id = reserve.account_id",
+                "fund_account.merchant_id = reserve.merchant_id",
+                "fund_account.deleted = 0",
                 "LEFT JOIN base_iso_currency currency",
                 "AS currency_exponent",
                 "reserve.merchant_id IN (:permittedMerchantIds)");
