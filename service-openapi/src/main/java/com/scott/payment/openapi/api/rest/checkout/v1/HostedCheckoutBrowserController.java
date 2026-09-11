@@ -2,11 +2,10 @@ package com.scott.payment.openapi.api.rest.checkout.v1;
 
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.core.enums.ApiResultEnum;
-import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.openapi.application.checkout.OpenApiHostedCheckoutApplicationService;
 import com.scott.payment.openapi.dto.body.HostedCheckoutBrowserRequestDTOs;
 import com.scott.payment.openapi.service.OpenApiSystemConfigService;
+import com.scott.payment.openapi.support.HostedCheckoutUrlPolicy;
 import jakarta.servlet.http.HttpServletRequest;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
@@ -20,13 +19,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
@@ -55,6 +52,9 @@ public class HostedCheckoutBrowserController {
     /** 系统参数读取服务，只用于获取平台受控的收银台父页面 origin。 */
     private final OpenApiSystemConfigService systemConfigService;
 
+    /** 平台收银台前端地址安全策略。 */
+    private final HostedCheckoutUrlPolicy urlPolicy;
+
     /**
      * 创建付款人浏览器 Hosted Checkout 控制器。
      *
@@ -62,9 +62,11 @@ public class HostedCheckoutBrowserController {
      * @param systemConfigService 平台系统参数读取服务
      */
     public HostedCheckoutBrowserController(OpenApiHostedCheckoutApplicationService hostedCheckoutApplicationService,
-                                           OpenApiSystemConfigService systemConfigService) {
+                                           OpenApiSystemConfigService systemConfigService,
+                                           HostedCheckoutUrlPolicy urlPolicy) {
         this.hostedCheckoutApplicationService = hostedCheckoutApplicationService;
         this.systemConfigService = systemConfigService;
+        this.urlPolicy = urlPolicy;
     }
 
     /**
@@ -195,24 +197,7 @@ public class HostedCheckoutBrowserController {
     /** 从平台收银台配置中提取 scheme、host 和 port，禁止向任意父页面广播回跳令牌。 */
     private String checkoutParentOrigin() {
         String baseUrl = systemConfigService.requiredEnabledValue(CHECKOUT_FRONTEND_BASE_URL_CONFIG_KEY);
-        if (!StringUtils.hasText(baseUrl)) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR,
-                    "system config is not a valid checkout frontend origin");
-        }
-        try {
-            URI uri = URI.create(baseUrl);
-            String scheme = uri.getScheme();
-            if (scheme == null
-                    || !("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
-                    || uri.getHost() == null
-                    || uri.getUserInfo() != null) {
-                throw new IllegalArgumentException("invalid checkout frontend origin");
-            }
-            return scheme.toLowerCase(Locale.ROOT) + "://" + uri.getRawAuthority();
-        } catch (IllegalArgumentException exception) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR,
-                    "system config is not a valid checkout frontend origin");
-        }
+        return urlPolicy.resolvePlatformOrigin(baseUrl);
     }
 
     /**

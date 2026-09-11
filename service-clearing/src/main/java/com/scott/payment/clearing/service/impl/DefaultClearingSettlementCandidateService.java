@@ -12,6 +12,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Currency;
 import java.util.HexFormat;
 import java.util.Objects;
@@ -157,7 +158,7 @@ public class DefaultClearingSettlementCandidateService implements ClearingSettle
         row.setSourceBusinessId(sourceBusinessId);
         row.setSourceRevision(revision);
         row.setSourceTransactionId(sourceTransactionId);
-        row.setSourceTransactionDateTime(sourceTransactionDateTime);
+        row.setSourceTransactionDateTime(sourceTransactionDateTime.truncatedTo(ChronoUnit.MILLIS));
         row.setMerchantId(merchantId);
         row.setSettlementProfileId(null);
         row.setTargetCurrency(settlementCurrency);

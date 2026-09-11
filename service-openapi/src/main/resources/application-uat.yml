@@ -64,7 +64,17 @@ logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml
 
+acquiring:
+  gateway-ingress:
+    # UAT 按生产形态强制 Redis 原子登记 Gateway nonce，基础设施异常时失败关闭。
+    replay-protection-required: true
+    # 默认拒绝未绑定正文的旧签名；仅在经批准的短期兼容窗口显式开启。
+    accept-legacy-signature: ${CHECKOUT_GATEWAY_INGRESS_ACCEPT_LEGACY_SIGNATURE:false}
+
 openapi:
+  hosted-checkout:
+    # UAT 按生产策略只允许 HTTPS，禁止商户或平台地址降级为明文 HTTP。
+    allow-loopback-http: false
   callback-security:
     # 商户通知重试维护密钥，只允许内部运维/后台任务调用方持有。
     # 推荐通过 K8s Secret、CI/CD Secret 或主机环境变量注入：OPENAPI_NOTIFY_RETRY_TOKEN=<32位以上随机高强度密钥>。
@@ -73,6 +83,8 @@ openapi:
     # 回调签名文本包含 method、path、timestamp、nonce、channelCode 和 raw body 的 SHA-256 摘要。
     # channel-secrets:
     #   stripe: ${OPENAPI_CHANNEL_STRIPE_CALLBACK_SECRET}
+    # UAT 必须显式配置每个启用渠道的来源 IP 白名单，缺失时拒绝回调。
+    channel-ip-whitelist-required: true
   security:
     replay:
       # UAT 按生产形态校验 JWT jti 防重放，Redis 不可用时拒绝 OpenAPI 请求。

@@ -8,6 +8,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import com.scott.payment.openapi.config.OpenApiCallbackProperties;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
@@ -312,6 +313,13 @@ public class OpenApiCallbackSecuritySupport {
     private boolean verifyChannelIp(String channelCode, HttpServletRequest request) {
         List<String> allowedIps = allowedIps(channelCode);
         if (allowedIps.isEmpty()) {
+            if (callbackProperties.isChannelIpWhitelistRequired()) {
+                throw recordAndReturnChannelException(request,
+                        "CHANNEL_CALLBACK_IP_WHITELIST_MISSING",
+                        SecurityInterceptEventRecorder.RISK_CRITICAL,
+                        "CHANNEL_CALLBACK_IP",
+                        "channel callback ip whitelist is required");
+            }
             return true;
         }
         String clientIp = resolveClientIp(request);
@@ -358,20 +366,13 @@ public class OpenApiCallbackSecuritySupport {
      * @param request HTTP 请求
      * @return 客户端 IP
      */
-    private String resolveClientIp(HttpServletRequest request) {
-        String gatewayClientIp = request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP);
-        if (StringUtils.hasText(gatewayClientIp)) {
-            return gatewayClientIp.trim();
+    public String resolveClientIp(HttpServletRequest request) {
+        if (GatewayIngressAuthFilter.isGatewayAuthenticated(request)) {
+            String gatewayClientIp = request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP);
+            return StringUtils.hasText(gatewayClientIp) ? gatewayClientIp.trim() : null;
         }
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (StringUtils.hasText(realIp)) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr();
+        String remoteAddr = request.getRemoteAddr();
+        return StringUtils.hasText(remoteAddr) ? remoteAddr.trim() : null;
     }
 
     /**

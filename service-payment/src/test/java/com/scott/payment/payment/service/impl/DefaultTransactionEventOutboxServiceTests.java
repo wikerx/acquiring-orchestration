@@ -168,12 +168,31 @@ class DefaultTransactionEventOutboxServiceTests {
         existing.setEventNo("refund-event-1");
         existing.setEventStatus("SENT");
         when(mapper.selectByEventNoLogical("refund-event-1", transactionTime)).thenReturn(existing);
+        when(mapper.rearmForRedeliveryLogical(
+                "refund-event-1", transactionTime, "REFUND_EXECUTION_REQUESTED", now)).thenReturn(1);
 
         assertThat(service.recoverForRedelivery(
                 "refund-event-1", transactionTime, "REFUND_EXECUTION_REQUESTED", now)).isTrue();
 
         verify(mapper).rearmForRedeliveryLogical(
                 "refund-event-1", transactionTime, "REFUND_EXECUTION_REQUESTED", now);
+    }
+
+    @Test
+    void recoveryShouldReportFailureWhenExistingEventCanNotBeRearmed() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 6, 10, 0);
+        LocalDateTime now = transactionTime.plusMinutes(10);
+        TransactionEventOutboxDO existing = event(transactionTime);
+        existing.setEventNo("refund-event-closed");
+        existing.setEventStatus("CLOSED");
+        when(mapper.selectByEventNoLogical("refund-event-closed", transactionTime)).thenReturn(existing);
+        when(mapper.rearmForRedeliveryLogical(
+                "refund-event-closed", transactionTime, "REFUND_EXECUTION_REQUESTED", now)).thenReturn(0);
+
+        assertThat(service.recoverForRedelivery(
+                "refund-event-closed", transactionTime, "REFUND_EXECUTION_REQUESTED", now)).isFalse();
     }
 
     @Test

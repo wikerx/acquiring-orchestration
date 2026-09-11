@@ -203,9 +203,8 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         if ("INIT".equals(existing.getEventStatus())) {
             return true;
         }
-        eventOutboxMapper.rearmForRedeliveryLogical(
-                eventNo, transactionDateTime, eventType, now == null ? LocalDateTime.now() : now);
-        return true;
+        return eventOutboxMapper.rearmForRedeliveryLogical(
+                eventNo, transactionDateTime, eventType, now == null ? LocalDateTime.now() : now) == 1;
     }
 
     /** 查询指定季度的 pending、CLOSED 和最老积压时间聚合快照。 */

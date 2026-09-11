@@ -4403,8 +4403,8 @@ CREATE TABLE `sys_mq_outbox` (
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_sys_mq_outbox_event` (`event_id`),
-  KEY `idx_sys_mq_outbox_due` (`event_status`,`next_retry_time`,`create_time`,`id`),
-  KEY `idx_sys_mq_outbox_processing` (`event_status`,`processing_started_time`)
+  KEY `idx_sys_mq_outbox_due` (`producer_service`,`event_status`,`next_retry_time`,`create_time`,`id`),
+  KEY `idx_sys_mq_outbox_processing` (`producer_service`,`event_status`,`processing_started_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=5930 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='非交易可靠MQ本地消息表';
 
 -- ----------------------------

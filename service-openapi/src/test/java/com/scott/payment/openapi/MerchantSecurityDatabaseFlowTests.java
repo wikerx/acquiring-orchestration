@@ -58,7 +58,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         classes = OpenApiApplication.class,
         properties = {
                 "spring.cloud.nacos.discovery.enabled=false",
-                "openapi.payment-client.remote-enabled=false"
+                "openapi.payment-client.remote-enabled=false",
+                MerchantOpenApiTestSupport.GATEWAY_INGRESS_TEST_SECRET_PROPERTY,
+                MerchantOpenApiTestSupport.GATEWAY_INGRESS_REPLAY_DISABLED_PROPERTY,
+                MerchantOpenApiTestSupport.GATEWAY_INGRESS_LEGACY_DISABLED_PROPERTY
         }
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -174,7 +177,8 @@ class MerchantSecurityDatabaseFlowTests {
         MvcResult mvcResult = mockMvc.perform(post(AUTHORIZATION_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(AUTHORIZATION_HEADER, authorization)
-                        .content(httpRequestBody))
+                        .content(httpRequestBody)
+                        .with(MerchantOpenApiTestSupport.gatewayIngress()))
                 .andDo(result -> log.info("服务端HTTP调用完成，HTTP状态：{}，加密响应摘要：{}",
                         result.getResponse().getStatus(),
                         keyMaterialFactory.fingerprint(result.getResponse().getContentAsString())))

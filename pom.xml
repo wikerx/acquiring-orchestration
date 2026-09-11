@@ -58,6 +58,7 @@
         <spring-boot.version>3.5.14</spring-boot.version>
         <spring-cloud.version>2025.0.2</spring-cloud.version>
         <spring-cloud-alibaba.version>2025.0.0.0</spring-cloud-alibaba.version>
+        <nacos-client.version>3.1.1</nacos-client.version>
 
         <!--消息、任务、数据库、分库分表和缓存等基础设施组件版本。-->
         <rocketmq-spring.version>2.3.5</rocketmq-spring.version>
@@ -116,6 +117,12 @@
                 <version>${spring-cloud-alibaba.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <!--覆盖 2025.0.0.0 BOM 中存在优雅停机竞态的 Nacos Client 3.0.3。-->
+            <dependency>
+                <groupId>com.alibaba.nacos</groupId>
+                <artifactId>nacos-client</artifactId>
+                <version>${nacos-client.version}</version>
             </dependency>
 
             <!--RocketMQ 客户端集成及资源管理工具。-->

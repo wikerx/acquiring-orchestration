@@ -6,6 +6,7 @@ import com.scott.payment.channel.payment.api.PaymentChannelCallbackVerifier;
 import com.scott.payment.channel.payment.exception.ChannelCallbackVerificationException;
 import com.scott.payment.channel.payment.registry.PaymentChannelCallbackVerifierRegistry;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import com.scott.payment.openapi.config.OpenApiCallbackProperties;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import org.junit.jupiter.api.Test;
@@ -182,6 +183,7 @@ class OpenApiCallbackSecuritySupportTests {
         OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties, mock(SecurityInterceptEventRecorder.class));
         MockHttpServletRequest request = signedRequest(RAW_BODY);
         request.addHeader("X-Gateway-Client-Ip", "192.0.2.10");
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
 
         OpenApiCallbackSecuritySupport.CallbackSecurityResult result =
                 support.verifyChannelCallback(CHANNEL_CODE, request, RAW_BODY);
@@ -199,10 +201,40 @@ class OpenApiCallbackSecuritySupportTests {
         OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties, mock(SecurityInterceptEventRecorder.class));
         MockHttpServletRequest request = signedRequest(RAW_BODY);
         request.addHeader("X-Gateway-Client-Ip", "198.51.100.20");
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
 
         assertThatThrownBy(() -> support.verifyChannelCallback(CHANNEL_CODE, request, RAW_BODY))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("channel callback source ip is not allowed");
+    }
+
+    @Test
+    void shouldIgnoreForwardedHeadersWithoutAuthenticatedGateway() {
+        OpenApiCallbackProperties properties = properties();
+        properties.getChannelAllowedIps().put(CHANNEL_CODE, List.of("192.0.2.10"));
+        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(
+                properties, mock(SecurityInterceptEventRecorder.class));
+        MockHttpServletRequest request = signedRequest(RAW_BODY);
+        request.addHeader("X-Forwarded-For", "192.0.2.10");
+        request.addHeader("X-Real-IP", "192.0.2.10");
+        request.setRemoteAddr("198.51.100.20");
+
+        assertThatThrownBy(() -> support.verifyChannelCallback(CHANNEL_CODE, request, RAW_BODY))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("channel callback source ip is not allowed");
+    }
+
+    @Test
+    void shouldFailClosedWhenChannelIpWhitelistIsRequiredButMissing() {
+        OpenApiCallbackProperties properties = properties();
+        properties.setChannelIpWhitelistRequired(true);
+        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(
+                properties, mock(SecurityInterceptEventRecorder.class));
+
+        assertThatThrownBy(() -> support.verifyChannelCallback(
+                CHANNEL_CODE, signedRequest(RAW_BODY), RAW_BODY))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("channel callback ip whitelist is required");
     }
 
     private OpenApiCallbackProperties properties() {

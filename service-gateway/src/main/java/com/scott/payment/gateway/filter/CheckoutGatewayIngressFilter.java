@@ -8,11 +8,15 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferLimitException;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpRequestDecorator;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
@@ -69,6 +73,7 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
                     headers.remove(GatewayIngressSignature.HEADER_TIMESTAMP);
                     headers.remove(GatewayIngressSignature.HEADER_NONCE);
                     headers.remove(GatewayIngressSignature.HEADER_SIGNATURE);
+                    headers.remove(GatewayIngressSignature.HEADER_BODY_SHA256);
                 });
         String rawPath = exchange.getRequest().getURI().getRawPath();
         if (!GatewayIngressSignature.isProtectedCheckoutPath(rawPath)) {
@@ -78,19 +83,51 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
             return writeUnavailable(exchange);
         }
 
+        int maxBodyBytes = Math.max(properties.getMaxRequestBodyBytes(), 1);
+        long declaredLength = exchange.getRequest().getHeaders().getContentLength();
+        if (declaredLength > maxBodyBytes) {
+            return writePayloadTooLarge(exchange);
+        }
+        return DataBufferUtils.join(exchange.getRequest().getBody(), maxBodyBytes)
+                .map(this::readAndRelease)
+                .defaultIfEmpty(new byte[0])
+                .flatMap(body -> signAndForward(exchange, chain, requestBuilder, rawPath, body))
+                .onErrorResume(DataBufferLimitException.class, exception -> writePayloadTooLarge(exchange));
+    }
+
+    private byte[] readAndRelease(DataBuffer buffer) {
+        try {
+            byte[] body = new byte[buffer.readableByteCount()];
+            buffer.read(body);
+            return body;
+        } finally {
+            DataBufferUtils.release(buffer);
+        }
+    }
+
+    private Mono<Void> signAndForward(ServerWebExchange exchange,
+                                      GatewayFilterChain chain,
+                                      ServerHttpRequest.Builder requestBuilder,
+                                      String rawPath,
+                                      byte[] body) {
         long timestamp = currentTimeMillis.getAsLong();
         String nonce = nonceSupplier.get();
         String requestTarget = GatewayIngressSignature.requestTarget(
                 rawPath, exchange.getRequest().getURI().getRawQuery());
+        String bodySha256 = GatewayIngressSignature.payloadSha256(body);
+        String clientIp = exchange.getRequest().getHeaders().getFirst(GatewayIngressSignature.HEADER_CLIENT_IP);
         String signature = GatewayIngressSignature.sign(
-                exchange.getRequest().getMethod().name(), requestTarget, timestamp, nonce, properties.getSecret());
+                exchange.getRequest().getMethod().name(), requestTarget, timestamp, nonce,
+                bodySha256, clientIp, properties.getSecret());
         requestBuilder.headers(headers -> {
             headers.set(GatewayIngressSignature.HEADER_CALLER, GatewayIngressSignature.CALLER_SERVICE_GATEWAY);
             headers.set(GatewayIngressSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
             headers.set(GatewayIngressSignature.HEADER_NONCE, nonce);
+            headers.set(GatewayIngressSignature.HEADER_BODY_SHA256, bodySha256);
             headers.set(GatewayIngressSignature.HEADER_SIGNATURE, signature);
         });
-        return chain.filter(exchange.mutate().request(requestBuilder.build()).build());
+        ServerHttpRequest signedRequest = replayableRequest(exchange, requestBuilder.build(), body);
+        return chain.filter(exchange.mutate().request(signedRequest).build());
     }
 
     /**
@@ -111,5 +148,29 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(body);
         return exchange.getResponse().writeWith(Mono.just(buffer));
+    }
+
+    private Mono<Void> writePayloadTooLarge(ServerWebExchange exchange) {
+        byte[] body = ("{\"code\":\"" + ApiResultEnum.PARAM_INVALID.getCode()
+                + "\",\"message\":\"request body is too large\",\"data\":null}")
+                .getBytes(StandardCharsets.UTF_8);
+        exchange.getResponse().setStatusCode(HttpStatus.PAYLOAD_TOO_LARGE);
+        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(body);
+        return exchange.getResponse().writeWith(Mono.just(buffer));
+    }
+
+    private ServerHttpRequest replayableRequest(ServerWebExchange exchange,
+                                                ServerHttpRequest request,
+                                                byte[] body) {
+        return new ServerHttpRequestDecorator(request) {
+            @Override
+            public Flux<DataBuffer> getBody() {
+                if (body.length == 0) {
+                    return Flux.empty();
+                }
+                return Flux.defer(() -> Mono.just(exchange.getResponse().bufferFactory().wrap(body)));
+            }
+        };
     }
 }

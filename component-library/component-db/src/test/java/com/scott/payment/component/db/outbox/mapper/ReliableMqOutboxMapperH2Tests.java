@@ -91,7 +91,7 @@ class ReliableMqOutboxMapperH2Tests {
             assertThat(mapper.markSent(stored.getId(), stored.getVersion() + 1, now.plusSeconds(1))).isOne();
             assertThat(mapper.markFailed(stored.getId(), stored.getVersion() + 2, "CLOSED", null,
                     "late failure", now.plusSeconds(2))).isZero();
-            assertThat(mapper.recoverStale(now.plusMinutes(1), now.plusMinutes(2))).isZero();
+            assertThat(mapper.recoverStale("test-service", now.plusMinutes(1), now.plusMinutes(2))).isZero();
             assertThat(mapper.selectByEventId("event-sent").getEventStatus()).isEqualTo("SENT");
         }
     }
@@ -109,11 +109,31 @@ class ReliableMqOutboxMapperH2Tests {
             close.setProcessingStartedTime(now.minusMinutes(10));
             mapper.insert(close);
             mapper.insert(event("event-closed", "CLOSED", 2, 2, null, now));
+            ReliableMqOutboxDO foreign = event(
+                    "event-foreign-processing", "PROCESSING", 0, 2, null, now, "other-service");
+            foreign.setProcessingStartedTime(now.minusMinutes(10));
+            mapper.insert(foreign);
 
-            assertThat(mapper.recoverStale(now.minusMinutes(5), now)).isEqualTo(2);
+            assertThat(mapper.recoverStale("test-service", now.minusMinutes(5), now)).isEqualTo(2);
             assertThat(mapper.selectByEventId("event-stale-retry").getEventStatus()).isEqualTo("RETRY_WAIT");
             assertThat(mapper.selectByEventId("event-stale-close").getEventStatus()).isEqualTo("CLOSED");
             assertThat(mapper.selectByEventId("event-closed").getEventStatus()).isEqualTo("CLOSED");
+            assertThat(mapper.selectByEventId("event-foreign-processing").getEventStatus()).isEqualTo("PROCESSING");
+        }
+    }
+
+    /** 到期扫描只能读取当前生产服务的消息。 */
+    @Test
+    void shouldSelectDueEventsForCurrentProducerServiceOnly() {
+        try (SqlSession session = sqlSessionFactory.openSession(true)) {
+            ReliableMqOutboxMapper mapper = session.getMapper(ReliableMqOutboxMapper.class);
+            LocalDateTime now = LocalDateTime.of(2026, 8, 24, 19, 30);
+            mapper.insert(event("event-owned", "INIT", 0, 3, null, now));
+            mapper.insert(event("event-foreign", "INIT", 0, 3, null, now, "other-service"));
+
+            assertThat(mapper.selectDue("test-service", now, 10))
+                    .extracting(ReliableMqOutboxDO::getEventId)
+                    .containsExactly("event-owned");
         }
     }
 
@@ -127,8 +147,10 @@ class ReliableMqOutboxMapperH2Tests {
             mapper.insert(event("event-processing", "PROCESSING", 0, 3, null, now.minusMinutes(5)));
             mapper.insert(event("event-retry", "RETRY_WAIT", 1, 3, now, now.minusMinutes(3)));
             mapper.insert(event("event-closed", "CLOSED", 3, 3, null, now.minusMinutes(20)));
+            mapper.insert(event("event-foreign", "INIT", 0, 3, null,
+                    now.minusMinutes(30), "other-service"));
 
-            ReliableMqOutboxMetricsSnapshot snapshot = mapper.selectMetricsSnapshot();
+            ReliableMqOutboxMetricsSnapshot snapshot = mapper.selectMetricsSnapshot("test-service");
 
             assertThat(snapshot.getInitCount()).isEqualTo(1L);
             assertThat(snapshot.getProcessingCount()).isEqualTo(1L);
@@ -167,11 +189,22 @@ class ReliableMqOutboxMapperH2Tests {
                                      int maxRetryCount,
                                      LocalDateTime nextRetryTime,
                                      LocalDateTime now) {
+        return event(eventId, status, retryCount, maxRetryCount, nextRetryTime, now, "test-service");
+    }
+
+    /** 构造指定生产服务的最小 Outbox 测试记录。 */
+    private ReliableMqOutboxDO event(String eventId,
+                                     String status,
+                                     int retryCount,
+                                     int maxRetryCount,
+                                     LocalDateTime nextRetryTime,
+                                     LocalDateTime now,
+                                     String producerService) {
         ReliableMqOutboxDO event = new ReliableMqOutboxDO();
         event.setEventId(eventId);
         event.setTopic("test-topic");
         event.setTag("test-tag");
-        event.setProducerService("test-service");
+        event.setProducerService(producerService);
         event.setTraceId("trace-test");
         event.setPayloadJson("{}");
         event.setEventStatus(status);

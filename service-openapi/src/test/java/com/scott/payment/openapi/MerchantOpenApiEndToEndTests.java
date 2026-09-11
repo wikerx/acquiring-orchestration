@@ -47,7 +47,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         classes = OpenApiApplication.class,
         properties = {
                 "spring.cloud.nacos.discovery.enabled=false",
-                "openapi.payment-client.remote-enabled=false"
+                "openapi.payment-client.remote-enabled=false",
+                MerchantOpenApiTestSupport.GATEWAY_INGRESS_TEST_SECRET_PROPERTY,
+                MerchantOpenApiTestSupport.GATEWAY_INGRESS_REPLAY_DISABLED_PROPERTY,
+                MerchantOpenApiTestSupport.GATEWAY_INGRESS_LEGACY_DISABLED_PROPERTY
         }
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -158,7 +161,8 @@ class MerchantOpenApiEndToEndTests {
         MvcResult mvcResult = mockMvc.perform(post(MerchantOpenApiTestSupport.AUTHORIZATION_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
-                        .content(httpRequestBody))
+                        .content(httpRequestBody)
+                        .with(MerchantOpenApiTestSupport.gatewayIngress()))
                 .andDo(result -> log.info("服务端返回加密响应，HTTP状态：{}，响应体摘要：{}",
                         result.getResponse().getStatus(),
                         MerchantOpenApiTestSupport.safeSecretSummary(result.getResponse().getContentAsString(), keyMaterialFactory)))
@@ -251,7 +255,7 @@ class MerchantOpenApiEndToEndTests {
         if (authorization != null) {
             requestBuilder.header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization);
         }
-        mockMvc.perform(requestBuilder)
+        mockMvc.perform(requestBuilder.with(MerchantOpenApiTestSupport.gatewayIngress()))
                 .andDo(result -> log.info("异常分支-{}，HTTP状态：{}，响应体：{}",
                         caseName,
                         result.getResponse().getStatus(),

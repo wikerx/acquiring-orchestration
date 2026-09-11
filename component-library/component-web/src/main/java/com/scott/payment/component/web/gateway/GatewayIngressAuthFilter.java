@@ -2,11 +2,13 @@ package com.scott.payment.component.web.gateway;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.security.GatewayIngressSignature;
+import com.scott.payment.component.core.security.InternalRequestReplayGuard;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
@@ -16,6 +18,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.function.LongSupplier;
 
 /**
@@ -41,7 +44,12 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
     private static final int MAX_NONCE_LENGTH = 128;
 
     private final GatewayIngressAuthProperties properties;
+    private final InternalRequestReplayGuard replayGuard;
     private final LongSupplier currentTimeMillis;
+
+    /** 入口验签成功后写入的可信请求属性。 */
+    public static final String GATEWAY_AUTHENTICATED_ATTRIBUTE =
+            GatewayIngressAuthFilter.class.getName() + ".AUTHENTICATED";
 
     /**
      * 创建生产环境入口验签过滤器。
@@ -49,12 +57,16 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
      * @param properties 受保护路径、时间窗和外部密钥配置
      */
     @Autowired
-    public GatewayIngressAuthFilter(GatewayIngressAuthProperties properties) {
-        this(properties, System::currentTimeMillis);
+    public GatewayIngressAuthFilter(GatewayIngressAuthProperties properties,
+                                    ObjectProvider<InternalRequestReplayGuard> replayGuardProvider) {
+        this(properties, replayGuardProvider.getIfAvailable(), System::currentTimeMillis);
     }
 
-    GatewayIngressAuthFilter(GatewayIngressAuthProperties properties, LongSupplier currentTimeMillis) {
+    GatewayIngressAuthFilter(GatewayIngressAuthProperties properties,
+                             InternalRequestReplayGuard replayGuard,
+                             LongSupplier currentTimeMillis) {
         this.properties = properties;
+        this.replayGuard = replayGuard;
         this.currentTimeMillis = currentTimeMillis;
     }
 
@@ -81,6 +93,8 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
         String caller = request.getHeader(GatewayIngressSignature.HEADER_CALLER);
         String timestampText = request.getHeader(GatewayIngressSignature.HEADER_TIMESTAMP);
         String nonce = request.getHeader(GatewayIngressSignature.HEADER_NONCE);
+        String bodySha256Header = request.getHeader(GatewayIngressSignature.HEADER_BODY_SHA256);
+        String clientIp = request.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP);
         String signature = request.getHeader(GatewayIngressSignature.HEADER_SIGNATURE);
         if (!GatewayIngressSignature.CALLER_SERVICE_GATEWAY.equals(caller)
                 || !StringUtils.hasText(timestampText)
@@ -106,19 +120,74 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
         }
 
         String requestTarget = GatewayIngressSignature.requestTarget(request.getRequestURI(), request.getQueryString());
-        String expected = GatewayIngressSignature.sign(
-                request.getMethod(), requestTarget, timestamp, nonce, properties.getSecret());
-        if (!GatewayIngressSignature.matches(expected, signature)) {
+        String actualBodySha256 = resolveBodySha256(request);
+        if (!verifySignature(request, requestTarget, timestamp, nonce,
+                bodySha256Header, actualBodySha256, clientIp, signature)) {
             rejectUnauthorized(response);
             return;
         }
+        if (properties.isReplayProtectionRequired()) {
+            if (replayGuard == null) {
+                writeError(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+                        ApiResultEnum.NETWORK_BUSY.getCode(), "gateway replay protection is unavailable");
+                return;
+            }
+            try {
+                Duration nonceTtl = Duration.ofMillis(Math.max(skew * 2L, 1L));
+                if (!replayGuard.tryAcquire(GatewayIngressSignature.CALLER_SERVICE_GATEWAY, nonce, nonceTtl)) {
+                    rejectUnauthorized(response);
+                    return;
+                }
+            } catch (RuntimeException exception) {
+                writeError(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+                        ApiResultEnum.NETWORK_BUSY.getCode(), "gateway replay protection is unavailable");
+                return;
+            }
+        }
+        request.setAttribute(GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
         filterChain.doFilter(request, response);
+    }
+
+    /** 判断当前请求是否已通过 Gateway 入口验签。 */
+    public static boolean isGatewayAuthenticated(HttpServletRequest request) {
+        return request != null && Boolean.TRUE.equals(request.getAttribute(GATEWAY_AUTHENTICATED_ATTRIBUTE));
     }
 
     /** 仅对各服务显式配置的收银台入口执行验签。 */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return !GatewayIngressSignature.isProtectedCheckoutPath(request.getRequestURI());
+    }
+
+    private boolean verifySignature(HttpServletRequest request,
+                                    String requestTarget,
+                                    long timestamp,
+                                    String nonce,
+                                    String bodySha256Header,
+                                    String actualBodySha256,
+                                    String clientIp,
+                                    String signature) {
+        if (StringUtils.hasText(bodySha256Header)) {
+            if (!GatewayIngressSignature.matches(actualBodySha256, bodySha256Header.trim())) {
+                return false;
+            }
+            String expected = GatewayIngressSignature.sign(
+                    request.getMethod(), requestTarget, timestamp, nonce,
+                    actualBodySha256, clientIp, properties.getSecret());
+            return GatewayIngressSignature.matches(expected, signature);
+        }
+        if (!properties.isAcceptLegacySignature()) {
+            return false;
+        }
+        String legacyExpected = GatewayIngressSignature.sign(
+                request.getMethod(), requestTarget, timestamp, nonce, properties.getSecret());
+        return GatewayIngressSignature.matches(legacyExpected, signature);
+    }
+
+    private String resolveBodySha256(HttpServletRequest request) {
+        Object digest = request.getAttribute(GatewayIngressRequestBodyFilter.BODY_SHA256_ATTRIBUTE);
+        return digest instanceof String value && StringUtils.hasText(value)
+                ? value : GatewayIngressSignature.EMPTY_BODY_SHA256;
     }
 
     private void rejectUnauthorized(HttpServletResponse response) throws IOException {

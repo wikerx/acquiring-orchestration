@@ -14,7 +14,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -40,7 +42,7 @@ class ReliableMqOutboxRelayServiceTests {
         when(store.claim(eq(1L), eq(0), any(LocalDateTime.class))).thenReturn(1);
         when(store.markSent(eq(1L), eq(1), any(LocalDateTime.class))).thenReturn(1);
         ReliableMqOutboxRelayService service = new ReliableMqOutboxRelayService(
-                store, producer, new ReliableMqOutboxProperties());
+                store, producer, new ReliableMqOutboxProperties(), "service-admin");
 
         assertThat(service.relayEvent("MSG-OUTBOX-001")).isTrue();
 
@@ -65,7 +67,7 @@ class ReliableMqOutboxRelayServiceTests {
         doThrow(new IllegalStateException("internal endpoint detail"))
                 .when(producer).sendSerialized(any(), any(), any(), any(), eq(0), any());
         ReliableMqOutboxRelayService service = new ReliableMqOutboxRelayService(
-                store, producer, new ReliableMqOutboxProperties());
+                store, producer, new ReliableMqOutboxProperties(), "service-admin");
 
         assertThat(service.relayEvent("MSG-OUTBOX-001")).isFalse();
 
@@ -75,6 +77,23 @@ class ReliableMqOutboxRelayServiceTests {
         log.info("Outbox失败重试测试完成，结果: RETRY_WAIT且未保存异常详情");
     }
 
+    /** 事件号即使可查到，也不能由其他生产服务的 Relay 投递。 */
+    @Test
+    void shouldRejectEventOwnedByAnotherProducerService() {
+        ReliableMqOutboxStore store = mock(ReliableMqOutboxStore.class);
+        MqProducer producer = mock(MqProducer.class);
+        ReliableMqOutboxDO event = event();
+        event.setProducerService("service-payment");
+        when(store.findByEventId("MSG-OUTBOX-001")).thenReturn(event);
+        ReliableMqOutboxRelayService service = new ReliableMqOutboxRelayService(
+                store, producer, new ReliableMqOutboxProperties(), "service-admin");
+
+        assertThat(service.relayEvent("MSG-OUTBOX-001")).isFalse();
+
+        verify(store, never()).claim(any(), any(), any());
+        verifyNoInteractions(producer);
+    }
+
     /** 创建待投递测试消息。 */
     private ReliableMqOutboxDO event() {
         ReliableMqOutboxDO event = new ReliableMqOutboxDO();
@@ -82,6 +101,7 @@ class ReliableMqOutboxRelayServiceTests {
         event.setEventId("MSG-OUTBOX-001");
         event.setTopic("audit-topic");
         event.setTag("audit-tag");
+        event.setProducerService("service-admin");
         event.setTraceId("TRACE-001");
         event.setPayloadJson("{\"messageId\":\"MSG-OUTBOX-001\"}");
         event.setEventStatus("INIT");

@@ -55,12 +55,15 @@ public class ReliableMqPublisher {
                                ReliableMqOutboxRelayService relayService,
                                @Qualifier("reliableMqOutboxRelayExecutor") TaskExecutor relayExecutor,
                                ReliableMqOutboxProperties properties,
-                               @Value("${spring.application.name:unknown-service}") String producerService) {
+                               @Value("${spring.application.name}") String producerService) {
         this.outboxStore = outboxStore;
         this.relayService = relayService;
         this.relayExecutor = relayExecutor;
         this.properties = properties;
-        this.producerService = producerService;
+        if (!StringUtils.hasText(producerService)) {
+            throw new IllegalArgumentException("spring.application.name can not be blank");
+        }
+        this.producerService = producerService.trim();
     }
 
     /**

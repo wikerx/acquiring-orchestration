@@ -339,15 +339,7 @@ public class ChannelCallbackController {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (StringUtils.hasText(realIp)) {
-            return realIp;
-        }
-        return request.getRemoteAddr();
+        return callbackSecuritySupport.resolveClientIp(request);
     }
 
     private long elapsedMillis(long startNanos) {

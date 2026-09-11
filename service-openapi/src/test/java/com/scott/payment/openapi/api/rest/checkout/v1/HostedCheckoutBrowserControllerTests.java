@@ -3,6 +3,8 @@ package com.scott.payment.openapi.api.rest.checkout.v1;
 import com.scott.payment.openapi.application.checkout.OpenApiHostedCheckoutApplicationService;
 import com.scott.payment.openapi.service.OpenApiSystemConfigService;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.openapi.config.HostedCheckoutProperties;
+import com.scott.payment.openapi.support.HostedCheckoutUrlPolicy;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
@@ -28,7 +30,7 @@ class HostedCheckoutBrowserControllerTests {
         when(systemConfigService.requiredEnabledValue("platform.checkout.frontend-base-url"))
                 .thenReturn("https://pay.example.com/checkout");
         HostedCheckoutBrowserController controller =
-                new HostedCheckoutBrowserController(mock(OpenApiHostedCheckoutApplicationService.class), systemConfigService);
+                controller(systemConfigService, false);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setParameter("checkoutSessionId", "CS-001");
         request.setParameter("checkoutAttemptId", "CA-001");
@@ -51,7 +53,7 @@ class HostedCheckoutBrowserControllerTests {
     void shouldFailClosedWhenCheckoutFrontendOriginIsMissing() {
         OpenApiSystemConfigService systemConfigService = mock(OpenApiSystemConfigService.class);
         HostedCheckoutBrowserController controller =
-                new HostedCheckoutBrowserController(mock(OpenApiHostedCheckoutApplicationService.class), systemConfigService);
+                controller(systemConfigService, false);
 
         assertThatThrownBy(() -> controller.threeDsBridgeGet(new MockHttpServletRequest()))
                 .isInstanceOf(ApiException.class)
@@ -64,10 +66,44 @@ class HostedCheckoutBrowserControllerTests {
         when(systemConfigService.requiredEnabledValue("platform.checkout.frontend-base-url"))
                 .thenReturn("javascript:alert(1)");
         HostedCheckoutBrowserController controller =
-                new HostedCheckoutBrowserController(mock(OpenApiHostedCheckoutApplicationService.class), systemConfigService);
+                controller(systemConfigService, false);
 
         assertThatThrownBy(() -> controller.threeDsBridgePost(new MockHttpServletRequest()))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("not a valid checkout frontend origin");
+    }
+
+    @Test
+    void shouldRejectExternalHttpCheckoutFrontendOrigin() {
+        OpenApiSystemConfigService systemConfigService = mock(OpenApiSystemConfigService.class);
+        when(systemConfigService.requiredEnabledValue("platform.checkout.frontend-base-url"))
+                .thenReturn("http://pay.example.com/checkout");
+
+        assertThatThrownBy(() -> controller(systemConfigService, true)
+                .threeDsBridgePost(new MockHttpServletRequest()))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("not a valid checkout frontend origin");
+    }
+
+    @Test
+    void shouldAllowLoopbackHttpCheckoutFrontendOriginWhenEnabled() {
+        OpenApiSystemConfigService systemConfigService = mock(OpenApiSystemConfigService.class);
+        when(systemConfigService.requiredEnabledValue("platform.checkout.frontend-base-url"))
+                .thenReturn("http://127.0.0.1:5175/checkout");
+
+        String html = controller(systemConfigService, true)
+                .threeDsBridgePost(new MockHttpServletRequest());
+
+        assertThat(html).contains("window.top.postMessage(payload, \"http://127.0.0.1:5175\")");
+    }
+
+    private HostedCheckoutBrowserController controller(OpenApiSystemConfigService systemConfigService,
+                                                        boolean allowLoopbackHttp) {
+        HostedCheckoutProperties properties = new HostedCheckoutProperties();
+        properties.setAllowLoopbackHttp(allowLoopbackHttp);
+        return new HostedCheckoutBrowserController(
+                mock(OpenApiHostedCheckoutApplicationService.class),
+                systemConfigService,
+                new HostedCheckoutUrlPolicy(properties));
     }
 }

@@ -1,6 +1,9 @@
 package com.scott.payment.openapi.dto.body;
 
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.scott.payment.openapi.support.HostedCheckoutUrlPolicy;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -200,6 +203,13 @@ public class HostedCheckoutSessionCreateRequestDTO implements Serializable {
         @Pattern(regexp = "^$|^(?i:https?)://\\S+$", message = "transactionInfo.callbackUrl format does not match", groups = Format.class)
         private String callbackUrl;
 
+        /** HTTPS 或本机回环 HTTP 才能进入服务层的环境策略校验。 */
+        @JSONField(serialize = false)
+        @AssertTrue(message = "transactionInfo.callbackUrl format does not match", groups = Format.class)
+        public boolean isCallbackUrlSecure() {
+            return HostedCheckoutUrlPolicy.isSecureOrLoopbackHttpUrl(callbackUrl);
+        }
+
         /**
          * 重定向地址URL，表示回调、通知、来源站点或远程接口地址。
          * <p>
@@ -210,6 +220,13 @@ public class HostedCheckoutSessionCreateRequestDTO implements Serializable {
         @Size(max = 512, message = "transactionInfo.redirectUrl format does not match", groups = Format.class)
         @Pattern(regexp = "^$|^(?i:https?)://\\S+$", message = "transactionInfo.redirectUrl format does not match", groups = Format.class)
         private String redirectUrl;
+
+        /** HTTPS 或本机回环 HTTP 才能进入服务层的环境策略校验。 */
+        @JSONField(serialize = false)
+        @AssertTrue(message = "transactionInfo.redirectUrl format does not match", groups = Format.class)
+        public boolean isRedirectUrlSecure() {
+            return HostedCheckoutUrlPolicy.isSecureOrLoopbackHttpUrl(redirectUrl);
+        }
 
         /**
          * {@code language}字段，保存 {@code TransactionInfoDTO} 当前处理所需的业务取值。

@@ -4,6 +4,7 @@ import cn.hutool.jwt.JWTHeader;
 import cn.hutool.jwt.JWTUtil;
 import cn.hutool.jwt.RegisteredPayload;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
@@ -11,6 +12,7 @@ import com.scott.payment.openapi.dto.security.MerchantSecuritySeedDTO;
 import com.scott.payment.openapi.enums.MerchantRiskLevelEnum;
 import org.assertj.core.api.Assertions;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
@@ -45,6 +47,22 @@ public final class MerchantOpenApiTestSupport {
      * OpenAPI 授权请求头名称。
      */
     public static final String AUTHORIZATION_HEADER = "authorization";
+
+    /** 测试上下文使用的固定 Gateway HMAC 密钥属性。 */
+    public static final String GATEWAY_INGRESS_TEST_SECRET_PROPERTY =
+            "acquiring.gateway-ingress.secret=test-gateway-ingress-secret-0123456789abcdef";
+
+    /** 集成测试中的 Gateway nonce 使用随机值，无需依赖外部 Redis。 */
+    public static final String GATEWAY_INGRESS_REPLAY_DISABLED_PROPERTY =
+            "acquiring.gateway-ingress.replay-protection-required=false";
+
+    /** 集成测试强制覆盖正文绑定的 v2 签名协议。 */
+    public static final String GATEWAY_INGRESS_LEGACY_DISABLED_PROPERTY =
+            "acquiring.gateway-ingress.accept-legacy-signature=false";
+
+    private static final String GATEWAY_INGRESS_TEST_SECRET =
+            "test-gateway-ingress-secret-0123456789abcdef";
+    private static final String GATEWAY_CLIENT_IP = "203.0.113.10";
 
     /**
      * JWT 请求接收方固定值。
@@ -153,6 +171,32 @@ public final class MerchantOpenApiTestSupport {
      */
     public static String uniqueJwtId(String scenario) {
         return scenario + "-" + UUID.randomUUID();
+    }
+
+    /**
+     * 为 MockMvc 请求模拟 service-gateway 生成正文绑定的入口签名。
+     *
+     * @return Gateway 入口签名请求处理器
+     */
+    public static RequestPostProcessor gatewayIngress() {
+        return request -> {
+            long timestamp = System.currentTimeMillis();
+            String nonce = "mock-gateway-" + UUID.randomUUID();
+            String requestTarget = GatewayIngressSignature.requestTarget(
+                    request.getRequestURI(), request.getQueryString());
+            String bodySha256 = GatewayIngressSignature.payloadSha256(request.getContentAsByteArray());
+            request.addHeader(GatewayIngressSignature.HEADER_CALLER,
+                    GatewayIngressSignature.CALLER_SERVICE_GATEWAY);
+            request.addHeader(GatewayIngressSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
+            request.addHeader(GatewayIngressSignature.HEADER_NONCE, nonce);
+            request.addHeader(GatewayIngressSignature.HEADER_BODY_SHA256, bodySha256);
+            request.addHeader(GatewayIngressSignature.HEADER_CLIENT_IP, GATEWAY_CLIENT_IP);
+            request.addHeader(GatewayIngressSignature.HEADER_SIGNATURE,
+                    GatewayIngressSignature.sign(
+                            request.getMethod(), requestTarget, timestamp, nonce,
+                            bodySha256, GATEWAY_CLIENT_IP, GATEWAY_INGRESS_TEST_SECRET));
+            return request;
+        };
     }
 
     /**

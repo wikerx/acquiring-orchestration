@@ -3,6 +3,7 @@ package com.scott.payment.component.redis.dedup.impl;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.dedup.RedisDeduplicationService;
+import com.scott.payment.component.redis.script.PaymentRedisScripts;
 import com.scott.payment.component.redis.support.RedisKeySupport;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -12,6 +13,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -95,11 +97,13 @@ public class RedisDeduplicationServiceImpl implements RedisDeduplicationService 
     public boolean checkAndAdd(String setKey, String value, Duration ttl) {
         RedisKeySupport.requireKey(setKey);
         RedisKeySupport.requireKey(value);
-        Long added = stringRedisTemplate.opsForSet().add(setKey, value);
+        long ttlMillis = RedisKeySupport.hasTtl(ttl) ? Math.max(ttl.toMillis(), 1L) : 0L;
+        Long added = stringRedisTemplate.execute(
+                PaymentRedisScripts.setDedupAddV1(),
+                List.of(setKey),
+                value,
+                String.valueOf(ttlMillis));
         boolean firstSeen = added != null && added > 0L;
-        if (firstSeen && RedisKeySupport.hasTtl(ttl)) {
-            stringRedisTemplate.expire(setKey, ttl);
-        }
         return !firstSeen;
     }
 

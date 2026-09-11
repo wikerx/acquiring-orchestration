@@ -1,5 +1,6 @@
 package com.scott.payment.settlement.application;
 
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.finance.settlement.model.SettlementRateModels.CurrencyPair;
 import com.scott.payment.finance.settlement.model.SettlementRateModels.LockedRate;
 import com.scott.payment.finance.settlement.model.SettlementRateModels.QuoteDirection;
@@ -283,8 +284,32 @@ class SettlementReviewOrderApplicationServiceTest {
                 "DECIDE-SELF", "APPROVE", 101L, LocalDateTime.of(2026, 8, 31, 9, 40));
 
         assertThatThrownBy(() -> service.decide(REVIEW_ORDER_NO, command))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("must differ");
+                .isInstanceOfSatisfying(ServiceException.class, exception -> {
+                    assertThat(exception.getCode())
+                            .isEqualTo("SETTLEMENT_REVIEW_DECISION_SELF_REVIEW_FORBIDDEN");
+                    assertThat(exception).hasMessageContaining("must differ");
+                });
+
+        verify(reviewCandidateMapper, never()).selectByOrderNoForUpdate(any());
+        verify(batchCreationService, never()).create(any());
+    }
+
+    /** 非 Maker 不能取消他人提交的待审批单，且必须返回稳定业务错误码。 */
+    @Test
+    void shouldRejectCancellationByNonMaker() {
+        SettlementReviewOrderDO order = pendingOrder();
+        when(orderMapper.selectByReviewOrderNoForUpdate(REVIEW_ORDER_NO)).thenReturn(order);
+
+        SettlementReviewDecisionCommand command = decision(
+                "DECIDE-CANCEL-FORBIDDEN", "CANCEL", 202L,
+                LocalDateTime.of(2026, 8, 31, 9, 41));
+
+        assertThatThrownBy(() -> service.decide(REVIEW_ORDER_NO, command))
+                .isInstanceOfSatisfying(ServiceException.class, exception -> {
+                    assertThat(exception.getCode())
+                            .isEqualTo("SETTLEMENT_REVIEW_DECISION_CANCEL_FORBIDDEN");
+                    assertThat(exception).hasMessageContaining("maker may cancel");
+                });
 
         verify(reviewCandidateMapper, never()).selectByOrderNoForUpdate(any());
         verify(batchCreationService, never()).create(any());

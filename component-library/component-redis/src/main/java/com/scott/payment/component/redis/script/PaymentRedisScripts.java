@@ -28,6 +28,9 @@ public final class PaymentRedisScripts {
     private static final DefaultRedisScript<Long> MQ_DEDUP_ACQUIRE_V1 =
             load("v1/mq-dedup-acquire.lua", Long.class);
 
+    private static final DefaultRedisScript<Long> SET_DEDUP_ADD_V1 =
+            load("v1/set-dedup-add.lua", Long.class);
+
     private static final DefaultRedisScript<Long> TOKEN_LEASE_RELEASE_V1 =
             load("v1/token-lease-release.lua", Long.class);
 
@@ -65,6 +68,15 @@ public final class PaymentRedisScripts {
      */
     public static RedisScript<Long> mqDedupAcquireV1() {
         return MQ_DEDUP_ACQUIRE_V1;
+    }
+
+    /**
+     * 获取 Set 去重写入与首次过期设置 v1 脚本。
+     *
+     * @return 返回 SADD 新增数量的原子脚本
+     */
+    public static RedisScript<Long> setDedupAddV1() {
+        return SET_DEDUP_ADD_V1;
     }
 
     /**

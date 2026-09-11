@@ -45,13 +45,15 @@ public interface ReliableMqOutboxMapper {
     @Select("""
             SELECT *
             FROM sys_mq_outbox
-            WHERE event_status IN ('INIT', 'RETRY_WAIT')
+            WHERE producer_service = #{producerService}
+              AND event_status IN ('INIT', 'RETRY_WAIT')
               AND retry_count < max_retry_count
               AND (next_retry_time IS NULL OR next_retry_time <= #{now})
             ORDER BY create_time ASC, id ASC
             LIMIT #{limit}
             """)
-    List<ReliableMqOutboxDO> selectDue(@Param("now") LocalDateTime now,
+    List<ReliableMqOutboxDO> selectDue(@Param("producerService") String producerService,
+                                      @Param("now") LocalDateTime now,
                                       @Param("limit") int limit);
 
     /** CAS 抢占一条待投递消息。 */
@@ -126,10 +128,12 @@ public interface ReliableMqOutboxMapper {
                 failure_reason = 'relay processing timeout',
                 version = version + 1,
                 update_time = #{now}
-            WHERE event_status = 'PROCESSING'
+            WHERE producer_service = #{producerService}
+              AND event_status = 'PROCESSING'
               AND processing_started_time < #{staleBefore}
             """)
-    int recoverStale(@Param("staleBefore") LocalDateTime staleBefore,
+    int recoverStale(@Param("producerService") String producerService,
+                     @Param("staleBefore") LocalDateTime staleBefore,
                      @Param("now") LocalDateTime now);
 
     /** 查询低基数 Outbox 运维指标快照。 */
@@ -142,8 +146,9 @@ public interface ReliableMqOutboxMapper {
               MIN(CASE WHEN event_status IN ('INIT', 'PROCESSING', 'RETRY_WAIT')
                        THEN create_time ELSE NULL END) AS oldest_pending_time
             FROM sys_mq_outbox
+            WHERE producer_service = #{producerService}
             """)
-    ReliableMqOutboxMetricsSnapshot selectMetricsSnapshot();
+    ReliableMqOutboxMetricsSnapshot selectMetricsSnapshot(@Param("producerService") String producerService);
 
     /** 使用事件号和版本 CAS 将一条 CLOSED 消息恢复为待投递状态。 */
     @Update("""

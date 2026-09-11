@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -88,7 +89,88 @@ class GatewayIngressAuthFilterTests {
     @Test
     void shouldLeaveNonCheckoutPathsUnchanged() throws Exception {
         GatewayIngressAuthFilter filter = filter(properties(""));
+        MockHttpServletRequest request = request("POST", "/admin/auth/login", null);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean invoked = new AtomicBoolean();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> invoked.set(true));
+
+        assertTrue(invoked.get());
+        assertEquals(200, response.getStatus());
+    }
+
+    @Test
+    void shouldRejectRepeatedGatewayNonce() throws Exception {
+        GatewayIngressAuthFilter filter = new GatewayIngressAuthFilter(
+                properties(SECRET), (caller, nonce, ttl) -> false, () -> NOW);
         MockHttpServletRequest request = request("POST", "/api/rest/payment/v1/payment", null);
+        sign(request, NOW, "nonce-repeated", SECRET);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("repeated request must not reach controller");
+        });
+
+        assertEquals(401, response.getStatus());
+    }
+
+    @Test
+    void shouldRejectBodyDigestMismatch() throws Exception {
+        GatewayIngressAuthFilter filter = filter(properties(SECRET));
+        MockHttpServletRequest request = request("POST", "/api/rest/payment/v1/payment", null);
+        byte[] signedBody = "{\"amount\":\"10.00\"}".getBytes(StandardCharsets.UTF_8);
+        byte[] tamperedBody = "{\"amount\":\"99.00\"}".getBytes(StandardCharsets.UTF_8);
+        request.setContent(tamperedBody);
+        request.setAttribute(GatewayIngressRequestBodyFilter.BODY_SHA256_ATTRIBUTE,
+                GatewayIngressSignature.payloadSha256(tamperedBody));
+        sign(request, NOW, "nonce-tampered", GatewayIngressSignature.payloadSha256(signedBody), SECRET);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("tampered request must not reach controller");
+        });
+
+        assertEquals(401, response.getStatus());
+    }
+
+    @Test
+    void shouldRejectTrustedClientIpTampering() throws Exception {
+        GatewayIngressAuthFilter filter = filter(properties(SECRET));
+        MockHttpServletRequest request = request("POST", "/api/rest/payment/v1/payment", null);
+        request.addHeader(GatewayIngressSignature.HEADER_CLIENT_IP, "203.0.113.10");
+        sign(request, NOW, "nonce-client-ip", SECRET);
+        request.removeHeader(GatewayIngressSignature.HEADER_CLIENT_IP);
+        request.addHeader(GatewayIngressSignature.HEADER_CLIENT_IP, "203.0.113.11");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("tampered client ip must not reach controller");
+        });
+
+        assertEquals(401, response.getStatus());
+    }
+
+    @Test
+    void shouldRejectLegacySignatureByDefault() throws Exception {
+        GatewayIngressAuthFilter filter = filter(properties(SECRET));
+        MockHttpServletRequest request = request("POST", "/api/rest/payment/v1/payment", null);
+        signLegacy(request, NOW, "nonce-legacy-default", SECRET);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("legacy request must not reach controller by default");
+        });
+
+        assertEquals(401, response.getStatus());
+    }
+
+    @Test
+    void shouldAllowLegacySignatureWhenExplicitlyEnabled() throws Exception {
+        GatewayIngressAuthProperties properties = properties(SECRET);
+        properties.setAcceptLegacySignature(true);
+        GatewayIngressAuthFilter filter = filter(properties);
+        MockHttpServletRequest request = request("POST", "/api/rest/payment/v1/payment", null);
+        signLegacy(request, NOW, "nonce-legacy-enabled", SECRET);
         MockHttpServletResponse response = new MockHttpServletResponse();
         AtomicBoolean invoked = new AtomicBoolean();
 
@@ -99,7 +181,7 @@ class GatewayIngressAuthFilterTests {
     }
 
     private GatewayIngressAuthFilter filter(GatewayIngressAuthProperties properties) {
-        return new GatewayIngressAuthFilter(properties, () -> NOW);
+        return new GatewayIngressAuthFilter(properties, (caller, nonce, ttl) -> true, () -> NOW);
     }
 
     private GatewayIngressAuthProperties properties(String secret) {
@@ -117,6 +199,31 @@ class GatewayIngressAuthFilterTests {
     }
 
     private void sign(MockHttpServletRequest request, long timestamp, String nonce, String secret) {
+        String target = GatewayIngressSignature.requestTarget(request.getRequestURI(), request.getQueryString());
+        Object digestAttribute = request.getAttribute(GatewayIngressRequestBodyFilter.BODY_SHA256_ATTRIBUTE);
+        String bodyDigest = digestAttribute instanceof String value
+                ? value : GatewayIngressSignature.payloadSha256(request.getContentAsByteArray());
+        request.setAttribute(GatewayIngressRequestBodyFilter.BODY_SHA256_ATTRIBUTE, bodyDigest);
+        sign(request, timestamp, nonce, bodyDigest, secret);
+    }
+
+    private void sign(MockHttpServletRequest request,
+                      long timestamp,
+                      String nonce,
+                      String bodyDigest,
+                      String secret) {
+        String target = GatewayIngressSignature.requestTarget(request.getRequestURI(), request.getQueryString());
+        request.addHeader(GatewayIngressSignature.HEADER_CALLER, GatewayIngressSignature.CALLER_SERVICE_GATEWAY);
+        request.addHeader(GatewayIngressSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
+        request.addHeader(GatewayIngressSignature.HEADER_NONCE, nonce);
+        request.addHeader(GatewayIngressSignature.HEADER_BODY_SHA256, bodyDigest);
+        request.addHeader(GatewayIngressSignature.HEADER_SIGNATURE,
+                GatewayIngressSignature.sign(
+                        request.getMethod(), target, timestamp, nonce, bodyDigest,
+                        request.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP), secret));
+    }
+
+    private void signLegacy(MockHttpServletRequest request, long timestamp, String nonce, String secret) {
         String target = GatewayIngressSignature.requestTarget(request.getRequestURI(), request.getQueryString());
         request.addHeader(GatewayIngressSignature.HEADER_CALLER, GatewayIngressSignature.CALLER_SERVICE_GATEWAY);
         request.addHeader(GatewayIngressSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));

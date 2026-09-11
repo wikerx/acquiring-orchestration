@@ -56,6 +56,19 @@ class PaymentRedisScriptsTests {
         log.info("MQ 去重 Lua 资源测试完成，结果: 原子双桶与容量保护语句均存在");
     }
 
+    /** Set 去重脚本必须原子完成成员写入和首次写入时的过期设置。 */
+    @Test
+    void shouldLoadVersionedSetDedupAddScript() {
+        var script = PaymentRedisScripts.setDedupAddV1();
+
+        assertThat(script.getResultType()).isEqualTo(Long.class);
+        assertThat(script.getScriptAsString())
+                .contains("redis.call('SADD', key, member)")
+                .contains("added == 1")
+                .contains("redis.call('PEXPIRE', key, ttlMillis)");
+        assertThat(script.getSha1()).matches("[0-9a-f]{40}");
+    }
+
     /**
      * token 租约释放 v1 脚本只能删除 token 与持有者一致的门禁。
      */
