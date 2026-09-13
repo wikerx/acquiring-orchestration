@@ -1,5 +1,6 @@
 package com.scott.payment.gateway.filter;
 
+import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.gateway.config.GatewayClientIpProperties;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -27,7 +28,7 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
     /**
      * Gateway 写给下游服务的可信客户端 IP 请求头。
      */
-    public static final String HEADER_GATEWAY_CLIENT_IP = "X-Gateway-Client-Ip";
+    public static final String HEADER_GATEWAY_CLIENT_IP = GatewayIngressSignature.HEADER_CLIENT_IP;
 
     /**
      * 标准代理链客户端地址请求头。只有部署配置明确声明上游代理可信时才读取该头。

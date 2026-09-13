@@ -120,6 +120,8 @@ public final class AdminSettlementDTOs {
         private String settlementBatchNo;
         /** 商户号过滤，可空且必须叠加 Admin 数据范围。 */
         private String merchantId;
+        /** TRANSACTION 或 RESERVE；领域接口由服务端强制写入，通用兼容接口可空。 */
+        private String batchDomain;
         /** 批次类型过滤，可空。 */
         private String batchType;
         /** 批次状态过滤，可空。 */
@@ -156,10 +158,14 @@ public final class AdminSettlementDTOs {
         private Integer dailySequence;
         /** 商户号。 */
         private String merchantId;
+        /** 商户名称。 */
+        private String merchantName;
         /** 结算档案主键。 */
         private Long settlementProfileId;
         /** 结算资金账户主键。 */
         private Long settlementAccountId;
+        /** 结算资金账户号。 */
+        private String settlementAccountNo;
         /** 批次唯一目标结算币种。 */
         private String targetCurrency;
         /** 目标币种 exponent。 */
@@ -424,6 +430,8 @@ public final class AdminSettlementDTOs {
         private String merchantId;
         /** 来源真实平台交易号过滤，可空。 */
         private String sourceTransactionId;
+        /** 保证金释放或调整候选的技术动作号过滤，可空。 */
+        private String reserveActionNo;
         /** 商户订单号过滤，可空。 */
         private String merchantOrderNo;
         /** 来源交易时间起点，包含。 */
@@ -470,6 +478,56 @@ public final class AdminSettlementDTOs {
         private Integer pageSize;
     }
 
+    /** 一笔真实交易在正式结算批次中的汇总行；组件明细通过独立分页接口按需读取。 */
+    @Data
+    public static class TransactionSettlementSummary implements Serializable {
+        private static final long serialVersionUID = 1L;
+        /** 所属正式结算批次号。 */
+        private String settlementBatchNo;
+        /** 批次业务日期。 */
+        private LocalDate businessDate;
+        /** 批次状态。 */
+        private String batchStatus;
+        /** 来源候选主键。 */
+        private Long candidateId;
+        /** 来源候选业务号，仅用于内部追溯，不作为用户查询条件。 */
+        private String candidateNo;
+        /** 商户号。 */
+        private String merchantId;
+        /** 商户订单号。 */
+        private String merchantOrderNo;
+        /** 平台真实交易号，即页面“系统订单号”。 */
+        private String sourceTransactionId;
+        /** 原交易时间。 */
+        private LocalDateTime sourceTransactionDateTime;
+        /** 支付类型。 */
+        private String paymentType;
+        /** 支付方式。 */
+        private String paymentMethod;
+        /** 交易类型。 */
+        private String transactionType;
+        /** 原交易本金金额。 */
+        private BigDecimal sourceAmount;
+        /** 原交易币种。 */
+        private String sourceCurrency;
+        /** 原交易币种 exponent。 */
+        private Integer sourceCurrencyExponent;
+        /** 当前交易包含的不可变财务组件数。 */
+        private Long componentCount;
+        /** 当前交易各财务组件相抵后的商户资金方向。 */
+        private String netDirection;
+        /** 当前交易各财务组件相抵后的目标币种非负金额。 */
+        private BigDecimal netTargetAmount;
+        /** 批次目标结算币种。 */
+        private String targetCurrency;
+        /** 目标结算币种 exponent。 */
+        private Integer targetCurrencyExponent;
+        /** 批次成功入账时间。 */
+        private LocalDateTime postedTime;
+        /** 当前交易最后一条结果组件创建时间。 */
+        private LocalDateTime createTime;
+    }
+
     /** 交易清分修订或保证金动作结算候选摘要。 */
     @Data
     public static class CandidateSummary implements Serializable {
@@ -486,6 +544,8 @@ public final class AdminSettlementDTOs {
         private Integer sourceRevision;
         /** 真实来源平台交易号；保证金候选回溯原支付交易。 */
         private String sourceTransactionId;
+        /** 保证金释放或调整候选的技术动作号，例如 RRL；普通交易候选为空。 */
+        private String reserveActionNo;
         /** 来源交易时间，用于物理季度定位。 */
         private LocalDateTime sourceTransactionDateTime;
         /** 商户号。 */
@@ -568,6 +628,12 @@ public final class AdminSettlementDTOs {
         private String merchantId;
         /** 来源真实平台交易号过滤，可空。 */
         private String sourceTransactionId;
+        /** 商户订单号过滤，可空。 */
+        private String merchantOrderNo;
+        /** 原交易时间起点，包含，可空。 */
+        private LocalDateTime beginTransactionTime;
+        /** 原交易时间终点，不包含，可空。 */
+        private LocalDateTime endTransactionTime;
         /** 结果项目类型过滤，可空。 */
         private String resultItemType;
         /** TRACE、FINANCIAL_COMPONENT 或 LEDGER_POSTING。 */
@@ -586,6 +652,30 @@ public final class AdminSettlementDTOs {
         private Integer pageNo;
         /** 页大小，受查询预算限制。 */
         private Integer pageSize;
+    }
+
+    /** 交易动作上的对账、结算和入账状态快照。 */
+    @Data
+    public static class ReconciliationRecord implements Serializable {
+        private static final long serialVersionUID = 1L;
+        /** 平台真实交易号。 */
+        private String transactionId;
+        /** 商户号。 */
+        private String merchantId;
+        /** 商户订单号。 */
+        private String merchantOrderNo;
+        /** 当前交易动作类型。 */
+        private String transactionType;
+        /** 当前对账状态。 */
+        private String reconciliationStatus;
+        /** 当前结算状态。 */
+        private String settlementStatus;
+        /** 当前入账状态。 */
+        private String accountingStatus;
+        /** 交易分片路由时间。 */
+        private LocalDateTime transactionDateTime;
+        /** 当前动作受理时间。 */
+        private LocalDateTime operationTime;
     }
 
     /** 不可变结算结果行；金额和汇率仅按数据库精度透传，不在 Admin 二次计算。 */
@@ -772,12 +862,26 @@ public final class AdminSettlementDTOs {
         private String merchantId;
         /** 保证金责任编号过滤，可空。 */
         private String reserveNo;
+        /** 不可变保证金动作编号过滤，可空。 */
+        private String reserveActionNo;
         /** 来源真实平台交易号过滤，可空。 */
         private String sourceTransactionId;
+        /** 商户订单号过滤，可空。 */
+        private String merchantOrderNo;
+        /** 保证金责任状态过滤，可空。 */
+        private String reserveStatus;
         /** 保证金动作类型过滤，可空。 */
         private String actionType;
         /** 保证金原标签币种过滤，可空。 */
         private String currency;
+        /** 原交易时间起点，包含，可空。 */
+        private LocalDateTime beginTransactionTime;
+        /** 原交易时间终点，不包含，可空。 */
+        private LocalDateTime endTransactionTime;
+        /** 预计释放日期起点，包含，可空。 */
+        private LocalDate beginExpectedReleaseDate;
+        /** 预计释放日期终点，包含，可空。 */
+        private LocalDate endExpectedReleaseDate;
         /** 批次业务日期起点，包含。 */
         private LocalDate beginBusinessDate;
         /** 批次业务日期终点，包含。 */
@@ -808,8 +912,12 @@ public final class AdminSettlementDTOs {
         private String merchantId;
         /** 保证金资金账户主键。 */
         private Long accountId;
+        /** 平台资金账户号，用于管理端识别对应资金账户。 */
+        private String accountNo;
         /** 来源真实平台交易号。 */
         private String sourceTransactionId;
+        /** 商户订单号。 */
+        private String merchantOrderNo;
         /** 来源交易时间。 */
         private LocalDateTime sourceTransactionDateTime;
         /** 来源保证金业务编号。 */
@@ -884,10 +992,14 @@ public final class AdminSettlementDTOs {
         private String createMode;
         /** 预审所属商户号。 */
         private String merchantId;
+        /** 预审所属商户名称。 */
+        private String merchantName;
         /** 结算档案主键快照。 */
         private Long settlementProfileId;
         /** 目标结算资金账户主键快照。 */
         private Long settlementAccountId;
+        /** 目标结算资金账户号。 */
+        private String settlementAccountNo;
         /** 批次目标结算币种。 */
         private String targetCurrency;
         /** 目标结算币种 exponent。 */
@@ -952,6 +1064,8 @@ public final class AdminSettlementDTOs {
         private Integer sourceRevision;
         /** 真实交易来源的平台交易号；纯保证金候选可空。 */
         private String sourceTransactionId;
+        /** 保证金释放或调整候选的技术动作号，例如 RRL；普通交易候选为空。 */
+        private String reserveActionNo;
         /** 来源交易时间；纯保证金候选可空。 */
         private LocalDateTime sourceTransactionDateTime;
         /** 候选在预审中的 LOCKED、CONSUMED 或 RELEASED 状态。 */

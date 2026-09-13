@@ -55,4 +55,7 @@ public class OpenApiCallbackProperties {
      * </p>
      */
     private Map<String, List<String>> channelAllowedIps = new HashMap<>();
+
+    /** 未配置渠道 IP 白名单时是否失败关闭；UAT 和生产必须开启。 */
+    private boolean channelIpWhitelistRequired;
 }

@@ -20,6 +20,12 @@ public class GatewayIngressAuthProperties {
     private String secret;
     /** 下游接受 Gateway 签名的最大时间偏差，单位毫秒。 */
     private long allowedClockSkewMillis = 60_000L;
+    /** 是否临时接受未绑定正文的旧入口签名，仅允许兼容环境显式开启。 */
+    private boolean acceptLegacySignature = false;
+    /** 是否强制使用 Redis 原子登记 nonce；UAT 和生产必须开启。 */
+    private boolean replayProtectionRequired = true;
+    /** 受保护外部请求正文最大字节数。 */
+    private int maxRequestBodyBytes = 1024 * 1024;
 
     /** @return 外部注入的 HMAC 共享密钥 */
     public String getSecret() {
@@ -39,6 +45,30 @@ public class GatewayIngressAuthProperties {
     /** @param allowedClockSkewMillis 允许的最大时钟偏差，单位毫秒 */
     public void setAllowedClockSkewMillis(long allowedClockSkewMillis) {
         this.allowedClockSkewMillis = allowedClockSkewMillis;
+    }
+
+    public boolean isAcceptLegacySignature() {
+        return acceptLegacySignature;
+    }
+
+    public void setAcceptLegacySignature(boolean acceptLegacySignature) {
+        this.acceptLegacySignature = acceptLegacySignature;
+    }
+
+    public boolean isReplayProtectionRequired() {
+        return replayProtectionRequired;
+    }
+
+    public void setReplayProtectionRequired(boolean replayProtectionRequired) {
+        this.replayProtectionRequired = replayProtectionRequired;
+    }
+
+    public int getMaxRequestBodyBytes() {
+        return maxRequestBodyBytes;
+    }
+
+    public void setMaxRequestBodyBytes(int maxRequestBodyBytes) {
+        this.maxRequestBodyBytes = maxRequestBodyBytes;
     }
 
 }

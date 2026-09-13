@@ -2,6 +2,8 @@ package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateLine;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandidateSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSummary;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
@@ -16,6 +18,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -121,6 +124,8 @@ class JdbcAdminSettlementReviewQueryServiceTest {
         assertThat(sql.getValue()).contains(
                 "reserve_detail.original_transaction_id",
                 "reserve_detail.original_transaction_date_time",
+                "candidate.source_transaction_id",
+                "AS reserve_action_no",
                 "AS source_transaction_id",
                 "AS source_transaction_date_time",
                 "JOIN transaction_reserve_clearing_detail reserve_detail",
@@ -154,7 +159,8 @@ class JdbcAdminSettlementReviewQueryServiceTest {
         assertThat(sql.getValue()).contains(
                 "candidate.source_transaction_id = :sourceTransactionId",
                 "operation.merchant_order_no = :merchantOrderNo",
-                "candidate.source_transaction_date_time BETWEEN :beginTransactionTime AND :endTransactionTime",
+                "candidate.source_transaction_date_time >= :beginTransactionTime",
+                "candidate.source_transaction_date_time < :endTransactionTime",
                 "clearing_detail.payment_type = :paymentType",
                 "clearing_detail.payment_method = :paymentMethod",
                 "clearing_detail.transaction_type = :transactionType",
@@ -226,7 +232,11 @@ class JdbcAdminSettlementReviewQueryServiceTest {
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
         assertThat(sql.getValue()).contains(
-                "FROM settlement_review_order", "ORDER BY business_date DESC, id DESC",
+                "FROM settlement_review_order review",
+                "LEFT JOIN base_merchant_info merchant",
+                "LEFT JOIN merchant_fund_account account",
+                "account.account_no AS settlement_account_no",
+                "ORDER BY review.business_date DESC, review.id DESC",
                 "LIMIT :offset, :limit");
         verify(readExecutor).read(any());
         verify(readExecutor, never()).readPrimary(any());
@@ -277,11 +287,52 @@ class JdbcAdminSettlementReviewQueryServiceTest {
         service(jdbc).reviewDetail("SO20260831-00000001", AdminMerchantDataScope.all());
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbc, times(4)).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        verify(jdbc, times(3)).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
         assertThat(sql.getAllValues()).anySatisfy(summarySql -> assertThat(summarySql).contains(
                 "FROM settlement_review_summary summary",
                 "AS source_currency_exponent",
                 "review.target_currency_exponent"));
+        assertThat(sql.getAllValues()).noneSatisfy(candidateSql -> assertThat(candidateSql)
+                .contains("FROM settlement_review_candidate review_candidate"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void reviewCandidatePageShouldKeepCandidatePaginationStableBeforeReserveEnrichment() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        ReviewSummary review = new ReviewSummary();
+        review.setReviewOrderNo("SO20260910-00000001");
+        when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(10L);
+        when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0);
+                    if (sql.contains("FROM settlement_review_order")) {
+                        return List.of(review);
+                    }
+                    if (sql.contains("FROM settlement_review_candidate review_candidate")) {
+                        return reviewCandidates(sql.contains("transaction_reserve_clearing_detail") ? 20 : 10);
+                    }
+                    return List.of();
+                });
+        ReviewCandidateSearchRequest request = new ReviewCandidateSearchRequest();
+        request.setPageNo(1);
+        request.setPageSize(10);
+
+        var page = service(jdbc).reviewCandidates(
+                "SO20260910-00000001", request, AdminMerchantDataScope.all());
+
+        assertThat(page.getTotal()).isEqualTo(10L);
+        assertThat(page.getRecords()).hasSize(10);
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc, times(3)).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertThat(sql.getAllValues()).anySatisfy(candidateSql -> assertThat(candidateSql)
+                .contains("FROM settlement_review_candidate review_candidate")
+                .doesNotContain("JOIN transaction_reserve_clearing_detail"));
+        assertThat(sql.getAllValues()).anySatisfy(reserveSql -> assertThat(reserveSql)
+                .contains("FROM transaction_reserve_clearing_detail")
+                .contains("transaction_id IN (:reserveActionNos)")
+                .contains("transaction_date_time IN (:reserveActionTimes)"));
     }
 
     private JdbcAdminSettlementReviewQueryService service(NamedParameterJdbcTemplate jdbc) {
@@ -294,6 +345,22 @@ class JdbcAdminSettlementReviewQueryServiceTest {
         request.setBeginEligibleDate(LocalDate.of(2026, 8, 1));
         request.setEndEligibleDate(LocalDate.of(2026, 8, 31));
         return request;
+    }
+
+    private List<ReviewCandidateLine> reviewCandidates(int count) {
+        List<ReviewCandidateLine> rows = new ArrayList<>(count);
+        for (int index = 0; index < count; index++) {
+            ReviewCandidateLine row = new ReviewCandidateLine();
+            row.setReviewCandidateNo("SRC-" + index);
+            row.setCandidateId(89857L + index);
+            row.setCandidateNo("SC-" + index);
+            row.setSourceType("RESERVE_RELEASE");
+            row.setSourceRevision(1);
+            row.setReserveActionNo("RRL-" + index);
+            row.setSourceTransactionDateTime(LocalDateTime.of(2026, 3, 1, 0, 0).plusSeconds(index));
+            rows.add(row);
+        }
+        return rows;
     }
 
     private TransactionLogicalReadExecutor executingReadExecutor() {

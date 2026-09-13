@@ -250,7 +250,7 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
             WHERE event_no = #{eventNo}
               AND transaction_date_time = #{transactionDateTime}
               AND event_type = #{eventType}
-              AND event_status IN ('SENT', 'FAILED')
+              AND event_status IN ('SENT', 'FAILED', 'CLOSED')
               AND deleted = 0
             """)
     int rearmForRedeliveryLogical(@Param("eventNo") String eventNo,

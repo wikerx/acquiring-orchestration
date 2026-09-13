@@ -78,6 +78,28 @@ class ReliableMqPublisherTests {
         log.info("可靠MQ消息入队测试完成，结果: INIT快照已保存且提交后异步触发Relay");
     }
 
+    /** Publisher 与 Relay 必须使用同一规范化服务名，避免消息写入后无法被当前服务扫描。 */
+    @Test
+    void shouldNormalizeProducerServiceAndRejectBlankName() {
+        ReliableMqOutboxStore store = mock(ReliableMqOutboxStore.class);
+        ReliableMqOutboxRelayService relay = mock(ReliableMqOutboxRelayService.class);
+        ReliableMqPublisher publisher = new ReliableMqPublisher(
+                store, relay, Runnable::run, new ReliableMqOutboxProperties(), " service-admin ");
+        BaseMqMessage message = new BaseMqMessage();
+        message.setMessageId("MSG-SERVICE-NAME-001");
+
+        assertThat(publisher.publish("audit-topic", "audit-tag", message))
+                .isEqualTo("MSG-SERVICE-NAME-001");
+
+        ArgumentCaptor<ReliableMqOutboxDO> captor = ArgumentCaptor.forClass(ReliableMqOutboxDO.class);
+        verify(store).insert(captor.capture());
+        assertThat(captor.getValue().getProducerService()).isEqualTo("service-admin");
+        assertThatThrownBy(() -> new ReliableMqPublisher(
+                store, relay, Runnable::run, new ReliableMqOutboxProperties(), "  "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("spring.application.name can not be blank");
+    }
+
     /** 冻结消息写入入口必须使用 REQUIRES_NEW，不能加入已经结束或随后会回滚的认证事务。 */
     @Test
     void preparedEventPublisherShouldRequireNewTransaction() throws NoSuchMethodException {

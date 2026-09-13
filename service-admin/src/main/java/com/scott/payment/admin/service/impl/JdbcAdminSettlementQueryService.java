@@ -61,6 +61,8 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
     private static final long MAX_DATE_SPAN_DAYS = 92;
     private static final Set<String> BATCH_TYPES = Set.of(
             "REGULAR", "RESERVE_RELEASE", "REVERSAL", "ADJUSTMENT");
+    private static final Set<String> BATCH_DOMAINS = Set.of("TRANSACTION", "RESERVE");
+    private static final List<String> RESERVE_BATCH_TYPES = List.of("RESERVE_RELEASE", "ADJUSTMENT");
     private static final Set<String> BATCH_STATUSES = Set.of(
             "CREATED", "CLAIMING", "CLAIMED", "RATE_LOCKED", "CALCULATING",
             "CALCULATED", "POSTING", "POSTED", "FAILED_RETRYABLE", "MANUAL_REVIEW",
@@ -68,7 +70,20 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
 
     private static final String BATCH_COLUMNS = """
             id, settlement_batch_no, business_date, business_time_zone, daily_sequence,
-            merchant_id, settlement_profile_id, settlement_account_id, target_currency,
+            merchant_id,
+            (SELECT merchant.merchant_name
+             FROM base_merchant_info merchant
+             WHERE merchant.merchant_id = settlement_batch.merchant_id
+               AND merchant.deleted = 0
+             LIMIT 1) AS merchant_name,
+            settlement_profile_id, settlement_account_id,
+            (SELECT account.account_no
+             FROM merchant_fund_account account
+             WHERE account.id = settlement_batch.settlement_account_id
+               AND account.merchant_id = settlement_batch.merchant_id
+               AND account.deleted = 0
+             LIMIT 1) AS settlement_account_no,
+            target_currency,
             target_currency_exponent, batch_type, original_batch_no, review_order_no, create_mode,
             batch_status,
             (SELECT COUNT(DISTINCT item.source_transaction_id)
@@ -134,7 +149,28 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
                                       AdminMerchantDataScope dataScope) {
         String batchNo = requiredBatchNo(settlementBatchNo);
         AdminMerchantDataScope scope = requiredScope(dataScope);
-        return transactionLogicalReadExecutor.read(() -> detailNormalized(batchNo, scope));
+        return transactionLogicalReadExecutor.read(() -> detailNormalized(batchNo, scope, false));
+    }
+
+    /** {@inheritDoc} 凭证快照额外加载批次维度汇总，普通详情仍保持有界。 */
+    @Override
+    public BatchDetailResponse voucherDetail(String settlementBatchNo,
+                                              AdminMerchantDataScope dataScope) {
+        String batchNo = requiredBatchNo(settlementBatchNo);
+        AdminMerchantDataScope scope = requiredScope(dataScope);
+        return transactionLogicalReadExecutor.read(() -> detailNormalized(batchNo, scope, true));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public PageResult<ResultSummaryLine> searchResultSummaries(String settlementBatchNo,
+                                                               Integer pageNo,
+                                                               Integer pageSize,
+                                                               AdminMerchantDataScope dataScope) {
+        String batchNo = requiredBatchNo(settlementBatchNo);
+        PageWindow page = normalizePage(pageNo, pageSize);
+        AdminMerchantDataScope scope = requiredScope(dataScope);
+        return transactionLogicalReadExecutor.read(() -> resultSummaryPage(batchNo, page, scope));
     }
 
     /** {@inheritDoc} */
@@ -179,7 +215,8 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
     }
 
     private BatchDetailResponse detailNormalized(String settlementBatchNo,
-                                                 AdminMerchantDataScope dataScope) {
+                                                 AdminMerchantDataScope dataScope,
+                                                 boolean includeResultSummaries) {
         if (dataScope.empty()) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -210,25 +247,9 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
                   AND rate_status = 'LOCKED'
                 ORDER BY source_currency ASC, id ASC
                 """, parameters, BeanPropertyRowMapper.newInstance(RateLine.class)));
-        response.setResultSummaries(jdbcTemplate.query("""
-                SELECT summary.payment_type, summary.payment_method, summary.transaction_type,
-                       summary.result_item_type, summary.fee_category, summary.direction,
-                       summary.source_currency,
-                       COALESCE(NULLIF(source_currency.fraction_digits, -1), 2)
-                           AS source_currency_exponent,
-                       summary.target_currency, batch.target_currency_exponent,
-                       summary.transaction_count, summary.source_amount, summary.target_amount
-                FROM settlement_result_summary summary
-                JOIN settlement_batch batch
-                  ON batch.settlement_batch_no = summary.settlement_batch_no
-                LEFT JOIN base_iso_currency source_currency
-                  ON source_currency.alpha3_code = summary.source_currency
-                 AND source_currency.deleted = 0
-                WHERE summary.settlement_batch_no = :settlementBatchNo
-                ORDER BY summary.payment_type, summary.payment_method, summary.transaction_type,
-                         summary.result_item_type, summary.fee_category, summary.direction,
-                         summary.source_currency, summary.target_currency, summary.id
-                """, parameters, BeanPropertyRowMapper.newInstance(ResultSummaryLine.class)));
+        if (includeResultSummaries) {
+            response.setResultSummaries(resultSummaries(settlementBatchNo, dataScope));
+        }
         List<NetPosting> postings = jdbcTemplate.query("""
                 SELECT id, settlement_result_item_no, reversal_of_result_item_id, direction,
                        target_amount, target_currency, target_currency_exponent,
@@ -261,6 +282,86 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
                 """, parameters, BeanPropertyRowMapper.newInstance(OperationalState.class));
         response.setOperationalState(state == null ? emptyOperationalState() : state);
         return response;
+    }
+
+    /** 正式凭证只加载按支付维度聚合后的不可变汇总，不加载逐笔交易或组件明细。 */
+    private List<ResultSummaryLine> resultSummaries(String settlementBatchNo,
+                                                    AdminMerchantDataScope dataScope) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("settlementBatchNo", settlementBatchNo)
+                .addValue("permittedMerchantIds", dataScope.merchantIds());
+        return jdbcTemplate.query("""
+                SELECT summary.payment_type, summary.payment_method, summary.transaction_type,
+                       summary.result_item_type, summary.fee_category, summary.direction,
+                       summary.source_currency,
+                       COALESCE(NULLIF(source_currency.fraction_digits, -1), 2)
+                           AS source_currency_exponent,
+                       summary.target_currency, batch.target_currency_exponent,
+                       summary.transaction_count, summary.source_amount, summary.target_amount
+                FROM settlement_result_summary summary
+                JOIN settlement_batch batch
+                  ON batch.settlement_batch_no = summary.settlement_batch_no
+                 AND batch.merchant_id = summary.merchant_id
+                LEFT JOIN base_iso_currency source_currency
+                  ON source_currency.alpha3_code = summary.source_currency
+                 AND source_currency.deleted = 0
+                WHERE summary.settlement_batch_no = :settlementBatchNo
+                """ + merchantScopeSql(dataScope, "batch.merchant_id") + """
+                ORDER BY summary.merchant_id, summary.payment_type, summary.payment_method,
+                         summary.transaction_type, summary.result_item_type, summary.fee_category,
+                         summary.direction, summary.source_currency, summary.target_currency, summary.id
+                """, parameters, BeanPropertyRowMapper.newInstance(ResultSummaryLine.class));
+    }
+
+    /**
+     * 使用 settlement_result_summary 的批次维度唯一索引稳定分页，避免正式批次详情一次加载全部汇总。
+     */
+    private PageResult<ResultSummaryLine> resultSummaryPage(String settlementBatchNo,
+                                                            PageWindow page,
+                                                            AdminMerchantDataScope dataScope) {
+        if (dataScope.empty()) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("settlementBatchNo", settlementBatchNo)
+                .addValue("permittedMerchantIds", dataScope.merchantIds());
+        String from = """
+                FROM settlement_result_summary summary
+                JOIN settlement_batch batch
+                  ON batch.settlement_batch_no = summary.settlement_batch_no
+                 AND batch.merchant_id = summary.merchant_id
+                LEFT JOIN base_iso_currency source_currency
+                  ON source_currency.alpha3_code = summary.source_currency
+                 AND source_currency.deleted = 0
+                """;
+        String where = """
+                WHERE summary.settlement_batch_no = :settlementBatchNo
+                """ + merchantScopeSql(dataScope, "batch.merchant_id");
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(1) " + from + where,
+                parameters, Long.class);
+        long total = count == null ? 0L : count;
+        long offset = (long) (page.pageNo() - 1) * page.pageSize();
+        List<ResultSummaryLine> records = offset < total ? jdbcTemplate.query("""
+                SELECT summary.payment_type, summary.payment_method, summary.transaction_type,
+                       summary.result_item_type, summary.fee_category, summary.direction,
+                       summary.source_currency,
+                       COALESCE(NULLIF(source_currency.fraction_digits, -1), 2)
+                           AS source_currency_exponent,
+                       summary.target_currency, batch.target_currency_exponent,
+                       summary.transaction_count, summary.source_amount, summary.target_amount
+                """ + from + where + """
+                ORDER BY summary.merchant_id, summary.payment_type, summary.payment_method,
+                         summary.transaction_type, summary.result_item_type, summary.fee_category,
+                         summary.direction, summary.source_currency, summary.target_currency, summary.id
+                LIMIT :offset, :limit
+                """, new MapSqlParameterSource(parameters.getValues())
+                .addValue("offset", offset)
+                .addValue("limit", page.pageSize()),
+                BeanPropertyRowMapper.newInstance(ResultSummaryLine.class)) : List.of();
+        if (total == 0L) {
+            requireAccessibleBatch(settlementBatchNo, dataScope);
+        }
+        return PageResult.of(total, page.pageNo(), page.pageSize(), records);
     }
 
     /**
@@ -310,11 +411,22 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         if (request.getMerchantId() != null && request.getMerchantId().length() > 64) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+        request.setBatchDomain(normalizedEnum(request.getBatchDomain(), BATCH_DOMAINS));
         request.setBatchType(normalizedEnum(request.getBatchType(), BATCH_TYPES));
+        validateBatchDomain(request.getBatchDomain(), request.getBatchType());
         request.setBatchStatus(normalizedEnum(request.getBatchStatus(), BATCH_STATUSES));
         request.setPageNo(pageNo);
         request.setPageSize(pageSize);
         return request;
+    }
+
+    private PageWindow normalizePage(Integer pageNo, Integer pageSize) {
+        int normalizedPageNo = pageNo == null ? 1 : pageNo;
+        int normalizedPageSize = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;
+        if (normalizedPageNo < 1 || normalizedPageSize < 1 || normalizedPageSize > maxResultRows) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return new PageWindow(normalizedPageNo, normalizedPageSize);
     }
 
     private String whereSql(BatchSearchRequest query, AdminMerchantDataScope dataScope) {
@@ -327,7 +439,12 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
         if (query.getMerchantId() != null) {
             sql.append(" AND merchant_id = :merchantId\n");
         }
-        if (query.getBatchType() != null) {
+        if ("TRANSACTION".equals(query.getBatchDomain())) {
+            sql.append(" AND batch_type = :transactionBatchType\n");
+        } else if ("RESERVE".equals(query.getBatchDomain())) {
+            sql.append(" AND batch_type IN (:reserveBatchTypes)\n");
+        }
+        if (query.getBatchType() != null && !"TRANSACTION".equals(query.getBatchDomain())) {
             sql.append(" AND batch_type = :batchType\n");
         }
         if (query.getBatchStatus() != null) {
@@ -344,14 +461,34 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
                 .addValue("endBusinessDate", query.getEndBusinessDate())
                 .addValue("settlementBatchNo", query.getSettlementBatchNo())
                 .addValue("merchantId", query.getMerchantId())
+                .addValue("transactionBatchType", "REGULAR")
+                .addValue("reserveBatchTypes", RESERVE_BATCH_TYPES)
                 .addValue("batchType", query.getBatchType())
                 .addValue("batchStatus", query.getBatchStatus())
                 .addValue("permittedMerchantIds", dataScope.merchantIds());
     }
 
+    private void validateBatchDomain(String batchDomain, String batchType) {
+        if (batchDomain == null || batchType == null) {
+            return;
+        }
+        boolean valid = "TRANSACTION".equals(batchDomain)
+                ? "REGULAR".equals(batchType)
+                : RESERVE_BATCH_TYPES.contains(batchType);
+        if (!valid) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+    }
+
     /** @return 全商户时为空，否则返回使用参数化 merchantId 集合的数据范围谓词。 */
     private String merchantScopeSql(AdminMerchantDataScope dataScope) {
-        return dataScope.allMerchants() ? "" : " AND merchant_id IN (:permittedMerchantIds)\n";
+        return merchantScopeSql(dataScope, "merchant_id");
+    }
+
+    private String merchantScopeSql(AdminMerchantDataScope dataScope, String merchantColumn) {
+        return dataScope.allMerchants()
+                ? ""
+                : " AND " + merchantColumn + " IN (:permittedMerchantIds)\n";
     }
 
     /** @return 非空可信数据范围；缺失上下文时按未授权拒绝。 */
@@ -404,5 +541,8 @@ public class JdbcAdminSettlementQueryService implements AdminSettlementQueryServ
 
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private record PageWindow(int pageNo, int pageSize) {
     }
 }

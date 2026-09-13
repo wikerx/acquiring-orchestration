@@ -5,6 +5,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Objects;
@@ -50,6 +51,15 @@ public final class GatewayIngressSignature {
      */
     private static final String LINE_SEPARATOR = "\n";
 
+    /** Gateway 写入的原始请求体 SHA-256。 */
+    public static final String HEADER_BODY_SHA256 = "X-Gateway-Body-SHA256";
+
+    /** Gateway 写入并由入口签名绑定的可信客户端 IP。 */
+    public static final String HEADER_CLIENT_IP = "X-Gateway-Client-Ip";
+
+    /** 空请求体的 SHA-256。 */
+    public static final String EMPTY_BODY_SHA256 = payloadSha256(new byte[0]);
+
     private GatewayIngressSignature() {
     }
 
@@ -74,6 +84,47 @@ public final class GatewayIngressSignature {
                 + LINE_SEPARATOR + nonce
                 + LINE_SEPARATOR + CALLER_SERVICE_GATEWAY;
         return hmacSha256(canonicalText, secret);
+    }
+
+    /**
+     * 计算绑定原始正文摘要的 Gateway v2 入口签名。
+     *
+     * @param method HTTP 方法
+     * @param requestTarget 原始路径及查询串
+     * @param timestamp 毫秒时间戳
+     * @param nonce 单次请求随机串
+     * @param bodySha256 原始请求体 SHA-256
+     * @param clientIp Gateway 解析出的可信客户端 IP，可为空
+     * @param secret Gateway 与下游共享的独立密钥
+     * @return 小写十六进制 HMAC-SHA256
+     */
+    public static String sign(String method,
+                              String requestTarget,
+                              long timestamp,
+                              String nonce,
+                              String bodySha256,
+                              String clientIp,
+                              String secret) {
+        Objects.requireNonNull(bodySha256, "bodySha256 can not be null");
+        String normalizedClientIp = clientIp == null ? "" : clientIp.trim();
+        String canonicalText = method.toUpperCase(Locale.ROOT)
+                + LINE_SEPARATOR + requestTarget
+                + LINE_SEPARATOR + timestamp
+                + LINE_SEPARATOR + nonce
+                + LINE_SEPARATOR + bodySha256.toLowerCase(Locale.ROOT)
+                + LINE_SEPARATOR + normalizedClientIp
+                + LINE_SEPARATOR + CALLER_SERVICE_GATEWAY;
+        return hmacSha256(canonicalText, secret);
+    }
+
+    /** 计算原始请求体的小写十六进制 SHA-256。 */
+    public static String payloadSha256(byte[] body) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(body == null ? new byte[0] : body));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
     }
 
     /**
@@ -120,8 +171,10 @@ public final class GatewayIngressSignature {
      * @return 商户建单、付款人 API、公开配置和收银台健康入口返回 true
      */
     public static boolean isProtectedCheckoutPath(String path) {
-        return path != null && (path.equals("/api/rest/checkout")
-                || path.startsWith("/api/rest/checkout/")
+        return path != null && (path.equals("/api/rest")
+                || path.startsWith("/api/rest/")
+                || path.equals("/channel")
+                || path.startsWith("/channel/")
                 || path.equals("/checkout/api")
                 || path.startsWith("/checkout/api/")
                 || path.equals("/checkout/config")

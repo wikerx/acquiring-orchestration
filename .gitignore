@@ -66,6 +66,11 @@ docs/sql/*
 !docs/sql/20260825_03_transaction_clearing_compatibility_draft.sql
 !docs/sql/20260825_04_transaction_clearing_topology_draft.sql
 !docs/sql/20260825_05_transaction_clearing_postcheck_draft.sql
+!docs/sql/20260912_01_reserve_status_repair.sql
+!docs/sql/20260912_02_reserve_status_repair_postcheck.sql
+!docs/sql/20260913_01_currency_icon_key_migration.sql
+!docs/sql/20260913_02_currency_icon_key_postcheck.sql
+!docs/sql/20260913_03_currency_icon_key_rollback.sql
 !docs/sql/shardingsphere-auto-increment-repair-20260802.sql
 !docs/sql/20260814_01_transaction_visible_snapshot_plaintext_prepare.sql
 !docs/sql/20260814_02_transaction_visible_snapshot_plaintext_finalize.sql

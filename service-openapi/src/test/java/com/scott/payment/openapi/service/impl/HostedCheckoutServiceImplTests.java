@@ -4,6 +4,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
@@ -23,6 +24,7 @@ import com.scott.payment.openapi.dto.body.HostedCheckoutSessionCreateRequestDTO;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.service.OpenApiSystemConfigService;
 import com.scott.payment.openapi.support.HostedCheckoutTokenSupport;
+import com.scott.payment.openapi.support.HostedCheckoutUrlPolicy;
 import com.scott.payment.openapi.support.OpenApiRequestAttributes;
 import com.scott.payment.openapi.support.OpenApiRequestContext;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
@@ -156,6 +158,56 @@ class HostedCheckoutServiceImplTests {
     }
 
     @Test
+    void shouldRejectExternalHttpMerchantUrlsBeforeCreatingSession() {
+        CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
+        HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
+        bindRequestContext("200001");
+        HostedCheckoutSessionCreateRequestDTO requestDTO = buildCreateRequest("200001");
+        requestDTO.getTransactionInfo().setCallbackUrl("http://merchant.example/notify");
+
+        assertThatThrownBy(() -> checkoutService.createSession("encrypted-request-body", requestDTO))
+                .isInstanceOf(ApiException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+        assertThat(paymentInternalClient.sessionCreateRequest).isNull();
+    }
+
+    @Test
+    void shouldAllowLoopbackHttpOnlyWhenExplicitlyEnabled() {
+        CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
+        HostedCheckoutServiceImpl checkoutService = newCheckoutService(
+                paymentInternalClient, "http://127.0.0.1:5175/", true);
+        bindRequestContext("200001");
+        HostedCheckoutSessionCreateRequestDTO requestDTO = buildCreateRequest("200001");
+        requestDTO.getTransactionInfo().setCallbackUrl("http://localhost:18080/notify");
+        requestDTO.getTransactionInfo().setRedirectUrl("http://[::1]:5175/result");
+
+        checkoutService.createSession("encrypted-request-body", requestDTO);
+
+        assertThat(paymentInternalClient.sessionCreateRequest.getCheckoutDomain())
+                .isEqualTo("http://127.0.0.1:5175");
+        assertThat(paymentInternalClient.sessionCreateRequest.getMerchantNotifyUrl())
+                .isEqualTo("http://localhost:18080/notify");
+        assertThat(paymentInternalClient.sessionCreateRequest.getRedirectUrl())
+                .isEqualTo("http://[::1]:5175/result");
+    }
+
+    @Test
+    void shouldFailClosedWhenPlatformCheckoutBaseUrlIsUnsafe() {
+        CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
+        HostedCheckoutServiceImpl checkoutService = newCheckoutService(
+                paymentInternalClient, "http://pay.example.com/", false);
+        bindRequestContext("200001");
+
+        assertThatThrownBy(() -> checkoutService.createSession(
+                "encrypted-request-body", buildCreateRequest("200001")))
+                .isInstanceOf(ApiException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode());
+        assertThat(paymentInternalClient.sessionCreateRequest).isNull();
+    }
+
+    @Test
     void shouldHashOpaqueTokenBeforeQueryingCheckoutSession() {
         log.info("用例开始：校验不透明 Token 摘要及支付服务响应时间透传");
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
@@ -258,14 +310,22 @@ class HostedCheckoutServiceImplTests {
     }
 
     private HostedCheckoutServiceImpl newCheckoutService(CapturingCheckoutClient paymentInternalClient) {
+        return newCheckoutService(paymentInternalClient, "https://pay.example.com/", false);
+    }
+
+    private HostedCheckoutServiceImpl newCheckoutService(CapturingCheckoutClient paymentInternalClient,
+                                                          String checkoutFrontendBaseUrl,
+                                                          boolean allowLoopbackHttp) {
         HostedCheckoutProperties properties = new HostedCheckoutProperties();
         properties.setTokenPepper(TOKEN_PEPPER);
         properties.setDefaultExpireMinutes(30);
         properties.setMaxExpireMinutes(120);
+        properties.setAllowLoopbackHttp(allowLoopbackHttp);
         return new HostedCheckoutServiceImpl(
                 paymentInternalClient,
                 properties,
-                new StubSystemConfigService("https://pay.example.com/"),
+                new HostedCheckoutUrlPolicy(properties),
+                new StubSystemConfigService(checkoutFrontendBaseUrl),
                 new OpenApiRequestContext(),
                 new OpenApiKeyMaterialFactory(),
                 isoDictionaryService()
@@ -450,6 +510,11 @@ class HostedCheckoutServiceImplTests {
 
             @Override
             public List<IsoCurrencyInfo> listCurrencies() {
+                return List.of();
+            }
+
+            @Override
+            public List<IsoCurrencyPresentationInfo> listCurrencyPresentations() {
                 return List.of();
             }
 

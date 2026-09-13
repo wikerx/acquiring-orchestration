@@ -9,9 +9,11 @@ import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -181,6 +183,47 @@ class DefaultClearingSettlementCandidateServiceTest {
         assertThat(inserted.getMerchantId()).isEqualTo("M-1");
         assertThat(inserted.getTargetCurrency()).isEqualTo("USD");
         assertThat(inserted.getCandidateStatus()).isEqualTo("READY");
+    }
+
+    /** MySQL DATETIME(3) 回读会截断纳秒，候选身份必须按同一数据库精度保持幂等。 */
+    @Test
+    void createReserveReleaseShouldUseDatabaseMillisecondPrecisionForIdentity() {
+        ClearingSettlementCandidateMapper mapper = mock(ClearingSettlementCandidateMapper.class);
+        DefaultClearingSettlementCandidateService service = service(mapper);
+        LocalDateTime releaseTime = LocalDateTime.of(2026, 9, 10, 11, 30, 15, 987_654_321);
+        LocalDateTime now = LocalDateTime.of(2026, 9, 10, 3, 30, 15, 123_456_789);
+        AtomicReference<ClearingSettlementCandidateDO> persisted = new AtomicReference<>();
+        when(mapper.insertIdempotent(any())).thenAnswer(invocation -> {
+            persisted.set(invocation.getArgument(0));
+            return 1;
+        });
+        when(mapper.selectSourceForUpdate("RESERVE_RELEASE", "RS-DB-TIME", 1))
+                .thenAnswer(invocation -> databaseRoundTrip(persisted.get()));
+
+        assertThatCode(() -> service.createReserveRelease(
+                "RS-DB-TIME", 1, "RRL-DB-TIME", releaseTime,
+                "M-1", "USD", LocalDate.of(2026, 9, 10), now))
+                .doesNotThrowAnyException();
+        assertThat(persisted.get().getSourceTransactionDateTime())
+                .isEqualTo(releaseTime.truncatedTo(ChronoUnit.MILLIS));
+    }
+
+    private ClearingSettlementCandidateDO databaseRoundTrip(ClearingSettlementCandidateDO source) {
+        ClearingSettlementCandidateDO row = new ClearingSettlementCandidateDO();
+        row.setCandidateNo(source.getCandidateNo());
+        row.setSourceType(source.getSourceType());
+        row.setSourceBusinessId(source.getSourceBusinessId());
+        row.setSourceRevision(source.getSourceRevision());
+        row.setSourceTransactionId(source.getSourceTransactionId());
+        row.setSourceTransactionDateTime(
+                source.getSourceTransactionDateTime().truncatedTo(ChronoUnit.MILLIS));
+        row.setMerchantId(source.getMerchantId());
+        row.setSettlementProfileId(source.getSettlementProfileId());
+        row.setTargetCurrency(source.getTargetCurrency());
+        row.setTargetCurrencyExponent(source.getTargetCurrencyExponent());
+        row.setSettlementEligibleDate(source.getSettlementEligibleDate());
+        row.setShadowMode(source.getShadowMode());
+        return row;
     }
 
     private DefaultClearingSettlementCandidateService service(ClearingSettlementCandidateMapper mapper) {

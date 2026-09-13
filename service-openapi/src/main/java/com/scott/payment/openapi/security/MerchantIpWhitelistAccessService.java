@@ -2,8 +2,10 @@ package com.scott.payment.openapi.security;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer.NormalizedIp;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -23,7 +25,7 @@ public class MerchantIpWhitelistAccessService {
     /**
      * Gateway 写入的可信客户端 IP 请求头，下游只使用该头作为白名单匹配来源。
      */
-    public static final String HEADER_GATEWAY_CLIENT_IP = "X-Gateway-Client-Ip";
+    public static final String HEADER_GATEWAY_CLIENT_IP = GatewayIngressSignature.HEADER_CLIENT_IP;
 
     private final MerchantOpenApiAccessPolicyCacheService policyCacheService;
 
@@ -74,7 +76,11 @@ public class MerchantIpWhitelistAccessService {
      * @return 网关注入的规范客户端 IP；请求头缺失时返回 null
      */
     public String resolveClientIp(HttpServletRequest request) {
-        String value = request.getHeader(HEADER_GATEWAY_CLIENT_IP);
-        return StringUtils.hasText(value) ? value.trim() : null;
+        if (GatewayIngressAuthFilter.isGatewayAuthenticated(request)) {
+            String value = request.getHeader(HEADER_GATEWAY_CLIENT_IP);
+            return StringUtils.hasText(value) ? value.trim() : null;
+        }
+        String remoteAddr = request.getRemoteAddr();
+        return StringUtils.hasText(remoteAddr) ? remoteAddr.trim() : null;
     }
 }

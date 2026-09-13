@@ -53,6 +53,11 @@ public class IsoCurrencyDO {
     private String currencySymbol;
 
     /**
+     * 受控币种展示图标键，例如 flag:US、currency:XAU。
+     */
+    private String iconKey;
+
+    /**
      * 默认辅币位，小于 0 表示无可靠辅币位定义。
      */
     private Integer fractionDigits;

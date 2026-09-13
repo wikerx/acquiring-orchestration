@@ -3,8 +3,10 @@ package com.scott.payment.admin.api.transaction;
 import com.scott.payment.admin.application.transaction.AdminSettlementReportingApplicationService;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReconciliationRecord;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.TransactionSettlementSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSummary;
@@ -14,10 +16,17 @@ import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -64,9 +73,61 @@ public class AdminSettlementReportingController {
     @RequiresPermission("settlement:result-item:list")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
             operation = "查询结算结果明细")
-    public CommonResult<PageResult<ResultItemSummary>> searchResultItems(
+    public CommonResult<PageResult<TransactionSettlementSummary>> searchResultItems(
             @RequestBody ResultItemSearchRequest request) {
         return success(applicationService.searchResultItems(request));
+    }
+
+    /** 分页查询正式批次内一笔交易的本金、费用、调整等不可变结算组件。 */
+    @GetMapping("/result-items/batches/{settlementBatchNo}/transactions/{transactionId}")
+    @RequiresPermission("settlement:result-item:list")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
+            operation = "查询交易结算组件")
+    public CommonResult<PageResult<ResultItemSummary>> resultItemComponents(
+            @PathVariable("settlementBatchNo") String settlementBatchNo,
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam(value = "pageNo", required = false) Integer pageNo,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        return success(applicationService.searchResultItemComponents(
+                settlementBatchNo, transactionId, pageNo, pageSize));
+    }
+
+    /**
+     * 按真实交易号和交易时间查询当前交易动作的对账状态快照。
+     */
+    @GetMapping("/reconciliation-records/transactions/{transactionId}")
+    @RequiresPermission("reconciliation:record:detail")
+    @OperationLog(moduleName = "交易对账", businessType = OperationTypeConstants.QUERY,
+            operation = "按交易查询对账明细")
+    public CommonResult<List<ReconciliationRecord>> reconciliationRecordsByTransaction(
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime) {
+        return success(applicationService.findReconciliationRecordsByTransaction(
+                transactionId, transactionDateTime));
+    }
+
+    /**
+     * 按真实交易号和交易时间查询当前交易的正式结算结果。
+     *
+     * @param transactionId 真实平台交易号
+     * @param transactionDateTime 交易季度精确路由时间
+     * @param pageNo 页码
+     * @param pageSize 页大小
+     * @return 当前交易结算结果分页
+     */
+    @GetMapping("/result-items/transactions/{transactionId}")
+    @RequiresPermission("settlement:result-item:transaction-detail")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,
+            operation = "按交易查询结算结果明细")
+    public CommonResult<PageResult<ResultItemSummary>> resultItemsByTransaction(
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime,
+            @RequestParam(value = "pageNo", required = false) Integer pageNo,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        return success(applicationService.searchResultItemsByTransaction(
+                transactionId, transactionDateTime, pageNo, pageSize));
     }
 
     /**
@@ -96,6 +157,29 @@ public class AdminSettlementReportingController {
     public CommonResult<PageResult<ReserveItemSummary>> searchReserveItems(
             @RequestBody ReserveItemSearchRequest request) {
         return success(applicationService.searchReserveItems(request));
+    }
+
+    /**
+     * 按原支付交易号和原支付时间查询完整保证金结算动作。
+     *
+     * @param transactionId 原支付真实平台交易号
+     * @param transactionDateTime 原支付季度精确路由时间
+     * @param pageNo 页码
+     * @param pageSize 页大小
+     * @return 当前原交易保证金结算动作分页
+     */
+    @GetMapping("/reserve-items/transactions/{transactionId}")
+    @RequiresPermission("settlement:reserve-item:transaction-detail")
+    @OperationLog(moduleName = "保证金结算", businessType = OperationTypeConstants.QUERY,
+            operation = "按交易查询保证金结算明细")
+    public CommonResult<PageResult<ReserveItemSummary>> reserveItemsByTransaction(
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime,
+            @RequestParam(value = "pageNo", required = false) Integer pageNo,
+            @RequestParam(value = "pageSize", required = false) Integer pageSize) {
+        return success(applicationService.searchReserveItemsByTransaction(
+                transactionId, transactionDateTime, pageNo, pageSize));
     }
 
     /**

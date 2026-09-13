@@ -7,6 +7,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
@@ -2417,6 +2418,11 @@ class PaymentTransactionConsistencyBaselineTests {
             @Override
             public List<IsoCurrencyInfo> listCurrencies() {
                 return List.of(usdCurrencyInfo());
+            }
+
+            @Override
+            public List<IsoCurrencyPresentationInfo> listCurrencyPresentations() {
+                return List.of();
             }
 
             @Override

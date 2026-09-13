@@ -17,6 +17,7 @@ import com.scott.payment.openapi.dto.body.HostedCheckoutSessionCreateRequestDTO;
 import com.scott.payment.openapi.service.OpenApiSystemConfigService;
 import com.scott.payment.openapi.service.HostedCheckoutService;
 import com.scott.payment.openapi.support.HostedCheckoutTokenSupport;
+import com.scott.payment.openapi.support.HostedCheckoutUrlPolicy;
 import com.scott.payment.openapi.support.OpenApiRequestAttributes;
 import com.scott.payment.openapi.support.OpenApiRequestContext;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
@@ -110,6 +111,9 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      */
     private final HostedCheckoutProperties properties;
 
+    /** Hosted Checkout 商户 URL 与平台前端地址安全策略。 */
+    private final HostedCheckoutUrlPolicy urlPolicy;
+
     /**
      * 平台系统参数读取服务，用于获取受控收银台前端地址。
      */
@@ -142,12 +146,14 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      */
     public HostedCheckoutServiceImpl(PaymentInternalClient paymentInternalClient,
                                      HostedCheckoutProperties properties,
+                                     HostedCheckoutUrlPolicy urlPolicy,
                                      OpenApiSystemConfigService systemConfigService,
                                      OpenApiRequestContext requestContext,
                                      OpenApiKeyMaterialFactory keyMaterialFactory,
                                      IsoDictionaryService isoDictionaryService) {
         this.paymentInternalClient = paymentInternalClient;
         this.properties = properties;
+        this.urlPolicy = urlPolicy;
         this.systemConfigService = systemConfigService;
         this.requestContext = requestContext;
         this.keyMaterialFactory = keyMaterialFactory;
@@ -170,6 +176,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         long startNanos = System.nanoTime();
         validateMerchantBinding(requestDTO);
         validatePayerIpAddress(requestDTO);
+        validateTransactionUrls(requestDTO);
         validateCreateRequestAmounts(requestDTO);
         PaymentCheckoutClientDTOs.SessionCreateRequest clientRequest = toClientCreateRequest(encryptedData, requestDTO);
         log.info("event: OPENAPI_CHECKOUT_CREATE_START stage=OPENAPI_SERVICE traceId: {} merchantId: {} merchantOrderNo: {} merchantRequestId: {} amount: {} currency: {} checkoutDomain: {} requestFingerprint: {} payerCountry: {}",
@@ -685,6 +692,16 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         }
     }
 
+    /** 商户通知和浏览器结果页地址必须满足当前环境的 HTTPS 策略。 */
+    private void validateTransactionUrls(HostedCheckoutSessionCreateRequestDTO requestDTO) {
+        HostedCheckoutSessionCreateRequestDTO.TransactionInfoDTO transactionInfo = requestDTO.getTransactionInfo();
+        if (transactionInfo == null) {
+            return;
+        }
+        urlPolicy.validateMerchantUrl(transactionInfo.getCallbackUrl(), "transactionInfo.callbackUrl");
+        urlPolicy.validateMerchantUrl(transactionInfo.getRedirectUrl(), "transactionInfo.redirectUrl");
+    }
+
     /** 校验金额只保留最多两位有效小数，并继续服从币种自身辅币位规则。 */
     private void validateCreateRequestAmounts(HostedCheckoutSessionCreateRequestDTO requestDTO) {
         HostedCheckoutSessionCreateRequestDTO.OrderInfoDTO orderInfo = requestDTO.getOrderInfo();
@@ -781,12 +798,8 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      */
     private String resolveCheckoutFrontendBaseUrl() {
         String baseUrl = systemConfigService.requiredEnabledValue(CHECKOUT_FRONTEND_BASE_URL_CONFIG_KEY);
-        if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR,
-                    "system config is not a valid checkout frontend base url");
-        }
         // 收银台入口是平台资产，不能被商户请求中的 checkoutDomain 覆盖。
-        return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        return urlPolicy.normalizePlatformBaseUrl(baseUrl);
     }
 
     /**

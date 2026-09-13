@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.CandidateSearchRequest;
@@ -59,6 +60,11 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandida
 @Service
 public class AdminSettlementApplicationService {
 
+    private static final String TRANSACTION_BATCH_DOMAIN = "TRANSACTION";
+    private static final String RESERVE_BATCH_DOMAIN = "RESERVE";
+    private static final Set<String> TRANSACTION_BATCH_TYPES = Set.of("REGULAR");
+    private static final Set<String> RESERVE_BATCH_TYPES = Set.of("RESERVE_RELEASE", "ADJUSTMENT");
+
     private final SettlementInternalClient client;
     private final AdminSettlementQueryService queryService;
     private final AdminMerchantDataScopeResolver dataScopeResolver;
@@ -88,6 +94,36 @@ public class AdminSettlementApplicationService {
      * @return 按业务日期和主键稳定倒序的结算批次标准分页
      */
     public PageResult<BatchSummary> search(BatchSearchRequest request) {
+        validateBatchSearchWindow(request);
+        return searchInCurrentScope(request);
+    }
+
+    /** 查询交易结算工作台中的正式批次，服务端固定为 REGULAR，拒绝跨域批次类型。 */
+    public PageResult<BatchSummary> searchTransactionBatches(BatchSearchRequest request) {
+        return searchByDomain(request, TRANSACTION_BATCH_DOMAIN, TRANSACTION_BATCH_TYPES);
+    }
+
+    /** 查询保证金结算工作台中的正式批次，服务端固定为释放或调整批次。 */
+    public PageResult<BatchSummary> searchReserveBatches(BatchSearchRequest request) {
+        return searchByDomain(request, RESERVE_BATCH_DOMAIN, RESERVE_BATCH_TYPES);
+    }
+
+    private PageResult<BatchSummary> searchByDomain(BatchSearchRequest request,
+                                                    String domain,
+                                                    Set<String> allowedBatchTypes) {
+        validateBatchSearchWindow(request);
+        String requestedDomain = normalizedUpper(request.getBatchDomain());
+        String requestedBatchType = normalizedUpper(request.getBatchType());
+        if ((requestedDomain != null && !domain.equals(requestedDomain))
+                || (requestedBatchType != null && !allowedBatchTypes.contains(requestedBatchType))) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        request.setBatchDomain(domain);
+        request.setBatchType(requestedBatchType);
+        return searchInCurrentScope(request);
+    }
+
+    private void validateBatchSearchWindow(BatchSearchRequest request) {
         if (request == null || request.getBeginBusinessDate() == null
                 || request.getEndBusinessDate() == null
                 || request.getBeginBusinessDate().isAfter(request.getEndBusinessDate())
@@ -95,8 +131,15 @@ public class AdminSettlementApplicationService {
                 request.getEndBusinessDate()) > 92) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+    }
+
+    private PageResult<BatchSummary> searchInCurrentScope(BatchSearchRequest request) {
         InternalAuthAccount account = currentAdminAccount();
         return queryService.search(request, dataScopeResolver.resolve(account));
+    }
+
+    private String normalizedUpper(String value) {
+        return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 
     /**
@@ -109,6 +152,14 @@ public class AdminSettlementApplicationService {
         requireBatchNo(settlementBatchNo);
         InternalAuthAccount account = currentAdminAccount();
         return queryService.detail(settlementBatchNo.trim(), dataScopeResolver.resolve(account));
+    }
+
+    /** 下载正式结算凭证前重新应用当前 Admin 商户数据范围。 */
+    public BatchDetailResponse voucher(String settlementBatchNo) {
+        requireBatchNo(settlementBatchNo);
+        InternalAuthAccount account = currentAdminAccount();
+        return queryService.voucherDetail(
+                settlementBatchNo.trim(), dataScopeResolver.resolve(account));
     }
 
     /**
@@ -202,6 +253,11 @@ public class AdminSettlementApplicationService {
     public ReviewDetailResponse reviewDetail(String reviewOrderNo) {
         requireReviewNo(reviewOrderNo);
         return reviewQueries().reviewDetail(reviewOrderNo.trim(), currentDataScope());
+    }
+
+    /** 下载预审凭证前重新执行相同的数据范围校验。 */
+    public ReviewDetailResponse reviewVoucher(String reviewOrderNo) {
+        return reviewDetail(reviewOrderNo);
     }
 
     /** 大预审单候选明细使用标准分页，不随详情一次返回。 */

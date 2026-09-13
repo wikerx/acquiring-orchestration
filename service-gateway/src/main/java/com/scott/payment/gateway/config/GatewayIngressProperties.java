@@ -17,6 +17,9 @@ public class GatewayIngressProperties {
     /** 与两个收银台下游服务共享的环境专属 HMAC 密钥，不允许写入日志。 */
     private String secret;
 
+    /** 受保护外部请求正文最大字节数。 */
+    private int maxRequestBodyBytes = 1024 * 1024;
+
     /** @return 外部注入的 HMAC 共享密钥 */
     public String getSecret() {
         return secret;
@@ -25,5 +28,13 @@ public class GatewayIngressProperties {
     /** @param secret 外部注入的 HMAC 共享密钥 */
     public void setSecret(String secret) {
         this.secret = secret;
+    }
+
+    public int getMaxRequestBodyBytes() {
+        return maxRequestBodyBytes;
+    }
+
+    public void setMaxRequestBodyBytes(int maxRequestBodyBytes) {
+        this.maxRequestBodyBytes = maxRequestBodyBytes;
     }
 }

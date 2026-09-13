@@ -32,14 +32,37 @@ class GatewayIngressSignatureTests {
                 GatewayIngressSignature.sign("POST", target + "&attempt=2", timestamp, nonce, SECRET)));
     }
 
+    @Test
+    void shouldBindSignatureToRequestBodyDigest() {
+        long timestamp = 1786176000000L;
+        String nonce = "nonce-body";
+        String target = "/api/rest/payment/v1/payment";
+        String originalDigest = GatewayIngressSignature.payloadSha256("{\"amount\":\"10.00\"}".getBytes());
+        String tamperedDigest = GatewayIngressSignature.payloadSha256("{\"amount\":\"99.00\"}".getBytes());
+        String signature = GatewayIngressSignature.sign(
+                "POST", target, timestamp, nonce, originalDigest, "203.0.113.10", SECRET);
+
+        assertTrue(GatewayIngressSignature.matches(signature,
+                GatewayIngressSignature.sign(
+                        "POST", target, timestamp, nonce, originalDigest, "203.0.113.10", SECRET)));
+        assertFalse(GatewayIngressSignature.matches(signature,
+                GatewayIngressSignature.sign(
+                        "POST", target, timestamp, nonce, tamperedDigest, "203.0.113.10", SECRET)));
+        assertFalse(GatewayIngressSignature.matches(signature,
+                GatewayIngressSignature.sign(
+                        "POST", target, timestamp, nonce, originalDigest, "203.0.113.11", SECRET)));
+    }
+
     /** 四组收银台入口必须共享同一保护清单，其他业务路径不能被误判。 */
     @Test
     void shouldRecognizeEveryCheckoutBackendIngressPath() {
         assertTrue(GatewayIngressSignature.isProtectedCheckoutPath("/api/rest/checkout/v1/session"));
+        assertTrue(GatewayIngressSignature.isProtectedCheckoutPath("/api/rest/payment/v1/payment"));
+        assertTrue(GatewayIngressSignature.isProtectedCheckoutPath("/channel/v1/callbacks/MPGS"));
         assertTrue(GatewayIngressSignature.isProtectedCheckoutPath("/checkout/api/v1/payment/submit"));
         assertTrue(GatewayIngressSignature.isProtectedCheckoutPath("/checkout/config/countries"));
         assertTrue(GatewayIngressSignature.isProtectedCheckoutPath("/checkout/health"));
-        assertFalse(GatewayIngressSignature.isProtectedCheckoutPath("/api/rest/payment/v1/payment"));
+        assertFalse(GatewayIngressSignature.isProtectedCheckoutPath("/admin/auth/login"));
         assertFalse(GatewayIngressSignature.isProtectedCheckoutPath("/checkout-api/v1/session"));
     }
 }

@@ -3,6 +3,7 @@ package com.scott.payment.admin.service;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.BatchSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultSummaryLine;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
@@ -21,6 +22,15 @@ public interface AdminSettlementQueryService {
 
     /** @return 批次、锁定汇率、结果汇总、净入账与异步联动状态 */
     BatchDetailResponse detail(String settlementBatchNo, AdminMerchantDataScope dataScope);
+
+    /** @return 用于下载正式结算凭证的批次、锁定汇率和完整不可变汇总快照 */
+    BatchDetailResponse voucherDetail(String settlementBatchNo, AdminMerchantDataScope dataScope);
+
+    /** @return 当前数据范围内指定批次的结算聚合结果标准分页 */
+    PageResult<ResultSummaryLine> searchResultSummaries(String settlementBatchNo,
+                                                        Integer pageNo,
+                                                        Integer pageSize,
+                                                        AdminMerchantDataScope dataScope);
 
     /** 命令远程调用前，从本地交易逻辑数据源确认批次仍位于当前商户范围。 */
     void requireBatchAccess(String settlementBatchNo, AdminMerchantDataScope dataScope);

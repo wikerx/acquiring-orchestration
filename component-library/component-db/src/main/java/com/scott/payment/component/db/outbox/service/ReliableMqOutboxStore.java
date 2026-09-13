@@ -47,8 +47,8 @@ public class ReliableMqOutboxStore {
 
     /** 查询已到期消息。 */
     @DS(DataSourceName.MASTER)
-    public List<ReliableMqOutboxDO> findDue(LocalDateTime now, int limit) {
-        return mapper.selectDue(now, limit);
+    public List<ReliableMqOutboxDO> findDue(String producerService, LocalDateTime now, int limit) {
+        return mapper.selectDue(producerService, now, limit);
     }
 
     /** 在独立短事务中 CAS 抢占消息。 */
@@ -80,14 +80,14 @@ public class ReliableMqOutboxStore {
     /** 恢复超时占用，返回恢复数量。 */
     @DS(DataSourceName.MASTER)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public int recoverStale(LocalDateTime staleBefore, LocalDateTime now) {
-        return mapper.recoverStale(staleBefore, now);
+    public int recoverStale(String producerService, LocalDateTime staleBefore, LocalDateTime now) {
+        return mapper.recoverStale(producerService, staleBefore, now);
     }
 
     /** 查询 pending、CLOSED 和最老积压时间的聚合快照。 */
     @DS(DataSourceName.MASTER)
-    public ReliableMqOutboxMetricsSnapshot metricsSnapshot() {
-        return mapper.selectMetricsSnapshot();
+    public ReliableMqOutboxMetricsSnapshot metricsSnapshot(String producerService) {
+        return mapper.selectMetricsSnapshot(producerService);
     }
 
     /**

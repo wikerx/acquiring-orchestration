@@ -33,6 +33,7 @@ class AdminSettlementReviewControllerContractTest {
                 Map.entry("reserveCandidateDetail", "settlement:reserve-candidate:detail"),
                 Map.entry("reviews", "settlement:review-order:list"),
                 Map.entry("reviewDetail", "settlement:review-order:detail"),
+                Map.entry("reviewVoucher", "settlement:review-order:voucher-download"),
                 Map.entry("reviewCandidates", "settlement:review-order:detail"),
                 Map.entry("submitTransactionReview", "settlement:transaction-review:create"),
                 Map.entry("previewManualTransactionReview", "settlement:transaction-review:create"),

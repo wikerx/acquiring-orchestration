@@ -1,6 +1,7 @@
 package com.scott.payment.settlement.application;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.finance.settlement.model.SettlementRateModels.CurrencyPair;
 import com.scott.payment.finance.settlement.model.SettlementRateModels.LockedRate;
@@ -268,7 +269,8 @@ public class SettlementReviewOrderApplicationService {
      * @param command 决策、期望版本、请求幂等键及可信 Checker 快照
      * @return 决策后的终态结果；批准时包含正式结算批次号
      * @throws IllegalArgumentException 单号或命令不合法时抛出
-     * @throws IllegalStateException 状态/版本 CAS、Maker-Checker 或任一冻结事实一致性校验失败时抛出
+     * @throws ServiceException Maker-Checker 规则校验失败时抛出稳定业务错误码
+     * @throws IllegalStateException 状态/版本 CAS 或任一冻结事实一致性校验失败时抛出
      */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
@@ -715,10 +717,12 @@ public class SettlementReviewOrderApplicationService {
         long operatorId = command.operator().accountId();
         if ("CANCEL".equals(command.decision())) {
             if (!Objects.equals(order.getSubmittedByAccountId(), operatorId)) {
-                throw new IllegalStateException("only the settlement review maker may cancel it");
+                throw new ServiceException("SETTLEMENT_REVIEW_DECISION_CANCEL_FORBIDDEN",
+                        "only the settlement review maker may cancel it");
             }
         } else if (Objects.equals(order.getSubmittedByAccountId(), operatorId)) {
-            throw new IllegalStateException("settlement review maker and checker accounts must differ");
+            throw new ServiceException("SETTLEMENT_REVIEW_DECISION_SELF_REVIEW_FORBIDDEN",
+                    "settlement review maker and checker accounts must differ");
         }
     }
 

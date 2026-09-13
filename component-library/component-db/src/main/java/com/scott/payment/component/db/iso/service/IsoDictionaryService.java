@@ -2,6 +2,7 @@ package com.scott.payment.component.db.iso.service;
 
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -63,6 +64,13 @@ public interface IsoDictionaryService {
      * @return 启用币种列表
      */
     List<IsoCurrencyInfo> listCurrencies();
+
+    /**
+     * 查询系统当前启用币种的界面展示信息。
+     *
+     * @return 币种代码、名称、符号和受控图标键列表
+     */
+    List<IsoCurrencyPresentationInfo> listCurrencyPresentations();
 
     /**
      * 根据关键字查询币种，支持三位字母代码、三位数字代码、英文名、中文名和币种符号。

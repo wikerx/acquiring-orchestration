@@ -22,7 +22,12 @@ class AdminSettlementControllerContractTest {
     void everySettlementRouteShouldRequireItsDedicatedPermission() {
         Map<String, String> expected = Map.of(
                 "search", "settlement:batch:list",
+                "searchTransactionBatches", "settlement:transaction-batch:list",
+                "searchReserveBatches", "settlement:reserve-batch:list",
                 "detail", "settlement:batch:detail",
+                "voucher", "settlement:batch:voucher-download",
+                "summaries", "settlement:batch:summary:list",
+                "exportSummaries", "settlement:batch:summary:export",
                 "cancel", "settlement:batch:cancel",
                 "retry", "settlement:batch:retry");
         expected.forEach((methodName, permission) -> {

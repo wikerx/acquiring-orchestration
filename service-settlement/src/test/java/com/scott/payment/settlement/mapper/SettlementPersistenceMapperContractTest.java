@@ -477,6 +477,14 @@ class SettlementPersistenceMapperContractTest {
         }
     }
 
+    /** MySQL 单表 UPDATE 从左到右求值，终态必须在累计金额变更前基于旧值计算。 */
+    @Test
+    void reserveTerminalStatusShouldBeAssignedBeforeCumulativeAmount() {
+        assertStatusBeforeAmount("applyReturn", "returned_amount = returned_amount + #{amount}");
+        assertStatusBeforeAmount("applyRelease", "released_amount = released_amount + #{amount}");
+        assertStatusBeforeAmount("reverseHold", "reversed_amount = reversed_amount + #{amount}");
+    }
+
     /** 所有结算余额 CAS 都必须再次校验正常账户，防止冻结账户执行结算或主动冲正。 */
     @Test
     void fundBalanceCasShouldRequireNormalAccount() {
@@ -492,6 +500,13 @@ class SettlementPersistenceMapperContractTest {
                 .filter(method -> method.getName().equals(methodName))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static void assertStatusBeforeAmount(String methodName, String amountAssignment) {
+        String statement = sql(methodNamed(SettlementReserveMapper.class, methodName));
+        assertThat(statement.indexOf("reserve_status = CASE"))
+                .isGreaterThanOrEqualTo(0)
+                .isLessThan(statement.indexOf(amountAssignment));
     }
 
     private static String sql(Method method) {

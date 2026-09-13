@@ -25,10 +25,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -82,6 +86,10 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
                  THEN reserve_detail.original_transaction_id
                  ELSE candidate.source_transaction_id
             END AS source_transaction_id,
+            CASE WHEN candidate.source_type IN ('RESERVE_RELEASE', 'ADJUSTMENT')
+                 THEN candidate.source_transaction_id
+                 ELSE NULL
+            END AS reserve_action_no,
             CASE WHEN candidate.source_type IN ('RESERVE_RELEASE', 'ADJUSTMENT')
                  THEN reserve_detail.original_transaction_date_time
                  ELSE candidate.source_transaction_date_time
@@ -160,13 +168,44 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
              AND operation.deleted = 0
             """;
     private static final String REVIEW_COLUMNS = """
-            id, review_order_no, review_type, create_mode, merchant_id, settlement_profile_id,
-            settlement_account_id, target_currency, target_currency_exponent, business_date,
-            business_time_zone, candidate_count, projectable_candidate_count, net_direction,
-            net_amount, review_status, submitted_by_account_id, submitted_by_account_name,
-            submit_reason, submitted_time, decided_by_account_id, decided_by_account_name,
-            decision_action, review_comment, decision_time, settlement_batch_no, version,
-            create_time, update_time
+            review.id, review.review_order_no, review.review_type, review.create_mode,
+            review.merchant_id, merchant.merchant_name, review.settlement_profile_id,
+            review.settlement_account_id, account.account_no AS settlement_account_no,
+            review.target_currency, review.target_currency_exponent, review.business_date,
+            review.business_time_zone, review.candidate_count, review.projectable_candidate_count,
+            review.net_direction, review.net_amount, review.review_status,
+            review.submitted_by_account_id, review.submitted_by_account_name,
+            review.submit_reason, review.submitted_time, review.decided_by_account_id,
+            review.decided_by_account_name, review.decision_action, review.review_comment,
+            review.decision_time, review.settlement_batch_no, review.version,
+            review.create_time, review.update_time
+            """;
+    private static final String REVIEW_FROM_SQL = """
+            FROM settlement_review_order review
+            LEFT JOIN base_merchant_info merchant
+              ON merchant.merchant_id = review.merchant_id AND merchant.deleted = 0
+            LEFT JOIN merchant_fund_account account
+              ON account.id = review.settlement_account_id
+             AND account.merchant_id = review.merchant_id
+             AND account.deleted = 0
+            """;
+    private static final String REVIEW_CANDIDATE_COLUMNS = """
+            review_candidate.review_candidate_no, review_candidate.candidate_id,
+            review_candidate.candidate_no, review_candidate.source_type,
+            review_candidate.source_business_id, review_candidate.source_revision,
+            CASE WHEN review_candidate.source_type IN ('RESERVE_RELEASE', 'ADJUSTMENT')
+                 THEN NULL ELSE review_candidate.source_transaction_id
+            END AS source_transaction_id,
+            CASE WHEN review_candidate.source_type IN ('RESERVE_RELEASE', 'ADJUSTMENT')
+                 THEN review_candidate.source_transaction_id
+                 ELSE NULL
+            END AS reserve_action_no,
+            review_candidate.source_transaction_date_time,
+            review_candidate.relation_status, review_candidate.locked_time,
+            review_candidate.consumed_time, review_candidate.released_time
+            """;
+    private static final String REVIEW_CANDIDATE_FROM_SQL = """
+            FROM settlement_review_candidate review_candidate
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -382,10 +421,16 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         if (query.getSourceTransactionId() != null) where.append(transactionCandidates
                 ? " AND candidate.source_transaction_id = :sourceTransactionId\n"
                 : " AND reserve_detail.original_transaction_id = :sourceTransactionId\n");
+        if (query.getReserveActionNo() != null) {
+            if (transactionCandidates) throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+            where.append(" AND candidate.source_transaction_id = :reserveActionNo\n");
+        }
         if (query.getMerchantOrderNo() != null) where.append(" AND operation.merchant_order_no = :merchantOrderNo\n");
         if (query.getBeginTransactionTime() != null) where.append(transactionCandidates
-                ? " AND candidate.source_transaction_date_time BETWEEN :beginTransactionTime AND :endTransactionTime\n"
-                : " AND reserve_detail.original_transaction_date_time BETWEEN :beginTransactionTime AND :endTransactionTime\n");
+                ? " AND candidate.source_transaction_date_time >= :beginTransactionTime"
+                    + " AND candidate.source_transaction_date_time < :endTransactionTime\n"
+                : " AND reserve_detail.original_transaction_date_time >= :beginTransactionTime"
+                    + " AND reserve_detail.original_transaction_date_time < :endTransactionTime\n");
         if (query.getPaymentType() != null) where.append(transactionCandidates
                 ? " AND clearing_detail.payment_type = :paymentType\n"
                 : " AND reserve_detail.payment_type = :paymentType\n");
@@ -421,6 +466,7 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
                 .addValue("endDate", query.getEndEligibleDate()).addValue("candidateNo", trim(query.getCandidateNo()))
                 .addValue("merchantId", trim(query.getMerchantId()))
                 .addValue("sourceTransactionId", query.getSourceTransactionId())
+                .addValue("reserveActionNo", query.getReserveActionNo())
                 .addValue("merchantOrderNo", query.getMerchantOrderNo())
                 .addValue("beginTransactionTime", query.getBeginTransactionTime())
                 .addValue("endTransactionTime", query.getEndTransactionTime())
@@ -482,13 +528,13 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
             return PageResult.of(0L, query.getPageNo(), query.getPageSize(), List.of());
         }
         StringBuilder where = new StringBuilder("""
-                WHERE business_date BETWEEN :beginDate AND :endDate
+                WHERE review.business_date BETWEEN :beginDate AND :endDate
                 """);
-        if (trim(query.getReviewOrderNo()) != null) where.append(" AND review_order_no = :reviewOrderNo\n");
-        if (trim(query.getMerchantId()) != null) where.append(" AND merchant_id = :merchantId\n");
-        if (trim(query.getReviewType()) != null) where.append(" AND review_type = :reviewType\n");
-        if (trim(query.getReviewStatus()) != null) where.append(" AND review_status = :reviewStatus\n");
-        where.append(scopeSql(scope));
+        if (trim(query.getReviewOrderNo()) != null) where.append(" AND review.review_order_no = :reviewOrderNo\n");
+        if (trim(query.getMerchantId()) != null) where.append(" AND review.merchant_id = :merchantId\n");
+        if (trim(query.getReviewType()) != null) where.append(" AND review.review_type = :reviewType\n");
+        if (trim(query.getReviewStatus()) != null) where.append(" AND review.review_status = :reviewStatus\n");
+        where.append(reviewScopeSql(scope));
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("beginDate", query.getBeginBusinessDate()).addValue("endDate", query.getEndBusinessDate())
                 .addValue("reviewOrderNo", trim(query.getReviewOrderNo()))
@@ -496,8 +542,17 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
                 .addValue("reviewType", trim(query.getReviewType()))
                 .addValue("reviewStatus", trim(query.getReviewStatus()))
                 .addValue("permittedMerchantIds", scope.merchantIds());
-        return page("settlement_review_order", REVIEW_COLUMNS, where.toString(), parameters,
-                "business_date DESC, id DESC", query.getPageNo(), query.getPageSize(), ReviewSummary.class);
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(1) " + REVIEW_FROM_SQL + where, parameters, Long.class);
+        long total = count == null ? 0L : count;
+        long offset = (long) (query.getPageNo() - 1) * query.getPageSize();
+        List<ReviewSummary> rows = offset < total ? jdbcTemplate.query(
+                "SELECT " + REVIEW_COLUMNS + REVIEW_FROM_SQL + where
+                        + " ORDER BY review.business_date DESC, review.id DESC LIMIT :offset, :limit",
+                new MapSqlParameterSource(parameters.getValues())
+                        .addValue("offset", offset).addValue("limit", query.getPageSize()),
+                BeanPropertyRowMapper.newInstance(ReviewSummary.class)) : List.of();
+        return PageResult.of(total, query.getPageNo(), query.getPageSize(), rows);
     }
 
     /** 加载预审主单、选择候选、锁定汇率和结果汇总，所有子查询继承主单已验证的数据范围。 */
@@ -506,14 +561,7 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         MapSqlParameterSource parameters = new MapSqlParameterSource("reviewOrderNo", reviewOrderNo);
         ReviewDetailResponse response = new ReviewDetailResponse();
         response.setReview(review);
-        response.setCandidates("MANUAL_ASYNC".equals(review.getCreateMode()) ? List.of() : jdbcTemplate.query("""
-                SELECT review_candidate_no, candidate_id, candidate_no, source_type, source_business_id,
-                       source_revision, source_transaction_id, source_transaction_date_time,
-                       relation_status, locked_time, consumed_time, released_time
-                FROM settlement_review_candidate
-                WHERE review_order_no = :reviewOrderNo
-                ORDER BY candidate_id ASC, id ASC
-                """, parameters, BeanPropertyRowMapper.newInstance(ReviewCandidateLine.class)));
+        response.setCandidates(List.of());
         response.setRates(jdbcTemplate.query("""
                 SELECT source_currency, target_currency, direct_rate, source_currency_exponent,
                        target_currency_exponent, rate_source, quote_id, source_quote_direction,
@@ -556,18 +604,70 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
                 """, parameters, Long.class);
         long total = count == null ? 0L : count;
         long offset = (long) (pageNo - 1) * pageSize;
-        List<ReviewCandidateLine> rows = offset >= total ? List.of() : jdbcTemplate.query("""
-                SELECT review_candidate_no, candidate_id, candidate_no, source_type, source_business_id,
-                       source_revision, source_transaction_id, source_transaction_date_time,
-                       relation_status, locked_time, consumed_time, released_time
-                FROM settlement_review_candidate
-                WHERE review_order_no = :reviewOrderNo
-                ORDER BY candidate_id ASC, id ASC
+        List<ReviewCandidateLine> rows = offset >= total ? List.of() : jdbcTemplate.query(
+                "SELECT " + REVIEW_CANDIDATE_COLUMNS + REVIEW_CANDIDATE_FROM_SQL + """
+                WHERE review_candidate.review_order_no = :reviewOrderNo
+                ORDER BY review_candidate.candidate_id ASC, review_candidate.id ASC
                 LIMIT :offset, :limit
                 """, new MapSqlParameterSource(parameters.getValues())
                 .addValue("offset", offset).addValue("limit", pageSize),
                 BeanPropertyRowMapper.newInstance(ReviewCandidateLine.class));
+        enrichReserveSourceTransactions(rows);
         return PageResult.of(total, pageNo, pageSize, rows);
+    }
+
+    /** 仅补充当前页保证金动作对应的原交易，避免非分片预审表跨分片 LEFT JOIN 放大分页结果。 */
+    private void enrichReserveSourceTransactions(List<ReviewCandidateLine> rows) {
+        Set<String> reserveActionNos = new HashSet<>();
+        Set<LocalDateTime> reserveActionTimes = new HashSet<>();
+        Set<Integer> reserveActionRevisions = new HashSet<>();
+        for (ReviewCandidateLine row : rows) {
+            if (!RESERVE_SOURCE_TYPES.contains(row.getSourceType())
+                    || row.getReserveActionNo() == null
+                    || row.getSourceTransactionDateTime() == null
+                    || row.getSourceRevision() == null) {
+                continue;
+            }
+            reserveActionNos.add(row.getReserveActionNo());
+            reserveActionTimes.add(row.getSourceTransactionDateTime());
+            reserveActionRevisions.add(row.getSourceRevision());
+        }
+        if (reserveActionNos.isEmpty()) {
+            return;
+        }
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("reserveActionNos", reserveActionNos)
+                .addValue("reserveActionTimes", reserveActionTimes)
+                .addValue("reserveActionRevisions", reserveActionRevisions);
+        List<ReserveSourceReference> references = jdbcTemplate.query("""
+                SELECT transaction_id, transaction_date_time, clearing_revision,
+                       original_transaction_id, original_transaction_date_time
+                FROM transaction_reserve_clearing_detail
+                WHERE transaction_id IN (:reserveActionNos)
+                  AND transaction_date_time IN (:reserveActionTimes)
+                  AND clearing_revision IN (:reserveActionRevisions)
+                  AND line_no = 1
+                  AND record_status = 'ACTIVE'
+                """, parameters, (rs, rowNum) -> new ReserveSourceReference(
+                rs.getString("transaction_id"),
+                toLocalDateTime(rs.getTimestamp("transaction_date_time")),
+                rs.getInt("clearing_revision"),
+                rs.getString("original_transaction_id"),
+                toLocalDateTime(rs.getTimestamp("original_transaction_date_time"))));
+        Map<ReserveCandidateKey, ReserveSourceReference> referenceByKey = new HashMap<>();
+        for (ReserveSourceReference reference : references) {
+            referenceByKey.putIfAbsent(reference.key(), reference);
+        }
+        for (ReviewCandidateLine row : rows) {
+            if (!RESERVE_SOURCE_TYPES.contains(row.getSourceType())) {
+                continue;
+            }
+            LocalDateTime reserveActionTime = row.getSourceTransactionDateTime();
+            ReserveSourceReference reference = referenceByKey.get(new ReserveCandidateKey(
+                    row.getReserveActionNo(), reserveActionTime, row.getSourceRevision()));
+            row.setSourceTransactionId(reference == null ? null : reference.originalTransactionId());
+            row.setSourceTransactionDateTime(reference == null ? null : reference.originalTransactionDateTime());
+        }
     }
 
     /** 在数据范围内锁定唯一预审单视图；不存在或越权统一抛出资源不存在。 */
@@ -575,10 +675,9 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         if (scope.empty()) throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         MapSqlParameterSource parameters = new MapSqlParameterSource("reviewOrderNo", reviewOrderNo)
                 .addValue("permittedMerchantIds", scope.merchantIds());
-        List<ReviewSummary> rows = jdbcTemplate.query("SELECT " + REVIEW_COLUMNS + """
-                FROM settlement_review_order
-                WHERE review_order_no = :reviewOrderNo
-                """ + scopeSql(scope) + " LIMIT 1", parameters,
+        List<ReviewSummary> rows = jdbcTemplate.query("SELECT " + REVIEW_COLUMNS + REVIEW_FROM_SQL + """
+                WHERE review.review_order_no = :reviewOrderNo
+                """ + reviewScopeSql(scope) + " LIMIT 1", parameters,
                 BeanPropertyRowMapper.newInstance(ReviewSummary.class));
         if (rows.isEmpty()) throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         return rows.get(0);
@@ -635,6 +734,7 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         request.setCandidateNo(trim(request.getCandidateNo()));
         request.setMerchantId(trim(request.getMerchantId()));
         request.setSourceTransactionId(textValue(request.getSourceTransactionId(), 64));
+        request.setReserveActionNo(textValue(request.getReserveActionNo(), 64));
         request.setMerchantOrderNo(textValue(request.getMerchantOrderNo(), 128));
         validateDateTimeRange(request.getBeginTransactionTime(), request.getEndTransactionTime());
         request.setPaymentType(codeValue(request.getPaymentType(), 32));
@@ -768,6 +868,10 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
         return scope.allMerchants() ? "" : " AND merchant_id IN (:permittedMerchantIds)\n";
     }
 
+    private String reviewScopeSql(AdminMerchantDataScope scope) {
+        return scope.allMerchants() ? "" : " AND review.merchant_id IN (:permittedMerchantIds)\n";
+    }
+
     /** @return 非空可信数据范围；缺失上下文时按未授权拒绝。 */
     private AdminMerchantDataScope requireScope(AdminMerchantDataScope scope) {
         if (scope == null) throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
@@ -776,5 +880,22 @@ public class JdbcAdminSettlementReviewQueryService implements AdminSettlementRev
 
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private record ReserveCandidateKey(String actionNo, LocalDateTime actionTime, Integer revision) {
+    }
+
+    private static LocalDateTime toLocalDateTime(Timestamp timestamp) {
+        return timestamp == null ? null : timestamp.toLocalDateTime();
+    }
+
+    private record ReserveSourceReference(String actionNo,
+                                          LocalDateTime actionTime,
+                                          Integer revision,
+                                          String originalTransactionId,
+                                          LocalDateTime originalTransactionDateTime) {
+        private ReserveCandidateKey key() {
+            return new ReserveCandidateKey(actionNo, actionTime, revision);
+        }
     }
 }

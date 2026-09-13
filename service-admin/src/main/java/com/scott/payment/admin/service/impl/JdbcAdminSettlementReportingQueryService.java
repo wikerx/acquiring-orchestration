@@ -2,10 +2,12 @@ package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReconciliationRecord;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.TransactionSettlementSummary;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminSettlementReportingQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -23,6 +25,7 @@ import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
@@ -67,6 +70,9 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
     private static final Set<String> RESERVE_ACTION_TYPES = Set.of(
             "HOLD", "RETURN", "RELEASE", "ADJUSTMENT",
             "REVERSAL_HOLD", "REVERSAL_RETURN", "REVERSAL_RELEASE", "REVERSAL_ADJUSTMENT");
+    private static final Set<String> RESERVE_STATUSES = Set.of(
+            "HELD", "PARTIALLY_RETURNED", "RELEASABLE", "FROZEN",
+            "RETURNED", "RELEASED", "ADJUSTED", "REVERSED");
     private static final String RESULT_COLUMNS = """
             ri.id, ri.settlement_result_item_no, ri.settlement_batch_no, ri.candidate_id,
             ri.result_line_no, ri.merchant_id, ri.settlement_account_id, ri.source_detail_type,
@@ -78,6 +84,37 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
             ri.target_amount, ri.target_currency, ri.target_currency_exponent, ri.applied_limit,
             ri.minimum_target_amount, ri.maximum_target_amount, ri.rounding_mode,
             ri.formula_snapshot, ri.ledger_idempotency_key, batch.business_date, ri.create_time
+            """;
+    private static final String TRANSACTION_SETTLEMENT_COLUMNS = """
+            batch.settlement_batch_no, batch.business_date, batch.batch_status,
+            candidate.id AS candidate_id, candidate.candidate_no, candidate.merchant_id,
+            locator.merchant_order_no, candidate.source_transaction_id,
+            COALESCE(locator.transaction_date_time, candidate.source_transaction_date_time)
+                AS source_transaction_date_time,
+            MAX(item.payment_type) AS payment_type,
+            MAX(item.payment_method) AS payment_method,
+            COALESCE(MAX(item.transaction_type), locator.transaction_type) AS transaction_type,
+            COALESCE(
+                MAX(CASE WHEN item.result_item_type = 'PRINCIPAL' THEN item.source_amount END),
+                MAX(item.source_amount)
+            ) AS source_amount,
+            COALESCE(
+                MAX(CASE WHEN item.result_item_type = 'PRINCIPAL' THEN item.source_currency END),
+                MAX(item.source_currency)
+            ) AS source_currency,
+            COALESCE(
+                MAX(CASE WHEN item.result_item_type = 'PRINCIPAL' THEN item.source_currency_exponent END),
+                MAX(item.source_currency_exponent)
+            ) AS source_currency_exponent,
+            COUNT(item.id) AS component_count,
+            CASE WHEN SUM(CASE WHEN item.direction = 'CREDIT'
+                               THEN item.target_amount ELSE -item.target_amount END) < 0
+                 THEN 'DEBIT' ELSE 'CREDIT' END AS net_direction,
+            ABS(SUM(CASE WHEN item.direction = 'CREDIT'
+                         THEN item.target_amount ELSE -item.target_amount END)) AS net_target_amount,
+            MAX(item.target_currency) AS target_currency,
+            MAX(item.target_currency_exponent) AS target_currency_exponent,
+            batch.posted_time, MAX(item.create_time) AS create_time
             """;
     private static final String POSTING_COLUMNS = """
             ledger.id, ledger.ledger_no, ledger.ledger_group_no, ledger.account_id,
@@ -92,11 +129,31 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
             ledger.request_id, ledger.idempotency_key, ledger.reversal_of_ledger_id,
             ledger.create_time
             """;
-    private static final String RESERVE_COLUMNS = """
+    private static final String RECONCILIATION_COLUMNS = """
+            operation.transaction_id, operation.merchant_id, operation.merchant_order_no,
+            operation.transaction_type, operation.reconciliation_status,
+            operation.settlement_status, operation.accounting_status,
+            operation.transaction_date_time, operation.operation_time
+            """;
+    private static final String RESERVE_COLUMN_PREFIX = """
             action.id AS action_id, action.reserve_action_no, action.reserve_item_id,
             action.reserve_no, action.settlement_batch_no, batch.business_date,
-            reserve.merchant_id, reserve.account_id, candidate.source_transaction_id,
-            candidate.source_transaction_date_time, reserve.source_business_no,
+            reserve.merchant_id, reserve.account_id, fund_account.account_no AS account_no,
+            """;
+    private static final String EFFECTIVE_RESERVE_STATUS_SQL = """
+            CASE
+                WHEN reserve.reserve_status = 'HELD'
+                 AND reserve.release_batch_no IS NOT NULL
+                 AND reserve.released_amount > 0
+                 AND reserve.retained_amount + reserve.debit_adjustment_amount
+                     - reserve.returned_amount - reserve.released_amount
+                     - reserve.credit_adjustment_amount - reserve.reversed_amount = 0
+                THEN 'RELEASED'
+                ELSE reserve.reserve_status
+            END
+            """;
+    private static final String RESERVE_COLUMN_SUFFIX = """
+            reserve.source_business_no,
             action.source_reserve_detail_no, action.action_type,
             action.direction, action.currency,
             COALESCE(NULLIF(currency.fraction_digits, -1), 2) AS currency_exponent,
@@ -107,8 +164,21 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
             (reserve.retained_amount + reserve.debit_adjustment_amount
              - reserve.returned_amount - reserve.released_amount
              - reserve.credit_adjustment_amount - reserve.reversed_amount) AS remaining_amount,
-            reserve.reserve_status, reserve.expected_release_date, action.action_time
+            """ + EFFECTIVE_RESERVE_STATUS_SQL + " AS reserve_status,\n" + """
+            reserve.expected_release_date, action.action_time
             """;
+    private static final String RESERVE_COLUMNS = RESERVE_COLUMN_PREFIX + """
+            reserve_detail.original_transaction_id AS source_transaction_id,
+            locator.merchant_order_no,
+            COALESCE(locator.transaction_date_time, reserve_detail.original_transaction_date_time)
+                AS source_transaction_date_time,
+            """ + RESERVE_COLUMN_SUFFIX;
+    private static final String RESERVE_HISTORY_COLUMNS = RESERVE_COLUMN_PREFIX + """
+            reserve_state.original_transaction_id AS source_transaction_id,
+            locator.merchant_order_no,
+            COALESCE(locator.transaction_date_time, reserve_state.transaction_date_time)
+                AS source_transaction_date_time,
+            """ + RESERVE_COLUMN_SUFFIX;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final TransactionLogicalReadExecutor readExecutor;
@@ -132,11 +202,48 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
 
     /** {@inheritDoc} */
     @Override
-    public PageResult<ResultItemSummary> searchResultItems(ResultItemSearchRequest request,
-                                                           AdminMerchantDataScope dataScope) {
+    public PageResult<TransactionSettlementSummary> searchResultItems(ResultItemSearchRequest request,
+                                                                      AdminMerchantDataScope dataScope) {
         ResultItemSearchRequest query = normalizeResultQuery(request);
         AdminMerchantDataScope scope = requireScope(dataScope);
         return readExecutor.read(() -> resultPage(query, scope));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public PageResult<ResultItemSummary> searchResultItemComponents(String settlementBatchNo,
+                                                                    String transactionId,
+                                                                    Integer pageNo,
+                                                                    Integer pageSize,
+                                                                    AdminMerchantDataScope dataScope) {
+        TransactionComponentQuery query = normalizeTransactionComponentQuery(
+                settlementBatchNo, transactionId, pageNo, pageSize);
+        AdminMerchantDataScope scope = requireScope(dataScope);
+        return readExecutor.read(() -> resultComponentPage(query, scope));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public List<ReconciliationRecord> findReconciliationRecordsByTransaction(
+            String transactionId,
+            LocalDateTime transactionDateTime,
+            AdminMerchantDataScope dataScope) {
+        TransactionIdentityQuery query = normalizeTransactionIdentity(transactionId, transactionDateTime);
+        AdminMerchantDataScope scope = requireScope(dataScope);
+        return readExecutor.read(() -> reconciliationRecords(query, scope));
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public PageResult<ResultItemSummary> searchResultItemsByTransaction(String transactionId,
+                                                                        LocalDateTime transactionDateTime,
+                                                                        Integer pageNo,
+                                                                        Integer pageSize,
+                                                                        AdminMerchantDataScope dataScope) {
+        TransactionHistoryQuery query = normalizeTransactionHistoryQuery(
+                transactionId, transactionDateTime, pageNo, pageSize);
+        AdminMerchantDataScope scope = requireScope(dataScope);
+        return readExecutor.read(() -> resultHistoryPage(query, scope));
     }
 
     /** {@inheritDoc} */
@@ -157,39 +264,151 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         return readExecutor.read(() -> reservePage(query, scope));
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public PageResult<ReserveItemSummary> searchReserveItemsByTransaction(String transactionId,
+                                                                          LocalDateTime transactionDateTime,
+                                                                          Integer pageNo,
+                                                                          Integer pageSize,
+                                                                          AdminMerchantDataScope dataScope) {
+        TransactionHistoryQuery query = normalizeTransactionHistoryQuery(
+                transactionId, transactionDateTime, pageNo, pageSize);
+        AdminMerchantDataScope scope = requireScope(dataScope);
+        return readExecutor.read(() -> reserveHistoryPage(query, scope));
+    }
+
     /**
      * 查询结算结果并关联同批次锁定直接汇率；不重新计算金额、币种、限额或舍入结果。
      */
-    private PageResult<ResultItemSummary> resultPage(ResultItemSearchRequest query,
-                                                     AdminMerchantDataScope scope) {
+    private PageResult<TransactionSettlementSummary> resultPage(ResultItemSearchRequest query,
+                                                                AdminMerchantDataScope scope) {
         if (scope.empty()) return emptyPage(query.getPageNo(), query.getPageSize());
         StringBuilder where = new StringBuilder("""
                 WHERE batch.business_date BETWEEN :beginDate AND :endDate
+                  AND candidate.source_type = 'CLEARING_REVISION'
+                  AND candidate.source_transaction_id IS NOT NULL
+                  AND item.source_detail_type = 'TRANSACTION_CLEARING'
+                  AND item.result_role = 'FINANCIAL_COMPONENT'
                 """);
-        if (query.getSettlementBatchNo() != null) where.append(" AND ri.settlement_batch_no = :batchNo\n");
-        if (query.getMerchantId() != null) where.append(" AND ri.merchant_id = :merchantId\n");
-        if (query.getSourceTransactionId() != null) where.append(" AND ri.source_transaction_id = :transactionId\n");
-        if (query.getResultItemType() != null) where.append(" AND ri.result_item_type = :itemType\n");
-        if (query.getResultRole() != null) where.append(" AND ri.result_role = :resultRole\n");
-        if (query.getDirection() != null) where.append(" AND ri.direction = :direction\n");
-        if (query.getTargetCurrency() != null) where.append(" AND ri.target_currency = :currency\n");
-        if (query.getSourceDetailType() != null) where.append(" AND ri.source_detail_type = :sourceDetailType\n");
-        where.append(scopeSql(scope, "ri.merchant_id"));
+        if (query.getSettlementBatchNo() != null) where.append(" AND candidate.settlement_batch_no = :batchNo\n");
+        if (query.getMerchantId() != null) where.append(" AND candidate.merchant_id = :merchantId\n");
+        if (query.getSourceTransactionId() != null) where.append(" AND candidate.source_transaction_id = :transactionId\n");
+        if (query.getMerchantOrderNo() != null) where.append(" AND locator.merchant_order_no = :merchantOrderNo\n");
+        if (query.getBeginTransactionTime() != null) {
+            where.append(" AND COALESCE(locator.transaction_date_time, candidate.source_transaction_date_time) >= :beginTransactionTime\n");
+        }
+        if (query.getEndTransactionTime() != null) {
+            where.append(" AND COALESCE(locator.transaction_date_time, candidate.source_transaction_date_time) < :endTransactionTime\n");
+        }
+        appendResultItemExistsFilter(where, query);
+        where.append(scopeSql(scope, "candidate.merchant_id"));
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("beginDate", query.getBeginBusinessDate()).addValue("endDate", query.getEndBusinessDate())
                 .addValue("batchNo", query.getSettlementBatchNo()).addValue("merchantId", query.getMerchantId())
                 .addValue("transactionId", query.getSourceTransactionId()).addValue("itemType", query.getResultItemType())
-                .addValue("resultRole", query.getResultRole()).addValue("direction", query.getDirection())
-                .addValue("currency", query.getTargetCurrency()).addValue("sourceDetailType", query.getSourceDetailType())
+                .addValue("merchantOrderNo", query.getMerchantOrderNo())
+                .addValue("beginTransactionTime", query.getBeginTransactionTime())
+                .addValue("endTransactionTime", query.getEndTransactionTime())
+                .addValue("direction", query.getDirection())
+                .addValue("currency", query.getTargetCurrency())
+                .addValue("permittedMerchantIds", scope.merchantIds());
+        String from = """
+                FROM settlement_candidate candidate
+                JOIN settlement_batch batch
+                  ON batch.settlement_batch_no = candidate.settlement_batch_no
+                 AND batch.merchant_id = candidate.merchant_id
+                JOIN settlement_result_item item
+                  ON item.settlement_batch_no = candidate.settlement_batch_no
+                 AND item.candidate_id = candidate.id
+                 AND item.merchant_id = candidate.merchant_id
+                LEFT JOIN transaction_locator locator
+                  ON locator.transaction_id = candidate.source_transaction_id
+                 AND locator.merchant_id = candidate.merchant_id
+                """;
+        String groupBy = """
+                GROUP BY batch.settlement_batch_no, batch.business_date, batch.batch_status,
+                         batch.posted_time, candidate.id, candidate.candidate_no,
+                         candidate.merchant_id, locator.merchant_order_no,
+                         candidate.source_transaction_id, locator.transaction_date_time,
+                         candidate.source_transaction_date_time, locator.transaction_type
+                """;
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(DISTINCT candidate.id) " + from + where,
+                parameters, Long.class);
+        long total = count == null ? 0L : count;
+        long offset = (long) (query.getPageNo() - 1) * query.getPageSize();
+        List<TransactionSettlementSummary> rows = offset < total ? jdbcTemplate.query(
+                "SELECT " + TRANSACTION_SETTLEMENT_COLUMNS + from + where + groupBy
+                        + " ORDER BY source_transaction_date_time DESC, candidate.id DESC LIMIT :offset, :limit",
+                new MapSqlParameterSource(parameters.getValues())
+                        .addValue("offset", offset).addValue("limit", query.getPageSize()),
+                BeanPropertyRowMapper.newInstance(TransactionSettlementSummary.class)) : List.of();
+        return PageResult.of(total, query.getPageNo(), query.getPageSize(), rows);
+    }
+
+    /** 正式批次内交易组件使用独立分页，列表汇总不再重复展示同一交易。 */
+    private PageResult<ResultItemSummary> resultComponentPage(TransactionComponentQuery query,
+                                                              AdminMerchantDataScope scope) {
+        if (scope.empty()) return emptyPage(query.pageNo(), query.pageSize());
+        String where = """
+                WHERE ri.settlement_batch_no = :batchNo
+                  AND ri.source_transaction_id = :transactionId
+                  AND ri.source_detail_type = 'TRANSACTION_CLEARING'
+                  AND ri.result_role = 'FINANCIAL_COMPONENT'
+                """ + scopeSql(scope, "ri.merchant_id");
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("batchNo", query.settlementBatchNo())
+                .addValue("transactionId", query.transactionId())
                 .addValue("permittedMerchantIds", scope.merchantIds());
         String from = """
                 FROM settlement_result_item ri
                 JOIN settlement_batch batch ON batch.settlement_batch_no = ri.settlement_batch_no
                 JOIN settlement_batch_rate rate ON rate.id = ri.settlement_batch_rate_id
                 """;
-        return page(RESULT_COLUMNS, from, where.toString(), parameters,
-                "COALESCE(ri.source_transaction_date_time, ri.create_time) DESC, ri.id DESC",
-                query.getPageNo(), query.getPageSize(), ResultItemSummary.class);
+        return page(RESULT_COLUMNS, from, where, parameters,
+                "ri.result_line_no ASC, ri.id ASC", query.pageNo(), query.pageSize(),
+                ResultItemSummary.class);
+    }
+
+    /** 按候选真实交易身份读取结算结果，不依赖结算业务日期窗口。 */
+    private PageResult<ResultItemSummary> resultHistoryPage(TransactionHistoryQuery query,
+                                                            AdminMerchantDataScope scope) {
+        if (scope.empty()) return emptyPage(query.pageNo(), query.pageSize());
+        String where = """
+                WHERE candidate.source_type = 'CLEARING_REVISION'
+                  AND candidate.source_transaction_id = :transactionId
+                  AND candidate.source_transaction_date_time = :transactionDateTime
+                """ + scopeSql(scope, "candidate.merchant_id");
+        MapSqlParameterSource parameters = transactionHistoryParameters(query, scope);
+        String from = """
+                FROM settlement_candidate candidate
+                JOIN settlement_result_item ri
+                  ON ri.settlement_batch_no = candidate.settlement_batch_no
+                 AND ri.candidate_id = candidate.id
+                 AND ri.merchant_id = candidate.merchant_id
+                 AND ri.source_detail_type = 'TRANSACTION_CLEARING'
+                JOIN settlement_batch batch ON batch.settlement_batch_no = ri.settlement_batch_no
+                JOIN settlement_batch_rate rate ON rate.id = ri.settlement_batch_rate_id
+                """;
+        return page(RESULT_COLUMNS, from, where, parameters,
+                "ri.create_time DESC, ri.id DESC", query.pageNo(), query.pageSize(),
+                ResultItemSummary.class);
+    }
+
+    /** 按交易精确身份读取动作状态，权限范围不足与记录不存在都返回空集合。 */
+    private List<ReconciliationRecord> reconciliationRecords(TransactionIdentityQuery query,
+                                                              AdminMerchantDataScope scope) {
+        if (scope.empty()) return List.of();
+        String where = """
+                WHERE operation.transaction_id = :transactionId
+                  AND operation.transaction_date_time = :transactionDateTime
+                  AND operation.deleted = 0
+                """ + scopeSql(scope, "operation.merchant_id");
+        return jdbcTemplate.query(
+                "SELECT " + RECONCILIATION_COLUMNS + " FROM transaction_operation operation "
+                        + where + " ORDER BY operation.id DESC LIMIT 1",
+                transactionIdentityParameters(query, scope),
+                BeanPropertyRowMapper.newInstance(ReconciliationRecord.class));
     }
 
     /**
@@ -237,15 +456,36 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         if (query.getSettlementBatchNo() != null) where.append(" AND action.settlement_batch_no = :batchNo\n");
         if (query.getMerchantId() != null) where.append(" AND reserve.merchant_id = :merchantId\n");
         if (query.getReserveNo() != null) where.append(" AND action.reserve_no = :reserveNo\n");
-        if (query.getSourceTransactionId() != null) where.append(" AND candidate.source_transaction_id = :transactionId\n");
+        if (query.getReserveActionNo() != null) where.append(" AND action.reserve_action_no = :reserveActionNo\n");
+        if (query.getSourceTransactionId() != null) {
+            where.append(" AND reserve_detail.original_transaction_id = :transactionId\n");
+        }
+        if (query.getMerchantOrderNo() != null) where.append(" AND locator.merchant_order_no = :merchantOrderNo\n");
+        if (query.getReserveStatus() != null) {
+            where.append(" AND (").append(EFFECTIVE_RESERVE_STATUS_SQL).append(") = :reserveStatus\n");
+        }
         if (query.getActionType() != null) where.append(" AND action.action_type = :actionType\n");
         if (query.getCurrency() != null) where.append(" AND action.currency = :currency\n");
+        if (query.getBeginTransactionTime() != null) {
+            where.append(" AND COALESCE(locator.transaction_date_time, reserve_detail.original_transaction_date_time) >= :beginTransactionTime\n")
+                    .append(" AND COALESCE(locator.transaction_date_time, reserve_detail.original_transaction_date_time) < :endTransactionTime\n");
+        }
+        if (query.getBeginExpectedReleaseDate() != null) {
+            where.append(" AND reserve.expected_release_date BETWEEN :beginExpectedReleaseDate AND :endExpectedReleaseDate\n");
+        }
         where.append(scopeSql(scope, "reserve.merchant_id"));
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("beginDate", query.getBeginBusinessDate()).addValue("endDate", query.getEndBusinessDate())
                 .addValue("batchNo", query.getSettlementBatchNo()).addValue("merchantId", query.getMerchantId())
-                .addValue("reserveNo", query.getReserveNo()).addValue("transactionId", query.getSourceTransactionId())
+                .addValue("reserveNo", query.getReserveNo()).addValue("reserveActionNo", query.getReserveActionNo())
+                .addValue("transactionId", query.getSourceTransactionId())
+                .addValue("merchantOrderNo", query.getMerchantOrderNo())
+                .addValue("reserveStatus", query.getReserveStatus())
                 .addValue("actionType", query.getActionType()).addValue("currency", query.getCurrency())
+                .addValue("beginTransactionTime", query.getBeginTransactionTime())
+                .addValue("endTransactionTime", query.getEndTransactionTime())
+                .addValue("beginExpectedReleaseDate", query.getBeginExpectedReleaseDate())
+                .addValue("endExpectedReleaseDate", query.getEndExpectedReleaseDate())
                 .addValue("permittedMerchantIds", scope.merchantIds());
         String from = """
                 FROM merchant_reserve_action action
@@ -253,12 +493,63 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                   ON reserve.id = action.reserve_item_id AND reserve.reserve_no = action.reserve_no
                 JOIN settlement_candidate candidate
                   ON candidate.id = action.candidate_id AND candidate.merchant_id = reserve.merchant_id
+                LEFT JOIN merchant_reserve_action source_action
+                  ON source_action.id = action.reversal_of_action_id
+                JOIN transaction_reserve_clearing_detail reserve_detail
+                  ON reserve_detail.transaction_id = candidate.source_transaction_id
+                 AND reserve_detail.transaction_date_time = candidate.source_transaction_date_time
+                 AND reserve_detail.clearing_revision = candidate.source_revision
+                 AND reserve_detail.reserve_clearing_detail_no = COALESCE(
+                         source_action.source_reserve_detail_no,
+                         action.source_reserve_detail_no)
+                 AND reserve_detail.record_status = 'ACTIVE'
                 JOIN settlement_batch batch ON batch.settlement_batch_no = action.settlement_batch_no
+                LEFT JOIN merchant_fund_account fund_account
+                  ON fund_account.id = reserve.account_id
+                 AND fund_account.merchant_id = reserve.merchant_id
+                 AND fund_account.deleted = 0
+                LEFT JOIN transaction_locator locator
+                  ON locator.transaction_id = reserve_detail.original_transaction_id
+                 AND locator.merchant_id = reserve.merchant_id
                 LEFT JOIN base_iso_currency currency
                   ON currency.alpha3_code = action.currency AND currency.deleted = 0
                 """;
         return page(RESERVE_COLUMNS, from, where.toString(), parameters,
                 "action.action_time DESC, action.id DESC", query.getPageNo(), query.getPageSize(),
+                ReserveItemSummary.class);
+    }
+
+    /** 按原支付保证金状态的原交易分片键定位聚合，再读取跨批次完整动作历史。 */
+    private PageResult<ReserveItemSummary> reserveHistoryPage(TransactionHistoryQuery query,
+                                                              AdminMerchantDataScope scope) {
+        if (scope.empty()) return emptyPage(query.pageNo(), query.pageSize());
+        String where = """
+                WHERE reserve_state.original_transaction_id = :transactionId
+                  AND reserve_state.transaction_date_time = :transactionDateTime
+                """ + scopeSql(scope, "reserve_state.merchant_id");
+        MapSqlParameterSource parameters = transactionHistoryParameters(query, scope);
+        String from = """
+                FROM transaction_reserve_clearing_state reserve_state
+                JOIN merchant_reserve_item reserve
+                  ON reserve.source_business_no = reserve_state.original_hold_detail_no
+                 AND reserve.source_transaction_id = reserve_state.original_transaction_id
+                 AND reserve.merchant_id = reserve_state.merchant_id
+                JOIN merchant_reserve_action action
+                  ON action.reserve_item_id = reserve.id
+                 AND action.reserve_no = reserve.reserve_no
+                JOIN settlement_batch batch ON batch.settlement_batch_no = action.settlement_batch_no
+                LEFT JOIN merchant_fund_account fund_account
+                  ON fund_account.id = reserve.account_id
+                 AND fund_account.merchant_id = reserve.merchant_id
+                 AND fund_account.deleted = 0
+                LEFT JOIN transaction_locator locator
+                  ON locator.transaction_id = reserve_state.original_transaction_id
+                 AND locator.merchant_id = reserve_state.merchant_id
+                LEFT JOIN base_iso_currency currency
+                  ON currency.alpha3_code = action.currency AND currency.deleted = 0
+                """;
+        return page(RESERVE_HISTORY_COLUMNS, from, where, parameters,
+                "action.action_time DESC, action.id DESC", query.pageNo(), query.pageSize(),
                 ReserveItemSummary.class);
     }
 
@@ -290,6 +581,8 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         }
         request.setMerchantId(trimMax(request.getMerchantId(), 64));
         request.setSourceTransactionId(trimMax(request.getSourceTransactionId(), 64));
+        request.setMerchantOrderNo(trimMax(request.getMerchantOrderNo(), 128));
+        validateOptionalTimeRange(request.getBeginTransactionTime(), request.getEndTransactionTime());
         request.setResultItemType(enumValue(request.getResultItemType(), RESULT_ITEM_TYPES));
         request.setResultRole(enumValue(request.getResultRole(), RESULT_ROLES));
         request.setDirection(enumValue(request.getDirection(), DIRECTIONS));
@@ -297,6 +590,20 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         request.setSourceDetailType(enumValue(request.getSourceDetailType(), SOURCE_DETAIL_TYPES));
         normalizePage(request.getPageNo(), request.getPageSize(), request::setPageNo, request::setPageSize);
         return request;
+    }
+
+    private TransactionComponentQuery normalizeTransactionComponentQuery(String settlementBatchNo,
+                                                                          String transactionId,
+                                                                          Integer pageNo,
+                                                                          Integer pageSize) {
+        String batchNo = trimMax(settlementBatchNo, 32);
+        String normalizedTransactionId = trimMax(transactionId, 64);
+        if (batchNo == null || !batchNo.matches("SB\\d{8}-\\d{8}") || normalizedTransactionId == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        PageSpec page = normalizePageValues(pageNo, pageSize);
+        return new TransactionComponentQuery(batchNo, normalizedTransactionId,
+                page.pageNo(), page.pageSize());
     }
 
     private ReserveItemSearchRequest normalizeReserveQuery(ReserveItemSearchRequest request) {
@@ -310,11 +617,65 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
         }
         request.setMerchantId(trimMax(request.getMerchantId(), 64));
         request.setReserveNo(trimMax(request.getReserveNo(), 64));
+        request.setReserveActionNo(trimMax(request.getReserveActionNo(), 64));
         request.setSourceTransactionId(trimMax(request.getSourceTransactionId(), 64));
+        request.setMerchantOrderNo(trimMax(request.getMerchantOrderNo(), 128));
+        request.setReserveStatus(enumValue(request.getReserveStatus(), RESERVE_STATUSES));
         request.setActionType(enumValue(request.getActionType(), RESERVE_ACTION_TYPES));
         request.setCurrency(currency(request.getCurrency()));
+        validateOptionalTimeRange(request.getBeginTransactionTime(), request.getEndTransactionTime());
+        validateOptionalDateRange(request.getBeginExpectedReleaseDate(), request.getEndExpectedReleaseDate());
         normalizePage(request.getPageNo(), request.getPageSize(), request::setPageNo, request::setPageSize);
         return request;
+    }
+
+    private void appendResultItemExistsFilter(StringBuilder where, ResultItemSearchRequest query) {
+        if (query.getResultItemType() == null && query.getDirection() == null && query.getTargetCurrency() == null) {
+            return;
+        }
+        where.append("""
+                 AND EXISTS (
+                     SELECT 1
+                     FROM settlement_result_item filter_item
+                     WHERE filter_item.settlement_batch_no = candidate.settlement_batch_no
+                       AND filter_item.candidate_id = candidate.id
+                       AND filter_item.merchant_id = candidate.merchant_id
+                       AND filter_item.source_detail_type = 'TRANSACTION_CLEARING'
+                       AND filter_item.result_role = 'FINANCIAL_COMPONENT'
+                """);
+        if (query.getResultItemType() != null) where.append(" AND filter_item.result_item_type = :itemType\n");
+        if (query.getDirection() != null) where.append(" AND filter_item.direction = :direction\n");
+        if (query.getTargetCurrency() != null) where.append(" AND filter_item.target_currency = :currency\n");
+        where.append(" )\n");
+    }
+
+    private void validateOptionalDateRange(java.time.LocalDate begin, java.time.LocalDate end) {
+        if ((begin == null) != (end == null)
+                || begin != null && (!validDateRange(begin, end))) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+    }
+
+    private TransactionHistoryQuery normalizeTransactionHistoryQuery(String transactionId,
+                                                                      LocalDateTime transactionDateTime,
+                                                                      Integer pageNo,
+                                                                      Integer pageSize) {
+        String normalizedTransactionId = trimMax(transactionId, 64);
+        if (normalizedTransactionId == null || transactionDateTime == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        PageSpec page = normalizePageValues(pageNo, pageSize);
+        return new TransactionHistoryQuery(
+                normalizedTransactionId, transactionDateTime, page.pageNo(), page.pageSize());
+    }
+
+    private TransactionIdentityQuery normalizeTransactionIdentity(String transactionId,
+                                                                    LocalDateTime transactionDateTime) {
+        String normalizedTransactionId = trimMax(transactionId, 64);
+        if (normalizedTransactionId == null || transactionDateTime == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return new TransactionIdentityQuery(normalizedTransactionId, transactionDateTime);
     }
 
     private PostingSearchRequest normalizePostingQuery(PostingSearchRequest request) {
@@ -341,17 +702,47 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
                 && ChronoUnit.DAYS.between(begin, end) <= MAX_DATE_SPAN_DAYS;
     }
 
+    private void validateOptionalTimeRange(LocalDateTime begin, LocalDateTime end) {
+        if ((begin == null) != (end == null)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        if (begin != null && (begin.isAfter(end) || Duration.between(begin, end).toDays() > MAX_DATE_SPAN_DAYS)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+    }
+
     private void normalizePage(Integer rawPageNo,
                                Integer rawPageSize,
                                java.util.function.IntConsumer pageNoSetter,
                                java.util.function.IntConsumer pageSizeSetter) {
+        PageSpec page = normalizePageValues(rawPageNo, rawPageSize);
+        pageNoSetter.accept(page.pageNo());
+        pageSizeSetter.accept(page.pageSize());
+    }
+
+    private PageSpec normalizePageValues(Integer rawPageNo, Integer rawPageSize) {
         int pageNo = rawPageNo == null ? 1 : rawPageNo;
         int pageSize = rawPageSize == null ? DEFAULT_PAGE_SIZE : rawPageSize;
         if (pageNo < 1 || pageSize < 1 || pageSize > maxResultRows) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        pageNoSetter.accept(pageNo);
-        pageSizeSetter.accept(pageSize);
+        return new PageSpec(pageNo, pageSize);
+    }
+
+    private MapSqlParameterSource transactionHistoryParameters(TransactionHistoryQuery query,
+                                                                AdminMerchantDataScope scope) {
+        return new MapSqlParameterSource()
+                .addValue("transactionId", query.transactionId())
+                .addValue("transactionDateTime", query.transactionDateTime())
+                .addValue("permittedMerchantIds", scope.merchantIds());
+    }
+
+    private MapSqlParameterSource transactionIdentityParameters(TransactionIdentityQuery query,
+                                                                 AdminMerchantDataScope scope) {
+        return new MapSqlParameterSource()
+                .addValue("transactionId", query.transactionId())
+                .addValue("transactionDateTime", query.transactionDateTime())
+                .addValue("permittedMerchantIds", scope.merchantIds());
     }
 
     private String enumValue(String value, Set<String> allowed) {
@@ -394,5 +785,24 @@ public class JdbcAdminSettlementReportingQueryService implements AdminSettlement
 
     private String trim(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private record PageSpec(int pageNo, int pageSize) {
+    }
+
+    private record TransactionHistoryQuery(String transactionId,
+                                           LocalDateTime transactionDateTime,
+                                           int pageNo,
+                                           int pageSize) {
+    }
+
+    private record TransactionComponentQuery(String settlementBatchNo,
+                                             String transactionId,
+                                             int pageNo,
+                                             int pageSize) {
+    }
+
+    private record TransactionIdentityQuery(String transactionId,
+                                            LocalDateTime transactionDateTime) {
     }
 }

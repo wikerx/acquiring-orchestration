@@ -133,6 +133,7 @@ CREATE TABLE `base_iso_currency` (
   `english_name` varchar(128) NOT NULL COMMENT '币种英文名称',
   `chinese_name` varchar(128) NOT NULL COMMENT '币种中文名称',
   `currency_symbol` varchar(16) NOT NULL DEFAULT '' COMMENT '币种符号/图标',
+  `icon_key` varchar(64) DEFAULT NULL COMMENT '受控币种展示图标键',
   `fraction_digits` tinyint NOT NULL COMMENT '默认辅币位，-1 表示无定义',
   `minor_unit_multiplier` bigint NOT NULL DEFAULT '0' COMMENT '最小单位换算倍数',
   `minimum_amount` decimal(18,6) NOT NULL DEFAULT '0.000000' COMMENT '最小金额单位',
@@ -4403,8 +4404,8 @@ CREATE TABLE `sys_mq_outbox` (
   `update_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_sys_mq_outbox_event` (`event_id`),
-  KEY `idx_sys_mq_outbox_due` (`event_status`,`next_retry_time`,`create_time`,`id`),
-  KEY `idx_sys_mq_outbox_processing` (`event_status`,`processing_started_time`)
+  KEY `idx_sys_mq_outbox_due` (`producer_service`,`event_status`,`next_retry_time`,`create_time`,`id`),
+  KEY `idx_sys_mq_outbox_processing` (`producer_service`,`event_status`,`processing_started_time`)
 ) ENGINE=InnoDB AUTO_INCREMENT=5930 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='非交易可靠MQ本地消息表';
 
 -- ----------------------------

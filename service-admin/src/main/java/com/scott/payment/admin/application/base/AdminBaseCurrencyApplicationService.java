@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.export.IsoCurrencyExportRow;
 import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.iso.IsoCurrencyIconKey;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.constant.DataSourceName;
@@ -174,6 +175,7 @@ public class AdminBaseCurrencyApplicationService {
     @Transactional(rollbackFor = Exception.class)
     public IsoCurrencyDO createCurrency(IsoCurrencyDO currency) {
         currency.setId(null);
+        currency.setIconKey(IsoCurrencyIconKey.normalize(currency.getAlpha3Code(), currency.getIconKey()));
         currency.setCreatedAt(LocalDateTime.now());
         currency.setUpdatedAt(LocalDateTime.now());
         currency.setDeleted(NOT_DELETED);
@@ -251,7 +253,9 @@ public class AdminBaseCurrencyApplicationService {
      * @param input    本次更新输入
      */
     private void mergeCurrency(IsoCurrencyDO currency, IsoCurrencyDO input) {
+        boolean alpha3CodeChanged = false;
         if (input.getAlpha3Code() != null) {
+            alpha3CodeChanged = !input.getAlpha3Code().equalsIgnoreCase(currency.getAlpha3Code());
             currency.setAlpha3Code(input.getAlpha3Code());
         }
         if (input.getNumericCode() != null) {
@@ -265,6 +269,14 @@ public class AdminBaseCurrencyApplicationService {
         }
         if (input.getCurrencySymbol() != null) {
             currency.setCurrencySymbol(input.getCurrencySymbol());
+        }
+        if (input.getIconKey() != null) {
+            currency.setIconKey(IsoCurrencyIconKey.normalize(
+                    input.getAlpha3Code() == null ? currency.getAlpha3Code() : input.getAlpha3Code(),
+                    input.getIconKey()
+            ));
+        } else if (alpha3CodeChanged) {
+            currency.setIconKey(null);
         }
         if (input.getFractionDigits() != null) {
             currency.setFractionDigits(input.getFractionDigits());

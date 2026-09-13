@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -60,6 +61,47 @@ class AdminSettlementApplicationServiceTest {
         verify(queryService).search(request, scope);
         verify(queryService).detail("SB20260826-00000001", scope);
         verifyNoInteractions(client);
+    }
+
+    @Test
+    void domainSearchShouldForceServerDomainAndKeepCompatibleBatchType() {
+        SettlementInternalClient client = mock(SettlementInternalClient.class);
+        AdminSettlementQueryService queryService = mock(AdminSettlementQueryService.class);
+        AdminMerchantDataScopeResolver scopeResolver = mock(AdminMerchantDataScopeResolver.class);
+        AdminMerchantDataScope scope = AdminMerchantDataScope.all();
+        InternalAuthAccount account = adminAccount();
+        InternalAuthContextHolder.set(account);
+        when(scopeResolver.resolve(account)).thenReturn(scope);
+        AdminSettlementApplicationService service = new AdminSettlementApplicationService(
+                client, queryService, scopeResolver);
+        BatchSearchRequest transactionRequest = searchRequest();
+        BatchSearchRequest reserveRequest = searchRequest();
+        reserveRequest.setBatchType(" adjustment ");
+
+        service.searchTransactionBatches(transactionRequest);
+        service.searchReserveBatches(reserveRequest);
+
+        assertThat(transactionRequest.getBatchDomain()).isEqualTo("TRANSACTION");
+        assertThat(transactionRequest.getBatchType()).isNull();
+        assertThat(reserveRequest.getBatchDomain()).isEqualTo("RESERVE");
+        assertThat(reserveRequest.getBatchType()).isEqualTo("ADJUSTMENT");
+        verify(queryService).search(transactionRequest, scope);
+        verify(queryService).search(reserveRequest, scope);
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void domainSearchShouldRejectCrossDomainBatchTypeBeforeQuerying() {
+        AdminSettlementQueryService queryService = mock(AdminSettlementQueryService.class);
+        AdminSettlementApplicationService service = new AdminSettlementApplicationService(
+                mock(SettlementInternalClient.class), queryService,
+                mock(AdminMerchantDataScopeResolver.class));
+        BatchSearchRequest request = searchRequest();
+        request.setBatchType("RESERVE_RELEASE");
+
+        assertThatThrownBy(() -> service.searchTransactionBatches(request))
+                .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class);
+        verifyNoInteractions(queryService);
     }
 
     @Test
@@ -137,5 +179,12 @@ class AdminSettlementApplicationServiceTest {
         account.setRealName("Settlement Operator");
         account.setRoles(List.of("SETTLEMENT_OPERATOR", "FINANCE", "FINANCE"));
         return account;
+    }
+
+    private BatchSearchRequest searchRequest() {
+        BatchSearchRequest request = new BatchSearchRequest();
+        request.setBeginBusinessDate(LocalDate.of(2026, 8, 1));
+        request.setEndBusinessDate(LocalDate.of(2026, 8, 31));
+        return request;
     }
 }

@@ -2,6 +2,8 @@ package com.scott.payment.admin.service;
 
 import com.scott.payment.admin.dto.SysRoleCreateRequest;
 import com.scott.payment.admin.dto.SysRoleDTO;
+import com.scott.payment.admin.dto.SysRoleGrantTreeAuthDTO;
+import com.scott.payment.admin.dto.SysRoleGrantTreeSaveRequest;
 import com.scott.payment.admin.dto.SysRoleMenuAuthDTO;
 import com.scott.payment.admin.dto.SysRoleMenuGrantRequest;
 import com.scott.payment.admin.dto.SysRolePermissionAuthDTO;
@@ -91,4 +93,26 @@ public interface AdminRoleService {
      * @param request 权限授权请求
      */
     void grantPermissions(SysRolePermissionGrantRequest request);
+
+    /**
+     * 查询角色菜单与操作权限统一授权信息。
+     *
+     * @param roleId 角色主键
+     * @return 统一授权信息
+     */
+    SysRoleGrantTreeAuthDTO roleGrantTree(Long roleId);
+
+    /**
+     * 查询新增角色使用的菜单与操作权限授权模板。
+     *
+     * @return 统一授权模板
+     */
+    SysRoleGrantTreeAuthDTO roleGrantTreeTemplate();
+
+    /**
+     * 原子替换角色的菜单与操作权限授权。
+     *
+     * @param request 统一授权请求
+     */
+    void grantRoleTree(SysRoleGrantTreeSaveRequest request);
 }

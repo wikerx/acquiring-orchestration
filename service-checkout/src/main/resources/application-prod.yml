@@ -63,3 +63,10 @@ spring:
 logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml
+
+acquiring:
+  gateway-ingress:
+    # 生产强制 Redis 原子登记 Gateway nonce，Redis 不可用时不得降级放行。
+    replay-protection-required: true
+    # 默认拒绝未绑定正文的旧签名；仅在经批准的短期兼容窗口显式开启。
+    accept-legacy-signature: ${CHECKOUT_GATEWAY_INGRESS_ACCEPT_LEGACY_SIGNATURE:false}

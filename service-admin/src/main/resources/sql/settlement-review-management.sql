@@ -55,31 +55,28 @@ JOIN (
     SELECT 'admin_settlement_transaction_candidate_v1' menu_code, '交易结算' menu_name,
            '/settlement/transaction-candidates' route_path,
            'settlement/transaction-candidate' component_path,
-           'settlement:transaction-candidate:list' permission_code, 'Tickets' icon, 1 sort_no
+           'settlement:transaction-settlement:view' permission_code, 'Tickets' icon, 1 sort_no
     UNION ALL SELECT 'admin_settlement_reserve_candidate_v1', '保证金结算',
            '/settlement/reserve-candidates', 'settlement/reserve-candidate',
-           'settlement:reserve-candidate:list', 'Lock', 2
+           'settlement:reserve-settlement:view', 'Lock', 2
     UNION ALL SELECT 'admin_settlement_review_order_v1', '结算预审单',
            '/settlement/review-orders', 'settlement/review-order',
            'settlement:review-order:list', 'Checked', 3
-    UNION ALL SELECT 'admin_settlement_batch_v1', '正式结算批次',
-           '/settlement/batches', 'transaction/settlement',
-           'settlement:batch:list', 'CollectionTag', 4
     UNION ALL SELECT 'admin_settlement_reversal_order_v1', '结算冲正单',
            '/settlement/reversal-orders', 'settlement/reversal-order',
-           'settlement:reversal-order:list', 'RefreshLeft', 5
+           'settlement:reversal-order:list', 'RefreshLeft', 4
     UNION ALL SELECT 'admin_settlement_result_item_v1', '交易结算明细',
            '/settlement/result-items', 'settlement/result-item',
-           'settlement:result-item:list', 'DocumentCopy', 6
+           'settlement:result-item:list', 'DocumentCopy', 5
     UNION ALL SELECT 'admin_settlement_reserve_item_v1', '保证金结算明细',
            '/settlement/reserve-items', 'settlement/reserve-item',
-           'settlement:reserve-item:list', 'Key', 7
+           'settlement:reserve-item:list', 'Key', 6
     UNION ALL SELECT 'admin_settlement_posting_v1', '结算入账记录',
            '/settlement/postings', 'settlement/posting',
-           'settlement:posting:list', 'Document', 8
+           'settlement:posting:list', 'Document', 7
     UNION ALL SELECT 'admin_settlement_profile_v1', '结算档案',
            '/settlement/profiles', 'settlement/profile',
-           'settlement:profile:list', 'Setting', 9
+           'settlement:profile:list', 'Setting', 8
 ) item
 WHERE parent.app_id = @admin_app_id AND parent.menu_code = 'admin_settlement' AND parent.deleted = 0
   AND NOT EXISTS (
@@ -91,28 +88,26 @@ UPDATE sys_menu menu
 JOIN (
     SELECT 'admin_settlement_transaction_candidate_v1' menu_code, '交易结算' menu_name,
            '/settlement/transaction-candidates' route_path, 'settlement/transaction-candidate' component_path,
-           'settlement:transaction-candidate:list' permission_code, 'Tickets' icon, 1 sort_no
+           'settlement:transaction-settlement:view' permission_code, 'Tickets' icon, 1 sort_no
     UNION ALL SELECT 'admin_settlement_reserve_candidate_v1', '保证金结算',
            '/settlement/reserve-candidates', 'settlement/reserve-candidate',
-           'settlement:reserve-candidate:list', 'Lock', 2
+           'settlement:reserve-settlement:view', 'Lock', 2
     UNION ALL SELECT 'admin_settlement_review_order_v1', '结算预审单',
            '/settlement/review-orders', 'settlement/review-order',
            'settlement:review-order:list', 'Checked', 3
-    UNION ALL SELECT 'admin_settlement_batch_v1', '正式结算批次',
-           '/settlement/batches', 'transaction/settlement', 'settlement:batch:list', 'CollectionTag', 4
     UNION ALL SELECT 'admin_settlement_reversal_order_v1', '结算冲正单',
            '/settlement/reversal-orders', 'settlement/reversal-order',
-           'settlement:reversal-order:list', 'RefreshLeft', 5
+           'settlement:reversal-order:list', 'RefreshLeft', 4
     UNION ALL SELECT 'admin_settlement_result_item_v1', '交易结算明细',
            '/settlement/result-items', 'settlement/result-item',
-           'settlement:result-item:list', 'DocumentCopy', 6
+           'settlement:result-item:list', 'DocumentCopy', 5
     UNION ALL SELECT 'admin_settlement_reserve_item_v1', '保证金结算明细',
            '/settlement/reserve-items', 'settlement/reserve-item',
-           'settlement:reserve-item:list', 'Key', 7
+           'settlement:reserve-item:list', 'Key', 6
     UNION ALL SELECT 'admin_settlement_posting_v1', '结算入账记录',
-           '/settlement/postings', 'settlement/posting', 'settlement:posting:list', 'Document', 8
+           '/settlement/postings', 'settlement/posting', 'settlement:posting:list', 'Document', 7
     UNION ALL SELECT 'admin_settlement_profile_v1', '结算档案',
-           '/settlement/profiles', 'settlement/profile', 'settlement:profile:list', 'Setting', 9
+           '/settlement/profiles', 'settlement/profile', 'settlement:profile:list', 'Setting', 8
 ) item ON item.menu_code = menu.menu_code
 JOIN sys_menu parent ON parent.app_id = menu.app_id
                     AND parent.menu_code = 'admin_settlement'
@@ -130,6 +125,41 @@ SET menu.parent_id = parent.id,
     menu.updated_at = CURRENT_TIMESTAMP(3)
 WHERE menu.app_id = @admin_app_id AND menu.deleted = 0;
 
+-- Keep the historical batch anchor hidden for existing grants; the role API never exposes it.
+INSERT INTO sys_menu (
+    app_id, parent_id, menu_code, menu_name, menu_type, permission_code,
+    visible, sort_no, status, deleted
+)
+SELECT @admin_app_id, parent.id, 'admin_settlement_batch_v1', '结算批次兼容锚点', 'BUTTON',
+       'settlement:batch:list', 0, 90, 1, 0
+FROM sys_menu parent
+WHERE parent.app_id = @admin_app_id AND parent.menu_code = 'admin_settlement' AND parent.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu existing
+      WHERE existing.app_id = @admin_app_id
+        AND existing.menu_code = 'admin_settlement_batch_v1'
+        AND existing.deleted = 0
+  );
+
+UPDATE sys_menu menu
+JOIN sys_menu parent ON parent.app_id = menu.app_id
+                    AND parent.menu_code = 'admin_settlement'
+                    AND parent.deleted = 0
+SET menu.parent_id = parent.id,
+    menu.menu_name = BINARY '结算批次兼容锚点',
+    menu.menu_type = 'BUTTON',
+    menu.route_path = NULL,
+    menu.component_path = NULL,
+    menu.permission_code = 'settlement:batch:list',
+    menu.icon = NULL,
+    menu.visible = 0,
+    menu.sort_no = 90,
+    menu.status = 1,
+    menu.updated_at = CURRENT_TIMESTAMP(3)
+WHERE menu.app_id = @admin_app_id
+  AND menu.menu_code = 'admin_settlement_batch_v1'
+  AND menu.deleted = 0;
+
 INSERT INTO sys_menu (
     app_id, parent_id, menu_code, menu_name, menu_type, permission_code,
     visible, sort_no, status, deleted
@@ -138,15 +168,23 @@ SELECT @admin_app_id, parent.id, item.menu_code, item.menu_name, 'BUTTON', item.
        0, item.sort_no, 1, 0
 FROM sys_menu parent
 JOIN (
-    SELECT 'admin_settlement_transaction_review_create_v1' menu_code, '生成交易结算预审单' menu_name,
-           'settlement:transaction-review:create' permission_code,
+    SELECT 'admin_settlement_transaction_batch_list_v1' menu_code, '查看交易正式结算批次' menu_name,
+           'settlement:transaction-batch:list' permission_code,
            'admin_settlement_transaction_candidate_v1' parent_code, 1 sort_no
+    UNION ALL SELECT 'admin_settlement_transaction_candidate_list_v1', '查看待结算交易',
+           'settlement:transaction-candidate:list', 'admin_settlement_transaction_candidate_v1', 2
+    UNION ALL SELECT 'admin_settlement_transaction_review_create_v1', '生成交易结算预审单',
+           'settlement:transaction-review:create', 'admin_settlement_transaction_candidate_v1', 3
     UNION ALL SELECT 'admin_settlement_transaction_candidate_detail_v1', '交易候选详情',
-           'settlement:transaction-candidate:detail', 'admin_settlement_transaction_candidate_v1', 2
+           'settlement:transaction-candidate:detail', 'admin_settlement_transaction_candidate_v1', 4
+    UNION ALL SELECT 'admin_settlement_reserve_batch_list_v1', '查看保证金正式结算批次',
+           'settlement:reserve-batch:list', 'admin_settlement_reserve_candidate_v1', 1
+    UNION ALL SELECT 'admin_settlement_reserve_candidate_list_v1', '查看待结算保证金',
+           'settlement:reserve-candidate:list', 'admin_settlement_reserve_candidate_v1', 2
     UNION ALL SELECT 'admin_settlement_reserve_review_create_v1', '提交保证金预审',
-           'settlement:reserve-review:create', 'admin_settlement_reserve_candidate_v1', 1
+           'settlement:reserve-review:create', 'admin_settlement_reserve_candidate_v1', 3
     UNION ALL SELECT 'admin_settlement_reserve_candidate_detail_v1', '保证金候选详情',
-           'settlement:reserve-candidate:detail', 'admin_settlement_reserve_candidate_v1', 2
+           'settlement:reserve-candidate:detail', 'admin_settlement_reserve_candidate_v1', 4
     UNION ALL SELECT 'admin_settlement_review_detail_v1', '预审单详情',
            'settlement:review-order:detail', 'admin_settlement_review_order_v1', 1
     UNION ALL SELECT 'admin_settlement_review_approve_v1', '审批通过预审',
@@ -159,12 +197,20 @@ JOIN (
            'settlement:review-order:recover', 'admin_settlement_review_order_v1', 5
     UNION ALL SELECT 'admin_settlement_review_export_v1', '导出预审单',
            'settlement:review-order:export', 'admin_settlement_review_order_v1', 6
+    UNION ALL SELECT 'admin_settlement_review_voucher_download_v1', '下载结算预审单据',
+           'settlement:review-order:voucher-download', 'admin_settlement_review_order_v1', 7
     UNION ALL SELECT 'admin_settlement_batch_detail_v1', '批次详情',
            'settlement:batch:detail', 'admin_settlement_batch_v1', 1
     UNION ALL SELECT 'admin_settlement_batch_retry_v1', '重新处理批次',
            'settlement:batch:retry', 'admin_settlement_batch_v1', 2
     UNION ALL SELECT 'admin_settlement_batch_cancel_v1', '取消并释放批次',
            'settlement:batch:cancel', 'admin_settlement_batch_v1', 3
+    UNION ALL SELECT 'admin_settlement_batch_summary_v1', '查看结算汇总',
+           'settlement:batch:summary:list', 'admin_settlement_batch_v1', 4
+    UNION ALL SELECT 'admin_settlement_batch_summary_export_v1', '导出结算汇总',
+           'settlement:batch:summary:export', 'admin_settlement_batch_v1', 5
+    UNION ALL SELECT 'admin_settlement_batch_voucher_download_v1', '下载正式结算单据',
+           'settlement:batch:voucher-download', 'admin_settlement_batch_v1', 6
     UNION ALL SELECT 'admin_settlement_reversal_detail_v1', '冲正单详情',
            'settlement:reversal-order:detail', 'admin_settlement_reversal_order_v1', 1
     UNION ALL SELECT 'admin_settlement_reversal_create_v1', '提交冲正申请',
@@ -173,6 +219,12 @@ JOIN (
            'settlement:reversal-order:approve', 'admin_settlement_reversal_order_v1', 3
     UNION ALL SELECT 'admin_settlement_reversal_reject_v1', '拒绝冲正',
            'settlement:reversal-order:reject', 'admin_settlement_reversal_order_v1', 4
+    UNION ALL SELECT 'admin_settlement_reconciliation_record_detail_v1', '查看交易对账',
+           'reconciliation:record:detail', 'admin_transaction_operation_v1', 6
+    UNION ALL SELECT 'admin_settlement_transaction_detail_view_v1', '查看交易结算',
+           'settlement:result-item:transaction-detail', 'admin_transaction_operation_v1', 7
+    UNION ALL SELECT 'admin_settlement_reserve_detail_view_v1', '查看保证金结算',
+           'settlement:reserve-item:transaction-detail', 'admin_transaction_operation_v1', 8
     UNION ALL SELECT 'admin_settlement_result_item_export_v1', '导出结算结果明细',
            'settlement:result-item:export', 'admin_settlement_result_item_v1', 1
     UNION ALL SELECT 'admin_settlement_reserve_item_export_v1', '导出保证金结算明细',
@@ -192,15 +244,23 @@ WHERE parent.app_id = @admin_app_id AND parent.deleted = 0
 
 UPDATE sys_menu menu
 JOIN (
-    SELECT 'admin_settlement_transaction_review_create_v1' menu_code, '生成交易结算预审单' menu_name,
-           'settlement:transaction-review:create' permission_code,
+    SELECT 'admin_settlement_transaction_batch_list_v1' menu_code, '查看交易正式结算批次' menu_name,
+           'settlement:transaction-batch:list' permission_code,
            'admin_settlement_transaction_candidate_v1' parent_code, 1 sort_no
+    UNION ALL SELECT 'admin_settlement_transaction_candidate_list_v1', '查看待结算交易',
+           'settlement:transaction-candidate:list', 'admin_settlement_transaction_candidate_v1', 2
+    UNION ALL SELECT 'admin_settlement_transaction_review_create_v1', '生成交易结算预审单',
+           'settlement:transaction-review:create', 'admin_settlement_transaction_candidate_v1', 3
     UNION ALL SELECT 'admin_settlement_transaction_candidate_detail_v1', '交易候选详情',
-           'settlement:transaction-candidate:detail', 'admin_settlement_transaction_candidate_v1', 2
+           'settlement:transaction-candidate:detail', 'admin_settlement_transaction_candidate_v1', 4
+    UNION ALL SELECT 'admin_settlement_reserve_batch_list_v1', '查看保证金正式结算批次',
+           'settlement:reserve-batch:list', 'admin_settlement_reserve_candidate_v1', 1
+    UNION ALL SELECT 'admin_settlement_reserve_candidate_list_v1', '查看待结算保证金',
+           'settlement:reserve-candidate:list', 'admin_settlement_reserve_candidate_v1', 2
     UNION ALL SELECT 'admin_settlement_reserve_review_create_v1', '提交保证金预审',
-           'settlement:reserve-review:create', 'admin_settlement_reserve_candidate_v1', 1
+           'settlement:reserve-review:create', 'admin_settlement_reserve_candidate_v1', 3
     UNION ALL SELECT 'admin_settlement_reserve_candidate_detail_v1', '保证金候选详情',
-           'settlement:reserve-candidate:detail', 'admin_settlement_reserve_candidate_v1', 2
+           'settlement:reserve-candidate:detail', 'admin_settlement_reserve_candidate_v1', 4
     UNION ALL SELECT 'admin_settlement_review_detail_v1', '预审单详情',
            'settlement:review-order:detail', 'admin_settlement_review_order_v1', 1
     UNION ALL SELECT 'admin_settlement_review_approve_v1', '审批通过预审',
@@ -213,12 +273,20 @@ JOIN (
            'settlement:review-order:recover', 'admin_settlement_review_order_v1', 5
     UNION ALL SELECT 'admin_settlement_review_export_v1', '导出预审单',
            'settlement:review-order:export', 'admin_settlement_review_order_v1', 6
+    UNION ALL SELECT 'admin_settlement_review_voucher_download_v1', '下载结算预审单据',
+           'settlement:review-order:voucher-download', 'admin_settlement_review_order_v1', 7
     UNION ALL SELECT 'admin_settlement_batch_detail_v1', '批次详情',
            'settlement:batch:detail', 'admin_settlement_batch_v1', 1
     UNION ALL SELECT 'admin_settlement_batch_retry_v1', '重新处理批次',
            'settlement:batch:retry', 'admin_settlement_batch_v1', 2
     UNION ALL SELECT 'admin_settlement_batch_cancel_v1', '取消并释放批次',
            'settlement:batch:cancel', 'admin_settlement_batch_v1', 3
+    UNION ALL SELECT 'admin_settlement_batch_summary_v1', '查看结算汇总',
+           'settlement:batch:summary:list', 'admin_settlement_batch_v1', 4
+    UNION ALL SELECT 'admin_settlement_batch_summary_export_v1', '导出结算汇总',
+           'settlement:batch:summary:export', 'admin_settlement_batch_v1', 5
+    UNION ALL SELECT 'admin_settlement_batch_voucher_download_v1', '下载正式结算单据',
+           'settlement:batch:voucher-download', 'admin_settlement_batch_v1', 6
     UNION ALL SELECT 'admin_settlement_reversal_detail_v1', '冲正单详情',
            'settlement:reversal-order:detail', 'admin_settlement_reversal_order_v1', 1
     UNION ALL SELECT 'admin_settlement_reversal_create_v1', '提交冲正申请',
@@ -227,6 +295,12 @@ JOIN (
            'settlement:reversal-order:approve', 'admin_settlement_reversal_order_v1', 3
     UNION ALL SELECT 'admin_settlement_reversal_reject_v1', '拒绝冲正',
            'settlement:reversal-order:reject', 'admin_settlement_reversal_order_v1', 4
+    UNION ALL SELECT 'admin_settlement_reconciliation_record_detail_v1', '查看交易对账',
+           'reconciliation:record:detail', 'admin_transaction_operation_v1', 6
+    UNION ALL SELECT 'admin_settlement_transaction_detail_view_v1', '查看交易结算',
+           'settlement:result-item:transaction-detail', 'admin_transaction_operation_v1', 7
+    UNION ALL SELECT 'admin_settlement_reserve_detail_view_v1', '查看保证金结算',
+           'settlement:reserve-item:transaction-detail', 'admin_transaction_operation_v1', 8
     UNION ALL SELECT 'admin_settlement_result_item_export_v1', '导出结算结果明细',
            'settlement:result-item:export', 'admin_settlement_result_item_v1', 1
     UNION ALL SELECT 'admin_settlement_reserve_item_export_v1', '导出保证金结算明细',
@@ -259,14 +333,19 @@ SELECT @admin_app_id, menu.id, item.permission_code, item.permission_name, item.
        item.resource_method, item.resource_path, item.description, 1, 0
 FROM (
     SELECT 'admin_settlement_transaction_candidate_v1' menu_code,
-           'settlement:transaction-candidate:list' permission_code, '交易结算候选查询' permission_name,
-           'MENU' permission_type, 'POST' resource_method,
-           '/admin/settlement/transaction-candidates/search' resource_path, '按Admin商户数据范围查询交易结算候选' description
+           'settlement:transaction-settlement:view' permission_code, '交易结算工作台查看' permission_name,
+           'MENU' permission_type, 'GET' resource_method,
+           '/settlement/transaction-candidates' resource_path, '访问交易结算工作台' description
+    UNION ALL SELECT 'admin_settlement_transaction_candidate_list_v1',
+           'settlement:transaction-candidate:list', '待结算交易查询', 'BUTTON', 'POST',
+           '/admin/settlement/transaction-candidates/search', '按Admin商户数据范围查询待结算交易'
     UNION ALL SELECT 'admin_settlement_transaction_candidate_detail_v1',
            'settlement:transaction-candidate:detail', '交易结算候选详情', 'BUTTON', 'GET',
            '/admin/settlement/transaction-candidates/*', '按Admin商户数据范围查询交易结算候选详情'
-    UNION ALL SELECT 'admin_settlement_reserve_candidate_v1', 'settlement:reserve-candidate:list',
-           '保证金结算候选查询', 'MENU', 'POST', '/admin/settlement/reserve-candidates/search', '按Admin商户数据范围查询保证金结算候选'
+    UNION ALL SELECT 'admin_settlement_reserve_candidate_v1', 'settlement:reserve-settlement:view',
+           '保证金结算工作台查看', 'MENU', 'GET', '/settlement/reserve-candidates', '访问保证金结算工作台'
+    UNION ALL SELECT 'admin_settlement_reserve_candidate_list_v1', 'settlement:reserve-candidate:list',
+           '待结算保证金查询', 'BUTTON', 'POST', '/admin/settlement/reserve-candidates/search', '按Admin商户数据范围查询待结算保证金'
     UNION ALL SELECT 'admin_settlement_reserve_candidate_detail_v1',
            'settlement:reserve-candidate:detail', '保证金结算候选详情', 'BUTTON', 'GET',
            '/admin/settlement/reserve-candidates/*', '按Admin商户数据范围查询保证金结算候选详情'
@@ -288,16 +367,35 @@ FROM (
            '恢复失败预审决策任务', 'BUTTON', 'POST', '/admin/settlement/review-decision-tasks/*/resume', '仅在故障排除且进度一致时原地恢复可恢复的失败决策任务'
     UNION ALL SELECT 'admin_settlement_review_export_v1', 'settlement:review-order:export',
            '导出预审单', 'BUTTON', 'POST', '/admin/settlement/review-orders/export', '按当前筛选和Admin商户数据范围导出预审单'
+    UNION ALL SELECT 'admin_settlement_review_voucher_download_v1',
+           'settlement:review-order:voucher-download', '下载结算预审单据', 'BUTTON', 'GET',
+           '/admin/settlement/review-orders/*/voucher', '按Admin商户数据范围下载预审凭证不可变快照'
+    UNION ALL SELECT 'admin_settlement_transaction_batch_list_v1', 'settlement:transaction-batch:list',
+           '交易正式结算批次查询', 'BUTTON', 'POST', '/admin/settlement/batches/transaction/search', '仅查询REGULAR交易正式结算批次'
+    UNION ALL SELECT 'admin_settlement_reserve_batch_list_v1', 'settlement:reserve-batch:list',
+           '保证金正式结算批次查询', 'BUTTON', 'POST', '/admin/settlement/batches/reserve/search', '仅查询保证金释放和调整正式批次'
     UNION ALL SELECT 'admin_settlement_batch_v1', 'settlement:batch:list',
-           '正式结算批次查询', 'MENU', 'POST', '/admin/settlement/batches/search', '按Admin商户数据范围查询正式批次'
+           '正式结算批次兼容查询', 'BUTTON', 'POST', '/admin/settlement/batches/search', '保留旧客户端通用正式批次查询兼容'
     UNION ALL SELECT 'admin_settlement_batch_detail_v1', 'settlement:batch:detail',
            '正式结算批次详情', 'BUTTON', 'GET', '/admin/settlement/batches/*', '查询正式批次详情'
     UNION ALL SELECT 'admin_settlement_batch_retry_v1', 'settlement:batch:retry',
            '重新处理汇率锁定失败批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/retry', '仅恢复汇率锁定重试耗尽的人工复核批次并重新进入异步处理'
     UNION ALL SELECT 'admin_settlement_batch_cancel_v1', 'settlement:batch:cancel',
            '取消并释放未入账批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/cancel', '取消未入账或人工复核批次并释放候选'
+    UNION ALL SELECT 'admin_settlement_batch_summary_v1', 'settlement:batch:summary:list',
+           '查看正式批次结算汇总', 'BUTTON', 'GET', '/admin/settlement/batches/*/summaries', '分页查询正式批次不可变结算汇总'
+    UNION ALL SELECT 'admin_settlement_batch_summary_export_v1', 'settlement:batch:summary:export',
+           '导出正式批次结算汇总', 'BUTTON', 'POST', '/admin/settlement/batches/*/summaries/export', '导出正式批次全部不可变结算汇总'
+    UNION ALL SELECT 'admin_settlement_batch_voucher_download_v1', 'settlement:batch:voucher-download',
+           '下载正式结算单据', 'BUTTON', 'GET', '/admin/settlement/batches/*/voucher', '按Admin商户数据范围下载正式结算单据不可变快照'
     UNION ALL SELECT 'admin_settlement_result_item_v1', 'settlement:result-item:list',
            '结算结果明细查询', 'MENU', 'POST', '/admin/settlement/result-items/search', '按Admin商户数据范围查询不可变结算结果明细'
+    UNION ALL SELECT 'admin_settlement_reconciliation_record_detail_v1', 'reconciliation:record:detail',
+           '查看交易对账', 'BUTTON', 'GET', '/admin/settlement/reconciliation-records/transactions/*', '在交易详情中查看交易动作对账状态快照'
+    UNION ALL SELECT 'admin_settlement_transaction_detail_view_v1', 'settlement:result-item:transaction-detail',
+           '查看交易结算', 'BUTTON', 'GET', '/admin/settlement/result-items/transactions/*', '在交易详情中查看当前交易结算明细'
+    UNION ALL SELECT 'admin_settlement_reserve_detail_view_v1', 'settlement:reserve-item:transaction-detail',
+           '查看保证金结算', 'BUTTON', 'GET', '/admin/settlement/reserve-items/transactions/*', '在交易详情中查看当前交易保证金结算明细'
     UNION ALL SELECT 'admin_settlement_result_item_export_v1', 'settlement:result-item:export',
            '结算结果明细导出', 'BUTTON', 'POST', '/admin/settlement/result-items/export', '按当前筛选和Admin商户数据范围导出结算结果明细'
     UNION ALL SELECT 'admin_settlement_reserve_item_v1', 'settlement:reserve-item:list',
@@ -335,14 +433,19 @@ WHERE NOT EXISTS (
 UPDATE sys_permission permission
 JOIN (
     SELECT 'admin_settlement_transaction_candidate_v1' menu_code,
-           'settlement:transaction-candidate:list' permission_code, '交易结算候选查询' permission_name,
-           'MENU' permission_type, 'POST' resource_method,
-           '/admin/settlement/transaction-candidates/search' resource_path, '按Admin商户数据范围查询交易结算候选' description
+           'settlement:transaction-settlement:view' permission_code, '交易结算工作台查看' permission_name,
+           'MENU' permission_type, 'GET' resource_method,
+           '/settlement/transaction-candidates' resource_path, '访问交易结算工作台' description
+    UNION ALL SELECT 'admin_settlement_transaction_candidate_list_v1',
+           'settlement:transaction-candidate:list', '待结算交易查询', 'BUTTON', 'POST',
+           '/admin/settlement/transaction-candidates/search', '按Admin商户数据范围查询待结算交易'
     UNION ALL SELECT 'admin_settlement_transaction_candidate_detail_v1',
            'settlement:transaction-candidate:detail', '交易结算候选详情', 'BUTTON', 'GET',
            '/admin/settlement/transaction-candidates/*', '按Admin商户数据范围查询交易结算候选详情'
-    UNION ALL SELECT 'admin_settlement_reserve_candidate_v1', 'settlement:reserve-candidate:list',
-           '保证金结算候选查询', 'MENU', 'POST', '/admin/settlement/reserve-candidates/search', '按Admin商户数据范围查询保证金结算候选'
+    UNION ALL SELECT 'admin_settlement_reserve_candidate_v1', 'settlement:reserve-settlement:view',
+           '保证金结算工作台查看', 'MENU', 'GET', '/settlement/reserve-candidates', '访问保证金结算工作台'
+    UNION ALL SELECT 'admin_settlement_reserve_candidate_list_v1', 'settlement:reserve-candidate:list',
+           '待结算保证金查询', 'BUTTON', 'POST', '/admin/settlement/reserve-candidates/search', '按Admin商户数据范围查询待结算保证金'
     UNION ALL SELECT 'admin_settlement_reserve_candidate_detail_v1',
            'settlement:reserve-candidate:detail', '保证金结算候选详情', 'BUTTON', 'GET',
            '/admin/settlement/reserve-candidates/*', '按Admin商户数据范围查询保证金结算候选详情'
@@ -364,16 +467,35 @@ JOIN (
            '恢复失败预审决策任务', 'BUTTON', 'POST', '/admin/settlement/review-decision-tasks/*/resume', '仅在故障排除且进度一致时原地恢复可恢复的失败决策任务'
     UNION ALL SELECT 'admin_settlement_review_export_v1', 'settlement:review-order:export',
            '导出预审单', 'BUTTON', 'POST', '/admin/settlement/review-orders/export', '按当前筛选和Admin商户数据范围导出预审单'
+    UNION ALL SELECT 'admin_settlement_review_voucher_download_v1',
+           'settlement:review-order:voucher-download', '下载结算预审单据', 'BUTTON', 'GET',
+           '/admin/settlement/review-orders/*/voucher', '按Admin商户数据范围下载预审凭证不可变快照'
+    UNION ALL SELECT 'admin_settlement_transaction_batch_list_v1', 'settlement:transaction-batch:list',
+           '交易正式结算批次查询', 'BUTTON', 'POST', '/admin/settlement/batches/transaction/search', '仅查询REGULAR交易正式结算批次'
+    UNION ALL SELECT 'admin_settlement_reserve_batch_list_v1', 'settlement:reserve-batch:list',
+           '保证金正式结算批次查询', 'BUTTON', 'POST', '/admin/settlement/batches/reserve/search', '仅查询保证金释放和调整正式批次'
     UNION ALL SELECT 'admin_settlement_batch_v1', 'settlement:batch:list',
-           '正式结算批次查询', 'MENU', 'POST', '/admin/settlement/batches/search', '按Admin商户数据范围查询正式批次'
+           '正式结算批次兼容查询', 'BUTTON', 'POST', '/admin/settlement/batches/search', '保留旧客户端通用正式批次查询兼容'
     UNION ALL SELECT 'admin_settlement_batch_detail_v1', 'settlement:batch:detail',
            '正式结算批次详情', 'BUTTON', 'GET', '/admin/settlement/batches/*', '查询正式批次详情'
     UNION ALL SELECT 'admin_settlement_batch_retry_v1', 'settlement:batch:retry',
            '重新处理汇率锁定失败批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/retry', '仅恢复汇率锁定重试耗尽的人工复核批次并重新进入异步处理'
     UNION ALL SELECT 'admin_settlement_batch_cancel_v1', 'settlement:batch:cancel',
            '取消并释放未入账批次', 'BUTTON', 'POST', '/admin/settlement/batches/*/cancel', '取消未入账或人工复核批次并释放候选'
+    UNION ALL SELECT 'admin_settlement_batch_summary_v1', 'settlement:batch:summary:list',
+           '查看正式批次结算汇总', 'BUTTON', 'GET', '/admin/settlement/batches/*/summaries', '分页查询正式批次不可变结算汇总'
+    UNION ALL SELECT 'admin_settlement_batch_summary_export_v1', 'settlement:batch:summary:export',
+           '导出正式批次结算汇总', 'BUTTON', 'POST', '/admin/settlement/batches/*/summaries/export', '导出正式批次全部不可变结算汇总'
+    UNION ALL SELECT 'admin_settlement_batch_voucher_download_v1', 'settlement:batch:voucher-download',
+           '下载正式结算单据', 'BUTTON', 'GET', '/admin/settlement/batches/*/voucher', '按Admin商户数据范围下载正式结算单据不可变快照'
     UNION ALL SELECT 'admin_settlement_result_item_v1', 'settlement:result-item:list',
            '结算结果明细查询', 'MENU', 'POST', '/admin/settlement/result-items/search', '按Admin商户数据范围查询不可变结算结果明细'
+    UNION ALL SELECT 'admin_settlement_reconciliation_record_detail_v1', 'reconciliation:record:detail',
+           '查看交易对账', 'BUTTON', 'GET', '/admin/settlement/reconciliation-records/transactions/*', '在交易详情中查看交易动作对账状态快照'
+    UNION ALL SELECT 'admin_settlement_transaction_detail_view_v1', 'settlement:result-item:transaction-detail',
+           '查看交易结算', 'BUTTON', 'GET', '/admin/settlement/result-items/transactions/*', '在交易详情中查看当前交易结算明细'
+    UNION ALL SELECT 'admin_settlement_reserve_detail_view_v1', 'settlement:reserve-item:transaction-detail',
+           '查看保证金结算', 'BUTTON', 'GET', '/admin/settlement/reserve-items/transactions/*', '在交易详情中查看当前交易保证金结算明细'
     UNION ALL SELECT 'admin_settlement_result_item_export_v1', 'settlement:result-item:export',
            '结算结果明细导出', 'BUTTON', 'POST', '/admin/settlement/result-items/export', '按当前筛选和Admin商户数据范围导出结算结果明细'
     UNION ALL SELECT 'admin_settlement_reserve_item_v1', 'settlement:reserve-item:list',
@@ -413,6 +535,67 @@ SET permission.menu_id = menu.id,
     permission.status = 1,
     permission.updated_at = CURRENT_TIMESTAMP(3)
 WHERE permission.app_id = @admin_app_id AND permission.deleted = 0;
+
+-- Preserve existing batch users: the former standalone list now opens both domain workspaces.
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT legacy_role.app_id, legacy_role.role_id, target_menu.id, 0
+FROM (
+    SELECT role_permission.app_id, role_permission.role_id
+    FROM sys_role_permission role_permission
+    JOIN sys_permission permission
+      ON permission.app_id = role_permission.app_id
+     AND permission.id = role_permission.permission_id
+     AND permission.permission_code = 'settlement:batch:list'
+     AND permission.deleted = 0
+    WHERE role_permission.app_id = @admin_app_id AND role_permission.deleted = 0
+    UNION
+    SELECT role_menu.app_id, role_menu.role_id
+    FROM sys_role_menu role_menu
+    JOIN sys_menu menu
+      ON menu.app_id = role_menu.app_id
+     AND menu.id = role_menu.menu_id
+     AND menu.menu_code = 'admin_settlement_batch_v1'
+     AND menu.deleted = 0
+    WHERE role_menu.app_id = @admin_app_id AND role_menu.deleted = 0
+) legacy_role
+JOIN sys_menu target_menu
+  ON target_menu.app_id = legacy_role.app_id
+ AND target_menu.menu_code IN (
+     'admin_settlement_transaction_candidate_v1',
+     'admin_settlement_transaction_batch_list_v1',
+     'admin_settlement_reserve_candidate_v1',
+     'admin_settlement_reserve_batch_list_v1'
+ )
+ AND target_menu.deleted = 0;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT legacy_role.app_id, legacy_role.role_id, target_permission.id, 0
+FROM (
+    SELECT role_permission.app_id, role_permission.role_id
+    FROM sys_role_permission role_permission
+    JOIN sys_permission permission
+      ON permission.app_id = role_permission.app_id
+     AND permission.id = role_permission.permission_id
+     AND permission.permission_code = 'settlement:batch:list'
+     AND permission.deleted = 0
+    WHERE role_permission.app_id = @admin_app_id AND role_permission.deleted = 0
+    UNION
+    SELECT role_menu.app_id, role_menu.role_id
+    FROM sys_role_menu role_menu
+    JOIN sys_menu menu
+      ON menu.app_id = role_menu.app_id
+     AND menu.id = role_menu.menu_id
+     AND menu.menu_code = 'admin_settlement_batch_v1'
+     AND menu.deleted = 0
+    WHERE role_menu.app_id = @admin_app_id AND role_menu.deleted = 0
+) legacy_role
+JOIN sys_permission target_permission
+  ON target_permission.app_id = legacy_role.app_id
+ AND target_permission.permission_code IN (
+     'settlement:transaction-batch:list',
+     'settlement:reserve-batch:list'
+ )
+ AND target_permission.deleted = 0;
 
 -- The legacy single-step reversal route is permanently retired.
 UPDATE sys_role_permission role_permission
@@ -491,7 +674,8 @@ FROM sys_role role
 JOIN sys_permission permission ON permission.app_id = role.app_id AND permission.deleted = 0
 WHERE role.app_id = @admin_app_id AND role.role_code = 'SUPER_ADMIN' AND role.deleted = 0
   AND (permission.permission_code = 'admin:settlement:view'
-       OR permission.permission_code LIKE 'settlement:%');
+       OR permission.permission_code LIKE 'settlement:%'
+       OR permission.permission_code = 'reconciliation:record:detail');
 
 -- ADMIN_OPERATOR is not a default holder of recovery or high-risk reversal permissions.
 UPDATE sys_role_permission role_permission

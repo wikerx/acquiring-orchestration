@@ -8,7 +8,9 @@ import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.component.mq.properties.ReliableMqOutboxProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,24 +38,32 @@ public class ReliableMqOutboxRelayService {
     private final ReliableMqOutboxProperties properties;
     /** Outbox 低基数运维指标。 */
     private final MqOutboxOperationalMetrics metrics;
+    /** 当前生产服务名，用于共享 Outbox 表的数据隔离。 */
+    private final String producerService;
 
     /** 创建 Outbox Relay。 */
     @Autowired
     public ReliableMqOutboxRelayService(ReliableMqOutboxStore outboxStore,
                                         MqProducer mqProducer,
                                         ReliableMqOutboxProperties properties,
-                                        MqOutboxOperationalMetrics metrics) {
+                                        MqOutboxOperationalMetrics metrics,
+                                        @Value("${spring.application.name}") String producerService) {
         this.outboxStore = outboxStore;
         this.mqProducer = mqProducer;
         this.properties = properties;
         this.metrics = metrics;
+        if (!StringUtils.hasText(producerService)) {
+            throw new IllegalArgumentException("spring.application.name can not be blank");
+        }
+        this.producerService = producerService.trim();
     }
 
     /** 创建不注册指标的 Relay，供纯单元测试直接构造。 */
     public ReliableMqOutboxRelayService(ReliableMqOutboxStore outboxStore,
                                         MqProducer mqProducer,
-                                        ReliableMqOutboxProperties properties) {
-        this(outboxStore, mqProducer, properties, MqOutboxOperationalMetrics.noop());
+                                        ReliableMqOutboxProperties properties,
+                                        String producerService) {
+        this(outboxStore, mqProducer, properties, MqOutboxOperationalMetrics.noop(), producerService);
     }
 
     /**
@@ -64,7 +74,9 @@ public class ReliableMqOutboxRelayService {
      */
     public boolean relayEvent(String eventId) {
         ReliableMqOutboxDO event = outboxStore.findByEventId(eventId);
-        if (event == null || "CLOSED".equals(event.getEventStatus())) {
+        if (event == null
+                || !producerService.equals(event.getProducerService())
+                || "CLOSED".equals(event.getEventStatus())) {
             return false;
         }
         if ("SENT".equals(event.getEventStatus())) {
@@ -103,7 +115,7 @@ public class ReliableMqOutboxRelayService {
         LocalDateTime now = LocalDateTime.now();
         int batchSize = Math.max(properties.getBatchSize(), 1);
         try {
-            List<ReliableMqOutboxDO> events = outboxStore.findDue(now, batchSize);
+            List<ReliableMqOutboxDO> events = outboxStore.findDue(producerService, now, batchSize);
             metrics.recordBatchSize(MqOutboxOperationalMetrics.RELIABLE_OUTBOX, events.size(), batchSize);
             int successCount = 0;
             for (ReliableMqOutboxDO event : events) {
@@ -125,12 +137,12 @@ public class ReliableMqOutboxRelayService {
     public int recoverStale() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime staleBefore = now.minusSeconds(Math.max(properties.getProcessingTimeoutSeconds(), 1L));
-        return outboxStore.recoverStale(staleBefore, now);
+        return outboxStore.recoverStale(producerService, staleBefore, now);
     }
 
     /** 从数据库刷新 pending、CLOSED 和最老积压 Gauge。 */
     public void refreshMetrics() {
-        ReliableMqOutboxMetricsSnapshot snapshot = outboxStore.metricsSnapshot();
+        ReliableMqOutboxMetricsSnapshot snapshot = outboxStore.metricsSnapshot(producerService);
         if (snapshot == null) {
             return;
         }
@@ -182,6 +194,8 @@ public class ReliableMqOutboxRelayService {
     /** CAS 冲突后确认消息是否已由其他实例投递成功。 */
     private boolean alreadySent(String eventId) {
         ReliableMqOutboxDO latest = outboxStore.findByEventId(eventId);
-        return latest != null && "SENT".equals(latest.getEventStatus());
+        return latest != null
+                && producerService.equals(latest.getProducerService())
+                && "SENT".equals(latest.getEventStatus());
     }
 }

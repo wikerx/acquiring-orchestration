@@ -5,7 +5,9 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCountryResolver;
+import com.scott.payment.component.core.iso.IsoCurrencyIconKey;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.cache.PaymentRedisKeyResolver;
@@ -70,6 +72,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * ISO 币种新 Key 的业务用途。
      */
     private static final String CURRENCY_CACHE_BUSINESS = "currency";
+
+    /** 币种展示快照版本；升级展示结构时使用新业务键，避免反序列化旧值。 */
+    private static final String CURRENCY_PRESENTATION_CACHE_BUSINESS_KEY = "presentation-v1";
 
     /** 受管 ISO 快照的固定业务键。 */
     private static final String SNAPSHOT_BUSINESS_KEY = "all";
@@ -136,6 +141,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         return loadFromCache(
                 PaymentCacheNames.ISO_COUNTRY,
                 newCacheKey(COUNTRY_CACHE_BUSINESS),
+                SNAPSHOT_BUSINESS_KEY,
                 new TypeReference<List<IsoCountryInfo>>() {
                 },
                 this::loadCountriesFromDatabase,
@@ -230,10 +236,28 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         return loadFromCache(
                 PaymentCacheNames.ISO_CURRENCY,
                 newCacheKey(CURRENCY_CACHE_BUSINESS),
+                SNAPSHOT_BUSINESS_KEY,
                 new TypeReference<List<IsoCurrencyInfo>>() {
                 },
                 this::loadCurrenciesFromDatabase,
                 IsoCurrencyResolver::listIndexedCurrencies
+        );
+    }
+
+    /**
+     * 查询启用币种的界面展示快照，不把 Logo 元数据混入金额计算模型。
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public List<IsoCurrencyPresentationInfo> listCurrencyPresentations() {
+        return loadFromCache(
+                PaymentCacheNames.ISO_CURRENCY,
+                newCacheKey(CURRENCY_CACHE_BUSINESS, CURRENCY_PRESENTATION_CACHE_BUSINESS_KEY),
+                CURRENCY_PRESENTATION_CACHE_BUSINESS_KEY,
+                new TypeReference<List<IsoCurrencyPresentationInfo>>() {
+                },
+                this::loadCurrencyPresentationsFromDatabase,
+                this::fallbackCurrencyPresentations
         );
     }
 
@@ -313,7 +337,11 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     @Override
     public void evictCountries() {
-        invalidate(PaymentCacheNames.ISO_COUNTRY, newCacheKey(COUNTRY_CACHE_BUSINESS));
+        invalidate(
+                PaymentCacheNames.ISO_COUNTRY,
+                SNAPSHOT_BUSINESS_KEY,
+                newCacheKey(COUNTRY_CACHE_BUSINESS)
+        );
     }
 
     /**
@@ -324,7 +352,16 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     @Override
     public void evictCurrencies() {
-        invalidate(PaymentCacheNames.ISO_CURRENCY, newCacheKey(CURRENCY_CACHE_BUSINESS));
+        invalidate(
+                PaymentCacheNames.ISO_CURRENCY,
+                SNAPSHOT_BUSINESS_KEY,
+                newCacheKey(CURRENCY_CACHE_BUSINESS)
+        );
+        invalidate(
+                PaymentCacheNames.ISO_CURRENCY,
+                CURRENCY_PRESENTATION_CACHE_BUSINESS_KEY,
+                newCacheKey(CURRENCY_CACHE_BUSINESS, CURRENCY_PRESENTATION_CACHE_BUSINESS_KEY)
+        );
     }
 
     /**
@@ -343,10 +380,11 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     private <T> List<T> loadFromCache(String cacheName,
                                       String cacheKey,
+                                      String cacheBusinessKey,
                                       TypeReference<List<T>> typeReference,
                                       Supplier<List<T>> databaseLoader,
                                       Supplier<List<T>> fallbackLoader) {
-        boolean cacheReadAllowed = isCacheReadAllowed(cacheName);
+        boolean cacheReadAllowed = isCacheReadAllowed(cacheName, cacheBusinessKey);
         if (cacheReadAllowed) {
             List<T> cachedValues = readCache(cacheKey, typeReference);
             if (!cachedValues.isEmpty()) {
@@ -422,10 +460,16 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @param business 国家或币种业务用途
      * @return acquiring:{environment}:iso:{business}:all；解析器未配置时返回 null
      */
-    private String newCacheKey(String business) {
+    private String newCacheKey(String business, String... businessSegments) {
         return keyResolver == null
                 ? null
-                : keyResolver.businessKey(ISO_CACHE_DOMAIN, business, SNAPSHOT_BUSINESS_KEY);
+                : keyResolver.businessKey(
+                        ISO_CACHE_DOMAIN,
+                        business,
+                        businessSegments.length == 0
+                                ? new String[]{SNAPSHOT_BUSINESS_KEY}
+                                : businessSegments
+                );
     }
 
     /**
@@ -434,12 +478,12 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @param cacheName 受管缓存名称
      * @return 门禁明确空闲时返回 {@code true}
      */
-    private boolean isCacheReadAllowed(String cacheName) {
+    private boolean isCacheReadAllowed(String cacheName, String businessKey) {
         if (invalidationGuard == null) {
             return true;
         }
         try {
-            return !invalidationGuard.isPending(cacheName, SNAPSHOT_BUSINESS_KEY);
+            return !invalidationGuard.isPending(cacheName, businessKey);
         } catch (RuntimeException exception) {
             log.warn(
                     "ISO 字典缓存门禁状态读取失败，cacheName: {}，异常类型: {}",
@@ -456,9 +500,9 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @param cacheName 受管缓存名称
      * @param cacheKey Redis 物理键
      */
-    private void invalidate(String cacheName, String cacheKey) {
+    private void invalidate(String cacheName, String businessKey, String cacheKey) {
         if (invalidationCoordinator != null) {
-            invalidationCoordinator.prepare(cacheName, SNAPSHOT_BUSINESS_KEY);
+            invalidationCoordinator.prepare(cacheName, businessKey);
             return;
         }
         evictCache(cacheKey);
@@ -520,6 +564,36 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     }
 
     /**
+     * 从币种表读取纯展示信息。
+     */
+    private List<IsoCurrencyPresentationInfo> loadCurrencyPresentationsFromDatabase() {
+        LambdaQueryWrapper<IsoCurrencyDO> queryWrapper = new LambdaQueryWrapper<IsoCurrencyDO>()
+                .eq(IsoCurrencyDO::getStatus, STATUS_ENABLED)
+                .eq(IsoCurrencyDO::getDeleted, NOT_DELETED)
+                .orderByAsc(IsoCurrencyDO::getAlpha3Code);
+        return currencyMapper.selectList(queryWrapper)
+                .stream()
+                .map(this::toCurrencyPresentationInfo)
+                .sorted(Comparator.comparing(IsoCurrencyPresentationInfo::alphabeticCode))
+                .toList();
+    }
+
+    /**
+     * 数据库不可用时从内置 ISO 币种生成无 Logo 的安全展示回退。
+     */
+    private List<IsoCurrencyPresentationInfo> fallbackCurrencyPresentations() {
+        return IsoCurrencyResolver.listIndexedCurrencies().stream()
+                .map(currency -> new IsoCurrencyPresentationInfo(
+                        currency.alphabeticCode(),
+                        currency.chineseName(),
+                        currency.englishName(),
+                        currency.currencySymbol(),
+                        null
+                ))
+                .toList();
+    }
+
+    /**
      * 转换国家地区数据库实体为核心 ISO 信息对象。
      *
      * @param countryDO 国家地区数据库实体
@@ -560,6 +634,26 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 currencyDO.getMinimumAmount(),
                 currencyDO.getCurrencySymbol()
         );
+    }
+
+    /** 转换币种数据库实体为界面展示信息。 */
+    private IsoCurrencyPresentationInfo toCurrencyPresentationInfo(IsoCurrencyDO currencyDO) {
+        return new IsoCurrencyPresentationInfo(
+                currencyDO.getAlpha3Code(),
+                currencyDO.getChineseName(),
+                currencyDO.getEnglishName(),
+                currencyDO.getCurrencySymbol(),
+                safeIconKey(currencyDO)
+        );
+    }
+
+    private String safeIconKey(IsoCurrencyDO currencyDO) {
+        try {
+            return IsoCurrencyIconKey.normalize(currencyDO.getAlpha3Code(), currencyDO.getIconKey());
+        } catch (IllegalArgumentException exception) {
+            log.warn("忽略非法币种展示图标键，currency: {}", currencyDO.getAlpha3Code());
+            return null;
+        }
     }
 
     /**

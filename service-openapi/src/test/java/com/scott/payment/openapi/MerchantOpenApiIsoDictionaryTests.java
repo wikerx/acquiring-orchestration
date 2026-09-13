@@ -44,7 +44,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @SpringBootTest(
         classes = OpenApiApplication.class,
-        properties = "spring.cloud.nacos.discovery.enabled=false"
+        properties = {
+                "spring.cloud.nacos.discovery.enabled=false",
+                MerchantOpenApiTestSupport.GATEWAY_INGRESS_TEST_SECRET_PROPERTY,
+                MerchantOpenApiTestSupport.GATEWAY_INGRESS_REPLAY_DISABLED_PROPERTY,
+                MerchantOpenApiTestSupport.GATEWAY_INGRESS_LEGACY_DISABLED_PROPERTY
+        }
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
@@ -257,7 +262,8 @@ class MerchantOpenApiIsoDictionaryTests {
         return mockMvc.perform(post(path)
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
-                        .content(httpRequestBody))
+                        .content(httpRequestBody)
+                        .with(MerchantOpenApiTestSupport.gatewayIngress()))
                 .andDo(result -> log.info("平台返回ISO查询加密响应，path: {}，HTTP状态: {}，响应摘要: {}",
                         path,
                         result.getResponse().getStatus(),
@@ -305,7 +311,8 @@ class MerchantOpenApiIsoDictionaryTests {
         return mockMvc.perform(post(path)
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
-                        .content(httpRequestBody))
+                        .content(httpRequestBody)
+                        .with(MerchantOpenApiTestSupport.gatewayIngress()))
                 .andDo(result -> log.info("平台返回ISO异常响应，path: {}，HTTP状态: {}，响应: {}",
                         path,
                         result.getResponse().getStatus(),

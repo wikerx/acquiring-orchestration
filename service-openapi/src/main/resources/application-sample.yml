@@ -64,7 +64,17 @@ logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml
 
+acquiring:
+  gateway-ingress:
+    replay-protection-required: false
+    accept-legacy-signature: true
+
 openapi:
+  hosted-checkout:
+    # 示例环境仅放行本机回环 HTTP，非本机地址必须使用 HTTPS。
+    allow-loopback-http: true
+  callback-security:
+    channel-ip-whitelist-required: false
   security:
     replay:
       # 示例环境沿用本地调试策略；真实 UAT/生产必须开启 Redis 强制防重放。
