@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.SysMenuDTO;
 import com.scott.payment.admin.dto.SysRoleCreateRequest;
 import com.scott.payment.admin.dto.SysRoleDTO;
+import com.scott.payment.admin.dto.SysRoleGrantTreeAuthDTO;
+import com.scott.payment.admin.dto.SysRoleGrantTreeSaveRequest;
 import com.scott.payment.admin.dto.SysRoleMenuAuthDTO;
 import com.scott.payment.admin.dto.SysRoleMenuGrantRequest;
 import com.scott.payment.admin.dto.SysRolePermissionAuthDTO;
@@ -414,6 +416,71 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         });
     }
 
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public SysRoleGrantTreeAuthDTO roleGrantTree(Long roleId) {
+        SysAppDO app = getAdminApp();
+        SysRoleDO role = getRole(app.getId(), roleId);
+        SysRoleGrantTreeAuthDTO dto = grantTreeTemplate(app.getId());
+        dto.setRoleId(role.getId());
+        dto.setRoleCode(role.getRoleCode());
+        dto.setRoleName(role.getRoleName());
+        dto.setCheckedMenuIds(sysRoleMenuMapper.selectList(
+                Wrappers.<SysRoleMenuDO>lambdaQuery()
+                        .eq(SysRoleMenuDO::getAppId, app.getId())
+                        .eq(SysRoleMenuDO::getRoleId, role.getId())
+                        .eq(SysRoleMenuDO::getDeleted, NOT_DELETED)
+        ).stream().map(SysRoleMenuDO::getMenuId).toList());
+        dto.setCheckedPermissionIds(sysRolePermissionMapper.selectList(
+                Wrappers.<SysRolePermissionDO>lambdaQuery()
+                        .eq(SysRolePermissionDO::getAppId, app.getId())
+                        .eq(SysRolePermissionDO::getRoleId, role.getId())
+                        .eq(SysRolePermissionDO::getDeleted, NOT_DELETED)
+        ).stream().map(SysRolePermissionDO::getPermissionId).toList());
+        return dto;
+    }
+
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public SysRoleGrantTreeAuthDTO roleGrantTreeTemplate() {
+        return grantTreeTemplate(getAdminApp().getId());
+    }
+
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void grantRoleTree(SysRoleGrantTreeSaveRequest request) {
+        SysAppDO app = getAdminApp();
+        SysRoleDO role = getRole(app.getId(), request.getRoleId());
+        Set<Long> menuIds = normalizeIds(request.getMenuIds());
+        Set<Long> permissionIds = normalizeIds(request.getPermissionIds());
+        validatePermissionIds(app.getId(), permissionIds);
+        Set<Long> effectiveMenuIds = expandMenuIdsForPermissions(app.getId(), menuIds, permissionIds);
+        validateMenuIds(app.getId(), effectiveMenuIds);
+
+        softDeleteRoleMenus(app.getId(), role.getId());
+        softDeleteRolePermissions(app.getId(), role.getId());
+        LocalDateTime now = LocalDateTime.now();
+        effectiveMenuIds.forEach(menuId -> {
+            SysRoleMenuDO relation = new SysRoleMenuDO();
+            relation.setAppId(app.getId());
+            relation.setRoleId(role.getId());
+            relation.setMenuId(menuId);
+            relation.setCreatedAt(now);
+            relation.setDeleted(NOT_DELETED);
+            sysRoleMenuMapper.insert(relation);
+        });
+        permissionIds.forEach(permissionId -> {
+            SysRolePermissionDO relation = new SysRolePermissionDO();
+            relation.setAppId(app.getId());
+            relation.setRoleId(role.getId());
+            relation.setPermissionId(permissionId);
+            relation.setCreatedAt(now);
+            relation.setDeleted(NOT_DELETED);
+            sysRolePermissionMapper.insert(relation);
+        });
+    }
+
     /**
      * 查询 admin 应用实体，保证角色数据作用域固定在管理后台。
      *
@@ -480,22 +547,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     private Map<Long, Long> countRolePermissions(Long roleId) {
-        List<Long> menuIds = sysRoleMenuMapper.selectList(
-                        Wrappers.<SysRoleMenuDO>lambdaQuery()
-                                .eq(SysRoleMenuDO::getRoleId, roleId)
-                                .eq(SysRoleMenuDO::getDeleted, NOT_DELETED)
-                ).stream()
-                .map(SysRoleMenuDO::getMenuId)
-                .toList();
-        if (menuIds.isEmpty()) {
-            return Map.of(roleId, 0L);
-        }
-        Long count = sysMenuMapper.selectCount(
-                Wrappers.<SysMenuDO>lambdaQuery()
-                        .in(SysMenuDO::getId, menuIds)
-                        .eq(SysMenuDO::getDeleted, NOT_DELETED)
-                        .isNotNull(SysMenuDO::getPermissionCode)
-        );
+        Long count = sysRolePermissionMapper.selectCount(
+                Wrappers.<SysRolePermissionDO>lambdaQuery()
+                        .eq(SysRolePermissionDO::getRoleId, roleId)
+                        .eq(SysRolePermissionDO::getDeleted, NOT_DELETED));
         return Map.of(roleId, count == null ? 0L : count);
     }
 
@@ -563,28 +618,11 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         if (page.getRecords().isEmpty()) {
             return Collections.emptyMap();
         }
-        List<SysRoleMenuDO> roleMenus = sysRoleMenuMapper.selectList(
-                Wrappers.<SysRoleMenuDO>lambdaQuery()
-                        .in(SysRoleMenuDO::getRoleId, page.getRecords().stream().map(SysRoleDO::getId).toList())
-                        .eq(SysRoleMenuDO::getDeleted, NOT_DELETED)
-        );
-        Set<Long> menuIds = roleMenus.stream()
-                .map(SysRoleMenuDO::getMenuId)
-                .collect(Collectors.toSet());
-        if (menuIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        Set<Long> permissionMenuIds = sysMenuMapper.selectList(
-                        Wrappers.<SysMenuDO>lambdaQuery()
-                                .in(SysMenuDO::getId, menuIds)
-                                .eq(SysMenuDO::getDeleted, NOT_DELETED)
-                                .isNotNull(SysMenuDO::getPermissionCode)
-                ).stream()
-                .map(SysMenuDO::getId)
-                .collect(Collectors.toSet());
-        return roleMenus.stream()
-                .filter(item -> permissionMenuIds.contains(item.getMenuId()))
-                .collect(Collectors.groupingBy(SysRoleMenuDO::getRoleId, Collectors.counting()));
+        return sysRolePermissionMapper.selectList(
+                Wrappers.<SysRolePermissionDO>lambdaQuery()
+                        .in(SysRolePermissionDO::getRoleId, page.getRecords().stream().map(SysRoleDO::getId).toList())
+                        .eq(SysRolePermissionDO::getDeleted, NOT_DELETED)
+        ).stream().collect(Collectors.groupingBy(SysRolePermissionDO::getRoleId, Collectors.counting()));
     }
 
     private SysRoleDTO toDTO(SysRoleDO role, Map<Long, Long> menuCountMap, Map<Long, Long> permissionCountMap) {
@@ -613,6 +651,25 @@ public class AdminRoleServiceImpl implements AdminRoleService {
                         .orderByAsc(SysMenuDO::getSortNo)
                         .orderByAsc(SysMenuDO::getId)
         );
+    }
+
+    private List<SysPermissionDO> loadGrantablePermissions(Long appId) {
+        return sysPermissionMapper.selectList(
+                Wrappers.<SysPermissionDO>lambdaQuery()
+                        .eq(SysPermissionDO::getAppId, appId)
+                        .eq(SysPermissionDO::getDeleted, NOT_DELETED)
+                        .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
+                        .gt(SysPermissionDO::getMenuId, 0L)
+                        .ne(SysPermissionDO::getPermissionCode, "*:*:*")
+                        .orderByAsc(SysPermissionDO::getId)
+        );
+    }
+
+    private SysRoleGrantTreeAuthDTO grantTreeTemplate(Long appId) {
+        SysRoleGrantTreeAuthDTO dto = new SysRoleGrantTreeAuthDTO();
+        dto.setMenus(buildMenuTree(loadGrantableMenus(appId)));
+        dto.setPermissions(loadGrantablePermissions(appId).stream().map(this::toPermissionDTO).toList());
+        return dto;
     }
 
     private List<SysMenuDTO> buildMenuTree(List<SysMenuDO> menus) {
@@ -686,6 +743,31 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         );
         if (count == null || count != permissionIds.size()) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "permission ids are invalid");
+        }
+    }
+
+    private Set<Long> expandMenuIdsForPermissions(Long appId, Set<Long> menuIds, Set<Long> permissionIds) {
+        Set<Long> expanded = new java.util.LinkedHashSet<>(menuIds);
+        if (permissionIds.isEmpty()) {
+            return expanded;
+        }
+        Map<Long, SysMenuDO> menuMap = loadGrantableMenus(appId).stream()
+                .collect(Collectors.toMap(SysMenuDO::getId, menu -> menu));
+        loadGrantablePermissions(appId).stream()
+                .filter(permission -> permissionIds.contains(permission.getId()))
+                .map(SysPermissionDO::getMenuId)
+                .filter(id -> id != null && id > 0)
+                .forEach(menuId -> addMenuAndAncestors(menuId, menuMap, expanded));
+        return expanded;
+    }
+
+    private void addMenuAndAncestors(Long menuId, Map<Long, SysMenuDO> menuMap, Set<Long> target) {
+        Long currentId = menuId;
+        Set<Long> visited = new java.util.HashSet<>();
+        while (currentId != null && currentId > 0 && visited.add(currentId)) {
+            target.add(currentId);
+            SysMenuDO menu = menuMap.get(currentId);
+            currentId = menu == null ? null : menu.getParentId();
         }
     }
 

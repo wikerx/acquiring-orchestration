@@ -58,7 +58,7 @@ JOIN sys_menu parent ON parent.app_id = app.id
                     AND parent.menu_code = 'admin_transaction_clearing_v1'
                     AND parent.deleted = 0
 JOIN (
-    SELECT 'admin_transaction_clearing_detail_v1' menu_code, '清分详情' menu_name,
+    SELECT 'admin_transaction_clearing_detail_v1' menu_code, '查看交易清分' menu_name,
            'clearing:record:detail' permission_code, 1 sort_no
     UNION ALL SELECT 'admin_transaction_clearing_retry_v1', '人工重试清分',
            'clearing:record:retry', 2
@@ -88,7 +88,7 @@ WHERE app.app_code = 'ADMIN'
 UPDATE sys_menu menu
 JOIN sys_app app ON app.id = menu.app_id AND app.app_code = 'ADMIN' AND app.deleted = 0
 JOIN (
-    SELECT 'admin_transaction_clearing_detail_v1' menu_code, '清分详情' menu_name,
+    SELECT 'admin_transaction_clearing_detail_v1' menu_code, '查看交易清分' menu_name,
            'clearing:record:detail' permission_code, 1 sort_no
     UNION ALL SELECT 'admin_transaction_clearing_retry_v1', '人工重试清分',
            'clearing:record:retry', 2
@@ -135,7 +135,7 @@ JOIN (
            '清分记录查询' permission_name, 'MENU' permission_type, 'POST' resource_method,
            '/admin/clearing/records/search' resource_path, '按单季度查询交易清分权威状态' description
     UNION ALL SELECT 'admin_transaction_clearing_detail_v1', 'clearing:record:detail',
-           '清分记录详情', 'BUTTON', 'GET', '/admin/clearing/records/*',
+           '查看交易清分', 'BUTTON', 'GET', '/admin/clearing/records/*',
            '查询当前修订的交易费用和保证金清分明细'
     UNION ALL SELECT 'admin_transaction_clearing_retry_v1', 'clearing:record:retry',
            '人工重试清分', 'BUTTON', 'POST', '/admin/clearing/records/*/retry',
@@ -183,7 +183,7 @@ JOIN (
            '清分记录查询' permission_name, 'MENU' permission_type, 'POST' resource_method,
            '/admin/clearing/records/search' resource_path, '按单季度查询交易清分权威状态' description
     UNION ALL SELECT 'admin_transaction_clearing_detail_v1', 'clearing:record:detail',
-           '清分记录详情', 'BUTTON', 'GET', '/admin/clearing/records/*',
+           '查看交易清分', 'BUTTON', 'GET', '/admin/clearing/records/*',
            '查询当前修订的交易费用和保证金清分明细'
     UNION ALL SELECT 'admin_transaction_clearing_retry_v1', 'clearing:record:retry',
            '人工重试清分', 'BUTTON', 'POST', '/admin/clearing/records/*/retry',

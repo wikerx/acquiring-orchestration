@@ -314,6 +314,7 @@ CREATE TABLE `base_iso_currency` (
   `english_name` varchar(128) NOT NULL COMMENT '币种英文名称',
   `chinese_name` varchar(128) NOT NULL COMMENT '币种中文名称',
   `currency_symbol` varchar(16) NOT NULL DEFAULT '' COMMENT '币种符号/图标',
+  `icon_key` varchar(64) DEFAULT NULL COMMENT '受控币种展示图标键',
   `fraction_digits` tinyint NOT NULL COMMENT '默认辅币位，-1 表示无定义',
   `minor_unit_multiplier` bigint NOT NULL DEFAULT '0' COMMENT '最小单位换算倍数',
   `minimum_amount` decimal(18,6) NOT NULL DEFAULT '0.000000' COMMENT '最小金额单位',
@@ -563,6 +564,32 @@ INSERT INTO `base_iso_currency` (`id`, `alpha3_code`, `numeric_code`, `english_n
 INSERT INTO `base_iso_currency` (`id`, `alpha3_code`, `numeric_code`, `english_name`, `chinese_name`, `currency_symbol`, `fraction_digits`, `minor_unit_multiplier`, `minimum_amount`, `status`, `created_at`, `updated_at`, `deleted`) VALUES (231, 'ZWL', '932', 'Zimbabwean Dollar (2009–2024)', '津巴布韦元 (2009)', 'ZWL', 2, 100, 0.010000, 1, '2026-06-03 09:40:16.287', '2026-06-03 09:40:16.287', 0);
 INSERT INTO `base_iso_currency` (`id`, `alpha3_code`, `numeric_code`, `english_name`, `chinese_name`, `currency_symbol`, `fraction_digits`, `minor_unit_multiplier`, `minimum_amount`, `status`, `created_at`, `updated_at`, `deleted`) VALUES (232, 'ZWN', '942', 'ZWN', 'ZWN', 'ZWN', 2, 100, 0.010000, 1, '2026-06-03 09:40:16.287', '2026-06-03 09:40:16.287', 0);
 INSERT INTO `base_iso_currency` (`id`, `alpha3_code`, `numeric_code`, `english_name`, `chinese_name`, `currency_symbol`, `fraction_digits`, `minor_unit_multiplier`, `minimum_amount`, `status`, `created_at`, `updated_at`, `deleted`) VALUES (233, 'ZWR', '935', 'Zimbabwean Dollar (2008)', '津巴布韦元 (2008)', 'ZWR', 2, 100, 0.010000, 1, '2026-06-03 09:40:16.287', '2026-06-03 09:40:16.287', 0);
+COMMIT;
+
+-- 币种 Logo 采用受控键，不保存外部 URL。仅单一国家/地区使用该地区旗帜；
+-- 全球、区域性和贵金属币种使用中性的币种头像。
+START TRANSACTION;
+UPDATE base_iso_currency currency_row
+LEFT JOIN (
+  SELECT currency_alpha3_code, MIN(alpha2_code) AS alpha2_code
+  FROM base_iso_country
+  WHERE currency_alpha3_code <> '' AND status = 1 AND deleted = 0
+  GROUP BY currency_alpha3_code
+  HAVING COUNT(*) = 1
+) country_row ON country_row.currency_alpha3_code = currency_row.alpha3_code
+SET currency_row.icon_key = CASE
+  WHEN currency_row.alpha3_code = 'USD' THEN 'flag:US'
+  WHEN currency_row.alpha3_code = 'CNY' THEN 'flag:CN'
+  WHEN currency_row.alpha3_code = 'EUR' THEN 'flag:EU'
+  WHEN currency_row.alpha3_code = 'HKD' THEN 'flag:HK'
+  WHEN currency_row.alpha3_code = 'GBP' THEN 'flag:GB'
+  WHEN currency_row.alpha3_code = 'JPY' THEN 'flag:JP'
+  WHEN currency_row.alpha3_code IN ('XAU', 'XAG', 'XPT', 'XPD', 'XAF', 'XOF', 'XCD', 'XXX')
+    THEN CONCAT('currency:', currency_row.alpha3_code)
+  WHEN country_row.alpha2_code IS NOT NULL THEN CONCAT('flag:', country_row.alpha2_code)
+  ELSE NULL
+END
+WHERE currency_row.deleted = 0;
 COMMIT;
 
 -- ----------------------------

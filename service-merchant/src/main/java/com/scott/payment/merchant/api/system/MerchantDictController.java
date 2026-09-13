@@ -1,19 +1,24 @@
 package com.scott.payment.merchant.api.system;
 
+import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import com.scott.payment.merchant.dto.system.MerchantDictDTOs.DictDataQuery;
 import com.scott.payment.merchant.dto.system.MerchantDictDTOs.DictDataResponse;
 import com.scott.payment.merchant.service.MerchantDictService;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
+
+import java.util.List;
 
 /**
  * @author : scott
@@ -30,13 +35,24 @@ public class MerchantDictController {
 
     private final MerchantDictService dictService;
 
+    /** 登录后商户页面共用的币种展示字典。 */
+    private final IsoDictionaryService isoDictionaryService;
+
     /**
      * 创建商户后台只读字典接口。
      *
      * @param dictService 商户后台只读字典服务
      */
-    public MerchantDictController(MerchantDictService dictService) {
+    public MerchantDictController(MerchantDictService dictService,
+                                  IsoDictionaryService isoDictionaryService) {
         this.dictService = dictService;
+        this.isoDictionaryService = isoDictionaryService;
+    }
+
+    /** 登录后的商户页面可读取币种展示信息，不与交易字典权限绑定。 */
+    @GetMapping("/currency-presentations")
+    public CommonResult<List<IsoCurrencyPresentationInfo>> currencyPresentations() {
+        return success(isoDictionaryService.listCurrencyPresentations());
     }
 
     /**

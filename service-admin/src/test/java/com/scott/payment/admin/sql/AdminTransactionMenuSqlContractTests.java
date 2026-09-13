@@ -234,7 +234,9 @@ class AdminTransactionMenuSqlContractTests {
                 "INSERT IGNORE INTO sys_role_permission",
                 "menu.menu_name = BINARY item.menu_name",
                 "permission.permission_name = BINARY item.permission_name",
-                "permission.description = BINARY item.description"
+                "permission.description = BINARY item.description",
+                "'admin_transaction_clearing_detail_v1' menu_code, '查看交易清分' menu_name",
+                "'clearing:record:detail',\n           '查看交易清分'"
         );
         for (String permission : CLEARING_PERMISSIONS) {
             assertThat(migration).contains(permission);

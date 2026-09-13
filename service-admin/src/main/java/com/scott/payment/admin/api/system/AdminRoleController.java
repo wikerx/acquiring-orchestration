@@ -4,6 +4,8 @@ import com.scott.payment.admin.application.system.AdminRoleApplicationService;
 import com.scott.payment.admin.dto.SysRoleCreateRequest;
 import com.scott.payment.admin.dto.SysRoleDeleteRequest;
 import com.scott.payment.admin.dto.SysRoleDTO;
+import com.scott.payment.admin.dto.SysRoleGrantTreeAuthDTO;
+import com.scott.payment.admin.dto.SysRoleGrantTreeSaveRequest;
 import com.scott.payment.admin.dto.SysRoleMenuAuthDTO;
 import com.scott.payment.admin.dto.SysRoleMenuGrantRequest;
 import com.scott.payment.admin.dto.SysRolePermissionAuthDTO;
@@ -19,6 +21,7 @@ import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -175,6 +178,48 @@ public class AdminRoleController {
             operation = "保存角色权限授权", recordRequest = false, recordResponse = false)
     public CommonResult<Void> grantPermissions(@Valid @RequestBody SysRolePermissionGrantRequest request) {
         adminRoleApplicationService.grantPermissions(request);
+        return success();
+    }
+
+    /**
+     * 查询角色菜单与操作权限统一授权信息。
+     *
+     * @param request 角色标识请求
+     * @return 统一授权信息
+     */
+    @PostMapping("/grant-tree")
+    @RequiresPermission("system:role:assign-permission")
+    @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY,
+            operation = "查询角色统一授权树")
+    public CommonResult<SysRoleGrantTreeAuthDTO> roleGrantTree(@Valid @RequestBody SysRoleDeleteRequest request) {
+        return success(adminRoleApplicationService.roleGrantTree(request.getRoleId()));
+    }
+
+    /**
+     * 查询新增角色使用的统一授权模板。
+     *
+     * @return 统一授权模板
+     */
+    @GetMapping("/grant-tree/template")
+    @RequiresPermission("system:role:assign-permission")
+    @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY,
+            operation = "查询角色统一授权模板")
+    public CommonResult<SysRoleGrantTreeAuthDTO> roleGrantTreeTemplate() {
+        return success(adminRoleApplicationService.roleGrantTreeTemplate());
+    }
+
+    /**
+     * 原子保存角色菜单与操作权限授权。
+     *
+     * @param request 统一授权请求
+     * @return 空响应
+     */
+    @PostMapping("/grant-tree/grant")
+    @RequiresPermission("system:role:assign-permission")
+    @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
+            operation = "保存角色统一授权", recordRequest = false, recordResponse = false)
+    public CommonResult<Void> grantRoleTree(@Valid @RequestBody SysRoleGrantTreeSaveRequest request) {
+        adminRoleApplicationService.grantRoleTree(request);
         return success();
     }
 }

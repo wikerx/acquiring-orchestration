@@ -1,9 +1,11 @@
 package com.scott.payment.admin.api.base;
 
 import com.scott.payment.admin.application.base.AdminBaseCurrencyApplicationService;
+import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
+import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
@@ -11,6 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.List;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -36,13 +39,24 @@ public class AdminBaseCurrencyController {
      */
     private final AdminBaseCurrencyApplicationService adminBaseCurrencyApplicationService;
 
+    /** 登录后各管理端页面共用的币种展示字典。 */
+    private final IsoDictionaryService isoDictionaryService;
+
     /**
      * 创建币种管理控制器。
      *
      * @param adminBaseCurrencyApplicationService 币种应用服务
      */
-    public AdminBaseCurrencyController(AdminBaseCurrencyApplicationService adminBaseCurrencyApplicationService) {
+    public AdminBaseCurrencyController(AdminBaseCurrencyApplicationService adminBaseCurrencyApplicationService,
+                                       IsoDictionaryService isoDictionaryService) {
         this.adminBaseCurrencyApplicationService = adminBaseCurrencyApplicationService;
+        this.isoDictionaryService = isoDictionaryService;
+    }
+
+    /** 登录后的管理端页面可读取币种展示信息，无需拥有币种维护权限。 */
+    @GetMapping("/presentations")
+    public CommonResult<List<IsoCurrencyPresentationInfo>> presentations() {
+        return success(isoDictionaryService.listCurrencyPresentations());
     }
 
     /** 分页查询币种列表。 */

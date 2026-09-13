@@ -4,6 +4,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
@@ -509,6 +510,11 @@ class HostedCheckoutServiceImplTests {
 
             @Override
             public List<IsoCurrencyInfo> listCurrencies() {
+                return List.of();
+            }
+
+            @Override
+            public List<IsoCurrencyPresentationInfo> listCurrencyPresentations() {
                 return List.of();
             }
 

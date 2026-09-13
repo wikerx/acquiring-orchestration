@@ -139,6 +139,16 @@ public class AdminSettlementReviewController {
         return success(applicationService.reviewDetail(reviewOrderNo));
     }
 
+    /** 独立授权读取预审凭证数据，PDF 由浏览器基于该不可变快照生成。 */
+    @GetMapping("/review-orders/{reviewOrderNo}/voucher")
+    @RequiresPermission("settlement:review-order:voucher-download")
+    @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.EXPORT,
+            operation = "下载结算预审凭证")
+    public CommonResult<ReviewDetailResponse> reviewVoucher(
+            @PathVariable("reviewOrderNo") String reviewOrderNo) {
+        return success(applicationService.reviewVoucher(reviewOrderNo));
+    }
+
     @PostMapping("/review-orders/{reviewOrderNo}/candidates/search")
     @RequiresPermission("settlement:review-order:detail")
     @OperationLog(moduleName = "交易结算", businessType = OperationTypeConstants.QUERY,

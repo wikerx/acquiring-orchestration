@@ -2,7 +2,7 @@ package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
-import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.TransactionSettlementSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReserveItemSearchRequest;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
@@ -34,18 +34,18 @@ import static org.mockito.Mockito.when;
  * @classname : JdbcAdminSettlementReportingQueryServiceTest
  * @date : 2026-09-02 08:03
  * @email : scott_x@163.com
- * @description : 验证结算结果和入账查询的稳定分页、汇率读取及商户数据范围。
+ * @description : 验证逐笔交易结算、保证金结算和入账查询的稳定分页及商户数据范围。
  * @status : create
  */
 class JdbcAdminSettlementReportingQueryServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void resultSearchShouldJoinLockedRateAndApplyCustomMerchantScope() {
+    void transactionSettlementSearchShouldAggregateByRealTransactionAndApplyMerchantScope() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
         when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(1L);
         when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
-                .thenReturn(List.of(new ResultItemSummary()));
+                .thenReturn(List.of(new TransactionSettlementSummary()));
         JdbcAdminSettlementReportingQueryService service = service(jdbc);
         ResultItemSearchRequest request = resultRequest();
         request.setTargetCurrency(" usd ");
@@ -55,9 +55,19 @@ class JdbcAdminSettlementReportingQueryServiceTest {
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<MapSqlParameterSource> parameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
         verify(jdbc).query(sql.capture(), parameters.capture(), any(RowMapper.class));
-        assertThat(sql.getValue()).contains("JOIN settlement_batch_rate rate", "rate.direct_rate",
-                "ri.merchant_id IN (:permittedMerchantIds)",
-                "ORDER BY COALESCE(ri.source_transaction_date_time, ri.create_time) DESC, ri.id DESC");
+        assertThat(sql.getValue()).contains(
+                "FROM settlement_candidate candidate",
+                "JOIN settlement_batch batch",
+                "JOIN settlement_result_item item",
+                "candidate.source_type = 'CLEARING_REVISION'",
+                "item.source_detail_type = 'TRANSACTION_CLEARING'",
+                "item.result_role = 'FINANCIAL_COMPONENT'",
+                "filter_item.target_currency = :currency",
+                "candidate.merchant_id IN (:permittedMerchantIds)",
+                "GROUP BY batch.settlement_batch_no",
+                "ORDER BY source_transaction_date_time DESC, candidate.id DESC",
+                "LIMIT :offset, :limit");
+        assertThat(sql.getValue()).doesNotContain("JOIN settlement_batch_rate rate");
         assertThat(parameters.getValue().getValue("currency")).isEqualTo("USD");
         assertThat(parameters.getValue().getValue("permittedMerchantIds")).isEqualTo(Set.of("M1001"));
     }
@@ -99,7 +109,7 @@ class JdbcAdminSettlementReportingQueryServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void reserveSearchShouldExposeCandidateTransactionTimeWithinMerchantScope() {
+    void reserveSearchShouldExposeAndFilterByOriginalTransactionWithinMerchantScope() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
         when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(1L);
         when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class))).thenReturn(List.of());
@@ -114,19 +124,135 @@ class JdbcAdminSettlementReportingQueryServiceTest {
         verify(jdbc).query(sql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
         assertThat(sql.getValue()).contains(
                 "fund_account.account_no AS account_no",
-                "candidate.source_transaction_id",
-                "candidate.source_transaction_date_time",
-                "candidate.source_transaction_id = :transactionId",
+                "reserve_detail.original_transaction_id AS source_transaction_id",
+                "COALESCE(locator.transaction_date_time, reserve_detail.original_transaction_date_time)",
+                "AS source_transaction_date_time",
+                "reserve_detail.original_transaction_id = :transactionId",
                 "JOIN settlement_candidate candidate",
                 "candidate.merchant_id = reserve.merchant_id",
+                "LEFT JOIN merchant_reserve_action source_action",
+                "source_action.id = action.reversal_of_action_id",
+                "JOIN transaction_reserve_clearing_detail reserve_detail",
+                "reserve_detail.transaction_id = candidate.source_transaction_id",
+                "reserve_detail.transaction_date_time = candidate.source_transaction_date_time",
+                "reserve_detail.clearing_revision = candidate.source_revision",
+                "reserve_detail.reserve_clearing_detail_no = COALESCE(",
+                "source_action.source_reserve_detail_no",
+                "action.source_reserve_detail_no",
                 "LEFT JOIN merchant_fund_account fund_account",
                 "fund_account.id = reserve.account_id",
                 "fund_account.merchant_id = reserve.merchant_id",
                 "fund_account.deleted = 0",
                 "LEFT JOIN base_iso_currency currency",
                 "AS currency_exponent",
+                "reserve.reserve_status = 'HELD'",
+                "reserve.release_batch_no IS NOT NULL",
+                "THEN 'RELEASED'",
+                "END",
+                "AS reserve_status",
                 "reserve.merchant_id IN (:permittedMerchantIds)");
-        assertThat(sql.getValue()).doesNotContain("reserve.source_transaction_id,");
+        assertThat(sql.getValue()).doesNotContain(
+                "candidate.source_transaction_id,\n",
+                "candidate.source_transaction_date_time,",
+                "candidate.source_transaction_id = :transactionId");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void resultHistoryShouldUseExactTransactionIdentityWithoutBusinessDateWindow() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(1L);
+        when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class))).thenReturn(List.of());
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 8, 15, 10, 30, 20);
+
+        service(jdbc).searchResultItemsByTransaction(
+                "T-1004", transactionDateTime, 1, 20,
+                AdminMerchantDataScope.limited(Set.of("M1004")));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+        assertThat(sql.getValue()).contains(
+                "FROM settlement_candidate candidate",
+                "JOIN settlement_result_item ri",
+                "ri.settlement_batch_no = candidate.settlement_batch_no",
+                "ri.candidate_id = candidate.id",
+                "candidate.source_type = 'CLEARING_REVISION'",
+                "candidate.source_transaction_id = :transactionId",
+                "candidate.source_transaction_date_time = :transactionDateTime",
+                "candidate.merchant_id IN (:permittedMerchantIds)",
+                "LIMIT :offset, :limit");
+        assertThat(sql.getValue()).doesNotContain("business_date BETWEEN");
+        assertThat(parameters.getValue().getValue("transactionId")).isEqualTo("T-1004");
+        assertThat(parameters.getValue().getValue("transactionDateTime")).isEqualTo(transactionDateTime);
+        assertThat(parameters.getValue().getValue("permittedMerchantIds")).isEqualTo(Set.of("M1004"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void reconciliationDetailShouldUseExactTransactionIdentityAndMerchantScope() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(List.of());
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 9, 9, 17, 34, 8, 160_000_000);
+
+        service(jdbc).findReconciliationRecordsByTransaction(
+                "T-1004", transactionDateTime,
+                AdminMerchantDataScope.limited(Set.of("M1004")));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+        assertThat(sql.getValue()).contains(
+                "FROM transaction_operation operation",
+                "operation.transaction_id = :transactionId",
+                "operation.transaction_date_time = :transactionDateTime",
+                "operation.merchant_id IN (:permittedMerchantIds)",
+                "operation.deleted = 0",
+                "operation.reconciliation_status",
+                "operation.settlement_status",
+                "operation.accounting_status",
+                "LIMIT 1");
+        assertThat(parameters.getValue().getValue("transactionId")).isEqualTo("T-1004");
+        assertThat(parameters.getValue().getValue("transactionDateTime")).isEqualTo(transactionDateTime);
+        assertThat(parameters.getValue().getValue("permittedMerchantIds")).isEqualTo(Set.of("M1004"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void reserveHistoryShouldRouteByOriginalTransactionStateAndReturnAllReserveActions() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(1L);
+        when(jdbc.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class))).thenReturn(List.of());
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 8, 16, 11, 40, 30);
+
+        service(jdbc).searchReserveItemsByTransaction(
+                "T-1005", transactionDateTime, 1, 20,
+                AdminMerchantDataScope.limited(Set.of("M1005")));
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(sql.capture(), parameters.capture(), any(RowMapper.class));
+        assertThat(sql.getValue()).contains(
+                "reserve_state.original_transaction_id AS source_transaction_id",
+                "COALESCE(locator.transaction_date_time, reserve_state.transaction_date_time)",
+                "AS source_transaction_date_time",
+                "FROM transaction_reserve_clearing_state reserve_state",
+                "JOIN merchant_reserve_item reserve",
+                "reserve.source_business_no = reserve_state.original_hold_detail_no",
+                "JOIN merchant_reserve_action action",
+                "action.reserve_item_id = reserve.id",
+                "reserve_state.original_transaction_id = :transactionId",
+                "reserve_state.transaction_date_time = :transactionDateTime",
+                "reserve_state.merchant_id IN (:permittedMerchantIds)",
+                "LIMIT :offset, :limit");
+        assertThat(sql.getValue()).doesNotContain(
+                "business_date BETWEEN",
+                "JOIN settlement_candidate candidate",
+                "JOIN transaction_reserve_clearing_detail reserve_detail");
+        assertThat(parameters.getValue().getValue("transactionId")).isEqualTo("T-1005");
+        assertThat(parameters.getValue().getValue("transactionDateTime")).isEqualTo(transactionDateTime);
+        assertThat(parameters.getValue().getValue("permittedMerchantIds")).isEqualTo(Set.of("M1005"));
     }
 
     private ResultItemSearchRequest resultRequest() {

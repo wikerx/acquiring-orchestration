@@ -5,8 +5,10 @@ import com.scott.payment.component.core.cache.CacheInvalidationGuard;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
+import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -162,6 +164,53 @@ class IsoDictionaryServiceImplTests {
         log.info("ISO 币种字典常驻快照测试完成，结果: 仅访问统一短 Key");
     }
 
+    /** 币种展示快照必须使用独立版本键，不能复用金额计算字典缓存。 */
+    @Test
+    void shouldReadCurrencyPresentationSnapshotFromVersionedKey() {
+        Fixture fixture = fixture();
+        IsoCurrencyPresentationInfo presentation = new IsoCurrencyPresentationInfo(
+                "USD", "美元", "US Dollar", "$", "flag:US");
+        when(fixture.valueOperations().get("acquiring:dev:iso:currency:presentation-v1"))
+                .thenReturn(JsonUtils.toJsonString(List.of(presentation)));
+
+        assertThat(fixture.service().listCurrencyPresentations()).containsExactly(presentation);
+        verify(fixture.currencyMapper(), never()).selectList(any());
+        verify(fixture.valueOperations(), never()).get("acquiring:dev:iso:currency:all");
+    }
+
+    /** 数据库展示记录应写入版本化永久缓存，非法历史图标键必须降级为空。 */
+    @Test
+    void shouldWriteSafeCurrencyPresentationSnapshotAfterDatabaseLoad() {
+        Fixture fixture = fixture();
+        IsoCurrencyDO usd = currencyRow("USD", "flag:US");
+        IsoCurrencyDO cny = currencyRow("CNY", "https://cdn.example.com/cny.svg");
+        when(fixture.valueOperations().get("acquiring:dev:iso:currency:presentation-v1"))
+                .thenReturn(null);
+        when(fixture.currencyMapper().selectList(any())).thenReturn(List.of(usd, cny));
+
+        List<IsoCurrencyPresentationInfo> presentations = fixture.service().listCurrencyPresentations();
+
+        assertThat(presentations).extracting(IsoCurrencyPresentationInfo::alphabeticCode)
+                .containsExactly("CNY", "USD");
+        assertThat(presentations.get(0).iconKey()).isNull();
+        assertThat(presentations.get(1).iconKey()).isEqualTo("flag:US");
+        verify(fixture.valueOperations()).set(
+                org.mockito.ArgumentMatchers.eq("acquiring:dev:iso:currency:presentation-v1"),
+                anyString()
+        );
+    }
+
+    /** 币种维护后必须同时失效计算字典和展示字典。 */
+    @Test
+    void shouldEvictCurrencyAndPresentationSnapshotsTogether() {
+        Fixture fixture = fixture();
+
+        fixture.service().evictCurrencies();
+
+        verify(fixture.redisTemplate()).delete("acquiring:dev:iso:currency:all");
+        verify(fixture.redisTemplate()).delete("acquiring:dev:iso:currency:presentation-v1");
+    }
+
     /**
      * 创建使用 dev 环境精简 Key 的 ISO 字典测试夹具。
      *
@@ -186,6 +235,8 @@ class IsoDictionaryServiceImplTests {
                 .thenReturn("acquiring:dev:iso:country:all");
         when(keyResolver.businessKey("iso", "currency", "all"))
                 .thenReturn("acquiring:dev:iso:currency:all");
+        when(keyResolver.businessKey("iso", "currency", "presentation-v1"))
+                .thenReturn("acquiring:dev:iso:currency:presentation-v1");
         IsoDictionaryServiceImpl service = new IsoDictionaryServiceImpl(
                 countryMapper,
                 currencyMapper,
@@ -194,7 +245,7 @@ class IsoDictionaryServiceImplTests {
                 invalidationGuardProvider,
                 invalidationCoordinatorProvider
         );
-        return new Fixture(countryMapper, redisTemplate, valueOperations, service);
+        return new Fixture(countryMapper, currencyMapper, redisTemplate, valueOperations, service);
     }
 
     /**
@@ -243,6 +294,17 @@ class IsoDictionaryServiceImplTests {
         );
     }
 
+    private IsoCurrencyDO currencyRow(String alphabeticCode, String iconKey) {
+        IsoCurrencyDO row = new IsoCurrencyDO();
+        row.setAlpha3Code(alphabeticCode);
+        row.setNumericCode("000");
+        row.setEnglishName(alphabeticCode + " currency");
+        row.setChineseName(alphabeticCode + " 币种");
+        row.setCurrencySymbol(alphabeticCode);
+        row.setIconKey(iconKey);
+        return row;
+    }
+
     /**
      * ISO 字典测试依赖集合。
      *
@@ -252,6 +314,7 @@ class IsoDictionaryServiceImplTests {
      * @param service         待测服务
      */
     private record Fixture(IsoCountryMapper countryMapper,
+                           IsoCurrencyMapper currencyMapper,
                            StringRedisTemplate redisTemplate,
                            ValueOperations<String, String> valueOperations,
                            IsoDictionaryServiceImpl service) {

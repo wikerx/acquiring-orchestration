@@ -11,14 +11,19 @@ import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.merchant.dto.export.MerchantSettlementBatchExportRow;
 import com.scott.payment.merchant.dto.export.MerchantSettlementReserveExportRow;
-import com.scott.payment.merchant.dto.export.MerchantSettlementTransactionExportRow;
+import com.scott.payment.merchant.dto.export.MerchantSettlementSummaryExportRow;
+import com.scott.payment.merchant.dto.export.MerchantSettlementTransactionSummaryExportRow;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchDetail;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchQuery;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.BatchSummary;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ClearingDetail;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReconciliationRecord;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItem;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.ReserveItemQuery;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.SummaryLine;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.TransactionItem;
 import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.TransactionItemQuery;
+import com.scott.payment.merchant.dto.settlement.MerchantSettlementDTOs.TransactionSettlement;
 import com.scott.payment.merchant.service.MerchantSettlementQueryService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
@@ -94,14 +99,61 @@ public class MerchantSettlementApplicationService {
         return queryService.getBatch(currentMerchantId(), settlementBatchNo);
     }
 
+    /** 下载正式结算凭证前重新绑定当前认证商户。 */
+    public BatchDetail getVoucher(String settlementBatchNo) {
+        return queryService.getVoucher(currentMerchantId(), settlementBatchNo);
+    }
+
+    /** 分页查询当前认证商户指定批次的结算汇总。 */
+    public PageResult<SummaryLine> searchResultSummaries(String settlementBatchNo,
+                                                         Integer pageNo,
+                                                         Integer pageSize) {
+        return queryService.searchResultSummaries(
+                currentMerchantId(), settlementBatchNo, pageNo, pageSize);
+    }
+
     /**
      * 查询当前认证商户真实交易结算明细。
      *
      * @param query 可空交易明细过滤和分页条件
      * @return 仅当前 merchantId 且具备真实 transactionId 的明细分页
      */
-    public PageResult<TransactionItem> searchTransactionItems(TransactionItemQuery query) {
+    public PageResult<TransactionSettlement> searchTransactionItems(TransactionItemQuery query) {
         return queryService.searchTransactionItems(currentMerchantId(), query);
+    }
+
+    /** 分页查询当前商户正式批次内一笔交易的结算财务组件。 */
+    public PageResult<TransactionItem> searchTransactionComponents(String settlementBatchNo,
+                                                                    String transactionId,
+                                                                    Integer pageNo,
+                                                                    Integer pageSize) {
+        return queryService.searchTransactionComponents(
+                currentMerchantId(), settlementBatchNo, transactionId, pageNo, pageSize);
+    }
+
+    /** 按真实交易身份查询当前认证商户的对账状态快照。 */
+    public List<ReconciliationRecord> findReconciliationRecordsByTransaction(
+            String transactionId, LocalDateTime transactionDateTime) {
+        return queryService.findReconciliationRecordsByTransaction(
+                currentMerchantId(), transactionId, transactionDateTime);
+    }
+
+    /** 按真实交易身份查询当前认证商户的清分详情。 */
+    public ClearingDetail findClearingDetailByTransaction(
+            String transactionId, LocalDateTime transactionDateTime) {
+        return queryService.findClearingDetailByTransaction(
+                currentMerchantId(), transactionId, transactionDateTime);
+    }
+
+    /**
+     * 按真实交易身份查询当前认证商户的跨批次结算财务组件。
+     */
+    public PageResult<TransactionItem> searchTransactionItemsByTransaction(String transactionId,
+                                                                           LocalDateTime transactionDateTime,
+                                                                           Integer pageNo,
+                                                                           Integer pageSize) {
+        return queryService.searchTransactionItemsByTransaction(
+                currentMerchantId(), transactionId, transactionDateTime, pageNo, pageSize);
     }
 
     /**
@@ -112,6 +164,17 @@ public class MerchantSettlementApplicationService {
      */
     public PageResult<ReserveItem> searchReserveItems(ReserveItemQuery query) {
         return queryService.searchReserveItems(currentMerchantId(), query);
+    }
+
+    /**
+     * 按原支付交易身份查询当前认证商户的跨批次保证金动作。
+     */
+    public PageResult<ReserveItem> searchReserveItemsByTransaction(String transactionId,
+                                                                   LocalDateTime transactionDateTime,
+                                                                   Integer pageNo,
+                                                                   Integer pageSize) {
+        return queryService.searchReserveItemsByTransaction(
+                currentMerchantId(), transactionId, transactionDateTime, pageNo, pageSize);
     }
 
     /**
@@ -141,7 +204,7 @@ public class MerchantSettlementApplicationService {
     public void exportTransactionItems(TransactionItemQuery request, HttpServletResponse response) {
         TransactionItemQuery query = request == null ? new TransactionItemQuery() : request;
         Locale locale = localeResolver.resolveCurrentLocale();
-        exportPaged("excel.merchantSettlement.transactionTitle", MerchantSettlementTransactionExportRow.class,
+        exportPaged("excel.merchantSettlement.transactionTitle", MerchantSettlementTransactionSummaryExportRow.class,
                 pageNo -> {
                     query.setPageNo(pageNo);
                     query.setPageSize(EXPORT_PAGE_SIZE);
@@ -166,6 +229,16 @@ public class MerchantSettlementApplicationService {
                     return searchReserveItems(query).getRecords().stream()
                             .map(item -> toReserveRow(item, locale)).toList();
                 }, response);
+    }
+
+    /** 分页导出当前认证商户指定批次的全部结算汇总。 */
+    public void exportResultSummaries(String settlementBatchNo, HttpServletResponse response) {
+        String batchNo = StringUtils.hasText(settlementBatchNo) ? settlementBatchNo.trim() : settlementBatchNo;
+        Locale locale = localeResolver.resolveCurrentLocale();
+        exportPaged("excel.merchantSettlement.summaryTitle", MerchantSettlementSummaryExportRow.class,
+                pageNo -> searchResultSummaries(batchNo, pageNo, EXPORT_PAGE_SIZE)
+                        .getRecords().stream()
+                        .map(item -> toSummaryRow(item, locale)).toList(), response);
     }
 
     /**
@@ -200,24 +273,23 @@ public class MerchantSettlementApplicationService {
         return row;
     }
 
-    private MerchantSettlementTransactionExportRow toTransactionRow(TransactionItem source, Locale locale) {
-        MerchantSettlementTransactionExportRow row = new MerchantSettlementTransactionExportRow();
+    private MerchantSettlementTransactionSummaryExportRow toTransactionRow(TransactionSettlement source, Locale locale) {
+        MerchantSettlementTransactionSummaryExportRow row = new MerchantSettlementTransactionSummaryExportRow();
         row.setSettlementBatchNo(source.getSettlementBatchNo());
         row.setBusinessDate(source.getBusinessDate());
+        row.setMerchantOrderNo(source.getMerchantOrderNo());
         row.setSourceTransactionId(source.getSourceTransactionId());
         row.setSourceTransactionDateTime(source.getSourceTransactionDateTime());
-        row.setResultItemType(settlementLabel("resultItemType", source.getResultItemType(), locale));
         row.setPaymentType(settlementLabel("paymentType", source.getPaymentType(), locale));
         row.setPaymentMethod(settlementLabel("paymentMethod", source.getPaymentMethod(), locale));
         row.setTransactionType(settlementLabel("transactionType", source.getTransactionType(), locale));
-        row.setFeeCategory(settlementLabel("feeCategory", source.getFeeCategory(), locale));
-        row.setDirection(settlementLabel("direction", source.getDirection(), locale));
         row.setSourceAmount(source.getSourceAmount());
         row.setSourceCurrency(source.getSourceCurrency());
-        row.setDirectRate(source.getDirectRate());
-        row.setTargetAmount(source.getTargetAmount());
+        row.setComponentCount(source.getComponentCount());
+        row.setNetDirection(settlementLabel("direction", source.getNetDirection(), locale));
+        row.setNetTargetAmount(source.getNetTargetAmount());
         row.setTargetCurrency(source.getTargetCurrency());
-        row.setAppliedLimit(settlementLabel("appliedLimit", source.getAppliedLimit(), locale));
+        row.setPostedTime(source.getPostedTime());
         return row;
     }
 
@@ -236,6 +308,22 @@ public class MerchantSettlementApplicationService {
         row.setReserveStatus(settlementLabel("reserveStatus", source.getReserveStatus(), locale));
         row.setExpectedReleaseDate(source.getExpectedReleaseDate());
         row.setActionTime(source.getActionTime());
+        return row;
+    }
+
+    private MerchantSettlementSummaryExportRow toSummaryRow(SummaryLine source, Locale locale) {
+        MerchantSettlementSummaryExportRow row = new MerchantSettlementSummaryExportRow();
+        row.setPaymentType(settlementLabel("paymentType", source.getPaymentType(), locale));
+        row.setPaymentMethod(settlementLabel("paymentMethod", source.getPaymentMethod(), locale));
+        row.setTransactionType(settlementLabel("transactionType", source.getTransactionType(), locale));
+        row.setResultItemType(settlementLabel("resultItemType", source.getResultItemType(), locale));
+        row.setFeeCategory(settlementLabel("feeCategory", source.getFeeCategory(), locale));
+        row.setDirection(settlementLabel("direction", source.getDirection(), locale));
+        row.setSourceCurrency(source.getSourceCurrency());
+        row.setSourceAmount(source.getSourceAmount());
+        row.setTargetCurrency(source.getTargetCurrency());
+        row.setTargetAmount(source.getTargetAmount());
+        row.setTransactionCount(source.getTransactionCount());
         return row;
     }
 

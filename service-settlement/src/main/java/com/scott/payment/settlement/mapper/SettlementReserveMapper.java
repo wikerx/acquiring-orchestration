@@ -102,12 +102,12 @@ public interface SettlementReserveMapper {
     /** RETURN 减少仍扣留责任，金额和版本条件防止并发超额返还。 */
     @Update("""
             UPDATE merchant_reserve_item
-            SET returned_amount = returned_amount + #{amount},
-                reserve_status = CASE
+            SET reserve_status = CASE
                     WHEN retained_amount + debit_adjustment_amount
                         = returned_amount + released_amount + credit_adjustment_amount
                           + reversed_amount + #{amount}
                     THEN 'RETURNED' ELSE 'PARTIALLY_RETURNED' END,
+                returned_amount = returned_amount + #{amount},
                 version = version + 1,
                 update_time = #{now}
             WHERE id = #{reserveItemId}
@@ -126,12 +126,12 @@ public interface SettlementReserveMapper {
     /** 到期 RELEASE 减少仍扣留责任并记录释放批次。 */
     @Update("""
             UPDATE merchant_reserve_item
-            SET released_amount = released_amount + #{amount},
-                reserve_status = CASE
+            SET reserve_status = CASE
                     WHEN retained_amount + debit_adjustment_amount
                         = returned_amount + released_amount + credit_adjustment_amount
                           + reversed_amount + #{amount}
                     THEN 'RELEASED' ELSE 'HELD' END,
+                released_amount = released_amount + #{amount},
                 release_batch_no = #{settlementBatchNo},
                 version = version + 1,
                 update_time = #{now}
@@ -188,12 +188,12 @@ public interface SettlementReserveMapper {
     /** 撤销 HOLD，只允许在该留存仍有足额未返还、未释放责任时执行。 */
     @Update("""
             UPDATE merchant_reserve_item
-            SET reversed_amount = reversed_amount + #{amount},
-                reserve_status = CASE
+            SET reserve_status = CASE
                     WHEN retained_amount + debit_adjustment_amount
                         = returned_amount + released_amount + credit_adjustment_amount
                           + reversed_amount + #{amount}
                     THEN 'REVERSED' ELSE reserve_status END,
+                reversed_amount = reversed_amount + #{amount},
                 version = version + 1,
                 update_time = #{now}
             WHERE id = #{reserveItemId}

@@ -1,12 +1,13 @@
 package com.scott.payment.admin.application.transaction;
 
-import com.scott.payment.admin.dto.export.SettlementResultItemExportRow;
+import com.scott.payment.admin.dto.export.SettlementTransactionExportRow;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.PostingSearchRequest;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSearchRequest;
-import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ResultItemSummary;
+import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.TransactionSettlementSummary;
 import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewSearchRequest;
 import com.scott.payment.admin.service.AdminMerchantDataScope;
 import com.scott.payment.admin.service.AdminMerchantDataScopeResolver;
+import com.scott.payment.admin.service.AdminSettlementQueryService;
 import com.scott.payment.admin.service.AdminSettlementReportingQueryService;
 import com.scott.payment.admin.service.AdminSettlementReviewQueryService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -118,7 +120,7 @@ class AdminSettlementReportingApplicationServiceTest {
 
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
-    void resultItemExportShouldIncludePaymentDimensions() {
+    void transactionSettlementExportShouldIncludePaymentDimensions() {
         AdminSettlementReviewQueryService reviewQueryService = mock(AdminSettlementReviewQueryService.class);
         AdminSettlementReportingQueryService reportingQueryService =
                 mock(AdminSettlementReportingQueryService.class);
@@ -127,7 +129,7 @@ class AdminSettlementReportingApplicationServiceTest {
         ExcelI18nMessageResolver messageResolver = mock(ExcelI18nMessageResolver.class);
         ExcelLocaleResolver localeResolver = mock(ExcelLocaleResolver.class);
         HttpServletResponse response = mock(HttpServletResponse.class);
-        ResultItemSummary source = new ResultItemSummary();
+        TransactionSettlementSummary source = new TransactionSettlementSummary();
         source.setPaymentType("BANK_CARD");
         source.setPaymentMethod("MASTERCARD");
         source.setTransactionType("PAYMENT");
@@ -155,13 +157,100 @@ class AdminSettlementReportingApplicationServiceTest {
         ArgumentCaptor<ExcelPagedExportRequest> requestCaptor =
                 ArgumentCaptor.forClass(ExcelPagedExportRequest.class);
         verify(excelExportService).exportPaged(requestCaptor.capture(), eq(response));
-        List<SettlementResultItemExportRow> rows =
-                (List<SettlementResultItemExportRow>) requestCaptor.getValue().getPageLoader().apply(1);
+        List<SettlementTransactionExportRow> rows =
+                (List<SettlementTransactionExportRow>) requestCaptor.getValue().getPageLoader().apply(1);
         assertThat(rows).singleElement().satisfies(row -> {
             assertThat(row.getPaymentType()).isEqualTo("银行卡");
             assertThat(row.getPaymentMethod()).isEqualTo("Mastercard");
             assertThat(row.getTransactionType()).isEqualTo("支付");
         });
+    }
+
+    @Test
+    void transactionHistoryQueriesShouldResolveTrustedMerchantScope() {
+        AdminSettlementReviewQueryService reviewQueryService = mock(AdminSettlementReviewQueryService.class);
+        AdminSettlementReportingQueryService reportingQueryService =
+                mock(AdminSettlementReportingQueryService.class);
+        AdminMerchantDataScopeResolver dataScopeResolver = mock(AdminMerchantDataScopeResolver.class);
+        ExcelExportService excelExportService = mock(ExcelExportService.class);
+        ExcelI18nMessageResolver messageResolver = mock(ExcelI18nMessageResolver.class);
+        ExcelLocaleResolver localeResolver = mock(ExcelLocaleResolver.class);
+        AdminMerchantDataScope resolvedScope = scope(41L);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 8, 20, 9, 30);
+        when(dataScopeResolver.resolve(any(InternalAuthAccount.class))).thenReturn(resolvedScope);
+        when(reportingQueryService.searchResultItemsByTransaction(
+                eq("T-41"), eq(transactionDateTime), eq(1), eq(20), eq(resolvedScope)))
+                .thenReturn(PageResult.of(0, 1, 20, List.of()));
+        when(reportingQueryService.findReconciliationRecordsByTransaction(
+                eq("T-41"), eq(transactionDateTime), eq(resolvedScope)))
+                .thenReturn(List.of());
+        when(reportingQueryService.searchReserveItemsByTransaction(
+                eq("T-41"), eq(transactionDateTime), eq(1), eq(20), eq(resolvedScope)))
+                .thenReturn(PageResult.of(0, 1, 20, List.of()));
+        AdminSettlementReportingApplicationService service = new AdminSettlementReportingApplicationService(
+                reviewQueryService, reportingQueryService, dataScopeResolver, excelExportService,
+                messageResolver, localeResolver);
+        InternalAuthContextHolder.set(adminAccount(41L));
+
+        service.findReconciliationRecordsByTransaction("T-41", transactionDateTime);
+        service.searchResultItemsByTransaction("T-41", transactionDateTime, 1, 20);
+        service.searchReserveItemsByTransaction("T-41", transactionDateTime, 1, 20);
+
+        verify(reportingQueryService).findReconciliationRecordsByTransaction(
+                "T-41", transactionDateTime, resolvedScope);
+        verify(reportingQueryService).searchResultItemsByTransaction(
+                "T-41", transactionDateTime, 1, 20, resolvedScope);
+        verify(reportingQueryService).searchReserveItemsByTransaction(
+                "T-41", transactionDateTime, 1, 20, resolvedScope);
+        verify(dataScopeResolver, times(3)).resolve(any(InternalAuthAccount.class));
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void batchSummaryQueryAndExportShouldResolveCurrentScopeForEveryPage() {
+        AdminSettlementReviewQueryService reviewQueryService = mock(AdminSettlementReviewQueryService.class);
+        AdminSettlementReportingQueryService reportingQueryService =
+                mock(AdminSettlementReportingQueryService.class);
+        AdminSettlementQueryService batchQueryService = mock(AdminSettlementQueryService.class);
+        AdminMerchantDataScopeResolver dataScopeResolver = mock(AdminMerchantDataScopeResolver.class);
+        ExcelExportService excelExportService = mock(ExcelExportService.class);
+        ExcelI18nMessageResolver messageResolver = mock(ExcelI18nMessageResolver.class);
+        ExcelLocaleResolver localeResolver = mock(ExcelLocaleResolver.class);
+        HttpServletResponse response = mock(HttpServletResponse.class);
+        when(localeResolver.resolveCurrentLocale()).thenReturn(Locale.SIMPLIFIED_CHINESE);
+        when(messageResolver.resolve(anyString(), eq(Locale.SIMPLIFIED_CHINESE)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(dataScopeResolver.resolve(any(InternalAuthAccount.class)))
+                .thenAnswer(invocation -> scopeFor(invocation.getArgument(0)));
+        when(batchQueryService.searchResultSummaries(
+                anyString(), any(), any(), any(AdminMerchantDataScope.class)))
+                .thenAnswer(invocation -> {
+                    Integer pageNo = invocation.getArgument(1);
+                    Integer pageSize = invocation.getArgument(2);
+                    return PageResult.of(0L, pageNo, pageSize, List.of());
+                });
+        AdminSettlementReportingApplicationService service = new AdminSettlementReportingApplicationService(
+                reviewQueryService, reportingQueryService, batchQueryService, dataScopeResolver,
+                excelExportService, messageResolver, localeResolver);
+
+        InternalAuthContextHolder.set(adminAccount(51L));
+        service.searchBatchResultSummaries("SB20260831-00000001", 1, 20);
+        service.exportBatchResultSummaries("SB20260831-00000001", response);
+
+        verify(batchQueryService).searchResultSummaries(
+                "SB20260831-00000001", 1, 20, scope(51L));
+        ArgumentCaptor<ExcelPagedExportRequest> requestCaptor =
+                ArgumentCaptor.forClass(ExcelPagedExportRequest.class);
+        verify(excelExportService).exportPaged(requestCaptor.capture(), eq(response));
+        InternalAuthContextHolder.set(adminAccount(52L));
+        requestCaptor.getValue().getPageLoader().apply(1);
+        InternalAuthContextHolder.set(adminAccount(53L));
+        requestCaptor.getValue().getPageLoader().apply(2);
+
+        verify(batchQueryService).searchResultSummaries(
+                "SB20260831-00000001", 1, 200, scope(52L));
+        verify(batchQueryService).searchResultSummaries(
+                "SB20260831-00000001", 2, 200, scope(53L));
     }
 
     private void loadTwoPages(ExcelPagedExportRequest<?> exportRequest, long firstAccountId, long secondAccountId) {

@@ -3,6 +3,7 @@ package com.scott.payment.openapi.service.impl;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
@@ -583,6 +584,11 @@ class PaymentServiceImplTests {
 
             @Override
             public List<IsoCurrencyInfo> listCurrencies() {
+                return List.of();
+            }
+
+            @Override
+            public List<IsoCurrencyPresentationInfo> listCurrencyPresentations() {
                 return List.of();
             }
 

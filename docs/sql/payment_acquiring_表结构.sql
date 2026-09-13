@@ -133,6 +133,7 @@ CREATE TABLE `base_iso_currency` (
   `english_name` varchar(128) NOT NULL COMMENT '币种英文名称',
   `chinese_name` varchar(128) NOT NULL COMMENT '币种中文名称',
   `currency_symbol` varchar(16) NOT NULL DEFAULT '' COMMENT '币种符号/图标',
+  `icon_key` varchar(64) DEFAULT NULL COMMENT '受控币种展示图标键',
   `fraction_digits` tinyint NOT NULL COMMENT '默认辅币位，-1 表示无定义',
   `minor_unit_multiplier` bigint NOT NULL DEFAULT '0' COMMENT '最小单位换算倍数',
   `minimum_amount` decimal(18,6) NOT NULL DEFAULT '0.000000' COMMENT '最小金额单位',
