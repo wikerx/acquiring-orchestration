@@ -1,5 +1,10 @@
 # 公共配置：所有服务都会加载，用于统一时间格式、监控端点和链路追踪字段。
 spring:
+  servlet:
+    multipart:
+      # 商户单文件上限为20 MiB，请求上限额外预留 multipart 边界和表单字段空间。
+      max-file-size: 20MB
+      max-request-size: 21MB
   jackson:
     # 数据库和接口默认使用 UTC+8，避免交易时间跨环境解析不一致。
     time-zone: Asia/Shanghai
@@ -36,3 +41,23 @@ global-payment:
   trace:
     # 全链路追踪请求头名称，网关、OpenAPI、业务服务保持一致。
     header-name: X-Trace-Id
+
+acquiring:
+  object-storage:
+    # 开发环境启用 S3 兼容对象存储；切换 AWS S3 时业务接口保持不变。
+    enabled: ${OBJECT_STORAGE_ENABLED:true}
+    # 存储供应商标识仅用于资料元数据和运行诊断。
+    provider: ${OBJECT_STORAGE_PROVIDER:MINIO}
+    # 宿主机运行使用 9010，避免占用商户 SDK 的 9000 端口；容器内运行时覆盖为 http://minio:9000。
+    endpoint: ${OBJECT_STORAGE_ENDPOINT:http://127.0.0.1:9010}
+    # MinIO 开发环境使用 us-east-1；AWS 环境必须覆盖为真实 Region。
+    region: ${OBJECT_STORAGE_REGION:us-east-1}
+    # 私有 Bucket 必须与 MinIO 初始化策略保持一致。
+    bucket: ${OBJECT_STORAGE_BUCKET:vexra-merchant-documents}
+    # MinIO 使用路径风格寻址；迁移 AWS S3 后通常设置为 false。
+    path-style-access: ${OBJECT_STORAGE_PATH_STYLE_ACCESS:true}
+    # 单文件最大字节数，与 Spring Multipart 限制保持一致。
+    max-file-size-bytes: ${OBJECT_STORAGE_MAX_FILE_SIZE_BYTES:20971520}
+    # 仓库模板保留空值；本地 dev 发布时由受限部署流程写入 Nacos，禁止提交到 Git、日志或工单。
+    access-key: ${OBJECT_STORAGE_ACCESS_KEY:}
+    secret-key: ${OBJECT_STORAGE_SECRET_KEY:}

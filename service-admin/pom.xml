@@ -117,6 +117,15 @@
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
         </dependency>
+        <!--商户合规资料统一通过 S3 API 保存，当前 dev 连接本地 MinIO。-->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+        </dependency>
         <!--仅用于无需外部 MySQL 的管理服务单元/集成测试。-->
         <dependency>
             <groupId>com.h2database</groupId>

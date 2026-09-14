@@ -13,6 +13,7 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantQueryRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantResponseKeyRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSecurityMaterialDTO;
+import com.scott.payment.admin.dto.merchant.MerchantOnboardingDTOs;
 import com.scott.payment.admin.service.AdminMerchantInfoService;
 import com.scott.payment.admin.entity.fee.FeeEntities.FeePlanDO;
 import com.scott.payment.admin.entity.fund.FundAccountEntities.MerchantFundAccountDO;
@@ -55,9 +56,11 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -198,10 +201,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     /** 密钥元数据永久缓存的事务型可靠失效协调器。 */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
-    /** 管理端新增商户后的主账号、管理员角色与开户通知服务。 */
-    private final AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService;
-
-    /** 管理端新增商户后的零余额资金账户开户服务。 */
+    /** 已激活商户结算币种与现有资金账户的一致性服务。 */
     private final AdminMerchantFundAccountProvisioningService fundAccountProvisioningService;
 
     /** 商户登录账号查询组件，仅用于详情页判断登录体系是否已初始化。 */
@@ -220,6 +220,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     private final AdminMerchantSecurityNotificationService securityNotificationService;
     private final AdminMerchantStatusLifecycleService statusLifecycleService;
 
+    /** 商户开户资料、审核与激活领域规则。 */
+    private final MerchantOnboardingService merchantOnboardingService;
+
     /**
      * 创建管理后台商户信息服务实现。
      *
@@ -232,13 +235,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param keyMaterialFactory        密钥材料工厂
      * @param merchantRuntimeProfileCacheService 完整商户资料共享缓存
      * @param cacheInvalidationCoordinator 密钥元数据永久缓存可靠失效协调器
-     * @param primaryAccountProvisioningService 商户主账号开通服务
      * @param fundAccountProvisioningService 商户资金账户开户服务
      * @param sysAccountMapper 商户登录账号查询组件
      * @param fundAccountMapper 商户资金账户查询组件
      * @param feePlanMapper 商户费用方案查询组件
      * @param openApiKeyMaterialService OpenAPI 密钥统一领域服务
      * @param securityNotificationService 密钥生命周期通知服务
+     * @param merchantOnboardingService 商户开户、审核与激活领域服务
      */
     public AdminMerchantInfoServiceImpl(BaseMerchantInfoMapper merchantInfoMapper,
                                         BaseMerchantJwtKeyMapper jwtKeyMapper,
@@ -249,14 +252,14 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         OpenApiKeyMaterialFactory keyMaterialFactory,
                                         MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
                                         ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
-                                        AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService,
                                         AdminMerchantFundAccountProvisioningService fundAccountProvisioningService,
                                         SysAccountMapper sysAccountMapper,
                                         MerchantFundAccountMapper fundAccountMapper,
                                         FeePlanMapper feePlanMapper,
                                         OpenApiMerchantKeyMaterialService openApiKeyMaterialService,
                                         AdminMerchantSecurityNotificationService securityNotificationService,
-                                        AdminMerchantStatusLifecycleService statusLifecycleService) {
+                                        AdminMerchantStatusLifecycleService statusLifecycleService,
+                                        MerchantOnboardingService merchantOnboardingService) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
@@ -266,7 +269,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.keyMaterialFactory = keyMaterialFactory;
         this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
-        this.primaryAccountProvisioningService = primaryAccountProvisioningService;
         this.fundAccountProvisioningService = fundAccountProvisioningService;
         this.sysAccountMapper = sysAccountMapper;
         this.fundAccountMapper = fundAccountMapper;
@@ -274,6 +276,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.openApiKeyMaterialService = openApiKeyMaterialService;
         this.securityNotificationService = securityNotificationService;
         this.statusLifecycleService = statusLifecycleService;
+        this.merchantOnboardingService = merchantOnboardingService;
     }
 
     /**
@@ -350,10 +353,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @DS(DataSourceName.SLAVE)
     public AdminMerchantInfoDTO getMerchant(Long id) {
         BaseMerchantInfoDO row = requireMerchantById(id);
-        MerchantRuntimeProfile profile = merchantRuntimeProfileCacheService.findRuntimeProfile(row.getMerchantId());
-        AdminMerchantInfoDTO result = profile == null ? toDTO(row) : toDTO(toMerchantInfoDO(profile));
-        enrichOperationalFoundation(result);
-        return result;
+        return toDetailDTO(row);
     }
 
     /**
@@ -405,15 +405,15 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         BaseMerchantInfoDO row = new BaseMerchantInfoDO();
         row.setMerchantId(merchantId);
         merge(row, request);
+        merchantOnboardingService.initializeDraft(row);
         row.setGmtCreate(now);
         row.setGmtModified(now);
         row.setDeleted(NOT_DELETED);
         prepareRuntimeProfileInvalidation(merchantId);
         merchantInfoMapper.insert(row);
+        merchantOnboardingService.replaceRelatedPersons(merchantId, request.getRelatedPersons(), now);
         merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
-        primaryAccountProvisioningService.provision(row);
-        fundAccountProvisioningService.provision(row);
-        return toDTO(row);
+        return toDetailDTO(row);
     }
 
     /**
@@ -428,24 +428,111 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateMerchant(Long id, AdminMerchantSaveRequest request) {
         BaseMerchantInfoDO row = requireMerchantById(id);
-        String newMerchantId = normalizeMerchantId(request.getMerchantId());
-        if (!row.getMerchantId().equals(newMerchantId)) {
+        String requestedMerchantId = trimToNull(request.getMerchantId());
+        if (requestedMerchantId != null && !row.getMerchantId().equals(requestedMerchantId)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户号创建后不允许修改");
         }
-        if (!java.util.Objects.equals(row.getMerchantStatus(), request.getMerchantStatus())) {
+        if (request.getMerchantStatus() != null
+                && !Objects.equals(row.getMerchantStatus(), request.getMerchantStatus())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请使用冻结或解冻操作修改商户状态");
         }
-        if (!java.util.Objects.equals(trimUpper(row.getSettlementCurrency()),
-                trimUpper(request.getSettlementCurrency()))) {
-            fundAccountProvisioningService.synchronizeSettlementCurrency(
-                    row.getMerchantId(), request.getSettlementCurrency());
+        String requestedSettlementCurrency = trimUpper(request.getSettlementCurrency());
+        boolean settlementCurrencyChanged = !Objects.equals(
+                trimUpper(row.getSettlementCurrency()), requestedSettlementCurrency);
+        if (settlementCurrencyChanged && hasFundAccount(row.getMerchantId())) {
+            if (!StringUtils.hasText(requestedSettlementCurrency)) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                        "已开户商户的结算币种不能为空");
+            }
+            fundAccountProvisioningService.synchronizeSettlementCurrency(row.getMerchantId(), requestedSettlementCurrency);
         }
         merge(row, request);
-        row.setGmtModified(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        row.setGmtModified(now);
+        prepareRuntimeProfileInvalidation(row.getMerchantId());
+        merchantInfoMapper.updateById(row);
+        merchantOnboardingService.replaceRelatedPersons(row.getMerchantId(), request.getRelatedPersons(), now);
+        merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
+        return toDetailDTO(row);
+    }
+
+    /**
+     * 提交商户开户资料进入人工审核。
+     *
+     * @param id 商户主键
+     * @return 更新后的商户详情
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AdminMerchantInfoDTO submitReview(Long id) {
+        BaseMerchantInfoDO row = requireMerchantById(id);
+        merchantOnboardingService.submitForReview(row);
+        return persistOnboardingState(row, null);
+    }
+
+    /**
+     * 审核商户开户资料，支持通过、要求补件和驳回。
+     *
+     * @param id 商户主键
+     * @param request 审核决定与意见
+     * @return 更新后的商户详情
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AdminMerchantInfoDTO review(Long id, MerchantOnboardingDTOs.ReviewRequest request) {
+        BaseMerchantInfoDO row = requireMerchantById(id);
+        merchantOnboardingService.review(row, request);
+        return persistOnboardingState(row, null);
+    }
+
+    /**
+     * 激活审核通过且业务配置已就绪的商户。
+     *
+     * @param id 商户主键
+     * @return 更新后的商户详情
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AdminMerchantInfoDTO activate(Long id) {
+        BaseMerchantInfoDO row = requireMerchantById(id);
+        Integer previousStatus = row.getMerchantStatus();
+        merchantOnboardingService.activate(row);
+        return persistOnboardingState(row, previousStatus);
+    }
+
+    /**
+     * 持久化开户状态，并同步运行时缓存和商户启停联动。
+     *
+     * @param row 已完成状态迁移的商户主档，不允许为空
+     * @param previousStatus 状态迁移前的运行状态；非运行状态变更时允许为空
+     * @return 已重新加载关联资料和运行基础信息的商户详情
+     */
+    private AdminMerchantInfoDTO persistOnboardingState(BaseMerchantInfoDO row, Integer previousStatus) {
+        LocalDateTime now = LocalDateTime.now();
+        row.setGmtModified(now);
         prepareRuntimeProfileInvalidation(row.getMerchantId());
         merchantInfoMapper.updateById(row);
         merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
-        return toDTO(row);
+        if (previousStatus != null && !Objects.equals(previousStatus, row.getMerchantStatus())) {
+            statusLifecycleService.onStatusChanged(row, row.getMerchantStatus(), now);
+        }
+        return toDetailDTO(row);
+    }
+
+    /**
+     * 判断商户是否已经创建至少一个未删除资金账户。
+     *
+     * @param merchantId 平台商户号，不允许为空
+     * @return true 表示结算币种变更必须同步现有资金账户
+     */
+    private boolean hasFundAccount(String merchantId) {
+        Long count = fundAccountMapper.selectCount(Wrappers.<MerchantFundAccountDO>lambdaQuery()
+                .eq(MerchantFundAccountDO::getMerchantId, merchantId)
+                .eq(MerchantFundAccountDO::getDeleted, 0L));
+        return count != null && count > 0;
     }
 
     /**
@@ -462,6 +549,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         BaseMerchantInfoDO row = requireMerchantById(id);
         validateStatus(merchantStatus);
         validateStatusTransition(row.getMerchantStatus(), merchantStatus);
+        validateUnfreezeEligibility(row, merchantStatus);
         LocalDateTime operationTime = LocalDateTime.now();
         row.setMerchantStatus(merchantStatus);
         row.setGmtModified(operationTime);
@@ -477,6 +565,20 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 || (Integer.valueOf(2).equals(currentStatus) && Integer.valueOf(1).equals(targetStatus));
         if (!allowed) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户状态仅允许正常与冻结之间切换");
+        }
+    }
+
+    /**
+     * 校验冻结商户是否已经完成开户激活，防止草稿或审核中商户通过通用解冻接口绕过激活门禁。
+     *
+     * @param merchant 商户主档
+     * @param targetStatus 目标运行状态
+     */
+    private void validateUnfreezeEligibility(BaseMerchantInfoDO merchant, Integer targetStatus) {
+        if (Integer.valueOf(1).equals(targetStatus)
+                && !MerchantOnboardingService.ACTIVATION_ACTIVE.equals(merchant.getActivationStatus())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "商户尚未完成开户激活，不能通过解冻操作启用");
         }
     }
 
@@ -834,25 +936,76 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
 
     private void merge(BaseMerchantInfoDO row, AdminMerchantSaveRequest request) {
         String merchantName = trimRequiredAscii(request.getMerchantName(), "商户名称仅支持英文、数字、空格及常见英文符号");
-        String billingDescriptor = trimRequiredAscii(request.getBillingDescriptor(), "账单描述仅支持英文、数字、空格及常见英文符号");
         row.setMerchantName(merchantName);
-        row.setBillingDescriptor(billingDescriptor);
+        row.setBillingDescriptor(trimOptionalAscii(
+                request.getBillingDescriptor(), "账单描述仅支持英文、数字、空格及常见英文符号"));
         row.setMerchantShortName(request.getMerchantShortName().trim());
-        row.setMerchantCategoryCode(request.getMerchantCategoryCode().trim());
+        row.setMerchantCategoryCode(trimUpper(request.getMerchantCategoryCode()));
         row.setCountryCode(trimUpper(request.getCountryCode()));
+        row.setMerchantType(trimUpper(request.getMerchantType()));
+        row.setOperatingCountry(trimUpper(request.getOperatingCountry()));
+        row.setBusinessType(trimUpper(request.getBusinessType()));
+        row.setIndustryCategory(trimUpper(request.getIndustryCategory()));
+        row.setMerchantDescription(trimToNull(request.getMerchantDescription()));
+        row.setRegistrationNumber(trimToNull(request.getRegistrationNumber()));
+        row.setLegalEntityType(trimUpper(request.getLegalEntityType()));
+        row.setIncorporationDate(request.getIncorporationDate());
+        row.setIncorporationCountry(trimUpper(request.getIncorporationCountry()));
+        row.setRegisteredState(trimToNull(request.getRegisteredState()));
+        row.setRegisteredCity(trimToNull(request.getRegisteredCity()));
+        row.setRegisteredPostcode(trimToNull(request.getRegisteredPostcode()));
+        row.setRegisteredAddress(trimToNull(request.getRegisteredAddress()));
+        row.setOperatingSameAsRegistered(booleanFlag(request.getOperatingSameAsRegistered()));
+        row.setTaxId(trimToNull(request.getTaxId()));
+        row.setCompanySize(trimUpper(request.getCompanySize()));
+        row.setEmployeeCount(request.getEmployeeCount());
         row.setRegionCode(trimToNull(request.getRegionCode()));
         row.setCity(trimToNull(request.getCity()));
         row.setAddressLine(trimToNull(request.getAddressLine()));
         row.setPostalCode(trimToNull(request.getPostalCode()));
         row.setContactName(trimToNull(request.getContactName()));
-        row.setContactEmail(request.getContactEmail().trim());
+        row.setContactTitle(trimToNull(request.getContactTitle()));
+        row.setPhoneCountryCode(trimToNull(request.getPhoneCountryCode()));
+        row.setContactEmail(trimLower(request.getContactEmail()));
         row.setContactPhone(trimToNull(request.getContactPhone()));
+        row.setAlternateEmail(trimLower(request.getAlternateEmail()));
+        row.setFinanceContactName(trimToNull(request.getFinanceContactName()));
+        row.setFinanceContactEmail(trimLower(request.getFinanceContactEmail()));
+        row.setTechnicalContactName(trimToNull(request.getTechnicalContactName()));
+        row.setTechnicalContactEmail(trimLower(request.getTechnicalContactEmail()));
+        row.setBusinessModel(trimUpper(request.getBusinessModel()));
+        row.setSalesChannels(joinUpper(request.getSalesChannels()));
+        row.setProductsServices(trimToNull(request.getProductsServices()));
+        row.setTargetMarkets(joinUpper(request.getTargetMarkets()));
+        row.setCustomerType(trimUpper(request.getCustomerType()));
+        row.setTransactionCurrencies(joinUpper(request.getTransactionCurrencies()));
+        row.setExpectedMonthlyVolume(request.getExpectedMonthlyVolume());
+        row.setExpectedVolumeCurrency(trimUpper(request.getExpectedVolumeCurrency()));
+        row.setAverageTicket(request.getAverageTicket());
+        row.setMaxTicket(request.getMaxTicket());
+        row.setExpectedMonthlyCount(request.getExpectedMonthlyCount());
+        row.setExpectedRefundRate(request.getExpectedRefundRate());
+        row.setExpectedChargebackRate(request.getExpectedChargebackRate());
+        row.setRecurringPaymentFlag(booleanFlag(request.getRecurringPaymentFlag()));
+        row.setPresaleFlag(booleanFlag(request.getPresaleFlag()));
+        row.setFulfillmentDays(request.getFulfillmentDays());
+        row.setDigitalGoodsFlag(booleanFlag(request.getDigitalGoodsFlag()));
+        row.setRestrictedBusinessFlag(booleanFlag(request.getRestrictedBusinessFlag()));
+        row.setExpectedGoLiveDate(request.getExpectedGoLiveDate());
+        row.setWebsiteUrl(trimToNull(request.getWebsiteUrl()));
+        row.setAppStoreUrl(trimToNull(request.getAppStoreUrl()));
+        row.setGooglePlayUrl(trimToNull(request.getGooglePlayUrl()));
+        row.setOtherSalesUrl(trimToNull(request.getOtherSalesUrl()));
+        row.setWebsiteLanguages(joinUpper(request.getWebsiteLanguages()));
+        row.setWebsiteLiveFlag(booleanFlag(request.getWebsiteLiveFlag()));
+        row.setPrivacyPolicyUrl(trimToNull(request.getPrivacyPolicyUrl()));
+        row.setRefundPolicyUrl(trimToNull(request.getRefundPolicyUrl()));
+        row.setTermsUrl(trimToNull(request.getTermsUrl()));
+        row.setShippingPolicyUrl(trimToNull(request.getShippingPolicyUrl()));
         row.setSettlementCurrency(trimUpper(request.getSettlementCurrency()));
         row.setTimezone(request.getTimezone().trim());
-        row.setMerchantStatus(request.getMerchantStatus());
         row.setDefaultLocale(MerchantLocaleSupport.normalize(request.getDefaultLocale()));
         row.setRiskLevel(request.getRiskLevel() == null ? DEFAULT_RISK_LEVEL : request.getRiskLevel());
-        validateStatus(row.getMerchantStatus());
         validateRiskLevel(row.getRiskLevel());
     }
 
@@ -963,20 +1116,78 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         AdminMerchantInfoDTO dto = new AdminMerchantInfoDTO();
         dto.setId(row.getId());
         dto.setMerchantId(row.getMerchantId());
+        dto.setApplicationNo(row.getApplicationNo());
+        dto.setOnboardingSource(row.getOnboardingSource());
+        dto.setOnboardingStatus(row.getOnboardingStatus());
+        dto.setReviewStatus(row.getReviewStatus());
+        dto.setActivationStatus(row.getActivationStatus());
         dto.setMerchantName(row.getMerchantName());
+        dto.setBillingDescriptor(row.getBillingDescriptor());
         dto.setMerchantShortName(row.getMerchantShortName());
+        dto.setMerchantType(row.getMerchantType());
         dto.setMerchantStatus(row.getMerchantStatus());
         dto.setDefaultLocale(MerchantLocaleSupport.normalize(row.getDefaultLocale()));
         dto.setMerchantCategoryCode(row.getMerchantCategoryCode());
         dto.setCountryCode(row.getCountryCode());
+        dto.setOperatingCountry(row.getOperatingCountry());
+        dto.setBusinessType(row.getBusinessType());
+        dto.setIndustryCategory(row.getIndustryCategory());
+        dto.setMerchantDescription(row.getMerchantDescription());
+        dto.setRegistrationNumber(row.getRegistrationNumber());
+        dto.setLegalEntityType(row.getLegalEntityType());
+        dto.setIncorporationDate(row.getIncorporationDate());
+        dto.setIncorporationCountry(row.getIncorporationCountry());
+        dto.setRegisteredState(row.getRegisteredState());
+        dto.setRegisteredCity(row.getRegisteredCity());
+        dto.setRegisteredPostcode(row.getRegisteredPostcode());
+        dto.setRegisteredAddress(row.getRegisteredAddress());
+        dto.setOperatingSameAsRegistered(toBoolean(row.getOperatingSameAsRegistered()));
+        dto.setTaxId(row.getTaxId());
+        dto.setCompanySize(row.getCompanySize());
+        dto.setEmployeeCount(row.getEmployeeCount());
         dto.setRegionCode(row.getRegionCode());
         dto.setCity(row.getCity());
         dto.setAddressLine(row.getAddressLine());
-        dto.setBillingDescriptor(row.getBillingDescriptor());
         dto.setPostalCode(row.getPostalCode());
         dto.setContactName(row.getContactName());
+        dto.setContactTitle(row.getContactTitle());
+        dto.setPhoneCountryCode(row.getPhoneCountryCode());
         dto.setContactEmail(row.getContactEmail());
         dto.setContactPhone(row.getContactPhone());
+        dto.setAlternateEmail(row.getAlternateEmail());
+        dto.setFinanceContactName(row.getFinanceContactName());
+        dto.setFinanceContactEmail(row.getFinanceContactEmail());
+        dto.setTechnicalContactName(row.getTechnicalContactName());
+        dto.setTechnicalContactEmail(row.getTechnicalContactEmail());
+        dto.setBusinessModel(row.getBusinessModel());
+        dto.setSalesChannels(splitValues(row.getSalesChannels()));
+        dto.setProductsServices(row.getProductsServices());
+        dto.setTargetMarkets(splitValues(row.getTargetMarkets()));
+        dto.setCustomerType(row.getCustomerType());
+        dto.setTransactionCurrencies(splitValues(row.getTransactionCurrencies()));
+        dto.setExpectedMonthlyVolume(row.getExpectedMonthlyVolume());
+        dto.setExpectedVolumeCurrency(row.getExpectedVolumeCurrency());
+        dto.setAverageTicket(row.getAverageTicket());
+        dto.setMaxTicket(row.getMaxTicket());
+        dto.setExpectedMonthlyCount(row.getExpectedMonthlyCount());
+        dto.setExpectedRefundRate(row.getExpectedRefundRate());
+        dto.setExpectedChargebackRate(row.getExpectedChargebackRate());
+        dto.setRecurringPaymentFlag(toBoolean(row.getRecurringPaymentFlag()));
+        dto.setPresaleFlag(toBoolean(row.getPresaleFlag()));
+        dto.setFulfillmentDays(row.getFulfillmentDays());
+        dto.setDigitalGoodsFlag(toBoolean(row.getDigitalGoodsFlag()));
+        dto.setRestrictedBusinessFlag(toBoolean(row.getRestrictedBusinessFlag()));
+        dto.setExpectedGoLiveDate(row.getExpectedGoLiveDate());
+        dto.setWebsiteUrl(row.getWebsiteUrl());
+        dto.setAppStoreUrl(row.getAppStoreUrl());
+        dto.setGooglePlayUrl(row.getGooglePlayUrl());
+        dto.setOtherSalesUrl(row.getOtherSalesUrl());
+        dto.setWebsiteLanguages(splitValues(row.getWebsiteLanguages()));
+        dto.setWebsiteLiveFlag(toBoolean(row.getWebsiteLiveFlag()));
+        dto.setPrivacyPolicyUrl(row.getPrivacyPolicyUrl());
+        dto.setRefundPolicyUrl(row.getRefundPolicyUrl());
+        dto.setTermsUrl(row.getTermsUrl());
+        dto.setShippingPolicyUrl(row.getShippingPolicyUrl());
         dto.setSettlementCurrency(row.getSettlementCurrency());
         dto.setTimezone(row.getTimezone());
         dto.setRiskLevel(row.getRiskLevel());
@@ -989,39 +1200,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 将完整商户缓存资料转换为管理端现有 DTO 转换链可复用的数据对象。
+     * 组装单商户详情并补充一对多开户资料；列表查询不调用该方法，避免额外查询。
      *
-     * <p>这里只转换 {@code base_merchant_info} 对应字段；密钥概要仍按管理端权限从密钥表查询，
-     * 不会把 JWT Secret 或 RSA 私钥写入 {@code merchant:info}。</p>
-     *
-     * @param profile 完整商户缓存资料
-     * @return 仅用于当前转换过程的商户数据对象
+     * @param row 商户主档，不允许为空
+     * @return 包含相关人员、资料、审核轨迹和运行基础信息的详情 DTO
      */
-    private BaseMerchantInfoDO toMerchantInfoDO(MerchantRuntimeProfile profile) {
-        BaseMerchantInfoDO row = new BaseMerchantInfoDO();
-        row.setId(profile.getId());
-        row.setMerchantId(profile.getMerchantId());
-        row.setMerchantName(profile.getMerchantName());
-        row.setBillingDescriptor(profile.getBillingDescriptor());
-        row.setMerchantShortName(profile.getMerchantShortName());
-        row.setMerchantStatus(profile.getMerchantStatus());
-        row.setDefaultLocale(MerchantLocaleSupport.normalize(profile.getDefaultLocale()));
-        row.setMerchantCategoryCode(profile.getMerchantCategoryCode());
-        row.setCountryCode(profile.getCountryCode());
-        row.setRegionCode(profile.getRegionCode());
-        row.setCity(profile.getCity());
-        row.setAddressLine(profile.getAddressLine());
-        row.setPostalCode(profile.getPostalCode());
-        row.setContactName(profile.getContactName());
-        row.setContactEmail(profile.getContactEmail());
-        row.setContactPhone(profile.getContactPhone());
-        row.setSettlementCurrency(profile.getSettlementCurrency());
-        row.setTimezone(profile.getTimezone());
-        row.setRiskLevel(profile.getRiskLevel());
-        row.setGmtCreate(profile.getGmtCreate());
-        row.setGmtModified(profile.getGmtModified());
-        row.setDeleted(NOT_DELETED);
-        return row;
+    private AdminMerchantInfoDTO toDetailDTO(BaseMerchantInfoDO row) {
+        AdminMerchantInfoDTO dto = toDTO(row);
+        merchantOnboardingService.enrich(row, dto);
+        enrichOperationalFoundation(dto);
+        return dto;
     }
 
     /**
@@ -1288,11 +1476,45 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     private String trimUpper(String value) {
-        return value == null ? null : value.trim().toUpperCase();
+        return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String trimLower(String value) {
+        return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : null;
+    }
+
+    private String joinUpper(List<String> values) {
+        if (values == null) {
+            return null;
+        }
+        String joined = values.stream()
+                .filter(StringUtils::hasText)
+                .map(this::trimUpper)
+                .distinct()
+                .collect(Collectors.joining(","));
+        return StringUtils.hasText(joined) ? joined : null;
+    }
+
+    private List<String> splitValues(String value) {
+        if (!StringUtils.hasText(value)) {
+            return new ArrayList<>();
+        }
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private Integer booleanFlag(Boolean value) {
+        return value == null ? null : Boolean.TRUE.equals(value) ? 1 : 0;
+    }
+
+    private Boolean toBoolean(Integer value) {
+        return value == null ? null : Integer.valueOf(1).equals(value);
     }
 
     private String trimRequiredAscii(String value, String errorMessage) {
@@ -1304,6 +1526,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), errorMessage);
         }
         return trimmed;
+    }
+
+    private String trimOptionalAscii(String value, String errorMessage) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return trimRequiredAscii(value, errorMessage);
     }
 
     private String fingerprint(String value) {

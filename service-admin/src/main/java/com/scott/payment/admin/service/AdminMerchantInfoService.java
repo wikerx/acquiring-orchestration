@@ -7,6 +7,7 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantQueryRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantResponseKeyRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSecurityMaterialDTO;
+import com.scott.payment.admin.dto.merchant.MerchantOnboardingDTOs;
 import com.scott.payment.component.security.openapi.OpenApiKeyType;
 import com.scott.payment.component.core.model.PageResult;
 
@@ -62,6 +63,31 @@ public interface AdminMerchantInfoService {
      * @return 商户详情
      */
     AdminMerchantInfoDTO updateMerchant(Long id, AdminMerchantSaveRequest request);
+
+    /**
+     * 提交商户开户资料进入审核。
+     *
+     * @param id 商户主键
+     * @return 商户详情
+     */
+    AdminMerchantInfoDTO submitReview(Long id);
+
+    /**
+     * 审核商户开户资料。
+     *
+     * @param id 商户主键
+     * @param request 审核决定与意见
+     * @return 商户详情
+     */
+    AdminMerchantInfoDTO review(Long id, MerchantOnboardingDTOs.ReviewRequest request);
+
+    /**
+     * 激活审核通过且业务配置已就绪的商户。
+     *
+     * @param id 商户主键
+     * @return 商户详情
+     */
+    AdminMerchantInfoDTO activate(Long id);
 
     /**
      * 更新商户状态。

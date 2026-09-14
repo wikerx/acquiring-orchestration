@@ -55,6 +55,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -141,6 +142,10 @@ class AdminMerchantInfoServiceImplTest {
     @Mock
     private FeePlanMapper feePlanMapper;
 
+    /** 商户开户状态机与相关人员服务。 */
+    @Mock
+    private MerchantOnboardingService merchantOnboardingService;
+
     private AdminMerchantInfoServiceImpl service;
 
     @BeforeEach
@@ -161,14 +166,14 @@ class AdminMerchantInfoServiceImplTest {
                 keyMaterialFactory,
                 merchantRuntimeProfileCacheService,
                 cacheInvalidationCoordinator,
-                mock(AdminMerchantPrimaryAccountProvisioningService.class),
                 fundAccountProvisioningService,
                 sysAccountMapper,
                 fundAccountMapper,
                 feePlanMapper,
                 mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
                 mock(AdminMerchantSecurityNotificationService.class),
-                mock(AdminMerchantStatusLifecycleService.class)
+                mock(AdminMerchantStatusLifecycleService.class),
+                merchantOnboardingService
         );
     }
 
@@ -214,6 +219,14 @@ class AdminMerchantInfoServiceImplTest {
     @Test
     void shouldGenerateMerchantIdWhenCreatingMerchant() {
         log.info("测试管理端新增商户缓存一致性，关键输入: 系统生成商户号");
+        doAnswer(invocation -> {
+            BaseMerchantInfoDO merchant = invocation.getArgument(0);
+            merchant.setMerchantStatus(2);
+            merchant.setOnboardingStatus(MerchantOnboardingService.ONBOARDING_DRAFT);
+            merchant.setReviewStatus(MerchantOnboardingService.REVIEW_NOT_SUBMITTED);
+            merchant.setActivationStatus(MerchantOnboardingService.ACTIVATION_NOT_READY);
+            return null;
+        }).when(merchantOnboardingService).initializeDraft(any(BaseMerchantInfoDO.class));
         AdminMerchantSaveRequest request = validRequest("MANUAL-ID");
 
         AdminMerchantInfoDTO result = service.createMerchant(request);
@@ -245,6 +258,30 @@ class AdminMerchantInfoServiceImplTest {
         log.info("管理端新增商户缓存一致性完成，结果: 先登记可靠失效再写库与提交新缓存");
     }
 
+    /** 草稿创建只要求 R1 基础资料，联系人等后续阶段资料允许稍后补充。 */
+    @Test
+    void shouldCreateDraftWithoutContactDetails() {
+        log.info("测试管理端最小草稿创建，关键输入: R1 基础资料完整、联系人资料为空");
+        doAnswer(invocation -> {
+            BaseMerchantInfoDO merchant = invocation.getArgument(0);
+            merchant.setMerchantStatus(2);
+            merchant.setOnboardingStatus(MerchantOnboardingService.ONBOARDING_DRAFT);
+            merchant.setReviewStatus(MerchantOnboardingService.REVIEW_NOT_SUBMITTED);
+            merchant.setActivationStatus(MerchantOnboardingService.ACTIVATION_NOT_READY);
+            return null;
+        }).when(merchantOnboardingService).initializeDraft(any(BaseMerchantInfoDO.class));
+        AdminMerchantSaveRequest request = validRequest(null);
+        request.setContactName(null);
+        request.setContactEmail(null);
+
+        AdminMerchantInfoDTO result = service.createMerchant(request);
+
+        assertThat(result.getMerchantId()).startsWith("M");
+        verify(merchantInfoMapper).insert(argThat((BaseMerchantInfoDO row) ->
+                row != null && row.getContactName() == null && row.getContactEmail() == null));
+        log.info("管理端最小草稿创建完成，结果: 联系人资料为空时仍保持冻结草稿状态");
+    }
+
     /** 管理端编辑商户应在主库写入前登记永久资料缓存失效。 */
     @Test
     void shouldPrepareInvalidationBeforeUpdatingMerchantProfile() {
@@ -269,6 +306,7 @@ class AdminMerchantInfoServiceImplTest {
     void shouldSynchronizeFundAccountBeforeUpdatingSettlementCurrency() {
         log.info("测试商户结算币种同步，关键输入: merchantId=200045, USD->EUR");
         when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+        when(fundAccountMapper.selectCount(any())).thenReturn(1L);
         AdminMerchantSaveRequest request = validRequest("200045");
         request.setSettlementCurrency("eur");
 
@@ -276,7 +314,7 @@ class AdminMerchantInfoServiceImplTest {
 
         InOrder order = inOrder(fundAccountProvisioningService, merchantInfoMapper);
         order.verify(fundAccountProvisioningService)
-                .synchronizeSettlementCurrency("200045", "eur");
+                .synchronizeSettlementCurrency("200045", "EUR");
         order.verify(merchantInfoMapper).updateById(argThat((BaseMerchantInfoDO row) ->
                 row != null && "EUR".equals(row.getSettlementCurrency())));
         log.info("商户结算币种同步完成，结果: 资金账户先同步，商户资料后落库");
@@ -315,6 +353,21 @@ class AdminMerchantInfoServiceImplTest {
         when(merchantInfoMapper.selectOne(any())).thenReturn(closed);
         assertThatThrownBy(() -> service.updateStatus(1L, 2))
                 .hasMessageContaining("状态");
+    }
+
+    /** 草稿商户不得使用通用解冻接口绕过审核、配置与激活流程。 */
+    @Test
+    void shouldRejectUnfreezingMerchantBeforeActivation() {
+        log.info("测试草稿商户解冻门禁，关键输入: merchantId=200045, activationStatus=NOT_READY");
+        BaseMerchantInfoDO draft = existingMerchant();
+        draft.setMerchantStatus(2);
+        draft.setActivationStatus(MerchantOnboardingService.ACTIVATION_NOT_READY);
+        when(merchantInfoMapper.selectOne(any())).thenReturn(draft);
+
+        assertThatThrownBy(() -> service.updateStatus(1L, 1))
+                .hasMessageContaining("尚未完成开户激活");
+
+        log.info("草稿商户解冻门禁完成，结果: 通用状态接口拒绝绕过激活流程");
     }
 
     /** 删除商户应同时登记全部商户维度永久缓存失效。 */

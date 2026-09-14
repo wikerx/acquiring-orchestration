@@ -78,6 +78,7 @@
         <hutool.version>5.8.46</hutool.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <easyexcel.version>4.0.3</easyexcel.version>
+        <aws-sdk.version>2.54.17</aws-sdk.version>
 
         <!--Maven 构建插件版本，避免不同开发环境使用隐式默认版本。-->
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
@@ -259,6 +260,17 @@
                 <groupId>com.alibaba</groupId>
                 <artifactId>easyexcel</artifactId>
                 <version>${easyexcel.version}</version>
+            </dependency>
+            <!--S3 兼容对象存储客户端，开发环境连接 MinIO，生产环境可直接切换 AWS S3。-->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>s3</artifactId>
+                <version>${aws-sdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>url-connection-client</artifactId>
+                <version>${aws-sdk.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

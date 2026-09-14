@@ -9,6 +9,7 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantResponseKeyRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSecurityMaterialDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantStatusRequest;
+import com.scott.payment.admin.dto.merchant.MerchantOnboardingDTOs;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
@@ -86,7 +87,7 @@ public class AdminMerchantInfoController {
      * @return 商户详情
      */
     @GetMapping("/{id}")
-    @RequiresPermission("merchant:info:query")
+    @RequiresPermission("merchant:info:detail")
     public CommonResult<AdminMerchantInfoDTO> getMerchant(@PathVariable("id") Long id) {
         return success(adminMerchantInfoApplicationService.getMerchant(id));
     }
@@ -117,6 +118,47 @@ public class AdminMerchantInfoController {
     public CommonResult<AdminMerchantInfoDTO> updateMerchant(@PathVariable("id") Long id,
                                                              @Valid @RequestBody AdminMerchantSaveRequest request) {
         return success(adminMerchantInfoApplicationService.updateMerchant(id, request));
+    }
+
+    /**
+     * 提交商户开户资料进入人工审核。
+     *
+     * @param id 商户主键
+     * @return 更新后的商户详情
+     */
+    @PostMapping("/{id}/submit-review")
+    @RequiresPermission("merchant:info:edit")
+    @OperationLog(moduleName = "商户信息管理", businessType = OperationTypeConstants.UPDATE, operation = "提交商户审核")
+    public CommonResult<AdminMerchantInfoDTO> submitReview(@PathVariable("id") Long id) {
+        return success(adminMerchantInfoApplicationService.submitReview(id));
+    }
+
+    /**
+     * 审核商户开户资料。
+     *
+     * @param id 商户主键
+     * @param request 审核决定与意见
+     * @return 更新后的商户详情
+     */
+    @PostMapping("/{id}/review")
+    @RequiresPermission("merchant:info:edit")
+    @OperationLog(moduleName = "商户信息管理", businessType = OperationTypeConstants.UPDATE, operation = "审核商户资料")
+    public CommonResult<AdminMerchantInfoDTO> review(@PathVariable("id") Long id,
+                                                     @Valid @RequestBody MerchantOnboardingDTOs.ReviewRequest request) {
+        return success(adminMerchantInfoApplicationService.review(id, request));
+    }
+
+    /**
+     * 激活审核通过且配置就绪的商户。
+     *
+     * @param id 商户主键
+     * @return 更新后的商户详情
+     */
+    @PostMapping("/{id}/activate")
+    @RequiresPermission("merchant:info:changeStatus")
+    @OperationLog(moduleName = "商户信息管理", businessType = OperationTypeConstants.UPDATE, operation = "激活商户")
+    public CommonResult<AdminMerchantInfoDTO> activate(@PathVariable("id") Long id) {
+        return success(adminMerchantInfoApplicationService.activate(id));
     }
 
     /**

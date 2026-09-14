@@ -7,6 +7,7 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantQueryRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantResponseKeyRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSecurityMaterialDTO;
+import com.scott.payment.admin.dto.merchant.MerchantOnboardingDTOs;
 import com.scott.payment.admin.service.AdminMerchantInfoService;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.security.openapi.OpenApiKeyType;
@@ -89,6 +90,37 @@ public class AdminMerchantInfoApplicationService {
      */
     public AdminMerchantInfoDTO updateMerchant(Long id, AdminMerchantSaveRequest request) {
         return adminMerchantInfoService.updateMerchant(id, request);
+    }
+
+    /**
+     * 提交商户开户资料进入人工审核。
+     *
+     * @param id 商户主键，不允许为空
+     * @return 更新后的商户详情
+     */
+    public AdminMerchantInfoDTO submitReview(Long id) {
+        return adminMerchantInfoService.submitReview(id);
+    }
+
+    /**
+     * 执行商户开户资料审核。
+     *
+     * @param id 商户主键，不允许为空
+     * @param request 审核决定与意见，不允许为空
+     * @return 更新后的商户详情
+     */
+    public AdminMerchantInfoDTO review(Long id, MerchantOnboardingDTOs.ReviewRequest request) {
+        return adminMerchantInfoService.review(id, request);
+    }
+
+    /**
+     * 激活审核通过且业务配置已就绪的商户。
+     *
+     * @param id 商户主键，不允许为空
+     * @return 更新后的商户详情
+     */
+    public AdminMerchantInfoDTO activate(Long id) {
+        return adminMerchantInfoService.activate(id);
     }
 
     /**
