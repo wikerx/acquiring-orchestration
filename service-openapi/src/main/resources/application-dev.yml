@@ -72,9 +72,6 @@ acquiring:
     accept-legacy-signature: true
 
 openapi:
-  hosted-checkout:
-    # 本地开发收银台和商户模拟结果页允许使用 localhost/127.0.0.1/[::1] HTTP。
-    allow-loopback-http: true
   callback-security:
     # 开发环境可在未配置渠道 IP 白名单时使用渠道模拟器联调。
     channel-ip-whitelist-required: false

@@ -1,6 +1,7 @@
 package com.scott.payment.admin.api.monitor;
 
 import com.scott.payment.admin.application.monitor.AdminMonitorCacheApplicationService;
+import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.CacheMetricsResponse;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
@@ -22,7 +23,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : MonitorCacheController
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台 Redis 缓存监控控制器
+ * @description : 管理端 Redis 监控 HTTP 入口，负责权限和统一响应，仅允许查看运行指标、受控平台配置 Key 元数据和执行受审计的单 Key 删除。
  * @status : create
  */
 @RestController
@@ -48,6 +49,17 @@ public class MonitorCacheController {
     @RequiresPermission("system:cache:list")
     public CommonResult<Map<String, Object>> info() {
         return success(adminMonitorCacheApplicationService.info());
+    }
+
+    /**
+     * 查询 Redis 内存、吞吐、命中率趋势和有界 Key 类型分布。
+     *
+     * @return 当前 Admin 进程内的 Redis 历史指标和能力状态
+     */
+    @GetMapping("/metrics")
+    @RequiresPermission("system:cache:list")
+    public CommonResult<CacheMetricsResponse> metrics() {
+        return success(adminMonitorCacheApplicationService.metrics());
     }
 
     /**

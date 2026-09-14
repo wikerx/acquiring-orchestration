@@ -6,6 +6,8 @@ import com.baomidou.dynamic.datasource.ds.GroupDataSource;
 import com.scott.payment.admin.config.MonitorDynamicDataSourceProperties;
 import com.scott.payment.admin.dto.export.DataSourceMonitorExportRow;
 import com.scott.payment.admin.dto.monitor.DataSourceMonitorResponse;
+import com.scott.payment.admin.service.monitor.DataSourcePoolInspector;
+import com.scott.payment.admin.service.monitor.DataSourceConsoleAccessProvider;
 import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementRange;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalculator;
@@ -45,7 +47,7 @@ import java.util.stream.Collectors;
  * @classname : AdminMonitorDatasourceApplicationService
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : admin监控datasource应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
+ * @description : 管理端数据源监控应用服务，编排动态数据源运行快照、Hikari 指标、分表配置和外部控制台访问摘要，并负责脱敏导出。
  * @status : create
  */
 @Service
@@ -91,10 +93,19 @@ public class AdminMonitorDatasourceApplicationService {
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
+    /** 标准 JDBC Wrapper 连接池解析器。 */
+    private final DataSourcePoolInspector dataSourcePoolInspector;
+
+    /** 外部 Druid 控制台入口解析器，不主动访问目标控制台。 */
+    private final DataSourceConsoleAccessProvider dataSourceConsoleAccessProvider;
+
+    /** 分表季度范围与当前季度解析器。 */
     private final ShardingQuarterResolver shardingQuarterResolver = new ShardingQuarterResolver();
 
+    /** 分表物理表名解析器。 */
     private final ShardingPhysicalTableNameResolver shardingPhysicalTableNameResolver = new ShardingPhysicalTableNameResolver();
 
+    /** 分表 AUTO_INCREMENT 安全区间计算器。 */
     private final ShardingAutoIncrementValueCalculator shardingAutoIncrementValueCalculator = new ShardingAutoIncrementValueCalculator();
 
     /**
@@ -107,6 +118,8 @@ public class AdminMonitorDatasourceApplicationService {
      * @param excelExportService Excel 导出服务
      * @param excelI18nMessageResolver Excel 国际化消息解析器
      * @param excelLocaleResolver Excel 语言解析器
+     * @param dataSourcePoolInspector 标准 JDBC Wrapper 连接池解析器
+     * @param dataSourceConsoleAccessProvider 外部 Druid 控制台入口解析器
      */
     public AdminMonitorDatasourceApplicationService(
             ObjectProvider<DynamicRoutingDataSource> dynamicRoutingDataSourceProvider,
@@ -115,7 +128,9 @@ public class AdminMonitorDatasourceApplicationService {
             Environment environment,
             ExcelExportService excelExportService,
             ExcelI18nMessageResolver excelI18nMessageResolver,
-            ExcelLocaleResolver excelLocaleResolver) {
+            ExcelLocaleResolver excelLocaleResolver,
+            DataSourcePoolInspector dataSourcePoolInspector,
+            DataSourceConsoleAccessProvider dataSourceConsoleAccessProvider) {
         this.dynamicRoutingDataSource = dynamicRoutingDataSourceProvider.getIfAvailable();
         this.monitorDynamicDataSourceProperties = monitorDynamicDataSourceProperties;
         this.paymentQuarterShardingProperties = paymentQuarterShardingProperties;
@@ -123,6 +138,8 @@ public class AdminMonitorDatasourceApplicationService {
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
+        this.dataSourcePoolInspector = dataSourcePoolInspector;
+        this.dataSourceConsoleAccessProvider = dataSourceConsoleAccessProvider;
     }
 
     /**
@@ -143,6 +160,7 @@ public class AdminMonitorDatasourceApplicationService {
         response.setWarnings(buildWarnings(runtimeDataSources, groupMembers));
         response.setGroups(buildGroups(runtimeGroups, groupMembers));
         response.setDataSources(buildDataSourceItems(runtimeDataSources, groupMembers));
+        response.setConsoleAccess(dataSourceConsoleAccessProvider.snapshot(runtimeDataSources.values()));
         response.setSharding(buildShardingSnapshot(runtimeDataSources, groupMembers));
         return response;
     }
@@ -363,7 +381,12 @@ public class AdminMonitorDatasourceApplicationService {
         return snapshot;
     }
 
-    /** 只展开当前季度起的有限治理窗口，长期支持上限不等于待建物理表清单。 */
+    /**
+     * 展开当前季度起的有限治理窗口，长期支持上限不等于待建物理表清单。
+     *
+     * @param rule 单张逻辑表分表规则
+     * @return 治理窗口内按季度排列的物理表名
+     */
     private List<String> plannedPhysicalTables(TransactionShardingGovernanceProperties.TableRule rule) {
         ShardingQuarter cursor = shardingQuarterResolver.currentQuarter(paymentQuarterShardingProperties);
         int horizon = Math.max(paymentQuarterShardingProperties.getPlanningHorizonQuarters(), 1);
@@ -377,6 +400,13 @@ public class AdminMonitorDatasourceApplicationService {
         return physicalTables;
     }
 
+    /**
+     * 解析指定季度的物理表名，超出规则范围时不返回表名。
+     *
+     * @param rule 单张逻辑表分表规则
+     * @param quarter 目标季度
+     * @return 物理表名；目标季度超出规则范围时返回 {@code null}
+     */
     private String resolvePhysicalTableName(TransactionShardingGovernanceProperties.TableRule rule, ShardingQuarter quarter) {
         if (!shardingQuarterResolver.inRange(rule, quarter)) {
             return null;
@@ -532,7 +562,8 @@ public class AdminMonitorDatasourceApplicationService {
      * @param dataSource 数据源对象
      */
     private void populateRuntimeMetrics(DataSourceMonitorResponse.DataSourceItem item, DataSource dataSource) {
-        if (dataSource instanceof HikariDataSource hikariDataSource) {
+        HikariDataSource hikariDataSource = dataSourcePoolInspector.unwrapHikari(dataSource);
+        if (hikariDataSource != null) {
             item.setRunning(hikariDataSource.isRunning());
             item.setReachable(probeReachable(hikariDataSource));
             item.setReachabilityMessage(Boolean.TRUE.equals(item.getReachable()) ? "OK" : "FAILED");
@@ -640,7 +671,8 @@ public class AdminMonitorDatasourceApplicationService {
      * @return 连接池名称
      */
     private String resolvePoolName(String dataSourceKey, DataSource dataSource) {
-        if (dataSource instanceof HikariDataSource hikariDataSource) {
+        HikariDataSource hikariDataSource = dataSourcePoolInspector.unwrapHikari(dataSource);
+        if (hikariDataSource != null) {
             return hikariDataSource.getPoolName();
         }
         DataSourceProperty dataSourceProperty = monitorDynamicDataSourceProperties.getDatasource().get(dataSourceKey);
@@ -656,7 +688,8 @@ public class AdminMonitorDatasourceApplicationService {
      */
     private String resolveJdbcUrl(String dataSourceKey, DataSource dataSource) {
         String jdbcUrl = null;
-        if (dataSource instanceof HikariDataSource hikariDataSource) {
+        HikariDataSource hikariDataSource = dataSourcePoolInspector.unwrapHikari(dataSource);
+        if (hikariDataSource != null) {
             jdbcUrl = hikariDataSource.getJdbcUrl();
         }
         if (jdbcUrl == null) {

@@ -5,7 +5,6 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
-import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
 import com.scott.payment.data.config.DataMerchantNotificationProperties;
@@ -36,6 +35,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * @author : scott
@@ -414,7 +414,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
                                                           LocalDateTime beginTime,
                                                           LocalDateTime finishedTime) {
         DataMerchantNotificationLogDO logDO = new DataMerchantNotificationLogDO();
-        logDO.setNotifyLogId(PaymentOrderNoGenerator.nextOrderNo(NOTIFICATION_LOG_PREFIX, task.getTransactionDateTime()));
+        logDO.setNotifyLogId(notificationLogId(task.getNotifyId(), attemptNo, manualRetry, callbackEventId));
         logDO.setNotifyId(task.getNotifyId());
         logDO.setCallbackEventId(manualRetry ? callbackEventId : null);
         logDO.setDeliveryMode(manualRetry ? "MANUAL" : "AUTO");
@@ -436,6 +436,26 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         fillTransactionTime(logDO, task.getTransactionDateTime());
         logDO.setCreateTime(finishedTime);
         return logDO;
+    }
+
+    /**
+     * 使用通知业务身份生成稳定日志 ID，避免多实例或进程重启后的本地序列碰撞。
+     *
+     * @param notifyId 通知任务唯一标识
+     * @param attemptNo 当前自动或人工投递次数
+     * @param manualRetry 是否为人工重试
+     * @param callbackEventId 人工重试事件标识；自动投递时允许为空
+     * @return 带通知日志前缀的稳定 UUID 文本
+     */
+    static String notificationLogId(String notifyId,
+                                    int attemptNo,
+                                    boolean manualRetry,
+                                    String callbackEventId) {
+        String deliveryMode = manualRetry ? "MANUAL" : "AUTO";
+        String source = notifyId + ":" + attemptNo + ":" + deliveryMode + ":"
+                + (callbackEventId == null ? "" : callbackEventId);
+        return NOTIFICATION_LOG_PREFIX + "-"
+                + UUID.nameUUIDFromBytes(source.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

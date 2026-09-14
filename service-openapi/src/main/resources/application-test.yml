@@ -71,9 +71,6 @@ acquiring:
     accept-legacy-signature: true
 
 openapi:
-  hosted-checkout:
-    # 自动化测试可使用本机回环 HTTP，普通外部 HTTP 地址仍会被拒绝。
-    allow-loopback-http: true
   callback-security:
     channel-ip-whitelist-required: false
   security:

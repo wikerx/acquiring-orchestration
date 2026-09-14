@@ -1,12 +1,16 @@
 package com.scott.payment.admin.application.monitor;
 
+import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.CacheMetricsResponse;
+import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.CategoryMetric;
+import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.ProviderCapability;
+import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.TimeBucket;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.redis.cache.PaymentCacheProperties;
 import com.scott.payment.component.redis.support.RedisKeyDigest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.connection.RedisClusterConnection;
@@ -16,12 +20,19 @@ import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,10 +48,9 @@ import java.util.Set;
  * @description : 管理后台 Redis 缓存监控应用服务，仅允许查看和清理非敏感平台配置缓存的 Key 元数据。
  * @status : create
  */
+@Slf4j
 @Service
 public class AdminMonitorCacheApplicationService {
-
-    private static final Logger log = LoggerFactory.getLogger(AdminMonitorCacheApplicationService.class);
 
     /** 单次 Redis SCAN 请求建议返回的 Key 数量，不代表结果硬上限。 */
     private static final int SCAN_COUNT = 100;
@@ -51,11 +61,39 @@ public class AdminMonitorCacheApplicationService {
     /** 管理端 Key 元数据查询允许的最大分页大小。 */
     private static final int MAX_PAGE_SIZE = 100;
 
+    /** Redis 图表最多保留七天、每分钟一条的进程内采样。 */
+    static final int MAX_METRIC_SAMPLES = 7 * 24 * 60;
+
+    /** 接口刷新和定时任务共享一分钟最小采样间隔。 */
+    private static final long MIN_SAMPLE_INTERVAL_NANOS = Duration.ofMinutes(1).toNanos();
+
     /** 仅用于读取 Redis 运行信息、Key 元数据和删除受控缓存 Key 的模板。 */
     private final StringRedisTemplate stringRedisTemplate;
 
     /** 提供平台缓存 Key 前缀和允许管理的缓存名称。 */
     private final PaymentCacheProperties cacheProperties;
+
+    /** Redis 内存指标进程内历史，元素按采样时间升序保存。 */
+    private final Deque<TimeBucket> memorySamples = new ArrayDeque<>(MAX_METRIC_SAMPLES);
+    /** Redis 吞吐指标进程内历史，元素按采样时间升序保存。 */
+    private final Deque<TimeBucket> opsSamples = new ArrayDeque<>(MAX_METRIC_SAMPLES);
+    /** Redis 命中率进程内历史，元素按采样时间升序保存。 */
+    private final Deque<TimeBucket> hitRateSamples = new ArrayDeque<>(MAX_METRIC_SAMPLES);
+
+    /** 最近一次有界扫描得到的 Key 类型分布；未采样时为空集合。 */
+    private List<CategoryMetric> keyTypeDistribution = List.of();
+    /** Redis INFO 历史采样能力状态，不包含连接凭据。 */
+    private ProviderCapability historyCapability = capability(
+            "REDIS_HISTORY_METRICS", "UNAVAILABLE", "No Redis metric sample is available yet");
+    /** Redis Key 类型扫描能力状态，不包含 Key 对应的 Value。 */
+    private ProviderCapability keyTypeCapability = capability(
+            "REDIS_KEY_TYPE_METRICS", "UNAVAILABLE", "No Redis key type sample is available yet");
+    /** 上一次累计命中数，用于计算当前采样区间命中率；首个样本时为空。 */
+    private Long previousHits;
+    /** 上一次累计未命中数，用于计算当前采样区间命中率；首个样本时为空。 */
+    private Long previousMisses;
+    /** 最近一次采样尝试的单调时钟值，单位纳秒。 */
+    private long lastSampleAttemptNanos = Long.MIN_VALUE;
 
     /**
      * 创建 Redis 缓存监控应用服务。
@@ -67,6 +105,295 @@ public class AdminMonitorCacheApplicationService {
                                                PaymentCacheProperties cacheProperties) {
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         this.cacheProperties = cacheProperties;
+    }
+
+    /** 在 Spring Bean 初始化完成后尝试采集首个 Redis 指标点。 */
+    @PostConstruct
+    public void initializeMetrics() {
+        sampleMetrics();
+    }
+
+    /** 每分钟采集一次 Redis 内存、吞吐、命中率和有界 Key 类型分布。 */
+    @Scheduled(fixedRate = 60_000L)
+    public synchronized void sampleMetrics() {
+        long nowNanos = System.nanoTime();
+        if (lastSampleAttemptNanos != Long.MIN_VALUE
+                && nowNanos - lastSampleAttemptNanos < MIN_SAMPLE_INTERVAL_NANOS) {
+            return;
+        }
+        lastSampleAttemptNanos = nowNanos;
+        if (stringRedisTemplate == null) {
+            historyCapability = capability(
+                    "REDIS_HISTORY_METRICS", "UNAVAILABLE", "RedisTemplate unavailable");
+            keyTypeCapability = capability(
+                    "REDIS_KEY_TYPE_METRICS", "UNAVAILABLE", "RedisTemplate unavailable");
+            return;
+        }
+        try {
+            RedisMetricsSnapshot snapshot = stringRedisTemplate.execute(
+                    (RedisCallback<RedisMetricsSnapshot>) this::readMetricsSnapshot);
+            if (snapshot == null || snapshot.runtimeMetrics() == null) {
+                historyCapability = capability(
+                        "REDIS_HISTORY_METRICS", "UNAVAILABLE", "Redis INFO metrics unavailable");
+                keyTypeCapability = capability(
+                        "REDIS_KEY_TYPE_METRICS", "UNAVAILABLE", "Redis key type metrics unavailable");
+                return;
+            }
+            recordMetrics(LocalDateTime.now(), snapshot.runtimeMetrics());
+            keyTypeDistribution = snapshot.keyTypes().metrics();
+            historyCapability = capability(
+                    "REDIS_HISTORY_METRICS", "AVAILABLE", snapshot.runtimeReason());
+            keyTypeCapability = capability(
+                    "REDIS_KEY_TYPE_METRICS", "AVAILABLE", snapshot.keyTypes().reason());
+        } catch (RuntimeException exception) {
+            historyCapability = capability(
+                    "REDIS_HISTORY_METRICS", "UNAVAILABLE",
+                    "Redis INFO metrics unavailable: " + exception.getClass().getSimpleName());
+            keyTypeCapability = capability(
+                    "REDIS_KEY_TYPE_METRICS", "UNAVAILABLE",
+                    "Redis key type metrics unavailable: " + exception.getClass().getSimpleName());
+            log.warn("event: ADMIN_REDIS_METRICS_FAILED exceptionType: {}", exception.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * 返回 Redis 七天进程内趋势和最近一次有界 Key 类型分布。
+     *
+     * @return Redis 趋势、Key 类型分布和能力状态
+     */
+    public synchronized CacheMetricsResponse metrics() {
+        sampleMetrics();
+        CacheMetricsResponse response = new CacheMetricsResponse();
+        response.setMemoryTrend(new ArrayList<>(memorySamples));
+        response.setOpsTrend(new ArrayList<>(opsSamples));
+        response.setHitRateTrend(new ArrayList<>(hitRateSamples));
+        response.setKeyTypeDistribution(new ArrayList<>(keyTypeDistribution));
+        response.setHistoryCapability(historyCapability);
+        response.setKeyTypeCapability(keyTypeCapability);
+        response.setGeneratedAt(LocalDateTime.now());
+        return response;
+    }
+
+    /** 读取一次 Redis 指标快照；Cluster 模式只聚合可用 Master。 */
+    private RedisMetricsSnapshot readMetricsSnapshot(RedisConnection connection) {
+        RedisInfoResult info = readInfo(connection);
+        RuntimeMetrics runtime = aggregateRuntimeMetrics(info.nodeInfo());
+        KeyTypeMetrics keyTypes = scanKeyTypes(connection);
+        String runtimeReason = info.failedNodes().isEmpty()
+                ? "Aggregated from " + info.nodeInfo().size() + " Redis node(s)"
+                : "Partial metrics; failed nodes: " + String.join(",", info.failedNodes());
+        return new RedisMetricsSnapshot(runtime, keyTypes, runtimeReason);
+    }
+
+    /** 聚合 Redis INFO 中可相加的 Master 指标。 */
+    private RuntimeMetrics aggregateRuntimeMetrics(Map<String, Map<String, String>> nodeInfo) {
+        Long usedBytes = sumInfo(nodeInfo, "used_memory", false);
+        Long maxBytes = sumInfo(nodeInfo, "maxmemory", true);
+        Long opsPerSecond = sumInfo(nodeInfo, "instantaneous_ops_per_sec", false);
+        Long hits = sumInfo(nodeInfo, "keyspace_hits", false);
+        Long misses = sumInfo(nodeInfo, "keyspace_misses", false);
+        if (usedBytes == null && opsPerSecond == null && hits == null && misses == null) {
+            throw new IllegalStateException("Redis INFO does not contain runtime metrics");
+        }
+        return new RuntimeMetrics(usedBytes, maxBytes, opsPerSecond, hits, misses);
+    }
+
+    /** 对全部 Master 做有界 SCAN，并且只读取 TYPE，不读取缓存值。 */
+    private KeyTypeMetrics scanKeyTypes(RedisConnection connection) {
+        ScanOptions options = ScanOptions.scanOptions().match("*").count(SCAN_COUNT).build();
+        List<byte[]> keys = new ArrayList<>(MAX_SCAN_KEYS);
+        boolean truncated;
+        if (connection instanceof RedisClusterConnection clusterConnection) {
+            truncated = scanClusterKeys(clusterConnection, options, keys);
+        } else {
+            try (Cursor<byte[]> cursor = connection.scan(options)) {
+                truncated = collectPhysicalKeys(cursor, keys);
+            }
+        }
+
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (byte[] key : keys) {
+            DataType type = connection.keyCommands().type(key);
+            if (type == null || type == DataType.NONE) {
+                continue;
+            }
+            counts.merge(type.code(), 1L, Long::sum);
+        }
+        List<CategoryMetric> metrics = counts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed()
+                        .thenComparing(Map.Entry.comparingByKey()))
+                .map(entry -> category(entry.getKey(), entry.getValue()))
+                .toList();
+        String reason = truncated
+                ? "Key type distribution sampled from the first " + MAX_SCAN_KEYS + " physical keys"
+                : "Key type distribution sampled from " + keys.size() + " physical keys";
+        return new KeyTypeMetrics(metrics, reason);
+    }
+
+    /**
+     * 依次扫描 Redis Cluster 中可用 Master，并对整个集群共享物理 Key 检查上限。
+     *
+     * <p>任一节点达到上限立即停止，防止节点数增长后把单次监控采样放大为无界操作。</p>
+     *
+     * @param connection Redis Cluster 连接
+     * @param options 固定 SCAN 条件
+     * @param keys 已收集的物理 Key 字节，仅用于后续 TYPE 查询
+     * @return 达到集群级扫描上限时返回 true
+     */
+    private boolean scanClusterKeys(RedisClusterConnection connection,
+                                    ScanOptions options,
+                                    List<byte[]> keys) {
+        for (RedisClusterNode masterNode : masterNodes(connection)) {
+            try (Cursor<byte[]> cursor = connection.scan(masterNode, options)) {
+                if (collectPhysicalKeys(cursor, keys)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 消费单节点游标并执行共享的物理 Key 上限。
+     *
+     * @param cursor Redis SCAN 游标
+     * @param keys 跨节点共享的收集结果
+     * @return 达到扫描上限时返回 true
+     */
+    private boolean collectPhysicalKeys(Cursor<byte[]> cursor, List<byte[]> keys) {
+        while (cursor.hasNext()) {
+            if (keys.size() >= MAX_SCAN_KEYS) {
+                return true;
+            }
+            keys.add(cursor.next());
+        }
+        return false;
+    }
+
+    /**
+     * 把一次 Redis INFO 快照拆分为内存、吞吐和区间命中率三个同步历史点。
+     *
+     * @param timestamp 当前 Admin 进程采样时间
+     * @param metrics Redis Master 聚合指标
+     */
+    private void recordMetrics(LocalDateTime timestamp, RuntimeMetrics metrics) {
+        Map<String, BigDecimal> memory = new LinkedHashMap<>();
+        memory.put("used", decimal(metrics.usedBytes()));
+        memory.put("max", decimal(metrics.maxBytes()));
+        Map<String, BigDecimal> ops = new LinkedHashMap<>();
+        ops.put("ops", decimal(metrics.opsPerSecond()));
+        Map<String, BigDecimal> hitRate = new LinkedHashMap<>();
+        hitRate.put("hitRate", calculateHitRate(metrics.hits(), metrics.misses()));
+        addHistorySample(bucket(timestamp, memory), bucket(timestamp, ops), bucket(timestamp, hitRate));
+    }
+
+    /**
+     * 原子追加同一采样时刻的三类历史指标，并统一执行七天有界保留。
+     *
+     * @param memory Redis 内存指标
+     * @param ops Redis 每秒操作数指标
+     * @param hitRate Redis 区间命中率指标
+     */
+    void addHistorySample(TimeBucket memory, TimeBucket ops, TimeBucket hitRate) {
+        addBounded(memorySamples, memory);
+        addBounded(opsSamples, ops);
+        addBounded(hitRateSamples, hitRate);
+    }
+
+    /**
+     * 使用相邻 Redis 累计计数差值计算当前采样区间命中率。
+     *
+     * <p>首个样本使用当前累计值；Redis 重启或计数回退时同样重新建立基线。没有请求样本
+     * 时返回 null，避免页面把“无访问”展示为 0% 命中率。</p>
+     *
+     * @param hits Redis 累计 keyspace_hits，单位次，允许为空
+     * @param misses Redis 累计 keyspace_misses，单位次，允许为空
+     * @return 0 到 100 的百分比，保留两位小数；无法计算时返回 null
+     */
+    private BigDecimal calculateHitRate(Long hits, Long misses) {
+        if (hits == null || misses == null) {
+            return null;
+        }
+        long sampleHits = hits;
+        long sampleMisses = misses;
+        if (previousHits != null && previousMisses != null && hits >= previousHits && misses >= previousMisses) {
+            sampleHits = hits - previousHits;
+            sampleMisses = misses - previousMisses;
+        }
+        previousHits = hits;
+        previousMisses = misses;
+        long total = sampleHits + sampleMisses;
+        return total <= 0L ? null : BigDecimal.valueOf(sampleHits)
+                .multiply(BigDecimal.valueOf(100L))
+                .divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 汇总各 Redis Master 的非负 INFO 指标。
+     *
+     * @param nodeInfo 按节点保存的 INFO
+     * @param property 待读取的固定 INFO 属性名
+     * @param ignoreZero 是否把零视为“未配置”，用于 maxmemory 等可选指标
+     * @return 至少一个节点存在有效值时返回总和，否则返回 null
+     */
+    private Long sumInfo(Map<String, Map<String, String>> nodeInfo, String property, boolean ignoreZero) {
+        long total = 0L;
+        boolean present = false;
+        for (Map<String, String> info : nodeInfo.values()) {
+            Long value = nonNegativeLong(info.get(property));
+            if (value == null || (ignoreZero && value == 0L)) {
+                continue;
+            }
+            total += value;
+            present = true;
+        }
+        return present ? total : null;
+    }
+
+    private Long nonNegativeLong(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            long parsed = Long.parseLong(value.trim());
+            return parsed < 0L ? null : parsed;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
+    private BigDecimal decimal(Long value) {
+        return value == null ? null : BigDecimal.valueOf(value);
+    }
+
+    private TimeBucket bucket(LocalDateTime timestamp, Map<String, BigDecimal> values) {
+        TimeBucket bucket = new TimeBucket();
+        bucket.setTimestamp(timestamp);
+        bucket.setValues(values);
+        return bucket;
+    }
+
+    private void addBounded(Deque<TimeBucket> samples, TimeBucket sample) {
+        samples.addLast(sample);
+        while (samples.size() > MAX_METRIC_SAMPLES) {
+            samples.removeFirst();
+        }
+    }
+
+    private CategoryMetric category(String key, long value) {
+        CategoryMetric metric = new CategoryMetric();
+        metric.setKey(key);
+        metric.setLabel(key);
+        metric.setValue(BigDecimal.valueOf(value));
+        return metric;
+    }
+
+    private static ProviderCapability capability(String provider, String status, String reason) {
+        ProviderCapability capability = new ProviderCapability();
+        capability.setProvider(provider);
+        capability.setStatus(status);
+        capability.setReason(reason);
+        return capability;
     }
 
     /**
@@ -544,5 +871,42 @@ public class AdminMonitorCacheApplicationService {
     private record RedisInfoResult(String deploymentMode,
                                    Map<String, Map<String, String>> nodeInfo,
                                    List<String> failedNodes) {
+    }
+
+    /**
+     * Redis INFO 运行指标。
+     *
+     * @param usedBytes 已使用内存，单位字节，允许为空
+     * @param maxBytes 配置的最大内存，单位字节，未设置时为空
+     * @param opsPerSecond 每秒操作数，允许为空
+     * @param hits 累计命中数，单位次，允许为空
+     * @param misses 累计未命中数，单位次，允许为空
+     */
+    private record RuntimeMetrics(Long usedBytes,
+                                  Long maxBytes,
+                                  Long opsPerSecond,
+                                  Long hits,
+                                  Long misses) {
+    }
+
+    /**
+     * Redis Key 类型扫描结果。
+     *
+     * @param metrics Key 类型分布，默认空集合
+     * @param reason 扫描范围和截断状态说明，不包含 Key 内容
+     */
+    private record KeyTypeMetrics(List<CategoryMetric> metrics, String reason) {
+    }
+
+    /**
+     * Redis 单次完整监控快照。
+     *
+     * @param runtimeMetrics INFO 运行指标
+     * @param keyTypes Key 类型扫描结果
+     * @param runtimeReason 节点聚合范围说明，不包含凭据
+     */
+    private record RedisMetricsSnapshot(RuntimeMetrics runtimeMetrics,
+                                        KeyTypeMetrics keyTypes,
+                                        String runtimeReason) {
     }
 }

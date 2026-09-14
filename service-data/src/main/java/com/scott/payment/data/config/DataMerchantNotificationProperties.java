@@ -39,10 +39,4 @@ public class DataMerchantNotificationProperties {
     /** 单个 service-data 实例允许缓存的商户密钥版本条目上限。 */
     private int securityMaterialCacheMaxEntries = 2048;
 
-    /** 是否允许明文 HTTP，仅限隔离开发环境显式开启。 */
-    private boolean allowHttp;
-
-    /** 是否允许回环、私网和保留地址，仅限隔离开发环境显式开启。 */
-    private boolean allowPrivateNetwork;
-
 }

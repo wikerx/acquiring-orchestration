@@ -72,9 +72,6 @@ acquiring:
     accept-legacy-signature: ${CHECKOUT_GATEWAY_INGRESS_ACCEPT_LEGACY_SIGNATURE:false}
 
 openapi:
-  hosted-checkout:
-    # UAT 按生产策略只允许 HTTPS，禁止商户或平台地址降级为明文 HTTP。
-    allow-loopback-http: false
   callback-security:
     # 商户通知重试维护密钥，只允许内部运维/后台任务调用方持有。
     # 推荐通过 K8s Secret、CI/CD Secret 或主机环境变量注入：OPENAPI_NOTIFY_RETRY_TOKEN=<32位以上随机高强度密钥>。

@@ -554,6 +554,26 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         verify(fixture.outboxMapper(), never()).insert(any());
     }
 
+    /** 通知日志 ID 必须由业务尝试身份稳定生成，避免进程重启后本地序列与历史记录碰撞。 */
+    @Test
+    void shouldGenerateStableCollisionResistantNotificationLogId() {
+        String automatic = DefaultMerchantNotificationDeliveryService.notificationLogId(
+                "TMN202609140056497612698", 1, false, null);
+        String replayed = DefaultMerchantNotificationDeliveryService.notificationLogId(
+                "TMN202609140056497612698", 1, false, null);
+        String anotherNotification = DefaultMerchantNotificationDeliveryService.notificationLogId(
+                "TMN202609140056497612699", 1, false, null);
+        String manual = DefaultMerchantNotificationDeliveryService.notificationLogId(
+                "TMN202609140056497612698", 1, true, "MNR-20260914-0001");
+
+        assertThat(automatic)
+                .isEqualTo(replayed)
+                .startsWith("TNL-")
+                .hasSize(40);
+        assertThat(anotherNotification).isNotEqualTo(automatic);
+        assertThat(manual).isNotEqualTo(automatic);
+    }
+
     /** 创建商户通知服务测试夹具。 */
     private Fixture fixture(HttpStatus status, String body) {
         return fixture(new StubRestTemplate(status, body));

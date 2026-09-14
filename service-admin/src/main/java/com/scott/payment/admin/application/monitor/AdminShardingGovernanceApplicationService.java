@@ -44,7 +44,7 @@ import java.util.Set;
  * @classname : AdminShardingGovernanceApplicationService
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : admin分表governance应用服务，位于 运营后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
+ * @description : 管理端分表治理应用服务，编排可信登录上下文、物理表元数据刷新、结构检查、预创建执行和审计响应组装。
  * @status : create
  */
 @Service

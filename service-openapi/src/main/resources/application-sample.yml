@@ -70,9 +70,6 @@ acquiring:
     accept-legacy-signature: true
 
 openapi:
-  hosted-checkout:
-    # 示例环境仅放行本机回环 HTTP，非本机地址必须使用 HTTPS。
-    allow-loopback-http: true
   callback-security:
     channel-ip-whitelist-required: false
   security:

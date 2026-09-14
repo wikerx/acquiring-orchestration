@@ -5,6 +5,7 @@ import com.scott.payment.component.redis.cache.PaymentCacheProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.redis.connection.RedisKeyCommands;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.connection.DataType;
 import org.springframework.data.redis.connection.RedisClusterCommands;
@@ -20,6 +21,8 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.nio.charset.StandardCharsets;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +37,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -149,6 +153,79 @@ class AdminMonitorCacheApplicationServiceTests {
         verify(serverCommands).info(fixture.masterNodes().get(1));
         verify(serverCommands, never()).info(fixture.replicaNode());
         log.info("Redis Cluster INFO 聚合测试完成，结果: 仅遍历两个 Master");
+    }
+
+    @Test
+    void shouldAggregateRuntimeMetricsAndBoundedKeyTypesAcrossClusterMasters() {
+        ScanFixture fixture = scanFixture(List.of(
+                List.of("acquiring:test:one", "acquiring:test:two"),
+                List.of("acquiring:test:three")
+        ));
+        RedisClusterServerCommands serverCommands = mock(RedisClusterServerCommands.class);
+        when(fixture.clusterConnection().serverCommands()).thenReturn(serverCommands);
+        Properties firstInfo = redisMetrics(100L, 1000L, 20L, 90L, 10L);
+        Properties secondInfo = redisMetrics(200L, 2000L, 30L, 180L, 20L);
+        when(serverCommands.info(fixture.masterNodes().get(0))).thenReturn(firstInfo);
+        when(serverCommands.info(fixture.masterNodes().get(1))).thenReturn(secondInfo);
+        RedisKeyCommands keyCommands = mock(RedisKeyCommands.class);
+        when(fixture.clusterConnection().keyCommands()).thenReturn(keyCommands);
+        when(keyCommands.type(any(byte[].class))).thenAnswer(invocation -> {
+            String key = new String(invocation.getArgument(0), StandardCharsets.UTF_8);
+            return key.endsWith("three") ? DataType.HASH : DataType.STRING;
+        });
+
+        AdminMonitorCacheApplicationService service = service(fixture.template());
+        var response = service.metrics();
+        service.metrics();
+
+        assertThat(response.getHistoryCapability().getStatus()).isEqualTo("AVAILABLE");
+        assertThat(response.getKeyTypeCapability().getStatus()).isEqualTo("AVAILABLE");
+        assertThat(response.getMemoryTrend()).singleElement().satisfies(bucket ->
+                assertThat(bucket.getValues()).containsEntry("used", BigDecimal.valueOf(300L))
+                        .containsEntry("max", BigDecimal.valueOf(3000L)));
+        assertThat(response.getOpsTrend()).singleElement().satisfies(bucket ->
+                assertThat(bucket.getValues()).containsEntry("ops", BigDecimal.valueOf(50L)));
+        assertThat(response.getHitRateTrend()).singleElement().satisfies(bucket ->
+                assertThat(bucket.getValues()).containsEntry("hitRate", new BigDecimal("90.00")));
+        assertThat(response.getKeyTypeDistribution())
+                .extracting(item -> item.getKey() + ":" + item.getValue())
+                .containsExactly("string:2", "hash:1");
+        verify(keyCommands, never()).keys(any(byte[].class));
+        verify(fixture.template(), never()).opsForValue();
+        verify(fixture.template(), times(1)).execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any());
+    }
+
+    @Test
+    void shouldKeepOnlySevenDaysOfMinuteMetricSamples() {
+        AdminMonitorCacheApplicationService service = service(null);
+        LocalDateTime base = LocalDateTime.of(2026, 9, 1, 0, 0);
+        for (int index = 0; index < AdminMonitorCacheApplicationService.MAX_METRIC_SAMPLES + 2; index++) {
+            service.addHistorySample(
+                    bucket(base.plusMinutes(index), "used", index),
+                    bucket(base.plusMinutes(index), "ops", index),
+                    bucket(base.plusMinutes(index), "hitRate", index));
+        }
+
+        var response = service.metrics();
+
+        assertThat(response.getMemoryTrend()).hasSize(AdminMonitorCacheApplicationService.MAX_METRIC_SAMPLES);
+        assertThat(response.getMemoryTrend().get(0).getTimestamp()).isEqualTo(base.plusMinutes(2));
+        assertThat(response.getOpsTrend()).hasSameSizeAs(response.getMemoryTrend());
+        assertThat(response.getHitRateTrend()).hasSameSizeAs(response.getMemoryTrend());
+    }
+
+    @Test
+    void shouldDegradeMetricsCapabilitiesWhenRedisIsUnavailable() {
+        StringRedisTemplate template = mock(StringRedisTemplate.class);
+        when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
+                .thenThrow(new IllegalStateException("offline"));
+
+        var response = service(template).metrics();
+
+        assertThat(response.getHistoryCapability().getStatus()).isEqualTo("UNAVAILABLE");
+        assertThat(response.getKeyTypeCapability().getStatus()).isEqualTo("UNAVAILABLE");
+        assertThat(response.getMemoryTrend()).isEmpty();
+        assertThat(response.getKeyTypeDistribution()).isEmpty();
     }
 
     /**
@@ -348,6 +425,24 @@ class AdminMonitorCacheApplicationServiceTests {
         PaymentCacheProperties properties = new PaymentCacheProperties();
         properties.setKeyPrefix(CACHE_PREFIX);
         return new AdminMonitorCacheApplicationService(provider, properties);
+    }
+
+    private Properties redisMetrics(long used, long max, long ops, long hits, long misses) {
+        Properties info = new Properties();
+        info.setProperty("used_memory", String.valueOf(used));
+        info.setProperty("maxmemory", String.valueOf(max));
+        info.setProperty("instantaneous_ops_per_sec", String.valueOf(ops));
+        info.setProperty("keyspace_hits", String.valueOf(hits));
+        info.setProperty("keyspace_misses", String.valueOf(misses));
+        return info;
+    }
+
+    private com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.TimeBucket bucket(
+            LocalDateTime timestamp, String key, long value) {
+        var bucket = new com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.TimeBucket();
+        bucket.setTimestamp(timestamp);
+        bucket.setValues(Map.of(key, BigDecimal.valueOf(value)));
+        return bucket;
     }
 
     /**

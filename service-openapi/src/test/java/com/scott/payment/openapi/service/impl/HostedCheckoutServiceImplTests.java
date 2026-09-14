@@ -158,25 +158,24 @@ class HostedCheckoutServiceImplTests {
     }
 
     @Test
-    void shouldRejectExternalHttpMerchantUrlsBeforeCreatingSession() {
+    void shouldAllowExternalHttpMerchantUrlsWhenCreatingSession() {
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
         bindRequestContext("200001");
         HostedCheckoutSessionCreateRequestDTO requestDTO = buildCreateRequest("200001");
         requestDTO.getTransactionInfo().setCallbackUrl("http://merchant.example/notify");
 
-        assertThatThrownBy(() -> checkoutService.createSession("encrypted-request-body", requestDTO))
-                .isInstanceOf(ApiException.class)
-                .extracting("code")
-                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
-        assertThat(paymentInternalClient.sessionCreateRequest).isNull();
+        checkoutService.createSession("encrypted-request-body", requestDTO);
+
+        assertThat(paymentInternalClient.sessionCreateRequest.getMerchantNotifyUrl())
+                .isEqualTo("http://merchant.example/notify");
     }
 
     @Test
-    void shouldAllowLoopbackHttpOnlyWhenExplicitlyEnabled() {
+    void shouldAllowPrivateAndLoopbackHttpWithoutEnvironmentSwitch() {
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(
-                paymentInternalClient, "http://127.0.0.1:5175/", true);
+                paymentInternalClient, "http://192.168.1.20:5175/");
         bindRequestContext("200001");
         HostedCheckoutSessionCreateRequestDTO requestDTO = buildCreateRequest("200001");
         requestDTO.getTransactionInfo().setCallbackUrl("http://localhost:18080/notify");
@@ -185,7 +184,7 @@ class HostedCheckoutServiceImplTests {
         checkoutService.createSession("encrypted-request-body", requestDTO);
 
         assertThat(paymentInternalClient.sessionCreateRequest.getCheckoutDomain())
-                .isEqualTo("http://127.0.0.1:5175");
+                .isEqualTo("http://192.168.1.20:5175");
         assertThat(paymentInternalClient.sessionCreateRequest.getMerchantNotifyUrl())
                 .isEqualTo("http://localhost:18080/notify");
         assertThat(paymentInternalClient.sessionCreateRequest.getRedirectUrl())
@@ -193,18 +192,16 @@ class HostedCheckoutServiceImplTests {
     }
 
     @Test
-    void shouldFailClosedWhenPlatformCheckoutBaseUrlIsUnsafe() {
+    void shouldAllowExternalHttpPlatformCheckoutBaseUrl() {
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(
-                paymentInternalClient, "http://pay.example.com/", false);
+                paymentInternalClient, "http://pay.example.com/");
         bindRequestContext("200001");
 
-        assertThatThrownBy(() -> checkoutService.createSession(
-                "encrypted-request-body", buildCreateRequest("200001")))
-                .isInstanceOf(ApiException.class)
-                .extracting("code")
-                .isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode());
-        assertThat(paymentInternalClient.sessionCreateRequest).isNull();
+        checkoutService.createSession("encrypted-request-body", buildCreateRequest("200001"));
+
+        assertThat(paymentInternalClient.sessionCreateRequest.getCheckoutDomain())
+                .isEqualTo("http://pay.example.com");
     }
 
     @Test
@@ -310,21 +307,19 @@ class HostedCheckoutServiceImplTests {
     }
 
     private HostedCheckoutServiceImpl newCheckoutService(CapturingCheckoutClient paymentInternalClient) {
-        return newCheckoutService(paymentInternalClient, "https://pay.example.com/", false);
+        return newCheckoutService(paymentInternalClient, "https://pay.example.com/");
     }
 
     private HostedCheckoutServiceImpl newCheckoutService(CapturingCheckoutClient paymentInternalClient,
-                                                          String checkoutFrontendBaseUrl,
-                                                          boolean allowLoopbackHttp) {
+                                                          String checkoutFrontendBaseUrl) {
         HostedCheckoutProperties properties = new HostedCheckoutProperties();
         properties.setTokenPepper(TOKEN_PEPPER);
         properties.setDefaultExpireMinutes(30);
         properties.setMaxExpireMinutes(120);
-        properties.setAllowLoopbackHttp(allowLoopbackHttp);
         return new HostedCheckoutServiceImpl(
                 paymentInternalClient,
                 properties,
-                new HostedCheckoutUrlPolicy(properties),
+                new HostedCheckoutUrlPolicy(),
                 new StubSystemConfigService(checkoutFrontendBaseUrl),
                 new OpenApiRequestContext(),
                 new OpenApiKeyMaterialFactory(),

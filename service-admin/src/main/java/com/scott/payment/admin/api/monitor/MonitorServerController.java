@@ -16,7 +16,7 @@ import java.util.Map;
  * @classname : MonitorServerController
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台服务器监控控制器
+ * @description : 管理端服务器监控 HTTP 入口，负责查询权限和统一响应，运行时信息采集委托应用服务。
  * @status : create
  *
  * <p>系统监控菜单下的服务器信息接口入口，负责服务监控相关 HTTP 映射与权限校验，

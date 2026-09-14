@@ -139,6 +139,39 @@ CREATE TABLE IF NOT EXISTS sys_oper_log (
     KEY idx_sys_oper_business_type (business_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统后台操作日志表';
 
+CREATE TABLE IF NOT EXISTS monitor_alert_handle_state (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    source_type VARCHAR(32) NOT NULL COMMENT '告警来源类型：CHANNEL/SECURITY',
+    source_id VARCHAR(64) NOT NULL COMMENT '来源告警唯一标识',
+    status VARCHAR(24) NOT NULL DEFAULT 'OPEN' COMMENT '处置状态：OPEN/PROCESSING/RECOVERED/CLOSED',
+    owner_account_id VARCHAR(64) NULL COMMENT '负责人账号ID',
+    owner_name VARCHAR(100) NULL COMMENT '负责人名称',
+    handle_remark VARCHAR(512) NULL COMMENT '最新处置备注，不得记录敏感请求内容',
+    version INT NOT NULL DEFAULT 0 COMMENT '乐观锁版本',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_monitor_alert_handle_source (source_type, source_id),
+    KEY idx_monitor_alert_handle_status_time (status, update_time),
+    KEY idx_monitor_alert_handle_owner_time (owner_account_id, update_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='监控告警人工处置状态表';
+
+CREATE TABLE IF NOT EXISTS monitor_alert_handle_history (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    source_type VARCHAR(32) NOT NULL COMMENT '告警来源类型：CHANNEL/SECURITY',
+    source_id VARCHAR(64) NOT NULL COMMENT '来源告警唯一标识',
+    action VARCHAR(32) NOT NULL COMMENT '处置动作：TAKEOVER/MARK_PROCESSING/CLOSE',
+    from_status VARCHAR(24) NULL COMMENT '变更前状态',
+    to_status VARCHAR(24) NOT NULL COMMENT '变更后状态',
+    operator_account_id VARCHAR(64) NULL COMMENT '操作人账号ID',
+    operator_name VARCHAR(100) NULL COMMENT '操作人名称',
+    remark VARCHAR(512) NULL COMMENT '处置备注，不得记录敏感请求内容',
+    operated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '操作时间',
+    PRIMARY KEY (id),
+    KEY idx_monitor_alert_history_source_time (source_type, source_id, operated_at),
+    KEY idx_monitor_alert_history_operator_time (operator_account_id, operated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='监控告警人工处置历史表';
+
 CREATE TABLE IF NOT EXISTS sys_app (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     app_code VARCHAR(50) NOT NULL COMMENT '系统编码：ADMIN管理后台，MERCHANT商户系统',
@@ -1127,15 +1160,24 @@ CREATE TABLE IF NOT EXISTS sys_post (
 INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, external_link, sort_no, status, deleted)
 VALUES
     (220, 1, 0, 'system_monitor', '系统监控', 'CATALOG', '/monitor', NULL, NULL, 'Monitor', 1, 0, 80, 1, 0),
-    (221, 1, 220, 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 0, 81, 1, 0),
-    (222, 1, 220, 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:server:list', 'Cpu', 1, 0, 82, 1, 0),
-    (223, 1, 220, 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 0, 83, 1, 0),
-    (224, 1, 220, 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 0, 84, 1, 0),
-    (225, 1, 220, 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 0, 85, 1, 0),
-    (226, 1, 220, 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 0, 86, 1, 0),
-    (227, 1, 220, 'monitor_datasource', '数据源监控', 'MENU', '/monitor/datasource', 'monitor/datasource/index', 'monitor:datasource:view', 'DataLine', 1, 0, 87, 1, 0),
-    (228, 1, 220, 'monitor_rocketmq', 'RocketMQ 控制台', 'LINK', 'http://localhost:8088', NULL, 'monitor:rocketmq:view', 'Connection', 1, 1, 88, 1, 0),
-    (229, 1, 220, 'monitor_nacos', 'Nacos 控制台', 'LINK', 'http://localhost:8848/nacos', NULL, 'monitor:nacos:view', 'Monitor', 1, 1, 89, 1, 0);
+    (1200, 1, 220, 'monitor_overview', '监控总览', 'MENU', '/monitor/overview', 'monitor/overview/index', 'system:monitor:overview:query', 'Odometer', 1, 0, 1, 1, 0),
+    (221, 1, 220, 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 0, 2, 1, 0),
+    (222, 1, 220, 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:monitor:service:query', 'Cpu', 1, 0, 3, 1, 0),
+    (1201, 1, 220, 'monitor_api', 'API监控', 'MENU', '/monitor/api', 'monitor/api/index', 'system:monitor:api:query', 'DataAnalysis', 1, 0, 4, 1, 0),
+    (1202, 1, 220, 'monitor_trace', '交易链路', 'MENU', '/monitor/trace', 'monitor/trace/index', 'system:monitor:trace:query', 'Share', 1, 0, 5, 1, 0),
+    (1203, 1, 220, 'monitor_channel_health', '渠道健康监控', 'MENU', '/monitor/channel', 'monitor/channel/index', 'system:monitor:channel:query', 'TrendCharts', 1, 0, 6, 1, 0),
+    (1204, 1, 220, 'monitor_webhook', 'Webhook监控', 'MENU', '/monitor/webhook', 'monitor/webhook/index', 'system:monitor:webhook:query', 'Connection', 1, 0, 7, 1, 0),
+    (223, 1, 220, 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 0, 8, 1, 0),
+    (227, 1, 220, 'monitor_datasource', '数据源监控', 'MENU', '/monitor/datasource', 'monitor/datasource/index', 'monitor:datasource:view', 'DataLine', 1, 0, 9, 1, 0),
+    (1208, 1, 220, 'monitor_druid_console', 'Druid 控制台', 'MENU', '/monitor/druid', 'monitor/druid/index', 'monitor:datasource:view', 'Link', 1, 0, 10, 1, 0),
+    (224, 1, 220, 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 0, 11, 1, 0),
+    (225, 1, 220, 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 0, 12, 1, 0),
+    (226, 1, 220, 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 0, 13, 1, 0),
+    (1205, 1, 220, 'monitor_log_search', '日志检索', 'MENU', '/monitor/log', 'monitor/log/index', 'system:monitor:log:query', 'Search', 1, 0, 14, 1, 0),
+    (1206, 1, 220, 'monitor_alert', '告警中心', 'MENU', '/monitor/alert', 'monitor/alert/index', 'system:monitor:alert:query', 'BellFilled', 1, 0, 15, 1, 0),
+    (1207, 1, 220, 'security_intercept_event_v1', '安全拦截事件', 'MENU', '/monitor/security-intercept-event', 'security/intercept-event', 'security:intercept-event:list', 'WarnTriangleFilled', 1, 0, 16, 1, 0),
+    (228, 1, 220, 'monitor_rocketmq', 'RocketMQ 控制台', 'LINK', 'http://localhost:8088', NULL, 'monitor:rocketmq:view', 'Connection', 1, 1, 17, 1, 0),
+    (229, 1, 220, 'monitor_nacos', 'Nacos 控制台', 'LINK', 'http://localhost:8848/nacos', NULL, 'monitor:nacos:view', 'Monitor', 1, 1, 18, 1, 0);
 
 -- ===================== 部门/岗位/字典/参数/日志权限（挂载到正确的 menu_id） =====================
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
@@ -1189,7 +1231,50 @@ INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
 SELECT 1, 1, id, 0 FROM sys_permission WHERE id BETWEEN 632 AND 660 AND deleted = 0;
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
-SELECT 1, 1, id, 0 FROM sys_menu WHERE (id BETWEEN 227 AND 229 OR id BETWEEN 389 AND 402) AND deleted = 0;
+SELECT 1, 1, id, 0 FROM sys_menu WHERE (id BETWEEN 227 AND 229 OR id BETWEEN 389 AND 402 OR id BETWEEN 1200 AND 1208) AND deleted = 0;
+
+INSERT INTO sys_permission (app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
+SELECT 1, menu.id, item.permission_code, item.permission_name, item.permission_type,
+       item.resource_method, item.resource_path, 1, 0
+FROM sys_menu menu
+JOIN (
+    SELECT 'monitor_overview' menu_code, 'system:monitor:overview:query' permission_code, '监控总览查询' permission_name, 'API' permission_type, 'POST' resource_method, '/admin/monitor/workbench/overview' resource_path
+    UNION ALL SELECT 'monitor_online', 'system:online:forceLogout', '在线用户强制下线', 'BUTTON', 'DELETE', '/admin/monitor/online/*'
+    UNION ALL SELECT 'monitor_server', 'system:monitor:service:query', '服务运行指标查询', 'API', 'GET', '/admin/monitor/workbench/services'
+    UNION ALL SELECT 'monitor_api', 'system:monitor:api:query', 'API监控查询', 'API', 'POST', '/admin/monitor/workbench/apis/search'
+    UNION ALL SELECT 'monitor_trace', 'system:monitor:trace:query', '交易链路查询', 'API', 'POST', '/admin/monitor/workbench/traces/search'
+    UNION ALL SELECT 'monitor_channel_health', 'system:monitor:channel:query', '渠道健康监控查询', 'API', 'POST', '/admin/monitor/workbench/channels/search'
+    UNION ALL SELECT 'monitor_webhook', 'system:monitor:webhook:query', 'Webhook监控查询', 'API', 'POST', '/admin/monitor/workbench/webhooks/search'
+    UNION ALL SELECT 'monitor_log_search', 'system:monitor:log:query', '日志检索查询', 'API', 'POST', '/admin/monitor/workbench/logs/search'
+    UNION ALL SELECT 'monitor_alert', 'system:monitor:alert:query', '告警中心查询', 'API', 'POST', '/admin/monitor/workbench/alerts/search'
+    UNION ALL SELECT 'monitor_alert', 'system:monitor:alert:handle', '告警处置', 'API', 'PUT', '/admin/monitor/workbench/alerts/*/*/**'
+    UNION ALL SELECT 'security_intercept_event_v1', 'system:monitor:security:query', '安全拦截统计查询', 'API', 'POST', '/admin/monitor/workbench/security/statistics'
+) item ON item.menu_code = menu.menu_code
+WHERE menu.app_id = 1 AND menu.deleted = 0
+ON DUPLICATE KEY UPDATE
+    menu_id = VALUES(menu_id),
+    permission_name = VALUES(permission_name),
+    permission_type = VALUES(permission_type),
+    resource_method = VALUES(resource_method),
+    resource_path = VALUES(resource_path),
+    status = 1,
+    deleted = 0;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT 1, role.id, permission.id, 0
+FROM sys_role role
+JOIN sys_permission permission ON permission.app_id = role.app_id
+WHERE role.app_id = 1
+  AND role.role_code IN ('ADMIN_OPERATOR', 'ADMIN')
+  AND role.deleted = 0
+  AND permission.permission_code IN (
+      'system:monitor:overview:query', 'system:online:forceLogout', 'system:monitor:service:query',
+      'system:monitor:api:query', 'system:monitor:trace:query',
+      'system:monitor:channel:query', 'system:monitor:webhook:query',
+      'system:monitor:log:query', 'system:monitor:alert:query',
+      'system:monitor:alert:handle', 'system:monitor:security:query'
+  )
+  AND permission.deleted = 0;
 
 -- =============================================================================
 -- 国际化字典种子数据 (sys_dict_type + sys_dict_data)
@@ -2741,15 +2826,24 @@ FROM (
     UNION ALL SELECT 'base', 'base_currency', '币种管理', 'MENU', '/base/currency', 'base/currency', 'base:currency:list', 'Coin', 1, 32, 1
     UNION ALL SELECT 'base', 'base_region_currency', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency', 'base:countryCurrency:list', 'Connection', 1, 33, 1
     UNION ALL SELECT 'base', 'base_mcc', 'MCC 管理', 'MENU', '/base/mcc', 'base/mcc', 'base:mcc:view', 'DataLine', 1, 34, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 21, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:server:list', 'Cpu', 1, 22, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 23, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 84, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 85, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 86, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_datasource', '数据源监控', 'MENU', '/monitor/datasource', 'monitor/datasource/index', 'monitor:datasource:view', 'DataLine', 1, 87, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_rocketmq', 'RocketMQ 控制台', 'LINK', 'http://localhost:8088', NULL, 'monitor:rocketmq:view', 'Connection', 1, 88, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_nacos', 'Nacos 控制台', 'LINK', 'http://localhost:8848/nacos', NULL, 'monitor:nacos:view', 'Monitor', 1, 89, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_overview', '监控总览', 'MENU', '/monitor/overview', 'monitor/overview/index', 'system:monitor:overview:query', 'Odometer', 1, 1, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 2, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:monitor:service:query', 'Cpu', 1, 3, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_api', 'API监控', 'MENU', '/monitor/api', 'monitor/api/index', 'system:monitor:api:query', 'DataAnalysis', 1, 4, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_trace', '交易链路', 'MENU', '/monitor/trace', 'monitor/trace/index', 'system:monitor:trace:query', 'Share', 1, 5, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_channel_health', '渠道健康监控', 'MENU', '/monitor/channel', 'monitor/channel/index', 'system:monitor:channel:query', 'TrendCharts', 1, 6, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_webhook', 'Webhook监控', 'MENU', '/monitor/webhook', 'monitor/webhook/index', 'system:monitor:webhook:query', 'Connection', 1, 7, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 8, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_datasource', '数据源监控', 'MENU', '/monitor/datasource', 'monitor/datasource/index', 'monitor:datasource:view', 'DataLine', 1, 9, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_druid_console', 'Druid 控制台', 'MENU', '/monitor/druid', 'monitor/druid/index', 'monitor:datasource:view', 'Link', 1, 10, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 11, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 12, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 13, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_log_search', '日志检索', 'MENU', '/monitor/log', 'monitor/log/index', 'system:monitor:log:query', 'Search', 1, 14, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_alert', '告警中心', 'MENU', '/monitor/alert', 'monitor/alert/index', 'system:monitor:alert:query', 'BellFilled', 1, 15, 1
+    UNION ALL SELECT 'system_monitor', 'security_intercept_event_v1', '安全拦截事件', 'MENU', '/monitor/security-intercept-event', 'security/intercept-event', 'security:intercept-event:list', 'WarnTriangleFilled', 1, 16, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_rocketmq', 'RocketMQ 控制台', 'LINK', 'http://localhost:8088', NULL, 'monitor:rocketmq:view', 'Connection', 1, 17, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_nacos', 'Nacos 控制台', 'LINK', 'http://localhost:8848/nacos', NULL, 'monitor:nacos:view', 'Monitor', 1, 18, 1
     UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_rule', '分表规则', 'MENU', '/monitor/sharding/rules', 'monitor/sharding/rules/index', 'monitor:sharding:rule:list', 'List', 1, 91, 1
     UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_physical', '物理表清单', 'MENU', '/monitor/sharding/physical-tables', 'monitor/sharding/physical-tables/index', 'monitor:sharding:physical:list', 'Grid', 1, 92, 1
     UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_task_log', '建表任务日志', 'MENU', '/monitor/sharding/table-create-logs', 'monitor/sharding/table-create-logs/index', 'monitor:sharding:task:list', 'Document', 1, 93, 1
@@ -2799,15 +2893,24 @@ JOIN (
     UNION ALL SELECT 'base', 'base_currency', '币种管理', 'MENU', '/base/currency', 'base/currency', 'base:currency:list', 'Coin', 1, 32, 1
     UNION ALL SELECT 'base', 'base_region_currency', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency', 'base:countryCurrency:list', 'Connection', 1, 33, 1
     UNION ALL SELECT 'base', 'base_mcc', 'MCC 管理', 'MENU', '/base/mcc', 'base/mcc', 'base:mcc:view', 'DataLine', 1, 34, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 21, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:server:list', 'Cpu', 1, 22, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 23, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 84, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 85, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 86, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_datasource', '数据源监控', 'MENU', '/monitor/datasource', 'monitor/datasource/index', 'monitor:datasource:view', 'DataLine', 1, 87, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_rocketmq', 'RocketMQ 控制台', 'LINK', 'http://localhost:8088', NULL, 'monitor:rocketmq:view', 'Connection', 1, 88, 1
-    UNION ALL SELECT 'system_monitor', 'monitor_nacos', 'Nacos 控制台', 'LINK', 'http://localhost:8848/nacos', NULL, 'monitor:nacos:view', 'Monitor', 1, 89, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_overview', '监控总览', 'MENU', '/monitor/overview', 'monitor/overview/index', 'system:monitor:overview:query', 'Odometer', 1, 1, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 2, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:monitor:service:query', 'Cpu', 1, 3, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_api', 'API监控', 'MENU', '/monitor/api', 'monitor/api/index', 'system:monitor:api:query', 'DataAnalysis', 1, 4, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_trace', '交易链路', 'MENU', '/monitor/trace', 'monitor/trace/index', 'system:monitor:trace:query', 'Share', 1, 5, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_channel_health', '渠道健康监控', 'MENU', '/monitor/channel', 'monitor/channel/index', 'system:monitor:channel:query', 'TrendCharts', 1, 6, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_webhook', 'Webhook监控', 'MENU', '/monitor/webhook', 'monitor/webhook/index', 'system:monitor:webhook:query', 'Connection', 1, 7, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 8, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_datasource', '数据源监控', 'MENU', '/monitor/datasource', 'monitor/datasource/index', 'monitor:datasource:view', 'DataLine', 1, 9, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_druid_console', 'Druid 控制台', 'MENU', '/monitor/druid', 'monitor/druid/index', 'monitor:datasource:view', 'Link', 1, 10, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 11, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 12, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 13, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_log_search', '日志检索', 'MENU', '/monitor/log', 'monitor/log/index', 'system:monitor:log:query', 'Search', 1, 14, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_alert', '告警中心', 'MENU', '/monitor/alert', 'monitor/alert/index', 'system:monitor:alert:query', 'BellFilled', 1, 15, 1
+    UNION ALL SELECT 'system_monitor', 'security_intercept_event_v1', '安全拦截事件', 'MENU', '/monitor/security-intercept-event', 'security/intercept-event', 'security:intercept-event:list', 'WarnTriangleFilled', 1, 16, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_rocketmq', 'RocketMQ 控制台', 'LINK', 'http://localhost:8088', NULL, 'monitor:rocketmq:view', 'Connection', 1, 17, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_nacos', 'Nacos 控制台', 'LINK', 'http://localhost:8848/nacos', NULL, 'monitor:nacos:view', 'Monitor', 1, 18, 1
     UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_rule', '分表规则', 'MENU', '/monitor/sharding/rules', 'monitor/sharding/rules/index', 'monitor:sharding:rule:list', 'List', 1, 91, 1
     UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_physical', '物理表清单', 'MENU', '/monitor/sharding/physical-tables', 'monitor/sharding/physical-tables/index', 'monitor:sharding:physical:list', 'Grid', 1, 92, 1
     UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_task_log', '建表任务日志', 'MENU', '/monitor/sharding/table-create-logs', 'monitor/sharding/table-create-logs/index', 'monitor:sharding:task:list', 'Document', 1, 93, 1
@@ -2843,6 +2946,22 @@ SET menu.parent_id = parent.id,
     menu.updated_at = CURRENT_TIMESTAMP(3)
 WHERE menu.app_id = 1
   AND menu.deleted = 0;
+
+-- 已获数据源监控菜单的角色同步获得 Druid 入口，避免新增菜单后自定义监控角色缺少访问入口。
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT source_grant.app_id, source_grant.role_id, druid_menu.id, 0
+FROM sys_role_menu source_grant
+JOIN sys_menu datasource_menu
+  ON datasource_menu.app_id = source_grant.app_id
+ AND datasource_menu.id = source_grant.menu_id
+ AND datasource_menu.menu_code = 'monitor_datasource'
+ AND datasource_menu.deleted = 0
+JOIN sys_menu druid_menu
+  ON druid_menu.app_id = source_grant.app_id
+ AND druid_menu.menu_code = 'monitor_druid_console'
+ AND druid_menu.deleted = 0
+WHERE source_grant.app_id = 1
+  AND source_grant.deleted = 0;
 
 -- 商户菜单、授权和用户查询功能按钮，供角色授权树展示并与前端 v-hasPermi、后端 @RequiresPermission 保持一致。
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
@@ -2928,6 +3047,15 @@ JOIN (
     UNION ALL SELECT 'system:login-log', 'system_log'
     UNION ALL SELECT 'system:oper-log', 'system_log'
     UNION ALL SELECT 'system:log', 'system_log'
+    UNION ALL SELECT 'system:monitor:overview', 'monitor_overview'
+    UNION ALL SELECT 'system:monitor:service', 'monitor_server'
+    UNION ALL SELECT 'system:monitor:api', 'monitor_api'
+    UNION ALL SELECT 'system:monitor:trace', 'monitor_trace'
+    UNION ALL SELECT 'system:monitor:channel', 'monitor_channel_health'
+    UNION ALL SELECT 'system:monitor:webhook', 'monitor_webhook'
+    UNION ALL SELECT 'system:monitor:log', 'monitor_log_search'
+    UNION ALL SELECT 'system:monitor:alert', 'monitor_alert'
+    UNION ALL SELECT 'system:monitor:security', 'security_intercept_event_v1'
     UNION ALL SELECT 'system:online', 'monitor_online'
     UNION ALL SELECT 'system:server', 'monitor_server'
     UNION ALL SELECT 'system:cache', 'monitor_cache'

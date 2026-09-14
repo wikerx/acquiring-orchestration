@@ -26,7 +26,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : MonitorJobLogController
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台任务执行日志控制器
+ * @description : 管理端任务执行日志 HTTP 入口，负责日志查询、导出、删除和清理的权限、参数校验与操作审计。
  * @status : create
  */
 @RestController

@@ -4,6 +4,8 @@ import com.scott.payment.admin.application.monitor.AdminMonitorOnlineApplication
 import com.scott.payment.component.core.model.CommonResult;
 import static com.scott.payment.component.core.model.CommonResult.success;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
+import com.scott.payment.component.web.operation.annotation.OperationLog;
+import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,11 +21,10 @@ import java.util.Map;
  * @classname : MonitorOnlineController
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台在线用户监控控制器
+ * @description : 管理端在线会话监控 HTTP 入口，负责权限、分页参数和统一响应，不直接查询或修改登录会话数据。
  * @status : create
  *
- * <p>系统监控菜单下的在线用户接口入口，负责在线会话列表查询和强制下线的参数接收、
- * 权限校验与 HTTP 映射，具体会话查询与状态变更由应用服务层处理。</p>
+     * <p>在线会话查询与强制下线状态变更统一由应用服务层处理。</p>
  */
 @RestController
 @RequestMapping("/admin/monitor")
@@ -61,7 +62,7 @@ public class MonitorOnlineController {
             @RequestParam(value = "pageSize", defaultValue = "10") int pageSize,
             @RequestParam(value = "loginIp", required = false) String loginIp,
             @RequestParam(value = "userName", required = false) String userName) {
-        return success(adminMonitorOnlineApplicationService.pageOnlineUsers(pageNo, pageSize));
+        return success(adminMonitorOnlineApplicationService.pageOnlineUsers(pageNo, pageSize, loginIp, userName));
     }
 
     /**
@@ -72,6 +73,7 @@ public class MonitorOnlineController {
      */
     @DeleteMapping("/online/{sessionId}")
     @RequiresPermission("system:online:forceLogout")
+    @OperationLog(moduleName = "在线用户监控", businessType = OperationTypeConstants.DELETE, operation = "强制下线用户会话")
     public CommonResult<Void> forceLogout(@PathVariable("sessionId") Long sessionId) {
         adminMonitorOnlineApplicationService.forceLogout(sessionId);
         return success(null);

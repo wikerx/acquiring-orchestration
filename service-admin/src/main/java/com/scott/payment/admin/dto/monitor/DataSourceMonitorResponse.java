@@ -11,7 +11,7 @@ import java.util.List;
  * @classname : DataSourceMonitorResponse
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : data来源监控响应模型，位于 运营后台服务，向调用方展示处理结果和必要业务事实，不暴露持久化实体。
+ * @description : 管理端数据源监控响应，汇总动态数据源、连接池、分表配置和可选外部控制台入口，不暴露数据库凭据或持久化实体。
  * @status : create
  */
 @Data
@@ -38,9 +38,36 @@ public class DataSourceMonitorResponse {
     private List<DataSourceItem> dataSources = new ArrayList<>();
 
     /**
+     * 可选的外部 Druid 控制台入口；未配置时仍返回状态和本地连接池类型。
+     */
+    private ConsoleAccess consoleAccess;
+
+    /**
      * 分表规则与物理表范围信息。
      */
     private ShardingSnapshot sharding;
+
+    /**
+     * 数据源外部控制台访问摘要。
+     */
+    @Data
+    public static class ConsoleAccess {
+
+        /** 控制台提供方标识，当前固定为 DRUID。 */
+        private String provider;
+
+        /** 配置状态：CONFIGURED、NOT_CONFIGURED 或 MISCONFIGURED。 */
+        private String status;
+
+        /** 经过协议和主机校验的控制台完整地址；未配置或格式非法时为空。 */
+        private String url;
+
+        /** 面向管理员的状态原因，不包含目标系统异常详情或认证信息。 */
+        private String reason;
+
+        /** 当前 Admin JVM 内已注册的物理连接池简短类名列表，允许为空。 */
+        private List<String> localPoolTypes = new ArrayList<>();
+    }
 
     /**
      * 数据源监控总览。

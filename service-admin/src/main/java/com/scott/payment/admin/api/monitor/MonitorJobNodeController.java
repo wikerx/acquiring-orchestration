@@ -18,7 +18,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : MonitorJobNodeController
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台任务执行节点控制器
+ * @description : 管理端任务执行节点 HTTP 入口，负责权限和统一响应，节点注册与心跳查询委托任务调度应用服务。
  * @status : create
  */
 @RestController
