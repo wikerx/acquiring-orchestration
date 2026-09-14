@@ -17,7 +17,7 @@ import java.util.Map;
  * @classname : AdminMonitorServerApplicationService
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台服务器监控应用服务
+ * @description : 管理端服务器监控应用服务，采集当前 Admin 节点 JVM、操作系统、磁盘和运行时信息并组装脱敏响应。
  * @status : create
  *
  * <p>负责管理后台服务器监控用例编排，采集当前节点的 CPU、JVM、系统与磁盘等运行指标，

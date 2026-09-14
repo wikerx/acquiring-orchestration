@@ -203,11 +203,15 @@ public class HostedCheckoutSessionCreateRequestDTO implements Serializable {
         @Pattern(regexp = "^$|^(?i:https?)://\\S+$", message = "transactionInfo.callbackUrl format does not match", groups = Format.class)
         private String callbackUrl;
 
-        /** HTTPS 或本机回环 HTTP 才能进入服务层的环境策略校验。 */
+        /**
+         * 校验回调地址是否为结构完整的 HTTP/HTTPS URL；空值由字段必填规则决定。
+         *
+         * @return 回调地址为空或通过 HTTP(S) 结构校验时返回 {@code true}
+         */
         @JSONField(serialize = false)
         @AssertTrue(message = "transactionInfo.callbackUrl format does not match", groups = Format.class)
-        public boolean isCallbackUrlSecure() {
-            return HostedCheckoutUrlPolicy.isSecureOrLoopbackHttpUrl(callbackUrl);
+        public boolean isCallbackUrlHttp() {
+            return HostedCheckoutUrlPolicy.isHttpUrl(callbackUrl);
         }
 
         /**
@@ -221,11 +225,15 @@ public class HostedCheckoutSessionCreateRequestDTO implements Serializable {
         @Pattern(regexp = "^$|^(?i:https?)://\\S+$", message = "transactionInfo.redirectUrl format does not match", groups = Format.class)
         private String redirectUrl;
 
-        /** HTTPS 或本机回环 HTTP 才能进入服务层的环境策略校验。 */
+        /**
+         * 校验结果页地址是否为结构完整的 HTTP/HTTPS URL；空值表示商户不需要浏览器跳转。
+         *
+         * @return 结果页地址为空或通过 HTTP(S) 结构校验时返回 {@code true}
+         */
         @JSONField(serialize = false)
         @AssertTrue(message = "transactionInfo.redirectUrl format does not match", groups = Format.class)
-        public boolean isRedirectUrlSecure() {
-            return HostedCheckoutUrlPolicy.isSecureOrLoopbackHttpUrl(redirectUrl);
+        public boolean isRedirectUrlHttp() {
+            return HostedCheckoutUrlPolicy.isHttpUrl(redirectUrl);
         }
 
         /**

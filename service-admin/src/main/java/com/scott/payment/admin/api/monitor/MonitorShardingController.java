@@ -33,7 +33,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : MonitorShardingController
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 监控分表 HTTP 控制器，位于 运营后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
+ * @description : 管理端分表治理 HTTP 入口，负责权限、参数校验、操作审计和统一响应，物理表检查与创建编排委托应用服务。
  * @status : create
  */
 @RestController

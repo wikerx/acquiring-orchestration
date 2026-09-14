@@ -15,6 +15,19 @@ rocketmq:
     retry-times-when-send-async-failed: 2
 
 acquiring:
+  monitor:
+    rocketmq:
+      # 启用 service-admin 的只读 RocketMQ Admin 监控；连接地址复用 rocketmq.name-server。
+      enabled: true
+      # Admin 客户端组，不得与生产者组或消费者组混用。
+      admin-group: ${ROCKETMQ_ADMIN_GROUP:acquiring-admin-monitor-dev}
+      # 本地 RocketMQ 默认集群名；非默认集群必须按实际 Broker 配置修改。
+      cluster-name: ${ROCKETMQ_ADMIN_CLUSTER_NAME:DefaultCluster}
+      # Admin 启动与查询超时，单位毫秒，允许范围 500-30000。
+      request-timeout-millis: ${ROCKETMQ_ADMIN_REQUEST_TIMEOUT_MILLIS:3000}
+      # 启用 ACL 时可配置 Admin 专用凭据；留空会复用 rocketmq.producer.access-key/secret-key。
+      access-key: ${ROCKETMQ_ADMIN_ACCESS_KEY:}
+      secret-key: ${ROCKETMQ_ADMIN_SECRET_KEY:}
   mq:
     initializer:
       # 是否启用声明式 RocketMQ 资源初始化器。

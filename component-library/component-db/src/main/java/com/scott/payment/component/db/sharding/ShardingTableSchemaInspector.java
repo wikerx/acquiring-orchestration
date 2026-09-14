@@ -24,6 +24,12 @@ public class ShardingTableSchemaInspector {
     /** 从 SHOW CREATE TABLE 的实时元数据中提取自增计数器，避免 information_schema 统计缓存误报。 */
     private static final Pattern AUTO_INCREMENT_PATTERN = Pattern.compile(
             "\\bAUTO_INCREMENT\\s*=\\s*(\\d+)\\b", Pattern.CASE_INSENSITIVE);
+    /** CHECK 名称在同一 schema 内必须唯一，模板表和季度表允许使用不同名称。 */
+    private static final Pattern CHECK_CONSTRAINT_NAME_PATTERN = Pattern.compile(
+            "\\bCONSTRAINT\\s+`[^`]+`\\s+CHECK\\b", Pattern.CASE_INSENSITIVE);
+    /** 季度物理表允许使用独立的说明性表注释，列注释仍参与结构比较。 */
+    private static final Pattern TABLE_COMMENT_PATTERN = Pattern.compile(
+            "\\s+COMMENT='(?:\\\\.|[^'])*'\\s*$", Pattern.CASE_INSENSITIVE);
 
     /** 治理直连数据源的只读元数据查询入口。 */
     private final JdbcTemplate jdbcTemplate;
@@ -286,7 +292,11 @@ public class ShardingTableSchemaInspector {
     }
 
     /**
-     * 去除表名、自增计数器和无意义空白差异，用于模板与物理表结构比对。
+     * 去除表名、自增计数器、CHECK 约束名、表级注释和无意义空白差异，用于模板与物理表结构比对。
+     * <p>
+     * MySQL 要求命名约束在 schema 内唯一，因此模板与季度表必须使用不同的 CHECK 名称；季度表的表级注释
+     * 也用于标识业务周期。两者都不改变表的数据契约，字段定义、列注释、索引和 CHECK 条件正文仍完整参与比较。
+     * </p>
      *
      * @param createTableSql SHOW CREATE TABLE 返回值
      * @param tableName SQL 中的实际表名
@@ -297,9 +307,13 @@ public class ShardingTableSchemaInspector {
             return "";
         }
         String safeTableName = tableNameResolver.requireSafeIdentifier(tableName, "table");
-        return createTableSql
+        String normalized = createTableSql
                 .replaceFirst("(?i)CREATE TABLE `" + safeTableName + "`", "CREATE TABLE `__TABLE__`")
-                .replaceAll("(?i) AUTO_INCREMENT=\\d+", "")
+                .replaceAll("(?i) AUTO_INCREMENT=\\d+", "");
+        normalized = CHECK_CONSTRAINT_NAME_PATTERN.matcher(normalized)
+                .replaceAll("CONSTRAINT `__CHECK__` CHECK");
+        normalized = TABLE_COMMENT_PATTERN.matcher(normalized).replaceFirst("");
+        return normalized
                 .replaceAll("\\s+", " ")
                 .trim();
     }

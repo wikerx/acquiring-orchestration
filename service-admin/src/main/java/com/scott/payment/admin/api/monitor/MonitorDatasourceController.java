@@ -2,6 +2,8 @@ package com.scott.payment.admin.api.monitor;
 
 import com.scott.payment.admin.application.monitor.AdminMonitorDatasourceApplicationService;
 import com.scott.payment.admin.dto.monitor.DataSourceMonitorResponse;
+import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.DataSourceMetricsResponse;
+import com.scott.payment.admin.service.monitor.AdminDatasourceMonitorSampler;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.model.CommonResult;
@@ -21,26 +23,30 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : MonitorDatasourceController
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 监控datasource HTTP 控制器，位于 运营后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
+ * @description : 管理端数据源监控 HTTP 入口，负责权限、导出协议和统一响应，运行快照与指标采集分别委托应用服务和采样器。
  * @status : create
  */
 @RestController
 @RequestMapping("/admin/monitor/datasource")
 public class MonitorDatasourceController {
 
-    /**
-     * 数据源监控应用服务。
-     */
+    /** 数据源运行快照和导出应用服务。 */
     private final AdminMonitorDatasourceApplicationService adminMonitorDatasourceApplicationService;
+
+    /** Hikari 连接池和 MySQL performance_schema 指标采样器。 */
+    private final AdminDatasourceMonitorSampler datasourceMonitorSampler;
 
     /**
      * 创建数据源监控控制器。
      *
      * @param adminMonitorDatasourceApplicationService 数据源监控应用服务
+     * @param datasourceMonitorSampler 数据源历史指标采样器
      */
     public MonitorDatasourceController(
-            AdminMonitorDatasourceApplicationService adminMonitorDatasourceApplicationService) {
+            AdminMonitorDatasourceApplicationService adminMonitorDatasourceApplicationService,
+            AdminDatasourceMonitorSampler datasourceMonitorSampler) {
         this.adminMonitorDatasourceApplicationService = adminMonitorDatasourceApplicationService;
+        this.datasourceMonitorSampler = datasourceMonitorSampler;
     }
 
     /**
@@ -55,6 +61,17 @@ public class MonitorDatasourceController {
     @RequiresPermission("monitor:datasource:view")
     public CommonResult<DataSourceMonitorResponse> snapshot() {
         return success(adminMonitorDatasourceApplicationService.snapshot());
+    }
+
+    /**
+     * 查询物理连接池趋势、SQL 延迟分位数和慢 SQL 指纹。
+     *
+     * @return 当前 Admin 进程内的数据源历史指标和能力状态
+     */
+    @GetMapping("/metrics")
+    @RequiresPermission("monitor:datasource:view")
+    public CommonResult<DataSourceMetricsResponse> metrics() {
+        return success(datasourceMonitorSampler.metrics());
     }
 
     /**

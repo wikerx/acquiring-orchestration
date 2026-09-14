@@ -1,10 +1,7 @@
 package com.scott.payment.data.service.impl;
 
 import com.scott.payment.component.core.exception.ServiceException;
-import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import org.junit.jupiter.api.Test;
-
-import java.net.InetAddress;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -15,51 +12,41 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @classname : MerchantCallbackTargetValidatorTests
  * @date : 2026-09-02 08:03
  * @email : scott_x@163.com
- * @description : 验证商户回调出站地址不会访问平台私网。
+ * @description : 验证商户回调支持 HTTP/HTTPS 公网、内网和回环地址，同时拒绝非法 URL 结构。
  * @status : create
  */
 class MerchantCallbackTargetValidatorTests {
 
     @Test
-    void shouldRejectHostResolvingToPrivateAddress() throws Exception {
-        MerchantCallbackTargetValidator validator = new MerchantCallbackTargetValidator(
-                new DataMerchantNotificationProperties(),
-                host -> new InetAddress[]{InetAddress.getByAddress(new byte[]{10, 1, 2, 3})});
+    void shouldAllowPrivateHttpsTarget() {
+        MerchantCallbackTargetValidator validator = new MerchantCallbackTargetValidator();
 
-        assertThatThrownBy(() -> validator.validate("https://merchant.example/callback"))
-                .isInstanceOf(ServiceException.class)
-                .hasMessageContaining("private or reserved");
+        assertThatCode(() -> validator.validate("https://10.1.2.3:8443/callback"))
+                .doesNotThrowAnyException();
     }
 
     @Test
-    void shouldRejectPlainHttpByDefault() {
-        MerchantCallbackTargetValidator validator = new MerchantCallbackTargetValidator(
-                new DataMerchantNotificationProperties(), host -> new InetAddress[0]);
+    void shouldAllowLoopbackHttpTarget() {
+        MerchantCallbackTargetValidator validator = new MerchantCallbackTargetValidator();
 
-        assertThatThrownBy(() -> validator.validate("http://merchant.example/callback"))
-                .isInstanceOf(ServiceException.class)
-                .hasMessageContaining("HTTPS");
+        assertThatCode(() -> validator.validate("http://127.0.0.1:9000/merchant/callback/payment"))
+                .doesNotThrowAnyException();
     }
 
     @Test
-    void shouldAcceptPublicHttpsTarget() throws Exception {
-        MerchantCallbackTargetValidator validator = new MerchantCallbackTargetValidator(
-                new DataMerchantNotificationProperties(),
-                host -> new InetAddress[]{InetAddress.getByAddress(new byte[]{8, 8, 8, 8})});
+    void shouldAcceptPublicHttpsTarget() {
+        MerchantCallbackTargetValidator validator = new MerchantCallbackTargetValidator();
 
         assertThatCode(() -> validator.validate("https://merchant.example/callback"))
                 .doesNotThrowAnyException();
     }
 
     @Test
-    void shouldAllowPrivateHttpOnlyWhenBothDevOverridesAreEnabled() {
-        DataMerchantNotificationProperties properties = new DataMerchantNotificationProperties();
-        properties.setAllowHttp(true);
-        properties.setAllowPrivateNetwork(true);
-        MerchantCallbackTargetValidator validator = new MerchantCallbackTargetValidator(
-                properties, host -> new InetAddress[0]);
+    void shouldRejectUnsupportedScheme() {
+        MerchantCallbackTargetValidator validator = new MerchantCallbackTargetValidator();
 
-        assertThatCode(() -> validator.validate("http://127.0.0.1:18080/callback"))
-                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> validator.validate("ftp://127.0.0.1/callback"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("HTTP or HTTPS");
     }
 }

@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
  * @classname : AdminHealthController
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台健康检查控制器
+ * @description : 管理端轻量健康检查 HTTP 入口，仅用于确认服务进程可响应，不承载业务依赖深度探测。
  * @status : create
  */
 @RestController

@@ -3,6 +3,7 @@ package com.scott.payment.admin.application.monitor;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -13,6 +14,7 @@ import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -26,7 +28,7 @@ import java.util.stream.Collectors;
  * @classname : AdminMonitorOnlineApplicationService
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台在线用户监控应用服务
+ * @description : 管理端在线用户监控应用服务，负责在线会话分页、账号与用户名称批量补充，以及带审计时间的强制下线状态更新。
  * @status : create
  *
  * <p>负责管理后台在线用户监控用例编排，统一处理登录会话分页查询、账户与用户信息补充、
@@ -70,15 +72,51 @@ public class AdminMonitorOnlineApplicationService {
      *
      * @param pageNo   页码
      * @param pageSize 每页大小
+     * @param loginIp  登录 IP 模糊查询条件
+     * @param userName 登录账号或姓名模糊查询条件
      * @return 在线用户分页信息
      */
     @DS(DataSourceName.SLAVE)
-    public Map<String, Object> pageOnlineUsers(int pageNo, int pageSize) {
+    public Map<String, Object> pageOnlineUsers(int pageNo, int pageSize, String loginIp, String userName) {
+        int normalizedPageNo = Math.max(pageNo, 1);
+        int normalizedPageSize = Math.min(Math.max(pageSize, 1), 100);
         LambdaQueryWrapper<SysLoginSessionDO> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(SysLoginSessionDO::getLogout, 0);
+        queryWrapper.gt(SysLoginSessionDO::getExpireAt, LocalDateTime.now());
+        queryWrapper.like(StringUtils.hasText(loginIp), SysLoginSessionDO::getLoginIp, normalize(loginIp));
+
+        String normalizedUserName = normalize(userName);
+        if (normalizedUserName != null) {
+            List<Long> matchedAccountIds = sysAccountMapper.selectList(Wrappers.<SysAccountDO>lambdaQuery()
+                            .select(SysAccountDO::getId)
+                            .eq(SysAccountDO::getDeleted, 0L)
+                            .like(SysAccountDO::getLoginAccount, normalizedUserName))
+                    .stream().map(SysAccountDO::getId).toList();
+            List<Long> matchedUserIds = sysUserMapper.selectList(Wrappers.<SysUserDO>lambdaQuery()
+                            .select(SysUserDO::getId)
+                            .eq(SysUserDO::getDeleted, 0L)
+                            .like(SysUserDO::getRealName, normalizedUserName))
+                    .stream().map(SysUserDO::getId).toList();
+            if (matchedAccountIds.isEmpty() && matchedUserIds.isEmpty()) {
+                queryWrapper.apply("1 = 0");
+            } else {
+                queryWrapper.and(nested -> {
+                    if (!matchedAccountIds.isEmpty()) {
+                        nested.in(SysLoginSessionDO::getAccountId, matchedAccountIds);
+                    }
+                    if (!matchedUserIds.isEmpty()) {
+                        if (!matchedAccountIds.isEmpty()) {
+                            nested.or();
+                        }
+                        nested.in(SysLoginSessionDO::getUserId, matchedUserIds);
+                    }
+                });
+            }
+        }
         queryWrapper.orderByDesc(SysLoginSessionDO::getCreatedAt);
 
-        Page<SysLoginSessionDO> page = sysLoginSessionMapper.selectPage(new Page<>(pageNo, pageSize), queryWrapper);
+        Page<SysLoginSessionDO> page = sysLoginSessionMapper.selectPage(
+                new Page<>(normalizedPageNo, normalizedPageSize), queryWrapper);
         List<Long> accountIds = page.getRecords().stream().map(SysLoginSessionDO::getAccountId).distinct().toList();
         List<Long> userIds = page.getRecords().stream().map(SysLoginSessionDO::getUserId).distinct().toList();
 
@@ -104,6 +142,10 @@ public class AdminMonitorOnlineApplicationService {
         result.put("records", records);
         result.put("total", page.getTotal());
         return result;
+    }
+
+    private String normalize(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     /**

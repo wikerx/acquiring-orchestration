@@ -9,156 +9,69 @@ import lombok.Data;
  * @classname : DataSourceMonitorExportRow
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : data来源监控导出行模型，位于 运营后台服务，定义 Excel 列及运营可见值，不承载数据库写入规则。
+ * @description : 数据源监控 Excel 导出行，定义运行时连接池与分表关联信息的运营可见列，不包含数据库账号、密码或业务表数据。
  * @status : create
  */
 @Data
 public class DataSourceMonitorExportRow {
 
-    /**
-     * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
-     */
+    /** 运行时数据源唯一标识，例如 master 或 slave_1；非敏感且不允许为空。 */
     @ExcelExportColumn(order = 1, headerKey = "excel.datasource.dataSourceKey", width = 18)
     private String dataSourceKey;
 
-    /**
-     * 分组名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 动态数据源分组名称，例如 slave；独立数据源时允许为空，非敏感。 */
     @ExcelExportColumn(order = 2, headerKey = "excel.datasource.groupName", width = 16)
     private String groupName;
 
-    /**
-     * 角色字段，保存 {@code DataSourceMonitorExportRow} 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 数据源角色，取值为 PRIMARY、GROUP_MEMBER 或 SINGLE；非敏感。 */
     @ExcelExportColumn(order = 3, headerKey = "excel.datasource.role", width = 16)
     private String role;
 
-    /**
-     * {@code poolName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 连接池运行名称；底层池未暴露名称时允许为空，非敏感。 */
     @ExcelExportColumn(order = 4, headerKey = "excel.datasource.poolName", width = 28)
     private String poolName;
 
-    /**
-     * {@code databaseName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 从 JDBC URL 提取的数据库名称；无法解析时允许为空，属于基础设施标识。 */
     @ExcelExportColumn(order = 5, headerKey = "excel.datasource.databaseName", width = 20)
     private String databaseName;
 
-    /**
-     * {@code jdbcUrl}，表示回调、通知、来源站点或远程接口地址。
-     * <p>
-     * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：长度和协议由调用方校验；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 脱敏后的 JDBC URL；查询参数中的凭据必须移除，无法获取时允许为空。 */
     @ExcelExportColumn(order = 6, headerKey = "excel.datasource.jdbcUrl", width = 42)
     private String jdbcUrl;
 
-    /**
-     * {@code running}字段，保存 {@code DataSourceMonitorExportRow} 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 连接池运行状态的国际化文案；无法识别时按“否”导出。 */
     @ExcelExportColumn(order = 7, headerKey = "excel.datasource.running", width = 14)
     private String running;
 
-    /**
-     * {@code reachable}字段，保存 {@code DataSourceMonitorExportRow} 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 最近一次 JDBC 连接探测结果的国际化文案；无法探测时按“否”导出。 */
     @ExcelExportColumn(order = 8, headerKey = "excel.datasource.reachable", width = 14)
     private String reachable;
 
-    /**
-     * {@code activeConnections}字段，保存 {@code DataSourceMonitorExportRow} 当前处理所需的业务取值。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 当前活跃连接数，单位为连接；连接池未暴露指标时允许为空。 */
     @ExcelExportColumn(order = 9, headerKey = "excel.datasource.activeConnections", width = 16)
     private Integer activeConnections;
 
-    /**
-     * {@code idleConnections}字段，保存 {@code DataSourceMonitorExportRow} 当前处理所需的业务取值。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 当前空闲连接数，单位为连接；连接池未暴露指标时允许为空。 */
     @ExcelExportColumn(order = 10, headerKey = "excel.datasource.idleConnections", width = 16)
     private Integer idleConnections;
 
-    /**
-     * {@code totalConnections}，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 当前连接池总连接数，单位为连接；连接池未暴露指标时允许为空。 */
     @ExcelExportColumn(order = 11, headerKey = "excel.datasource.totalConnections", width = 16)
     private Integer totalConnections;
 
-    /**
-     * {@code threadsAwaitingConnection}字段，保存 {@code DataSourceMonitorExportRow} 当前处理所需的业务取值。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 当前等待获取连接的线程数，单位为线程；连接池未暴露指标时允许为空。 */
     @ExcelExportColumn(order = 12, headerKey = "excel.datasource.awaitingThreads", width = 16)
     private Integer threadsAwaitingConnection;
 
-    /**
-     * {@code maximumPoolSize}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+    /** 连接池允许的最大连接数，单位为连接；连接池未暴露配置时允许为空。 */
     @ExcelExportColumn(order = 13, headerKey = "excel.datasource.maximumPoolSize", width = 16)
     private Integer maximumPoolSize;
 
-    /**
-     * {@code minimumIdle}，用于定位渠道商户号配置或渠道侧 MID。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 连接池维持的最小空闲连接数，单位为连接；连接池未暴露配置时允许为空。 */
     @ExcelExportColumn(order = 14, headerKey = "excel.datasource.minimumIdle", width = 16)
     private Integer minimumIdle;
 
-    /**
-     * {@code relatedShardingTables}字段，保存 {@code DataSourceMonitorExportRow} 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 绑定到该数据源的分表逻辑表名称，多个值使用英文逗号分隔；无绑定时为空。 */
     @ExcelExportColumn(order = 15, headerKey = "excel.datasource.relatedShardingTables", width = 32)
     private String relatedShardingTables;
 }

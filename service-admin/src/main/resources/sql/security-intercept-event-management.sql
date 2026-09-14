@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS security_intercept_event (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='安全拦截事件';
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
-SELECT 1, parent.id, 'security_intercept_event_v1', '安全拦截事件', 'MENU', '/monitor/security-intercept-event', 'security/intercept-event', 'security:intercept-event:list', 'WarnTriangleFilled', 1, 90, 1, 0
+SELECT 1, parent.id, 'security_intercept_event_v1', '安全拦截事件', 'MENU', '/monitor/security-intercept-event', 'security/intercept-event', 'security:intercept-event:list', 'WarnTriangleFilled', 1, 15, 1, 0
 FROM sys_menu parent
 WHERE parent.app_id = 1
   AND parent.menu_code = 'system_monitor'

@@ -12,7 +12,15 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Hosted Checkout 会话创建请求 URL 格式校验测试。 */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : HostedCheckoutSessionCreateRequestDTOTests
+ * @date : 2026-09-14 12:30
+ * @email : scott_x@163.com
+ * @description : Hosted Checkout 会话创建请求回调和跳转 URL 格式校验测试。
+ * @status : create
+ */
 class HostedCheckoutSessionCreateRequestDTOTests {
 
     private static ValidatorFactory validatorFactory;
@@ -30,20 +38,20 @@ class HostedCheckoutSessionCreateRequestDTOTests {
     }
 
     @Test
-    void shouldAcceptHttpsAndLoopbackHttpAtFormatLayer() {
+    void shouldAcceptHttpAndHttpsForPublicPrivateAndLoopbackHostsAtFormatLayer() {
         HostedCheckoutSessionCreateRequestDTO.TransactionInfoDTO transactionInfo =
                 new HostedCheckoutSessionCreateRequestDTO.TransactionInfoDTO();
-        transactionInfo.setCallbackUrl("https://merchant.example/notify");
+        transactionInfo.setCallbackUrl("http://192.168.1.10/notify");
         transactionInfo.setRedirectUrl("http://127.0.0.1:5175/result");
 
         assertThat(validate(transactionInfo)).isEmpty();
     }
 
     @Test
-    void shouldRejectExternalHttpAndUserInfoUrls() {
+    void shouldRejectUserInfoUrls() {
         HostedCheckoutSessionCreateRequestDTO.TransactionInfoDTO transactionInfo =
                 new HostedCheckoutSessionCreateRequestDTO.TransactionInfoDTO();
-        transactionInfo.setCallbackUrl("http://merchant.example/notify");
+        transactionInfo.setCallbackUrl("https://user:secret@merchant.example/notify");
         transactionInfo.setRedirectUrl("https://user:secret@merchant.example/result");
 
         assertThat(validate(transactionInfo)).extracting(ConstraintViolation::getMessage)

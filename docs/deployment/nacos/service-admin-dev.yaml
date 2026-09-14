@@ -1,5 +1,12 @@
 # service-admin 专属配置：管理后台服务个性化参数。
 acquiring:
+  monitor:
+    datasource-console:
+      # 参数说明：是否在数据源监控页提供外部 Druid 控制台入口；Druid 不是 JDBC 默认监控，目标服务必须实际使用 DruidDataSource。
+      enabled: ${ADMIN_DATASOURCE_CONSOLE_ENABLED:false}
+      # 参数说明：Druid 控制台完整地址，支持 HTTP/HTTPS、私网和回环主机；禁止在 URL 中携带用户名或密码。
+      # 环境说明：示例为 http://127.0.0.1:8001/druid/index.html；test/uat/prod 应指向本环境受控运维地址。
+      url: ${ADMIN_DATASOURCE_CONSOLE_URL:}
   openapi:
     merchant-key-export:
       # 参数说明：声明对外提供的 OpenAPI SDK 版本，仅用于下载/展示时必须与发布产物一致。

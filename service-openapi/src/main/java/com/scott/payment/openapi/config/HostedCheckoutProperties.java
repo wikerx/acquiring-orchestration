@@ -36,9 +36,4 @@ public class HostedCheckoutProperties {
      */
     private int maxExpireMinutes = 1440;
 
-    /**
-     * 是否允许 Hosted Checkout URL 使用本机回环 HTTP，仅供本地开发和自动化测试。
-     */
-    private boolean allowLoopbackHttp = false;
-
 }
