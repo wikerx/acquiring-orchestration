@@ -160,7 +160,7 @@ public class BaseMerchantInfoDO {
     /** 主要联系人职位。 */
     private String contactTitle;
 
-    /** 联系电话国家区号。 */
+    /** 历史兼容字段；新数据不再单独保存电话国家区号。 */
     private String phoneCountryCode;
 
     /**
@@ -168,9 +168,7 @@ public class BaseMerchantInfoDO {
      */
     private String contactEmail;
 
-    /**
-     * 联系电话。
-     */
+    /** 包含国家区号的完整国际电话号码。 */
     private String contactPhone;
 
     /** 备用联系邮箱。 */

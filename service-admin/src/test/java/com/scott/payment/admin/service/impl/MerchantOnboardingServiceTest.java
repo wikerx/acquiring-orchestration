@@ -229,6 +229,23 @@ class MerchantOnboardingServiceTest {
         log.info("商户详情就绪问题编码完成，结果: DTO 仅返回稳定编码供前端国际化展示");
     }
 
+    /** 完整国际电话号码已包含国家区号，不应再要求历史拆分字段。 */
+    @Test
+    void shouldAcceptCompleteContactPhoneWithoutLegacyCountryCode() {
+        log.info("测试完整国际电话号码门禁，关键输入: contactPhone 已包含国家区号");
+        BaseMerchantInfoDO merchant = pendingMerchant();
+        merchant.setReviewStatus(MerchantOnboardingService.REVIEW_NOT_SUBMITTED);
+        merchant.setOnboardingStatus(MerchantOnboardingService.ONBOARDING_DRAFT);
+        merchant.setContactPhone("+14085550100");
+        merchant.setPhoneCountryCode(null);
+        AdminMerchantInfoDTO dto = new AdminMerchantInfoDTO();
+
+        service.enrich(merchant, dto);
+
+        assertThat(dto.getReadinessIssues()).doesNotContain("CONTACT_PHONE", "PHONE_COUNTRY_CODE");
+        log.info("完整国际电话号码门禁完成，结果: 不再要求独立电话国家区号");
+    }
+
     /** 构造待审核商户，避免测试包含任何真实商户或联系信息。 */
     private BaseMerchantInfoDO pendingMerchant() {
         BaseMerchantInfoDO merchant = new BaseMerchantInfoDO();

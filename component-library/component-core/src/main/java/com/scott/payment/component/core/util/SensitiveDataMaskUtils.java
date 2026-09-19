@@ -81,7 +81,7 @@ public final class SensitiveDataMaskUtils {
      * 证件字段统一隐藏，避免身份证和护照号泄露。
      */
     private static final Pattern ID_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:idCard|passportNo)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:idCard|idNumber|identityNumber|nationalId|passportNo|documentNumber)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 

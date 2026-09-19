@@ -102,7 +102,8 @@ class AdminMerchantKeyMetadataInvalidationTests {
                 mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
                 mock(AdminMerchantSecurityNotificationService.class),
                 mock(AdminMerchantStatusLifecycleService.class),
-                mock(MerchantOnboardingService.class)
+                mock(MerchantOnboardingService.class),
+                mock(MerchantIdAllocationService.class)
         );
         when(merchantInfoMapper.selectOne(any())).thenReturn(merchant());
     }

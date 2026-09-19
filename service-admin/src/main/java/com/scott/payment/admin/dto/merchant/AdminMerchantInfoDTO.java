@@ -165,7 +165,7 @@ public class AdminMerchantInfoDTO {
     /** 主要联系人职位。 */
     private String contactTitle;
 
-    /** 联系电话国家区号，例如 +86。 */
+    /** 历史兼容字段；新数据不再单独保存电话国家区号。 */
     private String phoneCountryCode;
 
     /**
@@ -173,9 +173,7 @@ public class AdminMerchantInfoDTO {
      */
     private String contactEmail;
 
-    /**
-     * 商户联系人手机号，属于敏感联系信息，展示时应按需要脱敏。
-     */
+    /** 商户联系人完整国际电话号码，属于敏感联系信息，展示时应按需要脱敏。 */
     private String contactPhone;
 
     /** 备用联系邮箱；敏感，可为空。 */

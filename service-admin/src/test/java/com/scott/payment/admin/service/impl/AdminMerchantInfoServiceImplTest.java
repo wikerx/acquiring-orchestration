@@ -146,6 +146,10 @@ class AdminMerchantInfoServiceImplTest {
     @Mock
     private MerchantOnboardingService merchantOnboardingService;
 
+    /** 六位商户号年度序列分配服务。 */
+    @Mock
+    private MerchantIdAllocationService merchantIdAllocationService;
+
     private AdminMerchantInfoServiceImpl service;
 
     @BeforeEach
@@ -173,7 +177,8 @@ class AdminMerchantInfoServiceImplTest {
                 mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
                 mock(AdminMerchantSecurityNotificationService.class),
                 mock(AdminMerchantStatusLifecycleService.class),
-                merchantOnboardingService
+                merchantOnboardingService,
+                merchantIdAllocationService
         );
     }
 
@@ -219,6 +224,7 @@ class AdminMerchantInfoServiceImplTest {
     @Test
     void shouldGenerateMerchantIdWhenCreatingMerchant() {
         log.info("测试管理端新增商户缓存一致性，关键输入: 系统生成商户号");
+        when(merchantIdAllocationService.allocate()).thenReturn("260001");
         doAnswer(invocation -> {
             BaseMerchantInfoDO merchant = invocation.getArgument(0);
             merchant.setMerchantStatus(2);
@@ -231,7 +237,7 @@ class AdminMerchantInfoServiceImplTest {
 
         AdminMerchantInfoDTO result = service.createMerchant(request);
 
-        assertThat(result.getMerchantId()).startsWith("M");
+        assertThat(result.getMerchantId()).isEqualTo("260001");
         assertThat(result.getMerchantId()).isNotEqualTo("MANUAL-ID");
         assertThat(result.getCountryCode()).isEqualTo("USA");
         assertThat(result.getSettlementCurrency()).isEqualTo("USD");
@@ -262,6 +268,7 @@ class AdminMerchantInfoServiceImplTest {
     @Test
     void shouldCreateDraftWithoutContactDetails() {
         log.info("测试管理端最小草稿创建，关键输入: R1 基础资料完整、联系人资料为空");
+        when(merchantIdAllocationService.allocate()).thenReturn("260001");
         doAnswer(invocation -> {
             BaseMerchantInfoDO merchant = invocation.getArgument(0);
             merchant.setMerchantStatus(2);
@@ -276,7 +283,7 @@ class AdminMerchantInfoServiceImplTest {
 
         AdminMerchantInfoDTO result = service.createMerchant(request);
 
-        assertThat(result.getMerchantId()).startsWith("M");
+        assertThat(result.getMerchantId()).isEqualTo("260001");
         verify(merchantInfoMapper).insert(argThat((BaseMerchantInfoDO row) ->
                 row != null && row.getContactName() == null && row.getContactEmail() == null));
         log.info("管理端最小草稿创建完成，结果: 联系人资料为空时仍保持冻结草稿状态");

@@ -23,7 +23,6 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
-import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantResponseKeyDO;
@@ -129,22 +128,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      */
     private static final int DEFAULT_KEY_SIZE = 2048;
     /**
-     * {@code MERCHANT_ID_GENERATE_MAX_ATTEMPTS}常量，统一 {@code AdminMerchantInfoServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
-    private static final int MERCHANT_ID_GENERATE_MAX_ATTEMPTS = 5;
-    /**
-     * {@code MERCHANT_ID_PREFIX}常量，统一 {@code AdminMerchantInfoServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
-    private static final String MERCHANT_ID_PREFIX = "M";
-    /**
      * {@code JWT_ALGORITHM}常量，统一 {@code AdminMerchantInfoServiceImpl} 内部使用的配置值、状态码或协议字段。
      * <p>
      * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
@@ -223,6 +206,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     /** 商户开户资料、审核与激活领域规则。 */
     private final MerchantOnboardingService merchantOnboardingService;
 
+    /** 六位商户号数据库年度序列分配服务。 */
+    private final MerchantIdAllocationService merchantIdAllocationService;
+
     /**
      * 创建管理后台商户信息服务实现。
      *
@@ -242,6 +228,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param openApiKeyMaterialService OpenAPI 密钥统一领域服务
      * @param securityNotificationService 密钥生命周期通知服务
      * @param merchantOnboardingService 商户开户、审核与激活领域服务
+     * @param merchantIdAllocationService 六位商户号数据库年度序列分配服务
      */
     public AdminMerchantInfoServiceImpl(BaseMerchantInfoMapper merchantInfoMapper,
                                         BaseMerchantJwtKeyMapper jwtKeyMapper,
@@ -259,7 +246,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         OpenApiMerchantKeyMaterialService openApiKeyMaterialService,
                                         AdminMerchantSecurityNotificationService securityNotificationService,
                                         AdminMerchantStatusLifecycleService statusLifecycleService,
-                                        MerchantOnboardingService merchantOnboardingService) {
+                                        MerchantOnboardingService merchantOnboardingService,
+                                        MerchantIdAllocationService merchantIdAllocationService) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
@@ -277,6 +265,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.securityNotificationService = securityNotificationService;
         this.statusLifecycleService = statusLifecycleService;
         this.merchantOnboardingService = merchantOnboardingService;
+        this.merchantIdAllocationService = merchantIdAllocationService;
     }
 
     /**
@@ -400,7 +389,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO createMerchant(AdminMerchantSaveRequest request) {
-        String merchantId = generateUniqueMerchantId();
+        String merchantId = merchantIdAllocationService.allocate();
         LocalDateTime now = LocalDateTime.now();
         BaseMerchantInfoDO row = new BaseMerchantInfoDO();
         row.setMerchantId(merchantId);
@@ -1373,16 +1362,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
                 .eq(BaseMerchantInfoDO::getDeleted, NOT_DELETED)
                 .last("LIMIT 1"));
-    }
-
-    private String generateUniqueMerchantId() {
-        for (int attempt = 0; attempt < MERCHANT_ID_GENERATE_MAX_ATTEMPTS; attempt++) {
-            String merchantId = PaymentOrderNoGenerator.nextOrderNo(MERCHANT_ID_PREFIX);
-            if (selectMerchantByMerchantId(merchantId) == null) {
-                return merchantId;
-            }
-        }
-        throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "商户号生成失败，请稍后重试");
     }
 
     private BaseMerchantJwtKeyDO selectActiveJwtKey(String merchantId) {

@@ -98,7 +98,6 @@ public class MerchantOnboardingService {
             Map.entry("CONTACT_NAME", "联系人姓名"),
             Map.entry("CONTACT_EMAIL", "联系邮箱"),
             Map.entry("CONTACT_PHONE", "联系电话"),
-            Map.entry("PHONE_COUNTRY_CODE", "电话国家区号"),
             Map.entry("BUSINESS_MODEL", "业务模式"),
             Map.entry("SALES_CHANNELS", "销售渠道"),
             Map.entry("PRODUCTS_SERVICES", "主营产品或服务"),
@@ -361,7 +360,6 @@ public class MerchantOnboardingService {
         required(issues, merchant.getContactName(), "CONTACT_NAME");
         required(issues, merchant.getContactEmail(), "CONTACT_EMAIL");
         required(issues, merchant.getContactPhone(), "CONTACT_PHONE");
-        required(issues, merchant.getPhoneCountryCode(), "PHONE_COUNTRY_CODE");
         required(issues, merchant.getBusinessModel(), "BUSINESS_MODEL");
         required(issues, merchant.getSalesChannels(), "SALES_CHANNELS");
         required(issues, merchant.getProductsServices(), "PRODUCTS_SERVICES");

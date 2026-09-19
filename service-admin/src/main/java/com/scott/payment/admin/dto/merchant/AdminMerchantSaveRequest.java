@@ -144,7 +144,7 @@ public class AdminMerchantSaveRequest {
     /** 主要联系人职位；可为空。 */
     private String contactTitle;
 
-    /** 联系电话国家区号，例如 +86；提交审核前不允许为空。 */
+    /** 历史兼容字段；新请求应将国家区号直接写入 contactPhone。 */
     private String phoneCountryCode;
 
     /**
@@ -153,9 +153,7 @@ public class AdminMerchantSaveRequest {
     @Email(message = "联系邮箱格式不正确")
     private String contactEmail;
 
-    /**
-     * 联系人手机号，属于敏感联系信息，可为空。
-     */
+    /** 联系人完整国际电话号码，例如 +14085550100；提交审核前不允许为空。 */
     private String contactPhone;
 
     /** 备用联系邮箱；敏感，可为空。 */

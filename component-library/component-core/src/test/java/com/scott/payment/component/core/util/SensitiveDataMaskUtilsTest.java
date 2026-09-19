@@ -55,6 +55,7 @@ class SensitiveDataMaskUtilsTest {
                   "billingAddress":"1 Billing Street",
                   "shippingAddress":"2 Shipping Street",
                   "idCard":"110101199001011234",
+                  "idNumber":"P123456789",
                   "bankAccount":"6222021234567890123",
                   "receiverAccountNo":"6222021234567890123",
                   "iban":"GB82WEST12345698765432"
@@ -95,6 +96,7 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).contains("\"billingAddress\":\"***\"");
         assertThat(masked).contains("\"shippingAddress\":\"***\"");
         assertThat(masked).contains("\"idCard\":\"***\"");
+        assertThat(masked).contains("\"idNumber\":\"***\"");
         assertThat(masked).contains("\"bankAccount\":\"6222******0123\"");
         assertThat(masked).contains("\"receiverAccountNo\":\"6222******0123\"");
         assertThat(masked).contains("\"iban\":\"GB82******5432\"");
@@ -107,7 +109,7 @@ class SensitiveDataMaskUtilsTest {
                 "https://merchant.example/callback?token=secret",
                 "http://localhost:5175/result?token=secret",
                 "https://pay.example/checkout/raw-opaque-token/cover",
-                "1 Billing Street", "2 Shipping Street");
+                "1 Billing Street", "2 Shipping Street", "P123456789");
     }
 
     /**
