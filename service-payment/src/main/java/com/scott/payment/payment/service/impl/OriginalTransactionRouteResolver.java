@@ -2,6 +2,7 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
@@ -29,6 +30,9 @@ final class OriginalTransactionRouteResolver {
         if (snapshot == null || !StringUtils.hasText(snapshot.getChannelCode()) || snapshot.getMidConfigId() == null) {
             throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
         }
+        if (hasFrozenRoute(sourceOperation)) {
+            return snapshot;
+        }
         return routeService.restore(
                 snapshot.getChannelCode(),
                 snapshot.getChannelId(),
@@ -38,6 +42,10 @@ final class OriginalTransactionRouteResolver {
 
     static PaymentRouteResultDTO snapshot(TransactionOrderDO sourceOrder,
                                           TransactionOperationDO sourceOperation) {
+        PaymentRouteResultDTO frozenSnapshot = parseFrozenRoute(sourceOperation);
+        if (frozenSnapshot != null) {
+            return frozenSnapshot;
+        }
         String channelCode = firstText(
                 sourceOperation == null ? null : sourceOperation.getChannelCode(),
                 sourceOrder == null ? null : sourceOrder.getChannelCode());
@@ -59,6 +67,45 @@ final class OriginalTransactionRouteResolver {
         snapshot.setMidNo(fallbackMidNo);
         snapshot.setRouteReason("RESTORED_FROM_ORIGINAL_TRANSACTION");
         return snapshot;
+    }
+
+    /**
+     * 解析交易动作创建时冻结的原始渠道路由；快照损坏时拒绝回退到当前路由，避免误用新 MID。
+     */
+    private static PaymentRouteResultDTO parseFrozenRoute(TransactionOperationDO sourceOperation) {
+        if (sourceOperation == null || !StringUtils.hasText(sourceOperation.getChannelRouteSnapshotJson())) {
+            return null;
+        }
+        PaymentRouteResultDTO snapshot;
+        try {
+            snapshot = JsonUtils.parseObject(
+                    sourceOperation.getChannelRouteSnapshotJson(), PaymentRouteResultDTO.class);
+        } catch (RuntimeException exception) {
+            throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
+        }
+        if (snapshot == null
+                || !StringUtils.hasText(snapshot.getChannelCode())
+                || snapshot.getChannelId() == null
+                || snapshot.getMidConfigId() == null) {
+            throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
+        }
+        if (StringUtils.hasText(sourceOperation.getChannelCode())
+                && !sourceOperation.getChannelCode().equalsIgnoreCase(snapshot.getChannelCode())) {
+            throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
+        }
+        if (sourceOperation.getChannelMidConfigId() != null
+                && !sourceOperation.getChannelMidConfigId().equals(snapshot.getMidConfigId())) {
+            throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
+        }
+        if (sourceOperation.getChannelId() != null
+                && !sourceOperation.getChannelId().equals(snapshot.getChannelId())) {
+            throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
+        }
+        return snapshot;
+    }
+
+    private static boolean hasFrozenRoute(TransactionOperationDO sourceOperation) {
+        return sourceOperation != null && StringUtils.hasText(sourceOperation.getChannelRouteSnapshotJson());
     }
 
     private static String firstText(String... values) {

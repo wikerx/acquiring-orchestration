@@ -201,6 +201,50 @@ class AdminChannelServiceImplTest {
     }
 
     @Test
+    void shouldCreateOneCapabilityRowPerSelectedPaymentMethod() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectCount(any())).thenReturn(0L);
+        int[] nextId = {100};
+        when(capabilityMapper.insert(any(ChannelPaymentCapabilityDO.class))).thenAnswer(invocation -> {
+            ChannelPaymentCapabilityDO row = invocation.getArgument(0);
+            row.setId((long) ++nextId[0]);
+            return 1;
+        });
+        when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of());
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of());
+
+        CapabilitySaveRequest request = bankCardCapabilityRequest(List.of("VISA"));
+        request.setPaymentMethods(List.of("BANK_CARD", "PAYPAL", "PAYPAL"));
+
+        service.createCapability(request);
+
+        ArgumentCaptor<ChannelPaymentCapabilityDO> captor = ArgumentCaptor.forClass(ChannelPaymentCapabilityDO.class);
+        verify(capabilityMapper, times(2)).insert(captor.capture());
+        assertThat(captor.getAllValues()).extracting(ChannelPaymentCapabilityDO::getPaymentMethod)
+                .containsExactly("BANK_CARD", "PAYPAL");
+        verify(capabilityCardBrandMapper, times(1)).insert(any(ChannelCapabilityCardBrandDO.class));
+    }
+
+    @Test
+    void shouldCreatePayoutCapabilityWithPayoutTransactionTypes() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectCount(any())).thenReturn(0L);
+        when(capabilityMapper.insert(any(ChannelPaymentCapabilityDO.class))).thenAnswer(invocation -> {
+            ChannelPaymentCapabilityDO row = invocation.getArgument(0);
+            row.setId(102L);
+            return 1;
+        });
+        when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of());
+
+        CapabilityResponse response = service.createCapability(payoutCapabilityRequest());
+
+        assertThat(response.getTransactionType()).isEqualTo("PAYOUT,CANCEL");
+        assertThat(response.getTransactionTypes()).containsExactly("PAYOUT", "CANCEL");
+    }
+
+    @Test
     void shouldRejectDefaultTransactionCurrencyOutsideAllowedCurrencies() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
         when(dictDataMapper.selectCount(any())).thenReturn(1L);
@@ -627,6 +671,7 @@ class AdminChannelServiceImplTest {
         assertThat(captor.getValue().getMidConfigId()).isEqualTo(501L);
         assertThat(captor.getValue().getChannelMid()).isEqualTo("TESTDEVMER031");
         assertThat(response.getMidName()).isEqualTo("MPGS TEST MID");
+        assertThat(response.getBusinessType()).isEqualTo("ACQUIRING");
     }
 
     private CapabilitySaveRequest bankCardCapabilityRequest(List<String> cardBrands) {
@@ -640,6 +685,21 @@ class AdminChannelServiceImplTest {
         request.setCardBrands(cardBrands);
         request.setSupport3ds(1);
         request.setSupportIncrementalAuthorization(1);
+        request.setCapabilityStatus(1);
+        request.setSortOrder(1);
+        return request;
+    }
+
+    private CapabilitySaveRequest payoutCapabilityRequest() {
+        CapabilitySaveRequest request = new CapabilitySaveRequest();
+        request.setChannelId(1L);
+        request.setBusinessType("payout");
+        request.setPaymentMethod("paypal");
+        request.setTransactionTypes(List.of("payout", "cancel"));
+        request.setCurrencyCodes(List.of("usd"));
+        request.setDefaultTransactionCurrency("usd");
+        request.setSupport3ds(0);
+        request.setSupportIncrementalAuthorization(0);
         request.setCapabilityStatus(1);
         request.setSortOrder(1);
         return request;

@@ -27,7 +27,12 @@ public enum PayoutChannelCapability {
      * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
      * </p>
      */
-    QUERY("QUERY");
+    QUERY("QUERY"),
+
+    /**
+     * CANCEL 能力，表示 Provider 支持取消仍在处理中的代付。
+     */
+    CANCEL("CANCEL");
 
     private final String code;
 

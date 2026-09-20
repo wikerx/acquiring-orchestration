@@ -97,9 +97,8 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
         TransactionOperationDO sourceOperation = transactionRecordService.findSourceOperationByTransactionId(
                 message.getSourceTransactionId(), message.getSourceTransactionDateTime());
         PaymentCreateCommandDTO command = buildCommand(operationDO, sourceOrder, sourceOperation, message);
-        PaymentRouteResultDTO route = channelRouteService.restore(
-                operationDO.getChannelCode(), operationDO.getChannelId(),
-                operationDO.getChannelMidConfigId(), operationDO.getChannelTerminalId());
+        PaymentRouteResultDTO route = OriginalTransactionRouteResolver.restore(
+                channelRouteService, sourceOrder, operationDO);
         PaymentPreparedChannelRequestDTO preparedRequest = buildPreparedRequest(requestDO);
         PaymentChannelInvokeResultDTO invokeResult = invokeSafely(
                 command, route, operationDO, preparedRequest);

@@ -378,7 +378,7 @@ public class PaymentTransactionLogicalMapperPocTest {
                     + "settlement_rate DECIMAL(24,12), settlement_date DATE, settlement_batch_no VARCHAR(19), "
                     + "currency_exponent INT, dcc_enabled INT, edc_enabled INT, transaction_rate DECIMAL(24,12), "
                     + "channel_id BIGINT, channel_code VARCHAR(32), channel_mid_config_id BIGINT, "
-                    + "channel_terminal_id VARCHAR(128), channel_order_no VARCHAR(128), "
+                    + "channel_terminal_id VARCHAR(128), channel_route_snapshot_json VARCHAR(8192), channel_order_no VARCHAR(128), "
                     + "channel_transaction_id VARCHAR(128), channel_status VARCHAR(64), "
                     + "channel_response_code VARCHAR(64), channel_response_message VARCHAR(512), "
                     + "auth_code VARCHAR(64), rrn VARCHAR(64), acquirer_reference_no VARCHAR(128), "

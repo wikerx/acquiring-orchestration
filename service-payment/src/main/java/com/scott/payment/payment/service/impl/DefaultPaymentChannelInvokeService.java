@@ -125,6 +125,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         ChannelPaymentRequest channelRequest = toChannelRequest(commandDTO, routeResult, operationId, transactionId,
                 preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo(),
                 preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
+        copyPreparedExtensions(preparedChannelRequest, channelRequest);
         PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
         resultDTO.setRequestId(preparedChannelRequest == null ? null : preparedChannelRequest.getRequestId());
         resultDTO.setChannelRequest(channelRequest);
@@ -240,6 +241,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         ChannelPaymentRequest channelRequest = toChannelRequest(commandDTO, routeResult, operationId, transactionId,
                 preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo(),
                 preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
+        copyPreparedExtensions(preparedChannelRequest, channelRequest);
         if (preparedChannelRequest != null && StringUtils.hasText(preparedChannelRequest.getRequestId())) {
             channelRequest.getExtension().put("requestId", preparedChannelRequest.getRequestId());
         }
@@ -306,6 +308,17 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             request.getExtension().put("mid." + entry.getKey(), emptyIfNull(entry.getValue()));
         }
         return request;
+    }
+
+    /** 将已持久化查询身份之外的非敏感渠道查询标识透传到统一请求。 */
+    private void copyPreparedExtensions(PaymentPreparedChannelRequestDTO preparedChannelRequest,
+                                        ChannelPaymentRequest channelRequest) {
+        if (preparedChannelRequest == null || channelRequest == null
+                || preparedChannelRequest.getExtension() == null
+                || preparedChannelRequest.getExtension().isEmpty()) {
+            return;
+        }
+        channelRequest.getExtension().putAll(preparedChannelRequest.getExtension());
     }
 
     /**

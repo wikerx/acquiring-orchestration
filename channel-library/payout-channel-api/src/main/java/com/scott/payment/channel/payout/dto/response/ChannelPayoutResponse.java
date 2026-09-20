@@ -56,4 +56,16 @@ public class ChannelPayoutResponse implements Serializable {
 
     /** 脱敏后的 Provider 扩展响应。 */
     private Map<String, String> rawResponse = new HashMap<>();
+
+    /** 渠道真实 HTTP 状态码，用于内部审计。 */
+    private Integer httpStatus;
+
+    /** 脱敏后的渠道请求 URL。 */
+    private String requestUrlMasked;
+
+    /** 脱敏后的渠道请求头摘要。 */
+    private String requestHeaderJsonMasked;
+
+    /** 脱敏后的渠道请求体摘要。 */
+    private String requestBodyJsonMasked;
 }

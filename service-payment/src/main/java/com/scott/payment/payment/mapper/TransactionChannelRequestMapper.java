@@ -197,6 +197,35 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
                             @Param("durationMillis") Integer durationMillis);
 
     /**
+     * 回写渠道响应生成的真实订单身份。
+     *
+     * <p>请求发起前可能使用平台生成的临时交易号占位；渠道响应返回真实交易号后，必须在同一事实记录上替换，
+     * 后续退款、回调和勾兑都只能使用该真实身份。该更新不改变版本，调用方需先完成状态 CAS。</p>
+     *
+     * @param requestId 渠道请求 ID
+     * @param transactionDateTime 交易分片时间
+     * @param expectedVersion 状态更新后的请求版本
+     * @param channelOrderNo 渠道订单号
+     * @param channelTransactionId 渠道真实交易号
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE transaction_channel_request
+            SET channel_order_no = COALESCE(#{channelOrderNo}, channel_order_no),
+                channel_transaction_id = COALESCE(#{channelTransactionId}, channel_transaction_id),
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE request_id = #{requestId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND deleted = 0
+            """)
+    int updateChannelIdentityLogical(@Param("requestId") String requestId,
+                                     @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                     @Param("expectedVersion") Integer expectedVersion,
+                                     @Param("channelOrderNo") String channelOrderNo,
+                                     @Param("channelTransactionId") String channelTransactionId);
+
+    /**
      * 按交易 ID、渠道和精确分片时间查询原资金动作请求。
      *
      * @param transactionId 平台当前交易 ID

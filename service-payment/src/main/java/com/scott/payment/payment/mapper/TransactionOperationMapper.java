@@ -35,6 +35,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             settlement_currency, settlement_amount, settlement_rate, settlement_date, settlement_batch_no,
             currency_exponent, dcc_enabled, edc_enabled, transaction_rate,
             channel_id, channel_code, channel_mid_config_id, channel_terminal_id,
+            channel_route_snapshot_json,
             channel_order_no, channel_transaction_id, channel_status,
             channel_response_code, channel_response_message, auth_code, rrn, acquirer_reference_no,
             settlement_status, reconciliation_status, accounting_status,
@@ -257,6 +258,35 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                        @Param("matchTime") LocalDateTime matchTime);
 
     /**
+     * 回写渠道响应生成的真实订单身份。
+     *
+     * <p>交易动作初始落库时可能只保存平台生成的临时交易号；渠道响应返回真实交易号后，
+     * 退款、回调和勾兑必须使用该真实身份。调用方应先完成状态 CAS，再以更新后的版本校验本次回写。</p>
+     *
+     * @param id 动作主键
+     * @param transactionDateTime 交易分片时间
+     * @param expectedVersion 状态更新后的动作版本
+     * @param channelOrderNo 渠道订单号
+     * @param channelTransactionId 渠道真实交易号
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE transaction_operation
+            SET channel_order_no = COALESCE(#{channelOrderNo}, channel_order_no),
+                channel_transaction_id = COALESCE(#{channelTransactionId}, channel_transaction_id),
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND deleted = 0
+            """)
+    int updateChannelIdentityLogical(@Param("id") Long id,
+                                     @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                     @Param("expectedVersion") Integer expectedVersion,
+                                     @Param("channelOrderNo") String channelOrderNo,
+                                     @Param("channelTransactionId") String channelTransactionId);
+
+    /**
      * 在单季度半开范围内查询待渠道勾兑动作。
      *
      * @param channelCode 渠道编码，可为空
@@ -277,6 +307,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               AND o.channel_match_status = 'PENDING'
               AND o.transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND o.channel_code IS NOT NULL
+              AND COALESCE(o.create_time, o.operation_time, o.transaction_date_time)
+                    &lt;= DATE_SUB(#{now}, INTERVAL 5 MINUTE)
               AND (o.next_channel_match_time IS NULL OR o.next_channel_match_time &lt;= #{now})
               <if test="channelCode != null and channelCode != ''">
                 AND o.channel_code = #{channelCode}

@@ -645,6 +645,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         boolean statusChanged = isTerminal(resultDTO)
                 ? completeInitialTerminalStatus(operationDO, orderDO, channelInvokeResultDTO, resultDTO)
                 : updateInitialNonTerminalStatus(operationDO, channelInvokeResultDTO, resultDTO, now);
+        if (statusChanged) {
+            updateOperationChannelIdentity(operationDO, channelInvokeResultDTO);
+        }
         if (!statusChanged) {
             recordCallbackStatusHistory(operationDO, channelInvokeResultDTO.getRequestId(), resultDTO.getStatus(), TRANSITION_IGNORED,
                     "operation is already terminal or state has changed");
@@ -2033,6 +2036,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             operationDO.setChannelId(routeResultDTO.getChannelId());
             operationDO.setChannelCode(routeResultDTO.getChannelCode());
             operationDO.setChannelMidConfigId(routeResultDTO.getMidConfigId());
+            operationDO.setChannelRouteSnapshotJson(JsonUtils.toJsonString(routeResultDTO));
         }
         if (channelResponse != null) {
             operationDO.setChannelCode(channelResponse.getChannelCode());
@@ -2160,6 +2164,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel request state has changed");
             }
         }
+        updateChannelRequestIdentity(invokeResultDTO, commandDTO.getTransactionDateTime(), requestDO, updated);
         log.info("event: PAYMENT_CHANNEL_REQUEST_DB_UPDATED stage=CHANNEL_RESULT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} channelCode: {} channelRequestId: {} channelTransactionId: {} requestStatus: {} platformStatus: {} channelResultCode: {} acquirerCode: {} logicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
@@ -2179,6 +2184,36 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 TRANSACTION_CHANNEL_REQUEST_TABLE,
                 updated);
         updateChannelInteractionLog(commandDTO, invokeResultDTO, resultDTO, now);
+    }
+
+    /**
+     * 将渠道响应返回的真实订单身份写回渠道请求事实。
+     *
+     * <p>状态更新已通过版本 CAS 后，身份回写只接受更新后的版本；响应缺少身份时保留原占位值，
+     * 由后续查询或回调继续补齐。</p>
+     */
+    private void updateChannelRequestIdentity(PaymentChannelInvokeResultDTO invokeResultDTO,
+                                              LocalDateTime transactionDateTime,
+                                              TransactionChannelRequestDO requestDO,
+                                              int statusUpdated) {
+        if (statusUpdated != 1
+                || invokeResultDTO == null
+                || invokeResultDTO.getChannelResponse() == null
+                || requestDO == null) {
+            return;
+        }
+        ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
+        String channelOrderNo = response.getChannelOrderNo();
+        String channelTransactionId = response.getChannelTransactionId();
+        if (!StringUtils.hasText(channelOrderNo) && !StringUtils.hasText(channelTransactionId)) {
+            return;
+        }
+        transactionChannelRequestMapper.updateChannelIdentityLogical(
+                invokeResultDTO.getRequestId(),
+                transactionDateTime,
+                requestDO.getVersion() + 1,
+                channelOrderNo,
+                channelTransactionId);
     }
 
     private void updateChannelInteractionLog(PaymentCreateCommandDTO commandDTO,
@@ -2433,6 +2468,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (operationUpdated != 1) {
             return false;
         }
+        updateOperationChannelIdentity(operationDO, invokeResultDTO);
         TransactionOperationDO mergedOperation = mergeOperationResult(operationDO, invokeResultDTO, resultDTO);
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
             updateSourceOrderAmount(sourceOrderDO, resultDTO);
@@ -2477,6 +2513,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (!updated) {
             return false;
         }
+        updateOperationChannelIdentity(operationDO, invokeResultDTO);
         insertCallbackStateAndFlow(mergeOperationResult(operationDO, invokeResultDTO, resultDTO),
                 sourceOrderDO,
                 invokeResultDTO.getRequestId(),
@@ -2512,8 +2549,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         target.setCurrencyExponent(source.getCurrencyExponent());
         ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
         target.setChannelCode(firstText(response == null ? null : response.getChannelCode(), source.getChannelCode()));
-        target.setChannelOrderNo(source.getChannelOrderNo());
-        target.setChannelTransactionId(source.getChannelTransactionId());
+        target.setChannelOrderNo(firstText(response == null ? null : response.getChannelOrderNo(), source.getChannelOrderNo()));
+        target.setChannelTransactionId(firstText(response == null ? null : response.getChannelTransactionId(), source.getChannelTransactionId()));
         target.setChannelStatus(response == null ? source.getChannelStatus() : response.getRawChannelStatus());
         target.setChannelResponseCode(response == null ? source.getChannelResponseCode() : response.getChannelResponseCode());
         target.setChannelResponseMessage(response == null ? source.getChannelResponseMessage() : response.getChannelResponseMessage());
@@ -2523,6 +2560,35 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         target.setTransactionDateTime(source.getTransactionDateTime());
         target.setVersion(source.getVersion());
         return target;
+    }
+
+    /**
+     * 将渠道响应中的真实订单身份回写动作事实。
+     *
+     * <p>状态 CAS 已先完成并将版本加一；身份更新使用该新版本校验，不改变版本，避免后续退款、回调和勾兑继续
+     * 使用请求发起前生成的本地临时交易号。</p>
+     */
+    private void updateOperationChannelIdentity(TransactionOperationDO operationDO,
+                                               PaymentChannelInvokeResultDTO invokeResultDTO) {
+        if (operationDO == null
+                || invokeResultDTO == null
+                || invokeResultDTO.getChannelResponse() == null
+                || operationDO.getId() == null
+                || operationDO.getVersion() == null) {
+            return;
+        }
+        ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
+        String channelOrderNo = response.getChannelOrderNo();
+        String channelTransactionId = response.getChannelTransactionId();
+        if (!StringUtils.hasText(channelOrderNo) && !StringUtils.hasText(channelTransactionId)) {
+            return;
+        }
+        transactionOperationMapper.updateChannelIdentityLogical(
+                operationDO.getId(),
+                operationDO.getTransactionDateTime(),
+                operationDO.getVersion() + 1,
+                channelOrderNo,
+                channelTransactionId);
     }
 
     /**

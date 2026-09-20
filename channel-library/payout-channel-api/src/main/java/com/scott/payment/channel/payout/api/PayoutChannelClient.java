@@ -1,6 +1,7 @@
 package com.scott.payment.channel.payout.api;
 
 import com.scott.payment.channel.payout.dto.request.ChannelPayoutQueryRequest;
+import com.scott.payment.channel.payout.dto.request.ChannelPayoutCancelRequest;
 import com.scott.payment.channel.payout.dto.request.ChannelPayoutRequest;
 import com.scott.payment.channel.payout.dto.response.ChannelPayoutResponse;
 import com.scott.payment.channel.payout.enums.PayoutChannelCapability;
@@ -38,6 +39,16 @@ public interface PayoutChannelClient {
     /** 查询渠道侧代付状态；不得直接用渠道原始状态覆盖平台终态。 */
     default ChannelPayoutResponse query(ChannelPayoutQueryRequest request) {
         throw unsupported(PayoutChannelCapability.QUERY);
+    }
+
+    /**
+     * 取消仍处于渠道处理中状态的代付；平台状态机仍由 service-payout 决定。
+     *
+     * @param request 代付取消请求
+     * @return 渠道统一响应
+     */
+    default ChannelPayoutResponse cancel(ChannelPayoutCancelRequest request) {
+        throw unsupported(PayoutChannelCapability.CANCEL);
     }
 
     /** 构造统一的不支持能力异常。 */

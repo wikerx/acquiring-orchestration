@@ -94,6 +94,12 @@
             <version>${project.version}</version>
             <scope>runtime</scope>
         </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>payment-channel-scott-channel-a</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
         <!--DTO、渠道请求和响应对象的编译期映射。-->
         <dependency>
             <groupId>org.mapstruct</groupId>

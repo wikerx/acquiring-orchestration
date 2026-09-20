@@ -625,6 +625,7 @@ class TransactionPersistenceMapperContractTests {
                 .doesNotContain("SELECT *", "SELECT o.*");
         assertThat(pendingReadSql)
                 .contains("next_channel_match_time")
+                .contains("DATE_SUB(#{now}, INTERVAL 5 MINUTE)")
                 .doesNotContain("SELECT *", "SELECT o.*");
     }
 

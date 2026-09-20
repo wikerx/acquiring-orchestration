@@ -73,6 +73,12 @@
             <artifactId>payout-channel-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>payout-channel-scott-channel-a</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
     </dependencies>
 
     <build>

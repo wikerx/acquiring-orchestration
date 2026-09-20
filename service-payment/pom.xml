@@ -104,6 +104,12 @@
             <version>${project.version}</version>
             <scope>runtime</scope>
         </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>payment-channel-scott-channel-a</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
         <!--以下依赖仅用于数据库和 ShardingSphere SQL 兼容性测试。-->
         <dependency>
             <groupId>com.h2database</groupId>

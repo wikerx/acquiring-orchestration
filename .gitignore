@@ -71,6 +71,8 @@ docs/sql/*
 !docs/sql/20260913_01_currency_icon_key_migration.sql
 !docs/sql/20260913_02_currency_icon_key_postcheck.sql
 !docs/sql/20260913_03_currency_icon_key_rollback.sql
+!docs/sql/20260919_01_scott_channel_a_configuration.sql
+!docs/sql/20260920_01_scott_channel_a_eur_currency_fix.sql
 !docs/sql/shardingsphere-auto-increment-repair-20260802.sql
 !docs/sql/20260814_01_transaction_visible_snapshot_plaintext_prepare.sql
 !docs/sql/20260814_02_transaction_visible_snapshot_plaintext_finalize.sql
