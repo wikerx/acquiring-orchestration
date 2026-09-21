@@ -1,8 +1,5 @@
 # service-admin 专属配置：管理后台服务个性化参数。
 acquiring:
-  merchant-profile:
-    # 安全说明：董事、UBO 等证件号使用 AES-GCM 加密；仓库模板留空，本地 dev 由受限发布流程写入 Nacos。
-    encryption-secret: ${MERCHANT_PROFILE_ENCRYPTION_SECRET:}
   monitor:
     datasource-console:
       # 参数说明：是否在数据源监控页提供外部 Druid 控制台入口；Druid 不是 JDBC 默认监控，目标服务必须实际使用 DruidDataSource。

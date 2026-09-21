@@ -1223,8 +1223,14 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         profile.setAddressLine(row.getAddressLine());
         profile.setPostalCode(row.getPostalCode());
         profile.setContactName(row.getContactName());
+        profile.setContactTitle(row.getContactTitle());
         profile.setContactEmail(row.getContactEmail());
         profile.setContactPhone(row.getContactPhone());
+        profile.setAlternateEmail(row.getAlternateEmail());
+        profile.setFinanceContactName(row.getFinanceContactName());
+        profile.setFinanceContactEmail(row.getFinanceContactEmail());
+        profile.setTechnicalContactName(row.getTechnicalContactName());
+        profile.setTechnicalContactEmail(row.getTechnicalContactEmail());
         profile.setSettlementCurrency(row.getSettlementCurrency());
         profile.setTimezone(row.getTimezone());
         profile.setRiskLevel(row.getRiskLevel());

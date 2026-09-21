@@ -108,6 +108,9 @@ public final class MerchantOnboardingEntities {
         /** 业务归属标识；商户资料使用平台商户号。 */
         private String bizId;
 
+        /** 资料变更申请编号；开户或正式资料允许为空。 */
+        private String requestNo;
+
         /** 资料类型编码，例如 BUSINESS_LICENSE 或 UBO_ID。 */
         private String documentType;
 
@@ -159,6 +162,12 @@ public final class MerchantOnboardingEntities {
 
         /** 平台商户号；稳定业务关联键，不允许为空。 */
         private String merchantId;
+
+        /** 审核范围；ONBOARDING 表示开户，PROFILE_CHANGE 表示资料变更。 */
+        private String reviewScope;
+
+        /** 资料变更申请编号；开户审核记录允许为空。 */
+        private String requestNo;
 
         /** 审核动作编码，例如 SUBMIT、PASS、SUPPLEMENT、REJECT 或 ACTIVATE。 */
         private String reviewAction;

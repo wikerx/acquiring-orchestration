@@ -85,15 +85,16 @@ class MerchantProfileServiceImplTests {
         when(mapper.update(eq(null), any())).thenReturn(1);
         when(mapper.selectById(1L)).thenReturn(fullRow());
         MerchantProfileUpdateRequest request = new MerchantProfileUpdateRequest();
-        request.setBillingDescriptor("CODEX ONLINE");
         request.setMerchantShortName("Codex");
-        request.setRegionCode("CA");
-        request.setCity("San Francisco");
-        request.setAddressLine("2 Market Street");
-        request.setPostalCode("94105");
         request.setContactName("Operations");
+        request.setContactTitle("Operations Manager");
         request.setContactEmail("ops@example.com");
-        request.setContactPhone("+1-555-0100");
+        request.setContactPhone("+15550100");
+        request.setFinanceContactName("Finance Team");
+        request.setFinanceContactEmail("finance@example.com");
+        request.setTechnicalContactName("Technical Team");
+        request.setTechnicalContactEmail("tech@example.com");
+        request.setDefaultLocale("en-US");
         request.setTimezone("America/Los_Angeles");
 
         MerchantProfileResponse result = service(mapper, cacheService, coordinator)
@@ -137,8 +138,10 @@ class MerchantProfileServiceImplTests {
         profile.setAddressLine("1 Market Street");
         profile.setPostalCode("94105");
         profile.setContactName("Operations");
+        profile.setContactTitle("Operations Manager");
         profile.setContactEmail("ops@example.com");
-        profile.setContactPhone("+1-555-0100");
+        profile.setContactPhone("+15550100");
+        profile.setDefaultLocale("en-US");
         profile.setSettlementCurrency("USD");
         profile.setTimezone("America/Los_Angeles");
         profile.setRiskLevel(2);
@@ -155,7 +158,7 @@ class MerchantProfileServiceImplTests {
         row.setAddressLine("1 Market Street");
         row.setContactName("Operations");
         row.setContactEmail("ops@example.com");
-        row.setContactPhone("+1-555-0100");
+        row.setContactPhone("+15550100");
         row.setGmtCreate(LocalDateTime.of(2026, 7, 1, 9, 0));
         return row;
     }

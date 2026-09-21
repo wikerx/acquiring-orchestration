@@ -71,4 +71,17 @@ public class MerchantProfileSensitiveCrypto {
         return value.substring(0, 3) + "*".repeat(value.length() - 7)
                 + value.substring(value.length() - 4);
     }
+
+    /** 使用申请编号作为 AAD 解密资料变更快照，解密失败时不返回部分正文。 */
+    public String decryptChangeSnapshot(String requestNo, String cipher) {
+        if (!StringUtils.hasText(properties.getEncryptionSecret())) {
+            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(),
+                    "商户敏感资料加密密钥未配置");
+        }
+        try {
+            return SensitiveFieldCipher.decrypt(cipher, properties.getEncryptionSecret(), requestNo);
+        } catch (RuntimeException exception) {
+            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "商户资料变更快照校验失败");
+        }
+    }
 }

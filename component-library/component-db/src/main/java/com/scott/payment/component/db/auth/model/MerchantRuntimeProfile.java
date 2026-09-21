@@ -72,11 +72,29 @@ public class MerchantRuntimeProfile {
     /** 商户联系人姓名，属于受保护资料，禁止写入业务日志。 */
     private String contactName;
 
+    /** 主要联系人职位。 */
+    private String contactTitle;
+
     /** 商户联系邮箱，属于受保护资料，禁止写入业务日志。 */
     private String contactEmail;
 
     /** 商户联系电话，属于受保护资料，禁止写入业务日志。 */
     private String contactPhone;
+
+    /** 备用联系邮箱。 */
+    private String alternateEmail;
+
+    /** 财务联系人姓名。 */
+    private String financeContactName;
+
+    /** 财务联系人邮箱。 */
+    private String financeContactEmail;
+
+    /** 技术联系人姓名。 */
+    private String technicalContactName;
+
+    /** 技术联系人邮箱。 */
+    private String technicalContactEmail;
 
     /**
      * 默认结算币种。

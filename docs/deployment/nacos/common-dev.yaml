@@ -43,6 +43,9 @@ global-payment:
     header-name: X-Trace-Id
 
 acquiring:
+  merchant-profile:
+    # 董事、UBO证件号和资料变更快照共用AES-GCM主密钥；真实值由受限部署流程写入Nacos。
+    encryption-secret: ${MERCHANT_PROFILE_ENCRYPTION_SECRET:}
   object-storage:
     # 开发环境启用 S3 兼容对象存储；切换 AWS S3 时业务接口保持不变。
     enabled: ${OBJECT_STORAGE_ENABLED:true}

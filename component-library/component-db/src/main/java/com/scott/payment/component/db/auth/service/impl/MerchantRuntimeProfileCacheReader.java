@@ -197,6 +197,7 @@ public class MerchantRuntimeProfileCacheReader {
         profile.setBillingDescriptor(row.getBillingDescriptor());
         profile.setMerchantShortName(row.getMerchantShortName());
         profile.setMerchantStatus(row.getMerchantStatus());
+        profile.setDefaultLocale(row.getDefaultLocale());
         profile.setMerchantCategoryCode(row.getMerchantCategoryCode());
         profile.setCountryCode(row.getCountryCode());
         profile.setRegionCode(row.getRegionCode());
@@ -204,8 +205,14 @@ public class MerchantRuntimeProfileCacheReader {
         profile.setAddressLine(row.getAddressLine());
         profile.setPostalCode(row.getPostalCode());
         profile.setContactName(row.getContactName());
+        profile.setContactTitle(row.getContactTitle());
         profile.setContactEmail(row.getContactEmail());
         profile.setContactPhone(row.getContactPhone());
+        profile.setAlternateEmail(row.getAlternateEmail());
+        profile.setFinanceContactName(row.getFinanceContactName());
+        profile.setFinanceContactEmail(row.getFinanceContactEmail());
+        profile.setTechnicalContactName(row.getTechnicalContactName());
+        profile.setTechnicalContactEmail(row.getTechnicalContactEmail());
         profile.setSettlementCurrency(row.getSettlementCurrency());
         profile.setTimezone(row.getTimezone());
         profile.setRiskLevel(row.getRiskLevel());
