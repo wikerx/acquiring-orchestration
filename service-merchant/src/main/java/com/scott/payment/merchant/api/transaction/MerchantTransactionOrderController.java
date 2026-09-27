@@ -5,6 +5,7 @@ import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.model.RefundContext;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
@@ -161,6 +162,19 @@ public class MerchantTransactionOrderController {
     public CommonResult<TransactionActionResponse> refund(@PathVariable("transactionId") String transactionId,
                                                           @RequestBody(required = false) TransactionActionRequest request) {
         return success(transactionApplicationService.refund(currentMerchantId(), transactionId, request));
+    }
+
+    /**
+     * 查询退款弹窗额度；沿用退款权限，不要求额外的交易详情权限。
+     * @param transactionId 原交易号
+     * @param request 原交易与根主单的真实分片时间
+     * @return 最新退款额度快照
+     */
+    @PostMapping("/{transactionId}/refund-context")
+    @RequiresPermission("merchant:transaction:order:refund")
+    public CommonResult<RefundContext> refundContext(@PathVariable("transactionId") String transactionId,
+                                                     @RequestBody TransactionActionRequest request) {
+        return success(transactionApplicationService.refundContext(currentMerchantId(), transactionId, request));
     }
 
     /**

@@ -19,6 +19,10 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionO
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.enums.RefundReasonEnum;
+import com.scott.payment.component.core.model.RefundContext;
+import com.scott.payment.component.core.iso.IsoCurrencyResolver;
+import org.springframework.context.i18n.LocaleContextHolder;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
@@ -61,6 +65,10 @@ public class AdminTransactionApplicationService {
      * 内部分页拉取大小，受 PageRequest 安全上限保护。
      */
     private static final int EXPORT_PAGE_SIZE = 500;
+    /** 退款预览沿用支付核心非终态退款查询的状态口径。 */
+    private static final Set<String> REFUND_IN_PROGRESS_STATUSES = Set.of("PROCESSING", "PENDING");
+    private static final String REFUND_OPERATION_TYPE = "REFUND";
+    private static final String SUCCESS_STATUS = "SUCCESS";
     /** 异常退出后 Redis 并发租约的最长自恢复时间。 */
     private static final Duration EXPORT_LEASE_TIME = Duration.ofMinutes(5);
 
@@ -320,6 +328,9 @@ public class AdminTransactionApplicationService {
         if (availableRefundAmount != null && transactionAmount.compareTo(availableRefundAmount) > 0) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "refund amount exceeds available refund amount");
         }
+        request.setReason(RefundReasonEnum.resolveRequestReason(
+                request.getReasonCode(), request.getRefundDescription(), request.getReason(),
+                LocaleContextHolder.getLocale()));
         PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
                 sourceOperation,
                 request,
@@ -811,6 +822,55 @@ public class AdminTransactionApplicationService {
                 .filter(operation -> transactionId.equals(operation.getTransactionId()))
                 .findFirst()
                 .orElseThrow(() -> new ApiException(ApiResultEnum.ORDER_NOT_FOUND));
+    }
+
+    /**
+     * 按真实分片时间从主库读取退款额度，使用与支付核心一致的非终态退款口径。
+     * @param transactionId 原交易号
+     * @param request 包含原交易及生命周期根主单分片时间的请求
+     * @return 标签币种下的已退款、处理中及可退金额快照
+     */
+    public RefundContext refundContext(String transactionId, TransactionActionRequest request) {
+        TransactionDetailResponse detailResponse = detail(
+                transactionId, requiredTransactionDateTime(request), requiredRootTransactionDateTime(request));
+        TransactionOperationResponse source = resolveSourceOperation(detailResponse, transactionId);
+        if (!SUCCESS_STATUS.equals(source.getTransactionStatus()) || !REFUND_SOURCE_TYPES.contains(source.getTransactionType())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+        }
+        String currency = resolveLabelCurrency(source, null);
+        int digits = IsoCurrencyResolver.resolve(currency)
+                .map(info -> info.defaultFractionDigits()).filter(value -> value >= 0)
+                .orElseThrow(() -> new ApiException(ApiResultEnum.PARAM_INVALID));
+        if (currency.equalsIgnoreCase(source.getTransactionCurrency())
+                && source.getCurrencyExponent() != null && source.getCurrencyExponent() >= 0) {
+            digits = source.getCurrencyExponent();
+        }
+        BigDecimal available = source.getAvailableRefundAmount();
+        if (available == null) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        }
+        BigDecimal pending = detailResponse.getOperations().stream()
+                .filter(operation -> REFUND_OPERATION_TYPE.equals(operation.getTransactionType()))
+                .filter(operation -> operation.getTransactionStatus() != null
+                        && REFUND_IN_PROGRESS_STATUSES.contains(operation.getTransactionStatus()))
+                .map(TransactionOperationResponse::getTransactionAmount)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal refunded = source.getRefundedAmount() == null ? BigDecimal.ZERO : source.getRefundedAmount();
+        return new RefundContext(currency, digits,
+                refundLabelAmount(source, refunded, digits, RoundingMode.HALF_UP),
+                refundLabelAmount(source, pending, digits, RoundingMode.HALF_UP),
+                refundLabelAmount(source, available.subtract(pending).max(BigDecimal.ZERO), digits, RoundingMode.DOWN));
+    }
+
+    /** 仅展示时换算标签金额；可退上限向下取整，避免展示金额反算后超过实际余额。 */
+    private BigDecimal refundLabelAmount(TransactionOperationResponse source, BigDecimal amount,
+                                         int digits, RoundingMode roundingMode) {
+        if (source.getLabelAmount() != null && source.getTransactionAmount() != null
+                && source.getTransactionAmount().signum() > 0) {
+            return amount.multiply(source.getLabelAmount()).divide(source.getTransactionAmount(), digits, roundingMode);
+        }
+        return amount.setScale(digits, roundingMode);
     }
 
     private String resolveLabelCurrency(TransactionOperationResponse sourceOperation, TransactionActionRequest request) {

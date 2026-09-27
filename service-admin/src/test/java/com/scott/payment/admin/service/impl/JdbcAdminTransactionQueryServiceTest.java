@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -48,6 +49,61 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class JdbcAdminTransactionQueryServiceTest {
+
+    @Test
+    void historicalPaymentShouldShowAuthorizationAndCaptureWithoutDuplicatingPersistedLog() {
+        TransactionOrderResponse order = order("operation-a", LocalDateTime.of(2026, 9, 27, 10, 0));
+        order.setRootTransactionId("transaction-a");
+        TransactionOperationResponse operation = operation("operation-a", "transaction-a", order.getTransactionDateTime());
+        operation.setTransactionType("PAYMENT");
+        operation.setTransactionStatus("SUCCESS");
+        operation.setTransactionCurrency("HKD");
+        operation.setTransactionAmount(new BigDecimal("31.02"));
+        operation.setOperationTime(order.getTransactionDateTime());
+        LocalDateTime successTime = order.getTransactionDateTime().plusSeconds(2);
+        Map<String, Object> successHistory = Map.of(
+                "transactionId", "transaction-a", "statusObject", "OPERATION",
+                "toStatus", "SUCCESS", "statusTime", successTime);
+
+        List<Map<String, Object>> changes = JdbcAdminTransactionQueryService.withInitialAmountChange(
+                order, List.of(operation), List.of(successHistory), List.of());
+
+        assertThat(changes).hasSize(1);
+        assertThat(changes.get(0)).containsEntry("changeSource", "INITIAL_OPERATION")
+                .containsEntry("changeTime", successTime)
+                .containsEntry("authorizedAfter", new BigDecimal("31.02"))
+                .containsEntry("capturedAfter", new BigDecimal("31.02"))
+                .containsEntry("availableCaptureAfter", BigDecimal.ZERO)
+                .containsEntry("availableRefundAfter", new BigDecimal("31.02"));
+        assertThat(JdbcAdminTransactionQueryService.withInitialAmountChange(
+                order, List.of(operation), List.of(successHistory), changes)).hasSize(1);
+        Map<String, Object> refund = Map.of("transactionId", "refund-a", "changeType", "REFUND");
+        assertThat(JdbcAdminTransactionQueryService.withInitialAmountChange(
+                order, List.of(operation), List.of(successHistory), List.of(refund)))
+                .extracting(row -> row.get("changeType"))
+                .containsExactly("PAYMENT", "REFUND");
+    }
+
+    @Test
+    void historicalAuthorizationShouldRemainCapturableAndFailedInitialActionShouldNotAppear() {
+        TransactionOrderResponse order = order("operation-a", LocalDateTime.of(2026, 9, 27, 10, 0));
+        order.setRootTransactionId("transaction-a");
+        TransactionOperationResponse operation = operation("operation-a", "transaction-a", order.getTransactionDateTime());
+        operation.setTransactionType("AUTHORIZATION");
+        operation.setTransactionStatus("SUCCESS");
+        operation.setTransactionAmount(new BigDecimal("16.56"));
+
+        List<Map<String, Object>> changes = JdbcAdminTransactionQueryService.withInitialAmountChange(
+                order, List.of(operation), List.of(), List.of());
+
+        assertThat(changes.get(0)).containsEntry("authorizedAfter", new BigDecimal("16.56"))
+                .containsEntry("capturedAfter", BigDecimal.ZERO)
+                .containsEntry("availableCaptureAfter", new BigDecimal("16.56"))
+                .containsEntry("availableRefundAfter", BigDecimal.ZERO);
+        operation.setTransactionStatus("FAILED");
+        assertThat(JdbcAdminTransactionQueryService.withInitialAmountChange(
+                order, List.of(operation), List.of(), List.of())).isEmpty();
+    }
 
     /** 3DS 展示应优先读取支付方式快照，并用 Hosted Checkout 尝试补齐历史记录。 */
     @Test

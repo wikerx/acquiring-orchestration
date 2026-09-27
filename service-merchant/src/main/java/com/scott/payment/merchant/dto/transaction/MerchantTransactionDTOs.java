@@ -141,6 +141,12 @@ public final class MerchantTransactionDTOs {
          */
         private String reason;
 
+        /** 退款原因稳定编码；新版控制台提交，旧版文本请求可为空。 */
+        private String reasonCode;
+
+        /** 补充退款说明，最多 200 字；OTHER 必填，其他原因选填。 */
+        private String refundDescription;
+
         /**
          * 被操作交易的真实分片时间，必须来自当前商户交易列表结果。
          */

@@ -55,6 +55,117 @@ class MerchantTransactionApplicationServiceTests {
             LocalDateTime.of(2026, 4, 10, 9, 15, 30);
 
     /** 商户后台授权动作必须调用 CAPTURE，不得误标为预授权完成。 */
+    /** 弹窗额度必须扣除处理中退款，失败和已成功动作不得重复扣减。 */
+    @Test
+    void refundContextShouldExcludePendingRefundsAndUseLabelCurrency() {
+        MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
+        PaymentInternalClient payment = mock(PaymentInternalClient.class);
+        MerchantTransactionApplicationService service = service(payment, query, new TransactionShardingProperties(), mock(RedisConcurrencyLimiter.class));
+        TransactionDetailResponse detail = detail("PAYMENT");
+        TransactionOperationResponse source = detail.getOperations().get(0);
+        source.setTransactionAmount(new BigDecimal("100.00"));
+        source.setLabelAmount(new BigDecimal("124.68"));
+        source.setLabelCurrency("HKD");
+        source.setRefundedAmount(new BigDecimal("10.00"));
+        source.setAvailableRefundAmount(new BigDecimal("90.00"));
+        TransactionOperationResponse pending = refundOperation("PENDING", "20.00");
+        TransactionOperationResponse processing = refundOperation("PROCESSING", "5.00");
+        detail.setOperations(List.of(source, pending, processing,
+                refundOperation("SUCCESS", "10.00"), refundOperation("FAILED", "50.00")));
+        when(query.detail(MERCHANT_ID, TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail);
+        var context = service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest());
+        assertThat(context.currency()).isEqualTo("HKD");
+        assertThat(context.currencyExponent()).isEqualTo(2);
+        assertThat(context.refundedAmount()).isEqualByComparingTo("12.47");
+        assertThat(context.pendingRefundAmount()).isEqualByComparingTo("31.17");
+        assertThat(context.availableRefundAmount()).isEqualByComparingTo("81.04");
+        verifyNoInteractions(payment);
+    }
+
+    /** 可退金额为零时不制造最小额度；日元与三位辅币按 ISO 精度显示。 */
+    @Test
+    void refundContextShouldHandleZeroBalanceAndCurrencyPrecision() {
+        MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
+        PaymentInternalClient payment = mock(PaymentInternalClient.class);
+        MerchantTransactionApplicationService service = service(payment, query, new TransactionShardingProperties(), mock(RedisConcurrencyLimiter.class));
+        TransactionDetailResponse detail = detail("PAYMENT");
+        TransactionOperationResponse source = detail.getOperations().get(0);
+        source.setTransactionAmount(new BigDecimal("100"));
+        source.setAvailableRefundAmount(new BigDecimal("10"));
+        source.setLabelAmount(new BigDecimal("123.456"));
+        source.setLabelCurrency("KWD");
+        when(query.detail(MERCHANT_ID, TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail);
+        assertThat(service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest()).availableRefundAmount()).isEqualByComparingTo("12.345");
+        source.setLabelCurrency("JPY");
+        assertThat(service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest()).currencyExponent()).isZero();
+        assertThat(service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest()).availableRefundAmount()).isEqualByComparingTo("12");
+        detail.setOperations(List.of(source, refundOperation("PENDING", "11")));
+        assertThat(service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest()).availableRefundAmount()).isZero();
+    }
+
+    /** 两端入口都必须拦截 OTHER 的空白说明，且不得调用支付核心。 */
+    @Test
+    void refundShouldRejectOtherWithoutDetailsBeforeCallingPayment() {
+        MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
+        PaymentInternalClient payment = mock(PaymentInternalClient.class);
+        MerchantTransactionApplicationService service = service(payment, query, new TransactionShardingProperties(), mock(RedisConcurrencyLimiter.class));
+        when(query.detail(MERCHANT_ID, TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail("PAYMENT"));
+        TransactionActionRequest request = actionRequest();
+        request.setAmount(new BigDecimal("1.00"));
+        request.setReasonCode("OTHER");
+        request.setRefundDescription(" \t\n");
+        request.setReason("Other - cannot bypass required details");
+        assertThatThrownBy(() -> service.refund(MERCHANT_ID, TRANSACTION_ID, request)).isInstanceOf(ApiException.class);
+        verifyNoInteractions(payment);
+    }
+
+    /** 带编码的部分退款原因和说明必须传入现有支付核心审计字段。 */
+    @Test
+    void refundShouldForwardStructuredReasonAndPreserveRequestId() {
+        MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
+        PaymentInternalClient payment = mock(PaymentInternalClient.class);
+        MerchantTransactionApplicationService service = service(payment, query, new TransactionShardingProperties(), mock(RedisConcurrencyLimiter.class));
+        when(query.detail(MERCHANT_ID, TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail("PAYMENT"));
+        TransactionActionRequest request = actionRequest();
+        request.setAmount(new BigDecimal("1.00"));
+        request.setMerchantOrderId("refund-request-001");
+        request.setReasonCode("OTHER");
+        request.setRefundDescription("  Return one item  ");
+        service.refund(MERCHANT_ID, TRANSACTION_ID, request);
+        service.refund(MERCHANT_ID, TRANSACTION_ID, request);
+        ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor = ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
+        org.mockito.Mockito.verify(payment, org.mockito.Mockito.times(2)).refund(captor.capture());
+        assertThat(captor.getValue().getRequestReason()).endsWith(" - Return one item");
+        assertThat(captor.getValue().getTransactionInfo().getDescription()).isEqualTo(captor.getValue().getRequestReason());
+        assertThat(captor.getValue().getMerchantOrderId()).isEqualTo("refund-request-001");
+        assertThat(captor.getAllValues()).allSatisfy(command ->
+                assertThat(command.getMerchantOrderId()).isEqualTo("refund-request-001"));
+    }
+
+    /** 退款额度查询不能泄露其他商户交易信息。 */
+    @Test
+    void refundContextShouldRejectAnotherMerchant() {
+        MerchantTransactionQueryService query = mock(MerchantTransactionQueryService.class);
+        PaymentInternalClient payment = mock(PaymentInternalClient.class);
+        MerchantTransactionApplicationService service = service(payment, query,
+                new TransactionShardingProperties(), mock(RedisConcurrencyLimiter.class));
+        TransactionDetailResponse detail = detail("PAYMENT");
+        detail.getOrder().setMerchantId("another-merchant");
+        when(query.detail(MERCHANT_ID, TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail);
+        assertThatThrownBy(() -> service.refundContext(MERCHANT_ID, TRANSACTION_ID, actionRequest()))
+                .isInstanceOf(ApiException.class);
+        verifyNoInteractions(payment);
+    }
+
+    private TransactionOperationResponse refundOperation(String status, String amount) {
+        TransactionOperationResponse operation = new TransactionOperationResponse();
+        operation.setMerchantId(MERCHANT_ID);
+        operation.setTransactionType("REFUND");
+        operation.setTransactionStatus(status);
+        operation.setTransactionAmount(new BigDecimal(amount));
+        return operation;
+    }
+
     @Test
     void captureShouldCallCaptureCommandForAuthorization() {
         MerchantTransactionQueryService queryService = mock(MerchantTransactionQueryService.class);
