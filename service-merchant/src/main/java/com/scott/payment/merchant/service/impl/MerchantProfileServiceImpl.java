@@ -9,6 +9,7 @@ import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
+import com.scott.payment.component.db.auth.support.MerchantLocaleSupport;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.merchant.dto.profile.MerchantProfileResponse;
@@ -21,6 +22,7 @@ import org.springframework.util.StringUtils;
 import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Locale;
 
 /**
  * @author : scott
@@ -113,15 +115,17 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         int updated = merchantInfoMapper.update(
                 null,
                 Wrappers.<BaseMerchantInfoDO>lambdaUpdate()
-                        .set(BaseMerchantInfoDO::getBillingDescriptor, normalized.getBillingDescriptor())
                         .set(BaseMerchantInfoDO::getMerchantShortName, normalized.getMerchantShortName())
-                        .set(BaseMerchantInfoDO::getRegionCode, normalized.getRegionCode())
-                        .set(BaseMerchantInfoDO::getCity, normalized.getCity())
-                        .set(BaseMerchantInfoDO::getAddressLine, normalized.getAddressLine())
-                        .set(BaseMerchantInfoDO::getPostalCode, normalized.getPostalCode())
                         .set(BaseMerchantInfoDO::getContactName, normalized.getContactName())
+                        .set(BaseMerchantInfoDO::getContactTitle, normalized.getContactTitle())
                         .set(BaseMerchantInfoDO::getContactEmail, normalized.getContactEmail())
                         .set(BaseMerchantInfoDO::getContactPhone, normalized.getContactPhone())
+                        .set(BaseMerchantInfoDO::getAlternateEmail, normalized.getAlternateEmail())
+                        .set(BaseMerchantInfoDO::getFinanceContactName, normalized.getFinanceContactName())
+                        .set(BaseMerchantInfoDO::getFinanceContactEmail, normalized.getFinanceContactEmail())
+                        .set(BaseMerchantInfoDO::getTechnicalContactName, normalized.getTechnicalContactName())
+                        .set(BaseMerchantInfoDO::getTechnicalContactEmail, normalized.getTechnicalContactEmail())
+                        .set(BaseMerchantInfoDO::getDefaultLocale, normalized.getDefaultLocale())
                         .set(BaseMerchantInfoDO::getTimezone, normalized.getTimezone())
                         .set(BaseMerchantInfoDO::getGmtModified, now)
                         .eq(BaseMerchantInfoDO::getId, existing.getId())
@@ -168,15 +172,18 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "merchant profile request is required");
         }
         MerchantProfileUpdateRequest normalized = new MerchantProfileUpdateRequest();
-        normalized.setBillingDescriptor(requireText(request.getBillingDescriptor(), "billingDescriptor"));
         normalized.setMerchantShortName(requireText(request.getMerchantShortName(), "merchantShortName"));
-        normalized.setRegionCode(trimToNull(request.getRegionCode()));
-        normalized.setCity(trimToNull(request.getCity()));
-        normalized.setAddressLine(trimToNull(request.getAddressLine()));
-        normalized.setPostalCode(trimToNull(request.getPostalCode()));
         normalized.setContactName(trimToNull(request.getContactName()));
-        normalized.setContactEmail(requireText(request.getContactEmail(), "contactEmail"));
+        normalized.setContactTitle(trimToNull(request.getContactTitle()));
+        normalized.setContactEmail(lower(requireText(request.getContactEmail(), "contactEmail")));
         normalized.setContactPhone(trimToNull(request.getContactPhone()));
+        normalized.setAlternateEmail(lower(request.getAlternateEmail()));
+        normalized.setFinanceContactName(trimToNull(request.getFinanceContactName()));
+        normalized.setFinanceContactEmail(lower(request.getFinanceContactEmail()));
+        normalized.setTechnicalContactName(trimToNull(request.getTechnicalContactName()));
+        normalized.setTechnicalContactEmail(lower(request.getTechnicalContactEmail()));
+        normalized.setDefaultLocale(MerchantLocaleSupport.normalize(
+                requireText(request.getDefaultLocale(), "defaultLocale")));
         normalized.setTimezone(requireText(request.getTimezone(), "timezone"));
         validateTimezone(normalized.getTimezone());
         return normalized;
@@ -216,8 +223,14 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         response.setAddressLine(profile.getAddressLine());
         response.setPostalCode(profile.getPostalCode());
         response.setContactName(profile.getContactName());
+        response.setContactTitle(profile.getContactTitle());
         response.setContactEmail(profile.getContactEmail());
         response.setContactPhone(profile.getContactPhone());
+        response.setAlternateEmail(profile.getAlternateEmail());
+        response.setFinanceContactName(profile.getFinanceContactName());
+        response.setFinanceContactEmail(profile.getFinanceContactEmail());
+        response.setTechnicalContactName(profile.getTechnicalContactName());
+        response.setTechnicalContactEmail(profile.getTechnicalContactEmail());
         response.setSettlementCurrency(profile.getSettlementCurrency());
         response.setTimezone(profile.getTimezone());
         response.setRiskLevel(profile.getRiskLevel());
@@ -242,8 +255,14 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         response.setAddressLine(row.getAddressLine());
         response.setPostalCode(row.getPostalCode());
         response.setContactName(row.getContactName());
+        response.setContactTitle(row.getContactTitle());
         response.setContactEmail(row.getContactEmail());
         response.setContactPhone(row.getContactPhone());
+        response.setAlternateEmail(row.getAlternateEmail());
+        response.setFinanceContactName(row.getFinanceContactName());
+        response.setFinanceContactEmail(row.getFinanceContactEmail());
+        response.setTechnicalContactName(row.getTechnicalContactName());
+        response.setTechnicalContactEmail(row.getTechnicalContactEmail());
         response.setSettlementCurrency(row.getSettlementCurrency());
         response.setTimezone(row.getTimezone());
         response.setRiskLevel(row.getRiskLevel());
@@ -274,8 +293,14 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
         profile.setAddressLine(row.getAddressLine());
         profile.setPostalCode(row.getPostalCode());
         profile.setContactName(row.getContactName());
+        profile.setContactTitle(row.getContactTitle());
         profile.setContactEmail(row.getContactEmail());
         profile.setContactPhone(row.getContactPhone());
+        profile.setAlternateEmail(row.getAlternateEmail());
+        profile.setFinanceContactName(row.getFinanceContactName());
+        profile.setFinanceContactEmail(row.getFinanceContactEmail());
+        profile.setTechnicalContactName(row.getTechnicalContactName());
+        profile.setTechnicalContactEmail(row.getTechnicalContactEmail());
         profile.setSettlementCurrency(row.getSettlementCurrency());
         profile.setTimezone(row.getTimezone());
         profile.setRiskLevel(row.getRiskLevel());
@@ -303,6 +328,12 @@ public class MerchantProfileServiceImpl implements MerchantProfileService {
     /** 将可选文本规范化为空值或去除首尾空白后的值。 */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    /** 将可选邮箱规范化为小写，空白值统一保存为 null。 */
+    private String lower(String value) {
+        String normalized = trimToNull(value);
+        return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
     /** 构造不泄露内部主键或查询细节的商户不存在异常。 */

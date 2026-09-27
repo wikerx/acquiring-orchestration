@@ -95,14 +95,15 @@ class AdminMerchantKeyMetadataInvalidationTests {
                 keyMaterialFactory,
                 mock(MerchantRuntimeProfileCacheService.class),
                 cacheInvalidationCoordinator,
-                mock(AdminMerchantPrimaryAccountProvisioningService.class),
                 mock(AdminMerchantFundAccountProvisioningService.class),
                 mock(com.scott.payment.component.db.auth.mapper.SysAccountMapper.class),
                 mock(MerchantFundAccountMapper.class),
                 mock(FeePlanMapper.class),
                 mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
                 mock(AdminMerchantSecurityNotificationService.class),
-                mock(AdminMerchantStatusLifecycleService.class)
+                mock(AdminMerchantStatusLifecycleService.class),
+                mock(MerchantOnboardingService.class),
+                mock(MerchantIdAllocationService.class)
         );
         when(merchantInfoMapper.selectOne(any())).thenReturn(merchant());
     }

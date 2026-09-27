@@ -166,6 +166,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
     @Transactional(rollbackFor = Exception.class)
     public void provision(BaseMerchantInfoDO merchant) {
         requireProvisioningFields(merchant);
+        if (hasProvisionedAccount(merchant.getMerchantId())) {
+            return;
+        }
         SysAppDO app = merchantApp();
         String loginAccount = merchant.getContactEmail().trim().toLowerCase();
         assertAccountAvailable(app.getId(), loginAccount);
@@ -184,6 +187,19 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         SysMerchantUserDO merchantUser = createMerchantUser(merchant, user, account, now);
         bindAdministratorRole(app, merchant, merchantUser, role, now);
         sendAccountCreatedNoticeAfterCommit(merchant, account, initialPassword);
+    }
+
+    /**
+     * 判断商户主账号是否已创建，保证重复激活不会重复创建用户、角色或发送开户通知。
+     *
+     * @param merchantId 平台商户号
+     * @return true 表示已存在未删除商户账号
+     */
+    private boolean hasProvisionedAccount(String merchantId) {
+        Long count = accountMapper.selectCount(Wrappers.<SysAccountDO>lambdaQuery()
+                .eq(SysAccountDO::getMerchantId, merchantId)
+                .eq(SysAccountDO::getDeleted, AuthConstants.NOT_DELETED));
+        return count != null && count > 0;
     }
 
     private SysAppDO merchantApp() {

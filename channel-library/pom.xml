@@ -28,9 +28,13 @@
         <module>payment-channel-mpgs</module>
         <!--Worldpay 支付渠道适配器。-->
         <module>payment-channel-worldpay</module>
+        <!--ScottChannelA 代收协议适配器。-->
+        <module>payment-channel-scott-channel-a</module>
         <!--代付渠道请求、响应、枚举、异常和 SPI 契约。-->
         <module>payout-channel-api</module>
         <!--代付渠道注册、路由和统一执行框架。-->
         <module>payout-channel-core</module>
+        <!--ScottChannelA 代付协议适配器。-->
+        <module>payout-channel-scott-channel-a</module>
     </modules>
 </project>

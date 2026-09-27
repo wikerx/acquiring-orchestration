@@ -489,7 +489,7 @@ public final class ChannelDTOs {
          */
         private String cardBrandScope;
         /**
-         * 支持交易类型，由渠道能力按支付方式派生，前端不再要求人工维护。
+         * 支持交易类型，由渠道能力按支付方式派生；收单和代付分别使用对应交易类型字典。
          */
         private String transactionTypeScope;
         /**
@@ -646,7 +646,7 @@ public final class ChannelDTOs {
          */
         private String cardBrandScope;
         /**
-         * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
+         * 交易类型，收单使用支付、授权、请款、退款等动作，代付使用代付或取消动作，用于选择渠道能力。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
@@ -819,6 +819,10 @@ public final class ChannelDTOs {
          */
         private String channelCode;
         /**
+         * 业务类型：ACQUIRING 收单、PAYOUT 代付。
+         */
+        private String businessType;
+        /**
          * {@code midConfigId}，用于定位 {@code MerchantChannelMidBindingQuery} 关联的上游配置、渠道、账号、角色或业务记录。
          * <p>
          * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -973,6 +977,10 @@ public final class ChannelDTOs {
          * </p>
          */
         private String channelMid;
+        /**
+         * 业务类型：ACQUIRING 收单、PAYOUT 代付，来源于所绑定的 MID 配置。
+         */
+        private String businessType;
         /**
          * {@code midName}，用于定位渠道商户号配置或渠道侧 MID。
          * <p>
@@ -1139,8 +1147,12 @@ public final class ChannelDTOs {
          * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
          * </p>
          */
-        @NotBlank(message = "paymentMethod is required")
         private String paymentMethod;
+        /**
+         * 新增支付能力时选择的多个支付方式；服务端会去重，并为每个支付方式创建独立能力记录。
+         * 旧版调用方仍可只提交 {@link #paymentMethod}。
+         */
+        private List<String> paymentMethods = new ArrayList<>();
         /**
          * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
          * <p>

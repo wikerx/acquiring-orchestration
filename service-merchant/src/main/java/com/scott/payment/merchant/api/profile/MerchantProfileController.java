@@ -10,11 +10,14 @@ import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import com.scott.payment.component.web.operation.constant.OperatorTypeConstants;
 import com.scott.payment.merchant.application.profile.MerchantProfileApplicationService;
+import com.scott.payment.merchant.dto.profile.MerchantProfileChangeDTOs;
 import com.scott.payment.merchant.dto.profile.MerchantProfileResponse;
 import com.scott.payment.merchant.dto.profile.MerchantProfileUpdateRequest;
 import jakarta.validation.Valid;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -80,6 +83,71 @@ public class MerchantProfileController {
     public CommonResult<MerchantProfileResponse> updateProfile(
             @Valid @RequestBody MerchantProfileUpdateRequest request) {
         return success(applicationService.updateProfile(currentMerchantId(), request));
+    }
+
+    /** 查询商户资料维护工作区，包含正式资料、活动申请、历史和合规资料。 */
+    @GetMapping("/workspace")
+    @RequiresPermission("merchant:info:view")
+    public CommonResult<MerchantProfileChangeDTOs.Workspace> getWorkspace() {
+        return success(applicationService.getWorkspace(currentMerchantId()));
+    }
+
+    /** 保存需审核字段的资料变更草稿，禁止直接覆盖正式主档。 */
+    @PostMapping("/change-requests/draft")
+    @RequiresPermission("merchant:info:edit")
+    @OperationLog(
+            moduleName = "商户资料维护",
+            businessType = OperationTypeConstants.UPDATE,
+            operation = "保存商户资料变更草稿",
+            operatorType = OperatorTypeConstants.MERCHANT_USER,
+            recordRequest = false,
+            recordResponse = false
+    )
+    public CommonResult<MerchantProfileChangeDTOs.ChangeRequest> saveChangeDraft(
+            @Valid @RequestBody MerchantProfileChangeDTOs.ProfileSnapshot request) {
+        return success(applicationService.saveDraft(currentMerchantId(), request));
+    }
+
+    /** 查询当前商户自己的指定资料变更申请。 */
+    @GetMapping("/change-requests/{requestNo}")
+    @RequiresPermission("merchant:info:view")
+    public CommonResult<MerchantProfileChangeDTOs.ChangeRequest> getChangeRequest(
+            @PathVariable("requestNo") String requestNo) {
+        return success(applicationService.getChangeRequest(currentMerchantId(), requestNo));
+    }
+
+    /** 提交草稿或补件申请进入管理端审核。 */
+    @PostMapping("/change-requests/{requestNo}/submit")
+    @RequiresPermission("merchant:info:edit")
+    @OperationLog(
+            moduleName = "商户资料维护",
+            businessType = OperationTypeConstants.UPDATE,
+            operation = "提交商户资料变更审核",
+            operatorType = OperatorTypeConstants.MERCHANT_USER,
+            recordRequest = false,
+            recordResponse = false
+    )
+    public CommonResult<MerchantProfileChangeDTOs.ChangeRequest> submitChangeRequest(
+            @PathVariable("requestNo") String requestNo,
+            @RequestBody(required = false) MerchantProfileChangeDTOs.SubmitRequest request) {
+        return success(applicationService.submitChangeRequest(
+                currentMerchantId(), requestNo, request == null ? null : request.getComment()));
+    }
+
+    /** 撤回尚未完成审核的资料变更申请并释放活动申请占位。 */
+    @PostMapping("/change-requests/{requestNo}/withdraw")
+    @RequiresPermission("merchant:info:edit")
+    @OperationLog(
+            moduleName = "商户资料维护",
+            businessType = OperationTypeConstants.UPDATE,
+            operation = "撤回商户资料变更申请",
+            operatorType = OperatorTypeConstants.MERCHANT_USER,
+            recordRequest = false,
+            recordResponse = false
+    )
+    public CommonResult<MerchantProfileChangeDTOs.ChangeRequest> withdrawChangeRequest(
+            @PathVariable("requestNo") String requestNo) {
+        return success(applicationService.withdrawChangeRequest(currentMerchantId(), requestNo));
     }
 
     /**

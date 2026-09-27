@@ -55,11 +55,29 @@ public class MerchantProfileResponse {
     /** 商户联系人姓名，敏感字段，仅向当前认证商户返回。 */
     private String contactName;
 
+    /** 主要联系人职位。 */
+    private String contactTitle;
+
     /** 商户联系邮箱，敏感字段，仅向当前认证商户返回。 */
     private String contactEmail;
 
     /** 商户联系电话，敏感字段，仅向当前认证商户返回。 */
     private String contactPhone;
+
+    /** 备用联系邮箱。 */
+    private String alternateEmail;
+
+    /** 财务联系人姓名。 */
+    private String financeContactName;
+
+    /** 财务联系人邮箱。 */
+    private String financeContactEmail;
+
+    /** 技术联系人姓名。 */
+    private String technicalContactName;
+
+    /** 技术联系人邮箱。 */
+    private String technicalContactEmail;
 
     /** 默认结算币种三字码，只读。 */
     private String settlementCurrency;

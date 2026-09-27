@@ -926,9 +926,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         identity.setChannelOrderNo(requestDO.getChannelOrderNo());
         identity.setChannelTransactionId(requestDO.getChannelTransactionId());
 
-        PaymentRouteResultDTO route = paymentChannelRouteService.restore(
-                operationDO.getChannelCode(), operationDO.getChannelId(),
-                operationDO.getChannelMidConfigId(), orderDO.getChannelMerchantId());
+        PaymentRouteResultDTO route = OriginalTransactionRouteResolver.restore(
+                paymentChannelRouteService, orderDO, operationDO);
         PaymentPreparedChannelRequestDTO preparedRequest = new PaymentPreparedChannelRequestDTO();
         preparedRequest.setRequestId(requestDO.getRequestId());
         preparedRequest.setChannelOrderNo(requestDO.getChannelOrderNo());

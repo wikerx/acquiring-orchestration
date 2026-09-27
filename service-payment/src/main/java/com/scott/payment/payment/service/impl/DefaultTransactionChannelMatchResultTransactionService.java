@@ -14,6 +14,7 @@ import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
@@ -73,7 +74,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 invokeResultDTO,
                 resolution == null ? null : resolution.getTargetStatus(),
                 resolution == null ? null : resolution.getFailReasonCode());
-        TransactionOrderDO orderDO = transactionRecordService.findOrder(operationDO.getTransactionDateTime(), operationDO.getOperationId());
+        TransactionOrderDO orderDO = findLifecycleOrder(operationDO);
         boolean statusChanged = transactionRecordService.completeByChannelCallback(
                 operationDO,
                 orderDO,
@@ -95,6 +96,21 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                     operationDO.getTransactionDateTime());
         }
         return statusChanged;
+    }
+
+    /**
+     * 定位交易生命周期主单；后续动作必须通过源交易号回到原始主单时间分片。
+     *
+     * @param operationDO 当前渠道查询动作单
+     * @return 生命周期主单
+     */
+    private TransactionOrderDO findLifecycleOrder(TransactionOperationDO operationDO) {
+        if (StringUtils.hasText(operationDO.getSourceTransactionId())) {
+            return transactionRecordService.findSourceOrderByTransactionId(
+                    operationDO.getSourceTransactionId());
+        }
+        return transactionRecordService.findOrder(
+                operationDO.getTransactionDateTime(), operationDO.getOperationId());
     }
 
     /** 保存平台终态交易的渠道查询摘要，不进入交易状态机。 */

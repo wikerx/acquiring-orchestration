@@ -221,7 +221,7 @@ public final class ChannelEntities {
          */
         private String cardBrandScope;
         /**
-         * 支持交易类型，ALL 或 transaction_type 字典值逗号分隔。
+         * 支持交易类型，ALL 或按业务类型取 transaction_type / payout_transaction_type 字典值逗号分隔。
          */
         private String transactionTypeScope;
         /**

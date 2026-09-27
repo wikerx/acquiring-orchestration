@@ -1,8 +1,10 @@
 package com.scott.payment.merchant.application.profile;
 
 import com.scott.payment.merchant.dto.profile.MerchantProfileResponse;
+import com.scott.payment.merchant.dto.profile.MerchantProfileChangeDTOs;
 import com.scott.payment.merchant.dto.profile.MerchantProfileUpdateRequest;
 import com.scott.payment.merchant.service.MerchantProfileService;
+import com.scott.payment.merchant.service.impl.MerchantProfileChangeRequestService;
 import org.springframework.stereotype.Service;
 
 /**
@@ -20,13 +22,19 @@ public class MerchantProfileApplicationService {
     /** 商户主体资料领域服务。 */
     private final MerchantProfileService merchantProfileService;
 
+    /** 商户高风险资料变更申请服务。 */
+    private final MerchantProfileChangeRequestService changeRequestService;
+
     /**
      * 创建商户主体资料应用服务。
      *
      * @param merchantProfileService 商户主体资料领域服务
      */
-    public MerchantProfileApplicationService(MerchantProfileService merchantProfileService) {
+    public MerchantProfileApplicationService(
+            MerchantProfileService merchantProfileService,
+            MerchantProfileChangeRequestService changeRequestService) {
         this.merchantProfileService = merchantProfileService;
+        this.changeRequestService = changeRequestService;
     }
 
     /**
@@ -49,5 +57,34 @@ public class MerchantProfileApplicationService {
     public MerchantProfileResponse updateProfile(String merchantId,
                                                  MerchantProfileUpdateRequest request) {
         return merchantProfileService.updateProfile(merchantId, request);
+    }
+
+    /** 查询当前商户资料维护工作区。 */
+    public MerchantProfileChangeDTOs.Workspace getWorkspace(String merchantId) {
+        return changeRequestService.getWorkspace(merchantId);
+    }
+
+    /** 保存高风险资料变更草稿，正式资料保持不变。 */
+    public MerchantProfileChangeDTOs.ChangeRequest saveDraft(
+            String merchantId, MerchantProfileChangeDTOs.ProfileSnapshot request) {
+        return changeRequestService.saveDraft(merchantId, request);
+    }
+
+    /** 查询当前商户指定资料变更申请。 */
+    public MerchantProfileChangeDTOs.ChangeRequest getChangeRequest(
+            String merchantId, String requestNo) {
+        return changeRequestService.getRequest(merchantId, requestNo);
+    }
+
+    /** 提交高风险资料变更申请进入管理端审核。 */
+    public MerchantProfileChangeDTOs.ChangeRequest submitChangeRequest(
+            String merchantId, String requestNo, String comment) {
+        return changeRequestService.submit(merchantId, requestNo, comment);
+    }
+
+    /** 撤回尚未完成审核的高风险资料变更申请。 */
+    public MerchantProfileChangeDTOs.ChangeRequest withdrawChangeRequest(
+            String merchantId, String requestNo) {
+        return changeRequestService.withdraw(merchantId, requestNo);
     }
 }

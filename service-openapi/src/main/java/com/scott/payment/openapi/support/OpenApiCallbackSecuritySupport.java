@@ -99,6 +99,9 @@ public class OpenApiCallbackSecuritySupport {
     /** 按渠道编码定位 provider 验签实现。 */
     private final PaymentChannelCallbackVerifierRegistry callbackVerifierRegistry;
 
+    /** MID 级回调密钥解析器，优先于环境级渠道兜底配置。 */
+    private final ChannelCallbackSecretResolver channelCallbackSecretResolver;
+
     /**
      * 创建回调入口安全校验组件。
      *
@@ -108,17 +111,28 @@ public class OpenApiCallbackSecuritySupport {
     @Autowired
     public OpenApiCallbackSecuritySupport(OpenApiCallbackProperties callbackProperties,
                                           SecurityInterceptEventRecorder securityInterceptEventRecorder,
-                                          PaymentChannelCallbackVerifierRegistry callbackVerifierRegistry) {
+                                          PaymentChannelCallbackVerifierRegistry callbackVerifierRegistry,
+                                          ChannelCallbackSecretResolver channelCallbackSecretResolver) {
         this.callbackProperties = callbackProperties;
         this.securityInterceptEventRecorder = securityInterceptEventRecorder;
         this.callbackVerifierRegistry = callbackVerifierRegistry;
+        this.channelCallbackSecretResolver = channelCallbackSecretResolver;
+    }
+
+    /** 兼容测试和历史装配，仅使用环境级回调密钥兜底。 */
+    public OpenApiCallbackSecuritySupport(OpenApiCallbackProperties callbackProperties,
+                                          SecurityInterceptEventRecorder securityInterceptEventRecorder,
+                                          PaymentChannelCallbackVerifierRegistry callbackVerifierRegistry) {
+        this(callbackProperties, securityInterceptEventRecorder, callbackVerifierRegistry,
+                (channelCode, merchantId) -> null);
     }
 
     /** 兼容不启动 Spring 容器的安全单元测试，生产环境使用三参数构造器注入 Registry。 */
     public OpenApiCallbackSecuritySupport(OpenApiCallbackProperties callbackProperties,
                                           SecurityInterceptEventRecorder securityInterceptEventRecorder) {
         this(callbackProperties, securityInterceptEventRecorder,
-                new PaymentChannelCallbackVerifierRegistry(List.of(new HmacPaymentChannelCallbackVerifier())));
+                new PaymentChannelCallbackVerifierRegistry(List.of(new HmacPaymentChannelCallbackVerifier())),
+                (channelCode, merchantId) -> null);
     }
 
     /**
@@ -162,7 +176,7 @@ public class OpenApiCallbackSecuritySupport {
                     request.getRequestURI(),
                     headers,
                     rawBody,
-                    channelSecret(channelCode),
+                    resolveChannelSecret(channelCode, headerValue(headers, "X-Merchant-Id")),
                     channelEventSecrets(channelCode),
                     callbackProperties.getAllowedClockSkewMillis(),
                     InternalServiceSignature.currentTimeMillis()));
@@ -177,6 +191,33 @@ public class OpenApiCallbackSecuritySupport {
                     "channel callback verifier is not configured");
         }
         return new CallbackSecurityResult(true, ipAllowed);
+    }
+
+    /**
+     * 判断渠道回调入口是否需要按渠道协议返回纯文本 SUCCESS。
+     *
+     * @param channelCode 渠道编码
+     * @return true 表示回调成功确认必须为纯文本 SUCCESS
+     */
+    public boolean requiresPlainTextSuccessAcknowledgement(String channelCode) {
+        return callbackVerifierRegistry.requiresPlainTextSuccessAcknowledgement(channelCode);
+    }
+
+    /** MID 元数据优先，环境配置仅作为历史渠道兼容兜底。 */
+    private String resolveChannelSecret(String channelCode, String merchantId) {
+        String metadataSecret = channelCallbackSecretResolver.resolve(channelCode, merchantId);
+        return StringUtils.hasText(metadataSecret) ? metadataSecret : channelSecret(channelCode);
+    }
+
+    private String headerValue(Map<String, String> headers, String name) {
+        if (headers == null) {
+            return null;
+        }
+        return headers.entrySet().stream()
+                .filter(entry -> name.equalsIgnoreCase(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
     }
 
     /**

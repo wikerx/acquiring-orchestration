@@ -67,6 +67,20 @@ public class PaymentChannelCallbackVerifierRegistry {
     }
 
     /**
+     * 查询指定渠道的回调成功响应契约。
+     *
+     * @param channelCode 渠道编码
+     * @return true 表示渠道要求纯文本 SUCCESS
+     */
+    public boolean requiresPlainTextSuccessAcknowledgement(String channelCode) {
+        PaymentChannelCallbackVerifier verifier = verifiers.get(normalize(channelCode));
+        if (verifier == null) {
+            verifier = fallbackVerifier;
+        }
+        return verifier != null && verifier.requiresPlainTextSuccessAcknowledgement();
+    }
+
+    /**
      * 返回按规范化渠道编码注册的回调验签器只读视图。
      * <p>
      * 返回不可变注册表视图，不修改验签器注册状态。

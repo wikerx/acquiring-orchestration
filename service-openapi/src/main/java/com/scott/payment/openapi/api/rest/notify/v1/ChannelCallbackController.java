@@ -87,9 +87,9 @@ public class ChannelCallbackController {
      * @return 回调受理结果
      */
     @PostMapping("/{channelCode}")
-    public ApiResult<String> receive(@PathVariable("channelCode") String channelCode,
-                                     HttpServletRequest request,
-                                     @RequestBody(required = false) String rawBody) {
+    public Object receive(@PathVariable("channelCode") String channelCode,
+                          HttpServletRequest request,
+                          @RequestBody(required = false) String rawBody) {
         long startNanos = System.nanoTime();
         log.info("event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIp: {} headerCount: {} bodyLength: {} bodyDigest: {}",
                 TraceContext.getTraceId(),
@@ -110,7 +110,7 @@ public class ChannelCallbackController {
                 securityResult.signatureValid(),
                 securityResult.ipAllowed(),
                 elapsedMillis(startNanos));
-        return success(channelCode + " accepted");
+        return callbackAcknowledgement(channelCode, channelCode + " accepted");
     }
 
     /**
@@ -122,9 +122,9 @@ public class ChannelCallbackController {
      * @return 回调受理结果
      */
     @PostMapping("/{channelCode}/3ds")
-    public ApiResult<String> receiveThreeDs(@PathVariable("channelCode") String channelCode,
-                                            HttpServletRequest request,
-                                            @RequestBody(required = false) String rawBody) {
+    public Object receiveThreeDs(@PathVariable("channelCode") String channelCode,
+                                 HttpServletRequest request,
+                                 @RequestBody(required = false) String rawBody) {
         long startNanos = System.nanoTime();
         log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIp: {} headerCount: {} bodyLength: {} bodyDigest: {}",
                 TraceContext.getTraceId(),
@@ -145,7 +145,20 @@ public class ChannelCallbackController {
                 securityResult.signatureValid(),
                 securityResult.ipAllowed(),
                 elapsedMillis(startNanos));
-        return success(channelCode + " 3ds accepted");
+        return callbackAcknowledgement(channelCode, channelCode + " 3ds accepted");
+    }
+
+    /**
+     * 按渠道回调协议生成成功确认正文。
+     *
+     * @param channelCode 渠道编码
+     * @param acceptedMessage 历史渠道使用的统一响应消息
+     * @return 纯文本 SUCCESS 或既有统一响应
+     */
+    private Object callbackAcknowledgement(String channelCode, String acceptedMessage) {
+        return callbackSecuritySupport.requiresPlainTextSuccessAcknowledgement(channelCode)
+                ? "SUCCESS"
+                : success(acceptedMessage);
     }
 
     /**

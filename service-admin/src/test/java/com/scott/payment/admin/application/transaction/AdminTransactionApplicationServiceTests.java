@@ -53,6 +53,101 @@ class AdminTransactionApplicationServiceTests {
     private static final LocalDateTime ROOT_TRANSACTION_DATE_TIME =
             LocalDateTime.of(2026, 4, 10, 9, 15, 30);
 
+    /** 弹窗额度必须扣除处理中退款，失败和已成功动作不得重复扣减。 */
+    @Test
+    void refundContextShouldExcludePendingRefundsAndUseLabelCurrency() {
+        AdminTransactionQueryService query = mock(AdminTransactionQueryService.class);
+        PaymentInternalClient payment = mock(PaymentInternalClient.class);
+        AdminTransactionApplicationService service = buildService(payment, query);
+        TransactionDetailResponse detail = detail("TX-REFUND", "PAYMENT");
+        TransactionOperationResponse source = detail.getOperations().get(0);
+        source.setTransactionAmount(new BigDecimal("100.00"));
+        source.setLabelAmount(new BigDecimal("124.68"));
+        source.setLabelCurrency("HKD");
+        source.setRefundedAmount(new BigDecimal("10.00"));
+        source.setAvailableRefundAmount(new BigDecimal("90.00"));
+        TransactionOperationResponse pending = refundOperation("PENDING", "20.00");
+        TransactionOperationResponse processing = refundOperation("PROCESSING", "5.00");
+        detail.setOperations(List.of(source, pending, processing,
+                refundOperation("SUCCESS", "10.00"), refundOperation("FAILED", "50.00")));
+        when(query.detail("TX-REFUND", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail);
+        var context = service.refundContext("TX-REFUND", actionRequest());
+        assertThat(context.currency()).isEqualTo("HKD");
+        assertThat(context.currencyExponent()).isEqualTo(2);
+        assertThat(context.refundedAmount()).isEqualByComparingTo("12.47");
+        assertThat(context.pendingRefundAmount()).isEqualByComparingTo("31.17");
+        assertThat(context.availableRefundAmount()).isEqualByComparingTo("81.04");
+        verifyNoInteractions(payment);
+    }
+
+    /** 可退金额为零时不制造最小额度；日元与三位辅币按 ISO 精度显示。 */
+    @Test
+    void refundContextShouldHandleZeroBalanceAndCurrencyPrecision() {
+        AdminTransactionQueryService query = mock(AdminTransactionQueryService.class);
+        PaymentInternalClient payment = mock(PaymentInternalClient.class);
+        AdminTransactionApplicationService service = buildService(payment, query);
+        TransactionDetailResponse detail = detail("TX-REFUND", "PAYMENT");
+        TransactionOperationResponse source = detail.getOperations().get(0);
+        source.setTransactionAmount(new BigDecimal("100"));
+        source.setAvailableRefundAmount(new BigDecimal("10"));
+        source.setLabelAmount(new BigDecimal("123.456"));
+        source.setLabelCurrency("KWD");
+        when(query.detail("TX-REFUND", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail);
+        assertThat(service.refundContext("TX-REFUND", actionRequest()).availableRefundAmount()).isEqualByComparingTo("12.345");
+        source.setLabelCurrency("JPY");
+        assertThat(service.refundContext("TX-REFUND", actionRequest()).currencyExponent()).isZero();
+        assertThat(service.refundContext("TX-REFUND", actionRequest()).availableRefundAmount()).isEqualByComparingTo("12");
+        detail.setOperations(List.of(source, refundOperation("PENDING", "11")));
+        assertThat(service.refundContext("TX-REFUND", actionRequest()).availableRefundAmount()).isZero();
+    }
+
+    /** 两端入口都必须拦截 OTHER 的空白说明，且不得调用支付核心。 */
+    @Test
+    void refundShouldRejectOtherWithoutDetailsBeforeCallingPayment() {
+        AdminTransactionQueryService query = mock(AdminTransactionQueryService.class);
+        PaymentInternalClient payment = mock(PaymentInternalClient.class);
+        AdminTransactionApplicationService service = buildService(payment, query);
+        when(query.detail("TX-REFUND", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail("TX-REFUND", "PAYMENT"));
+        TransactionActionRequest request = actionRequest();
+        request.setAmount(new BigDecimal("1.00"));
+        request.setReasonCode("OTHER");
+        request.setRefundDescription(" \t\n");
+        request.setReason("Other - cannot bypass required details");
+        assertThatThrownBy(() -> service.refund("TX-REFUND", request)).isInstanceOf(ApiException.class);
+        verifyNoInteractions(payment);
+    }
+
+    /** 带编码的部分退款原因和说明必须传入现有支付核心审计字段。 */
+    @Test
+    void refundShouldForwardStructuredReasonAndPreserveRequestId() {
+        AdminTransactionQueryService query = mock(AdminTransactionQueryService.class);
+        PaymentInternalClient payment = mock(PaymentInternalClient.class);
+        AdminTransactionApplicationService service = buildService(payment, query);
+        when(query.detail("TX-REFUND", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME)).thenReturn(detail("TX-REFUND", "PAYMENT"));
+        TransactionActionRequest request = actionRequest();
+        request.setAmount(new BigDecimal("1.00"));
+        request.setMerchantOrderId("refund-request-001");
+        request.setReasonCode("OTHER");
+        request.setRefundDescription("  Return one item  ");
+        service.refund("TX-REFUND", request);
+        service.refund("TX-REFUND", request);
+        ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor = ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
+        org.mockito.Mockito.verify(payment, org.mockito.Mockito.times(2)).refund(captor.capture());
+        assertThat(captor.getValue().getRequestReason()).endsWith(" - Return one item");
+        assertThat(captor.getValue().getTransactionInfo().getDescription()).isEqualTo(captor.getValue().getRequestReason());
+        assertThat(captor.getValue().getMerchantOrderId()).isEqualTo("refund-request-001");
+        assertThat(captor.getAllValues()).allSatisfy(command ->
+                assertThat(command.getMerchantOrderId()).isEqualTo("refund-request-001"));
+    }
+
+    private TransactionOperationResponse refundOperation(String status, String amount) {
+        TransactionOperationResponse operation = new TransactionOperationResponse();
+        operation.setTransactionType("REFUND");
+        operation.setTransactionStatus(status);
+        operation.setTransactionAmount(new BigDecimal(amount));
+        return operation;
+    }
+
     @Test
     void channelMatchRequeryShouldPassThroughRealShardTime() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);

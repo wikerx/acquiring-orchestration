@@ -251,6 +251,12 @@ public class TransactionOperationDO implements Serializable {
     private String channelTerminalId;
 
     /**
+     * 原交易渠道路由快照，冻结渠道地址、MID、超时和调用元数据，禁止后续按当前商户路由重建。
+     * <p>内容只允许在受控渠道调用链中读取，禁止写入普通日志。</p>
+     */
+    private String channelRouteSnapshotJson;
+
+    /**
      * 渠道订单号。
      */
     private String channelOrderNo;

@@ -2,6 +2,7 @@ package com.scott.payment.channel.payout.executor;
 
 import com.scott.payment.channel.payout.api.PayoutChannelClient;
 import com.scott.payment.channel.payout.dto.request.ChannelPayoutQueryRequest;
+import com.scott.payment.channel.payout.dto.request.ChannelPayoutCancelRequest;
 import com.scott.payment.channel.payout.dto.request.ChannelPayoutRequest;
 import com.scott.payment.channel.payout.dto.response.ChannelPayoutResponse;
 import com.scott.payment.channel.payout.enums.PayoutChannelCapability;
@@ -42,6 +43,15 @@ public class PayoutChannelExecutor {
             throw client.unsupported(PayoutChannelCapability.QUERY);
         }
         return client.query(request);
+    }
+
+    /** 按请求中的 channelCode 取消仍在处理中的代付。 */
+    public ChannelPayoutResponse cancel(ChannelPayoutCancelRequest request) {
+        PayoutChannelClient client = channelRegistry.getRequired(request.getChannelCode());
+        if (!client.supports(PayoutChannelCapability.CANCEL)) {
+            throw client.unsupported(PayoutChannelCapability.CANCEL);
+        }
+        return client.cancel(request);
     }
 
     /** 判断指定 Provider 是否声明某项代付能力。 */

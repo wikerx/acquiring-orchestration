@@ -8,6 +8,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.payment.config.ChannelMatchAbnormalProperties;
 import com.scott.payment.payment.config.ChannelMatchRecoveryProperties;
 import com.scott.payment.payment.domain.reconciliation.ChannelMatchAbnormalTypeEnum;
@@ -23,6 +24,7 @@ import com.scott.payment.payment.service.ChannelMatchAbnormalService;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.TransactionChannelMatchResultTransactionService;
+import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.ChannelTransactionStatusResolution;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
@@ -45,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -77,6 +80,96 @@ class DefaultTransactionChannelMatchServiceTests {
         assertThat(invokeService.lastRequest.getChannelTransactionId()).isEqualTo("CH-MPGS-001");
         assertThat(invokeService.lastRequest.getChannelTransactionId()).isNotEqualTo("TX-PLATFORM-001");
         assertThat(recordService.completedStatus).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+    }
+
+    @Test
+    void shouldUseFrozenRouteSnapshotWhenCurrentMidWouldResolveDifferently() {
+        TransactionOperationDO operationDO = pendingOperation();
+        PaymentRouteResultDTO frozenRoute = PaymentRouteResultDTO.routed("MPGS");
+        frozenRoute.setChannelId(101L);
+        frozenRoute.setMidConfigId(1001L);
+        frozenRoute.setMidNo("ORIGINAL-MID");
+        frozenRoute.setRequestUrl("https://original.example");
+        frozenRoute.getMetadataValues().put("apiKey", "original-key");
+        operationDO.setChannelRouteSnapshotJson(JsonUtils.toJsonString(frozenRoute));
+        InMemoryRecordService recordService = new InMemoryRecordService(operationDO);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+        CapturingMatchResultTransactionService resultTransactionService = new CapturingMatchResultTransactionService(recordService);
+
+        TransactionChannelMatchResultDTO resultDTO = matchService(recordService, invokeService, resultTransactionService)
+                .matchDue(matchCommand());
+
+        assertThat(resultDTO.getMatchedCount()).isEqualTo(1);
+        assertThat(invokeService.lastRoute.getRequestUrl()).isEqualTo("https://original.example");
+        assertThat(invokeService.lastRoute.getMidNo()).isEqualTo("ORIGINAL-MID");
+        assertThat(invokeService.lastRoute.getMetadataValues()).containsEntry("apiKey", "original-key");
+    }
+
+    @Test
+    void shouldKeepCorruptedRouteSnapshotOutOfChannelQuery() {
+        TransactionOperationDO operationDO = pendingOperation();
+        operationDO.setChannelRouteSnapshotJson("{corrupted-route");
+        InMemoryRecordService recordService = new InMemoryRecordService(operationDO);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+
+        TransactionChannelMatchResultDTO resultDTO = matchService(recordService, invokeService, resultTransactionService)
+                .matchDue(matchCommand());
+
+        assertThat(resultDTO.getFailedCount()).isEqualTo(1);
+        assertThat(resultTransactionService.pendingCount).isEqualTo(1);
+        assertThat(invokeService.queryInvokeCount()).isZero();
+    }
+
+    @Test
+    void shouldLoadRootOrderBySourceTransactionIdForFollowUpChannelMatch() {
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        TransactionLifecycleEventService lifecycleEventService = mock(TransactionLifecycleEventService.class);
+        DefaultTransactionChannelMatchResultTransactionService resultTransactionService =
+                new DefaultTransactionChannelMatchResultTransactionService(recordService, lifecycleEventService);
+        LocalDateTime refundTime = LocalDateTime.of(2026, 9, 20, 16, 4, 59, 877_000_000);
+        LocalDateTime paymentTime = LocalDateTime.of(2026, 9, 20, 15, 58, 53, 112_000_000);
+        TransactionOperationDO refundOperation = new TransactionOperationDO();
+        refundOperation.setTransactionId("REFUND-001");
+        refundOperation.setOperationId("OP-001");
+        refundOperation.setSourceTransactionId("PAYMENT-001");
+        refundOperation.setMerchantId("MERCHANT-001");
+        refundOperation.setMerchantOrderNo("ORDER-001");
+        refundOperation.setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
+        refundOperation.setTransactionDateTime(refundTime);
+        TransactionChannelRequestDO originalRequest = new TransactionChannelRequestDO();
+        originalRequest.setRequestId("QUERY-001");
+        TransactionOrderDO rootOrder = new TransactionOrderDO();
+        rootOrder.setOperationId("OP-001");
+        rootOrder.setTransactionDateTime(paymentTime);
+        rootOrder.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        when(recordService.findSourceOrderByTransactionId("PAYMENT-001")).thenReturn(rootOrder);
+        when(recordService.completeByChannelCallback(
+                eq(refundOperation), eq(rootOrder), eq("QUERY-001"),
+                eq(PaymentTransactionStatusEnum.FAILED.getCode()), eq("CHANNEL_REQUEST_FAILED"),
+                eq("Refund does not exist"), eq("REFUND_NOT_FOUND"), eq("REFUND_NOT_FOUND"),
+                eq("Refund does not exist"))).thenReturn(true);
+        ChannelTransactionStatusResolution resolution = new ChannelTransactionStatusResolution();
+        resolution.setTargetStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+        resolution.setFailReasonCode("CHANNEL_REQUEST_FAILED");
+        resolution.setFailReasonMessage("Refund does not exist");
+        resolution.setChannelStatus("REFUND_NOT_FOUND");
+        resolution.setChannelResponseCode("REFUND_NOT_FOUND");
+        resolution.setChannelResponseMessage("Refund does not exist");
+        PaymentChannelInvokeResultDTO invokeResult = new PaymentChannelInvokeResultDTO();
+        invokeResult.setRequestId("QUERY-001");
+
+        boolean completed = resultTransactionService.completeByQuery(
+                refundOperation, originalRequest, invokeResult, resolution, refundTime);
+
+        assertThat(completed).isTrue();
+        verify(recordService).findSourceOrderByTransactionId("PAYMENT-001");
+        verify(recordService, never()).findOrder(refundTime, "OP-001");
+        verify(lifecycleEventService).saveStatusChanged(
+                "REFUND-001", "OP-001", "MERCHANT-001", "ORDER-001",
+                PaymentTransactionTypeEnum.REFUND.getCode(),
+                PaymentTransactionStatusEnum.FAILED.getCode(), refundTime);
     }
 
     @Test
@@ -624,6 +717,7 @@ class DefaultTransactionChannelMatchServiceTests {
         private final AtomicInteger paymentInvokeCount = new AtomicInteger();
 
         private ChannelPaymentRequest lastRequest;
+        private PaymentRouteResultDTO lastRoute;
         private String channelCurrency;
         private BigDecimal channelAmount;
         private RuntimeException failure;
@@ -666,6 +760,7 @@ class DefaultTransactionChannelMatchServiceTests {
                                                     String transactionId,
                                                     PaymentPreparedChannelRequestDTO preparedChannelRequest) {
             queryInvokeCount.incrementAndGet();
+            lastRoute = routeResult;
             if (failure != null) {
                 throw failure;
             }

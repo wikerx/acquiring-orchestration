@@ -28,4 +28,13 @@ public interface PaymentChannelCallbackVerifier {
      * @param request 回调方法、路径、请求头、原文和密钥上下文
      */
     void verify(ChannelCallbackVerificationRequest request);
+
+    /**
+     * 判断渠道是否要求回调成功时返回纯文本 {@code SUCCESS}。
+     *
+     * @return true 表示回调入口应返回纯文本 SUCCESS
+     */
+    default boolean requiresPlainTextSuccessAcknowledgement() {
+        return false;
+    }
 }

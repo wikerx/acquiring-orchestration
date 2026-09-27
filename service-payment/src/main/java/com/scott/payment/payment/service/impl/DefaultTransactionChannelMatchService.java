@@ -9,6 +9,7 @@ import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultD
 import com.scott.payment.payment.config.ChannelMatchAbnormalProperties;
 import com.scott.payment.payment.config.ChannelMatchRecoveryProperties;
 import com.scott.payment.payment.domain.reconciliation.ChannelMatchAbnormalTypeEnum;
+import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
@@ -227,15 +228,15 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         }
         PaymentPreparedChannelRequestDTO preparedQueryRequest = buildQueryReference(operationDO, originalRequestDO);
         PaymentCreateCommandDTO queryCommand = toQueryCommand(operationDO);
-        PaymentRouteResultDTO routeResult = restoreRouteResult(operationDO);
-        if (!hasSupportedQueryIdentity(queryCommand, routeResult, operationDO, preparedQueryRequest)) {
-            markPending(operationDO, originalRequestDO, now, now.plusHours(MISSING_IDENTITY_RETRY_HOURS), null,
-                    "QUERY_IDENTITY_MISSING",
-                    missingIdentityReason(operationDO, originalRequestDO));
-            resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
-            return;
-        }
         try {
+            PaymentRouteResultDTO routeResult = restoreRouteResult(operationDO);
+            if (!hasSupportedQueryIdentity(queryCommand, routeResult, operationDO, preparedQueryRequest)) {
+                markPending(operationDO, originalRequestDO, now, now.plusHours(MISSING_IDENTITY_RETRY_HOURS), null,
+                        "QUERY_IDENTITY_MISSING",
+                        missingIdentityReason(operationDO, originalRequestDO));
+                resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
+                return;
+            }
             PaymentChannelInvokeResultDTO invokeResultDTO = paymentChannelInvokeService.invoke(
                     queryCommand,
                     routeResult,
@@ -416,6 +417,12 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                 originalRequestDO == null ? null : originalRequestDO.getChannelOrderNo()));
         prepared.setChannelTransactionId(firstText(operationDO.getChannelTransactionId(),
                 originalRequestDO == null ? null : originalRequestDO.getChannelTransactionId()));
+        if (PaymentTransactionTypeEnum.REFUND.getCode().equals(operationDO.getTransactionType())) {
+            String merchantRefundNo = firstText(operationDO.getMerchantOrderId(), operationDO.getMerchantOperationNo());
+            if (StringUtils.hasText(merchantRefundNo)) {
+                prepared.getExtension().put("merchantRefundNo", merchantRefundNo);
+            }
+        }
         return prepared;
     }
 
@@ -614,6 +621,10 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
      * @return 原渠道调用参数
      */
     private PaymentRouteResultDTO restoreRouteResult(TransactionOperationDO operationDO) {
+        PaymentRouteResultDTO frozenRoute = OriginalTransactionRouteResolver.snapshot(null, operationDO);
+        if (StringUtils.hasText(operationDO.getChannelRouteSnapshotJson())) {
+            return frozenRoute;
+        }
         return paymentChannelRouteService.restore(
                 operationDO.getChannelCode(),
                 operationDO.getChannelId(),

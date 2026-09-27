@@ -91,6 +91,31 @@ class DefaultPaymentChannelRouteServiceCacheTests {
     }
 
     @Test
+    void shouldRouteDirectlyWhenRequestedCurrencyIsSupported() {
+        PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
+        PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);
+        MerchantRouteProfileCacheService profileCache = mock(MerchantRouteProfileCacheService.class);
+        PaymentChannelMidMetadataCache metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        MerchantRouteProfile profile = profile(LocalDateTime.of(2026, 8, 1, 15, 40));
+        RouteOption option = profile.getRouteOptions().get(0);
+        option.setSupportedCurrencies(new ArrayList<>(List.of("EUR", "USD")));
+        option.setCurrencyScope("EUR,USD");
+        option.setDefaultTransactionCurrency("USD");
+        when(profileCache.findRouteProfile("200045")).thenReturn(profile);
+        when(metadataCache.getMetadataJson(10L, option.getMidModifiedTime())).thenReturn("{}");
+        PaymentCreateCommandDTO command = command();
+        command.setCurrency("EUR");
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                midMapper, channelMapper, profileCache, metadataCache);
+
+        PaymentRouteResultDTO result = service.route(command);
+
+        assertThat(result.getRequestedCurrency()).isEqualTo("EUR");
+        assertThat(result.getRoutedCurrency()).isEqualTo("EUR");
+        assertThat(result.isEdcRequired()).isFalse();
+    }
+
+    @Test
     void shouldRejectEdcRouteWhenDefaultCurrencyIsOutsideMidIntersection() {
         PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
         PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);

@@ -42,6 +42,11 @@ public class ChannelPayoutRequest implements Serializable {
     /** ISO 4217 三位大写币种。 */
     private String currency;
 
+    /**
+     * 平台统一支付方式编码，例如 BANK_CARD、ACH_DEBIT、BTC_ON_CHAIN；Provider 负责映射为渠道编码。
+     */
+    private String paymentMethod;
+
     /** 渠道路由后的收款人令牌或受控引用，禁止承载明文账户凭据。 */
     private String beneficiaryReference;
 

@@ -451,7 +451,8 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         detail.setStatusHistory(selectMapsByOperationId(TRANSACTION_STATUS_HISTORY_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setFlowEvents(selectMapsByOperationId(TRANSACTION_FLOW_EVENT_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setRiskEvents(riskTimelineQueryService.findRiskEvents(sourceOperation.getTransactionId()));
-        detail.setAmountChanges(selectMapsByOperationId(TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, beginTime, endTime, order.getOperationId()));
+        detail.setAmountChanges(withInitialAmountChange(order, operations, detail.getStatusHistory(),
+                selectMapsByOperationId(TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, beginTime, endTime, order.getOperationId())));
         detail.setChannelRequests(selectMapsByOperationId(TRANSACTION_CHANNEL_REQUEST_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setChannelInteractionLogs(selectMapsByOperationId(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setChannelCallbacks(selectMapsByOperationId(TRANSACTION_CHANNEL_CALLBACK_TABLE, beginTime, endTime, order.getOperationId()));
@@ -461,6 +462,60 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         detail.setMerchantApiInteractionLogs(selectMapsByOperationId(
                 TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, beginTime, endTime, order.getOperationId()));
         return detail;
+    }
+
+    /** 历史首次成功动作没有金额日志；用已持久化的根动作事实补齐详情展示。 */
+    static List<Map<String, Object>> withInitialAmountChange(TransactionOrderResponse order,
+                                                               List<TransactionOperationResponse> operations,
+                                                               List<Map<String, Object>> statusHistory,
+                                                               List<Map<String, Object>> amountChanges) {
+        if (order == null || !StringUtils.hasText(order.getRootTransactionId())) {
+            return amountChanges;
+        }
+        TransactionOperationResponse initial = operations.stream()
+                .filter(item -> order.getRootTransactionId().equals(item.getTransactionId()))
+                .findFirst().orElse(null);
+        if (initial == null || !"SUCCESS".equals(initial.getTransactionStatus())
+                || initial.getTransactionAmount() == null || initial.getTransactionAmount().signum() <= 0
+                || !("PAYMENT".equals(initial.getTransactionType())
+                || "AUTHORIZATION".equals(initial.getTransactionType())
+                || "PRE_AUTHORIZATION".equals(initial.getTransactionType()))
+                || amountChanges.stream().anyMatch(row -> initial.getTransactionId().equals(row.get("transactionId")))) {
+            return amountChanges;
+        }
+        BigDecimal zero = BigDecimal.ZERO;
+        BigDecimal amount = initial.getTransactionAmount();
+        boolean payment = "PAYMENT".equals(initial.getTransactionType());
+        Object successTime = statusHistory.stream()
+                .filter(row -> initial.getTransactionId().equals(row.get("transactionId"))
+                        && "SUCCESS".equals(row.get("toStatus"))
+                        && "OPERATION".equals(row.get("statusObject")))
+                .map(row -> row.get("statusTime"))
+                .filter(Objects::nonNull)
+                .findFirst().orElse(initial.getOperationTime());
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("amountChangeId", "INITIAL:" + initial.getTransactionId());
+        row.put("transactionId", initial.getTransactionId());
+        row.put("operationId", initial.getOperationId());
+        row.put("changeType", initial.getTransactionType());
+        row.put("changeSource", "INITIAL_OPERATION");
+        row.put("amountCurrency", initial.getTransactionCurrency());
+        row.put("changeAmount", amount);
+        row.put("authorizedBefore", zero);
+        row.put("authorizedAfter", amount);
+        row.put("capturedBefore", zero);
+        row.put("capturedAfter", payment ? amount : zero);
+        row.put("refundedBefore", zero);
+        row.put("refundedAfter", zero);
+        row.put("availableCaptureBefore", zero);
+        row.put("availableCaptureAfter", payment ? zero : amount);
+        row.put("availableRefundBefore", zero);
+        row.put("availableRefundAfter", payment ? amount : zero);
+        row.put("changeTime", successTime);
+        List<Map<String, Object>> result = new ArrayList<>(amountChanges.size() + 1);
+        result.add(row);
+        result.addAll(amountChanges);
+        return result;
     }
 
     /** 按交易号和精确分片时间读取持卡人账单信息，不返回表主键、哈希和审计字段。 */

@@ -149,6 +149,29 @@ class DefaultPaymentChannelInvokeServiceTests {
         assertThat(captor.getValue().getExtension()).containsEntry("requestId", "CR-ORIGINAL");
     }
 
+    /** 退款查询标识必须随已准备的渠道查询身份透传到渠道适配器。 */
+    @Test
+    void shouldPropagatePreparedRefundQueryExtension() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
+        when(executor.execute(any(ChannelPaymentRequest.class))).thenReturn(response);
+        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
+        PaymentCreateCommandDTO commandDTO = followUpCommand();
+        commandDTO.setTransactionType("QUERY");
+        PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
+        prepared.setRequestId("CR-REFUND-QUERY");
+        prepared.setChannelOrderNo("TX-ORIGINAL-PAYMENT");
+        prepared.setChannelTransactionId("CMR-REFUND-001");
+        prepared.getExtension().put("merchantRefundNo", "REFUND-001");
+
+        invokeService.invoke(commandDTO, routeResult(), "OP260714180001", "RF260714180099", prepared);
+
+        ArgumentCaptor<ChannelPaymentRequest> captor = ArgumentCaptor.forClass(ChannelPaymentRequest.class);
+        verify(executor).execute(captor.capture());
+        assertThat(captor.getValue().getExtension()).containsEntry("merchantRefundNo", "REFUND-001");
+    }
+
     /**
      * 渠道请求必须优先透传数据库币种表解析出的辅币位，避免 Worldpay JSON 默认按两位小数换算金额。
      */
