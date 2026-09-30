@@ -1,9 +1,13 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.redis.config.PaymentRedisSerializerFactory;
+import com.scott.payment.component.db.reference.model.CardBinLookupCacheEntry;
+import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.payment.model.PaymentCardBinCacheEntry;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.serializer.RedisSerializer;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -35,5 +39,17 @@ class PaymentCardBinCacheSerializationTests {
         assertThat((PaymentCardBinCacheEntry) restored)
                 .usingRecursiveComparison()
                 .isEqualTo(source);
+    }
+
+    @Test
+    void shouldRoundTripSharedCompleteCardBinEntry() {
+        CardBinLookupResult result = new CardBinLookupResult(true, "51234500000", 6,
+                "MASTERCARD", "WORLD", "CREDIT", "GOLD", "United Arab Emirates",
+                "AE", "ARE", "784", "Example Bank");
+        CardBinLookupCacheEntry source = new CardBinLookupCacheEntry("g-1",
+                CardBinLookupCacheEntry.FORMAT_VERSION, result, null);
+        RedisSerializer<Object> serializer = PaymentRedisSerializerFactory.create();
+
+        assertThat(serializer.deserialize(serializer.serialize(source))).isEqualTo(source);
     }
 }

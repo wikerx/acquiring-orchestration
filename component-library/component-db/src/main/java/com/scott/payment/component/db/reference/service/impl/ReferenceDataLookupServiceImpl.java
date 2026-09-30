@@ -11,14 +11,18 @@ import com.scott.payment.component.db.reference.entity.IpLibraryShardDO;
 import com.scott.payment.component.db.reference.mapper.CardBinLookupMapper;
 import com.scott.payment.component.db.reference.mapper.IpLocationLookupMapper;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
+import com.scott.payment.component.db.reference.model.CardBinLookupSnapshot;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
 import com.scott.payment.component.db.reference.service.ReferenceDataLookupService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,7 +34,7 @@ import java.util.stream.IntStream;
  * @classname : ReferenceDataLookupServiceImpl
  * @date : 2026-08-11 15:35
  * @email : scott_x@163.com
- * @description : 基础数据公共只读检索实现，固定路由到从库并保护 IP 动态分表边界
+ * @description : 基础数据公共只读检索；IP 与 BIN 查询均走从库，并保护 IP 动态分表边界。
  * @status : create
  */
 @Service
@@ -103,6 +107,7 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
         IpAddressNormalizer.NormalizedIp normalizedIp = IpAddressNormalizer.normalizeExact(ipAddress);
         String ipType = normalizedIp.ipv4() ? IPV4 : IPV6;
         String ipNumber = toIpNumber(normalizedIp.ipValue());
+        // 路由必须唯一：缺失或重叠是库配置错误，不能伪装成普通未命中。
         List<IpLibraryShardDO> shards = ipLocationLookupMapper.selectReadyShards(ipType, ipNumber);
         if (shards == null || shards.size() != 1) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
@@ -111,6 +116,7 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
         if (!isAllowedIpTable(ipType, shard.getTableName()) || !StringUtils.hasText(shard.getDataVersion())) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
         }
+        // 表名由数据库配置提供，只允许固定表族；数据版本与路由记录保持一致。
         IpLibraryDataRow row = ipLocationLookupMapper.selectLookupCandidate(
                 shard.getTableName(), shard.getDataVersion(), ipNumber);
         if (row == null) {
@@ -130,26 +136,49 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
     }
 
     /**
-     * 查询 6 至 11 位纯数字卡 BIN 的当前有效归属信息；合法输入未命中时返回 matched=false。
+     * 查询 6 至 11 位纯数字卡 BIN 的当前有效归属信息；独立只读事务确保支付主事务内仍路由从库。
      *
      * @param cardBin 商户提交的卡 BIN
      * @return 卡 BIN 归属查询结果
      */
     @Override
     @DS(DataSourceName.SLAVE)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public CardBinLookupResult lookupCardBin(String cardBin) {
+        return queryCardBin(cardBin, false).result();
+    }
+
+    /**
+     * 查询 BIN 及缓存时间边界；独立只读事务避免沿用支付主事务已绑定的连接。
+     *
+     * @param cardBin 6 至 11 位纯数字 BIN
+     * @return 当前结果和未来可能改变它的时间点
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public CardBinLookupSnapshot lookupCardBinSnapshot(String cardBin) {
+        return queryCardBin(cardBin, true);
+    }
+
+    private CardBinLookupSnapshot queryCardBin(String cardBin, boolean includeFutureBoundary) {
         if (cardBin == null || !cardBin.matches("^[0-9]{6,11}$")) {
             throw new IllegalArgumentException("cardBin must be 6 to 11 digits");
         }
+        // 仅接受 6 至 11 位；短 BIN 右补零到区间统一使用的 11 位精度。
         long numericValue = Long.parseLong(cardBin + "0".repeat(NORMALIZED_BIN_LENGTH - cardBin.length()));
         CardBinRangeDO row = cardBinLookupMapper.selectBestMatch(numericValue, cardBin.length());
         if (row == null) {
-            return CardBinLookupResult.miss(cardBin);
+            // 未命中不缓存，无需再查询未来生效时间。
+            return new CardBinLookupSnapshot(CardBinLookupResult.miss(cardBin), null, null);
         }
         if (!isValidBinMatch(row, cardBin.length())) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
         }
-        return new CardBinLookupResult(
+        // 只有正向命中且准备写缓存时才需要未来更具体区间的生效边界。
+        LocalDateTime nextEffectiveTime = includeFutureBoundary
+                ? cardBinLookupMapper.selectNextEffectiveTime(numericValue, cardBin.length()) : null;
+        CardBinLookupResult result = new CardBinLookupResult(
                 true,
                 cardBin,
                 row.getBinLength(),
@@ -163,6 +192,7 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
                 row.getIssuerCountryNumeric(),
                 row.getIssuerBank()
         );
+        return new CardBinLookupSnapshot(result, row.getExpireTime(), nextEffectiveTime);
     }
 
     /**

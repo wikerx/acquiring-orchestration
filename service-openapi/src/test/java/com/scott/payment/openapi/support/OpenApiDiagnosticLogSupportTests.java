@@ -2,6 +2,7 @@ package com.scott.payment.openapi.support;
 
 import com.scott.payment.openapi.dto.body.PayoutCreateRequestDTO;
 import com.scott.payment.openapi.dto.body.reference.IpLookupRequestDTO;
+import com.scott.payment.openapi.dto.body.reference.CardBinLookupRequestDTO;
 import com.scott.payment.openapi.vo.reference.CardBinLookupVO;
 import org.junit.jupiter.api.Test;
 
@@ -50,5 +51,16 @@ class OpenApiDiagnosticLogSupportTests {
         assertThat(responseSummary)
                 .contains("\"cardBin\":\"***\"")
                 .doesNotContain("411111");
+    }
+
+    @Test
+    void shouldNotLogLongCardBinInput() {
+        CardBinLookupRequestDTO request = new CardBinLookupRequestDTO();
+        request.setCardBin("4111111234567890");
+
+        String summary = new OpenApiDiagnosticLogSupport().plainRequestSummary(request);
+
+        assertThat(summary).contains("\"cardBin\":\"***\"")
+                .doesNotContain("4111111234567890");
     }
 }

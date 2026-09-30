@@ -10,7 +10,7 @@ package com.scott.payment.component.db.reference.model;
  * @status : create
  *
  * @param matched                是否命中有效卡 BIN 区间，不允许为空
- * @param cardBin                商户提交的 6 至 11 位 BIN，可识别字段，日志中不得完整输出
+ * @param cardBin                实际查询使用的 6 至 11 位 BIN；长输入只保留前 11 位，日志中不得完整输出
  * @param binLength              命中记录精度，允许为空
  * @param cardBrand              卡品牌代码，允许为空
  * @param cardSubBrand           卡子品牌或产品名称，允许为空

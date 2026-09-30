@@ -52,15 +52,19 @@ public final class PaymentCacheNames {
     public static final String SYSTEM_CONFIG = "system:config";
 
     /**
-     * 按卡号前 11 位保存的卡 BIN 正向匹配结果，物理 Key 示例：
-     * {@code acquiring:dev:cardBin:51234500000}。
+     * 支付与 OpenAPI 共享的常驻 11 位 BIN 正向匹配结果，物理 Key 示例：
+     * {@code acquiring:dev:cardBin:51234500000}。发布代际和格式版本保存在缓存值中。
      */
     public static final String CARD_BIN = "cardBin";
 
     /**
-     * 按卡号前 11 位保存的 Card BIN 未匹配短期标记；TTL 必须短于正向匹配缓存。
+     * 旧版未匹配短期缓存名；新读路径不再写入，保留注册以兼容旧部署配置并等待旧值自然过期。
      */
     public static final String CARD_BIN_MISS = "cardBin:miss";
+
+    /** OpenAPI 精确 IP 归属命中与未命中缓存，均采用短有效期限制版本切换后的旧结果窗口。 */
+    public static final String OPENAPI_IP_LOOKUP = "openapi:ip";
+    public static final String OPENAPI_IP_LOOKUP_MISS = "openapi:ip:miss";
 
     /**
      * 全局中国大陆结算日历月视图缓存，业务键为 {@code yyyy-MM}。

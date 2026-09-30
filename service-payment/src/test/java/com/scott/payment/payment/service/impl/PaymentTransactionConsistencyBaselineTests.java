@@ -2396,6 +2396,11 @@ class PaymentTransactionConsistencyBaselineTests {
             }
 
             @Override
+            public List<IsoCountryInfo> listCountriesByCodes(String alpha2, String alpha3, String numeric) {
+                return List.of();
+            }
+
+            @Override
             public List<IsoCountryInfo> searchCountries(String keyword) {
                 return List.of();
             }
@@ -2418,6 +2423,14 @@ class PaymentTransactionConsistencyBaselineTests {
             @Override
             public List<IsoCurrencyInfo> listCurrencies() {
                 return List.of(usdCurrencyInfo());
+            }
+
+            @Override
+            public List<IsoCurrencyInfo> listCurrenciesByCodes(String alphabeticCode, String numericCode) {
+                return listCurrencies().stream()
+                        .filter(currency -> alphabeticCode == null || alphabeticCode.equals(currency.alphabeticCode()))
+                        .filter(currency -> numericCode == null || numericCode.equals(currency.numericCode()))
+                        .toList();
             }
 
             @Override

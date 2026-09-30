@@ -54,6 +54,18 @@ public final class PaymentRedisSerializerFactory {
     private static final String PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME =
             "com.scott.payment.payment.model.PaymentCardBinCacheEntry";
 
+    private static final String OPENAPI_REFERENCE_DATA_CACHE_ENTRY_CLASS_NAME =
+            "com.scott.payment.openapi.service.impl.OpenApiReferenceDataCacheEntry";
+
+    private static final String IP_LOOKUP_RESULT_CLASS_NAME =
+            "com.scott.payment.component.db.reference.model.IpLookupResult";
+
+    private static final String CARD_BIN_LOOKUP_RESULT_CLASS_NAME =
+            "com.scott.payment.component.db.reference.model.CardBinLookupResult";
+
+    private static final String CARD_BIN_LOOKUP_CACHE_ENTRY_CLASS_NAME =
+            "com.scott.payment.component.db.reference.model.CardBinLookupCacheEntry";
+
     private static final String DICTIONARY_OPTION_SNAPSHOT_CLASS_NAME =
             "com.scott.payment.component.db.dictionary.model.DictionaryOptionSnapshot";
 
@@ -102,6 +114,18 @@ public final class PaymentRedisSerializerFactory {
     private static final Pattern PAYMENT_CARD_BIN_CACHE_ENTRY = Pattern.compile(
             "^" + Pattern.quote(PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME) + "$");
 
+    private static final Pattern OPENAPI_REFERENCE_DATA_CACHE_ENTRY = Pattern.compile(
+            "^" + Pattern.quote(OPENAPI_REFERENCE_DATA_CACHE_ENTRY_CLASS_NAME) + "$");
+
+    private static final Pattern IP_LOOKUP_RESULT = Pattern.compile(
+            "^" + Pattern.quote(IP_LOOKUP_RESULT_CLASS_NAME) + "$");
+
+    private static final Pattern CARD_BIN_LOOKUP_RESULT = Pattern.compile(
+            "^" + Pattern.quote(CARD_BIN_LOOKUP_RESULT_CLASS_NAME) + "$");
+
+    private static final Pattern CARD_BIN_LOOKUP_CACHE_ENTRY = Pattern.compile(
+            "^" + Pattern.quote(CARD_BIN_LOOKUP_CACHE_ENTRY_CLASS_NAME) + "$");
+
     private static final Pattern DICTIONARY_OPTION_SNAPSHOT = Pattern.compile(
             "^" + Pattern.quote(DICTIONARY_OPTION_SNAPSHOT_CLASS_NAME) + "$");
 
@@ -149,6 +173,10 @@ public final class PaymentRedisSerializerFactory {
             MERCHANT_ROUTE_OPTION_CLASS_NAME,
             MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME,
             PAYMENT_CARD_BIN_CACHE_ENTRY_CLASS_NAME,
+            OPENAPI_REFERENCE_DATA_CACHE_ENTRY_CLASS_NAME,
+            IP_LOOKUP_RESULT_CLASS_NAME,
+            CARD_BIN_LOOKUP_RESULT_CLASS_NAME,
+            CARD_BIN_LOOKUP_CACHE_ENTRY_CLASS_NAME,
             DICTIONARY_OPTION_SNAPSHOT_CLASS_NAME,
             ENABLED_EMAIL_TEMPLATE_SNAPSHOT_CLASS_NAME,
             MCC_OPTION_SNAPSHOT_CLASS_NAME,
@@ -204,6 +232,10 @@ public final class PaymentRedisSerializerFactory {
                 .allowIfSubType(MERCHANT_ROUTE_OPTION)
                 .allowIfSubType(MERCHANT_OPENAPI_ACCESS_POLICY)
                 .allowIfSubType(PAYMENT_CARD_BIN_CACHE_ENTRY)
+                .allowIfSubType(OPENAPI_REFERENCE_DATA_CACHE_ENTRY)
+                .allowIfSubType(IP_LOOKUP_RESULT)
+                .allowIfSubType(CARD_BIN_LOOKUP_RESULT)
+                .allowIfSubType(CARD_BIN_LOOKUP_CACHE_ENTRY)
                 .allowIfSubType(DICTIONARY_OPTION_SNAPSHOT)
                 .allowIfSubType(ENABLED_EMAIL_TEMPLATE_SNAPSHOT)
                 .allowIfSubType(MCC_OPTION_SNAPSHOT)

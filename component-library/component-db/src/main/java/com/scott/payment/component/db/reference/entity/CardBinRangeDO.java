@@ -2,6 +2,8 @@ package com.scott.payment.component.db.reference.entity;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -43,4 +45,7 @@ public class CardBinRangeDO {
 
     /** 发卡行名称，允许为空，非敏感字段。 */
     private String issuerBank;
+
+    /** 当前命中区间的失效时刻；为空表示没有预设失效时间。 */
+    private LocalDateTime expireTime;
 }

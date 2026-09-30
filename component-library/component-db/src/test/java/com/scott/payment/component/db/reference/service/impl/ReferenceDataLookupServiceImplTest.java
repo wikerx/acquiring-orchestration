@@ -12,14 +12,19 @@ import com.scott.payment.component.db.reference.mapper.IpLocationLookupMapper;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 /**
  * @author : scott
@@ -85,6 +90,27 @@ class ReferenceDataLookupServiceImplTest {
         assertThat(result.binLength()).isEqualTo(6);
         assertThat(result.cardBrand()).isEqualTo("VISA");
         assertThat(result.issuerBank()).isEqualTo("Example Bank");
+        verify(cardBinMapper, never()).selectNextEffectiveTime(41111100000L, 6);
+    }
+
+    @Test
+    void shouldExposeCardBinTimeBoundariesForCache() {
+        CardBinLookupMapper cardBinMapper = mock(CardBinLookupMapper.class);
+        LocalDateTime expireTime = LocalDateTime.now().plusMinutes(4);
+        LocalDateTime nextEffectiveTime = LocalDateTime.now().plusMinutes(2);
+        CardBinRangeDO row = new CardBinRangeDO();
+        row.setBinLength(8);
+        row.setExpireTime(expireTime);
+        when(cardBinMapper.selectBestMatch(41111112000L, 8)).thenReturn(row);
+        when(cardBinMapper.selectNextEffectiveTime(41111112000L, 8)).thenReturn(nextEffectiveTime);
+        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+                mock(IpLocationLookupMapper.class), cardBinMapper);
+
+        var snapshot = service.lookupCardBinSnapshot("41111112");
+
+        assertThat(snapshot.result().matched()).isTrue();
+        assertThat(snapshot.expireTime()).isEqualTo(expireTime);
+        assertThat(snapshot.nextEffectiveTime()).isEqualTo(nextEffectiveTime);
     }
 
     @Test
@@ -104,6 +130,20 @@ class ReferenceDataLookupServiceImplTest {
         assertThat(ipResult.ipAddress()).isEqualTo("0:0:0:0:0:0:0:1");
         assertThat(cardBinResult.matched()).isFalse();
         assertThat(cardBinResult.cardBin()).isEqualTo("999999");
+    }
+
+    @Test
+    void shouldSkipFutureBoundaryQueryWhenBinMissIsNotCached() {
+        CardBinLookupMapper cardBinMapper = mock(CardBinLookupMapper.class);
+        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+                mock(IpLocationLookupMapper.class), cardBinMapper);
+
+        var snapshot = service.lookupCardBinSnapshot("99999900000");
+
+        assertThat(snapshot.result().matched()).isFalse();
+        assertThat(snapshot.nextEffectiveTime()).isNull();
+        verify(cardBinMapper).selectBestMatch(99999900000L, 11);
+        verify(cardBinMapper, never()).selectNextEffectiveTime(99999900000L, 11);
     }
 
     @Test
@@ -167,6 +207,30 @@ class ReferenceDataLookupServiceImplTest {
 
         assertSlaveMethod("lookupIp", String.class);
         assertSlaveMethod("lookupCardBin", String.class);
+        assertSlaveMethod("lookupCardBinSnapshot", String.class);
+    }
+
+    @Test
+    void shouldReadCompleteElevenDigitSnapshotFromSlave() {
+        CardBinLookupMapper cardBinMapper = mock(CardBinLookupMapper.class);
+        CardBinRangeDO row = new CardBinRangeDO();
+        row.setBinLength(11);
+        row.setCardBrand("VISA");
+        row.setCardSubBrand("SIGNATURE");
+        row.setIssuerCountryNumeric("840");
+        row.setIssuerBank("Example Bank");
+        LocalDateTime nextEffectiveTime = LocalDateTime.now().plusMinutes(5);
+        when(cardBinMapper.selectBestMatch(41111112345L, 11)).thenReturn(row);
+        when(cardBinMapper.selectNextEffectiveTime(41111112345L, 11)).thenReturn(nextEffectiveTime);
+        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+                mock(IpLocationLookupMapper.class), cardBinMapper);
+
+        var snapshot = service.lookupCardBinSnapshot("41111112345");
+
+        assertThat(snapshot.result().cardSubBrand()).isEqualTo("SIGNATURE");
+        assertThat(snapshot.result().issuerCountryNumeric()).isEqualTo("840");
+        assertThat(snapshot.result().issuerBank()).isEqualTo("Example Bank");
+        assertThat(snapshot.nextEffectiveTime()).isEqualTo(nextEffectiveTime);
     }
 
     private void assertSlaveMethod(String methodName, Class<?>... parameterTypes) {
@@ -179,6 +243,12 @@ class ReferenceDataLookupServiceImplTest {
         DS dataSource = method.getAnnotation(DS.class);
         assertThat(dataSource).isNotNull();
         assertThat(dataSource.value()).isEqualTo(DataSourceName.SLAVE);
+        if (methodName.startsWith("lookupCardBin")) {
+            Transactional transaction = method.getAnnotation(Transactional.class);
+            assertThat(transaction).isNotNull();
+            assertThat(transaction.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
+            assertThat(transaction.readOnly()).isTrue();
+        }
     }
 
     private IpLibraryShardDO readyShard(String ipType, String tableName, String dataVersion) {

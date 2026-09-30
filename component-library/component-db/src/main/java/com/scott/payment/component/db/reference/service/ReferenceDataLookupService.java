@@ -2,6 +2,7 @@ package com.scott.payment.component.db.reference.service;
 
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
+import com.scott.payment.component.db.reference.model.CardBinLookupSnapshot;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
 
 /**
@@ -34,4 +35,13 @@ public interface ReferenceDataLookupService {
      * @throws ServiceException 数据库返回的命中精度违反对外查询约束时抛出
      */
     CardBinLookupResult lookupCardBin(String cardBin);
+
+    /**
+     * 查询卡 BIN 并取得会影响缓存有效性的生效、失效时间边界。
+     *
+     * @param cardBin 6 至 11 位纯数字 BIN
+     * @return 当前结果；仅正向命中提供影响缓存有效性的时间边界，未命中不缓存
+     */
+    CardBinLookupSnapshot lookupCardBinSnapshot(String cardBin);
+
 }

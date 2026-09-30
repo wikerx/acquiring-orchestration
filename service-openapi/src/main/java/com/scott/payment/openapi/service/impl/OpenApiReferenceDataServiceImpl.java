@@ -2,7 +2,6 @@ package com.scott.payment.openapi.service.impl;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
-import com.scott.payment.component.db.reference.service.ReferenceDataLookupService;
 import com.scott.payment.openapi.converter.OpenApiReferenceDataConverter;
 import com.scott.payment.openapi.dto.body.reference.CardBinLookupRequestDTO;
 import com.scott.payment.openapi.dto.body.reference.IpLookupRequestDTO;
@@ -17,14 +16,14 @@ import org.springframework.stereotype.Service;
  * @classname : OpenApiReferenceDataServiceImpl
  * @date : 2026-08-11 15:44
  * @email : scott_x@163.com
- * @description : 商户基础数据检索服务实现，将外部参数映射到公共从库查询并隔离数据库内部字段
+ * @description : 商户基础数据检索服务实现，经受控缓存读取归属结果并隔离数据库内部字段
  * @status : create
  */
 @Service
 public class OpenApiReferenceDataServiceImpl implements OpenApiReferenceDataService {
 
-    /** 公共基础数据从库检索服务，不允许为空。 */
-    private final ReferenceDataLookupService referenceDataLookupService;
+    /** 商户基础数据缓存读层；缓存故障时查询从库。 */
+    private final OpenApiReferenceDataCacheReader cacheReader;
 
     /** 公共结果到 OpenAPI VO 的字段转换器，不允许为空。 */
     private final OpenApiReferenceDataConverter converter;
@@ -32,12 +31,12 @@ public class OpenApiReferenceDataServiceImpl implements OpenApiReferenceDataServ
     /**
      * 创建商户基础数据检索服务。
      *
-     * @param referenceDataLookupService 公共基础数据检索服务
+     * @param cacheReader 基础数据缓存读层
      * @param converter                 响应转换器
      */
-    public OpenApiReferenceDataServiceImpl(ReferenceDataLookupService referenceDataLookupService,
+    public OpenApiReferenceDataServiceImpl(OpenApiReferenceDataCacheReader cacheReader,
                                            OpenApiReferenceDataConverter converter) {
-        this.referenceDataLookupService = referenceDataLookupService;
+        this.cacheReader = cacheReader;
         this.converter = converter;
     }
 
@@ -50,7 +49,7 @@ public class OpenApiReferenceDataServiceImpl implements OpenApiReferenceDataServ
     @Override
     public IpLookupVO queryIp(IpLookupRequestDTO requestDTO) {
         try {
-            return converter.toIpLookupVO(referenceDataLookupService.lookupIp(requestDTO.getIpAddress()));
+            return converter.toIpLookupVO(cacheReader.lookupIp(requestDTO.getIpAddress()));
         } catch (IllegalArgumentException exception) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "ipAddress must be a valid IPv4 or IPv6 literal");
         }
@@ -65,9 +64,9 @@ public class OpenApiReferenceDataServiceImpl implements OpenApiReferenceDataServ
     @Override
     public CardBinLookupVO queryCardBin(CardBinLookupRequestDTO requestDTO) {
         try {
-            return converter.toCardBinLookupVO(referenceDataLookupService.lookupCardBin(requestDTO.getCardBin()));
+            return converter.toCardBinLookupVO(cacheReader.lookupCardBin(requestDTO.getCardBin()));
         } catch (IllegalArgumentException exception) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "cardBin must be 6 to 11 digits");
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "cardBin must contain at least 6 digits");
         }
     }
 }

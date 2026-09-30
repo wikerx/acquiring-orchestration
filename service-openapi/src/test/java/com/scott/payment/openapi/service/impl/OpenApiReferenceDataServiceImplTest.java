@@ -4,7 +4,6 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
-import com.scott.payment.component.db.reference.service.ReferenceDataLookupService;
 import com.scott.payment.openapi.converter.OpenApiReferenceDataConverterImpl;
 import com.scott.payment.openapi.dto.body.reference.CardBinLookupRequestDTO;
 import com.scott.payment.openapi.dto.body.reference.IpLookupRequestDTO;
@@ -35,15 +34,15 @@ class OpenApiReferenceDataServiceImplTest {
      */
     @Test
     void shouldMapReferenceDataResultsForMerchantResponse() {
-        ReferenceDataLookupService lookupService = mock(ReferenceDataLookupService.class);
-        when(lookupService.lookupIp("8.8.8.8")).thenReturn(new IpLookupResult(
+        OpenApiReferenceDataCacheReader cacheReader = mock(OpenApiReferenceDataCacheReader.class);
+        when(cacheReader.lookupIp("8.8.8.8")).thenReturn(new IpLookupResult(
                 true, "8.8.8.8", "IPV4", "US", "USA", "840",
                 "United States", "California", "Mountain View"));
-        when(lookupService.lookupCardBin("411111")).thenReturn(new CardBinLookupResult(
+        when(cacheReader.lookupCardBin("411111")).thenReturn(new CardBinLookupResult(
                 true, "411111", 6, "VISA", "CLASSIC", "CREDIT", "GOLD",
                 "United States", "US", "USA", "840", "Example Bank"));
         OpenApiReferenceDataServiceImpl service = new OpenApiReferenceDataServiceImpl(
-                lookupService, new OpenApiReferenceDataConverterImpl());
+                cacheReader, new OpenApiReferenceDataConverterImpl());
         IpLookupRequestDTO ipRequest = new IpLookupRequestDTO();
         ipRequest.setIpAddress("8.8.8.8");
         CardBinLookupRequestDTO cardBinRequest = new CardBinLookupRequestDTO();
@@ -66,11 +65,11 @@ class OpenApiReferenceDataServiceImplTest {
      */
     @Test
     void shouldMapInvalidIpLiteralToOpenApiParameterError() {
-        ReferenceDataLookupService lookupService = mock(ReferenceDataLookupService.class);
-        when(lookupService.lookupIp("example.com"))
+        OpenApiReferenceDataCacheReader cacheReader = mock(OpenApiReferenceDataCacheReader.class);
+        when(cacheReader.lookupIp("example.com"))
                 .thenThrow(new IllegalArgumentException("internal parser detail"));
         OpenApiReferenceDataServiceImpl service = new OpenApiReferenceDataServiceImpl(
-                lookupService, new OpenApiReferenceDataConverterImpl());
+                cacheReader, new OpenApiReferenceDataConverterImpl());
         IpLookupRequestDTO request = new IpLookupRequestDTO();
         request.setIpAddress("example.com");
 

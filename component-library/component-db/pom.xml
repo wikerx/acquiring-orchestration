@@ -24,6 +24,13 @@
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- BIN 基础数据读模型复用缓存代际能力；纯数据库调用方无需传递引入 Redis。 -->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-redis</artifactId>
+            <version>${project.version}</version>
+            <optional>true</optional>
+        </dependency>
         <!--MyBatis-Plus Spring Boot 集成及 SQL 解析扩展。-->
         <dependency>
             <groupId>com.baomidou</groupId>

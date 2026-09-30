@@ -20,7 +20,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : OpenApiCardBinLookupController
  * @date : 2026-08-11 15:44
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 卡 BIN 归属检索入口，拒绝完整卡号并由统一安全链路处理加解密和防重放
+ * @description : 商户 OpenAPI 卡 BIN 归属检索入口；安全链路负责加解密和防重放，长输入仅用前 11 位查询。
  * @status : create
  */
 @ApiVersion(apiVersion = 1)
@@ -41,7 +41,7 @@ public class OpenApiCardBinLookupController {
     }
 
     /**
-     * 查询 6 至 11 位纯数字卡 BIN 的归属信息。
+     * 查询至少 6 位数字的 BIN；长输入由查询层截取前 11 位，响应不回显完整卡号。
      *
      * @param request       Servlet 请求上下文
      * @param encryptedData 商户加密请求体

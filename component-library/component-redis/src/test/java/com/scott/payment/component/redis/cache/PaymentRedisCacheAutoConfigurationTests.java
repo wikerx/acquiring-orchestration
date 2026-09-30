@@ -217,9 +217,9 @@ class PaymentRedisCacheAutoConfigurationTests {
         log.info("常驻业务缓存测试完成，结果: 物理 TTL 为零且未应用随机抖动");
     }
 
-    /** Card BIN 命中与未命中缓存必须采用不同的有限生命周期。 */
+    /** Card BIN 仅缓存命中记录，正向缓存不设置 Redis 物理 TTL。 */
     @Test
-    void shouldUseShorterTtlForCardBinMisses() {
+    void shouldKeepMatchedCardBinWithoutPhysicalTtl() {
         PaymentCacheProperties properties = new PaymentCacheProperties();
         RedisCacheManager cacheManager = (RedisCacheManager) autoConfiguration.redisCacheManager(
                 mock(RedisConnectionFactory.class),
@@ -228,10 +228,7 @@ class PaymentRedisCacheAutoConfigurationTests {
         cacheManager.afterPropertiesSet();
 
         Duration positiveTtl = cacheConfiguration(cacheManager, PaymentCacheNames.CARD_BIN).getTtl();
-        Duration missTtl = cacheConfiguration(cacheManager, PaymentCacheNames.CARD_BIN_MISS).getTtl();
-        assertThat(positiveTtl).isBetween(Duration.ofMinutes(27), Duration.ofMinutes(33));
-        assertThat(missTtl).isBetween(Duration.ofSeconds(108), Duration.ofSeconds(132));
-        assertThat(positiveTtl).isGreaterThan(missTtl);
+        assertThat(positiveTtl).isZero();
     }
 
     /** 未登记的普通缓存按全局默认 TTL 动态创建，不要求每次使用 @Cacheable 都修改 Registry。 */
