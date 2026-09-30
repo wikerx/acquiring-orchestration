@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.merchant.converter.MerchantDictConverter;
 import com.scott.payment.merchant.dto.system.MerchantDictDTOs.DictDataQuery;
 import com.scott.payment.merchant.dto.system.MerchantDictDTOs.DictDataResponse;
 import com.scott.payment.merchant.entity.SysDictDataDO;
@@ -81,7 +82,7 @@ public class MerchantDictServiceImpl implements MerchantDictService {
                 page.getTotal(),
                 safeQuery.safePageNo(),
                 safeQuery.safePageSize(),
-                page.getRecords().stream().map(this::toResponse).toList());
+                page.getRecords().stream().map(MerchantDictConverter.INSTANCE::toResponse).toList());
     }
 
     /** 判断请求是否为可使用有限期快照的纯下拉查询。 */
@@ -107,7 +108,7 @@ public class MerchantDictServiceImpl implements MerchantDictService {
         int toIndex = (int) Math.min(start + pageSize, snapshots.size());
         List<DictDataResponse> records = snapshots.subList(fromIndex, toIndex)
                 .stream()
-                .map(this::toResponse)
+                .map(MerchantDictConverter.INSTANCE::toResponse)
                 .toList();
         return PageResult.of(snapshots.size(), pageNo, pageSize, records);
     }
@@ -137,42 +138,4 @@ public class MerchantDictServiceImpl implements MerchantDictService {
                 .orderByAsc(SysDictDataDO::getId);
     }
 
-    /**
-     * 将数据库字典记录转换为商户后台只读响应。
-     *
-     * @param entity 字典数据记录
-     * @return 不包含数据库审计字段的字典响应
-     */
-    private DictDataResponse toResponse(SysDictDataDO entity) {
-        DictDataResponse response = new DictDataResponse();
-        response.setId(entity.getId());
-        response.setDictType(entity.getDictType());
-        response.setDictLabel(entity.getDictLabel());
-        response.setDictValue(entity.getDictValue());
-        response.setParentValue(entity.getParentValue());
-        response.setLocale(entity.getLocale());
-        response.setDictSort(entity.getDictSort());
-        response.setListClass(entity.getListClass());
-        response.setExtraJson(entity.getExtraJson());
-        response.setIsDefault(entity.getIsDefault());
-        response.setStatus(entity.getStatus());
-        return response;
-    }
-
-    /** 将共享字典快照转换为商户端只读响应。 */
-    private DictDataResponse toResponse(DictionaryOptionSnapshot snapshot) {
-        DictDataResponse response = new DictDataResponse();
-        response.setId(snapshot.getId());
-        response.setDictType(snapshot.getDictType());
-        response.setDictLabel(snapshot.getDictLabel());
-        response.setDictValue(snapshot.getDictValue());
-        response.setParentValue(snapshot.getParentValue());
-        response.setLocale(snapshot.getLocale());
-        response.setDictSort(snapshot.getDictSort());
-        response.setListClass(snapshot.getListClass());
-        response.setExtraJson(snapshot.getExtraJson());
-        response.setIsDefault(snapshot.getIsDefault());
-        response.setStatus(snapshot.getStatus());
-        return response;
-    }
 }

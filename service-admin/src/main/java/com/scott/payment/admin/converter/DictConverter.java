@@ -6,8 +6,10 @@ import com.scott.payment.admin.dto.export.SysDictDataExportRow;
 import com.scott.payment.admin.dto.export.SysDictTypeExportRow;
 import com.scott.payment.admin.entity.SysDictDataDO;
 import com.scott.payment.admin.entity.SysDictTypeDO;
+import com.scott.payment.component.db.dictionary.model.DictionaryOptionSnapshot;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.factory.Mappers;
 
 /**
  * @author : scott
@@ -18,8 +20,10 @@ import org.mapstruct.Mapping;
  * @description : 数据字典对象转换器，位于 service-admin 转换层；负责字典 DO、DTO 与导出行之间的普通字段映射。
  * @status : create
  */
-@Mapper(componentModel = "spring")
+@Mapper
 public interface DictConverter {
+
+    DictConverter INSTANCE = Mappers.getMapper(DictConverter.class);
 
     /**
      * 字典类型实体转响应 DTO。
@@ -46,6 +50,8 @@ public interface DictConverter {
      * @return 字典数据 DTO
      */
     SysDictDataDTO toDataDTO(SysDictDataDO entity);
+
+    SysDictDataDTO toDataDTO(DictionaryOptionSnapshot snapshot);
 
     /**
      * 字典数据 DTO 转导出行对象。

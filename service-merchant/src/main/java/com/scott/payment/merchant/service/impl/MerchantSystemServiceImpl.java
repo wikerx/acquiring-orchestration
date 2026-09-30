@@ -56,6 +56,7 @@ import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.support.MfaSecretCrypto;
 import com.scott.payment.component.db.auth.support.TotpUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.merchant.converter.MerchantSystemConverter;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountBaseSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaActionRequest;
@@ -332,7 +333,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                         .eq(SysMerchantDeptDO::getMerchantId, merchantId)
                         .eq(SysMerchantDeptDO::getDeleted, AuthConstants.NOT_DELETED)
                         .orderByAsc(SysMerchantDeptDO::getSortNo, SysMerchantDeptDO::getId))
-                .stream().map(this::toDeptDTO).toList();
+                .stream().map(MerchantSystemConverter.INSTANCE::toDeptDTO).toList();
     }
 
     /**
@@ -356,7 +357,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                                 .or()
                                 .like(SysMerchantDeptDO::getDeptCode, keyword))
                         .orderByAsc(SysMerchantDeptDO::getSortNo, SysMerchantDeptDO::getId));
-        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toDeptDTO).toList());
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(MerchantSystemConverter.INSTANCE::toDeptDTO).toList());
     }
 
     /**
@@ -396,7 +397,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         dept.setUpdatedBy(currentAccountId());
         dept.setDeleted(AuthConstants.NOT_DELETED);
         sysMerchantDeptMapper.insert(dept);
-        return toDeptDTO(dept);
+        return MerchantSystemConverter.INSTANCE.toDeptDTO(dept);
     }
 
     /**
@@ -418,7 +419,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         dept.setUpdatedAt(LocalDateTime.now());
         dept.setUpdatedBy(currentAccountId());
         sysMerchantDeptMapper.updateById(dept);
-        return toDeptDTO(dept);
+        return MerchantSystemConverter.INSTANCE.toDeptDTO(dept);
     }
 
     /**
@@ -466,7 +467,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                         .eq(SysMerchantPostDO::getMerchantId, merchantId)
                         .eq(SysMerchantPostDO::getDeleted, AuthConstants.NOT_DELETED)
                         .orderByAsc(SysMerchantPostDO::getSortNo, SysMerchantPostDO::getId))
-                .stream().map(this::toPostDTO).toList();
+                .stream().map(MerchantSystemConverter.INSTANCE::toPostDTO).toList();
     }
 
     /**
@@ -490,7 +491,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                                 .or()
                                 .like(SysMerchantPostDO::getPostCode, keyword))
                         .orderByAsc(SysMerchantPostDO::getSortNo, SysMerchantPostDO::getId));
-        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toPostDTO).toList());
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(MerchantSystemConverter.INSTANCE::toPostDTO).toList());
     }
 
     /**
@@ -515,7 +516,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         post.setUpdatedBy(currentAccountId());
         post.setDeleted(AuthConstants.NOT_DELETED);
         sysMerchantPostMapper.insert(post);
-        return toPostDTO(post);
+        return MerchantSystemConverter.INSTANCE.toPostDTO(post);
     }
 
     /**
@@ -536,7 +537,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         post.setUpdatedAt(LocalDateTime.now());
         post.setUpdatedBy(currentAccountId());
         sysMerchantPostMapper.updateById(post);
-        return toPostDTO(post);
+        return MerchantSystemConverter.INSTANCE.toPostDTO(post);
     }
 
     /**
@@ -1118,7 +1119,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                         .eq(SysRoleDO::getMerchantId, merchantId)
                         .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED)
                         .orderByAsc(SysRoleDO::getSortNo, SysRoleDO::getId))
-                .stream().map(this::toRoleDTO).toList();
+                .stream().map(MerchantSystemConverter.INSTANCE::toRoleDTO).toList();
     }
 
     /**
@@ -1146,7 +1147,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                         .ge(startTime != null, SysRoleDO::getCreatedAt, startTime)
                         .le(endTime != null, SysRoleDO::getCreatedAt, endTime)
                         .orderByAsc(SysRoleDO::getSortNo, SysRoleDO::getId));
-        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toRoleDTO).toList());
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(MerchantSystemConverter.INSTANCE::toRoleDTO).toList());
     }
 
     /**
@@ -1160,7 +1161,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     public RoleDTO getRole(Long id) {
         SysAppDO app = merchantApp();
         String merchantId = currentMerchantId();
-        return toRoleDTO(getRole(app.getId(), merchantId, id));
+        return MerchantSystemConverter.INSTANCE.toRoleDTO(getRole(app.getId(), merchantId, id));
     }
 
     /**
@@ -1194,7 +1195,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         role.setDeleted(AuthConstants.NOT_DELETED);
         sysRoleMapper.insert(role);
         replaceRoleGrants(app.getId(), merchantId, role.getId(), request.getMenuIds(), request.getPermissionIds());
-        return toRoleDTO(role);
+        return MerchantSystemConverter.INSTANCE.toRoleDTO(role);
     }
 
     /**
@@ -1228,7 +1229,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         role.setUpdatedBy(currentAccountId());
         sysRoleMapper.updateById(role);
         replaceRoleGrants(app.getId(), merchantId, id, request.getMenuIds(), request.getPermissionIds());
-        return toRoleDTO(role);
+        return MerchantSystemConverter.INSTANCE.toRoleDTO(role);
     }
 
     /**
@@ -1308,7 +1309,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         SysRoleDO role = getRole(app.getId(), merchantId, id);
         RoleGrantTreeDTO dto = new RoleGrantTreeDTO();
         dto.setRoleId(id);
-        dto.setRole(toRoleDTO(role));
+        dto.setRole(MerchantSystemConverter.INSTANCE.toRoleDTO(role));
         dto.setTree(buildGrantTree(loadGrantedMenuTree(app.getId(), merchantId), grantedPermissions()));
         dto.setCheckedMenuIds(sysRoleMenuMapper.selectList(Wrappers.<SysRoleMenuDO>lambdaQuery()
                         .eq(SysRoleMenuDO::getAppId, app.getId())
@@ -1471,7 +1472,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                         .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
                         .eq(SysPermissionDO::getDeleted, AuthConstants.NOT_DELETED)
                         .orderByAsc(SysPermissionDO::getMenuId, SysPermissionDO::getId))
-                .stream().map(this::toPermissionDTO).toList();
+                .stream().map(MerchantSystemConverter.INSTANCE::toPermissionDTO).toList();
     }
 
     /**
@@ -2176,7 +2177,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                         .eq(SysMenuDO::getStatus, AuthConstants.ENABLED)
                         .eq(SysMenuDO::getDeleted, AuthConstants.NOT_DELETED)
                         .orderByAsc(SysMenuDO::getSortNo, SysMenuDO::getId))
-                .stream().map(this::toAuthMenuDTO).toList();
+                .stream().map(MerchantSystemConverter.INSTANCE::toAuthMenuDTO).toList();
         return buildMenuTree(nodes);
     }
 
@@ -2317,36 +2318,6 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         }
     }
 
-    private DeptDTO toDeptDTO(SysMerchantDeptDO dept) {
-        DeptDTO dto = new DeptDTO();
-        dto.setDeptId(dept.getId());
-        dto.setParentId(dept.getParentId());
-        dto.setDeptCode(dept.getDeptCode());
-        dto.setDeptName(dept.getDeptName());
-        dto.setLeaderAccountId(dept.getLeaderAccountId());
-        dto.setPhone(dept.getPhone());
-        dto.setEmail(dept.getEmail());
-        dto.setSortNo(dept.getSortNo());
-        dto.setStatus(dept.getStatus());
-        dto.setRemark(dept.getRemark());
-        dto.setCreatedAt(dept.getCreatedAt());
-        dto.setUpdatedAt(dept.getUpdatedAt());
-        return dto;
-    }
-
-    private PostDTO toPostDTO(SysMerchantPostDO post) {
-        PostDTO dto = new PostDTO();
-        dto.setPostId(post.getId());
-        dto.setPostCode(post.getPostCode());
-        dto.setPostName(post.getPostName());
-        dto.setSortNo(post.getSortNo());
-        dto.setStatus(post.getStatus());
-        dto.setRemark(post.getRemark());
-        dto.setCreatedAt(post.getCreatedAt());
-        dto.setUpdatedAt(post.getUpdatedAt());
-        return dto;
-    }
-
     private AccountDTO toAccountDTO(Long appId, SysAccountDO account) {
         return toAccountDTO(appId, getMerchantUser(account.getMerchantId(), account.getId()));
     }
@@ -2386,33 +2357,6 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                         .eq(SysMerchantAccountPostDO::getAccountId, account.getId()))
                 .stream().map(SysMerchantAccountPostDO::getPostId).toList());
         fillMfaStatus(account, dto);
-        return dto;
-    }
-
-    private RoleDTO toRoleDTO(SysRoleDO role) {
-        RoleDTO dto = new RoleDTO();
-        dto.setRoleId(role.getId());
-        dto.setRoleCode(role.getRoleCode());
-        dto.setRoleName(role.getRoleName());
-        dto.setRoleType(role.getRoleType());
-        dto.setDataScope(role.getDataScope());
-        dto.setDescription(role.getDescription());
-        dto.setStatus(role.getStatus());
-        dto.setSortNo(role.getSortNo());
-        dto.setCreatedAt(role.getCreatedAt());
-        dto.setUpdatedAt(role.getUpdatedAt());
-        return dto;
-    }
-
-    private PermissionDTO toPermissionDTO(SysPermissionDO permission) {
-        PermissionDTO dto = new PermissionDTO();
-        dto.setPermissionId(permission.getId());
-        dto.setMenuId(permission.getMenuId());
-        dto.setPermissionCode(permission.getPermissionCode());
-        dto.setPermissionName(permission.getPermissionName());
-        dto.setPermissionType(permission.getPermissionType());
-        dto.setResourceMethod(permission.getResourceMethod());
-        dto.setResourcePath(permission.getResourcePath());
         return dto;
     }
 
@@ -2524,23 +2468,6 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
             return "BTN";
         }
         return "MENU";
-    }
-
-    private AuthMenuDTO toAuthMenuDTO(SysMenuDO menu) {
-        AuthMenuDTO dto = new AuthMenuDTO();
-        dto.setId(menu.getId());
-        dto.setParentId(menu.getParentId());
-        dto.setMenuCode(menu.getMenuCode());
-        dto.setMenuName(menu.getMenuName());
-        dto.setMenuType(menu.getMenuType());
-        dto.setRoutePath(menu.getRoutePath());
-        dto.setComponentPath(menu.getComponentPath());
-        dto.setPermissionCode(menu.getPermissionCode());
-        dto.setIcon(menu.getIcon());
-        dto.setVisible(menu.getVisible());
-        dto.setSortNo(menu.getSortNo());
-        dto.setExternalLink(menu.getExternalLink());
-        return dto;
     }
 
     private List<AuthMenuDTO> buildMenuTree(List<AuthMenuDTO> nodes) {
