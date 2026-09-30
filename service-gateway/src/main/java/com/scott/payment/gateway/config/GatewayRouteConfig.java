@@ -55,6 +55,12 @@ public class GatewayRouteConfig {
      */
     private static final String ISO_OPENAPI_PATH = "/api/rest/iso/**";
 
+    /** 商户 IP 归属查询 API 路径。 */
+    private static final String IP_OPENAPI_PATH = "/api/rest/ip/**";
+
+    /** 商户卡 BIN 归属查询 API 路径。 */
+    private static final String CARD_BIN_OPENAPI_PATH = "/api/rest/card-bin/**";
+
     /**
      * 渠道回调路径，当前由 service-openapi 统一承接后再转发到支付或代付服务。
      */
@@ -128,6 +134,8 @@ public class GatewayRouteConfig {
                 .route("merchant-payment-openapi", route -> route.path(PAYMENT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("merchant-payout-openapi", route -> route.path(PAYOUT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("merchant-iso-openapi", route -> route.path(ISO_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
+                .route("merchant-ip-openapi", route -> route.path(IP_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
+                .route("merchant-card-bin-openapi", route -> route.path(CARD_BIN_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("merchant-checkout-openapi", route -> route.path(CHECKOUT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("checkout-browser-api", route -> route.path(CHECKOUT_BROWSER_API_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("channel-callback-openapi", route -> route.path(CHANNEL_CALLBACK_PATH).uri(SERVICE_OPENAPI_URI))

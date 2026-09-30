@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * @author : scott
@@ -42,6 +43,24 @@ class GatewayRouteConfigTests {
             assertRouteMatches(routes.get("checkout-browser-api"), "/checkout/api/v1/payment/submit");
             assertRouteMatches(routes.get("checkout-config"), "/checkout/config/countries");
             assertRouteMatches(routes.get("checkout-config"), "/checkout/health");
+        }
+    }
+
+    @Test
+    void shouldRouteIpAndCardBinQueriesToOpenApi() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(PathRoutePredicateFactory.class);
+            context.refresh();
+            RouteLocator locator = new GatewayRouteConfig().openApiRoutes(new RouteLocatorBuilder(context));
+            Map<String, Route> routes = locator.getRoutes().collectList().block().stream()
+                    .collect(Collectors.toMap(Route::getId, Function.identity()));
+
+            Route ipRoute = routes.get("merchant-ip-openapi");
+            Route cardBinRoute = routes.get("merchant-card-bin-openapi");
+            assertRouteMatches(ipRoute, "/api/rest/ip/v1/query");
+            assertRouteMatches(cardBinRoute, "/api/rest/card-bin/v1/query");
+            assertEquals("lb://service-openapi", ipRoute.getUri().toString());
+            assertEquals("lb://service-openapi", cardBinRoute.getUri().toString());
         }
     }
 
