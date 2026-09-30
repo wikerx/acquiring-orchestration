@@ -150,6 +150,33 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     }
 
     /**
+     * 将已提供的 ISO 代码作为精确 SQL 条件查询启用国家；无代码时复用全量字典快照。
+     *
+     * @param alpha2 ISO 3166-1 两位代码，可为空
+     * @param alpha3 ISO 3166-1 三位代码，可为空
+     * @param numeric ISO 3166-1 三位数字字符串，可为空
+     * @return 命中的启用国家，未命中时返回空列表
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public List<IsoCountryInfo> listCountriesByCodes(String alpha2, String alpha3, String numeric) {
+        if (alpha2 == null && alpha3 == null && numeric == null) {
+            return listCountries();
+        }
+        LambdaQueryWrapper<IsoCountryDO> queryWrapper = new LambdaQueryWrapper<IsoCountryDO>()
+                .eq(IsoCountryDO::getStatus, STATUS_ENABLED)
+                .eq(IsoCountryDO::getDeleted, NOT_DELETED)
+                .eq(alpha2 != null, IsoCountryDO::getAlpha2Code, alpha2)
+                .eq(alpha3 != null, IsoCountryDO::getAlpha3Code, alpha3)
+                .eq(numeric != null, IsoCountryDO::getNumericCode, numeric)
+                .orderByAsc(IsoCountryDO::getAlpha2Code);
+        return countryMapper.selectList(queryWrapper)
+                .stream()
+                .map(this::toCountryInfo)
+                .toList();
+    }
+
+    /**
      * 按关键字查询国家地区。
      *
      * @param keyword 查询关键字，空值时返回全部启用国家地区
@@ -242,6 +269,31 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 this::loadCurrenciesFromDatabase,
                 IsoCurrencyResolver::listIndexedCurrencies
         );
+    }
+
+    /**
+     * 将已提供的 ISO 代码作为精确 SQL 条件查询启用币种；无代码时复用全量字典快照。
+     *
+     * @param alphabeticCode ISO 4217 三位字母代码，可为空
+     * @param numericCode ISO 4217 三位数字字符串，可为空
+     * @return 命中的启用币种，未命中时返回空列表
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public List<IsoCurrencyInfo> listCurrenciesByCodes(String alphabeticCode, String numericCode) {
+        if (alphabeticCode == null && numericCode == null) {
+            return listCurrencies();
+        }
+        LambdaQueryWrapper<IsoCurrencyDO> queryWrapper = new LambdaQueryWrapper<IsoCurrencyDO>()
+                .eq(IsoCurrencyDO::getStatus, STATUS_ENABLED)
+                .eq(IsoCurrencyDO::getDeleted, NOT_DELETED)
+                .eq(alphabeticCode != null, IsoCurrencyDO::getAlpha3Code, alphabeticCode)
+                .eq(numericCode != null, IsoCurrencyDO::getNumericCode, numericCode)
+                .orderByAsc(IsoCurrencyDO::getAlpha3Code);
+        return currencyMapper.selectList(queryWrapper)
+                .stream()
+                .map(this::toCurrencyInfo)
+                .toList();
     }
 
     /**

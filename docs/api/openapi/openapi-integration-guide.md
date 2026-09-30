@@ -432,7 +432,11 @@ Sandbox 模拟器可通过有效期触发预期交易结果。本文 API 使用�
 
 ### 6.1 查询国家地区
 
-查询平台支持的 ISO 3166 国家或地区。所有查询条件均可选；不传条件时返回全部可用记录。
+查询平台支持的 ISO 3166 国家或地区。仅支持 `alpha2`、`alpha3`、`numeric` 三个可选代码条件，均为精确匹配；传多个条件时按 AND 取交集，条件冲突或代码不存在时返回空列表。
+
+查询全部国家时，将空对象 `{}` 加密后放入请求 `data`；未传字段或值为 `null` 表示不参与过滤，空字符串、错误长度或小写字母代码返回 `F402001`。`numeric` 必须使用三位数字字符串，例如 `"004"`，保留前导零。
+
+兼容性变更：不再接受名称、大洲、语言或币种等其它查询字段；即使其它字段值为 `null` 也返回 `F402001`，不会忽略条件后返回全量数据。已有调用方应改用上述三种代码，或获取全部国家后在本地筛选。响应仍包含国家名称、大洲、语言、币种等原有信息。
 
 **接口**
 
@@ -447,19 +451,12 @@ POST /api/rest/iso/v1/countries/query
 | `alpha2` | string | O | ISO 3166-1 alpha-2，两位大写字母 |
 | `alpha3` | string | O | ISO 3166-1 alpha-3，三位大写字母 |
 | `numeric` | string | O | ISO 3166-1 三位数字代码 |
-| `englishName` | string | O | 英文名称，最长 128 个字符 |
-| `shortEnglishName` | string | O | 英文简称，最长 128 个字符 |
-| `chineseName` | string | O | 中文名称，最长 128 个字符 |
-| `continentCode` | string | O | `AS/EU/AF/NA/SA/OC/AN` |
-| `primaryLanguageCode` | string | O | 语言代码，例如 `en`、`zh-CN` |
-| `currencyAlpha3Code` | string | O | ISO 4217 三位大写币种代码 |
 
 **明文请求示例**
 
 ```json
 {
-  "alpha3": "USA",
-  "continentCode": "NA"
+  "alpha3": "USA"
 }
 ```
 
@@ -515,7 +512,7 @@ POST /api/rest/iso/v1/countries/query
 
 ### 6.2 查询币种
 
-查询平台支持的 ISO 4217 币种及其最小单位信息。所有查询条件均可选；不传条件时返回全部可用记录。
+查询平台支持的 ISO 4217 币种及其最小单位信息。仅支持 `alphabeticCode`、`numericCode` 两个可选代码字段；不传条件时返回全部可用记录，传一个或两个字段时按代码精确匹配，两个字段使用 AND 组合。未知字段和非字符串代码返回参数错误。
 
 **接口**
 
@@ -529,9 +526,6 @@ POST /api/rest/iso/v1/currencies/query
 | --- | --- | --- | --- |
 | `alphabeticCode` | string | O | ISO 4217 三位大写字母代码 |
 | `numericCode` | string | O | ISO 4217 三位数字代码 |
-| `englishName` | string | O | 英文名称，最长 128 个字符 |
-| `chineseName` | string | O | 中文名称，最长 128 个字符 |
-| `currencySymbol` | string | O | 币种符号，最长 16 个字符 |
 
 **明文请求示例**
 

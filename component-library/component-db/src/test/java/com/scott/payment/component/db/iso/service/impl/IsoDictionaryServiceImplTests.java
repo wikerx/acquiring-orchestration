@@ -1,5 +1,8 @@
 package com.scott.payment.component.db.iso.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.component.core.cache.PaymentRedisKeyResolver;
 import com.scott.payment.component.core.cache.CacheInvalidationGuard;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
@@ -13,13 +16,21 @@ import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +51,124 @@ import static org.mockito.Mockito.when;
  */
 @Slf4j
 class IsoDictionaryServiceImplTests {
+
+    @BeforeAll
+    static void initializeIsoTableMetadata() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""), IsoCountryDO.class);
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""), IsoCurrencyDO.class);
+    }
+
+    /** 有条件国家查询必须把全部代码与启用、未删除条件交给数据库执行。 */
+    @ParameterizedTest
+    @MethodSource("countryCodeFilters")
+    void shouldApplyAllProvidedCountryCodesInSql(String alpha2, String alpha3, String numeric,
+                                                  List<String> includedColumns, List<String> excludedColumns) {
+        log.info("验证国家代码条件直接进入 SQL，代码: {} / {} / {}", alpha2, alpha3, numeric);
+        Fixture fixture = fixture();
+        AtomicReference<LambdaQueryWrapper<IsoCountryDO>> query = new AtomicReference<>();
+        when(fixture.countryMapper().selectList(any())).thenAnswer(invocation -> {
+            query.set(invocation.getArgument(0));
+            return List.of(countryRow());
+        });
+
+        List<IsoCountryInfo> countries = fixture.service().listCountriesByCodes(alpha2, alpha3, numeric);
+
+        assertThat(countries).containsExactly(countryInfo());
+        assertThat(query.get()).isNotNull();
+        String sql = query.get().getExpression().getNormal().getSqlSegment();
+        assertThat(sql).contains("status", "deleted").contains(includedColumns.toArray(String[]::new));
+        excludedColumns.forEach(column -> assertThat(sql).doesNotContain(column));
+        assertThat(query.get().getParamNameValuePairs().values()).contains(1, 0);
+        Stream.of(alpha2, alpha3, numeric).filter(Objects::nonNull)
+                .forEach(code -> assertThat(query.get().getParamNameValuePairs().values()).contains(code));
+        if (includedColumns.size() == 3) {
+            assertThat(sql).containsPattern("alpha2_code.*AND.*alpha3_code.*AND.*numeric_code");
+        }
+        verify(fixture.valueOperations(), never()).get(anyString());
+    }
+
+    private static Stream<Arguments> countryCodeFilters() {
+        return Stream.of(
+                Arguments.of("US", null, null, List.of("alpha2_code"), List.of("alpha3_code", "numeric_code")),
+                Arguments.of(null, "USA", null, List.of("alpha3_code"), List.of("alpha2_code", "numeric_code")),
+                Arguments.of(null, null, "840", List.of("numeric_code"), List.of("alpha2_code", "alpha3_code")),
+                Arguments.of("US", "USA", "840", List.of("alpha2_code", "alpha3_code", "numeric_code"), List.of())
+        );
+    }
+
+    /** 币种代码条件必须进入 SQL，两个代码同时传入时使用 AND。 */
+    @ParameterizedTest
+    @MethodSource("currencyCodeFilters")
+    void shouldApplyProvidedCurrencyCodesInSql(String alphabeticCode, String numericCode,
+                                                List<String> includedColumns, List<String> excludedColumns) {
+        Fixture fixture = fixture();
+        AtomicReference<LambdaQueryWrapper<IsoCurrencyDO>> query = new AtomicReference<>();
+        when(fixture.currencyMapper().selectList(any())).thenAnswer(invocation -> {
+            query.set(invocation.getArgument(0));
+            return List.of(currencyRow("USD", null));
+        });
+
+        assertThat(fixture.service().listCurrenciesByCodes(alphabeticCode, numericCode))
+                .extracting(IsoCurrencyInfo::alphabeticCode).containsExactly("USD");
+        String sql = query.get().getExpression().getNormal().getSqlSegment();
+        assertThat(sql).contains("status", "deleted").contains(includedColumns.toArray(String[]::new));
+        excludedColumns.forEach(column -> assertThat(sql).doesNotContain(column));
+        assertThat(query.get().getParamNameValuePairs().values()).contains(1, 0);
+        Stream.of(alphabeticCode, numericCode).filter(Objects::nonNull)
+                .forEach(code -> assertThat(query.get().getParamNameValuePairs().values()).contains(code));
+        if (includedColumns.size() == 2) {
+            assertThat(sql).containsPattern("alpha3_code.*AND.*numeric_code");
+        }
+        verify(fixture.valueOperations(), never()).get(anyString());
+    }
+
+    private static Stream<Arguments> currencyCodeFilters() {
+        return Stream.of(
+                Arguments.of("USD", null, List.of("alpha3_code"), List.of("numeric_code")),
+                Arguments.of(null, "840", List.of("numeric_code"), List.of("alpha3_code")),
+                Arguments.of("USD", "840", List.of("alpha3_code", "numeric_code"), List.of())
+        );
+    }
+
+    @Test
+    void shouldUseCurrencySnapshotWithoutCodesAndReturnEmptyForUnknownCode() {
+        Fixture fixture = fixture();
+        IsoCurrencyInfo currency = new IsoCurrencyInfo("USD", "840", "US Dollar", "美元", 2, 100,
+                new BigDecimal("0.01"), "$");
+        when(fixture.valueOperations().get("acquiring:dev:iso:currency:all"))
+                .thenReturn(JsonUtils.toJsonString(List.of(currency)));
+
+        assertThat(fixture.service().listCurrenciesByCodes(null, null)).containsExactly(currency);
+        verify(fixture.currencyMapper(), never()).selectList(any());
+
+        when(fixture.currencyMapper().selectList(any())).thenReturn(List.of());
+        assertThat(fixture.service().listCurrenciesByCodes(null, "999")).isEmpty();
+    }
+
+    /** 无代码时保留现有全量缓存路径。 */
+    @Test
+    void shouldUseFullCountrySnapshotWhenNoCodesAreProvided() {
+        log.info("验证国家查询无代码时复用 Redis 全量快照");
+        Fixture fixture = fixture();
+        when(fixture.valueOperations().get("acquiring:dev:iso:country:all"))
+                .thenReturn(JsonUtils.toJsonString(List.of(countryInfo())));
+
+        assertThat(fixture.service().listCountriesByCodes(null, null, null)).containsExactly(countryInfo());
+        verify(fixture.countryMapper(), never()).selectList(any());
+    }
+
+    /** 有条件查询未命中时返回空集，不使用全量或内置字典兜底。 */
+    @Test
+    void shouldReturnEmptyForUnmatchedCountryCodeWithoutLoadingSnapshot() {
+        log.info("验证国家代码查询未命中时返回空列表");
+        Fixture fixture = fixture();
+        when(fixture.countryMapper().selectList(any())).thenReturn(List.of());
+
+        assertThat(fixture.service().listCountriesByCodes(null, "ZZZ", null)).isEmpty();
+        verify(fixture.valueOperations(), never()).get(anyString());
+    }
 
     /**
      * 国家字典命中短 Key 后必须直接返回，不能再访问历史 Key 或数据库。
@@ -300,6 +429,9 @@ class IsoDictionaryServiceImplTests {
         row.setNumericCode("000");
         row.setEnglishName(alphabeticCode + " currency");
         row.setChineseName(alphabeticCode + " 币种");
+        row.setFractionDigits(2);
+        row.setMinorUnitMultiplier(100L);
+        row.setMinimumAmount(new BigDecimal("0.01"));
         row.setCurrencySymbol(alphabeticCode);
         row.setIconKey(iconKey);
         return row;

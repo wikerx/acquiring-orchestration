@@ -27,6 +27,16 @@ public interface IsoDictionaryService {
     List<IsoCountryInfo> listCountries();
 
     /**
+     * 根据已提供的 ISO 国家代码在数据库中精确查询启用国家，多个代码使用 AND 组合。
+     *
+     * @param alpha2 ISO 3166-1 两位代码，未传时为 null
+     * @param alpha3 ISO 3166-1 三位代码，未传时为 null
+     * @param numeric ISO 3166-1 三位数字字符串，未传时为 null
+     * @return 命中的启用国家；无条件时使用全量字典快照
+     */
+    List<IsoCountryInfo> listCountriesByCodes(String alpha2, String alpha3, String numeric);
+
+    /**
      * 根据关键字查询国家地区，支持 alpha-2、alpha-3、numeric、英文名、中文名、地区、默认币种和主要语言。
      *
      * @param keyword 查询关键字，空值时返回全部启用国家地区
@@ -64,6 +74,15 @@ public interface IsoDictionaryService {
      * @return 启用币种列表
      */
     List<IsoCurrencyInfo> listCurrencies();
+
+    /**
+     * 根据已提供的 ISO 币种代码在数据库中精确查询启用币种，两个代码使用 AND 组合。
+     *
+     * @param alphabeticCode ISO 4217 三位字母代码，未传时为 null
+     * @param numericCode ISO 4217 三位数字字符串，未传时为 null
+     * @return 命中的启用币种；无条件时使用全量字典快照
+     */
+    List<IsoCurrencyInfo> listCurrenciesByCodes(String alphabeticCode, String numericCode);
 
     /**
      * 查询系统当前启用币种的界面展示信息。

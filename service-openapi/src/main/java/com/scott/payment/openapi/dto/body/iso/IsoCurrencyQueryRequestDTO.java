@@ -3,7 +3,6 @@ package com.scott.payment.openapi.dto.body.iso;
 import lombok.Data;
 
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 import java.io.Serializable;
 
 /**
@@ -38,28 +37,4 @@ public class IsoCurrencyQueryRequestDTO implements Serializable {
      */
     @Pattern(regexp = "^\\d{3}$", message = "numericCode must be ISO 4217 three-digit numeric code")
     private String numericCode;
-
-    /**
-     * 币种英文名称。
-     * <p>
-     * 示例：US Dollar、Yuan Renminbi。为空时不按英文名称过滤。
-     */
-    @Size(max = 128, message = "englishName length must be less than or equal to 128")
-    private String englishName;
-
-    /**
-     * 币种中文名称。
-     * <p>
-     * 示例：美元、人民币。为空时不按中文名称过滤。
-     */
-    @Size(max = 128, message = "chineseName length must be less than or equal to 128")
-    private String chineseName;
-
-    /**
-     * 币种符号或展示图标。
-     * <p>
-     * 示例：$、¥、€。为空时不按币种符号过滤。
-     */
-    @Size(max = 16, message = "currencySymbol length must be less than or equal to 16")
-    private String currencySymbol;
 }
