@@ -73,7 +73,7 @@ class ShardingSphereJdbcCompatibilityPocTest {
         shardingDataSource = ShardingSphereDataSourceFactory.createDataSource(
                 Map.of("master", primary, "slave", replica),
                 configuration.buildRules(properties, properties.getReplicaDataSources()),
-                configuration.buildSystemProperties());
+                configuration.buildSystemProperties(properties));
         jdbcTemplate = new JdbcTemplate(shardingDataSource);
     }
 

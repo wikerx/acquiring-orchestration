@@ -76,7 +76,7 @@ public class PaymentTransactionLogicalMapperPocTest {
         shardingDataSource = ShardingSphereDataSourceFactory.createDataSource(
                 Map.of("master", primary),
                 configuration.buildRules(properties, List.of()),
-                configuration.buildSystemProperties());
+                configuration.buildSystemProperties(properties));
     }
 
     @AfterEach

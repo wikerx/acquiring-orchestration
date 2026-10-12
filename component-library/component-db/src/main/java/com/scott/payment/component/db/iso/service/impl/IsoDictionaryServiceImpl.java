@@ -30,9 +30,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -79,6 +83,19 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
 
     /** 受管 ISO 快照的固定业务键。 */
     private static final String SNAPSHOT_BUSINESS_KEY = "all";
+
+    /** 按标准代码精确查询的固定 Redis Hash 业务键。 */
+    private static final String CODE_INDEX_BUSINESS_KEY = "codes";
+
+    /** 代码 Hash 完整性标记；与全部别名在同一个 HSET 命令中写入。 */
+    private static final String CODE_INDEX_READY_FIELD = "__READY__";
+
+    /** 当前代码 Hash 载荷版本。 */
+    private static final String CODE_INDEX_VERSION = "v1";
+
+    private static final String ALPHA2_FIELD_PREFIX = "A2:";
+    private static final String ALPHA3_FIELD_PREFIX = "A3:";
+    private static final String NUMERIC_FIELD_PREFIX = "N:";
 
     /**
      * 国家地区 Mapper，用于读取 base_iso_country。
@@ -150,10 +167,12 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     }
 
     /**
-     * 从全量国家快照中按已提供的 ISO 代码执行精确组合查询。
+     * 从固定国家代码 Hash 按已提供的 ISO 代码执行精确组合查询。
      *
-     * <p>所有非空条件使用 AND 语义。全量快照由 Redis 常驻缓存承载，缓存未命中时才从
-     * SLAVE 加载，因此精确查询不会为每个代码组合额外访问数据库或创建 Redis Key。</p>
+     * <p>所有非空条件通过一次 HMGET 读取，并且必须解析为同一条国家记录。完整 Hash 中字段
+     * 不存在属于权威空结果；Hash 尚未建立时从 SLAVE 全量加载一次并写入所有代码别名；只有
+     * Redis 不可用时才执行一次携带全部条件的 SLAVE 精确 SQL。固定 Hash 不接受商户输入作为
+     * Redis Key，避免恶意请求造成无界 Key 增长。</p>
      *
      * @param alpha2 ISO 3166-1 两位代码，可为空
      * @param alpha3 ISO 3166-1 三位代码，可为空
@@ -163,11 +182,33 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     @Override
     @DS(DataSourceName.SLAVE)
     public List<IsoCountryInfo> listCountriesByCodes(String alpha2, String alpha3, String numeric) {
-        return listCountries().stream()
-                .filter(country -> alpha2 == null || alpha2.equals(country.alpha2()))
-                .filter(country -> alpha3 == null || alpha3.equals(country.alpha3()))
-                .filter(country -> numeric == null || numeric.equals(country.numeric()))
-                .toList();
+        if (alpha2 == null && alpha3 == null && numeric == null) {
+            return listCountries();
+        }
+        String cacheKey = newCacheKey(COUNTRY_CACHE_BUSINESS, CODE_INDEX_BUSINESS_KEY);
+        List<Object> fields = countryCodeFields(alpha2, alpha3, numeric);
+        CodeCacheReadResult<IsoCountryInfo> cacheRead = readCodeCache(
+                cacheKey, fields, IsoCountryInfo.class, "COUNTRY");
+        if (cacheRead.status() == CodeCacheReadStatus.PRESENT) {
+            log.debug("event: ISO_CODE_CACHE_HIT dictionary: COUNTRY criteriaCount: {} matched: {}",
+                    fields.size() - 1, !cacheRead.values().isEmpty());
+            return cacheRead.values();
+        }
+        if (cacheRead.status() == CodeCacheReadStatus.UNAVAILABLE) {
+            log.debug("event: ISO_CODE_CACHE_MISS dictionary: COUNTRY reason: REDIS_UNAVAILABLE");
+            return loadCountriesByCodesFromDatabase(alpha2, alpha3, numeric);
+        }
+
+        log.debug("event: ISO_CODE_CACHE_MISS dictionary: COUNTRY reason: INDEX_NOT_READY");
+        List<IsoCountryInfo> countries = loadDatabaseValues(this::loadCountriesFromDatabase);
+        if (isCacheWriteAllowed(PaymentCacheNames.ISO_COUNTRY, CODE_INDEX_BUSINESS_KEY)) {
+            Map<String, String> aliases = countryAliases(countries);
+            if (writeCodeCache(cacheKey, aliases, "COUNTRY")) {
+                log.debug("event: ISO_CODE_CACHE_REBUILT dictionary: COUNTRY recordCount: {} aliasCount: {}",
+                        countries.size(), aliases.size() - 1);
+            }
+        }
+        return filterCountriesByCodes(countries, alpha2, alpha3, numeric);
     }
 
     /**
@@ -265,10 +306,10 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     }
 
     /**
-     * 从全量币种快照中按已提供的 ISO 代码执行精确组合查询。
+     * 从固定币种代码 Hash 按已提供的 ISO 代码执行精确组合查询。
      *
-     * <p>所有非空条件使用 AND 语义。查询复用全量常驻快照，不为单个币种或条件组合创建
-     * 额外缓存，避免热点代码之外的无界 Key 增长。</p>
+     * <p>字母代码和数字代码通过一次 HMGET 读取，多个条件必须解析为同一条币种记录。
+     * Hash 缺失时从 SLAVE 全量重建；Redis 不可用时使用带 AND 条件的 SLAVE 精确 SQL。</p>
      *
      * @param alphabeticCode ISO 4217 三位字母代码，可为空
      * @param numericCode ISO 4217 三位数字字符串，可为空
@@ -277,11 +318,33 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     @Override
     @DS(DataSourceName.SLAVE)
     public List<IsoCurrencyInfo> listCurrenciesByCodes(String alphabeticCode, String numericCode) {
-        return listCurrencies().stream()
-                .filter(currency -> alphabeticCode == null
-                        || alphabeticCode.equals(currency.alphabeticCode()))
-                .filter(currency -> numericCode == null || numericCode.equals(currency.numericCode()))
-                .toList();
+        if (alphabeticCode == null && numericCode == null) {
+            return listCurrencies();
+        }
+        String cacheKey = newCacheKey(CURRENCY_CACHE_BUSINESS, CODE_INDEX_BUSINESS_KEY);
+        List<Object> fields = currencyCodeFields(alphabeticCode, numericCode);
+        CodeCacheReadResult<IsoCurrencyInfo> cacheRead = readCodeCache(
+                cacheKey, fields, IsoCurrencyInfo.class, "CURRENCY");
+        if (cacheRead.status() == CodeCacheReadStatus.PRESENT) {
+            log.debug("event: ISO_CODE_CACHE_HIT dictionary: CURRENCY criteriaCount: {} matched: {}",
+                    fields.size() - 1, !cacheRead.values().isEmpty());
+            return cacheRead.values();
+        }
+        if (cacheRead.status() == CodeCacheReadStatus.UNAVAILABLE) {
+            log.debug("event: ISO_CODE_CACHE_MISS dictionary: CURRENCY reason: REDIS_UNAVAILABLE");
+            return loadCurrenciesByCodesFromDatabase(alphabeticCode, numericCode);
+        }
+
+        log.debug("event: ISO_CODE_CACHE_MISS dictionary: CURRENCY reason: INDEX_NOT_READY");
+        List<IsoCurrencyInfo> currencies = loadDatabaseValues(this::loadCurrenciesFromDatabase);
+        if (isCacheWriteAllowed(PaymentCacheNames.ISO_CURRENCY, CODE_INDEX_BUSINESS_KEY)) {
+            Map<String, String> aliases = currencyAliases(currencies);
+            if (writeCodeCache(cacheKey, aliases, "CURRENCY")) {
+                log.debug("event: ISO_CODE_CACHE_REBUILT dictionary: CURRENCY recordCount: {} aliasCount: {}",
+                        currencies.size(), aliases.size() - 1);
+            }
+        }
+        return filterCurrenciesByCodes(currencies, alphabeticCode, numericCode);
     }
 
     /**
@@ -369,7 +432,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     }
 
     /**
-     * 删除国家地区常驻缓存，使下一次读取从数据库重建权威快照。
+     * 删除国家地区常驻全量快照和代码 Hash，使下一次读取从数据库重建权威数据。
      *
      * <p>管理端国家或地区关联数据提交成功后调用。Redis 删除失败会向上抛出，
      * 防止业务变更后继续静默使用永久旧值。</p>
@@ -381,10 +444,15 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 SNAPSHOT_BUSINESS_KEY,
                 newCacheKey(COUNTRY_CACHE_BUSINESS)
         );
+        invalidate(
+                PaymentCacheNames.ISO_COUNTRY,
+                CODE_INDEX_BUSINESS_KEY,
+                newCacheKey(COUNTRY_CACHE_BUSINESS, CODE_INDEX_BUSINESS_KEY)
+        );
     }
 
     /**
-     * 删除币种常驻缓存，使下一次读取从数据库重建权威快照。
+     * 删除币种常驻全量快照、代码 Hash 和展示快照，使下一次读取从数据库重建权威数据。
      *
      * <p>管理端币种或地区币种关联数据提交成功后调用。Redis 删除失败会向上抛出，
      * 防止业务变更后继续静默使用永久旧值。</p>
@@ -398,9 +466,220 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         );
         invalidate(
                 PaymentCacheNames.ISO_CURRENCY,
+                CODE_INDEX_BUSINESS_KEY,
+                newCacheKey(CURRENCY_CACHE_BUSINESS, CODE_INDEX_BUSINESS_KEY)
+        );
+        invalidate(
+                PaymentCacheNames.ISO_CURRENCY,
                 CURRENCY_PRESENTATION_CACHE_BUSINESS_KEY,
                 newCacheKey(CURRENCY_CACHE_BUSINESS, CURRENCY_PRESENTATION_CACHE_BUSINESS_KEY)
         );
+    }
+
+    /**
+     * 从固定代码 Hash 一次读取完整性标记和全部查询别名。
+     *
+     * <p>{@code __READY__=v1} 表示 Hash 已由同一个 HSET 命令完整写入。标记有效时，任一字段
+     * 缺失都是权威未命中；多个字段反序列化后不相等也按 AND 条件不成立处理。Redis 连接异常
+     * 与 Hash 尚未建立使用不同状态，使前者走精确 SQL，后者执行一次全量重建。</p>
+     *
+     * @param cacheKey Redis Hash 物理 Key
+     * @param fields 包含完整性标记和本次查询代码的字段列表
+     * @param valueType Hash 值反序列化类型
+     * @param dictionary 日志中的字典类型
+     * @param <T> ISO 国家或币种信息类型
+     * @return Hash 命中结果、未建立状态或 Redis 不可用状态
+     */
+    private <T> CodeCacheReadResult<T> readCodeCache(String cacheKey,
+                                                     List<Object> fields,
+                                                     Class<T> valueType,
+                                                     String dictionary) {
+        if (stringRedisTemplate == null || !StringUtils.hasText(cacheKey)) {
+            return CodeCacheReadResult.unavailable();
+        }
+        List<Object> cachedValues;
+        try {
+            cachedValues = stringRedisTemplate.opsForHash().multiGet(cacheKey, fields);
+        } catch (RuntimeException exception) {
+            log.warn("读取 ISO 代码 Hash 失败，dictionary: {}，异常类型: {}",
+                    dictionary, exception.getClass().getSimpleName());
+            return CodeCacheReadResult.unavailable();
+        }
+        if (cachedValues == null || cachedValues.size() != fields.size()
+                || !CODE_INDEX_VERSION.equals(stringValue(cachedValues.get(0)))) {
+            return CodeCacheReadResult.missing();
+        }
+        try {
+            T resolved = null;
+            for (int index = 1; index < cachedValues.size(); index++) {
+                String json = stringValue(cachedValues.get(index));
+                if (!StringUtils.hasText(json)) {
+                    return CodeCacheReadResult.present(List.of());
+                }
+                T candidate = JsonUtils.parseObject(json, valueType);
+                if (candidate == null) {
+                    throw new IllegalStateException("ISO code cache payload is null");
+                }
+                if (resolved != null && !Objects.equals(resolved, candidate)) {
+                    return CodeCacheReadResult.present(List.of());
+                }
+                resolved = candidate;
+            }
+            return resolved == null
+                    ? CodeCacheReadResult.present(List.of())
+                    : CodeCacheReadResult.present(List.of(resolved));
+        } catch (RuntimeException exception) {
+            // 损坏载荷不能作为权威未命中；下一次从库全量加载会替换整个固定 Hash。
+            log.warn("ISO 代码 Hash 载荷无效，将从数据库重建，dictionary: {}，异常类型: {}",
+                    dictionary, exception.getClass().getSimpleName());
+            return CodeCacheReadResult.missing();
+        }
+    }
+
+    /** 写入不带 TTL 的完整代码 Hash；先删除旧版本字段，防止已移除代码残留。 */
+    private boolean writeCodeCache(String cacheKey, Map<String, String> aliases, String dictionary) {
+        if (stringRedisTemplate == null || !StringUtils.hasText(cacheKey)) {
+            return false;
+        }
+        try {
+            stringRedisTemplate.delete(cacheKey);
+            // aliases 同时包含全部代码别名和 ready 标记，Redis HSET 对单条命令执行保持原子性。
+            stringRedisTemplate.opsForHash().putAll(cacheKey, aliases);
+            return true;
+        } catch (RuntimeException exception) {
+            log.warn("写入 ISO 代码 Hash 失败，dictionary: {}，异常类型: {}",
+                    dictionary, exception.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    /** 为本次国家查询构造一次 HMGET 所需字段，顺序与请求条件保持稳定。 */
+    private List<Object> countryCodeFields(String alpha2, String alpha3, String numeric) {
+        List<Object> fields = new ArrayList<>(4);
+        fields.add(CODE_INDEX_READY_FIELD);
+        addCodeField(fields, ALPHA2_FIELD_PREFIX, alpha2);
+        addCodeField(fields, ALPHA3_FIELD_PREFIX, alpha3);
+        addCodeField(fields, NUMERIC_FIELD_PREFIX, numeric);
+        return List.copyOf(fields);
+    }
+
+    /** 为本次币种查询构造一次 HMGET 所需字段。 */
+    private List<Object> currencyCodeFields(String alphabeticCode, String numericCode) {
+        List<Object> fields = new ArrayList<>(3);
+        fields.add(CODE_INDEX_READY_FIELD);
+        addCodeField(fields, ALPHA3_FIELD_PREFIX, alphabeticCode);
+        addCodeField(fields, NUMERIC_FIELD_PREFIX, numericCode);
+        return List.copyOf(fields);
+    }
+
+    private void addCodeField(List<Object> fields, String prefix, String value) {
+        if (value != null) {
+            fields.add(prefix + value);
+        }
+    }
+
+    /** 从完整国家记录建立 alpha-2、alpha-3 和 numeric 三类固定别名。 */
+    private Map<String, String> countryAliases(List<IsoCountryInfo> countries) {
+        Map<String, String> aliases = new LinkedHashMap<>();
+        for (IsoCountryInfo country : countries) {
+            String json = JsonUtils.toJsonString(country);
+            putAlias(aliases, ALPHA2_FIELD_PREFIX, country.alpha2(), json);
+            putAlias(aliases, ALPHA3_FIELD_PREFIX, country.alpha3(), json);
+            putAlias(aliases, NUMERIC_FIELD_PREFIX, country.numeric(), json);
+        }
+        aliases.put(CODE_INDEX_READY_FIELD, CODE_INDEX_VERSION);
+        return aliases;
+    }
+
+    /** 从完整币种记录建立 alphabetic 和 numeric 两类固定别名。 */
+    private Map<String, String> currencyAliases(List<IsoCurrencyInfo> currencies) {
+        Map<String, String> aliases = new LinkedHashMap<>();
+        for (IsoCurrencyInfo currency : currencies) {
+            String json = JsonUtils.toJsonString(currency);
+            putAlias(aliases, ALPHA3_FIELD_PREFIX, currency.alphabeticCode(), json);
+            putAlias(aliases, NUMERIC_FIELD_PREFIX, currency.numericCode(), json);
+        }
+        aliases.put(CODE_INDEX_READY_FIELD, CODE_INDEX_VERSION);
+        return aliases;
+    }
+
+    private void putAlias(Map<String, String> aliases, String prefix, String code, String json) {
+        if (StringUtils.hasText(code)) {
+            aliases.put(prefix + code, json);
+        }
+    }
+
+    /** 对从库重建结果应用与 Hash 查询一致的国家代码 AND 语义。 */
+    private List<IsoCountryInfo> filterCountriesByCodes(List<IsoCountryInfo> countries,
+                                                        String alpha2,
+                                                        String alpha3,
+                                                        String numeric) {
+        return countries.stream()
+                .filter(country -> alpha2 == null || alpha2.equals(country.alpha2()))
+                .filter(country -> alpha3 == null || alpha3.equals(country.alpha3()))
+                .filter(country -> numeric == null || numeric.equals(country.numeric()))
+                .toList();
+    }
+
+    /** 对从库重建结果应用与 Hash 查询一致的币种代码 AND 语义。 */
+    private List<IsoCurrencyInfo> filterCurrenciesByCodes(List<IsoCurrencyInfo> currencies,
+                                                          String alphabeticCode,
+                                                          String numericCode) {
+        return currencies.stream()
+                .filter(currency -> alphabeticCode == null
+                        || alphabeticCode.equals(currency.alphabeticCode()))
+                .filter(currency -> numericCode == null || numericCode.equals(currency.numericCode()))
+                .toList();
+    }
+
+    /** Redis 不可用时按全部已提供国家代码执行一次精确从库查询。 */
+    private List<IsoCountryInfo> loadCountriesByCodesFromDatabase(String alpha2,
+                                                                 String alpha3,
+                                                                 String numeric) {
+        LambdaQueryWrapper<IsoCountryDO> queryWrapper = new LambdaQueryWrapper<IsoCountryDO>()
+                .eq(IsoCountryDO::getStatus, STATUS_ENABLED)
+                .eq(IsoCountryDO::getDeleted, NOT_DELETED)
+                .eq(alpha2 != null, IsoCountryDO::getAlpha2Code, alpha2)
+                .eq(alpha3 != null, IsoCountryDO::getAlpha3Code, alpha3)
+                .eq(numeric != null, IsoCountryDO::getNumericCode, numeric);
+        return loadDatabaseValues(() -> countryMapper.selectList(queryWrapper)
+                .stream()
+                .map(this::toCountryInfo)
+                .toList());
+    }
+
+    /** Redis 不可用时按全部已提供币种代码执行一次精确从库查询。 */
+    private List<IsoCurrencyInfo> loadCurrenciesByCodesFromDatabase(String alphabeticCode,
+                                                                   String numericCode) {
+        LambdaQueryWrapper<IsoCurrencyDO> queryWrapper = new LambdaQueryWrapper<IsoCurrencyDO>()
+                .eq(IsoCurrencyDO::getStatus, STATUS_ENABLED)
+                .eq(IsoCurrencyDO::getDeleted, NOT_DELETED)
+                .eq(alphabeticCode != null, IsoCurrencyDO::getAlpha3Code, alphabeticCode)
+                .eq(numericCode != null, IsoCurrencyDO::getNumericCode, numericCode);
+        return loadDatabaseValues(() -> currencyMapper.selectList(queryWrapper)
+                .stream()
+                .map(this::toCurrencyInfo)
+                .sorted(Comparator.comparing(IsoCurrencyInfo::alphabeticCode))
+                .toList());
+    }
+
+    /** 统一处理 ISO 从库读取异常，禁止数据库故障时返回内置伪数据。 */
+    private <T> List<T> loadDatabaseValues(Supplier<List<T>> databaseLoader) {
+        try {
+            List<T> values = databaseLoader.get();
+            if (values == null) {
+                throw new IllegalStateException("ISO dictionary database loader returned null");
+            }
+            return values;
+        } catch (DataAccessException exception) {
+            log.warn("ISO 字典数据库读取失败，未使用非权威内置数据兜底，异常类型: {}",
+                    exception.getClass().getSimpleName());
+            throw new ServiceException(ApiResultEnum.NETWORK_BUSY, exception);
+        }
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : value.toString();
     }
 
     /**
@@ -784,6 +1063,31 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 .replace("-", "")
                 .replace("_", "")
                 .toUpperCase(Locale.ROOT);
+    }
+
+    /** 固定代码 Hash 的读取状态。 */
+    private enum CodeCacheReadStatus {
+        PRESENT,
+        MISSING,
+        UNAVAILABLE
+    }
+
+    /**
+     * 固定代码 Hash 读取结果。PRESENT 可携带空列表，表示完整索引中的权威未命中。
+     */
+    private record CodeCacheReadResult<T>(CodeCacheReadStatus status, List<T> values) {
+
+        private static <T> CodeCacheReadResult<T> present(List<T> values) {
+            return new CodeCacheReadResult<>(CodeCacheReadStatus.PRESENT, List.copyOf(values));
+        }
+
+        private static <T> CodeCacheReadResult<T> missing() {
+            return new CodeCacheReadResult<>(CodeCacheReadStatus.MISSING, List.of());
+        }
+
+        private static <T> CodeCacheReadResult<T> unavailable() {
+            return new CodeCacheReadResult<>(CodeCacheReadStatus.UNAVAILABLE, List.of());
+        }
     }
 
     /** Redis 快照读取状态，PRESENT 状态允许携带合法空列表。 */

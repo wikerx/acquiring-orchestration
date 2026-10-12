@@ -67,7 +67,7 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
     }
 
     /**
-     * 有代码时从常驻全量快照执行精确 AND 查询；未提供任何代码时返回全部启用国家。
+     * 有代码时使用固定代码 Hash 执行精确 AND 查询；未提供任何代码时返回全部启用国家。
      *
      * @param requestDTO 商户国家地区查询条件
      * @return 国家地区信息列表
@@ -83,7 +83,7 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
     }
 
     /**
-     * 有代码时从常驻全量快照执行精确 AND 查询；未提供任何代码时返回全部启用币种。
+     * 有代码时使用固定代码 Hash 执行精确 AND 查询；未提供任何代码时返回全部启用币种。
      *
      * @param requestDTO 商户币种查询条件
      * @return 币种信息列表

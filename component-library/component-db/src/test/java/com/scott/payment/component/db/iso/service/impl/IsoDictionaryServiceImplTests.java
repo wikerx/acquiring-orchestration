@@ -1,9 +1,11 @@
 package com.scott.payment.component.db.iso.service.impl;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.component.core.cache.PaymentRedisKeyResolver;
 import com.scott.payment.component.core.cache.CacheInvalidationGuard;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
@@ -18,27 +20,29 @@ import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 
 /**
  * @author : scott
@@ -60,79 +64,97 @@ class IsoDictionaryServiceImplTests {
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), IsoCurrencyDO.class);
     }
 
-    /** 有条件国家查询必须复用全量快照，并对全部非空代码执行精确 AND 过滤。 */
-    @ParameterizedTest
-    @MethodSource("countryCodeFilters")
-    void shouldApplyAllProvidedCountryCodesInSql(String alpha2, String alpha3, String numeric,
-                                                  boolean expectedMatch) {
+    /** 单个国家代码应通过固定 Hash 的一次 HMGET 命中，避免读取并反序列化全量列表。 */
+    @Test
+    void shouldReadCountryCodeFromHashWithOneHmget() {
         Fixture fixture = fixture();
-        when(fixture.valueOperations().get("acquiring:dev:iso:country:all"))
-                .thenReturn(JsonUtils.toJsonString(List.of(countryInfo())));
+        when(fixture.hashOperations().multiGet(
+                "acquiring:dev:iso:country:codes", List.of("__READY__", "A3:USA")))
+                .thenReturn(List.of("v1", JsonUtils.toJsonString(countryInfo())));
 
-        List<IsoCountryInfo> countries = fixture.service().listCountriesByCodes(alpha2, alpha3, numeric);
+        List<IsoCountryInfo> countries = fixture.service().listCountriesByCodes(null, "USA", null);
 
-        if (expectedMatch) {
-            assertThat(countries).containsExactly(countryInfo());
-        } else {
-            assertThat(countries).isEmpty();
-        }
+        assertThat(countries).containsExactly(countryInfo());
+        verify(fixture.hashOperations(), times(1)).multiGet(
+                "acquiring:dev:iso:country:codes", List.of("__READY__", "A3:USA"));
+        verify(fixture.countryMapper(), never()).selectList(any());
+        verify(fixture.valueOperations(), never()).get("acquiring:dev:iso:country:all");
+    }
+
+    /** 多个国家代码只有全部映射到同一条权威记录时才算命中。 */
+    @Test
+    void shouldRequireAllCountryCodeAliasesToResolveToSameRecord() {
+        Fixture fixture = fixture();
+        IsoCountryInfo canada = new IsoCountryInfo(
+                "CA", "CAN", "124", "Canada", "Canada", "加拿大", "NA", "北美洲",
+                "CA", "en", "English", "英语", "CAD");
+        when(fixture.hashOperations().multiGet(
+                "acquiring:dev:iso:country:codes",
+                List.of("__READY__", "A2:US", "A3:CAN", "N:840")))
+                .thenReturn(List.of(
+                        "v1",
+                        JsonUtils.toJsonString(countryInfo()),
+                        JsonUtils.toJsonString(canada),
+                        JsonUtils.toJsonString(countryInfo())
+                ));
+
+        assertThat(fixture.service().listCountriesByCodes("US", "CAN", "840")).isEmpty();
         verify(fixture.countryMapper(), never()).selectList(any());
     }
 
-    private static Stream<Arguments> countryCodeFilters() {
-        return Stream.of(
-                Arguments.of("US", null, null, true),
-                Arguments.of(null, "USA", null, true),
-                Arguments.of(null, null, "840", true),
-                Arguments.of("US", "USA", "840", true),
-                Arguments.of("US", "CAN", "840", false)
-        );
-    }
-
-    /** 币种代码查询必须复用全量快照，两个代码同时传入时使用 AND。 */
-    @ParameterizedTest
-    @MethodSource("currencyCodeFilters")
-    void shouldApplyProvidedCurrencyCodesInSql(String alphabeticCode, String numericCode,
-                                                boolean expectedMatch) {
-        Fixture fixture = fixture();
-        IsoCurrencyInfo currency = new IsoCurrencyInfo("USD", "840", "US Dollar", "美元", 2, 100,
-                new BigDecimal("0.01"), "$");
-        when(fixture.valueOperations().get("acquiring:dev:iso:currency:all"))
-                .thenReturn(JsonUtils.toJsonString(List.of(currency)));
-
-        List<IsoCurrencyInfo> currencies = fixture.service()
-                .listCurrenciesByCodes(alphabeticCode, numericCode);
-        if (expectedMatch) {
-            assertThat(currencies).containsExactly(currency);
-        } else {
-            assertThat(currencies).isEmpty();
-        }
-        verify(fixture.currencyMapper(), never()).selectList(any());
-    }
-
-    private static Stream<Arguments> currencyCodeFilters() {
-        return Stream.of(
-                Arguments.of("USD", null, true),
-                Arguments.of(null, "840", true),
-                Arguments.of("USD", "840", true),
-                Arguments.of("USD", "156", false)
-        );
-    }
-
+    /** 完整 Hash 中缺少查询字段代表权威未命中，不能重复回源数据库。 */
     @Test
-    void shouldUseCurrencySnapshotWithoutCodesAndReturnEmptyForUnknownCode() {
+    void shouldTreatMissingCountryFieldInReadyHashAsAuthoritativeEmpty() {
         Fixture fixture = fixture();
-        IsoCurrencyInfo currency = new IsoCurrencyInfo("USD", "840", "US Dollar", "美元", 2, 100,
-                new BigDecimal("0.01"), "$");
-        when(fixture.valueOperations().get("acquiring:dev:iso:currency:all"))
-                .thenReturn(JsonUtils.toJsonString(List.of(currency)));
+        when(fixture.hashOperations().multiGet(
+                "acquiring:dev:iso:country:codes", List.of("__READY__", "A3:ZZZ")))
+                .thenReturn(java.util.Arrays.asList("v1", null));
 
-        assertThat(fixture.service().listCurrenciesByCodes(null, null)).containsExactly(currency);
-        verify(fixture.currencyMapper(), never()).selectList(any());
+        assertThat(fixture.service().listCountriesByCodes(null, "ZZZ", null)).isEmpty();
+        verify(fixture.countryMapper(), never()).selectList(any());
+    }
 
-        when(fixture.valueOperations().get("acquiring:dev:iso:currency:all"))
-                .thenReturn(JsonUtils.toJsonString(List.of(currency)));
-        assertThat(fixture.service().listCurrenciesByCodes(null, "999")).isEmpty();
+    /** Hash 尚未建立时从 SLAVE 全量加载一次，并用一次 HSET 写入完整代码别名。 */
+    @Test
+    void shouldRebuildCountryCodeHashFromOneDatabaseSnapshot() {
+        Fixture fixture = fixture();
+        when(fixture.hashOperations().multiGet(anyString(), anyList()))
+                .thenReturn(java.util.Arrays.asList(null, null));
+        when(fixture.countryMapper().selectList(any())).thenReturn(List.of(countryRow()));
+
+        assertThat(fixture.service().listCountriesByCodes(null, "USA", null))
+                .containsExactly(countryInfo());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> aliases = ArgumentCaptor.forClass(Map.class);
+        verify(fixture.hashOperations()).putAll(eq("acquiring:dev:iso:country:codes"), aliases.capture());
+        assertThat(aliases.getValue())
+                .containsEntry("__READY__", "v1")
+                .containsEntry("A2:US", JsonUtils.toJsonString(countryInfo()))
+                .containsEntry("A3:USA", JsonUtils.toJsonString(countryInfo()))
+                .containsEntry("N:840", JsonUtils.toJsonString(countryInfo()));
+        verify(fixture.countryMapper(), times(1)).selectList(any());
+    }
+
+    /** Redis 不可用时仅执行一次携带全部代码条件的 SLAVE 精确 SQL。 */
+    @Test
+    void shouldQueryCountryByAllCodesWhenRedisIsUnavailable() {
+        Fixture fixture = fixture();
+        when(fixture.hashOperations().multiGet(anyString(), anyList()))
+                .thenThrow(new IllegalStateException("redis unavailable"));
+        when(fixture.countryMapper().selectList(any())).thenReturn(List.of(countryRow()));
+
+        assertThat(fixture.service().listCountriesByCodes("US", "USA", "840"))
+                .containsExactly(countryInfo());
+
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        ArgumentCaptor<LambdaQueryWrapper<IsoCountryDO>> query =
+                ArgumentCaptor.forClass((Class) LambdaQueryWrapper.class);
+        verify(fixture.countryMapper()).selectList(query.capture());
+        assertThat(query.getValue().getSqlSegment())
+                .contains("alpha2_code", "alpha3_code", "numeric_code", "status", "deleted");
+        assertThat(query.getValue().getParamNameValuePairs().values())
+                .contains("US", "USA", "840", 1, 0);
     }
 
     /** 无代码时保留现有全量缓存路径。 */
@@ -147,16 +169,52 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.countryMapper(), never()).selectList(any());
     }
 
-    /** 有条件查询未命中时返回空集，并且不额外访问数据库。 */
+    /** 币种代码 Hash 使用相同的单次读取、AND 语义与权威未命中规则。 */
     @Test
-    void shouldReturnEmptyForUnmatchedCountryCodeWithoutLoadingSnapshot() {
-        log.info("验证国家代码查询未命中时返回空列表");
+    void shouldReadCurrencyCodesFromHashAndRejectConflictingAliases() {
         Fixture fixture = fixture();
-        when(fixture.valueOperations().get("acquiring:dev:iso:country:all"))
-                .thenReturn(JsonUtils.toJsonString(List.of(countryInfo())));
+        IsoCurrencyInfo usd = currencyInfo("USD", "840");
+        IsoCurrencyInfo cny = currencyInfo("CNY", "156");
+        when(fixture.hashOperations().multiGet(
+                "acquiring:dev:iso:currency:codes", List.of("__READY__", "A3:USD", "N:156")))
+                .thenReturn(List.of("v1", JsonUtils.toJsonString(usd), JsonUtils.toJsonString(cny)));
 
-        assertThat(fixture.service().listCountriesByCodes(null, "ZZZ", null)).isEmpty();
-        verify(fixture.countryMapper(), never()).selectList(any());
+        assertThat(fixture.service().listCurrenciesByCodes("USD", "156")).isEmpty();
+        verify(fixture.currencyMapper(), never()).selectList(any());
+    }
+
+    /** 币种 Hash 缺失时全量重建；Redis 故障时精确 SQL 才承担兜底。 */
+    @Test
+    void shouldRebuildCurrencyHashAndUseExactSqlOnlyWhenRedisFails() {
+        Fixture fixture = fixture();
+        IsoCurrencyDO usdRow = currencyRow("USD", "flag:US");
+        usdRow.setNumericCode("840");
+        when(fixture.hashOperations().multiGet(anyString(), anyList()))
+                .thenReturn(java.util.Arrays.asList(null, null));
+        when(fixture.currencyMapper().selectList(any())).thenReturn(List.of(usdRow));
+
+        assertThat(fixture.service().listCurrenciesByCodes("USD", null))
+                .containsExactly(currencyInfo("USD", "840"));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, String>> aliases = ArgumentCaptor.forClass(Map.class);
+        verify(fixture.hashOperations()).putAll(eq("acquiring:dev:iso:currency:codes"), aliases.capture());
+        assertThat(aliases.getValue())
+                .containsEntry("__READY__", "v1")
+                .containsEntry("A3:USD", JsonUtils.toJsonString(currencyInfo("USD", "840")))
+                .containsEntry("N:840", JsonUtils.toJsonString(currencyInfo("USD", "840")));
+
+        Fixture fallbackFixture = fixture();
+        when(fallbackFixture.hashOperations().multiGet(anyString(), anyList()))
+                .thenThrow(new IllegalStateException("redis unavailable"));
+        when(fallbackFixture.currencyMapper().selectList(any())).thenReturn(List.of(usdRow));
+        assertThat(fallbackFixture.service().listCurrenciesByCodes("USD", "840"))
+                .containsExactly(currencyInfo("USD", "840"));
+        @SuppressWarnings({"rawtypes", "unchecked"})
+        ArgumentCaptor<LambdaQueryWrapper<IsoCurrencyDO>> query =
+                ArgumentCaptor.forClass((Class) LambdaQueryWrapper.class);
+        verify(fallbackFixture.currencyMapper()).selectList(query.capture());
+        assertThat(query.getValue().getSqlSegment())
+                .contains("alpha3_code", "numeric_code", "status", "deleted");
     }
 
     /**
@@ -207,19 +265,18 @@ class IsoDictionaryServiceImplTests {
         log.info("ISO 国家字典常驻写入测试完成，结果: 仅写短 Key 且未设置 TTL");
     }
 
-    /**
-     * 国家字典业务变更必须只精确删除当前短 Key。
-     */
+    /** 国家字典业务变更必须同时失效全量快照和固定代码 Hash。 */
     @Test
-    void shouldEvictOnlyCurrentCountryKeyAfterBusinessMutation() {
+    void shouldEvictCountrySnapshotAndCodeHashAfterBusinessMutation() {
         log.info("测试 ISO 国家字典显式失效，关键输入: 管理端完成国家资料变更");
         Fixture fixture = fixture();
 
         fixture.service().evictCountries();
 
         verify(fixture.redisTemplate()).delete("acquiring:dev:iso:country:all");
+        verify(fixture.redisTemplate()).delete("acquiring:dev:iso:country:codes");
         verify(fixture.redisTemplate(), never()).delete("payment:iso:country:all");
-        log.info("ISO 国家字典显式失效测试完成，结果: 仅当前短 Key 被精确删除");
+        log.info("ISO 国家字典显式失效测试完成，结果: 全量快照和代码 Hash 均被精确删除");
     }
 
     /** 数据库合法返回零条启用记录时，空数组就是权威快照。 */
@@ -323,15 +380,43 @@ class IsoDictionaryServiceImplTests {
         );
     }
 
-    /** 币种维护后必须同时失效计算字典和展示字典。 */
+    /** 币种维护后必须同时失效全量快照、固定代码 Hash 和展示快照。 */
     @Test
-    void shouldEvictCurrencyAndPresentationSnapshotsTogether() {
+    void shouldEvictCurrencyCodeHashAndSnapshotsTogether() {
         Fixture fixture = fixture();
 
         fixture.service().evictCurrencies();
 
         verify(fixture.redisTemplate()).delete("acquiring:dev:iso:currency:all");
+        verify(fixture.redisTemplate()).delete("acquiring:dev:iso:currency:codes");
         verify(fixture.redisTemplate()).delete("acquiring:dev:iso:currency:presentation-v1");
+    }
+
+    /** 管理端事务环境必须为每个固定国家缓存键登记独立的可靠失效事件。 */
+    @Test
+    void shouldPrepareManagedInvalidationForEveryCountryCacheKey() {
+        ManagedCacheInvalidationCoordinator coordinator = mock(ManagedCacheInvalidationCoordinator.class);
+        Fixture fixture = fixture(coordinator);
+
+        fixture.service().evictCountries();
+
+        verify(coordinator).prepare(PaymentCacheNames.ISO_COUNTRY, "all");
+        verify(coordinator).prepare(PaymentCacheNames.ISO_COUNTRY, "codes");
+        verify(fixture.redisTemplate(), never()).delete(anyString());
+    }
+
+    /** 币种变更必须让全量、代码和展示三个永久读模型一起越过从库可见性门禁。 */
+    @Test
+    void shouldPrepareManagedInvalidationForEveryCurrencyCacheKey() {
+        ManagedCacheInvalidationCoordinator coordinator = mock(ManagedCacheInvalidationCoordinator.class);
+        Fixture fixture = fixture(coordinator);
+
+        fixture.service().evictCurrencies();
+
+        verify(coordinator).prepare(PaymentCacheNames.ISO_CURRENCY, "all");
+        verify(coordinator).prepare(PaymentCacheNames.ISO_CURRENCY, "codes");
+        verify(coordinator).prepare(PaymentCacheNames.ISO_CURRENCY, "presentation-v1");
+        verify(fixture.redisTemplate(), never()).delete(anyString());
     }
 
     /**
@@ -341,10 +426,16 @@ class IsoDictionaryServiceImplTests {
      */
     @SuppressWarnings("unchecked")
     private Fixture fixture() {
+        return fixture(null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Fixture fixture(ManagedCacheInvalidationCoordinator invalidationCoordinator) {
         IsoCountryMapper countryMapper = mock(IsoCountryMapper.class);
         IsoCurrencyMapper currencyMapper = mock(IsoCurrencyMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        HashOperations<String, Object, Object> hashOperations = mock(HashOperations.class);
         PaymentRedisKeyResolver keyResolver = mock(PaymentRedisKeyResolver.class);
         ObjectProvider<StringRedisTemplate> redisProvider = mock(ObjectProvider.class);
         ObjectProvider<PaymentRedisKeyResolver> keyResolverProvider = mock(ObjectProvider.class);
@@ -352,12 +443,18 @@ class IsoDictionaryServiceImplTests {
         ObjectProvider<ManagedCacheInvalidationCoordinator> invalidationCoordinatorProvider =
                 mock(ObjectProvider.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(redisTemplate.opsForHash()).thenReturn(hashOperations);
         when(redisProvider.getIfAvailable()).thenReturn(redisTemplate);
         when(keyResolverProvider.getIfAvailable()).thenReturn(keyResolver);
+        when(invalidationCoordinatorProvider.getIfAvailable()).thenReturn(invalidationCoordinator);
         when(keyResolver.businessKey("iso", "country", "all"))
                 .thenReturn("acquiring:dev:iso:country:all");
+        when(keyResolver.businessKey("iso", "country", "codes"))
+                .thenReturn("acquiring:dev:iso:country:codes");
         when(keyResolver.businessKey("iso", "currency", "all"))
                 .thenReturn("acquiring:dev:iso:currency:all");
+        when(keyResolver.businessKey("iso", "currency", "codes"))
+                .thenReturn("acquiring:dev:iso:currency:codes");
         when(keyResolver.businessKey("iso", "currency", "presentation-v1"))
                 .thenReturn("acquiring:dev:iso:currency:presentation-v1");
         IsoDictionaryServiceImpl service = new IsoDictionaryServiceImpl(
@@ -368,7 +465,14 @@ class IsoDictionaryServiceImplTests {
                 invalidationGuardProvider,
                 invalidationCoordinatorProvider
         );
-        return new Fixture(countryMapper, currencyMapper, redisTemplate, valueOperations, service);
+        return new Fixture(
+                countryMapper,
+                currencyMapper,
+                redisTemplate,
+                valueOperations,
+                hashOperations,
+                service
+        );
     }
 
     /**
@@ -431,6 +535,19 @@ class IsoDictionaryServiceImplTests {
         return row;
     }
 
+    private IsoCurrencyInfo currencyInfo(String alphabeticCode, String numericCode) {
+        return new IsoCurrencyInfo(
+                alphabeticCode,
+                numericCode,
+                alphabeticCode + " currency",
+                alphabeticCode + " 币种",
+                2,
+                100,
+                new BigDecimal("0.01"),
+                alphabeticCode
+        );
+    }
+
     /**
      * ISO 字典测试依赖集合。
      *
@@ -443,6 +560,7 @@ class IsoDictionaryServiceImplTests {
                            IsoCurrencyMapper currencyMapper,
                            StringRedisTemplate redisTemplate,
                            ValueOperations<String, String> valueOperations,
+                           HashOperations<String, Object, Object> hashOperations,
                            IsoDictionaryServiceImpl service) {
     }
 }

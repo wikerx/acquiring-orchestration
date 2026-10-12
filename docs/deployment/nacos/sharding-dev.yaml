@@ -9,6 +9,10 @@ transaction-sharding:
   database-zone-id: Asia/Shanghai
   # 参数说明：逻辑表季度路由字段；所有直连写入和范围查询都必须携带该交易时间。
   sharding-column: transaction_date_time
+  # 参数说明：是否输出 ShardingSphere 逻辑 SQL、实际数据源、物理表 SQL和绑定参数。
+  # dev 开启便于核对季度路由；该配置在 transaction 数据源初始化时读取，修改后必须重启相关服务。
+  # 输出包含绑定参数且会增加日志 I/O，UAT/生产发布配置必须设为 false，排查结束后也应及时关闭。
+  sql-show: true
   # 参数说明：ShardingSphere 写入和强一致读取使用的主数据源名称，必须与 dataSource DataId 一致。
   primary-data-source: master
   # 集合说明：只读副本数据源名称；生产按复制延迟和一致性要求决定是否承载查询，禁止用于资金写入。

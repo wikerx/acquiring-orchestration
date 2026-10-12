@@ -12,7 +12,7 @@ package com.scott.payment.component.db.iso.service;
 public interface IsoDictionaryCacheInvalidator {
 
     /**
-     * 删除新旧国家地区全量缓存。
+     * 可靠失效国家地区全量快照和固定代码 Hash。
      *
      * <p>该方法只用于国家资料或默认币种映射发生真实变更后的业务失效，
      * 不用于迁移时批量清理历史 Key。</p>
@@ -20,7 +20,7 @@ public interface IsoDictionaryCacheInvalidator {
     void evictCountries();
 
     /**
-     * 删除新旧币种全量缓存。
+     * 可靠失效币种全量快照、固定代码 Hash 和展示快照。
      *
      * <p>该方法只用于币种资料发生真实变更后的业务失效，
      * 不用于迁移时批量清理历史 Key。</p>

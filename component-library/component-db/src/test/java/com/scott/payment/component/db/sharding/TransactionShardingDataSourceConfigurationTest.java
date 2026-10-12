@@ -35,6 +35,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TransactionShardingDataSourceConfigurationTest {
 
     @Test
+    void shouldKeepSqlLoggingDisabledByDefaultAndPassExplicitSettingToShardingSphere() {
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        TransactionShardingDataSourceConfiguration configuration =
+                new TransactionShardingDataSourceConfiguration();
+
+        assertThat(configuration.buildSystemProperties(properties))
+                .containsEntry("sql-show", "false");
+
+        properties.setSqlShow(true);
+        assertThat(configuration.buildSystemProperties(properties))
+                .containsEntry("sql-show", "true");
+    }
+
+    @Test
     void shouldRejectMissingPublishedRule() {
         HikariDataSource primary = h2DataSource("missing_rule_primary");
 

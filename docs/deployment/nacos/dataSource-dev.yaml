@@ -70,6 +70,23 @@ mybatis-plus:
     map-underscore-to-camel-case: true
     # 支付系统查询默认不使用 MyBatis 二级缓存，避免资金状态缓存不一致。
     cache-enabled: false
+    # 统一交给 SLF4J/Logback 输出 SQL；禁止使用 StdOutImpl 绕过日志级别、归档和采集链路。
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+    # 为所有 Mapper statement Logger 增加统一前缀，避免为了查看 SQL 将整个业务包调整为 DEBUG。
+    log-prefix: sql.mybatis.
   global-config:
     # 关闭 MyBatis-Plus banner，减少服务启动日志噪音。
     banner: false
+
+logging:
+  level:
+    # MyBatis/Plus SQL 与绑定参数日志级别。dev 默认 DEBUG；设为 OFF 可统一关闭。
+    # DEBUG 会输出绑定值，排查结束后应关闭，UAT/生产禁止长期启用。
+    sql.mybatis: ${SQL_LOG_LEVEL:DEBUG}
+    # JdbcTemplate 和 NamedParameterJdbcTemplate 最终均由 JdbcTemplate 执行，DEBUG 输出 SQL 模板但不输出绑定值。
+    org.springframework.jdbc.core.JdbcTemplate: ${SQL_LOG_LEVEL:DEBUG}
+    # 直接使用 JDBC PreparedStatement 的少量固定监控 SQL 使用该专用 Logger。
+    sql.jdbc.direct: ${SQL_LOG_LEVEL:DEBUG}
+    # Spring JDBC 绑定参数由 StatementCreatorUtils 在 TRACE 输出，默认关闭以避免记录卡号和商户敏感字段。
+    # 仅在隔离开发环境短时排查参数绑定问题时设置 SQL_PARAMETER_LOG_LEVEL=TRACE。
+    org.springframework.jdbc.core.StatementCreatorUtils: ${SQL_PARAMETER_LOG_LEVEL:OFF}

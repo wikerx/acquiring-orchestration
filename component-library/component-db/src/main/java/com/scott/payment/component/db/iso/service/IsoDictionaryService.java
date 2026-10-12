@@ -27,7 +27,10 @@ public interface IsoDictionaryService {
     List<IsoCountryInfo> listCountries();
 
     /**
-     * 根据已提供的 ISO 国家代码在数据库中精确查询启用国家，多个代码使用 AND 组合。
+     * 根据已提供的 ISO 国家代码精确查询启用国家，多个代码使用 AND 组合。
+     *
+     * <p>正常路径读取固定 Redis Hash；Hash 未建立时从 SLAVE 重建，Redis 不可用时执行
+     * 一次精确 SLAVE SQL。无条件时复用全量常驻快照。</p>
      *
      * @param alpha2 ISO 3166-1 两位代码，未传时为 null
      * @param alpha3 ISO 3166-1 三位代码，未传时为 null
@@ -76,7 +79,10 @@ public interface IsoDictionaryService {
     List<IsoCurrencyInfo> listCurrencies();
 
     /**
-     * 根据已提供的 ISO 币种代码在数据库中精确查询启用币种，两个代码使用 AND 组合。
+     * 根据已提供的 ISO 币种代码精确查询启用币种，两个代码使用 AND 组合。
+     *
+     * <p>正常路径读取固定 Redis Hash；Hash 未建立时从 SLAVE 重建，Redis 不可用时执行
+     * 一次精确 SLAVE SQL。无条件时复用全量常驻快照。</p>
      *
      * @param alphabeticCode ISO 4217 三位字母代码，未传时为 null
      * @param numericCode ISO 4217 三位数字字符串，未传时为 null

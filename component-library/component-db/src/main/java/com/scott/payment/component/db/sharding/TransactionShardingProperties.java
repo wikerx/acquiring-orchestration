@@ -43,6 +43,8 @@ public class TransactionShardingProperties {
     private String databaseZoneId = REQUIRED_ZONE_ID;
     /** 交易表分片列，固定为 transaction_date_time。 */
     private String shardingColumn = REQUIRED_SHARDING_COLUMN;
+    /** 是否输出 ShardingSphere 路由后的物理 SQL；默认关闭，避免记录敏感参数并增加日志 I/O。 */
+    private boolean sqlShow;
     /** 读写分离组中的唯一写库数据源名。 */
     private String primaryDataSource = DataSourceName.MASTER;
     /** 可承接普通读请求的唯一副本数据源名，不包含连接信息。 */
@@ -195,6 +197,16 @@ public class TransactionShardingProperties {
     /** @param shardingColumn 分片列，只允许 transaction_date_time */
     public void setShardingColumn(String shardingColumn) {
         this.shardingColumn = shardingColumn;
+    }
+
+    /** @return 是否输出 ShardingSphere 逻辑 SQL、物理 SQL和绑定参数 */
+    public boolean isSqlShow() {
+        return sqlShow;
+    }
+
+    /** @param sqlShow true 时输出路由详情；仅允许在受控调试环境短时开启 */
+    public void setSqlShow(boolean sqlShow) {
+        this.sqlShow = sqlShow;
     }
 
     /** @return 写库数据源注册名 */
