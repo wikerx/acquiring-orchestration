@@ -97,8 +97,8 @@ payment:
       failure-policy: LOCAL_FALLBACK
   card-bin:
     cache:
-      # 单个六位 BIN 桶允许比较的候选上限，必须与发布服务一致；超限时视为快照不可用并回源 SLAVE。
-      max-candidates-per-bucket: ${PAYMENT_CARD_BIN_CACHE_MAX_CANDIDATES_PER_BUCKET:256}
+      # 单个前缀字段允许比较的候选上限，必须与支付侧发布配置一致；超限时回源 SLAVE，禁止返回截断结果。
+      max-candidates-per-prefix: ${PAYMENT_CARD_BIN_CACHE_MAX_CANDIDATES_PER_PREFIX:64}
   ip:
     lookup:
       # IP 命中数据的逻辑缓存时长，使用 Spring Duration，例如 PT6H；缩短可提高变更收敛速度。

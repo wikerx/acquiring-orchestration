@@ -13,23 +13,23 @@ import java.util.Optional;
  * @classname : CardBinCacheReader
  * @date : 2026-09-30
  * @email : scott_x@163.com
- * @description : 支付与 OpenAPI 共用的 Card BIN 查询入口，优先读取数据库有界 A/B 快照，故障时执行一次 SLAVE SQL
+ * @description : 支付与 OpenAPI 共用的 Card BIN 查询入口，优先读取数据库有界三位分片索引，故障时执行一次 SLAVE SQL
  * @status : update
  */
 @Service
 public class CardBinCacheReader {
 
-    /** SLAVE 精确查询入口，仅在共享快照不可用时回源。 */
+    /** SLAVE 精确查询入口，仅在共享分片索引不可用时回源。 */
     private final ReferenceDataLookupService lookupService;
 
-    /** 数据库记录驱动的共享快照；未装配 Redis 组件时为空。 */
+    /** 数据库记录驱动的共享分片索引；未装配 Redis 组件时为空。 */
     private final Optional<CardBinRangeIndex> rangeIndex;
 
     /**
      * 创建共享 Card BIN 查询入口。
      *
      * @param lookupService Card BIN 从库查询服务
-     * @param rangeIndex Card BIN Redis A/B 快照，可选
+     * @param rangeIndex Card BIN Redis 三位分片索引，可选
      */
     public CardBinCacheReader(ReferenceDataLookupService lookupService,
                               Optional<CardBinRangeIndex> rangeIndex) {
@@ -40,8 +40,8 @@ public class CardBinCacheReader {
     /**
      * 查询规范化后的十一位 BIN。
      *
-     * <p>活动快照可读时，六位桶不存在或桶内没有有效区间均作为权威未命中返回，不会创建
-     * 查询值对应的永久 Key。只有 Redis 不可用、载荷损坏或快照尚未初始化时才执行现有
+     * <p>当前 generation 的分片完整时，全部前缀均不存在或候选内没有有效区间即为权威未命中，不会创建
+     * 查询值对应的永久 Key。只有发布中、Redis 不可用、载荷损坏或分片尚未初始化时才执行现有
      * SLAVE SQL；数据库未命中仍由支付或 OpenAPI 上层执行统一卡品牌规则兜底。</p>
      *
      * @param cardBinPrefix 十一位数字前缀
@@ -62,7 +62,7 @@ public class CardBinCacheReader {
                 );
             }
         }
-        // 快照不可用时只回源一次；不把任意查询值写入 Redis，避免恶意请求扩大 Key 基数。
+        // 分片不可用时只回源一次；不把任意查询值写入 Redis，避免恶意请求扩大 Key 基数。
         return CardBinLookupCacheEntry.from(
                 lookupService.lookupCardBinSnapshot(cardBinPrefix),
                 null
@@ -74,7 +74,7 @@ public class CardBinCacheReader {
      * 调用方不得把原始完整卡号写入日志或缓存。
      *
      * @param cardDigits 纯数字 BIN 或卡号
-     * @return 用于共享快照和数据库查询的 11 位前缀
+     * @return 用于共享分片索引和数据库查询的 11 位前缀
      * @throws IllegalArgumentException 输入不足 6 位或包含非数字字符时抛出
      */
     public static String toElevenDigitPrefix(String cardDigits) {

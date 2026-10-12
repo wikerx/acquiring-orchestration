@@ -45,7 +45,7 @@ class CardBinCacheGenerationConsumerTests {
         consumer.onMessage(payload);
 
         verify(generationStore, times(2)).commit(original);
-        verify(rangeIndex, times(2)).publishFromReplica();
+        verify(rangeIndex, times(2)).publishFromReplica("g-original");
         verify(generationStore, never()).begin(any(), any());
     }
 
@@ -58,12 +58,15 @@ class CardBinCacheGenerationConsumerTests {
         when(generationStore.commit(original)).thenReturn(false);
         when(generationStore.begin("card-bin-range", Duration.ofMinutes(30))).thenReturn(replacement);
         when(generationStore.commit(replacement)).thenReturn(true);
+        CardBinRangeIndex rangeIndex = mock(CardBinRangeIndex.class);
 
-        new CardBinCacheGenerationConsumer(generationStore, mock(CardBinRangeIndex.class), visibleReplica())
+        new CardBinCacheGenerationConsumer(generationStore, rangeIndex, visibleReplica())
                 .onMessage(payload());
 
         verify(generationStore).commit(original);
         verify(generationStore).commit(replacement);
+        verify(rangeIndex).publishFromReplica("g-original");
+        verify(rangeIndex).publishFromReplica("g-recovery");
         verify(generationStore, never()).abort(replacement);
     }
 
@@ -96,7 +99,7 @@ class CardBinCacheGenerationConsumerTests {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("not visible on replica");
 
-        verify(rangeIndex, never()).publishFromReplica();
+        verify(rangeIndex, never()).publishFromReplica(any());
         verify(generationStore, never()).commit(any());
     }
 

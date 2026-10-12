@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
  * @classname : CardBinRangeIndexEntry
  * @date : 2026-10-12
  * @email : scott_x@163.com
- * @description : Redis Card BIN 六位桶中的数据库区间快照，保留时间边界和 SQL 最优匹配所需排序字段
+ * @description : Redis Card BIN 最长公共前缀字段中的数据库区间快照，保留时间边界和 SQL 最优匹配所需排序字段
  * @status : create
  */
 public record CardBinRangeIndexEntry(Long id,

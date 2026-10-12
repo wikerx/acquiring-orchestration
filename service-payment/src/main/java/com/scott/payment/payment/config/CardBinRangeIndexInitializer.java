@@ -19,7 +19,7 @@ import java.time.Duration;
  * @classname : CardBinRangeIndexInitializer
  * @date : 2026-10-12
  * @email : scott_x@163.com
- * @description : 支付服务启动阶段的 Card BIN 快照初始化器，使用 generation 门禁保证集群内只有一个实例执行发布
+ * @description : 支付服务启动阶段的 Card BIN 分片索引初始化器，使用 generation 门禁保证集群内只有一个实例执行发布
  * @status : create
  */
 @Slf4j
@@ -45,7 +45,7 @@ public class CardBinRangeIndexInitializer implements ApplicationRunner {
     }
 
     /**
-     * 在应用进入就绪状态前补齐首次快照；已有活动槽时不重复扫描百万级基础数据。
+     * 在应用进入就绪状态前补齐首次索引；完成标记与当前 generation 一致时不重复扫描百万级基础数据。
      */
     @Override
     public void run(ApplicationArguments args) {
@@ -55,7 +55,7 @@ public class CardBinRangeIndexInitializer implements ApplicationRunner {
         RedisCachePublication publication = null;
         try {
             publication = generationStore.begin(CACHE_NAMESPACE, INITIALIZATION_GATE_TTL);
-            rangeIndex.publishFromReplica();
+            rangeIndex.publishFromReplica(publication.generation());
             if (!generationStore.commit(publication)) {
                 throw new IllegalStateException("Card BIN initial generation commit failed");
             }

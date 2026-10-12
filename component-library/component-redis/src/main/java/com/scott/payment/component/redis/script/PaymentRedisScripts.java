@@ -34,6 +34,9 @@ public final class PaymentRedisScripts {
     private static final DefaultRedisScript<Long> TOKEN_LEASE_RELEASE_V1 =
             load("v1/token-lease-release.lua", Long.class);
 
+    private static final DefaultRedisScript<Long> TOKEN_LEASE_RENEW_V1 =
+            load("v1/token-lease-renew.lua", Long.class);
+
     private static final DefaultRedisScript<Long> CONCURRENCY_LEASE_ACQUIRE_V1 =
             load("v1/concurrency-lease-acquire.lua", Long.class);
 
@@ -51,18 +54,6 @@ public final class PaymentRedisScripts {
 
     private static final DefaultRedisScript<Long> CARD_BIN_BUCKET_APPEND_V1 =
             load("v1/card-bin-bucket-append.lua", Long.class);
-
-    private static final DefaultRedisScript<Long> CARD_BIN_SNAPSHOT_BEGIN_V1 =
-            load("v1/card-bin-snapshot-begin.lua", Long.class);
-
-    private static final DefaultRedisScript<Long> CARD_BIN_SNAPSHOT_COMMIT_V1 =
-            load("v1/card-bin-snapshot-commit.lua", Long.class);
-
-    private static final DefaultRedisScript<Long> CARD_BIN_SNAPSHOT_ABORT_V1 =
-            load("v1/card-bin-snapshot-abort.lua", Long.class);
-
-    private static final DefaultRedisScript<String> CARD_BIN_BUCKET_READ_V1 =
-            load("v1/card-bin-bucket-read.lua", String.class);
 
     private static final DefaultRedisScript<String> IP_LOOKUP_READ_V1 =
             load("v1/ip-lookup-read.lua", String.class);
@@ -113,6 +104,15 @@ public final class PaymentRedisScripts {
     }
 
     /**
+     * 获取 token 租约持有者安全续期 v1 脚本。
+     *
+     * @return token 匹配时延长租约并返回 1，否则返回 0
+     */
+    public static RedisScript<Long> tokenLeaseRenewV1() {
+        return TOKEN_LEASE_RENEW_V1;
+    }
+
+    /**
      * 获取有界并发租约 v1 脚本。
      *
      * @return 清理过期持有者后原子判断容量并写入新 token 的脚本
@@ -157,37 +157,9 @@ public final class PaymentRedisScripts {
         return CACHE_GENERATION_COMMIT_V1;
     }
 
-    /**
-     * 获取 Card BIN 快照桶批量追加脚本；每批写入前校验发布令牌并续租。
-     *
-     * @return 把 field/JSON 参数对追加为合法 JSON 数组的脚本
-     */
+    /** 获取 Card BIN 单分片候选批量追加脚本，并限制每个前缀字段的候选数量。 */
     public static RedisScript<Long> cardBinBucketAppendV1() {
         return CARD_BIN_BUCKET_APPEND_V1;
-    }
-
-    /** 获取 Card BIN 快照发布权并异步清理目标槽。 */
-    public static RedisScript<Long> cardBinSnapshotBeginV1() {
-        return CARD_BIN_SNAPSHOT_BEGIN_V1;
-    }
-
-    /** 校验发布令牌，原子切换 Card BIN 活动槽并异步删除已退休槽。 */
-    public static RedisScript<Long> cardBinSnapshotCommitV1() {
-        return CARD_BIN_SNAPSHOT_COMMIT_V1;
-    }
-
-    /** 仅由当前发布者异步清理失败的 Card BIN 目标槽。 */
-    public static RedisScript<Long> cardBinSnapshotAbortV1() {
-        return CARD_BIN_SNAPSHOT_ABORT_V1;
-    }
-
-    /**
-     * 获取 Card BIN 当前活动槽单桶读取脚本。
-     *
-     * @return 一次往返读取活动槽和六位桶内容的脚本
-     */
-    public static RedisScript<String> cardBinBucketReadV1() {
-        return CARD_BIN_BUCKET_READ_V1;
     }
 
     /** 获取有界 IP 精确查询缓存读取脚本。 */

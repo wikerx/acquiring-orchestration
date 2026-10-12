@@ -54,6 +54,7 @@ public class OpenApiReferenceDataCacheReader {
      * @throws IllegalArgumentException BIN 不足 6 位或含非数字字符时抛出
      */
     public CardBinLookupResult lookupCardBin(String cardBin) {
+        // 缓存和从库统一使用 11 位前缀：6 至 10 位右补零，长输入只截取前 11 位。
         String prefix = CardBinCacheReader.toElevenDigitPrefix(cardBin);
         CardBinLookupResult databaseResult = cardBinCacheReader.findByPrefix(prefix).result();
         // 品牌规则只补充本次商户响应，不能污染共享缓存中的数据库命中状态。
