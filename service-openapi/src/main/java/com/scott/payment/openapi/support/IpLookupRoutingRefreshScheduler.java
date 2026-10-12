@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @classname : IpLookupRoutingRefreshScheduler
  * @date : 2026-10-12
  * @email : scott_x@163.com
- * @description : OpenAPI IP 分片路由预加载与轮询器；缓存按路由版本隔离并自然过期，不执行全局删除
+ * @description : OpenAPI IP 分片路由预加载与轮询器；短 Key 缓存值按路由版本校验并由物理 TTL 回收
  * @status : create
  */
 @Slf4j
@@ -36,7 +36,7 @@ public class IpLookupRoutingRefreshScheduler implements ApplicationRunner {
     }
 
     /**
-     * 周期读取 SLAVE 路由版本；查询缓存使用版本化 Key，旧版本 Key 按物理 TTL 自动回收。
+     * 周期读取 SLAVE 路由版本；版本变化后相同 IP Key 中的旧值会被拒绝并在首次访问时覆盖。
      */
     @Scheduled(fixedDelayString = "${payment.ip.lookup.route-refresh-ms:60000}")
     public void refresh() {

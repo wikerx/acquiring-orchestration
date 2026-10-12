@@ -62,10 +62,6 @@ public final class PaymentCacheNames {
      */
     public static final String CARD_BIN_MISS = "cardBin:miss";
 
-    /** OpenAPI 精确 IP 归属命中与未命中缓存，均采用短有效期限制版本切换后的旧结果窗口。 */
-    public static final String OPENAPI_IP_LOOKUP = "openapi:ip";
-    public static final String OPENAPI_IP_LOOKUP_MISS = "openapi:ip:miss";
-
     /**
      * 全局中国大陆结算日历月视图缓存，业务键为 {@code yyyy-MM}。
      * 数据库是事实源，日历初始化、批量维护和年度确认后统一失效。

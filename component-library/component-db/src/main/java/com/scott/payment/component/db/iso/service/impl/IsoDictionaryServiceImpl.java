@@ -38,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -162,7 +163,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 SNAPSHOT_BUSINESS_KEY,
                 new TypeReference<List<IsoCountryInfo>>() {
                 },
-                this::loadCountriesFromDatabase
+                this::loadCountriesFromDatabase,
+                this::writeCountryCodeIndex
         );
     }
 
@@ -200,14 +202,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         }
 
         log.debug("event: ISO_CODE_CACHE_MISS dictionary: COUNTRY reason: INDEX_NOT_READY");
-        List<IsoCountryInfo> countries = loadDatabaseValues(this::loadCountriesFromDatabase);
-        if (isCacheWriteAllowed(PaymentCacheNames.ISO_COUNTRY, CODE_INDEX_BUSINESS_KEY)) {
-            Map<String, String> aliases = countryAliases(countries);
-            if (writeCodeCache(cacheKey, aliases, "COUNTRY")) {
-                log.debug("event: ISO_CODE_CACHE_REBUILT dictionary: COUNTRY recordCount: {} aliasCount: {}",
-                        countries.size(), aliases.size() - 1);
-            }
-        }
+        // 代码索引缺失时优先复用全量快照；只有两个缓存都不存在时才扫描一次从库。
+        List<IsoCountryInfo> countries = loadCountriesForCodeIndex();
         return filterCountriesByCodes(countries, alpha2, alpha3, numeric);
     }
 
@@ -301,7 +297,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 SNAPSHOT_BUSINESS_KEY,
                 new TypeReference<List<IsoCurrencyInfo>>() {
                 },
-                this::loadCurrenciesFromDatabase
+                this::loadCurrenciesFromDatabase,
+                this::writeCurrencyCodeIndex
         );
     }
 
@@ -336,14 +333,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         }
 
         log.debug("event: ISO_CODE_CACHE_MISS dictionary: CURRENCY reason: INDEX_NOT_READY");
-        List<IsoCurrencyInfo> currencies = loadDatabaseValues(this::loadCurrenciesFromDatabase);
-        if (isCacheWriteAllowed(PaymentCacheNames.ISO_CURRENCY, CODE_INDEX_BUSINESS_KEY)) {
-            Map<String, String> aliases = currencyAliases(currencies);
-            if (writeCodeCache(cacheKey, aliases, "CURRENCY")) {
-                log.debug("event: ISO_CODE_CACHE_REBUILT dictionary: CURRENCY recordCount: {} aliasCount: {}",
-                        currencies.size(), aliases.size() - 1);
-            }
-        }
+        // 代码索引缺失时优先复用全量快照；只有两个缓存都不存在时才扫描一次从库。
+        List<IsoCurrencyInfo> currencies = loadCurrenciesForCodeIndex();
         return filterCurrenciesByCodes(currencies, alphabeticCode, numericCode);
     }
 
@@ -474,6 +465,96 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 CURRENCY_PRESENTATION_CACHE_BUSINESS_KEY,
                 newCacheKey(CURRENCY_CACHE_BUSINESS, CURRENCY_PRESENTATION_CACHE_BUSINESS_KEY)
         );
+    }
+
+    /**
+     * 国家代码索引缺失时优先复用已有全量快照；全量快照也缺失时才读取一次从库。
+     *
+     * @return 用于重建代码索引和完成本次精确查询的国家列表
+     */
+    private List<IsoCountryInfo> loadCountriesForCodeIndex() {
+        String snapshotKey = newCacheKey(COUNTRY_CACHE_BUSINESS);
+        CacheReadResult<IsoCountryInfo> snapshotRead = readCache(
+                snapshotKey,
+                new TypeReference<List<IsoCountryInfo>>() {
+                }
+        );
+        List<IsoCountryInfo> countries;
+        if (snapshotRead.status() == CacheReadStatus.PRESENT) {
+            countries = snapshotRead.values();
+        } else {
+            countries = loadDatabaseValues(this::loadCountriesFromDatabase);
+            writeCountrySnapshot(countries, snapshotKey);
+        }
+        writeCountryCodeIndex(countries);
+        return countries;
+    }
+
+    /**
+     * 币种代码索引缺失时优先复用已有全量快照；全量快照也缺失时才读取一次从库。
+     *
+     * @return 用于重建代码索引和完成本次精确查询的币种列表
+     */
+    private List<IsoCurrencyInfo> loadCurrenciesForCodeIndex() {
+        String snapshotKey = newCacheKey(CURRENCY_CACHE_BUSINESS);
+        CacheReadResult<IsoCurrencyInfo> snapshotRead = readCache(
+                snapshotKey,
+                new TypeReference<List<IsoCurrencyInfo>>() {
+                }
+        );
+        List<IsoCurrencyInfo> currencies;
+        if (snapshotRead.status() == CacheReadStatus.PRESENT) {
+            currencies = snapshotRead.values();
+        } else {
+            currencies = loadDatabaseValues(this::loadCurrenciesFromDatabase);
+            writeCurrencySnapshot(currencies, snapshotKey);
+        }
+        writeCurrencyCodeIndex(currencies);
+        return currencies;
+    }
+
+    /** 写入国家全量快照；管理端变更尚未复制完成时跳过永久缓存写入。 */
+    private void writeCountrySnapshot(List<IsoCountryInfo> countries, String snapshotKey) {
+        if (isCacheWriteAllowed(PaymentCacheNames.ISO_COUNTRY, SNAPSHOT_BUSINESS_KEY)) {
+            writeCache(snapshotKey, countries);
+        }
+    }
+
+    /** 写入币种全量快照；管理端变更尚未复制完成时跳过永久缓存写入。 */
+    private void writeCurrencySnapshot(List<IsoCurrencyInfo> currencies, String snapshotKey) {
+        if (isCacheWriteAllowed(PaymentCacheNames.ISO_CURRENCY, SNAPSHOT_BUSINESS_KEY)) {
+            writeCache(snapshotKey, currencies);
+        }
+    }
+
+    /** 使用完整国家快照重建固定代码 Hash。 */
+    private void writeCountryCodeIndex(List<IsoCountryInfo> countries) {
+        if (!isCodeIndexWriteAllowed(PaymentCacheNames.ISO_COUNTRY)) {
+            return;
+        }
+        Map<String, String> aliases = countryAliases(countries);
+        if (writeCodeCache(
+                newCacheKey(COUNTRY_CACHE_BUSINESS, CODE_INDEX_BUSINESS_KEY),
+                aliases,
+                "COUNTRY")) {
+            log.debug("event: ISO_CODE_CACHE_REBUILT dictionary: COUNTRY recordCount: {} aliasCount: {}",
+                    countries.size(), aliases.size() - 1);
+        }
+    }
+
+    /** 使用完整币种快照重建固定代码 Hash。 */
+    private void writeCurrencyCodeIndex(List<IsoCurrencyInfo> currencies) {
+        if (!isCodeIndexWriteAllowed(PaymentCacheNames.ISO_CURRENCY)) {
+            return;
+        }
+        Map<String, String> aliases = currencyAliases(currencies);
+        if (writeCodeCache(
+                newCacheKey(CURRENCY_CACHE_BUSINESS, CODE_INDEX_BUSINESS_KEY),
+                aliases,
+                "CURRENCY")) {
+            log.debug("event: ISO_CODE_CACHE_REBUILT dictionary: CURRENCY recordCount: {} aliasCount: {}",
+                    currencies.size(), aliases.size() - 1);
+        }
     }
 
     /**
@@ -700,6 +781,35 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                                       String cacheBusinessKey,
                                       TypeReference<List<T>> typeReference,
                                       Supplier<List<T>> databaseLoader) {
+        return loadFromCache(
+                cacheName,
+                cacheKey,
+                cacheBusinessKey,
+                typeReference,
+                databaseLoader,
+                ignored -> {
+                }
+        );
+    }
+
+    /**
+     * 从常驻缓存读取列表，并在数据库回源成功后用同一份快照构建关联缓存。
+     *
+     * @param cacheName              受管缓存名称
+     * @param cacheKey               当前列表缓存物理 Key
+     * @param cacheBusinessKey       当前列表缓存业务键
+     * @param typeReference          缓存 JSON 反序列化类型
+     * @param databaseLoader         DB 加载器
+     * @param databaseCacheWriter    使用同一份数据库结果构建关联缓存的写入器
+     * @param <T>                    字典数据类型
+     * @return 字典列表
+     */
+    private <T> List<T> loadFromCache(String cacheName,
+                                      String cacheKey,
+                                      String cacheBusinessKey,
+                                      TypeReference<List<T>> typeReference,
+                                      Supplier<List<T>> databaseLoader,
+                                      Consumer<List<T>> databaseCacheWriter) {
         // 失效门禁 pending 期间保留旧快照可读，避免复制延迟把查询流量压到数据库。
         CacheReadResult<T> cacheRead = readCache(cacheKey, typeReference);
         if (cacheRead.status() == CacheReadStatus.PRESENT) {
@@ -715,6 +825,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             if (cacheWriteAllowed) {
                 writeCache(cacheKey, databaseValues);
             }
+            // 国家和币种的代码 Hash 必须与本次全量快照来自同一次从库读取。
+            databaseCacheWriter.accept(databaseValues);
             return databaseValues;
         } catch (DataAccessException exception) {
             log.warn(
@@ -814,6 +926,21 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             );
             return false;
         }
+    }
+
+    /**
+     * 判断派生代码索引是否允许回写。
+     *
+     * <p>代码索引由全量快照派生，因此必须同时确认 {@code all} 与 {@code codes} 两个失效门禁
+     * 均为空闲。若其中一个管理端失效事件仍在等待从库可见或 Redis 删除重试，禁止把旧全量
+     * 快照重新固化为永久代码索引。</p>
+     *
+     * @param cacheName 国家或币种受管缓存名称
+     * @return 两个关联缓存均允许写入时返回 {@code true}
+     */
+    private boolean isCodeIndexWriteAllowed(String cacheName) {
+        return isCacheWriteAllowed(cacheName, SNAPSHOT_BUSINESS_KEY)
+                && isCacheWriteAllowed(cacheName, CODE_INDEX_BUSINESS_KEY);
     }
 
     /**

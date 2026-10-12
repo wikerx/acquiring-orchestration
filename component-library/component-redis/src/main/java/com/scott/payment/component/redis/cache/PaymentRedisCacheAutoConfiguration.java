@@ -78,12 +78,15 @@ public class PaymentRedisCacheAutoConfiguration {
      *
      * @param redisConnectionFactory Redis 连接工厂
      * @param properties             缓存配置
+     * @param redisProperties        直接 Redis 业务 Key 配置
      * @return Redis CacheManager
      */
     @Bean
     @ConditionalOnMissingBean(CacheManager.class)
     public CacheManager redisCacheManager(RedisConnectionFactory redisConnectionFactory,
-                                          PaymentCacheProperties properties) {
+                                          PaymentCacheProperties properties,
+                                          PaymentRedisProperties redisProperties) {
+        validateSharedKeyPrefix(properties, redisProperties);
         RedisCacheConfiguration defaultConfiguration = cacheConfiguration(
                 ttlOrDefault(properties.getDefaultTtl(), Duration.ofMinutes(10)),
                 properties.getKeyPrefix(),
@@ -107,6 +110,38 @@ public class PaymentRedisCacheAutoConfiguration {
                 .enableStatistics()
                 .transactionAware()
                 .build();
+    }
+
+    /**
+     * 校验 Spring Cache 与直接 Redis 业务 Key 使用同一个系统及环境前缀。
+     *
+     * <p>ISO 全量快照和代码 Hash 由 {@link StringRedisTemplate} 直接写入，管理端可靠失效通过
+     * Spring Cache 删除相同物理 Key。两个前缀若不一致，管理端更新成功后会遗留永久旧缓存，
+     * 因此必须在应用启动阶段拒绝该配置。</p>
+     *
+     * @param cacheProperties Spring Cache 配置
+     * @param redisProperties 直接 Redis Key 配置
+     */
+    private void validateSharedKeyPrefix(PaymentCacheProperties cacheProperties,
+                                         PaymentRedisProperties redisProperties) {
+        if (!StringUtils.hasText(cacheProperties.getKeyPrefix())) {
+            throw new IllegalStateException("payment.cache.redis.key-prefix must not be blank");
+        }
+        String cachePrefix = normalizeKeyPrefix(cacheProperties.getKeyPrefix());
+        String probeSuffix = ":cache:probe";
+        String directProbeKey = redisProperties.businessKey("cache", "probe");
+        if (!directProbeKey.endsWith(probeSuffix)) {
+            throw new IllegalStateException("Redis business key resolver returned an invalid probe key");
+        }
+        String directPrefix = directProbeKey.substring(
+                0,
+                directProbeKey.length() - probeSuffix.length()
+        ) + ":";
+        if (!cachePrefix.equals(directPrefix)) {
+            throw new IllegalStateException(
+                    "payment.cache.redis.key-prefix must match payment.redis.key-prefix"
+            );
+        }
     }
 
     /**

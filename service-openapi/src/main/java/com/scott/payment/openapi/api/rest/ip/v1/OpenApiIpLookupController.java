@@ -48,11 +48,11 @@ public class OpenApiIpLookupController {
      * 和无法规范化的地址不会进入缓存或数据库。方法返回后由统一响应增强器加密成功响应的
      * {@code data}。</p>
      *
-     * <p><strong>查询与缓存：</strong>规范化后的 IP 使用摘要作为固定版本命名空间内的 Hash 字段，
-     * 单次 Redis Lua 同时完成过期清理和命中/未命中读取，并通过容量上限防止随机 IP 造成无界增长。
-     * 冷查询使用当前不可变路由快照定位物理分表，再从 SLAVE 执行一次区间查询；缓存值绑定路由版本，
-     * 路由切换后旧版本不会被继续复用。命中与合法未命中使用不同逻辑 TTL，Redis 异常时直接走同一条
-     * SLAVE 查询链路。</p>
+     * <p><strong>查询与缓存：</strong>规范化后的 IP 转换为无符号数值，并按
+     * {@code acquiring:{env}:ip:v4|v6:{ipNumber}} 读取独立 JSON String。IPv4/IPv6 类型段用于防止
+     * 相同数值碰撞，也让 Redis Cluster 将不同 IP 自然分散到不同 Slot。冷查询使用本地不可变路由快照
+     * 定位物理分表，再从 SLAVE 查询当前数据版本；缓存值携带路由版本，版本变化后旧值不会继续复用。
+     * 命中默认缓存 6 小时，合法未命中默认缓存 2 分钟，Redis 异常时直接走同一条 SLAVE 查询链路。</p>
      *
      * @param request       Servlet 请求上下文，由统一安全链路读取请求头和调用方信息
      * @param encryptedData 商户加密请求体，仅由请求解密组件处理，业务方法不直接读取

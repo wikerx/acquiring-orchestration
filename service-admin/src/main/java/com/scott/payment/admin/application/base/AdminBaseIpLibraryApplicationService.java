@@ -9,7 +9,12 @@ import com.scott.payment.admin.mapper.IpLibrarySplitModelMapper;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.reference.cache.IpLookupCacheReader;
+import com.scott.payment.component.db.reference.model.IpLookupCacheEntry;
+import com.scott.payment.component.db.reference.model.IpLookupDetail;
+import com.scott.payment.component.db.reference.model.IpLookupResult;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -83,14 +88,17 @@ public class AdminBaseIpLibraryApplicationService {
 
     private final IpLibrarySplitModelMapper splitModelMapper;
     private final IpLibraryDataMapper dataMapper;
+    private final IpLookupCacheReader ipLookupCacheReader;
 
     /**
      * 创建全球 IP 库应用服务。
      */
     public AdminBaseIpLibraryApplicationService(IpLibrarySplitModelMapper splitModelMapper,
-                                                IpLibraryDataMapper dataMapper) {
+                                                IpLibraryDataMapper dataMapper,
+                                                IpLookupCacheReader ipLookupCacheReader) {
         this.splitModelMapper = splitModelMapper;
         this.dataMapper = dataMapper;
+        this.ipLookupCacheReader = ipLookupCacheReader;
     }
 
     /**
@@ -138,21 +146,24 @@ public class AdminBaseIpLibraryApplicationService {
 
     /**
      * 查询单个 IP 命中的归属区间。
+     *
+     * <p>管理端与 OpenAPI 共用 {@link IpLookupCacheReader}。缓存命中时直接读取同一个 JSON String；
+     * 缓存未命中或路由版本变化时，由公共组件从 SLAVE 查询一次并回写。管理端仅负责校验显式
+     * {@code ipType} 与地址一致，并把公共详情转换为后台响应。</p>
      */
     public IpLibraryDTOs.IpLibraryRecordResponse lookup(IpLibraryDTOs.IpLibraryLookupRequest request) {
         String ipType = normalizeIpType(request.getIpType(), request.getIpAddress());
-        String ipNumber = ipToNumber(request.getIpAddress(), ipType);
-        IpLibraryEntities.IpLibrarySplitModelDO shard = routeShards(ipType, ipNumber).stream()
-                .findFirst()
-                .orElseThrow(() -> badRequest("未找到当前 IP 对应的分片配置"));
-        IpLibraryEntities.IpLibraryDataRow row = dataMapper.selectLookupCandidate(
-                checkedTableName(shard.getTableName()),
-                requiredVersion(shard),
-                ipNumber);
-        if (row == null || new BigInteger(row.getIpNumberEnd()).compareTo(new BigInteger(ipNumber)) < 0) {
+        // 先保留管理端原有的显式类型校验，避免 IPV4 请求携带 IPv6 地址时绕过参数约束。
+        ipToNumber(request.getIpAddress(), ipType);
+        IpLookupCacheEntry entry = ipLookupCacheReader.lookupEntry(request.getIpAddress());
+        IpLookupResult result = entry.result();
+        if (result == null || !Boolean.TRUE.equals(result.matched())) {
             return null;
         }
-        return toResponse(row, shard.getIpType());
+        if (!ipType.equals(result.ipType())) {
+            throw badRequest("IP 类型与 IP 地址不匹配");
+        }
+        return toResponse(entry.detail());
     }
 
     /**
@@ -166,13 +177,12 @@ public class AdminBaseIpLibraryApplicationService {
         try {
             String ipType = normalizeIpType(expectedIpType, normalized);
             validateIpLiteral(normalized, ipType);
-            InetAddress address = InetAddress.getByName(normalized);
-            byte[] bytes = address.getAddress();
-            String actualType = bytes.length == 4 ? IPV4 : IPV6;
+            IpAddressNormalizer.NormalizedIp normalizedIp = IpAddressNormalizer.normalizeExact(normalized);
+            String actualType = normalizedIp.ipv4() ? IPV4 : IPV6;
             if (!actualType.equals(ipType)) {
                 throw badRequest("IP 类型与 IP 地址不匹配");
             }
-            BigInteger number = new BigInteger(1, bytes);
+            BigInteger number = new BigInteger(IpAddressNormalizer.toUnsignedNumber(normalizedIp));
             if (IPV4.equals(ipType) && number.compareTo(BigInteger.valueOf(IPV4_MAX)) > 0) {
                 throw badRequest("IPv4 数值超出范围");
             }
@@ -180,7 +190,7 @@ public class AdminBaseIpLibraryApplicationService {
                 throw badRequest("IPv6 数值超出范围");
             }
             return number.toString();
-        } catch (UnknownHostException ex) {
+        } catch (IllegalArgumentException ex) {
             throw badRequest("IP 地址格式不正确");
         }
     }
@@ -249,6 +259,31 @@ public class AdminBaseIpLibraryApplicationService {
         response.setDataVersion(row.getDataVersion());
         response.setCreateTime(row.getCreateTime());
         response.setCreateBy(row.getCreateBy());
+        return response;
+    }
+
+    /** 将公共缓存详情转换为管理端响应，并保留区间与审计字段。 */
+    private IpLibraryDTOs.IpLibraryRecordResponse toResponse(IpLookupDetail detail) {
+        if (detail == null || detail.result() == null) {
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
+        }
+        IpLookupResult result = detail.result();
+        IpLibraryDTOs.IpLibraryRecordResponse response = new IpLibraryDTOs.IpLibraryRecordResponse();
+        response.setId(detail.id());
+        response.setIpType(result.ipType());
+        response.setIpNumberStart(detail.ipNumberStart());
+        response.setIpNumberEnd(detail.ipNumberEnd());
+        response.setIpAddressStart(numberToIp(detail.ipNumberStart(), result.ipType()));
+        response.setIpAddressEnd(numberToIp(detail.ipNumberEnd(), result.ipType()));
+        response.setCountryAlpha2(result.countryAlpha2());
+        response.setCountryAlpha3(result.countryAlpha3());
+        response.setCountryNumeric(result.countryNumeric());
+        response.setCountryName(result.countryName());
+        response.setStateProvince(result.stateProvince());
+        response.setCity(result.city());
+        response.setDataVersion(detail.dataVersion());
+        response.setCreateTime(detail.createTime());
+        response.setCreateBy(detail.createBy());
         return response;
     }
 

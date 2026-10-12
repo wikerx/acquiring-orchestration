@@ -7,6 +7,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.scott.payment.component.core.cache.CacheMissMarkerStore;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.redis.cache.invalidation.ImmediateCacheEvictionService;
+import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
 import com.scott.payment.component.redis.observability.RedisBusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +49,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -164,6 +166,21 @@ class PaymentRedisCacheAutoConfigurationTests {
     }
 
     /**
+     * Spring Cache 与直接 Redis Key 的环境前缀不一致时必须启动失败，避免管理端删除错误的物理 Key。
+     */
+    @Test
+    void shouldRejectDifferentCacheAndBusinessKeyPrefixes() {
+        PaymentCacheProperties cacheProperties = new PaymentCacheProperties();
+        cacheProperties.setKeyPrefix("acquiring:dev");
+
+        assertThatIllegalStateException().isThrownBy(() -> autoConfiguration.redisCacheManager(
+                mock(RedisConnectionFactory.class),
+                cacheProperties,
+                redisProperties("acquiring:test")
+        )).withMessageContaining("must match");
+    }
+
+    /**
      * 开启 TTL 抖动后，每次写入的 TTL 必须位于基础 TTL 的有界区间内。
      */
     @Test
@@ -196,7 +213,8 @@ class PaymentRedisCacheAutoConfigurationTests {
         PaymentCacheProperties properties = new PaymentCacheProperties();
         RedisCacheManager cacheManager = (RedisCacheManager) autoConfiguration.redisCacheManager(
                 mock(RedisConnectionFactory.class),
-                properties
+                properties,
+                redisProperties(properties.getKeyPrefix())
         );
         cacheManager.afterPropertiesSet();
         assertThat(properties.getTtlJitterPercent()).isEqualTo(10);
@@ -223,7 +241,8 @@ class PaymentRedisCacheAutoConfigurationTests {
         PaymentCacheProperties properties = new PaymentCacheProperties();
         RedisCacheManager cacheManager = (RedisCacheManager) autoConfiguration.redisCacheManager(
                 mock(RedisConnectionFactory.class),
-                properties
+                properties,
+                redisProperties(properties.getKeyPrefix())
         );
         cacheManager.afterPropertiesSet();
 
@@ -236,7 +255,8 @@ class PaymentRedisCacheAutoConfigurationTests {
     void shouldCreateUnregisteredCacheWithDefaultTtl() {
         RedisCacheManager cacheManager = (RedisCacheManager) autoConfiguration.redisCacheManager(
                 mock(RedisConnectionFactory.class),
-                new PaymentCacheProperties()
+                new PaymentCacheProperties(),
+                redisProperties("acquiring:local")
         );
         cacheManager.afterPropertiesSet();
 
@@ -256,7 +276,8 @@ class PaymentRedisCacheAutoConfigurationTests {
     void shouldRegisterEveryDeclaredPaymentCacheName() throws IllegalAccessException {
         RedisCacheManager cacheManager = (RedisCacheManager) autoConfiguration.redisCacheManager(
                 mock(RedisConnectionFactory.class),
-                new PaymentCacheProperties()
+                new PaymentCacheProperties(),
+                redisProperties("acquiring:local")
         );
         cacheManager.afterPropertiesSet();
 
@@ -293,7 +314,8 @@ class PaymentRedisCacheAutoConfigurationTests {
 
         assertThatIllegalArgumentException().isThrownBy(() -> autoConfiguration.redisCacheManager(
                 mock(RedisConnectionFactory.class),
-                properties
+                properties,
+                redisProperties(properties.getKeyPrefix())
         ));
     }
 
@@ -308,7 +330,8 @@ class PaymentRedisCacheAutoConfigurationTests {
 
         assertThatIllegalArgumentException().isThrownBy(() -> autoConfiguration.redisCacheManager(
                 mock(RedisConnectionFactory.class),
-                properties
+                properties,
+                redisProperties(properties.getKeyPrefix())
         )).withMessageContaining("must remain zero");
         log.info("常驻缓存配置保护测试完成，结果: 有限期覆盖被拒绝");
     }
@@ -326,7 +349,8 @@ class PaymentRedisCacheAutoConfigurationTests {
         when(stringCommands.get(any(byte[].class))).thenReturn(null);
         RedisCacheManager cacheManager = (RedisCacheManager) autoConfiguration.redisCacheManager(
                 connectionFactory,
-                new PaymentCacheProperties()
+                new PaymentCacheProperties(),
+                redisProperties("acquiring:local")
         );
         cacheManager.afterPropertiesSet();
         TransactionAwareCacheDecorator cacheDecorator = (TransactionAwareCacheDecorator) cacheManager
@@ -365,7 +389,8 @@ class PaymentRedisCacheAutoConfigurationTests {
         assertThatCode(() ->
                 autoConfiguration.redisCacheManager(
                         mock(RedisConnectionFactory.class),
-                        properties
+                        properties,
+                        redisProperties(properties.getKeyPrefix())
                 )).doesNotThrowAnyException();
         log.info("常驻安全缓存失效门禁测试完成，结果: 正数恢复性租约允许配置");
     }
@@ -424,6 +449,13 @@ class PaymentRedisCacheAutoConfigurationTests {
                 .as("Redis dev Nacos configuration must exist")
                 .isTrue();
         return modulePath;
+    }
+
+    /** 创建与指定 Spring Cache 前缀一致的直接 Redis Key 配置。 */
+    private PaymentRedisProperties redisProperties(String keyPrefix) {
+        PaymentRedisProperties properties = new PaymentRedisProperties();
+        properties.setKeyPrefix(keyPrefix);
+        return properties;
     }
 
     /** 获取事务感知 Redis Cache 的实际配置。 */

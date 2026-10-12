@@ -1,5 +1,6 @@
 package com.scott.payment.component.core.util.net;
 
+import java.math.BigInteger;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -76,6 +77,26 @@ public final class IpAddressNormalizer {
             return normalizeIpv6(candidate);
         }
         return normalizeIpv4(candidate);
+    }
+
+    /**
+     * 将已规范化的 IPv4 或 IPv6 转换为无符号十进制数值。
+     *
+     * <p>该数值同时用于数据库区间查询和 Redis Key。Key 必须额外保留 IP 类型，
+     * 因为 {@code 0.0.0.1} 与 {@code ::1} 的无符号数值均为 {@code 1}。</p>
+     *
+     * @param normalizedIp {@link #normalizeExact(String)} 返回的规范化结果
+     * @return IPv4 32 位或 IPv6 128 位无符号十进制数值
+     */
+    public static String toUnsignedNumber(NormalizedIp normalizedIp) {
+        if (normalizedIp == null) {
+            throw new IllegalArgumentException("Normalized IP must not be null");
+        }
+        try {
+            return new BigInteger(1, InetAddress.getByName(normalizedIp.ipValue()).getAddress()).toString();
+        } catch (UnknownHostException exception) {
+            throw new IllegalArgumentException("IP address is invalid", exception);
+        }
     }
 
     private static NormalizedIp normalizeIpv4(String candidate) {

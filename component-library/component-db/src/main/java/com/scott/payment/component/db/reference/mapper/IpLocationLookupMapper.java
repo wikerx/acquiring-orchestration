@@ -63,12 +63,18 @@ public interface IpLocationLookupMapper extends BaseMapper<IpLibraryShardDO> {
      * @return 命中的最接近区间，未命中返回 null
      */
     @Select("""
-            SELECT country_alpha2 AS countryAlpha2,
+            SELECT id,
+                   CAST(ip_number_start AS CHAR) AS ipNumberStart,
+                   CAST(ip_number_end AS CHAR) AS ipNumberEnd,
+                   country_alpha2 AS countryAlpha2,
                    country_alpha3 AS countryAlpha3,
                    country_numeric AS countryNumeric,
                    country_name AS countryName,
                    state_province AS stateProvince,
-                   city
+                   city,
+                   data_version AS dataVersion,
+                   create_time AS createTime,
+                   create_by AS createBy
             FROM ${tableName}
             WHERE deleted = 0
               AND data_version = #{dataVersion}

@@ -35,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -133,7 +134,47 @@ class IsoDictionaryServiceImplTests {
                 .containsEntry("A2:US", JsonUtils.toJsonString(countryInfo()))
                 .containsEntry("A3:USA", JsonUtils.toJsonString(countryInfo()))
                 .containsEntry("N:840", JsonUtils.toJsonString(countryInfo()));
+        verify(fixture.valueOperations()).set(
+                eq("acquiring:dev:iso:country:all"),
+                eq(JsonUtils.toJsonString(List.of(countryInfo())))
+        );
         verify(fixture.countryMapper(), times(1)).selectList(any());
+    }
+
+    /** 代码 Hash 缺失但全量快照存在时，必须直接复用快照建立索引，不能再次扫描国家表。 */
+    @Test
+    void shouldBuildCountryCodeHashFromExistingFullSnapshot() {
+        Fixture fixture = fixture();
+        when(fixture.hashOperations().multiGet(anyString(), anyList()))
+                .thenReturn(java.util.Arrays.asList(null, null));
+        when(fixture.valueOperations().get("acquiring:dev:iso:country:all"))
+                .thenReturn(JsonUtils.toJsonString(List.of(countryInfo())));
+
+        assertThat(fixture.service().listCountriesByCodes(null, "USA", null))
+                .containsExactly(countryInfo());
+
+        verify(fixture.countryMapper(), never()).selectList(any());
+        verify(fixture.hashOperations()).putAll(
+                eq("acquiring:dev:iso:country:codes"),
+                anyMap()
+        );
+    }
+
+    /** 全量快照仍处于管理端失效门禁时，不得用旧快照重新建立永久国家代码索引。 */
+    @Test
+    void shouldNotRebuildCountryCodeHashWhileSnapshotInvalidationIsPending() {
+        CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
+        Fixture fixture = fixture(null, invalidationGuard);
+        when(fixture.hashOperations().multiGet(anyString(), anyList()))
+                .thenReturn(java.util.Arrays.asList(null, null));
+        when(fixture.valueOperations().get("acquiring:dev:iso:country:all"))
+                .thenReturn(JsonUtils.toJsonString(List.of(countryInfo())));
+        when(invalidationGuard.isPending(PaymentCacheNames.ISO_COUNTRY, "all")).thenReturn(true);
+
+        assertThat(fixture.service().listCountriesByCodes(null, "USA", null))
+                .containsExactly(countryInfo());
+
+        verify(fixture.hashOperations(), never()).putAll(anyString(), anyMap());
     }
 
     /** Redis 不可用时仅执行一次携带全部代码条件的 SLAVE 精确 SQL。 */
@@ -202,6 +243,10 @@ class IsoDictionaryServiceImplTests {
                 .containsEntry("__READY__", "v1")
                 .containsEntry("A3:USD", JsonUtils.toJsonString(currencyInfo("USD", "840")))
                 .containsEntry("N:840", JsonUtils.toJsonString(currencyInfo("USD", "840")));
+        verify(fixture.valueOperations()).set(
+                eq("acquiring:dev:iso:currency:all"),
+                eq(JsonUtils.toJsonString(List.of(currencyInfo("USD", "840"))))
+        );
 
         Fixture fallbackFixture = fixture();
         when(fallbackFixture.hashOperations().multiGet(anyString(), anyList()))
@@ -252,6 +297,10 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.valueOperations()).set(
                 org.mockito.ArgumentMatchers.eq("acquiring:dev:iso:country:all"),
                 anyString()
+        );
+        verify(fixture.hashOperations()).putAll(
+                eq("acquiring:dev:iso:country:codes"),
+                anyMap()
         );
         verify(fixture.valueOperations(), never()).set(
                 org.mockito.ArgumentMatchers.eq("acquiring:dev:iso:country:all"),
@@ -431,6 +480,12 @@ class IsoDictionaryServiceImplTests {
 
     @SuppressWarnings("unchecked")
     private Fixture fixture(ManagedCacheInvalidationCoordinator invalidationCoordinator) {
+        return fixture(invalidationCoordinator, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Fixture fixture(ManagedCacheInvalidationCoordinator invalidationCoordinator,
+                            CacheInvalidationGuard invalidationGuard) {
         IsoCountryMapper countryMapper = mock(IsoCountryMapper.class);
         IsoCurrencyMapper currencyMapper = mock(IsoCurrencyMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
@@ -446,6 +501,7 @@ class IsoDictionaryServiceImplTests {
         when(redisTemplate.opsForHash()).thenReturn(hashOperations);
         when(redisProvider.getIfAvailable()).thenReturn(redisTemplate);
         when(keyResolverProvider.getIfAvailable()).thenReturn(keyResolver);
+        when(invalidationGuardProvider.getIfAvailable()).thenReturn(invalidationGuard);
         when(invalidationCoordinatorProvider.getIfAvailable()).thenReturn(invalidationCoordinator);
         when(keyResolver.businessKey("iso", "country", "all"))
                 .thenReturn("acquiring:dev:iso:country:all");

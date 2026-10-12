@@ -45,12 +45,19 @@ class ReferenceDataLookupServiceImplTest {
         IpShardRoutingSnapshot routingSnapshot = mock(IpShardRoutingSnapshot.class);
         IpShardRoute route = route("route-v1", "ip_library_v4_data_01", "20260811");
         IpLibraryDataRow row = new IpLibraryDataRow();
+        LocalDateTime createTime = LocalDateTime.of(2026, 10, 12, 11, 30);
+        row.setId(9L);
+        row.setIpNumberStart("134744000");
+        row.setIpNumberEnd("134744255");
         row.setCountryAlpha2("US");
         row.setCountryAlpha3("USA");
         row.setCountryNumeric("840");
         row.setCountryName("United States");
         row.setStateProvince("California");
         row.setCity("Mountain View");
+        row.setDataVersion("20260811");
+        row.setCreateTime(createTime);
+        row.setCreateBy("system");
         when(routingSnapshot.resolve("IPV4", "134744072")).thenReturn(route);
         when(ipMapper.selectLookupCandidate("ip_library_v4_data_01", "20260811", "134744072"))
                 .thenReturn(row);
@@ -58,13 +65,20 @@ class ReferenceDataLookupServiceImplTest {
         ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
                 ipMapper, cardBinMapper, routingSnapshot);
 
-        IpLookupResult result = service.lookupIp("008.008.008.008");
+        var snapshot = service.lookupIpSnapshot("008.008.008.008");
+        IpLookupResult result = snapshot.result();
 
         assertThat(result.matched()).isTrue();
         assertThat(result.ipAddress()).isEqualTo("8.8.8.8");
         assertThat(result.ipType()).isEqualTo("IPV4");
         assertThat(result.countryAlpha3()).isEqualTo("USA");
         assertThat(result.city()).isEqualTo("Mountain View");
+        assertThat(snapshot.detail().id()).isEqualTo(9L);
+        assertThat(snapshot.detail().ipNumberStart()).isEqualTo("134744000");
+        assertThat(snapshot.detail().ipNumberEnd()).isEqualTo("134744255");
+        assertThat(snapshot.detail().dataVersion()).isEqualTo("20260811");
+        assertThat(snapshot.detail().createTime()).isEqualTo(createTime);
+        assertThat(snapshot.detail().createBy()).isEqualTo("system");
     }
 
     @Test
@@ -254,12 +268,10 @@ class ReferenceDataLookupServiceImplTest {
         DS dataSource = method.getAnnotation(DS.class);
         assertThat(dataSource).isNotNull();
         assertThat(dataSource.value()).isEqualTo(DataSourceName.SLAVE);
-        if (methodName.startsWith("lookupCardBin")) {
-            Transactional transaction = method.getAnnotation(Transactional.class);
-            assertThat(transaction).isNotNull();
-            assertThat(transaction.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
-            assertThat(transaction.readOnly()).isTrue();
-        }
+        Transactional transaction = method.getAnnotation(Transactional.class);
+        assertThat(transaction).isNotNull();
+        assertThat(transaction.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
+        assertThat(transaction.readOnly()).isTrue();
     }
 
     private ReferenceDataLookupServiceImpl service(IpLocationLookupMapper ipMapper,

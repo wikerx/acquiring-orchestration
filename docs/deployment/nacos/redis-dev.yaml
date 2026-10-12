@@ -54,8 +54,8 @@ spring:
 
 payment:
   redis:
-    # 所有直接业务 Key 的统一系统和环境前缀；不同环境必须配置不同值。
-    # 环境说明：环境变量：PAYMENT_REDIS_KEY_PREFIX（当前默认值为 "acquiring:dev"）；dev、test、uat、prod 必须使用不同 Redis Key 前缀或状态 Key，防止数据跨环境覆盖。
+    # 所有直接业务 Key 的统一系统和环境前缀；必须与 payment.cache.redis.key-prefix 完全一致，否则应用拒绝启动，防止管理端删不到永久缓存。
+    # 环境说明：环境变量：PAYMENT_REDIS_KEY_PREFIX（当前默认值为 "acquiring:dev"）；dev、test、uat、prod 必须使用不同前缀，并与同环境 PAYMENT_CACHE_REDIS_KEY_PREFIX 同时调整。
     key-prefix: ${PAYMENT_REDIS_KEY_PREFIX:acquiring:dev}
     mq-dedup:
       # 单个 MQ 去重时间桶最多保存的 SHA-256 消息摘要数量；超限后降级到数据库唯一约束。
@@ -85,8 +85,8 @@ payment:
       # 是否启用 Spring Cache + Redis。缓存只用于高频读路径减压，交易事实仍以数据库为准。
       # 环境说明：环境变量：PAYMENT_CACHE_REDIS_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
       enabled: ${PAYMENT_CACHE_REDIS_ENABLED:true}
-      # Spring Cache 与直接业务 Key 共用系统和环境前缀，Cache Name 继续提供领域与数据集层级。
-      # 环境说明：环境变量：PAYMENT_CACHE_REDIS_KEY_PREFIX（当前默认值为 "acquiring:dev"）；dev、test、uat、prod 必须使用不同 Redis Key 前缀或状态 Key，防止数据跨环境覆盖。
+      # Spring Cache 与直接业务 Key 共用系统和环境前缀；必须与 payment.redis.key-prefix 完全一致，Cache Name 继续提供领域与数据集层级。
+      # 环境说明：环境变量：PAYMENT_CACHE_REDIS_KEY_PREFIX（当前默认值为 "acquiring:dev"）；修改时必须同步设置同环境 PAYMENT_REDIS_KEY_PREFIX，否则应用会在启动阶段明确报错。
       key-prefix: ${PAYMENT_CACHE_REDIS_KEY_PREFIX:acquiring:dev}
       # 未单独配置缓存名称时的默认 TTL。
       # 环境说明：环境变量：PAYMENT_CACHE_REDIS_DEFAULT_TTL，dev 配置默认值为 "10m"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。

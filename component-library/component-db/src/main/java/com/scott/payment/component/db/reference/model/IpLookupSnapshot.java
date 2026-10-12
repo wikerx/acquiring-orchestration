@@ -10,7 +10,12 @@ package com.scott.payment.component.db.reference.model;
  * @status : create
  *
  * @param routingVersion 本次数据库查询实际使用的路由快照版本
- * @param result 命中或未命中的 IP 归属结果
+ * @param detail 命中或未命中的完整查询详情
  */
-public record IpLookupSnapshot(String routingVersion, IpLookupResult result) {
+public record IpLookupSnapshot(String routingVersion, IpLookupDetail detail) {
+
+    /** @return OpenAPI 使用的归属结果；查询详情不完整时返回 null */
+    public IpLookupResult result() {
+        return detail == null ? null : detail.result();
+    }
 }

@@ -109,13 +109,9 @@ payment:
       max-candidates-per-prefix: ${PAYMENT_CARD_BIN_CACHE_MAX_CANDIDATES_PER_PREFIX:64}
   ip:
     lookup:
-      # IP 命中数据的逻辑缓存时长，使用 Spring Duration，例如 PT6H；缩短可提高变更收敛速度。
+      # IP 命中 JSON String 的物理有效期，使用 Spring Duration，例如 PT6H；缩短可提高回收速度。
       hit-ttl: ${PAYMENT_IP_LOOKUP_HIT_TTL:PT6H}
-      # IP 未命中数据的逻辑缓存时长，使用 Spring Duration，例如 PT2M；短时缓存用于抑制随机 IP 穿透。
+      # 合法 IP 未命中 JSON String 的物理有效期，使用 Spring Duration，例如 PT2M；短时缓存用于抑制随机 IP 穿透。
       miss-ttl: ${PAYMENT_IP_LOOKUP_MISS_TTL:PT2M}
-      # 路由版本 Hash/ZSet 的物理存活时间，必须大于 hit-ttl 和 miss-ttl；旧路由版本到期后自动回收。
-      namespace-ttl: ${PAYMENT_IP_LOOKUP_NAMESPACE_TTL:PT24H}
-      # 单个路由版本允许缓存的 IP 数量，必须为正整数；写入 Lua 会清理过期成员并限制基数。
-      max-entries: ${PAYMENT_IP_LOOKUP_MAX_ENTRIES:500000}
       # 从 SLAVE 刷新 IP 分片路由快照的固定延迟，单位毫秒；60000 表示每次完成后等待一分钟。
       route-refresh-ms: ${PAYMENT_IP_LOOKUP_ROUTE_REFRESH_MS:60000}

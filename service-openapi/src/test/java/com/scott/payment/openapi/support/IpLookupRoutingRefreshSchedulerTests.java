@@ -8,7 +8,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/** 验证 IP 路由按计划刷新；旧版本缓存由命名空间 TTL 自动回收。 */
+/** 验证 IP 路由按计划刷新；短 Key 中的旧版本值由查询入口拒绝并按需覆盖。 */
 class IpLookupRoutingRefreshSchedulerTests {
 
     @Test

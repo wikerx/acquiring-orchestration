@@ -68,7 +68,8 @@ public class AdminBaseRegionCurrencyApplicationService {
     private final IsoCurrencyMapper isoCurrencyMapper;
 
     /**
-     * ISO 字典缓存失效器；国家默认币种或状态变化后删除新旧国家缓存。
+     * ISO 字典缓存失效器。国家默认币种或状态变化后登记国家全量与代码索引的可靠失效，
+     * 待从库同步完成后再删除 OpenAPI、支付、管理端和收银台共用的永久缓存。
      */
     private final IsoDictionaryCacheInvalidator isoDictionaryCacheInvalidator;
 

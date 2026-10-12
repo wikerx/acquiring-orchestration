@@ -55,12 +55,6 @@ public final class PaymentRedisScripts {
     private static final DefaultRedisScript<Long> CARD_BIN_BUCKET_APPEND_V1 =
             load("v1/card-bin-bucket-append.lua", Long.class);
 
-    private static final DefaultRedisScript<String> IP_LOOKUP_READ_V1 =
-            load("v1/ip-lookup-read.lua", String.class);
-
-    private static final DefaultRedisScript<Long> IP_LOOKUP_WRITE_V1 =
-            load("v1/ip-lookup-write.lua", Long.class);
-
     private static final DefaultRedisScript<List> SLIDING_WINDOW_RATE_LIMIT_V1 =
             load("v1/sliding-window-rate-limit.lua", List.class);
 
@@ -160,16 +154,6 @@ public final class PaymentRedisScripts {
     /** 获取 Card BIN 单分片候选批量追加脚本，并限制每个前缀字段的候选数量。 */
     public static RedisScript<Long> cardBinBucketAppendV1() {
         return CARD_BIN_BUCKET_APPEND_V1;
-    }
-
-    /** 获取有界 IP 精确查询缓存读取脚本。 */
-    public static RedisScript<String> ipLookupReadV1() {
-        return IP_LOOKUP_READ_V1;
-    }
-
-    /** 获取有界 IP 精确查询缓存写入脚本。 */
-    public static RedisScript<Long> ipLookupWriteV1() {
-        return IP_LOOKUP_WRITE_V1;
     }
 
     /** 获取精确滑动窗口限流脚本。 */

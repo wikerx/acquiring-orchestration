@@ -6,18 +6,25 @@ import com.scott.payment.admin.mapper.IpLibraryDataMapper;
 import com.scott.payment.admin.mapper.IpLibrarySplitModelMapper;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.reference.cache.IpLookupCacheReader;
+import com.scott.payment.component.db.reference.model.IpLookupCacheEntry;
+import com.scott.payment.component.db.reference.model.IpLookupDetail;
+import com.scott.payment.component.db.reference.model.IpLookupResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -36,12 +43,14 @@ class AdminBaseIpLibraryApplicationServiceTest {
     private IpLibrarySplitModelMapper splitModelMapper;
     @Mock
     private IpLibraryDataMapper dataMapper;
+    @Mock
+    private IpLookupCacheReader ipLookupCacheReader;
 
     private AdminBaseIpLibraryApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new AdminBaseIpLibraryApplicationService(splitModelMapper, dataMapper);
+        service = new AdminBaseIpLibraryApplicationService(splitModelMapper, dataMapper, ipLookupCacheReader);
     }
 
     @Test
@@ -69,10 +78,14 @@ class AdminBaseIpLibraryApplicationServiceTest {
     }
 
     @Test
-    void shouldLookupMatchedRangeFromRoutedShard() {
-        when(splitModelMapper.selectList(any())).thenReturn(List.of(ipv4Shard()));
-        when(dataMapper.selectLookupCandidate(eq("ip_library_v4_data_01"), eq("DEFAULT"), eq("16777216")))
-                .thenReturn(row("16777216", "16777471"));
+    void shouldLookupMatchedRangeFromSharedCacheReader() {
+        LocalDateTime createTime = LocalDateTime.of(2026, 10, 12, 11, 30);
+        IpLookupResult result = new IpLookupResult(true, "1.0.0.0", "IPV4",
+                "CN", "CHN", "156", "China", "Fujian", "Fuzhou");
+        IpLookupDetail detail = new IpLookupDetail(result, 9L, "16777216", "16777471",
+                "DEFAULT", createTime, "scott");
+        when(ipLookupCacheReader.lookupEntry("1.0.0.0"))
+                .thenReturn(new IpLookupCacheEntry("route-v1", detail));
 
         IpLibraryDTOs.IpLibraryLookupRequest request = new IpLibraryDTOs.IpLibraryLookupRequest();
         request.setIpAddress("1.0.0.0");
@@ -83,18 +96,26 @@ class AdminBaseIpLibraryApplicationServiceTest {
         assertThat(response.getIpType()).isEqualTo("IPV4");
         assertThat(response.getIpAddressStart()).isEqualTo("1.0.0.0");
         assertThat(response.getIpAddressEnd()).isEqualTo("1.0.0.255");
+        assertThat(response.getId()).isEqualTo(9L);
+        assertThat(response.getDataVersion()).isEqualTo("DEFAULT");
+        assertThat(response.getCreateTime()).isEqualTo(createTime);
+        assertThat(response.getCreateBy()).isEqualTo("scott");
+        verify(ipLookupCacheReader).lookupEntry("1.0.0.0");
+        verify(splitModelMapper, never()).selectList(any());
     }
 
     @Test
-    void shouldReturnNullWhenCandidateDoesNotCoverIp() {
-        when(splitModelMapper.selectList(any())).thenReturn(List.of(ipv4Shard()));
-        when(dataMapper.selectLookupCandidate(eq("ip_library_v4_data_01"), eq("DEFAULT"), eq("16777472")))
-                .thenReturn(row("16777216", "16777471"));
+    void shouldReturnNullWhenSharedLookupDoesNotMatch() {
+        IpLookupResult miss = IpLookupResult.miss("1.0.1.0", "IPV4");
+        when(ipLookupCacheReader.lookupEntry("1.0.1.0"))
+                .thenReturn(new IpLookupCacheEntry("route-v1", IpLookupDetail.miss(miss)));
 
         IpLibraryDTOs.IpLibraryLookupRequest request = new IpLibraryDTOs.IpLibraryLookupRequest();
         request.setIpAddress("1.0.1.0");
 
         assertThat(service.lookup(request)).isNull();
+        verify(ipLookupCacheReader).lookupEntry("1.0.1.0");
+        verify(splitModelMapper, never()).selectList(any());
     }
 
     @Test

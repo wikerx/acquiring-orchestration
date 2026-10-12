@@ -16,6 +16,19 @@ acquiring:
       # 环境说明：环境变量：OPENAPI_CRYPTO_MODE，dev 配置默认值为 "JWT + RSA-OAEP-256 + A256GCM"；test/uat/prod 必须选择已完成该环境验证的模式，切换时保留回退方案。
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
 
+payment:
+  ip:
+    lookup:
+      # IP 命中结果写入共享 String Key 的物理有效期，使用 Spring Duration；默认 PT6H 表示 6 小时。
+      # 管理端与 OpenAPI 必须保持一致，避免同一 IP 被不同服务反复改写为不同生命周期。
+      hit-ttl: ${PAYMENT_IP_LOOKUP_HIT_TTL:PT6H}
+      # 合法 IP 未命中结果的物理有效期，使用 Spring Duration；默认 PT2M 用于抑制随机 IP 穿透且避免长期空缓存。
+      # 管理端与 OpenAPI 必须保持一致，调整前应评估从库压力和数据发布后的收敛时间。
+      miss-ttl: ${PAYMENT_IP_LOOKUP_MISS_TTL:PT2M}
+      # 从 SLAVE 刷新 IP 分片及数据版本快照的固定延迟，单位毫秒；60000 表示每次刷新完成后等待 1 分钟。
+      # 新版本在从库可见后，管理端与 OpenAPI 会拒绝旧版本缓存并在下一次访问时覆盖相同短 Key。
+      route-refresh-ms: ${PAYMENT_IP_LOOKUP_ROUTE_REFRESH_MS:60000}
+
 admin:
   clearing-client:
     # 参数说明：清分命令服务地址；管理端页面查询仍使用 service-admin 本地逻辑数据源。

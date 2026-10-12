@@ -49,6 +49,14 @@ public class AdminBaseIpLibraryController {
 
     /**
      * 查询单个 IP 命中的归属区间。
+     *
+     * <p>精确查询与商户 OpenAPI 共用公共 IP 缓存和 SLAVE 回源逻辑。缓存 Key 使用
+     * {@code acquiring:{env}:ip:v4|v6:{ipNumber}}，Value 同时保存对外归属字段、命中区间和审计信息；
+     * 因此管理端和 OpenAPI 对同一 IP 看到同一数据版本。缓存中的路由版本过期时自动回源并覆盖当前 Key，
+     * Redis 故障不会阻断只读查询。</p>
+     *
+     * @param request 精确 IP 与可选 IP 类型；不接受域名、CIDR、范围或批量地址
+     * @return 命中区间详情；合法地址未命中时 data 为空
      */
     @PostMapping("/lookup")
     @RequiresPermission("base:ip-library:list")

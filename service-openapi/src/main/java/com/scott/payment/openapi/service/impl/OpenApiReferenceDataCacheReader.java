@@ -30,10 +30,10 @@ public class OpenApiReferenceDataCacheReader {
 
     /**
      * 查询精确 IP 归属，并通过支付公共组件共享命中与合法未命中缓存。
-     * <p>等价的 IP 写法共用 SHA-256 摘要字段；一次 Lua 同时完成逻辑过期清理和读取。
-     * 缓存值绑定当前 SLAVE 路由快照版本，版本变化后旧值即使删除失败也不会复用。
-     * 缓存不可用时使用本地路由快照并仅查询一次 IP 动态数据表；非法地址、分片配置错误
-     * 和数据库异常均不写入缓存。</p>
+     * <p>等价的 IP 写法先规范化，再按 {@code acquiring:{env}:ip:v4|v6:{ipNumber}}
+     * 读取独立 JSON String。缓存值绑定当前 SLAVE 路由快照版本，版本变化后旧值不会复用。
+     * 缓存不可用时使用本地路由快照定位 IP 动态数据表；非法地址、分片配置错误和数据库异常
+     * 均不写入缓存。</p>
      *
      * @param ipAddress IPv4 或 IPv6 字面量，不接受域名和 CIDR
      * @return 当前有效的归属结果，合法地址未命中时返回 matched=false

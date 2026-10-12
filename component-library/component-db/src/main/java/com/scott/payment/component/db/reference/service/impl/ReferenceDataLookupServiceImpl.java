@@ -12,6 +12,7 @@ import com.scott.payment.component.db.reference.mapper.CardBinLookupMapper;
 import com.scott.payment.component.db.reference.mapper.IpLocationLookupMapper;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.component.db.reference.model.CardBinLookupSnapshot;
+import com.scott.payment.component.db.reference.model.IpLookupDetail;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
 import com.scott.payment.component.db.reference.model.IpLookupSnapshot;
 import com.scott.payment.component.db.reference.model.IpShardRoute;
@@ -21,9 +22,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.math.BigInteger;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -111,6 +109,7 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
      */
     @Override
     @DS(DataSourceName.SLAVE)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public IpLookupResult lookupIp(String ipAddress) {
         return lookupIpSnapshot(ipAddress).result();
     }
@@ -123,10 +122,11 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
      */
     @Override
     @DS(DataSourceName.SLAVE)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public IpLookupSnapshot lookupIpSnapshot(String ipAddress) {
         IpAddressNormalizer.NormalizedIp normalizedIp = IpAddressNormalizer.normalizeExact(ipAddress);
         String ipType = normalizedIp.ipv4() ? IPV4 : IPV6;
-        String ipNumber = toIpNumber(normalizedIp.ipValue());
+        String ipNumber = IpAddressNormalizer.toUnsignedNumber(normalizedIp);
         // 路由必须唯一：缺失或重叠是库配置错误，不能伪装成普通未命中。
         IpShardRoute route = ipShardRoutingSnapshot.resolve(ipType, ipNumber);
         if (!isAllowedIpTable(ipType, route.tableName()) || !StringUtils.hasText(route.dataVersion())) {
@@ -136,10 +136,10 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
         IpLibraryDataRow row = ipLocationLookupMapper.selectLookupCandidate(
                 route.tableName(), route.dataVersion(), ipNumber);
         if (row == null) {
-            return new IpLookupSnapshot(route.routingVersion(),
-                    IpLookupResult.miss(normalizedIp.ipValue(), ipType));
+            return new IpLookupSnapshot(route.routingVersion(), IpLookupDetail.miss(
+                    IpLookupResult.miss(normalizedIp.ipValue(), ipType)));
         }
-        return new IpLookupSnapshot(route.routingVersion(), new IpLookupResult(
+        IpLookupResult result = new IpLookupResult(
                 true,
                 normalizedIp.ipValue(),
                 ipType,
@@ -149,6 +149,15 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
                 row.getCountryName(),
                 row.getStateProvince(),
                 row.getCity()
+        );
+        return new IpLookupSnapshot(route.routingVersion(), new IpLookupDetail(
+                result,
+                row.getId(),
+                row.getIpNumberStart(),
+                row.getIpNumberEnd(),
+                row.getDataVersion(),
+                row.getCreateTime(),
+                row.getCreateBy()
         ));
     }
 
@@ -247,17 +256,4 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
                 && binLength <= inputLength;
     }
 
-    /**
-     * 将已验证的 IP 字面量转换为无符号数值字符串，用于 IPv4/IPv6 分片和区间比较。
-     *
-     * @param ipAddress 已规范化的 IP 地址
-     * @return 无符号十进制数值字符串
-     */
-    private String toIpNumber(String ipAddress) {
-        try {
-            return new BigInteger(1, InetAddress.getByName(ipAddress).getAddress()).toString();
-        } catch (UnknownHostException exception) {
-            throw new IllegalArgumentException("IP address is invalid", exception);
-        }
-    }
 }
