@@ -4,7 +4,7 @@ transaction-sharding:
   # 参数说明：候选规则版本；第一版直接启用 ShardingSphere 单写，不配置 LEGACY/COMPARE 服务级迁移 mode。
   rule-version: "2026.08.25-002-candidate-clearing-28"
   # 参数说明：候选规则正文的 SHA-256 校验值；真实 Dry Run 后必须重新计算并经发布审批确认。
-  rule-checksum: "sha256:8ec98c2d65d9324d758d48c71343606496eebbe7bcd00d1e6adf3c46f63dd15a"
+  rule-checksum: "sha256:8256079c71aa221bd65c7b5cf6c96bb328756ba8a60261fba2935f5a907b6913"
   # 参数说明：数据库和季度路由采用的 IANA 时区，必须与 JDBC serverTimezone 和数据库会话时区一致。
   database-zone-id: Asia/Shanghai
   # 参数说明：28 张逻辑表统一使用的季度路由字段，写入和范围查询必须携带该交易时间。
@@ -13,8 +13,7 @@ transaction-sharding:
   primary-data-source: master
   # 集合说明：只读副本名称；是否承载查询取决于复制延迟和一致性要求，禁止承担资金写入。
   replica-data-sources:
-    - slave_1
-    - slave_2
+    - slave
 
   # 候选节点仅列出待按 28 张正式表重新完成真实 Dry Run 的季度；当前文件本身不是通过证据。
   physical-nodes:

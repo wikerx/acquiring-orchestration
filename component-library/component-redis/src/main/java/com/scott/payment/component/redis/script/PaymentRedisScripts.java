@@ -49,6 +49,30 @@ public final class PaymentRedisScripts {
     private static final DefaultRedisScript<Long> CACHE_GENERATION_COMMIT_V1 =
             load("v1/cache-generation-commit.lua", Long.class);
 
+    private static final DefaultRedisScript<Long> CARD_BIN_BUCKET_APPEND_V1 =
+            load("v1/card-bin-bucket-append.lua", Long.class);
+
+    private static final DefaultRedisScript<Long> CARD_BIN_SNAPSHOT_BEGIN_V1 =
+            load("v1/card-bin-snapshot-begin.lua", Long.class);
+
+    private static final DefaultRedisScript<Long> CARD_BIN_SNAPSHOT_COMMIT_V1 =
+            load("v1/card-bin-snapshot-commit.lua", Long.class);
+
+    private static final DefaultRedisScript<Long> CARD_BIN_SNAPSHOT_ABORT_V1 =
+            load("v1/card-bin-snapshot-abort.lua", Long.class);
+
+    private static final DefaultRedisScript<String> CARD_BIN_BUCKET_READ_V1 =
+            load("v1/card-bin-bucket-read.lua", String.class);
+
+    private static final DefaultRedisScript<String> IP_LOOKUP_READ_V1 =
+            load("v1/ip-lookup-read.lua", String.class);
+
+    private static final DefaultRedisScript<Long> IP_LOOKUP_WRITE_V1 =
+            load("v1/ip-lookup-write.lua", Long.class);
+
+    private static final DefaultRedisScript<List> SLIDING_WINDOW_RATE_LIMIT_V1 =
+            load("v1/sliding-window-rate-limit.lua", List.class);
+
     private PaymentRedisScripts() {
     }
 
@@ -131,6 +155,54 @@ public final class PaymentRedisScripts {
      */
     public static RedisScript<Long> cacheGenerationCommitV1() {
         return CACHE_GENERATION_COMMIT_V1;
+    }
+
+    /**
+     * 获取 Card BIN 快照桶批量追加脚本；每批写入前校验发布令牌并续租。
+     *
+     * @return 把 field/JSON 参数对追加为合法 JSON 数组的脚本
+     */
+    public static RedisScript<Long> cardBinBucketAppendV1() {
+        return CARD_BIN_BUCKET_APPEND_V1;
+    }
+
+    /** 获取 Card BIN 快照发布权并异步清理目标槽。 */
+    public static RedisScript<Long> cardBinSnapshotBeginV1() {
+        return CARD_BIN_SNAPSHOT_BEGIN_V1;
+    }
+
+    /** 校验发布令牌，原子切换 Card BIN 活动槽并异步删除已退休槽。 */
+    public static RedisScript<Long> cardBinSnapshotCommitV1() {
+        return CARD_BIN_SNAPSHOT_COMMIT_V1;
+    }
+
+    /** 仅由当前发布者异步清理失败的 Card BIN 目标槽。 */
+    public static RedisScript<Long> cardBinSnapshotAbortV1() {
+        return CARD_BIN_SNAPSHOT_ABORT_V1;
+    }
+
+    /**
+     * 获取 Card BIN 当前活动槽单桶读取脚本。
+     *
+     * @return 一次往返读取活动槽和六位桶内容的脚本
+     */
+    public static RedisScript<String> cardBinBucketReadV1() {
+        return CARD_BIN_BUCKET_READ_V1;
+    }
+
+    /** 获取有界 IP 精确查询缓存读取脚本。 */
+    public static RedisScript<String> ipLookupReadV1() {
+        return IP_LOOKUP_READ_V1;
+    }
+
+    /** 获取有界 IP 精确查询缓存写入脚本。 */
+    public static RedisScript<Long> ipLookupWriteV1() {
+        return IP_LOOKUP_WRITE_V1;
+    }
+
+    /** 获取精确滑动窗口限流脚本。 */
+    public static RedisScript<List> slidingWindowRateLimitV1() {
+        return SLIDING_WINDOW_RATE_LIMIT_V1;
     }
 
     /**

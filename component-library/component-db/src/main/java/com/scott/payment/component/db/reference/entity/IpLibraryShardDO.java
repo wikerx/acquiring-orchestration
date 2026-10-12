@@ -28,6 +28,12 @@ public class IpLibraryShardDO {
     /** 分片编号，范围为 1 至 8，不允许为空，非敏感字段。 */
     private Integer shardNo;
 
+    /** 分片覆盖的无符号数值起点，IPv4/IPv6 均使用十进制字符串。 */
+    private String rangeStart;
+
+    /** 分片覆盖的无符号数值终点，IPv4/IPv6 均使用十进制字符串。 */
+    private String rangeEnd;
+
     /** 物理分表名，不允许为空，仅可在服务端白名单内使用。 */
     private String tableName;
 

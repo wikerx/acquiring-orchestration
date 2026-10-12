@@ -235,8 +235,6 @@ public class SecurityInterceptEventRecorder {
                 StringUtils.hasText(request.getHeader("Authorization"))
                         || StringUtils.hasText(request.getHeader("authorization")));
         putIfPresent(summary, "contentType", request.getContentType());
-        putIfPresent(summary, "gatewayClientIp",
-                request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP));
         putIfPresent(summary, "traceId", request.getHeader(TraceContext.TRACE_ID_HEADER));
         putIfPresent(summary, "requestId", request.getHeader(HEADER_REQUEST_ID));
         putIfPresent(summary, "userAgent", request.getHeader(HEADER_USER_AGENT));

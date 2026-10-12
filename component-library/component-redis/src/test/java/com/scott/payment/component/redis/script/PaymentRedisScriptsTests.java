@@ -116,4 +116,17 @@ class PaymentRedisScriptsTests {
                 .contains("PEXPIRE");
         assertThat(script.getSha1()).matches("[0-9a-f]{40}");
     }
+
+    /** Card BIN 快照提交必须原子切换活动槽，并异步释放退休槽以避免阻塞 Redis。 */
+    @Test
+    void shouldCommitCardBinSnapshotAndUnlinkRetiredSlot() {
+        var script = PaymentRedisScripts.cardBinSnapshotCommitV1();
+
+        assertThat(script.getResultType()).isEqualTo(Long.class);
+        assertThat(script.getScriptAsString())
+                .contains("redis.call('SET', KEYS[1], ARGV[2])")
+                .contains("redis.call('UNLINK', KEYS[3])")
+                .contains("redis.call('DEL', KEYS[2])");
+        assertThat(script.getSha1()).matches("[0-9a-f]{40}");
+    }
 }

@@ -4,7 +4,7 @@ transaction-sharding:
   # 参数说明：分表规则版本标识；拓扑、表清单或路由规则变化时递增，便于服务启动时核对发布批次。
   rule-version: "2026.08.25-002-candidate-clearing-28"
   # 参数说明：当前规则正文的 SHA-256 校验值；发布前必须由治理流程重新计算，禁止手工随意修改。
-  rule-checksum: "sha256:8ec98c2d65d9324d758d48c71343606496eebbe7bcd00d1e6adf3c46f63dd15a"
+  rule-checksum: "sha256:8256079c71aa221bd65c7b5cf6c96bb328756ba8a60261fba2935f5a907b6913"
   # 参数说明：数据库和分片季度计算使用的 IANA 时区，必须与 JDBC serverTimezone 及数据库会话时区一致。
   database-zone-id: Asia/Shanghai
   # 参数说明：逻辑表季度路由字段；所有直连写入和范围查询都必须携带该交易时间。
@@ -13,8 +13,7 @@ transaction-sharding:
   primary-data-source: master
   # 集合说明：只读副本数据源名称；生产按复制延迟和一致性要求决定是否承载查询，禁止用于资金写入。
   replica-data-sources:
-    - slave_1
-    - slave_2
+    - slave
   # 集合说明：已完成 28 张逻辑表建表和结构校验的季度节点，格式为 yyyyQQ；未验收季度不得提前加入。
   physical-nodes:
     - "202603"

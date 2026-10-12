@@ -2,6 +2,7 @@ package com.scott.payment.openapi.support;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.exception.RateLimitExceededException;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.web.trace.HttpTrafficLoggingFilter;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
@@ -9,6 +10,7 @@ import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.MerchantKeyProvider;
+import com.scott.payment.openapi.security.OpenApiMerchantRateLimitService;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -68,6 +70,9 @@ public class OpenApiRequestHeaderExtractor {
      */
     private final MerchantIpWhitelistAccessService ipWhitelistAccessService;
 
+    /** 商户所有 OpenAPI 累计滑动窗口限流，白名单通过后、防重放写入前执行。 */
+    private final OpenApiMerchantRateLimitService merchantRateLimitService;
+
     /**
      * 安全拦截事件记录器，仅记录脱敏排查元数据。
      */
@@ -85,18 +90,21 @@ public class OpenApiRequestHeaderExtractor {
      * @param merchantKeyProvider    商户密钥提供器
      * @param replayProtectionService JWT 防重放服务
      * @param ipWhitelistAccessService 商户 IP 白名单访问控制服务
+     * @param merchantRateLimitService 商户维度滑动窗口限流服务
      * @param securityInterceptEventRecorder 安全拦截事件记录器
      */
     public OpenApiRequestHeaderExtractor(MerchantJwtVerifier merchantJwtVerifier,
                                          MerchantKeyProvider merchantKeyProvider,
                                          OpenApiJwtReplayProtectionService replayProtectionService,
                                          MerchantIpWhitelistAccessService ipWhitelistAccessService,
+                                         OpenApiMerchantRateLimitService merchantRateLimitService,
                                          SecurityInterceptEventRecorder securityInterceptEventRecorder,
                                          OpenApiDiagnosticLogSupport diagnosticLogSupport) {
         this.merchantJwtVerifier = merchantJwtVerifier;
         this.merchantKeyProvider = merchantKeyProvider;
         this.replayProtectionService = replayProtectionService;
         this.ipWhitelistAccessService = ipWhitelistAccessService;
+        this.merchantRateLimitService = merchantRateLimitService;
         this.securityInterceptEventRecorder = securityInterceptEventRecorder;
         this.diagnosticLogSupport = diagnosticLogSupport;
     }
@@ -162,6 +170,13 @@ public class OpenApiRequestHeaderExtractor {
                 throw exception;
             }
         }
+        // 白名单已经确认客户端来源；限流拒绝发生在防重放写入前，避免消耗一次性 jti。
+        try {
+            merchantRateLimitService.check(claims.getMerchantId());
+        } catch (RateLimitExceededException exception) {
+            recordRateLimited(request, claims.getMerchantId(), exception);
+            throw exception;
+        }
         try {
             replayProtectionService.checkAndMark(claims.getMerchantId(), claims.getJwtId(), claims.getExpiresAt());
         } catch (RuntimeException exception) {
@@ -176,14 +191,14 @@ public class OpenApiRequestHeaderExtractor {
         headerDTO.setIssuedAt(claims.getIssuedAt());
         headerDTO.setExpiresAt(claims.getExpiresAt());
         headerDTO.setClientIp(clientIp);
-        log.info("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipWhitelistDeferred: {} clientIp: {} jwtSummary: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {}",
+        log.debug("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipWhitelistDeferred: {} clientIpDigest: {} jwtSummary: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {}",
                 TraceContext.getTraceId(),
                 claims.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 digest8(claims.getJwtId()),
                 deferIpWhitelistToRisk,
-                clientIp,
+                digest8(clientIp),
                 diagnosticLogSupport.jwtSummary(headerDTO),
                 diagnosticLogSupport.headerSummary(request),
                 request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
@@ -239,6 +254,28 @@ public class OpenApiRequestHeaderExtractor {
     }
 
     /**
+     * 记录商户滑动窗口拒绝事件；只保存商户号、路径和规则编码，不记录 JWT、原始 IP 或请求体。
+     */
+    private void recordRateLimited(HttpServletRequest request,
+                                   String merchantId,
+                                   RateLimitExceededException exception) {
+        request.setAttribute(OpenApiRequestAttributes.EXCEPTION_TYPE, exception.getClass().getSimpleName());
+        securityInterceptEventRecorder.recordBlocked(
+                request,
+                SecurityInterceptEventRecorder.SOURCE_OPENAPI,
+                "OPENAPI_MERCHANT_RATE_LIMITED",
+                SecurityInterceptEventRecorder.RISK_MEDIUM,
+                merchantId,
+                "OPENAPI_MERCHANT_RATE_LIMIT",
+                securityInterceptEventRecorder.reasonCode(exception),
+                securityInterceptEventRecorder.reasonMessage(exception)
+        );
+        log.warn("event: OPENAPI_MERCHANT_RATE_LIMITED traceId: {} merchantId: {} path: {} retryAfterSeconds: {}",
+                TraceContext.getTraceId(), merchantId, request.getRequestURI(),
+                exception.getRetryAfterSeconds());
+    }
+
+    /**
      * 生成开放接口幂等标识的短摘要，用于日志关联 JWT jti、防重放记录和安全拦截记录。
      * <p>
      * 输入值可能来自商户 JWT 声明；只输出 SHA-256 前 16 位十六进制摘要，不记录原始 jti。
@@ -257,23 +294,6 @@ public class OpenApiRequestHeaderExtractor {
         } catch (NoSuchAlgorithmException exception) {
             return "sha256_unavailable";
         }
-    }
-
-    /**
-     * 解析开放接口调用方 IP，用于认证日志、IP 白名单判断记录和安全拦截事件。
-     * <p>
-     * 优先使用网关透传的 X-Forwarded-For 首个地址，缺失时回退到 Servlet 远端地址。
-     * 返回值只作为访问来源摘要，不承载 IP 库明细，不写入商户请求密文或 JWT 内容。
-     * </p>
-     * @param request 当前开放接口 HTTP 请求，不允许为空
-     * @return 调用方 IP 文本
-     */
-    private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 
     private String resolveReplayEventType(RuntimeException exception) {

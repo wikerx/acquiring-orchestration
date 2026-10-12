@@ -40,20 +40,26 @@ public class ManagedCacheInvalidationRelayService {
     /** 删除成功后释放 pending 门禁的共享契约。 */
     private final CacheInvalidationGuard invalidationGuard;
 
+    /** 从库复制可见性探针；未确认业务事务已复制前不得删除永久缓存。 */
+    private final ManagedCacheInvalidationReplicaProbe replicaProbe;
+
     /**
      * 创建跨服务缓存失效中继。
      *
      * @param outboxMapper Outbox 数据访问组件
      * @param evictionExecutor 精确缓存删除执行器
      * @param invalidationGuard 缓存失效门禁
+     * @param replicaProbe 从库复制可见性探针
      */
     public ManagedCacheInvalidationRelayService(
             ManagedCacheInvalidationOutboxMapper outboxMapper,
             CacheEvictionExecutor evictionExecutor,
-            CacheInvalidationGuard invalidationGuard) {
+            CacheInvalidationGuard invalidationGuard,
+            ManagedCacheInvalidationReplicaProbe replicaProbe) {
         this.outboxMapper = outboxMapper;
         this.evictionExecutor = evictionExecutor;
         this.invalidationGuard = invalidationGuard;
+        this.replicaProbe = replicaProbe;
     }
 
     /**
@@ -110,19 +116,17 @@ public class ManagedCacheInvalidationRelayService {
         }
         int version = event.getVersion() == null ? 0 : event.getVersion();
         try {
+            // Outbox 与业务数据同事务提交；从库看见事件后才能确认本次变更已越过复制边界。
+            if (!replicaProbe.isVisible(event.getEventId())) {
+                return scheduleRetry(event, version, now, "ReplicaNotReady");
+            }
             evictionExecutor.evict(event.getCacheName(), event.getBusinessKey());
             invalidationGuard.release(lease(event));
             int marked = outboxMapper.markSent(event.getId(), version, LocalDateTime.now());
             return marked == 1 || alreadySent(event.getEventId());
         } catch (RuntimeException exception) {
+            scheduleRetry(event, version, now, failureReason(exception));
             LocalDateTime nextRetryTime = now.plusSeconds(RETRY_DELAY_SECONDS);
-            outboxMapper.markFailed(
-                    event.getId(),
-                    version,
-                    nextRetryTime,
-                    failureReason(exception),
-                    now
-            );
             log.warn(
                     "event: MANAGED_CACHE_INVALIDATION_PUBLISH_FAILED "
                             + "eventId: {} cacheName: {} retryCount: {} nextRetryTime: {} exceptionType: {}",
@@ -134,6 +138,23 @@ public class ManagedCacheInvalidationRelayService {
             );
             return false;
         }
+    }
+
+    /**
+     * 保留 pending 门禁并把事件安排到下一次补偿，防止从库复制期间删除旧快照。
+     */
+    private boolean scheduleRetry(ManagedCacheInvalidationOutboxDO event,
+                                  int version,
+                                  LocalDateTime now,
+                                  String reason) {
+        outboxMapper.markFailed(
+                event.getId(),
+                version,
+                now.plusSeconds(RETRY_DELAY_SECONDS),
+                reason,
+                now
+        );
+        return false;
     }
 
     /**

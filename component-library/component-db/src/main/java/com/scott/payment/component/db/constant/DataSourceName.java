@@ -17,19 +17,9 @@ public final class DataSourceName {
     public static final String MASTER = "master";
 
     /**
-     * 从库读分组名称，读请求可通过 @DS(DataSourceName.SLAVE) 显式路由到从库组。
+     * 唯一从库数据源名称，读请求通过 @DS(DataSourceName.SLAVE) 显式路由。
      */
     public static final String SLAVE = "slave";
-
-    /**
-     * 一号从库数据源名称，当前 dev 环境默认与主库指向同一个 MySQL。
-     */
-    public static final String SLAVE_1 = "slave_1";
-
-    /**
-     * 二号从库数据源名称，当前 dev 环境默认与主库指向同一个 MySQL。
-     */
-    public static final String SLAVE_2 = "slave_2";
 
     /**
      * 交易逻辑数据源名称。外层 dynamic-datasource 只选择该复合数据源，内部季度路由和读写分离由 ShardingSphere 负责。

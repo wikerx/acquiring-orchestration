@@ -1,4 +1,4 @@
-# service-gateway 专属配置：网关只保留接入层规则，不引入数据库、Redis、MQ、Seata、分表等业务基础设施。
+# service-gateway 专属配置：网关只保留接入层规则和 Redis 分布式限流，不引入数据库、MQ、Seata、分表等业务基础设施。
 # Gateway 与 Checkout/OpenAPI 的共享入口密钥由受控脚本合入各自现有服务 DataId。
 gateway:
   route:
@@ -19,6 +19,21 @@ acquiring:
     client-ip:
       # 默认不信任外部 X-Forwarded-For；部署到可信负载均衡之后再按环境开启。
       trust-forwarded-header: false
+      # 可信反向代理或负载均衡器 CIDR，多个值用英文逗号分隔；未启用转发头或没有可信代理时保持为空。
+      # 禁止配置 0.0.0.0/0 或 ::/0，避免调用方伪造来源 IP 绕过第一层限流。
+      trusted-proxy-cidrs: ${GATEWAY_TRUSTED_PROXY_CIDRS:}
+    rate-limit:
+      # 是否启用 Gateway 第一层 IP 限流；true 时同一客户端 IP 的全部 /api/rest/** 请求共享额度，OPTIONS 不计数。
+      enabled: ${GATEWAY_IP_RATE_LIMIT_ENABLED:true}
+      # 单个客户端 IP 在滚动窗口内允许通过的请求数，必须为正整数；dev 当前按每分钟 200 次配置。
+      max-requests: ${GATEWAY_IP_RATE_LIMIT_MAX_REQUESTS:200}
+      # 精确滑动窗口长度，支持 1m、60s、PT1M 等 Spring Duration 格式，必须大于 0。
+      window: ${GATEWAY_IP_RATE_LIMIT_WINDOW:1m}
+      # Redis 故障时单个 Gateway 实例最多保留的本地 IP 数量；达到上限后拒绝新的 IP，防止 JVM 内存无界增长。
+      local-max-identities: ${GATEWAY_IP_RATE_LIMIT_LOCAL_MAX_IDENTITIES:10000}
+      # Redis 故障策略仅允许 LOCAL_FALLBACK 或 FAIL_CLOSED；dev 使用本机有界窗口继续联调。
+      # LOCAL_FALLBACK 为实例内计数，集群最坏可放行约“额度 × Gateway 实例数”，不得作为生产全局额度依据。
+      failure-policy: ${GATEWAY_IP_RATE_LIMIT_FAILURE_POLICY:LOCAL_FALLBACK}
   gateway-ingress:
     # 少于 32 字符时入口签名组件失败关闭，禁止退化为下游直连。
     secret: ${acquiring.internal-auth.edges.gateway-checkout.active-secret}

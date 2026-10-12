@@ -45,8 +45,8 @@ public class TransactionShardingProperties {
     private String shardingColumn = REQUIRED_SHARDING_COLUMN;
     /** 读写分离组中的唯一写库数据源名。 */
     private String primaryDataSource = DataSourceName.MASTER;
-    /** 可承接普通读请求的副本数据源名，不包含连接信息。 */
-    private List<String> replicaDataSources = new ArrayList<>(List.of(DataSourceName.SLAVE_1, DataSourceName.SLAVE_2));
+    /** 可承接普通读请求的唯一副本数据源名，不包含连接信息。 */
+    private List<String> replicaDataSources = new ArrayList<>(List.of(DataSourceName.SLAVE));
     /** 已建表且通过 schema、字符集和号段校验的季度后缀集合。 */
     private List<String> physicalNodes = new ArrayList<>();
     /** 必须完整匹配旧 25 表或包含三张清分表的新 28 表拓扑。 */

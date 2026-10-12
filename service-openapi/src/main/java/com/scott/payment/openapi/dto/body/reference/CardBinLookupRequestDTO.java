@@ -2,6 +2,7 @@ package com.scott.payment.openapi.dto.body.reference;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -24,6 +25,7 @@ public class CardBinLookupRequestDTO implements Serializable {
      * 待检索卡 BIN，至少 6 位纯数字；超过 11 位时只使用前 11 位，日志不得输出原文。
      */
     @NotBlank(message = "cardBin is required")
+    @Size(max = 19, message = "cardBin length must be less than or equal to 19")
     @Pattern(regexp = "^[0-9]{6,}$", message = "cardBin must contain at least 6 digits")
     private String cardBin;
 }

@@ -86,3 +86,36 @@ openapi:
     replay:
       # 生产环境必须强制 Redis 防重放成功，避免 JWT jti 无法落地导致重放风险。
       required: true
+
+payment:
+  openapi:
+    rate-limit:
+      # OPENAPI_MERCHANT_RATE_LIMIT_ENABLED 控制第二层商户限流；true 时按 merchantId 累计全部 OpenAPI 请求。
+      # 生产默认关闭，完成容量评估和压测后再显式设置为 true。
+      enabled: ${OPENAPI_MERCHANT_RATE_LIMIT_ENABLED:false}
+      # OPENAPI_MERCHANT_RATE_LIMIT_MAX_REQUESTS 配置单个商户在窗口内的最大请求数，必须为正整数；所有接口共享额度。
+      max-requests: ${OPENAPI_MERCHANT_RATE_LIMIT_MAX_REQUESTS:200}
+      # OPENAPI_MERCHANT_RATE_LIMIT_WINDOW 配置精确滚动窗口，支持 1m、60s 或 PT1M 等 Spring Duration 格式，必须大于 0。
+      window: ${OPENAPI_MERCHANT_RATE_LIMIT_WINDOW:1m}
+      # OPENAPI_RATE_LIMIT_LOCAL_MAX_IDENTITIES 配置 Redis 故障时单实例可保存的本地商户身份数，必须为正整数。
+      # LOCAL_FALLBACK 下各实例独立计数，集群最坏可放行约“额度 × OpenAPI 实例数”；该值只限制本地内存。
+      local-max-identities: ${OPENAPI_RATE_LIMIT_LOCAL_MAX_IDENTITIES:10000}
+      # OPENAPI_RATE_LIMIT_FAILURE_POLICY 仅允许 LOCAL_FALLBACK 或 FAIL_CLOSED；非法值会阻止应用启动。
+      # 生产默认 FAIL_CLOSED，Redis 无法完成全局判定时直接返回统一 HTTP 429。
+      failure-policy: ${OPENAPI_RATE_LIMIT_FAILURE_POLICY:FAIL_CLOSED}
+  card-bin:
+    cache:
+      # 单个六位 BIN 桶允许比较的候选上限，必须与发布服务一致；超限时视为快照不可用并回源 SLAVE。
+      max-candidates-per-bucket: ${PAYMENT_CARD_BIN_CACHE_MAX_CANDIDATES_PER_BUCKET:256}
+  ip:
+    lookup:
+      # IP 命中数据的逻辑缓存时长，使用 Spring Duration，例如 PT6H；缩短可提高变更收敛速度。
+      hit-ttl: ${PAYMENT_IP_LOOKUP_HIT_TTL:PT6H}
+      # IP 未命中数据的逻辑缓存时长，使用 Spring Duration，例如 PT2M；短时缓存用于抑制随机 IP 穿透。
+      miss-ttl: ${PAYMENT_IP_LOOKUP_MISS_TTL:PT2M}
+      # 路由版本 Hash/ZSet 的物理存活时间，必须大于 hit-ttl 和 miss-ttl；旧路由版本到期后自动回收。
+      namespace-ttl: ${PAYMENT_IP_LOOKUP_NAMESPACE_TTL:PT24H}
+      # 单个路由版本允许缓存的 IP 数量，必须为正整数；写入 Lua 会清理过期成员并限制基数。
+      max-entries: ${PAYMENT_IP_LOOKUP_MAX_ENTRIES:500000}
+      # 从 SLAVE 刷新 IP 分片路由快照的固定延迟，单位毫秒；60000 表示每次完成后等待一分钟。
+      route-refresh-ms: ${PAYMENT_IP_LOOKUP_ROUTE_REFRESH_MS:60000}

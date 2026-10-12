@@ -1,6 +1,8 @@
 package com.scott.payment.payment.mq;
 
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.db.outbox.service.ReliableMqOutboxReplicaProbe;
+import com.scott.payment.component.db.reference.cache.CardBinRangeIndex;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.CacheGenerationChangedMessage;
@@ -22,7 +24,7 @@ import java.time.Duration;
  * @classname : CardBinCacheGenerationConsumer
  * @date : 2026-08-24 00:00
  * @email : scott_x@163.com
- * @description : Card BIN generation 普通消息消费者，在管理端提交后即时切换失败时通过可靠 MQ 完成最终补偿。
+ * @description : Card BIN 快照发布消费者，确认管理端事务已复制到 SLAVE 后构建 A/B 索引并提交 generation
  * @status : create
  */
 @Slf4j
@@ -58,23 +60,48 @@ public class CardBinCacheGenerationConsumer implements RocketMQListener<String> 
 
     private final RedisCacheGenerationStore generationStore;
 
-    /** @param generationStore Redis generation 原子存储 */
-    public CardBinCacheGenerationConsumer(RedisCacheGenerationStore generationStore) {
+    /** Card BIN 数据库有界 A/B 快照发布器。 */
+    private final CardBinRangeIndex rangeIndex;
+
+    /** 通过可靠 MQ Outbox 事件确认管理端事务已经复制到 SLAVE。 */
+    private final ReliableMqOutboxReplicaProbe replicaProbe;
+
+    /**
+     * @param generationStore Redis generation 原子存储
+     * @param rangeIndex Card BIN A/B 快照发布器
+     * @param replicaProbe 可靠 MQ Outbox 从库探针
+     */
+    public CardBinCacheGenerationConsumer(RedisCacheGenerationStore generationStore,
+                                          CardBinRangeIndex rangeIndex,
+                                          ReliableMqOutboxReplicaProbe replicaProbe) {
         this.generationStore = generationStore;
+        this.rangeIndex = rangeIndex;
+        this.replicaProbe = replicaProbe;
     }
 
-    /** 消费重复消息时 commit 保持幂等；原门禁过期时切换一个新的安全 generation。 */
+    /**
+     * 发布从库快照并提交代际。
+     *
+     * <p>消息事件与 Card BIN 写入处于同一个主库事务；事件在 SLAVE 可见前抛出异常交给
+     * RocketMQ 重试。快照完整构建并原子激活后才提交 generation，避免读流量看到半成品。</p>
+     */
     @Override
     public void onMessage(String payload) {
         CacheGenerationChangedMessage message = JsonUtils.parseObject(payload, CacheGenerationChangedMessage.class);
         if (!valid(message)) {
             throw new IllegalArgumentException("Card BIN cache generation message is invalid");
         }
+        if (!replicaProbe.isVisible(message.getMessageId())) {
+            throw new IllegalStateException("Card BIN change is not visible on replica yet");
+        }
         RedisCachePublication publication = new RedisCachePublication(
                 message.getNamespace(), message.getPublicationToken(), message.getGeneration());
+        // 先构建并切换数据库有界索引；失败时保留旧槽和发布门禁，由 MQ 重新投递。
+        rangeIndex.publishFromReplica();
         if (generationStore.commit(publication)) {
             return;
         }
+        // 门禁异常过期时使用新的发布凭证恢复代际；快照已基于当前 SLAVE 完整构建。
         RedisCachePublication replacement = generationStore.begin(CACHE_NAMESPACE, RECOVERY_GATE_TTL);
         if (!generationStore.commit(replacement)) {
             generationStore.abort(replacement);

@@ -1,24 +1,11 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.cache.PaymentCacheNames;
-import com.scott.payment.component.core.util.net.IpAddressNormalizer;
+import com.scott.payment.component.db.reference.cache.IpLookupCacheReader;
 import com.scott.payment.component.db.reference.model.CardBrandRuleMatcher;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.component.db.reference.cache.CardBinCacheReader;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
-import com.scott.payment.component.db.reference.service.ReferenceDataLookupService;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
-
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.HexFormat;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author : scott
@@ -29,56 +16,31 @@ import java.util.concurrent.atomic.AtomicLong;
  * @description : 商户 IP 查询缓存与 BIN 结果适配；BIN 使用支付共享的 11 位缓存、从库回源和品牌兜底规则。
  * @status : create
  */
-@Slf4j
 @Service
 public class OpenApiReferenceDataCacheReader {
 
-    private static final Duration IP_HIT_TTL = Duration.ofSeconds(30);
-    private static final Duration IP_MISS_TTL = Duration.ofSeconds(10);
-
-    private final ReferenceDataLookupService lookupService;
+    private final IpLookupCacheReader ipLookupCacheReader;
     private final CardBinCacheReader cardBinCacheReader;
-    private final CacheManager cacheManager;
-    private final AtomicLong lastCacheWarningMillis = new AtomicLong();
 
-    public OpenApiReferenceDataCacheReader(ReferenceDataLookupService lookupService,
-                                           CardBinCacheReader cardBinCacheReader,
-                                           CacheManager cacheManager) {
-        this.lookupService = lookupService;
+    public OpenApiReferenceDataCacheReader(IpLookupCacheReader ipLookupCacheReader,
+                                           CardBinCacheReader cardBinCacheReader) {
+        this.ipLookupCacheReader = ipLookupCacheReader;
         this.cardBinCacheReader = cardBinCacheReader;
-        this.cacheManager = cacheManager;
     }
 
     /**
-     * 查询精确 IP 归属，并缓存有效命中与合法未命中。
-     * <p>等价的 IP 写法共用一个缓存键；Redis 键只保存规范化地址的摘要，不暴露原始 IP。
-     * IP 库目前没有版本发布时的缓存失效通知，因此命中最多复用 30 秒、未命中最多复用 10 秒。
-     * 缓存不可用时回源从库；非法地址、分片配置错误和数据库异常均不写入缓存。</p>
+     * 查询精确 IP 归属，并通过支付公共组件共享命中与合法未命中缓存。
+     * <p>等价的 IP 写法共用 SHA-256 摘要字段；一次 Lua 同时完成逻辑过期清理和读取。
+     * 缓存值绑定当前 SLAVE 路由快照版本，版本变化后旧值即使删除失败也不会复用。
+     * 缓存不可用时使用本地路由快照并仅查询一次 IP 动态数据表；非法地址、分片配置错误
+     * 和数据库异常均不写入缓存。</p>
      *
      * @param ipAddress IPv4 或 IPv6 字面量，不接受域名和 CIDR
      * @return 当前有效的归属结果，合法地址未命中时返回 matched=false
      * @throws IllegalArgumentException IP 字面量不合法时抛出
      */
     public IpLookupResult lookupIp(String ipAddress) {
-        // 先规范化再生成键，避免同一地址的不同文本写法产生不同缓存条目。
-        String normalizedIp = IpAddressNormalizer.normalizeExact(ipAddress).ipValue();
-        String key = digest(normalizedIp);
-        LocalDateTime now = LocalDateTime.now();
-        // read 会校验条目的业务有效期；命中后再确认结果确实属于当前 IP。
-        OpenApiReferenceDataCacheEntry cached = read(key, now,
-                PaymentCacheNames.OPENAPI_IP_LOOKUP, PaymentCacheNames.OPENAPI_IP_LOOKUP_MISS);
-        if (cached != null && cached.ipResult() != null
-                && normalizedIp.equals(cached.ipResult().ipAddress())) {
-            return cached.ipResult();
-        }
-        // 只缓存正常查询得到的结果；查询抛出的配置或数据访问异常直接上抛。
-        IpLookupResult result = lookupService.lookupIp(normalizedIp);
-        String cacheName = Boolean.TRUE.equals(result.matched())
-                ? PaymentCacheNames.OPENAPI_IP_LOOKUP : PaymentCacheNames.OPENAPI_IP_LOOKUP_MISS;
-        Duration ttl = Boolean.TRUE.equals(result.matched()) ? IP_HIT_TTL : IP_MISS_TTL;
-        // validUntil 是独立于 Redis 物理 TTL 的上限，避免配置延长 TTL 后复用过期结果。
-        write(cacheName, key, new OpenApiReferenceDataCacheEntry(result, now.plus(ttl)));
-        return result;
+        return ipLookupCacheReader.lookup(ipAddress);
     }
 
     /**
@@ -106,57 +68,4 @@ public class OpenApiReferenceDataCacheReader {
                 databaseResult.issuerBank());
     }
 
-    private OpenApiReferenceDataCacheEntry read(String key, LocalDateTime now,
-                                                String hitName, String missName) {
-        for (String name : new String[]{hitName, missName}) {
-            try {
-                Cache cache = cacheManager.getCache(name);
-                if (cache == null) {
-                    continue;
-                }
-                OpenApiReferenceDataCacheEntry entry = cache.get(key, OpenApiReferenceDataCacheEntry.class);
-                if (entry != null && entry.usableAt(now)) {
-                    return entry;
-                }
-                if (entry != null) {
-                    cache.evict(key);
-                }
-            } catch (RuntimeException exception) {
-                warnCacheFailure("READ", name, exception);
-            }
-        }
-        return null;
-    }
-
-    private void write(String cacheName, String key, OpenApiReferenceDataCacheEntry entry) {
-        try {
-            Cache cache = cacheManager.getCache(cacheName);
-            if (cache != null) {
-                cache.put(key, entry);
-            }
-        } catch (RuntimeException exception) {
-            warnCacheFailure("WRITE", cacheName, exception);
-        }
-    }
-
-    private void warnCacheFailure(String operation, String cacheName, RuntimeException exception) {
-        long now = System.currentTimeMillis();
-        long previous = lastCacheWarningMillis.get();
-        if (now - previous >= Duration.ofMinutes(1).toMillis()
-                && lastCacheWarningMillis.compareAndSet(previous, now)) {
-            log.warn("event: OPENAPI_REFERENCE_CACHE_FALLBACK operation: {} cacheName: {} exceptionType: {}",
-                    operation, cacheName, exception.getClass().getSimpleName(), exception);
-        }
-    }
-
-    private String digest(String value) {
-        try {
-            // IP 缓存键不暴露查询原文；BIN 使用支付业务的共享键。
-            byte[] bytes = MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(bytes);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
-    }
 }

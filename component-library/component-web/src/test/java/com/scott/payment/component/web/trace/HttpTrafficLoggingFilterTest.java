@@ -43,7 +43,7 @@ class HttpTrafficLoggingFilterTest {
         appender.start();
         logger.addAppender(appender);
         Level originalLevel = logger.getLevel();
-        logger.setLevel(Level.INFO);
+        logger.setLevel(Level.DEBUG);
         try {
             TraceContext.setTraceId("trace-test-001");
             MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/rest/payment/v1/payment");
@@ -85,6 +85,9 @@ class HttpTrafficLoggingFilterTest {
                     .map(ILoggingEvent::getFormattedMessage)
                     .reduce("", (left, right) -> left + "\n" + right);
             assertThat(logs).contains("event: HTTP_TRAFFIC_SUMMARY");
+            assertThat(appender.list)
+                    .filteredOn(event -> event.getFormattedMessage().contains("event: HTTP_TRAFFIC_SUMMARY"))
+                    .allMatch(event -> event.getLevel() == Level.DEBUG);
             assertThat(logs).contains("traceId: trace-test-001");
             assertThat(logs).contains("requestDigest:");
             assertThat(logs).contains("requestSummary: [BODY_OMITTED]");

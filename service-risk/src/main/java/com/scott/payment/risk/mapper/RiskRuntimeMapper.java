@@ -1073,7 +1073,7 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND card_bin_start <= #{numericValue}
               AND card_bin_end >= #{numericValue}
-            ORDER BY bin_length DESC, source_priority DESC, update_time DESC, id DESC
+            ORDER BY bin_length DESC, update_time DESC, id DESC
             LIMIT 1
             """)
     RiskListMatch selectIssuerCountryByCardBin(@Param("numericValue") BigDecimal numericValue);

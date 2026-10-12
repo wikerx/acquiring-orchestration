@@ -65,13 +65,13 @@ class ShardingSphereJdbcCompatibilityPocTest {
 
         TransactionShardingProperties properties = new TransactionShardingProperties();
         properties.setPrimaryDataSource("master");
-        properties.setReplicaDataSources(List.of("slave_1"));
+        properties.setReplicaDataSources(List.of("slave"));
         properties.setPhysicalNodes(List.of("202603", "202604"));
         properties.setLogicTables(List.of(
                 "transaction_order", "transaction_operation", "transaction_merchant_notification"));
         TransactionShardingDataSourceConfiguration configuration = new TransactionShardingDataSourceConfiguration();
         shardingDataSource = ShardingSphereDataSourceFactory.createDataSource(
-                Map.of("master", primary, "slave_1", replica),
+                Map.of("master", primary, "slave", replica),
                 configuration.buildRules(properties, properties.getReplicaDataSources()),
                 configuration.buildSystemProperties());
         jdbcTemplate = new JdbcTemplate(shardingDataSource);

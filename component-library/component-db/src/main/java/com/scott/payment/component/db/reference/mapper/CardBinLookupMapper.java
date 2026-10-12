@@ -1,11 +1,13 @@
 package com.scott.payment.component.db.reference.mapper;
 
 import com.scott.payment.component.db.reference.entity.CardBinRangeDO;
+import com.scott.payment.component.db.reference.entity.CardBinIndexSourceSignatureDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * @author : scott
@@ -18,6 +20,60 @@ import java.time.LocalDateTime;
  */
 @Mapper
 public interface CardBinLookupMapper {
+
+    /**
+     * 从 SLAVE 按主键稳定分页读取构建 Redis 快照所需的全部区间字段。
+     */
+    @Select("""
+            SELECT id,
+                   card_bin_start AS cardBinStart,
+                   card_bin_end AS cardBinEnd,
+                   bin_length AS binLength,
+                   card_brand AS cardBrand,
+                   card_sub_brand AS cardSubBrand,
+                   card_type AS cardType,
+                   card_level AS cardLevel,
+                   issuer_country_name AS issuerCountryName,
+                   issuer_country_alpha2 AS issuerCountryAlpha2,
+                   issuer_country_alpha3 AS issuerCountryAlpha3,
+                   issuer_country_numeric AS issuerCountryNumeric,
+                   issuer_bank AS issuerBank,
+                   effective_time AS effectiveTime,
+                   expire_time AS expireTime,
+                   update_time AS updateTime
+            FROM base_card_bin_range
+            WHERE deleted = 0
+              AND status = 1
+              AND id > #{lastId}
+              AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
+            ORDER BY id ASC
+            LIMIT #{limit}
+            """)
+    List<CardBinRangeDO> selectIndexPage(@Param("lastId") long lastId,
+                                         @Param("limit") int limit);
+
+    /**
+     * 计算当前从库快照源签名；构建前后结果必须一致才允许激活新槽。
+     */
+    @Select("""
+            SELECT COUNT(*) AS rowCount,
+                   COALESCE(BIT_XOR(CRC32(CONCAT_WS('|',
+                       id, card_bin_start, card_bin_end, bin_length,
+                       COALESCE(card_brand, ''), COALESCE(card_sub_brand, ''),
+                       COALESCE(card_type, ''), COALESCE(card_level, ''),
+                       COALESCE(issuer_country_name, ''), COALESCE(issuer_country_alpha2, ''),
+                       COALESCE(issuer_country_alpha3, ''), COALESCE(issuer_country_numeric, ''),
+                       COALESCE(issuer_bank, ''),
+                       COALESCE(DATE_FORMAT(effective_time, '%Y-%m-%d %H:%i:%s.%f'), ''),
+                       COALESCE(DATE_FORMAT(expire_time, '%Y-%m-%d %H:%i:%s.%f'), ''),
+                       DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s.%f')
+                   ))), 0) AS checksum
+            FROM base_card_bin_range
+            WHERE deleted = 0
+              AND status = 1
+              AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
+            """)
+    CardBinIndexSourceSignatureDO selectIndexSourceSignature();
 
     /**
      * 查询不超过商户输入精度的当前有效最优 BIN 区间。

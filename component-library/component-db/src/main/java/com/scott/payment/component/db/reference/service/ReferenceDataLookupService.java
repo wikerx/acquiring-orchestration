@@ -4,6 +4,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.component.db.reference.model.CardBinLookupSnapshot;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
+import com.scott.payment.component.db.reference.model.IpLookupSnapshot;
 
 /**
  * @author : scott
@@ -25,6 +26,14 @@ public interface ReferenceDataLookupService {
      * @throws ServiceException IP 分片配置缺失、重复或与物理表不一致时抛出
      */
     IpLookupResult lookupIp(String ipAddress);
+
+    /**
+     * 查询精确 IP，并返回本次查询实际使用的路由版本。
+     *
+     * @param ipAddress IP 字面量，不接受域名、CIDR 或范围
+     * @return 路由版本与稳定查询结果
+     */
+    IpLookupSnapshot lookupIpSnapshot(String ipAddress);
 
     /**
      * 查询 6 至 11 位纯数字卡 BIN 的当前有效归属信息。

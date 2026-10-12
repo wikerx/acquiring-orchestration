@@ -4,6 +4,7 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.reference.cache.IpShardRoutingSnapshot;
 import com.scott.payment.component.db.reference.entity.CardBinRangeDO;
 import com.scott.payment.component.db.reference.entity.IpLibraryDataRow;
 import com.scott.payment.component.db.reference.entity.IpLibraryShardDO;
@@ -11,13 +12,13 @@ import com.scott.payment.component.db.reference.mapper.CardBinLookupMapper;
 import com.scott.payment.component.db.reference.mapper.IpLocationLookupMapper;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
+import com.scott.payment.component.db.reference.model.IpShardRoute;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,7 +42,8 @@ class ReferenceDataLookupServiceImplTest {
     void shouldLookupIpv4LocationFromReadySlaveShard() {
         IpLocationLookupMapper ipMapper = mock(IpLocationLookupMapper.class);
         CardBinLookupMapper cardBinMapper = mock(CardBinLookupMapper.class);
-        IpLibraryShardDO shard = readyShard("IPV4", "ip_library_v4_data_01", "20260811");
+        IpShardRoutingSnapshot routingSnapshot = mock(IpShardRoutingSnapshot.class);
+        IpShardRoute route = route("route-v1", "ip_library_v4_data_01", "20260811");
         IpLibraryDataRow row = new IpLibraryDataRow();
         row.setCountryAlpha2("US");
         row.setCountryAlpha3("USA");
@@ -49,11 +51,12 @@ class ReferenceDataLookupServiceImplTest {
         row.setCountryName("United States");
         row.setStateProvince("California");
         row.setCity("Mountain View");
-        when(ipMapper.selectReadyShards("IPV4", "134744072")).thenReturn(List.of(shard));
+        when(routingSnapshot.resolve("IPV4", "134744072")).thenReturn(route);
         when(ipMapper.selectLookupCandidate("ip_library_v4_data_01", "20260811", "134744072"))
                 .thenReturn(row);
 
-        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(ipMapper, cardBinMapper);
+        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+                ipMapper, cardBinMapper, routingSnapshot);
 
         IpLookupResult result = service.lookupIp("008.008.008.008");
 
@@ -81,7 +84,7 @@ class ReferenceDataLookupServiceImplTest {
         row.setIssuerBank("Example Bank");
         when(cardBinMapper.selectBestMatch(41111100000L, 6)).thenReturn(row);
 
-        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(ipMapper, cardBinMapper);
+        ReferenceDataLookupServiceImpl service = service(ipMapper, cardBinMapper);
 
         CardBinLookupResult result = service.lookupCardBin("411111");
 
@@ -103,7 +106,7 @@ class ReferenceDataLookupServiceImplTest {
         row.setExpireTime(expireTime);
         when(cardBinMapper.selectBestMatch(41111112000L, 8)).thenReturn(row);
         when(cardBinMapper.selectNextEffectiveTime(41111112000L, 8)).thenReturn(nextEffectiveTime);
-        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+        ReferenceDataLookupServiceImpl service = service(
                 mock(IpLocationLookupMapper.class), cardBinMapper);
 
         var snapshot = service.lookupCardBinSnapshot("41111112");
@@ -117,11 +120,13 @@ class ReferenceDataLookupServiceImplTest {
     void shouldReturnStableMissResultsForValidInputs() {
         IpLocationLookupMapper ipMapper = mock(IpLocationLookupMapper.class);
         CardBinLookupMapper cardBinMapper = mock(CardBinLookupMapper.class);
-        IpLibraryShardDO shard = readyShard("IPV6", "ip_library_v6_data_01", "20260811");
-        when(ipMapper.selectReadyShards("IPV6", "1")).thenReturn(List.of(shard));
+        IpShardRoutingSnapshot routingSnapshot = mock(IpShardRoutingSnapshot.class);
+        IpShardRoute route = route("route-v1", "ip_library_v6_data_01", "20260811");
+        when(routingSnapshot.resolve("IPV6", "1")).thenReturn(route);
         when(ipMapper.selectLookupCandidate("ip_library_v6_data_01", "20260811", "1")).thenReturn(null);
         when(cardBinMapper.selectBestMatch(99999900000L, 6)).thenReturn(null);
-        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(ipMapper, cardBinMapper);
+        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+                ipMapper, cardBinMapper, routingSnapshot);
 
         IpLookupResult ipResult = service.lookupIp("::1");
         CardBinLookupResult cardBinResult = service.lookupCardBin("999999");
@@ -135,7 +140,7 @@ class ReferenceDataLookupServiceImplTest {
     @Test
     void shouldSkipFutureBoundaryQueryWhenBinMissIsNotCached() {
         CardBinLookupMapper cardBinMapper = mock(CardBinLookupMapper.class);
-        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+        ReferenceDataLookupServiceImpl service = service(
                 mock(IpLocationLookupMapper.class), cardBinMapper);
 
         var snapshot = service.lookupCardBinSnapshot("99999900000");
@@ -148,7 +153,7 @@ class ReferenceDataLookupServiceImplTest {
 
     @Test
     void shouldRejectInvalidIpAndCardBinBeforeDatabaseLookup() {
-        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+        ReferenceDataLookupServiceImpl service = service(
                 mock(IpLocationLookupMapper.class), mock(CardBinLookupMapper.class));
 
         assertThatThrownBy(() -> service.lookupIp("example.com"))
@@ -163,8 +168,11 @@ class ReferenceDataLookupServiceImplTest {
     void shouldFailWhenIpShardConfigurationIsMissingOrAmbiguous() {
         IpLocationLookupMapper ipMapper = mock(IpLocationLookupMapper.class);
         CardBinLookupMapper cardBinMapper = mock(CardBinLookupMapper.class);
-        when(ipMapper.selectReadyShards("IPV4", "134744072")).thenReturn(List.of());
-        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(ipMapper, cardBinMapper);
+        IpShardRoutingSnapshot routingSnapshot = mock(IpShardRoutingSnapshot.class);
+        when(routingSnapshot.resolve("IPV4", "134744072"))
+                .thenThrow(new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR));
+        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+                ipMapper, cardBinMapper, routingSnapshot);
 
         assertThatThrownBy(() -> service.lookupIp("8.8.8.8"))
                 .isInstanceOfSatisfying(ServiceException.class,
@@ -176,9 +184,11 @@ class ReferenceDataLookupServiceImplTest {
     void shouldRejectIpShardWhosePhysicalTableDoesNotMatchIpType() {
         IpLocationLookupMapper ipMapper = mock(IpLocationLookupMapper.class);
         CardBinLookupMapper cardBinMapper = mock(CardBinLookupMapper.class);
-        IpLibraryShardDO mismatchedShard = readyShard("IPV4", "ip_library_v6_data_01", "20260811");
-        when(ipMapper.selectReadyShards("IPV4", "134744072")).thenReturn(List.of(mismatchedShard));
-        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(ipMapper, cardBinMapper);
+        IpShardRoutingSnapshot routingSnapshot = mock(IpShardRoutingSnapshot.class);
+        IpShardRoute mismatchedRoute = route("route-v1", "ip_library_v6_data_01", "20260811");
+        when(routingSnapshot.resolve("IPV4", "134744072")).thenReturn(mismatchedRoute);
+        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+                ipMapper, cardBinMapper, routingSnapshot);
 
         assertThatThrownBy(() -> service.lookupIp("8.8.8.8"))
                 .isInstanceOfSatisfying(ServiceException.class,
@@ -193,7 +203,7 @@ class ReferenceDataLookupServiceImplTest {
         CardBinRangeDO invalidRow = new CardBinRangeDO();
         invalidRow.setBinLength(7);
         when(cardBinMapper.selectBestMatch(41111100000L, 6)).thenReturn(invalidRow);
-        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(ipMapper, cardBinMapper);
+        ReferenceDataLookupServiceImpl service = service(ipMapper, cardBinMapper);
 
         assertThatThrownBy(() -> service.lookupCardBin("411111"))
                 .isInstanceOfSatisfying(ServiceException.class,
@@ -206,6 +216,7 @@ class ReferenceDataLookupServiceImplTest {
         assertThat(ReferenceDataLookupServiceImpl.class.getAnnotation(DS.class)).isNull();
 
         assertSlaveMethod("lookupIp", String.class);
+        assertSlaveMethod("lookupIpSnapshot", String.class);
         assertSlaveMethod("lookupCardBin", String.class);
         assertSlaveMethod("lookupCardBinSnapshot", String.class);
     }
@@ -222,7 +233,7 @@ class ReferenceDataLookupServiceImplTest {
         LocalDateTime nextEffectiveTime = LocalDateTime.now().plusMinutes(5);
         when(cardBinMapper.selectBestMatch(41111112345L, 11)).thenReturn(row);
         when(cardBinMapper.selectNextEffectiveTime(41111112345L, 11)).thenReturn(nextEffectiveTime);
-        ReferenceDataLookupServiceImpl service = new ReferenceDataLookupServiceImpl(
+        ReferenceDataLookupServiceImpl service = service(
                 mock(IpLocationLookupMapper.class), cardBinMapper);
 
         var snapshot = service.lookupCardBinSnapshot("41111112345");
@@ -251,13 +262,13 @@ class ReferenceDataLookupServiceImplTest {
         }
     }
 
-    private IpLibraryShardDO readyShard(String ipType, String tableName, String dataVersion) {
-        IpLibraryShardDO shard = new IpLibraryShardDO();
-        shard.setIpType(ipType);
-        shard.setTableName(tableName);
-        shard.setDataVersion(dataVersion);
-        shard.setActiveFlag(1);
-        shard.setLoadStatus("READY");
-        return shard;
+    private ReferenceDataLookupServiceImpl service(IpLocationLookupMapper ipMapper,
+                                                   CardBinLookupMapper cardBinMapper) {
+        return new ReferenceDataLookupServiceImpl(
+                ipMapper, cardBinMapper, mock(IpShardRoutingSnapshot.class));
+    }
+
+    private IpShardRoute route(String routingVersion, String tableName, String dataVersion) {
+        return new IpShardRoute(routingVersion, tableName, dataVersion);
     }
 }

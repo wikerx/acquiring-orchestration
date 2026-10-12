@@ -5,6 +5,7 @@ import com.scott.payment.openapi.dto.body.reference.IpLookupRequestDTO;
 import com.scott.payment.openapi.dto.body.reference.CardBinLookupRequestDTO;
 import com.scott.payment.openapi.vo.reference.CardBinLookupVO;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,6 +19,25 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @status : create
  */
 class OpenApiDiagnosticLogSupportTests {
+
+    @Test
+    void shouldDigestIpHeadersInHeaderSummary() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Gateway-Client-Ip", "203.0.113.8");
+        request.addHeader("X-Forwarded-For", "198.51.100.7, 10.0.0.2");
+        request.addHeader("X-Real-IP", "192.0.2.9");
+
+        String summary = new OpenApiDiagnosticLogSupport().headerSummary(request);
+
+        assertThat(summary)
+                .contains("gatewayClientIpDigest")
+                .contains("xForwardedForDigest")
+                .contains("xRealIpDigest")
+                .doesNotContain("203.0.113.8")
+                .doesNotContain("198.51.100.7")
+                .doesNotContain("10.0.0.2")
+                .doesNotContain("192.0.2.9");
+    }
 
     @Test
     void shouldMaskPayoutReceiverAccountNumberInPlainRequestSummary() {

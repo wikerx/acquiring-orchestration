@@ -67,13 +67,13 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
     }
 
     /**
-     * 有代码时使用数据库精确条件查询；未提供任何代码时返回缓存的全部启用国家。
+     * 有代码时从常驻全量快照执行精确 AND 查询；未提供任何代码时返回全部启用国家。
      *
      * @param requestDTO 商户国家地区查询条件
      * @return 国家地区信息列表
      */
     private List<IsoCountryInfo> listCountriesByRequest(IsoCountryQueryRequestDTO requestDTO) {
-//        参数为空，直接查询完整的列表数据
+        // 请求体或全部筛选字段为空时，直接复用全量常驻快照。
         if (requestDTO == null || (requestDTO.getAlpha2() == null
                 && requestDTO.getAlpha3() == null && requestDTO.getNumeric() == null)) {
             return isoDictionaryService.listCountries();
@@ -83,7 +83,7 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
     }
 
     /**
-     * 有代码时使用数据库精确条件查询；未提供任何代码时返回缓存的全部启用币种。
+     * 有代码时从常驻全量快照执行精确 AND 查询；未提供任何代码时返回全部启用币种。
      *
      * @param requestDTO 商户币种查询条件
      * @return 币种信息列表

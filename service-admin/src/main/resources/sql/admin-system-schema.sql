@@ -3402,7 +3402,7 @@ CREATE TABLE IF NOT EXISTS base_card_bin_range (
     issuer_telephone VARCHAR(64) NULL COMMENT '发卡行联系电话',
     data_source VARCHAR(64) NOT NULL DEFAULT 'MANUAL' COMMENT '数据来源',
     source_batch_no VARCHAR(64) NULL COMMENT '来源批次号',
-    source_priority TINYINT NOT NULL DEFAULT 50 COMMENT '来源优先级，数值越大优先级越高',
+    source_priority TINYINT NOT NULL DEFAULT 50 COMMENT '来源侧参考等级，仅用于导入追溯，不参与运行时匹配顺序',
     effective_time DATETIME(3) NULL COMMENT '生效时间',
     expire_time DATETIME(3) NULL COMMENT '失效时间',
     status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0禁用，1启用，2待确认，3已过期',

@@ -41,6 +41,10 @@ public interface ReliableMqOutboxMapper {
     @Select("SELECT * FROM sys_mq_outbox WHERE event_id = #{eventId}")
     ReliableMqOutboxDO selectByEventId(@Param("eventId") String eventId);
 
+    /** 按事件号检查记录是否可见，供从库复制确认使用。 */
+    @Select("SELECT COUNT(1) FROM sys_mq_outbox WHERE event_id = #{eventId}")
+    int countByEventId(@Param("eventId") String eventId);
+
     /** 查询已到投递时间的消息。 */
     @Select("""
             SELECT *

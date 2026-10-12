@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
  * @classname : CardBinCacheInvalidationCoordinator
  * @date : 2026-08-24 00:00
  * @email : scott_x@163.com
- * @description : Card BIN 缓存失效协调器，在管理端数据库事务内冻结 generation 变更 Outbox，提交后切换 Redis，回滚时释放发布门禁。
+ * @description : Card BIN 缓存发布协调器，在管理端数据库事务内冻结 generation 和可靠 MQ Outbox，激活工作交给从库确认后的支付消费者
  * @status : create
  */
 @Slf4j
@@ -91,19 +91,6 @@ public class CardBinCacheInvalidationCoordinator {
 
     private TransactionSynchronization synchronization(RedisCachePublication publication) {
         return new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                try {
-                    if (!generationStore.commit(publication)) {
-                        log.warn("event: CARD_BIN_CACHE_GENERATION_COMMIT_DEFERRED generation: {}",
-                                publication.generation());
-                    }
-                } catch (RuntimeException exception) {
-                    log.warn("event: CARD_BIN_CACHE_GENERATION_COMMIT_FAILED exceptionType: {}",
-                            exception.getClass().getSimpleName());
-                }
-            }
-
             @Override
             public void afterCompletion(int status) {
                 try {

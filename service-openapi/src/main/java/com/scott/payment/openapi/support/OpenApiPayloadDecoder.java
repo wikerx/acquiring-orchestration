@@ -7,6 +7,8 @@ import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.openapi.dto.body.OpenApiEncryptedRequestDTO;
 import com.scott.payment.openapi.dto.body.iso.IsoCountryQueryRequestDTO;
 import com.scott.payment.openapi.dto.body.iso.IsoCurrencyQueryRequestDTO;
+import com.scott.payment.openapi.dto.body.reference.CardBinLookupRequestDTO;
+import com.scott.payment.openapi.dto.body.reference.IpLookupRequestDTO;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.security.OpenApiPayloadKeyProvider;
 import org.springframework.stereotype.Component;
@@ -32,6 +34,12 @@ public class OpenApiPayloadDecoder {
 
     /** 币种查询对外开放的业务字段，其它字段必须拒绝，避免未知条件被忽略。 */
     private static final Set<String> CURRENCY_QUERY_FIELDS = Set.of("alphabeticCode", "numericCode");
+
+    /** IP 查询只允许提交一个 IP 字面量字段。 */
+    private static final Set<String> IP_QUERY_FIELDS = Set.of("ipAddress");
+
+    /** Card BIN 查询只允许提交一个 BIN 字段。 */
+    private static final Set<String> CARD_BIN_QUERY_FIELDS = Set.of("cardBin");
 
     /**
      * OpenAPI 报文混合加密工具，负责解析 data compact 密文并执行 RSA-OAEP/AES-GCM 解密。
@@ -109,6 +117,12 @@ public class OpenApiPayloadDecoder {
             if (IsoCurrencyQueryRequestDTO.class.equals(dataReceiver)) {
                 return parseCurrencyQuery(plainText);
             }
+            if (IpLookupRequestDTO.class.equals(dataReceiver)) {
+                return parseIpQuery(plainText);
+            }
+            if (CardBinLookupRequestDTO.class.equals(dataReceiver)) {
+                return parseCardBinQuery(plainText);
+            }
             return JsonUtils.parseObject(plainText, dataReceiver);
         } catch (RuntimeException exception) {
             if (IsoCountryQueryRequestDTO.class.equals(dataReceiver)) {
@@ -118,6 +132,14 @@ public class OpenApiPayloadDecoder {
             if (IsoCurrencyQueryRequestDTO.class.equals(dataReceiver)) {
                 throw new ApiException(ApiResultEnum.PARAM_INVALID,
                         "currency query only supports alphabeticCode and numericCode as ISO code strings");
+            }
+            if (IpLookupRequestDTO.class.equals(dataReceiver)) {
+                throw new ApiException(ApiResultEnum.PARAM_INVALID,
+                        "IP query only supports ipAddress as a string");
+            }
+            if (CardBinLookupRequestDTO.class.equals(dataReceiver)) {
+                throw new ApiException(ApiResultEnum.PARAM_INVALID,
+                        "Card BIN query only supports cardBin as a string");
             }
             throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID);
         }
@@ -130,12 +152,7 @@ public class OpenApiPayloadDecoder {
      * @return 只包含三个可选字符串代码的查询条件
      */
     private IsoCountryQueryRequestDTO parseCountryQuery(String plainText) {
-        Object parsed = JsonUtils.parseObject(plainText, Object.class);
-        if (!(parsed instanceof Map<?, ?> values)
-                || !COUNTRY_QUERY_FIELDS.containsAll(values.keySet())
-                || values.values().stream().anyMatch(value -> value != null && !(value instanceof String))) {
-            throw new IllegalArgumentException("invalid country query fields or value types");
-        }
+        Map<?, ?> values = parseStrictStringObject(plainText, COUNTRY_QUERY_FIELDS);
         IsoCountryQueryRequestDTO request = new IsoCountryQueryRequestDTO();
         request.setAlpha2((String) values.get("alpha2"));
         request.setAlpha3((String) values.get("alpha3"));
@@ -150,16 +167,44 @@ public class OpenApiPayloadDecoder {
      * @return 只包含两个可选字符串代码的查询条件
      */
     private IsoCurrencyQueryRequestDTO parseCurrencyQuery(String plainText) {
-        Object parsed = JsonUtils.parseObject(plainText, Object.class);
-        if (!(parsed instanceof Map<?, ?> values)
-                || !CURRENCY_QUERY_FIELDS.containsAll(values.keySet())
-                || values.values().stream().anyMatch(value -> value != null && !(value instanceof String))) {
-            throw new IllegalArgumentException("invalid currency query fields or value types");
-        }
+        Map<?, ?> values = parseStrictStringObject(plainText, CURRENCY_QUERY_FIELDS);
         IsoCurrencyQueryRequestDTO request = new IsoCurrencyQueryRequestDTO();
         request.setAlphabeticCode((String) values.get("alphabeticCode"));
         request.setNumericCode((String) values.get("numericCode"));
         return request;
+    }
+
+    /** 将 IP 查询 JSON 严格转换为单字段请求，未知字段和非字符串值均在校验前拒绝。 */
+    private IpLookupRequestDTO parseIpQuery(String plainText) {
+        Map<?, ?> values = parseStrictStringObject(plainText, IP_QUERY_FIELDS);
+        IpLookupRequestDTO request = new IpLookupRequestDTO();
+        request.setIpAddress((String) values.get("ipAddress"));
+        return request;
+    }
+
+    /** 将 Card BIN 查询 JSON 严格转换为单字段请求，避免调用方提交的额外数据被静默忽略。 */
+    private CardBinLookupRequestDTO parseCardBinQuery(String plainText) {
+        Map<?, ?> values = parseStrictStringObject(plainText, CARD_BIN_QUERY_FIELDS);
+        CardBinLookupRequestDTO request = new CardBinLookupRequestDTO();
+        request.setCardBin((String) values.get("cardBin"));
+        return request;
+    }
+
+    /**
+     * 解析只允许指定字段且字段值只能为字符串或 null 的 JSON 对象。
+     *
+     * @param plainText 解密后的 JSON 明文
+     * @param allowedFields 对外协议允许的字段集合
+     * @return 已校验字段集合和类型的 JSON 对象
+     */
+    private Map<?, ?> parseStrictStringObject(String plainText, Set<String> allowedFields) {
+        Object parsed = JsonUtils.parseObject(plainText, Object.class);
+        if (!(parsed instanceof Map<?, ?> values)
+                || !allowedFields.containsAll(values.keySet())
+                || values.values().stream().anyMatch(value -> value != null && !(value instanceof String))) {
+            throw new IllegalArgumentException("invalid query fields or value types");
+        }
+        return values;
     }
 
     /**

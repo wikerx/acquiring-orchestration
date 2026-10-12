@@ -38,3 +38,34 @@ openapi:
     replay:
       # dev 允许 Redis 暂不可用时联调；UAT/生产由本地 Profile 强制为 true。
       required: false
+
+payment:
+  openapi:
+    rate-limit:
+      # 是否启用第二层商户限流；true 时同一 merchantId 的全部 OpenAPI 接口共享额度。
+      enabled: ${OPENAPI_MERCHANT_RATE_LIMIT_ENABLED:true}
+      # 单个商户在滚动窗口内允许通过的请求数，必须为正整数；dev 当前按每分钟 200 次配置。
+      max-requests: ${OPENAPI_MERCHANT_RATE_LIMIT_MAX_REQUESTS:200}
+      # 精确滑动窗口长度，支持 1m、60s、PT1M 等 Spring Duration 格式，必须大于 0。
+      window: ${OPENAPI_MERCHANT_RATE_LIMIT_WINDOW:1m}
+      # Redis 故障时单个 OpenAPI 实例最多保留的商户数；达到上限后拒绝新身份，防止 JVM 内存无界增长。
+      local-max-identities: ${OPENAPI_RATE_LIMIT_LOCAL_MAX_IDENTITIES:10000}
+      # Redis 故障策略仅允许 LOCAL_FALLBACK 或 FAIL_CLOSED；dev 使用本机有界窗口继续联调。
+      # LOCAL_FALLBACK 为实例内计数，集群最坏可放行约“额度 × OpenAPI 实例数”，不得作为生产全局额度依据。
+      failure-policy: ${OPENAPI_RATE_LIMIT_FAILURE_POLICY:LOCAL_FALLBACK}
+  card-bin:
+    cache:
+      # 单个六位 BIN 桶允许反序列化和比较的候选上限，必须与发布服务保持一致；超限视为快照异常并回源 SLAVE。
+      max-candidates-per-bucket: ${PAYMENT_CARD_BIN_CACHE_MAX_CANDIDATES_PER_BUCKET:256}
+  ip:
+    lookup:
+      # IP 命中数据的逻辑缓存时长，使用 Spring Duration；缩短可提高变更收敛速度，增大会降低从库压力。
+      hit-ttl: ${PAYMENT_IP_LOOKUP_HIT_TTL:PT6H}
+      # IP 未命中数据的逻辑缓存时长，使用 Spring Duration；保持短时缓存以抑制随机 IP 穿透。
+      miss-ttl: ${PAYMENT_IP_LOOKUP_MISS_TTL:PT2M}
+      # 单个路由版本 Hash/ZSet 的物理存活时间，必须同时大于命中和未命中 TTL，旧版本到期后自动回收。
+      namespace-ttl: ${PAYMENT_IP_LOOKUP_NAMESPACE_TTL:PT24H}
+      # 单个路由版本允许保存的 IP 身份上限，必须为正整数；Lua 在写入时按过期时间清理并限制基数。
+      max-entries: ${PAYMENT_IP_LOOKUP_MAX_ENTRIES:500000}
+      # 从 SLAVE 刷新 IP 分片路由快照的固定延迟，单位毫秒；60000 表示上次刷新完成后等待一分钟。
+      route-refresh-ms: ${PAYMENT_IP_LOOKUP_ROUTE_REFRESH_MS:60000}

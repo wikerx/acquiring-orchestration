@@ -53,6 +53,19 @@ public interface ManagedCacheInvalidationOutboxMapper {
     ManagedCacheInvalidationOutboxDO selectByEventId(@Param("eventId") String eventId);
 
     /**
+     * 按事件标识检查记录是否可见，供从库复制确认探针调用。
+     *
+     * @param eventId 事件唯一标识
+     * @return 可见记录数，只可能为 0 或 1
+     */
+    @Select("""
+            SELECT COUNT(1)
+            FROM merchant_security_cache_invalidation_outbox
+            WHERE event_id = #{eventId}
+            """)
+    int countByEventId(@Param("eventId") String eventId);
+
+    /**
      * 按稳定顺序查询到期的 INIT/FAILED 事件。
      *
      * @param now 当前补偿时间

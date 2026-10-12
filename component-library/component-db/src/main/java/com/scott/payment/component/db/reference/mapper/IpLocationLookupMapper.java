@@ -22,6 +22,19 @@ import java.util.List;
 public interface IpLocationLookupMapper extends BaseMapper<IpLibraryShardDO> {
 
     /**
+     * 读取全部已就绪分片，供本地不可变路由快照预加载和版本轮询。
+     */
+    @Select("""
+            SELECT id, ip_type, shard_no, range_start, range_end,
+                   table_name, data_version, active_flag, load_status
+            FROM ip_library_split_model
+            WHERE active_flag = 1
+              AND load_status = 'READY'
+            ORDER BY ip_type ASC, range_start ASC, shard_no ASC, id DESC
+            """)
+    List<IpLibraryShardDO> selectAllReadyShards();
+
+    /**
      * 查询覆盖目标 IP 数值的已就绪分片。
      *
      * @param ipType   IP 类型

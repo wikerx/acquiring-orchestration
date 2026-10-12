@@ -77,3 +77,35 @@ openapi:
     replay:
       # 测试环境默认允许未部署 Redis 时执行接口测试；联调压测可在 Nacos 中覆盖为 true。
       required: false
+
+payment:
+  openapi:
+    rate-limit:
+      # 是否启用 OpenAPI 第二层商户限流；true 时按 merchantId 累计该商户的全部开放接口请求。
+      enabled: true
+      # 单个商户在一个滚动窗口内允许通过的最大请求数，必须为正整数；不同 OpenAPI 接口共享该额度。
+      max-requests: 200
+      # 精确滚动窗口长度，支持 Spring Duration 格式，例如 1m、60s 或 PT1M；必须大于 0。
+      window: 1m
+      # Redis 不可用时，每个 OpenAPI 实例最多保存的本地商户身份数，必须为正整数；达到上限后拒绝新的身份。
+      # LOCAL_FALLBACK 下各实例独立计数，集群最坏可放行约“200 × OpenAPI 实例数”。
+      local-max-identities: 10000
+      # Redis 限流不可用时的策略：LOCAL_FALLBACK 使用本机有界窗口，FAIL_CLOSED 直接返回统一 HTTP 429。
+      # 测试环境默认 LOCAL_FALLBACK，保证隔离测试不依赖 Redis。
+      failure-policy: LOCAL_FALLBACK
+  card-bin:
+    cache:
+      # 单个六位 BIN 桶允许比较的候选上限，必须与发布服务一致；超限时视为快照不可用并回源 SLAVE。
+      max-candidates-per-bucket: ${PAYMENT_CARD_BIN_CACHE_MAX_CANDIDATES_PER_BUCKET:256}
+  ip:
+    lookup:
+      # IP 命中数据的逻辑缓存时长，使用 Spring Duration，例如 PT6H；缩短可提高变更收敛速度。
+      hit-ttl: ${PAYMENT_IP_LOOKUP_HIT_TTL:PT6H}
+      # IP 未命中数据的逻辑缓存时长，使用 Spring Duration，例如 PT2M；短时缓存用于抑制随机 IP 穿透。
+      miss-ttl: ${PAYMENT_IP_LOOKUP_MISS_TTL:PT2M}
+      # 路由版本 Hash/ZSet 的物理存活时间，必须大于 hit-ttl 和 miss-ttl；旧路由版本到期后自动回收。
+      namespace-ttl: ${PAYMENT_IP_LOOKUP_NAMESPACE_TTL:PT24H}
+      # 单个路由版本允许缓存的 IP 数量，必须为正整数；写入 Lua 会清理过期成员并限制基数。
+      max-entries: ${PAYMENT_IP_LOOKUP_MAX_ENTRIES:500000}
+      # 从 SLAVE 刷新 IP 分片路由快照的固定延迟，单位毫秒；60000 表示每次完成后等待一分钟。
+      route-refresh-ms: ${PAYMENT_IP_LOOKUP_ROUTE_REFRESH_MS:60000}

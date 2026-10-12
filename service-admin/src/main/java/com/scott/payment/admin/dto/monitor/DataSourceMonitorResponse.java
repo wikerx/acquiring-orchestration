@@ -150,7 +150,7 @@ public class DataSourceMonitorResponse {
     public static class DataSourceItem {
 
         /**
-         * 数据源名称，例如 master、slave_1。
+         * 数据源名称，例如 master、slave。
          */
         private String dataSourceKey;
 

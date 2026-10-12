@@ -5,14 +5,16 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.reference.cache.IpShardRoutingSnapshot;
 import com.scott.payment.component.db.reference.entity.CardBinRangeDO;
 import com.scott.payment.component.db.reference.entity.IpLibraryDataRow;
-import com.scott.payment.component.db.reference.entity.IpLibraryShardDO;
 import com.scott.payment.component.db.reference.mapper.CardBinLookupMapper;
 import com.scott.payment.component.db.reference.mapper.IpLocationLookupMapper;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.component.db.reference.model.CardBinLookupSnapshot;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
+import com.scott.payment.component.db.reference.model.IpLookupSnapshot;
+import com.scott.payment.component.db.reference.model.IpShardRoute;
 import com.scott.payment.component.db.reference.service.ReferenceDataLookupService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -83,16 +85,22 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
     /** 卡 BIN 最优匹配只读 Mapper，不允许为空。 */
     private final CardBinLookupMapper cardBinLookupMapper;
 
+    /** IP 分片本地不可变路由快照，避免每个冷 IP 先查询一次路由表。 */
+    private final IpShardRoutingSnapshot ipShardRoutingSnapshot;
+
     /**
      * 创建基础数据公共检索服务。
      *
      * @param ipLocationLookupMapper IP 归属 Mapper
      * @param cardBinLookupMapper    卡 BIN Mapper
+     * @param ipShardRoutingSnapshot IP 分片路由快照
      */
     public ReferenceDataLookupServiceImpl(IpLocationLookupMapper ipLocationLookupMapper,
-                                          CardBinLookupMapper cardBinLookupMapper) {
+                                          CardBinLookupMapper cardBinLookupMapper,
+                                          IpShardRoutingSnapshot ipShardRoutingSnapshot) {
         this.ipLocationLookupMapper = ipLocationLookupMapper;
         this.cardBinLookupMapper = cardBinLookupMapper;
+        this.ipShardRoutingSnapshot = ipShardRoutingSnapshot;
     }
 
     /**
@@ -104,25 +112,34 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
     @Override
     @DS(DataSourceName.SLAVE)
     public IpLookupResult lookupIp(String ipAddress) {
+        return lookupIpSnapshot(ipAddress).result();
+    }
+
+    /**
+     * 在同一个不可变路由上下文中完成分片选择和数据查询，防止刷新并发导致缓存版本与查询数据错配。
+     *
+     * @param ipAddress IP 字面量
+     * @return 实际路由版本和查询结果
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public IpLookupSnapshot lookupIpSnapshot(String ipAddress) {
         IpAddressNormalizer.NormalizedIp normalizedIp = IpAddressNormalizer.normalizeExact(ipAddress);
         String ipType = normalizedIp.ipv4() ? IPV4 : IPV6;
         String ipNumber = toIpNumber(normalizedIp.ipValue());
         // 路由必须唯一：缺失或重叠是库配置错误，不能伪装成普通未命中。
-        List<IpLibraryShardDO> shards = ipLocationLookupMapper.selectReadyShards(ipType, ipNumber);
-        if (shards == null || shards.size() != 1) {
-            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
-        }
-        IpLibraryShardDO shard = shards.get(0);
-        if (!isAllowedIpTable(ipType, shard.getTableName()) || !StringUtils.hasText(shard.getDataVersion())) {
+        IpShardRoute route = ipShardRoutingSnapshot.resolve(ipType, ipNumber);
+        if (!isAllowedIpTable(ipType, route.tableName()) || !StringUtils.hasText(route.dataVersion())) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
         }
         // 表名由数据库配置提供，只允许固定表族；数据版本与路由记录保持一致。
         IpLibraryDataRow row = ipLocationLookupMapper.selectLookupCandidate(
-                shard.getTableName(), shard.getDataVersion(), ipNumber);
+                route.tableName(), route.dataVersion(), ipNumber);
         if (row == null) {
-            return IpLookupResult.miss(normalizedIp.ipValue(), ipType);
+            return new IpLookupSnapshot(route.routingVersion(),
+                    IpLookupResult.miss(normalizedIp.ipValue(), ipType));
         }
-        return new IpLookupResult(
+        return new IpLookupSnapshot(route.routingVersion(), new IpLookupResult(
                 true,
                 normalizedIp.ipValue(),
                 ipType,
@@ -132,7 +149,7 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
                 row.getCountryName(),
                 row.getStateProvince(),
                 row.getCity()
-        );
+        ));
     }
 
     /**

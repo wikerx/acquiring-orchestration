@@ -1,10 +1,11 @@
 package com.scott.payment.component.db.iso.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.component.core.cache.PaymentRedisKeyResolver;
 import com.scott.payment.component.core.cache.CacheInvalidationGuard;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
@@ -28,11 +29,10 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -60,75 +60,62 @@ class IsoDictionaryServiceImplTests {
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), IsoCurrencyDO.class);
     }
 
-    /** 有条件国家查询必须把全部代码与启用、未删除条件交给数据库执行。 */
+    /** 有条件国家查询必须复用全量快照，并对全部非空代码执行精确 AND 过滤。 */
     @ParameterizedTest
     @MethodSource("countryCodeFilters")
     void shouldApplyAllProvidedCountryCodesInSql(String alpha2, String alpha3, String numeric,
-                                                  List<String> includedColumns, List<String> excludedColumns) {
-        log.info("验证国家代码条件直接进入 SQL，代码: {} / {} / {}", alpha2, alpha3, numeric);
+                                                  boolean expectedMatch) {
         Fixture fixture = fixture();
-        AtomicReference<LambdaQueryWrapper<IsoCountryDO>> query = new AtomicReference<>();
-        when(fixture.countryMapper().selectList(any())).thenAnswer(invocation -> {
-            query.set(invocation.getArgument(0));
-            return List.of(countryRow());
-        });
+        when(fixture.valueOperations().get("acquiring:dev:iso:country:all"))
+                .thenReturn(JsonUtils.toJsonString(List.of(countryInfo())));
 
         List<IsoCountryInfo> countries = fixture.service().listCountriesByCodes(alpha2, alpha3, numeric);
 
-        assertThat(countries).containsExactly(countryInfo());
-        assertThat(query.get()).isNotNull();
-        String sql = query.get().getExpression().getNormal().getSqlSegment();
-        assertThat(sql).contains("status", "deleted").contains(includedColumns.toArray(String[]::new));
-        excludedColumns.forEach(column -> assertThat(sql).doesNotContain(column));
-        assertThat(query.get().getParamNameValuePairs().values()).contains(1, 0);
-        Stream.of(alpha2, alpha3, numeric).filter(Objects::nonNull)
-                .forEach(code -> assertThat(query.get().getParamNameValuePairs().values()).contains(code));
-        if (includedColumns.size() == 3) {
-            assertThat(sql).containsPattern("alpha2_code.*AND.*alpha3_code.*AND.*numeric_code");
+        if (expectedMatch) {
+            assertThat(countries).containsExactly(countryInfo());
+        } else {
+            assertThat(countries).isEmpty();
         }
-        verify(fixture.valueOperations(), never()).get(anyString());
+        verify(fixture.countryMapper(), never()).selectList(any());
     }
 
     private static Stream<Arguments> countryCodeFilters() {
         return Stream.of(
-                Arguments.of("US", null, null, List.of("alpha2_code"), List.of("alpha3_code", "numeric_code")),
-                Arguments.of(null, "USA", null, List.of("alpha3_code"), List.of("alpha2_code", "numeric_code")),
-                Arguments.of(null, null, "840", List.of("numeric_code"), List.of("alpha2_code", "alpha3_code")),
-                Arguments.of("US", "USA", "840", List.of("alpha2_code", "alpha3_code", "numeric_code"), List.of())
+                Arguments.of("US", null, null, true),
+                Arguments.of(null, "USA", null, true),
+                Arguments.of(null, null, "840", true),
+                Arguments.of("US", "USA", "840", true),
+                Arguments.of("US", "CAN", "840", false)
         );
     }
 
-    /** 币种代码条件必须进入 SQL，两个代码同时传入时使用 AND。 */
+    /** 币种代码查询必须复用全量快照，两个代码同时传入时使用 AND。 */
     @ParameterizedTest
     @MethodSource("currencyCodeFilters")
     void shouldApplyProvidedCurrencyCodesInSql(String alphabeticCode, String numericCode,
-                                                List<String> includedColumns, List<String> excludedColumns) {
+                                                boolean expectedMatch) {
         Fixture fixture = fixture();
-        AtomicReference<LambdaQueryWrapper<IsoCurrencyDO>> query = new AtomicReference<>();
-        when(fixture.currencyMapper().selectList(any())).thenAnswer(invocation -> {
-            query.set(invocation.getArgument(0));
-            return List.of(currencyRow("USD", null));
-        });
+        IsoCurrencyInfo currency = new IsoCurrencyInfo("USD", "840", "US Dollar", "美元", 2, 100,
+                new BigDecimal("0.01"), "$");
+        when(fixture.valueOperations().get("acquiring:dev:iso:currency:all"))
+                .thenReturn(JsonUtils.toJsonString(List.of(currency)));
 
-        assertThat(fixture.service().listCurrenciesByCodes(alphabeticCode, numericCode))
-                .extracting(IsoCurrencyInfo::alphabeticCode).containsExactly("USD");
-        String sql = query.get().getExpression().getNormal().getSqlSegment();
-        assertThat(sql).contains("status", "deleted").contains(includedColumns.toArray(String[]::new));
-        excludedColumns.forEach(column -> assertThat(sql).doesNotContain(column));
-        assertThat(query.get().getParamNameValuePairs().values()).contains(1, 0);
-        Stream.of(alphabeticCode, numericCode).filter(Objects::nonNull)
-                .forEach(code -> assertThat(query.get().getParamNameValuePairs().values()).contains(code));
-        if (includedColumns.size() == 2) {
-            assertThat(sql).containsPattern("alpha3_code.*AND.*numeric_code");
+        List<IsoCurrencyInfo> currencies = fixture.service()
+                .listCurrenciesByCodes(alphabeticCode, numericCode);
+        if (expectedMatch) {
+            assertThat(currencies).containsExactly(currency);
+        } else {
+            assertThat(currencies).isEmpty();
         }
-        verify(fixture.valueOperations(), never()).get(anyString());
+        verify(fixture.currencyMapper(), never()).selectList(any());
     }
 
     private static Stream<Arguments> currencyCodeFilters() {
         return Stream.of(
-                Arguments.of("USD", null, List.of("alpha3_code"), List.of("numeric_code")),
-                Arguments.of(null, "840", List.of("numeric_code"), List.of("alpha3_code")),
-                Arguments.of("USD", "840", List.of("alpha3_code", "numeric_code"), List.of())
+                Arguments.of("USD", null, true),
+                Arguments.of(null, "840", true),
+                Arguments.of("USD", "840", true),
+                Arguments.of("USD", "156", false)
         );
     }
 
@@ -143,7 +130,8 @@ class IsoDictionaryServiceImplTests {
         assertThat(fixture.service().listCurrenciesByCodes(null, null)).containsExactly(currency);
         verify(fixture.currencyMapper(), never()).selectList(any());
 
-        when(fixture.currencyMapper().selectList(any())).thenReturn(List.of());
+        when(fixture.valueOperations().get("acquiring:dev:iso:currency:all"))
+                .thenReturn(JsonUtils.toJsonString(List.of(currency)));
         assertThat(fixture.service().listCurrenciesByCodes(null, "999")).isEmpty();
     }
 
@@ -159,15 +147,16 @@ class IsoDictionaryServiceImplTests {
         verify(fixture.countryMapper(), never()).selectList(any());
     }
 
-    /** 有条件查询未命中时返回空集，不使用全量或内置字典兜底。 */
+    /** 有条件查询未命中时返回空集，并且不额外访问数据库。 */
     @Test
     void shouldReturnEmptyForUnmatchedCountryCodeWithoutLoadingSnapshot() {
         log.info("验证国家代码查询未命中时返回空列表");
         Fixture fixture = fixture();
-        when(fixture.countryMapper().selectList(any())).thenReturn(List.of());
+        when(fixture.valueOperations().get("acquiring:dev:iso:country:all"))
+                .thenReturn(JsonUtils.toJsonString(List.of(countryInfo())));
 
         assertThat(fixture.service().listCountriesByCodes(null, "ZZZ", null)).isEmpty();
-        verify(fixture.valueOperations(), never()).get(anyString());
+        verify(fixture.countryMapper(), never()).selectList(any());
     }
 
     /**
@@ -233,39 +222,44 @@ class IsoDictionaryServiceImplTests {
         log.info("ISO 国家字典显式失效测试完成，结果: 仅当前短 Key 被精确删除");
     }
 
-    /**
-     * 数据库返回空结果时内置字典只用于当前请求，不能写入常驻缓存。
-     */
+    /** 数据库合法返回零条启用记录时，空数组就是权威快照。 */
     @Test
-    void shouldNotCacheFallbackWhenDatabaseReturnsEmpty() {
-        log.info("测试 ISO 字典空库兜底边界，关键输入: Redis 未命中、数据库返回空列表");
+    void shouldCacheAndReturnEmptySnapshotWhenDatabaseReturnsEmpty() {
         Fixture fixture = fixture();
         when(fixture.valueOperations().get("acquiring:dev:iso:country:all")).thenReturn(null);
         when(fixture.countryMapper().selectList(any())).thenReturn(List.of());
 
         List<IsoCountryInfo> countries = fixture.service().listCountries();
 
-        assertThat(countries).isNotEmpty();
-        verify(fixture.valueOperations(), never()).set(anyString(), anyString());
-        log.info("ISO 字典空库兜底测试完成，结果: 返回内置数据但未污染常驻缓存");
+        assertThat(countries).isEmpty();
+        verify(fixture.valueOperations()).set("acquiring:dev:iso:country:all", "[]");
     }
 
-    /**
-     * 数据库故障时内置字典只用于当前请求，不能把故障期间数据固化到 Redis。
-     */
+    /** Redis 中已经缓存的空数组必须直接返回，不能再次访问数据库。 */
     @Test
-    void shouldNotCacheFallbackWhenDatabaseReadFails() {
-        log.info("测试 ISO 字典数据库故障兜底，关键输入: 国家 Mapper 抛出数据访问异常");
+    void shouldTreatCachedEmptyArrayAsPresentSnapshot() {
+        Fixture fixture = fixture();
+        when(fixture.valueOperations().get("acquiring:dev:iso:country:all")).thenReturn("[]");
+
+        assertThat(fixture.service().listCountries()).isEmpty();
+
+        verify(fixture.countryMapper(), never()).selectList(any());
+        verify(fixture.valueOperations(), never()).set(anyString(), anyString());
+    }
+
+    /** 数据库故障且没有旧快照时必须返回明确服务不可用，不能伪造内置业务数据。 */
+    @Test
+    void shouldFailWhenDatabaseReadFailsWithoutCachedSnapshot() {
         Fixture fixture = fixture();
         when(fixture.valueOperations().get("acquiring:dev:iso:country:all")).thenReturn(null);
         when(fixture.countryMapper().selectList(any()))
                 .thenThrow(new DataAccessResourceFailureException("database unavailable"));
 
-        List<IsoCountryInfo> countries = fixture.service().listCountries();
-
-        assertThat(countries).isNotEmpty();
+        assertThatThrownBy(() -> fixture.service().listCountries())
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.NETWORK_BUSY.getCode());
         verify(fixture.valueOperations(), never()).set(anyString(), anyString());
-        log.info("ISO 字典数据库故障兜底测试完成，结果: 返回内置数据但未写常驻缓存");
     }
 
     /**

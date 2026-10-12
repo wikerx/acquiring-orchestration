@@ -1,11 +1,14 @@
 package com.scott.payment.gateway.config;
 
+import com.scott.payment.component.redis.config.PaymentRedisProperties;
+import com.scott.payment.component.redis.rate.ReactiveRedisSlidingWindowRateLimiter;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 
 /**
  * @author : scott
@@ -17,8 +20,29 @@ import org.springframework.core.Ordered;
  * @status : create
  */
 @Configuration
-@EnableConfigurationProperties({GatewayClientIpProperties.class, GatewayIngressProperties.class})
+@EnableConfigurationProperties({GatewayClientIpProperties.class, GatewayIngressProperties.class,
+        GatewayRateLimitProperties.class})
 public class GatewayRouteConfig {
+
+    /**
+     * 创建 WebFlux 专用的分布式滑动窗口限流器；本地降级身份容量与 Gateway 配置保持一致。
+     *
+     * @param redisTemplate  响应式字符串 Redis 模板
+     * @param redisProperties 支付系统 Redis Key 规范
+     * @param rateLimitProperties Gateway 限流边界配置
+     * @return 不阻塞 Netty 事件线程的滑动窗口限流器
+     */
+    @Bean
+    public ReactiveRedisSlidingWindowRateLimiter reactiveRedisSlidingWindowRateLimiter(
+            ReactiveStringRedisTemplate redisTemplate,
+            PaymentRedisProperties redisProperties,
+            GatewayRateLimitProperties rateLimitProperties) {
+        return new ReactiveRedisSlidingWindowRateLimiter(
+                redisTemplate,
+                redisProperties,
+                rateLimitProperties.getLocalMaxIdentities(),
+                rateLimitProperties.getFailurePolicy());
+    }
 
     /**
      * OpenAPI 服务注册名，网关通过 Nacos 服务发现转发到 service-openapi 实例。

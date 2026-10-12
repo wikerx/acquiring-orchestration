@@ -23,7 +23,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
         properties = {
                 "acquiring.gateway-ingress.secret=0123456789abcdef0123456789abcdef",
                 "spring.cloud.nacos.config.enabled=false",
-                "spring.cloud.nacos.discovery.enabled=false"
+                "spring.cloud.nacos.discovery.enabled=false",
+                "management.health.redis.enabled=false"
         })
 class GatewayHealthEndpointTests {
 

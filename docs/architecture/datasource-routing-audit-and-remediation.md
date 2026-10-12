@@ -29,7 +29,7 @@
 `docs/deployment/nacos/dataSource-dev.yaml` 的路由约束如下：
 
 - `master`：默认数据源，承担写操作及要求读后立即一致的查询。
-- `slave`：`slave_1`、`slave_2` 组成的只读组，承担允许复制延迟的页面、导出、字典和日志查询。
+- `slave`：当前唯一只读数据源，承担允许复制延迟的页面、导出、字典和日志查询。
 - `transaction`：ShardingSphere 交易逻辑复合数据源，承担季度分表、交易单表和事务路由。
 - `strict: true`：阻止不存在的数据源名称，但不能替代业务层对主从一致性的判断。
 
