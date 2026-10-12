@@ -241,6 +241,16 @@ acquiring:
     outbox:
       # 参数说明：是否启用通用 MQ Outbox Relay；关闭会停止可靠事件投递，只允许故障处置窗口短时使用。
       relay-enabled: true
+      # 参数说明：服务启动后首次扫描到期消息前的等待时间，单位毫秒；用于避开启动期数据库和 MQ 连接初始化峰值。
+      relay-initial-delay-ms: ${ACQUIRING_MQ_OUTBOX_RELAY_INITIAL_DELAY_MS:5000}
+      # 参数说明：相邻两次到期消息补偿扫描完成后的等待时间，单位毫秒；正常消息由事务提交后的即时 Relay 投递。
+      # 该值只影响即时投递失败后的最长发现延迟，缩短会增加所有生产服务实例对主库的空查询频率。
+      relay-delay-ms: ${ACQUIRING_MQ_OUTBOX_RELAY_DELAY_MS:5000}
+      # 参数说明：服务启动后首次恢复超时 PROCESSING 消息前的等待时间，单位毫秒；应覆盖正常启动抖动。
+      recovery-initial-delay-ms: ${ACQUIRING_MQ_OUTBOX_RECOVERY_INITIAL_DELAY_MS:30000}
+      # 参数说明：相邻两次超时恢复完成后的等待时间，单位毫秒；实际恢复时间最多比 processing-timeout-seconds 晚一个周期。
+      # 该任务执行主库 UPDATE，禁止配置成与到期消息扫描相同的高频周期。
+      recovery-delay-ms: ${ACQUIRING_MQ_OUTBOX_RECOVERY_DELAY_MS:30000}
       # 参数说明：单次 Relay 最多认领的 Outbox 记录数；增大前必须评估数据库锁和 Broker 吞吐。
       batch-size: 100
       # 参数说明：单条 Outbox 事件允许的最大业务重试次数；超过后进入失败告警和人工补偿。
@@ -249,7 +259,7 @@ acquiring:
       retry-delay-seconds: 10
       # 参数说明：Outbox 记录进入 PROCESSING 后允许恢复的超时，单位秒，必须大于单次发送超时。
       processing-timeout-seconds: 120
-      # 聚合查询独立低频执行，避免跟随 1 秒 Relay 扫描访问全表状态。
+      # 聚合查询独立低频执行，避免跟随到期消息补偿扫描访问全表状态。
       metrics-initial-delay-ms: ${ACQUIRING_MQ_OUTBOX_METRICS_INITIAL_DELAY_MS:30000}
       # 参数说明：通用 Outbox 指标相邻两次聚合之间的等待时间，单位毫秒。
       metrics-delay-ms: ${ACQUIRING_MQ_OUTBOX_METRICS_DELAY_MS:60000}
