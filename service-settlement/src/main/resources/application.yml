@@ -1,6 +1,6 @@
 # 结算服务本地启动基线；调用方、路径和鉴权时间窗由 service-settlement-{env}.yaml 提供。
 server:
-  port: 8019
+  port: 8011
   shutdown: graceful
 
 spring:
