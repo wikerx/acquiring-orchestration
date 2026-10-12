@@ -4,6 +4,7 @@ import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,7 +28,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Slf4j
 @SpringBootTest(
         classes = OpenApiApplication.class,
-        properties = "spring.cloud.nacos.discovery.enabled=false"
+        properties = {
+                "spring.cloud.nacos.discovery.enabled=false",
+                MerchantOpenApiTestSupport.CARD_BIN_INDEX_INITIALIZER_DISABLED_PROPERTY
+        }
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)

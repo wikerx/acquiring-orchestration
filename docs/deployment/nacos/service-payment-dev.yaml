@@ -123,7 +123,7 @@ payment:
       metrics-fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_METRICS_FIXED_DELAY_MS:60000}
   card-bin:
     cache:
-      # 支付服务启动时是否在缺少当前 generation 完整分片索引时从 SLAVE 构建缓存；关闭后冷请求直接回源从库。
+      # 支付服务启动时是否在缺少当前 generation 或索引格式过期时从 SLAVE 重建；OpenAPI 可用同一开关补齐共享索引。
       index-initializer-enabled: ${PAYMENT_CARD_BIN_CACHE_INDEX_INITIALIZER_ENABLED:true}
       # 管理端确认 SLAVE 已同步后，如果分片发布失败，是否通过可靠消息重试；生产必须保持 true。
       invalidation-mq-enabled: ${PAYMENT_CARD_BIN_CACHE_INVALIDATION_MQ_ENABLED:true}

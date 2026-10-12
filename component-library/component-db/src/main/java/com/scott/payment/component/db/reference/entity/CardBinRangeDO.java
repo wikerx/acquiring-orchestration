@@ -2,8 +2,6 @@ package com.scott.payment.component.db.reference.entity;
 
 import lombok.Data;
 
-import java.time.LocalDateTime;
-
 /**
  * @author : scott
  * @version : v1.0.0
@@ -16,7 +14,7 @@ import java.time.LocalDateTime;
 @Data
 public class CardBinRangeDO {
 
-    /** 区间主键，用于分页构建快照以及同精度记录的稳定优先级比较。 */
+    /** 区间主键，用于分页构建快照以及重叠记录的唯一优先级比较。 */
     private Long id;
 
     /** 十一位数值区间起点，查询值必须大于或等于该值。 */
@@ -55,12 +53,4 @@ public class CardBinRangeDO {
     /** 发卡行名称，允许为空，非敏感字段。 */
     private String issuerBank;
 
-    /** 区间开始生效时刻；为空表示入库后立即生效。 */
-    private LocalDateTime effectiveTime;
-
-    /** 当前命中区间的失效时刻；为空表示没有预设失效时间。 */
-    private LocalDateTime expireTime;
-
-    /** 最近更新时间，用于同精度重叠区间的稳定优先级比较。 */
-    private LocalDateTime updateTime;
 }

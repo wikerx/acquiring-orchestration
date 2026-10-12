@@ -11,7 +11,6 @@ import com.scott.payment.component.db.reference.entity.IpLibraryDataRow;
 import com.scott.payment.component.db.reference.mapper.CardBinLookupMapper;
 import com.scott.payment.component.db.reference.mapper.IpLocationLookupMapper;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
-import com.scott.payment.component.db.reference.model.CardBinLookupSnapshot;
 import com.scott.payment.component.db.reference.model.IpLookupDetail;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
 import com.scott.payment.component.db.reference.model.IpLookupSnapshot;
@@ -22,7 +21,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -162,7 +160,11 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
     }
 
     /**
-     * 查询 6 至 11 位纯数字卡 BIN 的当前有效归属信息；独立只读事务确保支付主事务内仍路由从库。
+     * 查询 6 至 11 位纯数字卡 BIN 的启用归属信息；独立只读事务确保支付主事务内仍路由从库。
+     *
+     * <p>输入先右补零为十一位数值，再通过一条区间 SQL 查询覆盖记录。重叠区间固定选择
+     * 主键最大的增量记录；数据库未命中直接返回 {@code matched=false}，由支付或 OpenAPI
+     * 上层执行卡品牌规则兜底。</p>
      *
      * @param cardBin 商户提交的卡 BIN
      * @return 卡 BIN 归属查询结果
@@ -171,42 +173,22 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
     @DS(DataSourceName.SLAVE)
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public CardBinLookupResult lookupCardBin(String cardBin) {
-        return queryCardBin(cardBin, false).result();
-    }
-
-    /**
-     * 查询 BIN 及缓存时间边界；独立只读事务避免沿用支付主事务已绑定的连接。
-     *
-     * @param cardBin 6 至 11 位纯数字 BIN
-     * @return 当前结果和未来可能改变它的时间点
-     */
-    @Override
-    @DS(DataSourceName.SLAVE)
-    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
-    public CardBinLookupSnapshot lookupCardBinSnapshot(String cardBin) {
-        return queryCardBin(cardBin, true);
-    }
-
-    private CardBinLookupSnapshot queryCardBin(String cardBin, boolean includeFutureBoundary) {
         if (cardBin == null || !cardBin.matches("^[0-9]{6,11}$")) {
             throw new IllegalArgumentException("cardBin must be 6 to 11 digits");
         }
-        // 仅接受 6 至 11 位；短 BIN 右补零到区间统一使用的 11 位精度。
-        long numericValue = Long.parseLong(cardBin + "0".repeat(NORMALIZED_BIN_LENGTH - cardBin.length()));
-        CardBinRangeDO row = cardBinLookupMapper.selectBestMatch(numericValue, cardBin.length());
+        // 数据库起止区间统一使用十一位数值；短输入右补零后只执行一次覆盖查询。
+        String normalizedCardBin = cardBin + "0".repeat(NORMALIZED_BIN_LENGTH - cardBin.length());
+        long numericValue = Long.parseLong(normalizedCardBin);
+        CardBinRangeDO row = cardBinLookupMapper.selectBestMatch(numericValue);
         if (row == null) {
-            // 未命中不缓存，无需再查询未来生效时间。
-            return new CardBinLookupSnapshot(CardBinLookupResult.miss(cardBin), null, null);
+            return CardBinLookupResult.miss(normalizedCardBin);
         }
-        if (!isValidBinMatch(row, cardBin.length())) {
+        if (!isValidBinMatch(row, numericValue)) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
         }
-        // 只有正向命中且准备写缓存时才需要未来更具体区间的生效边界。
-        LocalDateTime nextEffectiveTime = includeFutureBoundary
-                ? cardBinLookupMapper.selectNextEffectiveTime(numericValue, cardBin.length()) : null;
-        CardBinLookupResult result = new CardBinLookupResult(
+        return new CardBinLookupResult(
                 true,
-                cardBin,
+                normalizedCardBin,
                 row.getBinLength(),
                 row.getCardBrand(),
                 row.getCardSubBrand(),
@@ -218,7 +200,6 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
                 row.getIssuerCountryNumeric(),
                 row.getIssuerBank()
         );
-        return new CardBinLookupSnapshot(result, row.getExpireTime(), nextEffectiveTime);
     }
 
     /**
@@ -242,18 +223,22 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
     }
 
     /**
-     * 校验数据库返回的 BIN 精度满足对外查询约束，防止异常配置暴露超过请求长度的匹配结果。
+     * 校验数据库返回记录确实覆盖查询值，防止异常映射或脏数据被当作有效归属返回。
      *
-     * @param row         数据库命中记录
-     * @param inputLength 商户输入 BIN 长度
+     * @param row 数据库命中记录
+     * @param numericValue 规范化后的十一位查询数值
      * @return true 表示命中记录可以返回
      */
-    private boolean isValidBinMatch(CardBinRangeDO row, int inputLength) {
+    private boolean isValidBinMatch(CardBinRangeDO row, long numericValue) {
         Integer binLength = row.getBinLength();
-        return binLength != null
+        return row.getId() != null
+                && row.getCardBinStart() != null
+                && row.getCardBinEnd() != null
+                && row.getCardBinStart() <= numericValue
+                && row.getCardBinEnd() >= numericValue
+                && binLength != null
                 && binLength >= MIN_BIN_LENGTH
-                && binLength <= NORMALIZED_BIN_LENGTH
-                && binLength <= inputLength;
+                && binLength <= NORMALIZED_BIN_LENGTH;
     }
 
 }

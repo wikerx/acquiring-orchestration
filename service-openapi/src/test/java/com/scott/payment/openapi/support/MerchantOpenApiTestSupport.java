@@ -60,6 +60,10 @@ public final class MerchantOpenApiTestSupport {
     public static final String GATEWAY_INGRESS_LEGACY_DISABLED_PROPERTY =
             "acquiring.gateway-ingress.accept-legacy-signature=false";
 
+    /** 集成测试不得连接开发从库构建 Card BIN 全量 Redis 区间索引。 */
+    public static final String CARD_BIN_INDEX_INITIALIZER_DISABLED_PROPERTY =
+            "payment.card-bin.cache.index-initializer-enabled=false";
+
     private static final String GATEWAY_INGRESS_TEST_SECRET =
             "test-gateway-ingress-secret-0123456789abcdef";
     private static final String GATEWAY_CLIENT_IP = "203.0.113.10";

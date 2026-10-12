@@ -1,6 +1,5 @@
-package com.scott.payment.payment.config;
+package com.scott.payment.component.db.reference.cache;
 
-import com.scott.payment.component.db.reference.cache.CardBinRangeIndex;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
 import com.scott.payment.component.redis.generation.RedisCachePublication;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +18,7 @@ import java.time.Duration;
  * @classname : CardBinRangeIndexInitializer
  * @date : 2026-10-12
  * @email : scott_x@163.com
- * @description : 支付服务启动阶段的 Card BIN 分片索引初始化器，使用 generation 门禁保证集群内只有一个实例执行发布
+ * @description : 支付与 OpenAPI 共用的 Card BIN 分片索引初始化器，允许任一查询服务独立补齐同一份 Redis 快照
  * @status : create
  */
 @Slf4j
@@ -29,7 +28,7 @@ import java.time.Duration;
         prefix = "payment.card-bin.cache",
         name = "index-initializer-enabled",
         havingValue = "true",
-        matchIfMissing = true)
+        matchIfMissing = false)
 public class CardBinRangeIndexInitializer implements ApplicationRunner {
 
     private static final String CACHE_NAMESPACE = "card-bin-range";
@@ -38,6 +37,12 @@ public class CardBinRangeIndexInitializer implements ApplicationRunner {
     private final CardBinRangeIndex rangeIndex;
     private final RedisCacheGenerationStore generationStore;
 
+    /**
+     * 创建共享索引初始化器。
+     *
+     * @param rangeIndex 从 SLAVE 构建并发布 Redis 分片的公共组件
+     * @param generationStore 支付、OpenAPI 和管理端共用的发布代际门禁
+     */
     public CardBinRangeIndexInitializer(CardBinRangeIndex rangeIndex,
                                         RedisCacheGenerationStore generationStore) {
         this.rangeIndex = rangeIndex;
@@ -45,7 +50,13 @@ public class CardBinRangeIndexInitializer implements ApplicationRunner {
     }
 
     /**
-     * 在应用进入就绪状态前补齐首次索引；完成标记与当前 generation 一致时不重复扫描百万级基础数据。
+     * 在服务启动阶段补齐缺失或格式过期的索引。
+     *
+     * <p>支付与 OpenAPI 可以同时启用该初始化器。Redis generation 门禁保证集群中只有一个实例
+     * 扫描从库并发布，其余实例竞争失败后继续使用单条 SLAVE SQL 降级，不会重复构建百万级快照。
+     * 已发布索引的 generation 和格式均正确时直接返回，不访问 Card BIN 数据表。</p>
+     *
+     * @param args Spring Boot 启动参数，本初始化过程不读取业务参数
      */
     @Override
     public void run(ApplicationArguments args) {
@@ -67,7 +78,7 @@ public class CardBinRangeIndexInitializer implements ApplicationRunner {
                     exception.addSuppressed(abortException);
                 }
             }
-            // 初始化失败时查询路径仍会执行单次 SLAVE SQL；后续 MQ 变更或重启可再次构建。
+            // 初始化失败不阻断服务启动；业务查询退化为一条从库区间 SQL，并等待 MQ 或下次启动重建。
             log.warn("event: CARD_BIN_RANGE_INDEX_INITIALIZATION_FAILED exceptionType: {}",
                     exception.getClass().getSimpleName(), exception);
         }

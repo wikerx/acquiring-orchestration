@@ -1,7 +1,6 @@
 package com.scott.payment.component.db.reference.cache;
 
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
-import com.scott.payment.component.db.reference.model.CardBinLookupSnapshot;
 import com.scott.payment.component.db.reference.model.CardBinRangeIndexLookup;
 import com.scott.payment.component.db.reference.service.ReferenceDataLookupService;
 import org.junit.jupiter.api.Test;
@@ -48,7 +47,7 @@ class CardBinCacheReaderTests {
         assertThat(reader.findByPrefix("51234500000").result().issuerBank())
                 .isEqualTo("Example Bank");
 
-        verify(lookup, never()).lookupCardBinSnapshot("51234500000");
+        verify(lookup, never()).lookupCardBin("51234500000");
     }
 
     @Test
@@ -61,7 +60,7 @@ class CardBinCacheReaderTests {
 
         assertThat(reader.findByPrefix("99999900000").result().matched()).isFalse();
 
-        verify(lookup, never()).lookupCardBinSnapshot("99999900000");
+        verify(lookup, never()).lookupCardBin("99999900000");
     }
 
     @Test
@@ -69,24 +68,24 @@ class CardBinCacheReaderTests {
         ReferenceDataLookupService lookup = mock(ReferenceDataLookupService.class);
         CardBinRangeIndex index = mock(CardBinRangeIndex.class);
         when(index.lookup("51234500000")).thenReturn(CardBinRangeIndexLookup.unavailable());
-        when(lookup.lookupCardBinSnapshot("51234500000"))
-                .thenReturn(new CardBinLookupSnapshot(hit("51234500000"), null, null));
+        when(lookup.lookupCardBin("51234500000"))
+                .thenReturn(hit("51234500000"));
         CardBinCacheReader reader = new CardBinCacheReader(lookup, Optional.of(index));
 
         assertThat(reader.findByPrefix("51234500000").result().matched()).isTrue();
 
-        verify(lookup).lookupCardBinSnapshot("51234500000");
+        verify(lookup).lookupCardBin("51234500000");
     }
 
     @Test
     void shouldUseReplicaDirectlyWhenRedisComponentIsAbsent() {
         ReferenceDataLookupService lookup = mock(ReferenceDataLookupService.class);
-        when(lookup.lookupCardBinSnapshot("51234500000"))
-                .thenReturn(new CardBinLookupSnapshot(hit("51234500000"), null, null));
+        when(lookup.lookupCardBin("51234500000"))
+                .thenReturn(hit("51234500000"));
         CardBinCacheReader reader = new CardBinCacheReader(lookup, Optional.empty());
 
         assertThat(reader.findByPrefix("51234500000").result().matched()).isTrue();
-        verify(lookup).lookupCardBinSnapshot("51234500000");
+        verify(lookup).lookupCardBin("51234500000");
     }
 
     private CardBinLookupResult hit(String prefix) {

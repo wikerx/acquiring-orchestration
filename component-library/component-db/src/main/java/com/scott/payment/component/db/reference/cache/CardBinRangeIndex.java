@@ -25,7 +25,6 @@ import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -51,6 +50,8 @@ public class CardBinRangeIndex {
 
     private static final String CACHE_NAMESPACE = "card-bin-range";
     private static final String GENERATION_FIELD = "_generation";
+    private static final String FORMAT_FIELD = "_format";
+    private static final String INDEX_FORMAT_VERSION = "id-priority-v1";
     private static final int SHARD_PREFIX_LENGTH = 3;
     private static final int SHARD_COUNT = 1_000;
     private static final int NORMALIZED_BIN_LENGTH = 11;
@@ -151,15 +152,15 @@ public class CardBinRangeIndex {
                     shardKey(cardBinPrefix.substring(0, SHARD_PREFIX_LENGTH)),
                     lookupFields(cardBinPrefix)
             );
-            if (values == null || values.size() != NORMALIZED_BIN_LENGTH - SHARD_PREFIX_LENGTH + 2
-                    || !Objects.equals(state.generation(), values.get(0))) {
+            if (values == null || values.size() != NORMALIZED_BIN_LENGTH - SHARD_PREFIX_LENGTH + 3
+                    || !Objects.equals(state.generation(), values.get(0))
+                    || !Objects.equals(INDEX_FORMAT_VERSION, values.get(1))) {
                 return CardBinRangeIndexLookup.unavailable();
             }
             List<CardBinRangeIndexEntry> candidates = decodeCandidates(values);
             long numericValue = Long.parseLong(cardBinPrefix);
-            LocalDateTime now = LocalDateTime.now();
             return candidates.stream()
-                    .filter(candidate -> candidate.matches(numericValue, now))
+                    .filter(candidate -> candidate.matches(numericValue))
                     .max(winnerOrder())
                     .map(candidate -> CardBinRangeIndexLookup.available(
                             toResult(cardBinPrefix, candidate)))
@@ -182,7 +183,7 @@ public class CardBinRangeIndex {
             return state.cacheReadable()
                     && StringUtils.hasText(state.generation())
                     && Objects.equals(state.generation(),
-                    redisTemplate.opsForValue().get(readyGenerationKey()));
+                    readyGeneration(redisTemplate.opsForValue().get(readyGenerationKey())));
         } catch (RuntimeException exception) {
             warn("ACTIVE_CHECK", exception);
             return false;
@@ -273,7 +274,8 @@ public class CardBinRangeIndex {
             }
             renewPublicationLease(ownerToken);
             markAllShardsComplete(generation);
-            redisTemplate.opsForValue().set(readyGenerationKey(), generation);
+            redisTemplate.opsForValue().set(
+                    readyGenerationKey(), generation + ":" + INDEX_FORMAT_VERSION);
             log.info("event: CARD_BIN_RANGE_INDEX_PUBLISHED generation: {} sourceRows: {} indexedEntries: {} snapshotBytes: {} shards: {}",
                     generation, sourceRows, indexedEntries, snapshotBytes, SHARD_COUNT);
         } catch (RuntimeException exception) {
@@ -353,15 +355,18 @@ public class CardBinRangeIndex {
                     .executionMode(BatchOptions.ExecutionMode.IN_MEMORY)
                     .skipResult());
             for (int shard = 0; shard < SHARD_COUNT; shard++) {
-                batch.<String, String>getMap(shardKey(shardName(shard)), StringCodec.INSTANCE)
-                        .fastPutAsync(GENERATION_FIELD, generation);
+                var shardMap = batch.<String, String>getMap(
+                        shardKey(shardName(shard)), StringCodec.INSTANCE);
+                shardMap.fastPutAsync(GENERATION_FIELD, generation);
+                shardMap.fastPutAsync(FORMAT_FIELD, INDEX_FORMAT_VERSION);
             }
             batch.execute();
             return;
         }
         for (int shard = 0; shard < SHARD_COUNT; shard++) {
-            redisTemplate.opsForHash().put(
-                    shardKey(shardName(shard)), GENERATION_FIELD, generation);
+            redisTemplate.opsForHash().putAll(
+                    shardKey(shardName(shard)),
+                    Map.of(GENERATION_FIELD, generation, FORMAT_FIELD, INDEX_FORMAT_VERSION));
         }
     }
 
@@ -370,13 +375,17 @@ public class CardBinRangeIndex {
                 maxCandidatesPerPrefix,
                 NORMALIZED_BIN_LENGTH - SHARD_PREFIX_LENGTH + 1);
         List<CardBinRangeIndexEntry> candidates = new ArrayList<>();
-        for (int index = 1; index < values.size(); index++) {
+        for (int index = 2; index < values.size(); index++) {
             Object value = values.get(index);
             if (value == null || !StringUtils.hasText(value.toString())) {
                 continue;
             }
-            candidates.addAll(JsonUtils.parseArray(
-                    value.toString(), CardBinRangeIndexEntry.class));
+            List<CardBinRangeIndexEntry> decoded = JsonUtils.parseArray(
+                    value.toString(), CardBinRangeIndexEntry.class);
+            if (decoded.stream().anyMatch(candidate -> !validCandidate(candidate))) {
+                throw new IllegalStateException("Card BIN shard contains an invalid candidate");
+            }
+            candidates.addAll(decoded);
             if (candidates.size() > lookupCandidateLimit) {
                 throw new IllegalStateException(
                         "Card BIN prefix lookup exceeds configured candidate limit");
@@ -387,8 +396,9 @@ public class CardBinRangeIndex {
 
     private List<Object> lookupFields(String cardBinPrefix) {
         List<Object> fields = new ArrayList<>(
-                NORMALIZED_BIN_LENGTH - SHARD_PREFIX_LENGTH + 2);
+                NORMALIZED_BIN_LENGTH - SHARD_PREFIX_LENGTH + 3);
         fields.add(GENERATION_FIELD);
+        fields.add(FORMAT_FIELD);
         for (int length = SHARD_PREFIX_LENGTH; length <= NORMALIZED_BIN_LENGTH; length++) {
             fields.add(length + ":" + cardBinPrefix.substring(0, length));
         }
@@ -470,10 +480,20 @@ public class CardBinRangeIndex {
     }
 
     private Comparator<CardBinRangeIndexEntry> winnerOrder() {
-        return Comparator.comparingInt(CardBinRangeIndexEntry::binLength)
-                .thenComparing(entry -> entry.updateTime() == null
-                        ? LocalDateTime.MIN : entry.updateTime())
-                .thenComparing(entry -> entry.id() == null ? 0L : entry.id());
+        // 与从库 ORDER BY id DESC LIMIT 1 完全一致，避免缓存与冷查询返回不同记录。
+        return Comparator.comparingLong(CardBinRangeIndexEntry::id);
+    }
+
+    /** 校验 Redis 候选的关键区间字段；损坏载荷必须回源，不能被解释为权威未命中。 */
+    private boolean validCandidate(CardBinRangeIndexEntry entry) {
+        return entry != null
+                && entry.id() != null
+                && entry.id() > 0
+                && entry.cardBinStart() >= 0
+                && entry.cardBinEnd() <= MAX_BIN_VALUE
+                && entry.cardBinStart() <= entry.cardBinEnd()
+                && entry.binLength() >= 6
+                && entry.binLength() <= NORMALIZED_BIN_LENGTH;
     }
 
     private CardBinLookupResult toResult(String cardBinPrefix, CardBinRangeIndexEntry entry) {
@@ -489,8 +509,7 @@ public class CardBinRangeIndex {
                 row.getId(), row.getCardBinStart(), row.getCardBinEnd(), row.getBinLength(),
                 row.getCardBrand(), row.getCardSubBrand(), row.getCardType(), row.getCardLevel(),
                 row.getIssuerCountryName(), row.getIssuerCountryAlpha2(), row.getIssuerCountryAlpha3(),
-                row.getIssuerCountryNumeric(), row.getIssuerBank(), row.getEffectiveTime(),
-                row.getExpireTime(), row.getUpdateTime());
+                row.getIssuerCountryNumeric(), row.getIssuerBank());
     }
 
     private void validateRow(CardBinRangeDO row, long previousId) {
@@ -526,6 +545,15 @@ public class CardBinRangeIndex {
 
     private String readyGenerationKey() {
         return redisProperties.businessKey("cardBin", "index", "ready");
+    }
+
+    /** 从带格式版本的完成标记中提取 generation；旧格式返回 null 并触发一次完整重建。 */
+    private String readyGeneration(String marker) {
+        if (!StringUtils.hasText(marker)) {
+            return null;
+        }
+        String suffix = ":" + INDEX_FORMAT_VERSION;
+        return marker.endsWith(suffix) ? marker.substring(0, marker.length() - suffix.length()) : null;
     }
 
     private String publicationLockKey() {

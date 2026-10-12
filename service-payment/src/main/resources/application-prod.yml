@@ -74,7 +74,7 @@ payment:
       replay-store-required: true
   card-bin:
     cache:
-      # 是否在支付服务启动且没有当前 generation 的完整分片索引时从 SLAVE 初始化；false 时冷请求直接回源从库。
+      # 是否在查询服务启动且当前 generation 缺失或索引格式过期时从 SLAVE 重建；支付与 OpenAPI 共用此开关和索引。
       index-initializer-enabled: ${PAYMENT_CARD_BIN_CACHE_INDEX_INITIALIZER_ENABLED:true}
       # 管理端确认从库同步后，首次发布失败时是否通过可靠消息重试；UAT/生产建议保持 true。
       invalidation-mq-enabled: ${PAYMENT_CARD_BIN_CACHE_INVALIDATION_MQ_ENABLED:true}

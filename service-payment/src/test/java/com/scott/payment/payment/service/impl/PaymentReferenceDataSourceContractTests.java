@@ -27,7 +27,7 @@ class PaymentReferenceDataSourceContractTests {
      */
     @Test
     void shouldRouteCardBinCacheRebuildToSlave() throws NoSuchMethodException {
-        Method method = ReferenceDataLookupServiceImpl.class.getMethod("lookupCardBinSnapshot", String.class);
+        Method method = ReferenceDataLookupServiceImpl.class.getMethod("lookupCardBin", String.class);
         DS dataSource = method.getAnnotation(DS.class);
         assertThat(dataSource).isNotNull();
         assertThat(dataSource.value()).isEqualTo(DataSourceName.SLAVE);

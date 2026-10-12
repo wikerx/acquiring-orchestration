@@ -40,12 +40,12 @@ public class CardBinCacheReader {
     /**
      * 查询规范化后的十一位 BIN。
      *
-     * <p>当前 generation 的分片完整时，全部前缀均不存在或候选内没有有效区间即为权威未命中，不会创建
+     * <p>当前 generation 的分片完整时，全部前缀均不存在或候选内没有覆盖区间即为权威未命中，不会创建
      * 查询值对应的永久 Key。只有发布中、Redis 不可用、载荷损坏或分片尚未初始化时才执行现有
      * SLAVE SQL；数据库未命中仍由支付或 OpenAPI 上层执行统一卡品牌规则兜底。</p>
      *
      * @param cardBinPrefix 十一位数字前缀
-     * @return 当前有效的数据库命中或未命中结果
+     * @return 当前启用记录中的数据库命中或未命中结果
      */
     public CardBinLookupCacheEntry findByPrefix(String cardBinPrefix) {
         if (cardBinPrefix == null || !cardBinPrefix.matches("^[0-9]{11}$")) {
@@ -63,8 +63,10 @@ public class CardBinCacheReader {
             }
         }
         // 分片不可用时只回源一次；不把任意查询值写入 Redis，避免恶意请求扩大 Key 基数。
-        return CardBinLookupCacheEntry.from(
-                lookupService.lookupCardBinSnapshot(cardBinPrefix),
+        return new CardBinLookupCacheEntry(
+                null,
+                CardBinLookupCacheEntry.FORMAT_VERSION,
+                lookupService.lookupCardBin(cardBinPrefix),
                 null
         );
     }

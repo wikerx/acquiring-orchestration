@@ -15,7 +15,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -37,13 +37,12 @@ import static org.mockito.Mockito.when;
 class CardBinRangeIndexTests {
 
     @Test
-    void shouldChooseMostPreciseNewestAndLargestIdFromCurrentGeneration() {
+    void shouldChooseLargestIdFromCurrentGeneration() {
         TestContext context = context();
         List<CardBinRangeIndexEntry> candidates = List.of(
-                entry(1L, 6, "VISA", LocalDateTime.of(2026, 1, 1, 0, 0)),
-                entry(2L, 8, "OLD", LocalDateTime.of(2026, 1, 2, 0, 0)),
-                entry(3L, 8, "NEW", LocalDateTime.of(2026, 1, 3, 0, 0)),
-                entry(4L, 8, "LARGEST_ID", LocalDateTime.of(2026, 1, 3, 0, 0))
+                entry(1L, 8, "MORE_PRECISE_OLD_ID"),
+                entry(2L, 6, "NEWER_ID"),
+                entry(4L, 6, "LARGEST_ID")
         );
         when(context.generationStore().current("card-bin-range"))
                 .thenReturn(RedisCacheGenerationState.active("g-current"));
@@ -54,10 +53,10 @@ class CardBinRangeIndexTests {
 
         assertThat(lookup.available()).isTrue();
         assertThat(lookup.result().matched()).isTrue();
-        assertThat(lookup.result().binLength()).isEqualTo(8);
+        assertThat(lookup.result().binLength()).isEqualTo(6);
         assertThat(lookup.result().cardBrand()).isEqualTo("LARGEST_ID");
         verify(context.hash()).multiGet(eq("acquiring:test:cardBin:512"),
-                eq(List.of("_generation", "3:512", "4:5123", "5:51234", "6:512345",
+                eq(List.of("_generation", "_format", "3:512", "4:5123", "5:51234", "6:512345",
                         "7:5123456", "8:51234567", "9:512345678", "10:5123456789",
                         "11:51234567890")));
     }
@@ -93,6 +92,18 @@ class CardBinRangeIndexTests {
     }
 
     @Test
+    void shouldFallBackWhenPublishedCandidateIsInvalid() {
+        TestContext context = context();
+        CardBinRangeIndexEntry invalid = entry(null, 6, "INVALID");
+        when(context.generationStore().current("card-bin-range"))
+                .thenReturn(RedisCacheGenerationState.active("g-current"));
+        when(context.hash().multiGet(anyString(), anyList()))
+                .thenReturn(hashValues("g-current", JsonUtils.toJsonString(List.of(invalid))));
+
+        assertThat(context.index().lookup("51234567890").available()).isFalse();
+    }
+
+    @Test
     void shouldPublishStableReplicaIntoDatabaseBoundedShards() {
         TestContext context = context();
         publicationRedis(context);
@@ -111,8 +122,9 @@ class CardBinRangeIndexTests {
         verify(context.redis(), times(1_000)).unlink(anyString());
         verify(context.redis()).execute(eq(PaymentRedisScripts.cardBinBucketAppendV1()),
                 eq(List.of("acquiring:test:cardBin:512")), any(Object[].class));
-        verify(context.hash(), times(1_000)).put(anyString(), eq("_generation"), eq("g-next"));
-        verify(context.values()).set("acquiring:test:cardBin:index:ready", "g-next");
+        verify(context.hash(), times(1_000)).putAll(anyString(), anyMap());
+        verify(context.values()).set(
+                "acquiring:test:cardBin:index:ready", "g-next:id-priority-v1");
     }
 
     @Test
@@ -127,8 +139,9 @@ class CardBinRangeIndexTests {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("changed while building");
 
-        verify(context.hash(), never()).put(anyString(), eq("_generation"), anyString());
-        verify(context.values(), never()).set("acquiring:test:cardBin:index:ready", "g-next");
+        verify(context.hash(), never()).putAll(anyString(), anyMap());
+        verify(context.values(), never()).set(
+                "acquiring:test:cardBin:index:ready", "g-next:id-priority-v1");
         verify(context.redis(), atLeastOnce()).execute(eq(PaymentRedisScripts.tokenLeaseReleaseV1()),
                 anyList(), anyString());
     }
@@ -171,7 +184,7 @@ class CardBinRangeIndexTests {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("byte budget");
 
-        verify(context.hash(), never()).put(anyString(), eq("_generation"), anyString());
+        verify(context.hash(), never()).putAll(anyString(), anyMap());
     }
 
     @Test
@@ -193,8 +206,9 @@ class CardBinRangeIndexTests {
     private List<Object> hashValues(String generation, String payload) {
         List<Object> values = new ArrayList<>();
         values.add(generation);
+        values.add("id-priority-v1");
         values.add(payload);
-        while (values.size() < 10) {
+        while (values.size() < 11) {
             values.add(null);
         }
         return values;
@@ -235,11 +249,9 @@ class CardBinRangeIndexTests {
 
     private CardBinRangeIndexEntry entry(Long id,
                                          int binLength,
-                                         String brand,
-                                         LocalDateTime updateTime) {
+                                         String brand) {
         return new CardBinRangeIndexEntry(id, 51234500000L, 51234599999L, binLength,
-                brand, null, "CREDIT", null, null, null, null, null, null,
-                null, null, updateTime);
+                brand, null, "CREDIT", null, null, null, null, null, null);
     }
 
     private CardBinRangeDO row() {
@@ -253,7 +265,6 @@ class CardBinRangeIndexTests {
         row.setCardBinEnd(end);
         row.setBinLength(binLength);
         row.setCardBrand("MASTERCARD");
-        row.setUpdateTime(LocalDateTime.of(2026, 1, 1, 0, 0));
         return row;
     }
 

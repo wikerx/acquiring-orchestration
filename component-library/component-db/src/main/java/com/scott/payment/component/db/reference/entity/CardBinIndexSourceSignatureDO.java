@@ -14,7 +14,7 @@ import lombok.Data;
 @Data
 public class CardBinIndexSourceSignatureDO {
 
-    /** 参与快照构建的有效或未来生效记录数。 */
+    /** 参与快照构建的启用且未逻辑删除记录数。 */
     private Long rowCount;
 
     /** 对查询相关字段计算的无序 CRC 聚合值。 */

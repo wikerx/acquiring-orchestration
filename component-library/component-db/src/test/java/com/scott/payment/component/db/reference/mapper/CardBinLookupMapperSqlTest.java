@@ -11,7 +11,6 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,13 +21,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : CardBinLookupMapperSqlTest
  * @date : 2026-09-30
  * @email : scott_x@163.com
- * @description : 在 MySQL 兼容的内存库执行 BIN Mapper SQL，验证跨区间与精度排序语义。
+ * @description : 在 MySQL 兼容的内存库执行 BIN Mapper SQL，验证十一位区间、启用状态和最大主键语义。
  * @status : create
  */
 class CardBinLookupMapperSqlTest {
 
     @Test
-    void shouldMatchCrossBinRangeAndPreferMorePreciseEffectiveRow() {
+    void shouldMatchElevenDigitRangeAndPreferLargestEnabledId() {
         JdbcDataSource dataSource = new JdbcDataSource();
         dataSource.setURL("jdbc:h2:mem:bin_lookup_" + UUID.randomUUID().toString().replace("-", "")
                 + ";MODE=MySQL;DB_CLOSE_DELAY=-1");
@@ -89,6 +88,20 @@ class CardBinLookupMapperSqlTest {
                 VALUES (5, 0, 1, 41111234000, 41111234999, 8, 'LARGER_ID',
                         TIMESTAMP '2026-01-01 00:00:00')
                 """);
+        jdbc.update("""
+                INSERT INTO base_card_bin_range
+                    (id, deleted, status, card_bin_start, card_bin_end, bin_length,
+                     card_brand, update_time)
+                VALUES (6, 0, 0, 41111234000, 41111234999, 8, 'DISABLED',
+                        CURRENT_TIMESTAMP(3))
+                """);
+        jdbc.update("""
+                INSERT INTO base_card_bin_range
+                    (id, deleted, status, card_bin_start, card_bin_end, bin_length,
+                     card_brand, update_time)
+                VALUES (7, 7, 1, 41111234000, 41111234999, 8, 'DELETED',
+                        CURRENT_TIMESTAMP(3))
+                """);
         Configuration configuration = new Configuration(
                 new Environment("test", new JdbcTransactionFactory(), dataSource));
         configuration.addMapper(CardBinLookupMapper.class);
@@ -96,14 +109,13 @@ class CardBinLookupMapperSqlTest {
 
         try (SqlSession session = factory.openSession()) {
             CardBinLookupMapper mapper = session.getMapper(CardBinLookupMapper.class);
-            CardBinRangeDO crossRange = mapper.selectBestMatch(41111200000L, 6);
-            CardBinRangeDO precise = mapper.selectBestMatch(41111234000L, 8);
+            CardBinRangeDO crossRange = mapper.selectBestMatch(41111200000L);
+            CardBinRangeDO latest = mapper.selectBestMatch(41111234000L);
 
             assertThat(crossRange.getCardBrand()).isEqualTo("VISA");
-            assertThat(precise.getCardBrand()).isEqualTo("MASTERCARD");
-            assertThat(mapper.selectBestMatch(41111400000L, 6)).isNull();
-            assertThat(mapper.selectNextEffectiveTime(41111234000L, 8))
-                    .isAfter(LocalDateTime.now());
+            assertThat(latest.getCardBrand()).isEqualTo("LARGER_ID");
+            assertThat(latest.getId()).isEqualTo(5L);
+            assertThat(mapper.selectBestMatch(41111400000L)).isNull();
         }
     }
 
@@ -143,7 +155,7 @@ class CardBinLookupMapperSqlTest {
 
         try (SqlSession session = new SqlSessionFactoryBuilder().build(configuration).openSession()) {
             assertThat(session.getMapper(CardBinLookupMapper.class)
-                    .selectBestMatch(51234500000L, 6).getCardBrand()).isEqualTo("NEW_ID");
+                    .selectBestMatch(51234500000L).getCardBrand()).isEqualTo("NEW_ID");
         }
     }
 }

@@ -2,7 +2,6 @@ package com.scott.payment.component.db.reference.service;
 
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
-import com.scott.payment.component.db.reference.model.CardBinLookupSnapshot;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
 import com.scott.payment.component.db.reference.model.IpLookupSnapshot;
 
@@ -12,7 +11,7 @@ import com.scott.payment.component.db.reference.model.IpLookupSnapshot;
  * @classname : ReferenceDataLookupService
  * @date : 2026-08-11 15:35
  * @email : scott_x@163.com
- * @description : IP 与卡 BIN 基础数据的公共只读检索契约，统一隔离分片、区间和生效状态等数据库细节
+ * @description : IP 与卡 BIN 基础数据的公共只读检索契约，统一隔离分片、十一位区间和数据源路由等数据库细节
  * @status : create
  */
 public interface ReferenceDataLookupService {
@@ -36,21 +35,16 @@ public interface ReferenceDataLookupService {
     IpLookupSnapshot lookupIpSnapshot(String ipAddress);
 
     /**
-     * 查询 6 至 11 位纯数字卡 BIN 的当前有效归属信息。
+     * 查询 6 至 11 位纯数字卡 BIN 的启用归属信息。
      *
-     * @param cardBin 6 至 11 位纯数字 BIN，不接受完整卡号
-     * @return 命中或未命中的稳定查询结果
-     * @throws IllegalArgumentException BIN 格式不合法时抛出
-     * @throws ServiceException 数据库返回的命中精度违反对外查询约束时抛出
-     */
-    CardBinLookupResult lookupCardBin(String cardBin);
-
-    /**
-     * 查询卡 BIN 并取得会影响缓存有效性的生效、失效时间边界。
+     * <p>输入不足 11 位时右补零；数据库按十一位数值区间匹配，多条记录覆盖同一数值时
+     * 返回主键最大的增量记录。</p>
      *
      * @param cardBin 6 至 11 位纯数字 BIN
-     * @return 当前结果；仅正向命中提供影响缓存有效性的时间边界，未命中不缓存
+     * @return 命中或未命中的十一位查询结果
+     * @throws IllegalArgumentException BIN 格式不合法时抛出
+     * @throws ServiceException 数据库返回的记录违反区间数据约束时抛出
      */
-    CardBinLookupSnapshot lookupCardBinSnapshot(String cardBin);
+    CardBinLookupResult lookupCardBin(String cardBin);
 
 }
