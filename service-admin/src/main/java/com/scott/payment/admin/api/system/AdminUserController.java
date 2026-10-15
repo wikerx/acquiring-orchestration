@@ -22,6 +22,7 @@ import com.scott.payment.component.web.operation.constant.OperationTypeConstants
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -192,6 +193,19 @@ public class AdminUserController {
             operation = "查询后台用户角色授权")
     public CommonResult<SysUserRoleAuthDTO> userRoles(@Valid @RequestBody SysUserRoleGrantRequest request) {
         return success(adminUserApplicationService.userRoles(request.getAccountId()));
+    }
+
+    /**
+     * 查询新增用户表单可选择的角色。
+     *
+     * @return 当前操作人可见且标记可授权范围的角色选项
+     */
+    @GetMapping("/roles/options")
+    @RequiresPermission("system:user:assign-role")
+    @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.QUERY,
+            operation = "查询新增后台用户角色选项")
+    public CommonResult<SysUserRoleAuthDTO> userRoleOptions() {
+        return success(adminUserApplicationService.userRoleOptions());
     }
 
     /**

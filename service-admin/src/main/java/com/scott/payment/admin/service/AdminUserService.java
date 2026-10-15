@@ -102,6 +102,13 @@ public interface AdminUserService {
     SysUserRoleAuthDTO userRoles(Long accountId);
 
     /**
+     * 查询新增用户时可选择的后台角色。
+     *
+     * @return 角色授权选项
+     */
+    SysUserRoleAuthDTO userRoleOptions();
+
+    /**
      * 保存后台用户角色授权。
      *
      * @param request 角色授权请求

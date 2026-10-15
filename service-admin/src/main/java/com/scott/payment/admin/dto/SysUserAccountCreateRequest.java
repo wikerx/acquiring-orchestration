@@ -51,6 +51,11 @@ public class SysUserAccountCreateRequest implements Serializable {
     private List<Long> postIds;
 
     /**
+     * 创建时需要绑定的角色ID集合；不传表示不执行角色授权，空集合表示明确不绑定角色。
+     */
+    private List<Long> roleIds;
+
+    /**
      * 手机号，允许为空。
      */
     @Size(max = 30, message = "手机号长度不能超过30位")
