@@ -7,18 +7,19 @@ import com.scott.payment.admin.dto.auth.AdminEmailVerificationDTOs.EmailVerifica
 import com.scott.payment.admin.dto.auth.AdminEmailVerificationDTOs.EmailVerificationVerifyResponse;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendRequest;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendResult;
-import com.scott.payment.admin.entity.SysEmailVerificationRequestDO;
-import com.scott.payment.admin.mapper.SysEmailVerificationRequestMapper;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.admin.service.AdminEmailService;
 import com.scott.payment.admin.service.AdminEmailVerificationService;
+import com.scott.payment.component.core.auth.LoginTokenUtils;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
+import com.scott.payment.component.db.auth.entity.SysEmailVerificationRequestDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
+import com.scott.payment.component.db.auth.mapper.SysEmailVerificationRequestMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
@@ -196,6 +197,22 @@ class AdminEmailVerificationServiceImplTest {
     }
 
     @Test
+    void shouldNotExpireVerifiedActivationWhenEmailStageIsReplayed() {
+        SysEmailVerificationRequestDO row = pendingRequest("aB3xY7");
+        row.setState("VERIFIED");
+        row.setActionTokenHash(LoginTokenUtils.hashToken("valid-action-token"));
+        row.setActionTokenExpireAt(LocalDateTime.now().plusMinutes(5));
+        when(requestMapper.selectByRequestNoForUpdate("request-1")).thenReturn(row);
+
+        assertThatThrownBy(() -> service.verify(verifyRequest("wrong-code"), "127.0.0.1"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("Verification failed or expired.");
+
+        assertThat(row.getState()).isEqualTo("VERIFIED");
+        assertThat(row.getActionTokenHash()).isEqualTo(LoginTokenUtils.hashToken("valid-action-token"));
+    }
+
+    @Test
     void shouldExpireCodeAfterThirtyMinutes() {
         SysEmailVerificationRequestDO row = pendingRequest("aB3xY7");
         row.setExpireAt(LocalDateTime.now().minusSeconds(1));
@@ -251,6 +268,31 @@ class AdminEmailVerificationServiceImplTest {
                 .isInstanceOf(ServiceException.class)
                 .hasMessage("Verification failed or expired.");
         verify(sessionMapper, times(1)).logoutAllActive(any(), any(), any(LocalDateTime.class));
+    }
+
+    @Test
+    void shouldKeepActivationRequestUsableAfterWrongActionToken() {
+        SysEmailVerificationRequestDO row = pendingRequest("aB3xY7");
+        when(requestMapper.selectByRequestNoForUpdate("request-1")).thenReturn(row);
+        EmailVerificationVerifyResponse verified = service.verify(verifyRequest("aB3xY7"), "127.0.0.1");
+
+        AccountActivationCompleteRequest wrong = new AccountActivationCompleteRequest();
+        wrong.setRequestId("request-1");
+        wrong.setActionToken("wrong-token");
+        wrong.setNewPassword("NewAdminAccess@456");
+        assertThatThrownBy(() -> service.completeActivation(wrong, "127.0.0.1"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("Verification failed or expired.");
+        assertThat(row.getState()).isEqualTo("VERIFIED");
+
+        AccountActivationCompleteRequest correct = new AccountActivationCompleteRequest();
+        correct.setRequestId("request-1");
+        correct.setActionToken(verified.getActionToken());
+        correct.setNewPassword("NewAdminAccess@456");
+        service.completeActivation(correct, "127.0.0.1");
+
+        assertThat(row.getState()).isEqualTo("COMPLETED");
+        assertThat(account.getActivationStatus()).isEqualTo(AuthConstants.ACTIVATION_STATUS_ACTIVE);
     }
 
     @Test

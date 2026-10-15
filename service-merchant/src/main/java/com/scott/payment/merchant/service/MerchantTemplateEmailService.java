@@ -19,7 +19,29 @@ public interface MerchantTemplateEmailService {
      *
      * @param request 邮件发送请求
      */
-    void sendByTemplate(MerchantEmailSendCommand request);
+    MerchantEmailSendResult sendByTemplate(MerchantEmailSendCommand request);
+
+    /**
+     * 完整准备并持久化一封抑制投递的模板邮件。
+     * <p>
+     * 用于匿名安全流程的虚拟请求：模板选择、发件账户选择、渲染、加密、发送记录和
+     * Outbox 写入均与真实请求保持一致，但记录直接进入 CANCELLED 终态且没有收件人，
+     * 消费者不得执行 SMTP 投递。
+     * </p>
+     *
+     * @param request 邮件准备请求
+     * @return 终态邮件记录
+     */
+    MerchantEmailSendResult prepareSuppressedByTemplate(MerchantEmailSendCommand request);
+
+    /**
+     * 邮件准备结果。状态为 CLOSED 或 CANCELLED 时，调用方必须按准备失败处理。
+     *
+     * @param recordId  邮件发送记录主键
+     * @param sendStatus 邮件可靠投递状态
+     */
+    record MerchantEmailSendResult(Long recordId, Integer sendStatus) {
+    }
 
     /**
      * 商户模板邮件发送命令。

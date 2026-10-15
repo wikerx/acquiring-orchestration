@@ -30,6 +30,8 @@ import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleQueryRequest
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.StatusRequest;
 import com.scott.payment.merchant.service.MerchantSystemService;
+import com.scott.payment.merchant.application.auth.MerchantClientIpResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,6 +41,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -283,8 +286,30 @@ public class MerchantSystemController {
     @RequiresPermission("merchant:system:account:resetPassword")
     @OperationLog(moduleName = "商户员工管理", businessType = OperationTypeConstants.UPDATE, operation = "重置商户员工密码")
     public CommonResult<Void> resetAccountPassword(@PathVariable("id") Long id,
-                                                   @Valid @RequestBody AccountResetPasswordRequest request) {
-        merchantSystemService.resetAccountPassword(id, request);
+                                                   @Valid @RequestBody AccountResetPasswordRequest request,
+                                                   HttpServletRequest servletRequest) {
+        merchantSystemService.resetAccountPassword(id, request,
+                MerchantClientIpResolver.resolve(servletRequest), servletRequest.getHeader("User-Agent"));
+        return success();
+    }
+
+    /**
+     * 重发员工账号激活或邮箱验证邮件；目标账号必须属于当前商户。
+     *
+     * @param id             员工账号 ID
+     * @param locale         邮件语言
+     * @param servletRequest 当前 HTTP 请求
+     * @return 空结果
+     */
+    @PostMapping("/accounts/{id}/email-verification/send")
+    @RequiresPermission("merchant:system:account:emailVerify")
+    @OperationLog(moduleName = "商户员工管理", businessType = OperationTypeConstants.UPDATE,
+            operation = "发送员工邮箱验证邮件")
+    public CommonResult<Void> sendAccountEmailVerification(@PathVariable("id") Long id,
+                                                            @RequestParam(value = "locale", required = false) String locale,
+                                                            HttpServletRequest servletRequest) {
+        merchantSystemService.sendAccountEmailVerification(id, locale,
+                MerchantClientIpResolver.resolve(servletRequest), servletRequest.getHeader("User-Agent"));
         return success();
     }
 

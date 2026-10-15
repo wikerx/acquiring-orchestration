@@ -2,13 +2,14 @@ package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.constant.SystemConfigKeys;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendRequest;
+import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendResult;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.admin.service.AdminEmailService;
-import com.scott.payment.component.core.auth.PasswordHashUtils;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.entity.SysAccountMfaDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
+import com.scott.payment.component.db.auth.entity.SysEmailVerificationRequestDO;
 import com.scott.payment.component.db.auth.entity.SysMenuDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantUserDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantUserRoleDO;
@@ -22,6 +23,7 @@ import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMfaMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
+import com.scott.payment.component.db.auth.mapper.SysEmailVerificationRequestMapper;
 import com.scott.payment.component.db.auth.mapper.SysMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantUserRoleMapper;
@@ -32,6 +34,7 @@ import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
+import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -39,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -51,13 +55,13 @@ import static org.mockito.Mockito.when;
  * @classname : AdminMerchantPrimaryAccountProvisioningServiceTests
  * @date : 2026-09-02 08:03
  * @email : scott_x@163.com
- * @description : 验证管理端新增商户时创建可登录的主账号并发送开户通知。
+ * @description : 验证管理端新增商户时创建待激活主账号并发送一次性邮箱激活通知。
  * @status : create
  */
 class AdminMerchantPrimaryAccountProvisioningServiceTests {
 
     @Test
-    void shouldProvisionMerchantAdministratorAndSendAccountCreatedNotice() {
+    void shouldProvisionPendingMerchantAdministratorAndSendActivationNotice() {
         SysAppMapper appMapper = mock(SysAppMapper.class);
         SysUserMapper userMapper = mock(SysUserMapper.class);
         SysAccountMapper accountMapper = mock(SysAccountMapper.class);
@@ -71,6 +75,7 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
         SysMerchantUserRoleMapper merchantUserRoleMapper = mock(SysMerchantUserRoleMapper.class);
         SysMerchantMenuGrantMapper merchantMenuGrantMapper = mock(SysMerchantMenuGrantMapper.class);
         SysMerchantPermissionGrantMapper merchantPermissionGrantMapper = mock(SysMerchantPermissionGrantMapper.class);
+        SysEmailVerificationRequestMapper verificationRequestMapper = mock(SysEmailVerificationRequestMapper.class);
         AdminEmailService emailService = mock(AdminEmailService.class);
         AdminConfigService configService = mock(AdminConfigService.class);
 
@@ -84,6 +89,10 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
         when(permissionMapper.selectList(any())).thenReturn(List.of(permission(21L)));
         when(configService.enabledConfigValues(any()))
                 .thenReturn(Map.of(SystemConfigKeys.MERCHANT_FRONTEND_BASE_URL, "https://merchant.vexra.example"));
+        EmailSendResult pendingEmail = new EmailSendResult();
+        pendingEmail.setRecordId(201L);
+        pendingEmail.setSendStatus(EmailDeliveryStatus.PENDING.getCode());
+        when(emailService.sendByTemplate(any())).thenReturn(pendingEmail);
         assignId(userMapper, roleMapper, accountMapper, merchantUserMapper);
 
         AdminMerchantPrimaryAccountProvisioningService service =
@@ -92,7 +101,7 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
                         menuMapper, permissionMapper, roleMenuMapper, rolePermissionMapper,
                         merchantUserMapper, merchantUserRoleMapper,
                         merchantMenuGrantMapper, merchantPermissionGrantMapper,
-                        emailService, configService
+                        verificationRequestMapper, emailService, configService
                 );
 
         service.provision(merchant());
@@ -109,8 +118,15 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
         ArgumentCaptor<SysAccountDO> accountCaptor = ArgumentCaptor.forClass(SysAccountDO.class);
         verify(accountMapper).insert(accountCaptor.capture());
         SysAccountDO account = accountCaptor.getValue();
-        assertThat(account.getLoginAccount()).isEqualTo("owner@example.com");
+        assertThat(account.getLoginAccount()).isEqualTo("owner@example.com_M10001");
         assertThat(account.getPasswordHash()).isNotBlank();
+        assertThat(account.getActivationStatus()).isEqualTo("PENDING_ACTIVATION");
+        assertThat(account.getActivatedAt()).isNull();
+        assertThat(account.getEmailVerifiedAt()).isNull();
+
+        ArgumentCaptor<SysMerchantUserDO> merchantUserCaptor = ArgumentCaptor.forClass(SysMerchantUserDO.class);
+        verify(merchantUserMapper).insert(merchantUserCaptor.capture());
+        assertThat(merchantUserCaptor.getValue().getLoginAccount()).isEqualTo("owner@example.com");
 
         ArgumentCaptor<SysAccountMfaDO> mfaCaptor = ArgumentCaptor.forClass(SysAccountMfaDO.class);
         verify(mfaMapper).insert(mfaCaptor.capture());
@@ -121,16 +137,34 @@ class AdminMerchantPrimaryAccountProvisioningServiceTests {
         verify(merchantUserRoleMapper).insert(relationCaptor.capture());
         assertThat(relationCaptor.getValue().getRoleId()).isEqualTo(roleCaptor.getValue().getId());
 
+        ArgumentCaptor<SysEmailVerificationRequestDO> requestCaptor =
+                ArgumentCaptor.forClass(SysEmailVerificationRequestDO.class);
+        verify(verificationRequestMapper).insert(requestCaptor.capture());
+        SysEmailVerificationRequestDO verificationRequest = requestCaptor.getValue();
+        assertThat(verificationRequest.getMerchantId()).isEqualTo("M10001");
+        assertThat(verificationRequest.getAccountId()).isEqualTo(account.getId());
+        assertThat(verificationRequest.getPurpose()).isEqualTo("ACCOUNT_ACTIVATION");
+        assertThat(verificationRequest.getState()).isEqualTo("PENDING");
+        assertThat(verificationRequest.getExpireAt()).isAfter(verificationRequest.getCreatedAt().plusMinutes(29));
+
         ArgumentCaptor<EmailSendRequest> emailCaptor = ArgumentCaptor.forClass(EmailSendRequest.class);
         verify(emailService).sendByTemplate(emailCaptor.capture());
         EmailSendRequest email = emailCaptor.getValue();
-        assertThat(email.getTemplateCode()).isEqualTo("MERCHANT_ACCOUNT_CREATED");
+        assertThat(email.getTemplateCode()).isEqualTo("MERCHANT_ACCOUNT_ACTIVATION");
         assertThat(email.getToEmails()).containsExactly("owner@example.com");
         assertThat(email.getVariables()).containsEntry("merchantId", "M10001");
-        assertThat(email.getVariables()).containsEntry("loginUrl", "https://merchant.vexra.example/login");
-        String initialPassword = String.valueOf(email.getVariables().get("initialPassword"));
-        assertThat(initialPassword).hasSizeBetween(16, 64);
-        assertThat(PasswordHashUtils.matches(initialPassword, account.getPasswordSalt(), account.getPasswordHash())).isTrue();
+        assertThat(email.getVariables()).containsEntry("loginAccount", "owner@example.com");
+        assertThat(email.getVariables()).containsEntry("expireMinutes", 30);
+        assertThat(email.getVariables()).doesNotContainKeys("initialPassword", "temporaryPassword");
+        assertThat(String.valueOf(email.getVariables().get("verificationUrl")))
+                .startsWith("https://merchant.vexra.example/account-verification?requestId=");
+
+        EmailSendResult failedEmail = new EmailSendResult();
+        failedEmail.setRecordId(202L);
+        failedEmail.setSendStatus(EmailDeliveryStatus.CLOSED.getCode());
+        when(emailService.sendByTemplate(any())).thenReturn(failedEmail);
+        assertThatThrownBy(() -> service.provision(merchant()))
+                .hasMessage("merchant account activation email could not be prepared");
     }
 
     private void assignId(SysUserMapper userMapper,

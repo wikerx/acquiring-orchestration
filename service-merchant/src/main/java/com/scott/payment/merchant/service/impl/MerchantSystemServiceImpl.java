@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.auth.LoginTokenUtils;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -82,6 +83,8 @@ import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RolePermissionAu
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleQueryRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleSaveRequest;
 import com.scott.payment.merchant.service.MerchantConfigService;
+import com.scott.payment.merchant.service.MerchantEmailVerificationService;
+import com.scott.payment.merchant.service.MerchantPasswordResetService;
 import com.scott.payment.merchant.service.MerchantSystemService;
 import com.scott.payment.merchant.service.MerchantTemplateEmailService;
 import com.scott.payment.merchant.service.MerchantTemplateEmailService.MerchantEmailSendCommand;
@@ -96,7 +99,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -212,23 +214,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      */
     private static final String TEMPLATE_MFA_EXEMPT_NOTICE = "MERCHANT_MFA_EXEMPT_NOTICE";
     /**
-     * 商户系统账号开户通知模板编码。
-     */
-    private static final String TEMPLATE_ACCOUNT_CREATED_NOTICE = "MERCHANT_ACCOUNT_CREATED";
-    /**
-     * 账号开户通知邮件场景编码。
-     */
-    private static final String ACCOUNT_CREATED_SCENE = "ACCOUNT_CREATED";
-    /** 商户管理员重置员工密码后的通知模板。 */
-    private static final String TEMPLATE_PASSWORD_CHANGED_NOTICE = "MERCHANT_PASSWORD_CHANGED_BY_ADMIN";
-    /** 密码被管理员修改通知场景。 */
-    private static final String PASSWORD_CHANGED_SCENE = "PASSWORD_CHANGED";
-    /** 邮件操作时间格式。 */
-    private static final DateTimeFormatter EMAIL_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    /**
      * 参数管理中维护的商户系统前端地址。
      */
     private static final String MERCHANT_FRONTEND_BASE_URL_KEY = "platform.merchant.frontend-base-url";
+    /** 商户账号正式邮箱尚未完成所有权验证。 */
+    private static final String EMAIL_VERIFICATION_PENDING = "PENDING";
+    /** 商户账号正式邮箱已经完成所有权验证。 */
+    private static final String EMAIL_VERIFICATION_VERIFIED = "VERIFIED";
 
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
     private final SysAppMapper sysAppMapper;
@@ -271,6 +263,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      * 商户系统只读参数服务，用于读取参数管理中的平台访问地址。
      */
     private final MerchantConfigService merchantConfigService;
+    /** 商户账号激活与邮箱验证服务。 */
+    private final MerchantEmailVerificationService merchantEmailVerificationService;
+    /** 商户员工安全重置流程服务。 */
+    private final MerchantPasswordResetService merchantPasswordResetService;
 
     public MerchantSystemServiceImpl(BaseMerchantInfoMapper baseMerchantInfoMapper,
                                      SysAppMapper sysAppMapper,
@@ -294,7 +290,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                                      SysMerchantUserMapper sysMerchantUserMapper,
                                      SysMerchantUserRoleMapper sysMerchantUserRoleMapper,
                                      MerchantTemplateEmailService merchantTemplateEmailService,
-                                     MerchantConfigService merchantConfigService) {
+                                     MerchantConfigService merchantConfigService,
+                                     MerchantEmailVerificationService merchantEmailVerificationService,
+                                     MerchantPasswordResetService merchantPasswordResetService) {
         this.baseMerchantInfoMapper = baseMerchantInfoMapper;
         this.sysAppMapper = sysAppMapper;
         this.sysUserMapper = sysUserMapper;
@@ -318,6 +316,8 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         this.sysMerchantUserRoleMapper = sysMerchantUserRoleMapper;
         this.merchantTemplateEmailService = merchantTemplateEmailService;
         this.merchantConfigService = merchantConfigService;
+        this.merchantEmailVerificationService = merchantEmailVerificationService;
+        this.merchantPasswordResetService = merchantPasswordResetService;
     }
 
     /**
@@ -623,7 +623,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     /**
      * 创建商户员工的用户、登录账号、默认 MFA 和组织授权关系。
      * <p>
-     * 密码只以随机盐哈希落库；创建通知在事务提交后发送，避免回滚记录对应无效账号。
+     * 账号先以不可对外使用的高熵占位密码落库并保持待激活，用户通过邮件验证后首次设密。
      * </p>
      *
      * @param request 账号及初始授权保存请求
@@ -650,19 +650,23 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         user.setDeleted(AuthConstants.NOT_DELETED);
         sysUserMapper.insert(user);
         String salt = PasswordHashUtils.generateSalt();
+        String placeholderPassword = LoginTokenUtils.generateToken();
         SysAccountDO account = new SysAccountDO();
         account.setAppId(app.getId());
         account.setUserId(user.getId());
         account.setMerchantId(merchantId);
         account.setLoginAccount(toAccountLoginName(merchantId, request.getLoginAccount()));
         account.setPasswordSalt(salt);
-        account.setPasswordHash(PasswordHashUtils.hashPassword(required(request.getPassword(), "password"), salt));
+        account.setPasswordHash(PasswordHashUtils.hashPassword(placeholderPassword, salt));
         account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
         account.setMobile(user.getMobile());
         account.setEmail(user.getEmail());
         account.setMfaEnabled(AuthConstants.DISABLED);
         account.setPasswordExpired(AuthConstants.DISABLED);
         account.setPasswordUpdatedAt(now);
+        account.setActivationStatus(AuthConstants.ACTIVATION_STATUS_PENDING);
+        account.setActivatedAt(null);
+        account.setEmailVerifiedAt(null);
         account.setFailedLoginCount(0);
         account.setLocked(AuthConstants.DISABLED);
         account.setStatus(user.getStatus());
@@ -677,7 +681,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         replaceAccountRoles(app.getId(), merchantId, merchantUser, request.getRoleIds());
         replaceAccountDepts(merchantId, account.getId(), request.getDeptIds());
         replaceAccountPosts(merchantId, account.getId(), request.getPostIds());
-        sendAccountCreatedNoticeAfterCommit(app, account, request.getPassword());
+        merchantEmailVerificationService.issue(account.getId(),
+                MerchantEmailVerificationService.PURPOSE_ACCOUNT_ACTIVATION,
+                request.getLocale(), "internal", null, false);
         return toAccountDTO(app.getId(), account);
     }
 
@@ -696,10 +702,15 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         String merchantId = currentMerchantId();
         SysAccountDO account = getAccount(app.getId(), merchantId, id);
         SysMerchantUserDO merchantUser = getMerchantUser(merchantId, account.getId());
-        updateAccountBaseFields(app.getId(), merchantId, account, request);
+        boolean emailChanged = updateAccountBaseFields(app.getId(), merchantId, account, request);
         replaceAccountRoles(app.getId(), merchantId, merchantUser, request.getRoleIds());
         replaceAccountDepts(merchantId, account.getId(), request.getDeptIds());
         replaceAccountPosts(merchantId, account.getId(), request.getPostIds());
+        if (emailChanged) {
+            merchantEmailVerificationService.issue(account.getId(),
+                    MerchantEmailVerificationService.PURPOSE_EMAIL_CHANGE,
+                    request.getLocale(), "internal", null, false);
+        }
         return toAccountDTO(app.getId(), account);
     }
 
@@ -718,13 +729,18 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         String merchantId = currentMerchantId();
         SysAccountDO account = getAccount(app.getId(), merchantId, id);
         SysMerchantUserDO merchantUser = getMerchantUser(merchantId, account.getId());
-        updateAccountBaseFields(app.getId(), merchantId, account, request);
+        boolean emailChanged = updateAccountBaseFields(app.getId(), merchantId, account, request);
         merchantUser.setLoginAccount(required(request.getLoginAccount(), "loginAccount"));
         merchantUser.setRealName(required(request.getRealName(), "realName"));
         merchantUser.setStatus(validStatus(request.getStatus()));
         merchantUser.setUpdatedAt(LocalDateTime.now());
         merchantUser.setUpdatedBy(currentAccountId());
         sysMerchantUserMapper.updateById(merchantUser);
+        if (emailChanged) {
+            merchantEmailVerificationService.issue(account.getId(),
+                    MerchantEmailVerificationService.PURPOSE_EMAIL_CHANGE,
+                    null, "internal", null, false);
+        }
         return toAccountDTO(app.getId(), account);
     }
 
@@ -756,42 +772,37 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysMerchantUserMapper.updateById(merchantUser);
     }
 
-    /**
-     * 重置商户员工密码，并注销该员工当前有效会话。
-     * <p>
-     * 新密码使用新盐重新哈希；不允许通过管理入口重置当前登录账号，以免误锁定当前会话。
-     * </p>
-     *
-     * @param id      员工账号主键
-     * @param request 新密码请求
-     */
+    /** 商户管理员只发起一次性重置邮件，不接收、不生成也不修改明文临时密码。 */
     @Override
-    @DS(DataSourceName.MASTER)
-    @Transactional(rollbackFor = Exception.class)
-    public void resetAccountPassword(Long id, AccountResetPasswordRequest request) {
+    public void resetAccountPassword(Long id, AccountResetPasswordRequest request,
+                                     String clientIp, String userAgent) {
         SysAppDO app = merchantApp();
         String merchantId = currentMerchantId();
         if (Objects.equals(id, currentAccountId())) {
             throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "不能重置当前登录账号密码，请在个人中心修改密码");
         }
         SysAccountDO account = getAccount(app.getId(), merchantId, id);
-        LocalDateTime now = LocalDateTime.now();
-        String temporaryPassword = required(request.getPassword(), "password");
-        String salt = PasswordHashUtils.generateSalt();
-        account.setPasswordSalt(salt);
-        account.setPasswordHash(PasswordHashUtils.hashPassword(temporaryPassword, salt));
-        account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
-        account.setPasswordExpired(AuthConstants.DISABLED);
-        account.setPasswordUpdatedAt(now);
-        account.setFailedLoginCount(0);
-        account.setLocked(AuthConstants.DISABLED);
-        account.setLockedAt(null);
-        account.setLockedReason(null);
-        account.setUpdatedAt(now);
-        account.setUpdatedBy(currentAccountId());
-        sysAccountMapper.updateById(account);
-        logoutSessions(app.getId(), account.getId(), now);
-        sendPasswordChangedNoticeAfterCommit(app, account, temporaryPassword, now);
+        merchantPasswordResetService.requestResetForAccount(account.getId(),
+                request == null ? null : request.getLocale(), clientIp, userAgent);
+    }
+
+    /** 为当前商户员工签发新的激活或邮箱验证请求，并对账号和客户端 IP 单独限流。 */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void sendAccountEmailVerification(Long id, String locale, String clientIp, String userAgent) {
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        SysAccountDO account = getAccount(app.getId(), merchantId, id);
+        String purpose;
+        if (AuthConstants.ACTIVATION_STATUS_PENDING.equals(account.getActivationStatus())) {
+            purpose = MerchantEmailVerificationService.PURPOSE_ACCOUNT_ACTIVATION;
+        } else if (StringUtils.hasText(account.getPendingEmail())) {
+            purpose = MerchantEmailVerificationService.PURPOSE_EMAIL_CHANGE;
+        } else {
+            purpose = MerchantEmailVerificationService.PURPOSE_EMAIL_VERIFICATION;
+        }
+        merchantEmailVerificationService.issue(account.getId(), purpose, locale, clientIp, userAgent, true);
     }
 
     /**
@@ -1540,24 +1551,34 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         post.setRemark(normalize(request.getRemark()));
     }
 
-    private void updateAccountBaseFields(Long appId, String merchantId, SysAccountDO account, AccountBaseSaveRequest request) {
+    private boolean updateAccountBaseFields(Long appId, String merchantId, SysAccountDO account, AccountBaseSaveRequest request) {
         SysMerchantUserDO merchantUser = getMerchantUser(merchantId, account.getId());
         assertAccountAvailable(merchantId, request.getLoginAccount(), merchantUser.getId());
         SysUserDO user = sysUserMapper.selectById(account.getUserId());
+        String requestedEmail = required(request.getEmail(), "email");
+        boolean emailChanged = !Objects.equals(account.getEmail(), requestedEmail);
         user.setRealName(required(request.getRealName(), "realName"));
         user.setMobile(normalize(request.getMobile()));
-        user.setEmail(required(request.getEmail(), "email"));
+        if (!emailChanged) {
+            user.setEmail(requestedEmail);
+        }
         user.setStatus(validStatus(request.getStatus()));
         user.setUpdatedAt(LocalDateTime.now());
         user.setUpdatedBy(currentAccountId());
         sysUserMapper.updateById(user);
         account.setLoginAccount(toAccountLoginName(merchantId, request.getLoginAccount()));
         account.setMobile(user.getMobile());
-        account.setEmail(user.getEmail());
+        if (emailChanged) {
+            account.setPendingEmail(requestedEmail);
+        } else {
+            // Saving the current trusted address cancels a previously staged email change.
+            account.setPendingEmail(null);
+        }
         account.setStatus(user.getStatus());
         account.setUpdatedAt(LocalDateTime.now());
         account.setUpdatedBy(currentAccountId());
         sysAccountMapper.updateById(account);
+        return emailChanged;
     }
 
     private SysMerchantUserDO createMerchantUser(String merchantId, String loginAccount, SysUserDO user, SysAccountDO account, LocalDateTime now) {
@@ -1760,151 +1781,6 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                     exception.getClass().getSimpleName(),
                     mfa.getMfaPolicy(), mfa.getMfaStatus(), currentOperator(), null);
         }
-    }
-
-    /**
-     * 事务提交后发送商户系统账号开户通知，避免账号创建失败时误发邮件。
-     *
-     * @param app             商户系统应用
-     * @param account         登录账号
-     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
-     */
-    private void sendAccountCreatedNoticeAfterCommit(SysAppDO app, SysAccountDO account, String initialPassword) {
-        Runnable task = () -> sendAccountCreatedNotice(app, account, initialPassword);
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            task.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                task.run();
-            }
-        });
-    }
-
-    /**
-     * 发送商户系统账号开户通知。发送失败仅记录告警，不影响员工创建结果。
-     *
-     * @param app             商户系统应用
-     * @param account         登录账号
-     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
-     */
-    private void sendAccountCreatedNotice(SysAppDO app, SysAccountDO account, String initialPassword) {
-        if (!StringUtils.hasText(account.getEmail())) {
-            return;
-        }
-        try {
-            merchantTemplateEmailService.sendByTemplate(new MerchantEmailSendCommand(
-                    app.getAppCode(),
-                    account.getMerchantId(),
-                    account.getMerchantId(),
-                    merchantName(account.getMerchantId()),
-                    TEMPLATE_ACCOUNT_CREATED_NOTICE,
-                    ACCOUNT_CREATED_SCENE,
-                    merchantLocale(account.getMerchantId()),
-                    List.of(account.getEmail()),
-                    accountCreatedEmailVariables(account, initialPassword),
-                    ACCOUNT_CREATED_SCENE,
-                    String.valueOf(account.getId())
-            ));
-        } catch (RuntimeException exception) {
-            log.warn("merchant account created notice send failed, accountId: {}, exceptionType: {}",
-                    account.getId(), exception.getClass().getSimpleName());
-        }
-    }
-
-    /**
-     * 构建商户系统开户通知模板变量。
-     *
-     * @param account         登录账号
-     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
-     * @return 邮件模板变量
-     */
-    private Map<String, Object> accountCreatedEmailVariables(SysAccountDO account, String initialPassword) {
-        Map<String, Object> variables = new LinkedHashMap<>();
-        String merchantSystemBaseUrl = merchantSystemBaseUrl();
-        variables.put("systemName", "商户系统");
-        variables.put("userName", displayLoginAccount(account));
-        variables.put("merchantId", account.getMerchantId());
-        variables.put("merchantName", merchantName(account.getMerchantId()));
-        variables.put("loginAccount", displayLoginAccount(account));
-        variables.put("initialPassword", initialPassword);
-        variables.put("loginUrl", merchantLoginUrl(merchantSystemBaseUrl));
-        variables.put("merchantSystemBaseUrl", merchantSystemBaseUrl);
-        variables.put("mfaGuide", "首次登录时请按页面提示完成多因素认证（MFA）绑定。绑定二维码和手动密钥只会在登录页身份校验通过后展示，邮件不会包含 MFA 密钥。");
-        variables.put("verifyCodeGuide", "登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。");
-        return variables;
-    }
-
-    /** 事务提交后发送商户管理员重置员工密码通知。 */
-    private void sendPasswordChangedNoticeAfterCommit(SysAppDO app,
-                                                      SysAccountDO account,
-                                                      String temporaryPassword,
-                                                      LocalDateTime operationTime) {
-        Runnable task = () -> sendPasswordChangedNotice(app, account, temporaryPassword, operationTime);
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            task.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                task.run();
-            }
-        });
-    }
-
-    /** 发送商户员工密码被管理员修改通知，发送失败不影响密码更新。 */
-    private void sendPasswordChangedNotice(SysAppDO app,
-                                           SysAccountDO account,
-                                           String temporaryPassword,
-                                           LocalDateTime operationTime) {
-        if (!StringUtils.hasText(account.getEmail())) {
-            return;
-        }
-        try {
-            String baseUrl = merchantSystemBaseUrl();
-            merchantTemplateEmailService.sendByTemplate(new MerchantEmailSendCommand(
-                    app.getAppCode(),
-                    account.getMerchantId(),
-                    account.getMerchantId(),
-                    merchantName(account.getMerchantId()),
-                    TEMPLATE_PASSWORD_CHANGED_NOTICE,
-                    PASSWORD_CHANGED_SCENE,
-                    merchantLocale(account.getMerchantId()),
-                    List.of(account.getEmail()),
-                    passwordChangedEmailVariables(account, temporaryPassword, operationTime, baseUrl),
-                    PASSWORD_CHANGED_SCENE,
-                    String.valueOf(account.getId())
-            ));
-        } catch (RuntimeException exception) {
-            log.warn("merchant password changed notice send failed, accountId: {}, exceptionType: {}",
-                    account.getId(), exception.getClass().getSimpleName());
-        }
-    }
-
-    /** 构建商户员工密码被管理员修改通知变量。 */
-    private Map<String, Object> passwordChangedEmailVariables(SysAccountDO account,
-                                                              String temporaryPassword,
-                                                              LocalDateTime operationTime,
-                                                              String baseUrl) {
-        Map<String, Object> variables = new LinkedHashMap<>();
-        InternalAuthAccount operator = currentOperator();
-        variables.put("systemName", "Vexra Merchant");
-        variables.put("userName", displayLoginAccount(account));
-        variables.put("merchantId", account.getMerchantId());
-        variables.put("merchantName", merchantName(account.getMerchantId()));
-        variables.put("loginAccount", displayLoginAccount(account));
-        variables.put("temporaryPassword", temporaryPassword);
-        variables.put("operatorName", operator != null && StringUtils.hasText(operator.getRealName())
-                ? operator.getRealName()
-                : operator != null && StringUtils.hasText(operator.getLoginAccount())
-                ? operator.getLoginAccount()
-                : "Merchant Administrator");
-        variables.put("operationTime", EMAIL_TIME_FORMATTER.format(operationTime));
-        variables.put("loginUrl", merchantLoginUrl(baseUrl));
-        return variables;
     }
 
     private Map<String, Object> mfaEmailVariables(SysAccountDO account, String reason, LocalDateTime exemptUntil) {
@@ -2333,6 +2209,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         dto.setRealName(StringUtils.hasText(merchantUser.getRealName()) ? merchantUser.getRealName() : user == null ? null : user.getRealName());
         dto.setMobile(account.getMobile());
         dto.setEmail(account.getEmail());
+        dto.setPendingEmail(account.getPendingEmail());
+        dto.setActivationStatus(account.getActivationStatus());
+        dto.setActivatedAt(account.getActivatedAt());
+        dto.setEmailVerifiedAt(account.getEmailVerifiedAt());
+        dto.setEmailVerificationStatus(account.getEmailVerifiedAt() == null
+                ? EMAIL_VERIFICATION_PENDING : EMAIL_VERIFICATION_VERIFIED);
         dto.setStatus(merchantUser.getStatus());
         dto.setLocked(account.getLocked());
         dto.setLastLoginAt(account.getLastLoginAt());

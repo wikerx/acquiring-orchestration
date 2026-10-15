@@ -233,6 +233,7 @@ class SystemAuthServiceImplTest {
         SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
         SysUserDO user = adminUser();
         SysAccountDO account = adminAccount();
+        account.setPendingEmail("stale@example.com");
         AuthProfileUpdateRequest request = new AuthProfileUpdateRequest();
         request.setNickname("Scott Admin");
         request.setMobile("18777777777");
@@ -254,6 +255,7 @@ class SystemAuthServiceImplTest {
         assertThat(user.getUpdatedBy()).isEqualTo(10L);
         assertThat(account.getMobile()).isEqualTo("18777777777");
         assertThat(account.getEmail()).isEqualTo("account@example.com");
+        assertThat(account.getPendingEmail()).isNull();
         verify(sysUserMapper).updateById(user);
         verify(sysAccountMapper).updateById(account);
     }

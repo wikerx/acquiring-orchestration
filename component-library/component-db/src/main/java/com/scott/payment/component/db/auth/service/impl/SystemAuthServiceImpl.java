@@ -467,8 +467,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_FAILED, "account disabled or not found");
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account disabled or not found");
         }
-        if (AuthConstants.APP_ADMIN.equals(appCode)
-                && AuthConstants.ACTIVATION_STATUS_PENDING.equals(account.getActivationStatus())) {
+        if (AuthConstants.ACTIVATION_STATUS_PENDING.equals(account.getActivationStatus())) {
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent,
                     LOGIN_FAILED, "account pending activation");
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account or password is invalid");
@@ -667,13 +666,13 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         String email = requiredText(request.getEmail(), "email");
         boolean emailChanged = !Objects.equals(account.getEmail(), email);
 
-        if (emailChanged && AuthConstants.APP_ADMIN.equals(app.getAppCode())) {
+        if (emailChanged && requiresVerifiedEmailChange(app.getAppCode())) {
             verifyProfileEmailChangeMfa(app, account, request.getMfaCode());
         }
 
         user.setNickname(nickname);
         user.setMobile(mobile);
-        if (!emailChanged || !AuthConstants.APP_ADMIN.equals(app.getAppCode())) {
+        if (!emailChanged || !requiresVerifiedEmailChange(app.getAppCode())) {
             user.setEmail(email);
         }
         user.setUpdatedAt(now);
@@ -681,12 +680,14 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         sysUserMapper.updateById(user);
 
         account.setMobile(mobile);
-        if (emailChanged && AuthConstants.APP_ADMIN.equals(app.getAppCode())) {
+        if (emailChanged && requiresVerifiedEmailChange(app.getAppCode())) {
             account.setPendingEmail(email);
         } else {
             account.setEmail(email);
+            // Restoring the trusted address explicitly cancels any older, unverified email change.
+            account.setPendingEmail(null);
         }
-        if (emailChanged && !AuthConstants.APP_ADMIN.equals(app.getAppCode())) {
+        if (emailChanged && !requiresVerifiedEmailChange(app.getAppCode())) {
             account.setEmailVerifiedAt(null);
         }
         account.setUpdatedAt(now);
@@ -1370,6 +1371,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         sysAccountMfaMapper.updateById(mfa);
         recordMfaLog(app, account, mfa, "PROFILE_EMAIL_CHANGE", MFA_RESULT_SUCCESS,
                 null, null, null, null);
+    }
+
+    private boolean requiresVerifiedEmailChange(String appCode) {
+        return AuthConstants.APP_ADMIN.equals(appCode) || AuthConstants.APP_MERCHANT.equals(appCode);
     }
 
     /** 保存邮箱变更 MFA 失败计数和审计后抛出不会回滚这些安全状态的异常。 */

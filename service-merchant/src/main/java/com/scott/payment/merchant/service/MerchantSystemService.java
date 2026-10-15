@@ -208,7 +208,17 @@ public interface MerchantSystemService {
      * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
      * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      */
-    void resetAccountPassword(Long id, AccountResetPasswordRequest request);
+    void resetAccountPassword(Long id, AccountResetPasswordRequest request, String clientIp, String userAgent);
+
+    /**
+     * 为当前商户内指定员工重发账号激活或邮箱所有权验证邮件。
+     *
+     * @param id        员工账号主键
+     * @param locale    邮件语言，目前支持 zh-CN 和 en-US
+     * @param clientIp  可信客户端 IP，用于独立限流
+     * @param userAgent 客户端标识，仅截断后用于审计
+     */
+    void sendAccountEmailVerification(Long id, String locale, String clientIp, String userAgent);
 
     /**
      * 更新账号状态，保持业务状态、配置项或展示字段与请求意图一致。

@@ -9,8 +9,6 @@ import com.scott.payment.admin.dto.auth.AdminEmailVerificationDTOs.EmailVerifica
 import com.scott.payment.admin.dto.auth.AdminEmailVerificationDTOs.EmailVerificationVerifyResponse;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendRequest;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendResult;
-import com.scott.payment.admin.entity.SysEmailVerificationRequestDO;
-import com.scott.payment.admin.mapper.SysEmailVerificationRequestMapper;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.admin.service.AdminEmailService;
 import com.scott.payment.admin.service.AdminEmailVerificationService;
@@ -21,9 +19,11 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
+import com.scott.payment.component.db.auth.entity.SysEmailVerificationRequestDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
+import com.scott.payment.component.db.auth.mapper.SysEmailVerificationRequestMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
@@ -185,7 +185,10 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         enforceVerifyRateLimit(normalizeIp(clientIp));
         SysEmailVerificationRequestDO row = requireLockedRequest(request.getRequestId());
         LocalDateTime now = LocalDateTime.now();
-        if (!STATE_PENDING.equals(row.getState()) || expired(row.getExpireAt(), now)) {
+        if (!STATE_PENDING.equals(row.getState())) {
+            throw verificationFailed();
+        }
+        if (expired(row.getExpireAt(), now)) {
             markExpiredIfNecessary(row, now);
             throw verificationFailed();
         }
@@ -254,10 +257,14 @@ public class AdminEmailVerificationServiceImpl implements AdminEmailVerification
         SysEmailVerificationRequestDO row = requireLockedRequest(request.getRequestId());
         LocalDateTime now = LocalDateTime.now();
         if (!PURPOSE_ACCOUNT_ACTIVATION.equals(row.getPurpose())
-                || !STATE_VERIFIED.equals(row.getState())
-                || expired(row.getActionTokenExpireAt(), now)
-                || !tokenMatches(request.getActionToken(), row.getActionTokenHash())) {
+                || !STATE_VERIFIED.equals(row.getState())) {
+            throw verificationFailed();
+        }
+        if (expired(row.getActionTokenExpireAt(), now)) {
             markExpiredIfNecessary(row, now);
+            throw verificationFailed();
+        }
+        if (!tokenMatches(request.getActionToken(), row.getActionTokenHash())) {
             throw verificationFailed();
         }
         SysAccountDO account = accountMapper.selectByIdForUpdate(row.getAccountId());

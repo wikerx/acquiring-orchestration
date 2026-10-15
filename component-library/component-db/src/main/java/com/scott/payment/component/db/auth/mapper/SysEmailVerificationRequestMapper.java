@@ -1,7 +1,7 @@
-package com.scott.payment.admin.mapper;
+package com.scott.payment.component.db.auth.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.scott.payment.admin.entity.SysEmailVerificationRequestDO;
+import com.scott.payment.component.db.auth.entity.SysEmailVerificationRequestDO;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -11,7 +11,7 @@ import org.apache.ibatis.annotations.Select;
  * @classname : SysEmailVerificationRequestMapper
  * @date : 2026-10-15 00:00
  * @email : scott_x@163.com
- * @description : 账号邮箱验证请求数据访问接口；消费验证码和动作令牌时使用数据库行锁保证一次性状态流转。
+ * @description : 账号邮箱验证请求数据访问接口；消费验证码和动作令牌时使用行锁保证单次状态流转。
  * @status : create
  */
 public interface SysEmailVerificationRequestMapper extends BaseMapper<SysEmailVerificationRequestDO> {

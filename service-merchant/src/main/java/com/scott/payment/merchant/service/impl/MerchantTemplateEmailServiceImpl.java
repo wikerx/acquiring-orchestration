@@ -18,11 +18,13 @@ import com.scott.payment.merchant.entity.email.MerchantEmailEntities.MerchantEma
 import com.scott.payment.merchant.mapper.MerchantEmailAccountMapper;
 import com.scott.payment.merchant.mapper.MerchantEmailSendRecordMapper;
 import com.scott.payment.merchant.service.MerchantTemplateEmailService;
+import com.scott.payment.merchant.service.MerchantTemplateEmailService.MerchantEmailSendResult;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.HtmlUtils;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -69,6 +71,11 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
      * 发送失败。
      */
     private static final int SEND_FAILED = EmailDeliveryStatus.CLOSED.getCode();
+
+    /**
+     * 已完成准备但明确禁止投递。
+     */
+    private static final int SEND_CANCELLED = EmailDeliveryStatus.CANCELLED.getCode();
 
     /**
      * 系统默认发件账户范围。
@@ -152,9 +159,29 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
      */
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void sendByTemplate(MerchantEmailSendCommand request) {
-        MerchantEmailTemplateDO template = requireEnabledTemplate(request.templateCode(), defaultIfBlank(request.locale(), DEFAULT_LOCALE));
-        MerchantEmailAccountDO account = selectAccount(request.appCode(), request.merchantId(), defaultIfBlank(request.sceneCode(), template.getSceneCode()));
+    public MerchantEmailSendResult sendByTemplate(MerchantEmailSendCommand request) {
+        return prepareByTemplate(request, false);
+    }
+
+    /**
+     * 完整执行邮件准备链路，但把记录直接置为取消终态并移除收件人。
+     */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public MerchantEmailSendResult prepareSuppressedByTemplate(MerchantEmailSendCommand request) {
+        return prepareByTemplate(request, true);
+    }
+
+    private MerchantEmailSendResult prepareByTemplate(MerchantEmailSendCommand request, boolean suppressDelivery) {
+        MerchantEmailTemplateDO template;
+        MerchantEmailAccountDO account;
+        try {
+            template = requireEnabledTemplate(request.templateCode(), defaultIfBlank(request.locale(), DEFAULT_LOCALE));
+            account = selectAccount(request.appCode(), request.merchantId(),
+                    defaultIfBlank(request.sceneCode(), template.getSceneCode()));
+        } catch (RuntimeException exception) {
+            return recordPreparationFailure(request, exception);
+        }
         Map<String, Object> variables = request.variables() == null ? Map.of() : request.variables();
         MerchantEmailSendRecordDO record = buildRecord(request, template, account);
         Set<String> missingVariables = missingVariables(template.getSubjectTemplate() + template.getContentTemplate(), variables);
@@ -166,16 +193,74 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
             record.setErrorCode("EMAIL_VARIABLE_MISSING");
             record.setErrorMessage("模板变量缺失：" + String.join(",", missingVariables));
             emailSendRecordMapper.insert(record);
-            return;
+            return new MerchantEmailSendResult(record.getId(), record.getSendStatus());
         }
-        String content = render(template.getContentTemplate(), variables);
-        record.setSubject(render(template.getSubjectTemplate(), variables));
-        record.setContentSnapshot(maskSensitiveContent(template.getContentTemplate(), variables, parseStringList(template.getSensitiveVariableNames())));
+        String contentType = defaultIfBlank(trimUpper(template.getContentType()), CONTENT_HTML);
+        boolean htmlContent = CONTENT_HTML.equals(contentType);
+        String content = render(template.getContentTemplate(), variables, htmlContent);
+        record.setSubject(render(template.getSubjectTemplate(), variables, false));
+        record.setContentSnapshot(maskSensitiveContent(template.getContentTemplate(), variables,
+                parseStringList(template.getSensitiveVariableNames()), htmlContent));
         record.setVariablesSnapshot(toJson(maskVariables(variables, parseStringList(template.getSensitiveVariableNames()))));
         record.setDeliveryContentCipher(payloadCrypto.encrypt(content));
-        record.setContentType(defaultIfBlank(trimUpper(template.getContentType()), CONTENT_HTML));
+        record.setContentType(contentType);
+        if (suppressDelivery) {
+            record.setToEmails(toJson(List.of()));
+            record.setSendStatus(SEND_CANCELLED);
+            record.setMaxRetryCount(0);
+            record.setErrorCode("DELIVERY_SUPPRESSED");
+            record.setErrorMessage("Delivery suppressed for a virtual security request");
+        }
         emailSendRecordMapper.insert(record);
         deliveryService.enqueue(record);
+        return new MerchantEmailSendResult(record.getId(), record.getSendStatus());
+    }
+
+    /** 模板或发件账户缺失时也写入关闭记录，避免安全邮件准备失败却没有审计轨迹。 */
+    private MerchantEmailSendResult recordPreparationFailure(MerchantEmailSendCommand request,
+                                                             RuntimeException exception) {
+        LocalDateTime now = LocalDateTime.now();
+        MerchantEmailSendRecordDO record = new MerchantEmailSendRecordDO();
+        record.setEmailNo(generateCode("EMAIL"));
+        record.setAppCode(defaultIfBlank(trimUpper(request.appCode()), AuthConstants.APP_MERCHANT));
+        record.setMerchantId(trim(request.merchantId()));
+        record.setMerchantNo(defaultIfBlank(trim(request.merchantNo()), record.getMerchantId()));
+        record.setMerchantName(trim(request.merchantName()));
+        record.setSceneCode(defaultIfBlank(trimUpper(request.sceneCode()), COMMON_SCENE));
+        record.setTemplateCode(trimUpper(request.templateCode()));
+        record.setTemplateName(trim(request.templateCode()));
+        record.setLocale(defaultIfBlank(request.locale(), DEFAULT_LOCALE));
+        record.setToEmails(toJson(defaultList(request.toEmails())));
+        record.setCcEmails(toJson(List.of()));
+        record.setBccEmails(toJson(List.of()));
+        record.setSubject("邮件准备失败");
+        record.setContentSnapshot("邮件模板或发件账户不可用");
+        record.setVariablesSnapshot(toJson(maskAllVariables(request.variables())));
+        record.setContentType(CONTENT_HTML);
+        record.setBizType(trimUpper(request.bizType()));
+        record.setBizNo(trim(request.bizNo()));
+        record.setSendStatus(SEND_FAILED);
+        record.setRetryCount(0);
+        record.setMaxRetryCount(0);
+        record.setErrorCode("EMAIL_PREPARATION_FAILED");
+        record.setErrorMessage(truncate(exception.getClass().getSimpleName() + ": " + exception.getMessage(), 2000));
+        fillOperator(record);
+        record.setCreateBy(currentOperatorName());
+        record.setUpdateBy(currentOperatorName());
+        record.setCreateTime(now);
+        record.setUpdateTime(now);
+        record.setDeleted(NOT_DELETED);
+        emailSendRecordMapper.insert(record);
+        return new MerchantEmailSendResult(record.getId(), record.getSendStatus());
+    }
+
+    private Map<String, Object> maskAllVariables(Map<String, Object> variables) {
+        if (variables == null || variables.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> masked = new LinkedHashMap<>();
+        variables.keySet().forEach(key -> masked.put(key, "******"));
+        return masked;
     }
 
     /**
@@ -323,22 +408,29 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return variables;
     }
 
-    private String render(String template, Map<String, Object> variables) {
+    private String render(String template, Map<String, Object> variables, boolean htmlEscape) {
         Matcher matcher = TEMPLATE_VARIABLE_PATTERN.matcher(template);
         StringBuilder builder = new StringBuilder();
         while (matcher.find()) {
             Object value = variables.get(matcher.group(1));
-            matcher.appendReplacement(builder, Matcher.quoteReplacement(value == null ? "" : String.valueOf(value)));
+            String replacement = value == null ? "" : String.valueOf(value);
+            if (htmlEscape) {
+                replacement = HtmlUtils.htmlEscape(replacement);
+            }
+            matcher.appendReplacement(builder, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(builder);
         return builder.toString();
     }
 
-    private String maskSensitiveContent(String template, Map<String, Object> variables, List<String> sensitiveNames) {
+    private String maskSensitiveContent(String template,
+                                        Map<String, Object> variables,
+                                        List<String> sensitiveNames,
+                                        boolean htmlEscape) {
         if (CollectionUtils.isEmpty(sensitiveNames)) {
-            return render(template, variables);
+            return render(template, variables, htmlEscape);
         }
-        return render(template, maskVariables(variables, sensitiveNames));
+        return render(template, maskVariables(variables, sensitiveNames), htmlEscape);
     }
 
     private Map<String, Object> maskVariables(Map<String, Object> variables, List<String> sensitiveNames) {

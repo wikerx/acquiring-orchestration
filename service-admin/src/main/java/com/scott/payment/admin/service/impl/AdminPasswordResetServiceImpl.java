@@ -12,8 +12,6 @@ import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetVeri
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendRequest;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendResult;
 import com.scott.payment.admin.constant.SystemConfigKeys;
-import com.scott.payment.admin.entity.SysPasswordResetRequestDO;
-import com.scott.payment.admin.mapper.SysPasswordResetRequestMapper;
 import com.scott.payment.admin.service.AdminEmailService;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.admin.service.AdminPasswordResetService;
@@ -27,10 +25,12 @@ import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.entity.SysAccountMfaDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysLoginSessionDO;
+import com.scott.payment.component.db.auth.entity.SysPasswordResetRequestDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMfaMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
+import com.scott.payment.component.db.auth.mapper.SysPasswordResetRequestMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.db.auth.service.AccountPasswordHistoryService;
 import com.scott.payment.component.db.auth.support.MfaSecretCrypto;
@@ -275,7 +275,10 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         enforceStageIpRateLimit(RATE_SCOPE_EMAIL_VERIFY_IP, clientIp);
         SysPasswordResetRequestDO row = requireLockedRequest(request.getRequestId());
         LocalDateTime now = LocalDateTime.now();
-        if (!STATE_PENDING_EMAIL.equals(row.getState()) || expired(row.getEmailExpireAt(), now)) {
+        if (!STATE_PENDING_EMAIL.equals(row.getState())) {
+            throw verificationFailed();
+        }
+        if (expired(row.getEmailExpireAt(), now)) {
             markExpiredIfNecessary(row, now);
             throw verificationFailed();
         }
@@ -329,10 +332,14 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         enforceStageIpRateLimit(RATE_SCOPE_MFA_VERIFY_IP, clientIp);
         SysPasswordResetRequestDO row = requireLockedRequest(request.getRequestId());
         LocalDateTime now = LocalDateTime.now();
-        if (!STATE_PENDING_MFA.equals(row.getState())
-                || expired(row.getStageTokenExpireAt(), now)
-                || !tokenMatches(request.getActionToken(), row.getStageTokenHash())) {
+        if (!STATE_PENDING_MFA.equals(row.getState())) {
+            throw verificationFailed();
+        }
+        if (expired(row.getStageTokenExpireAt(), now)) {
             markExpiredIfNecessary(row, now);
+            throw verificationFailed();
+        }
+        if (!tokenMatches(request.getActionToken(), row.getStageTokenHash())) {
             throw verificationFailed();
         }
         SysAccountDO account = row.getAccountId() == null ? null : accountMapper.selectById(row.getAccountId());
@@ -380,10 +387,14 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         enforceStageIpRateLimit(RATE_SCOPE_CONFIRM_IP, clientIp);
         SysPasswordResetRequestDO row = requireLockedRequest(request.getRequestId());
         LocalDateTime now = LocalDateTime.now();
-        if (!STATE_READY.equals(row.getState())
-                || expired(row.getResetTokenExpireAt(), now)
-                || !tokenMatches(request.getResetToken(), row.getResetTokenHash())) {
+        if (!STATE_READY.equals(row.getState())) {
+            throw verificationFailed();
+        }
+        if (expired(row.getResetTokenExpireAt(), now)) {
             markExpiredIfNecessary(row, now);
+            throw verificationFailed();
+        }
+        if (!tokenMatches(request.getResetToken(), row.getResetTokenHash())) {
             throw verificationFailed();
         }
         SysAccountDO account = row.getAccountId() == null ? null : accountMapper.selectByIdForUpdate(row.getAccountId());

@@ -47,7 +47,7 @@ public class AuthProfileUpdateRequest implements Serializable {
     private String email;
 
     /**
-     * 当前操作人的六位 TOTP。仅管理端修改邮箱时必填，普通资料修改和商户端保持兼容。
+     * 当前操作人的六位 TOTP。管理端和商户端修改邮箱时必填，普通资料修改可为空。
      */
     @Pattern(regexp = "^\\d{6}$", message = "mfaCode format is invalid")
     private String mfaCode;

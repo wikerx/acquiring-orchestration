@@ -8,8 +8,6 @@ import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetRequ
 import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetVerifyResponse;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendRequest;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendResult;
-import com.scott.payment.admin.entity.SysPasswordResetRequestDO;
-import com.scott.payment.admin.mapper.SysPasswordResetRequestMapper;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.admin.service.AdminEmailService;
 import com.scott.payment.component.core.auth.LoginTokenUtils;
@@ -20,10 +18,12 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.entity.SysAccountMfaDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
+import com.scott.payment.component.db.auth.entity.SysPasswordResetRequestDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMfaMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
+import com.scott.payment.component.db.auth.mapper.SysPasswordResetRequestMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.db.auth.service.AccountPasswordHistoryService;
 import com.scott.payment.component.db.auth.support.MfaSecretCrypto;
@@ -333,6 +333,19 @@ class AdminPasswordResetServiceImplTest {
     }
 
     @Test
+    void shouldNotExpireAdvancedRequestWhenEmailStageIsReplayed() {
+        SysPasswordResetRequestDO row = readyRequest("valid-reset-token");
+        when(resetRequestMapper.selectByRequestNoForUpdate("request-1")).thenReturn(row);
+
+        assertThatThrownBy(() -> service.verifyEmail(emailVerifyRequest("wrong-code"), "127.0.0.1"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("Verification failed or expired.");
+
+        assertThat(row.getState()).isEqualTo("READY");
+        assertThat(row.getResetTokenHash()).isEqualTo(LoginTokenUtils.hashToken("valid-reset-token"));
+    }
+
+    @Test
     void shouldConsumeResetTokenOnceAndRevokeEverySession() {
         String resetToken = "one-time-reset-token";
         SysPasswordResetRequestDO row = readyRequest(resetToken);
@@ -359,6 +372,27 @@ class AdminPasswordResetServiceImplTest {
                 .hasMessage("Verification failed or expired.");
         verify(sessionMapper, times(1)).logoutAllActive(org.mockito.ArgumentMatchers.eq(1L),
                 org.mockito.ArgumentMatchers.eq(101L), any(LocalDateTime.class));
+    }
+
+    @Test
+    void shouldKeepResetRequestUsableAfterWrongToken() {
+        String resetToken = "still-valid-reset-token";
+        SysPasswordResetRequestDO row = readyRequest(resetToken);
+        SysAccountDO account = eligibleAccountWithPassword(CURRENT_PASSWORD);
+        when(resetRequestMapper.selectByRequestNoForUpdate("request-1")).thenReturn(row);
+        when(accountMapper.selectByIdForUpdate(101L)).thenReturn(account);
+
+        assertThatThrownBy(() -> service.confirm(
+                confirmRequest("wrong-token", NEW_PASSWORD), "127.0.0.1"))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("Verification failed or expired.");
+        assertThat(row.getState()).isEqualTo("READY");
+        assertThat(row.getResetTokenHash()).isEqualTo(LoginTokenUtils.hashToken(resetToken));
+
+        service.confirm(confirmRequest(resetToken, NEW_PASSWORD), "127.0.0.1");
+
+        assertThat(row.getState()).isEqualTo("COMPLETED");
+        verify(accountMapper).updateById(account);
     }
 
     @Test

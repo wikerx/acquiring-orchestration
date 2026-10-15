@@ -1,4 +1,4 @@
-package com.scott.payment.admin.entity;
+package com.scott.payment.component.db.auth.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * @classname : SysEmailVerificationRequestDO
  * @date : 2026-10-15 00:00
  * @email : scott_x@163.com
- * @description : 管理账号激活和邮箱验证请求实体；只保存邮箱指纹、验证码哈希与动作令牌哈希，并以持久化状态机阻止重放。
+ * @description : 系统账号激活和邮箱验证请求实体；只保存邮箱指纹、验证码哈希与动作令牌哈希。
  * @status : create
  */
 @Data
@@ -24,13 +24,15 @@ public class SysEmailVerificationRequestDO {
     private Long id;
     /** 高熵公开请求编号，不包含账号或邮箱信息。 */
     private String requestNo;
-    /** 管理系统应用主键。 */
+    /** 系统应用主键。 */
     private Long appId;
+    /** 商户号；管理系统请求可为空。 */
+    private String merchantId;
     /** 待验证账号主键。 */
     private Long accountId;
     /** 用途：ACCOUNT_ACTIVATION、EMAIL_VERIFICATION、EMAIL_CHANGE。 */
     private String purpose;
-    /** 当前目标邮箱规范化后的 SHA-256 指纹。 */
+    /** 目标邮箱规范化后的 SHA-256 指纹。 */
     private String emailFingerprint;
     /** 邮件验证码 PBKDF2 哈希。 */
     private String codeHash;
@@ -46,7 +48,7 @@ public class SysEmailVerificationRequestDO {
     private String actionTokenHash;
     /** 激活阶段一次性动作令牌到期时间。 */
     private LocalDateTime actionTokenExpireAt;
-    /** 状态：PENDING、VERIFIED、COMPLETED、EXPIRED、LOCKED、SUPERSEDED、BLOCKED。 */
+    /** 持久化状态，用于阻止验证码或令牌重放。 */
     private String state;
     /** 发起请求的客户端 IP；系统内部发起时保存 internal。 */
     private String requestIp;

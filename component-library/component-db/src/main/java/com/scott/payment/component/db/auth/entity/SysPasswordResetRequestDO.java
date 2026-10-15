@@ -1,4 +1,4 @@
-package com.scott.payment.admin.entity;
+package com.scott.payment.component.db.auth.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -11,9 +11,9 @@ import java.time.LocalDateTime;
  * @author : scott
  * @version : v1.0.0
  * @classname : SysPasswordResetRequestDO
- * @date : 2026-10-14 00:00
+ * @date : 2026-10-15 00:00
  * @email : scott_x@163.com
- * @description : 管理后台找回密码请求实体；只保存验证码和令牌哈希，并允许为未知账号创建不可用的虚拟请求以防账号枚举。
+ * @description : 系统账号密码重置请求实体；仅保存验证码和令牌哈希，并支持虚拟请求防止账号枚举。
  * @status : create
  */
 @Data
@@ -26,9 +26,11 @@ public class SysPasswordResetRequestDO {
     private String requestNo;
     /** 应用 ID。 */
     private Long appId;
+    /** 商户号；管理系统请求可为空。 */
+    private String merchantId;
     /** 合格账号 ID；虚拟请求为空。 */
     private Long accountId;
-    /** 规范化登录账号的 SHA-256 指纹，仅用于限流。 */
+    /** 规范化身份的 SHA-256 指纹，仅用于限流。 */
     private String accountFingerprint;
     /** 邮件验证码 PBKDF2 哈希。 */
     private String emailCodeHash;
@@ -50,13 +52,12 @@ public class SysPasswordResetRequestDO {
     private String resetTokenHash;
     /** 最终重置令牌到期时间。 */
     private LocalDateTime resetTokenExpireAt;
-    /** 状态：PENDING_EMAIL、PENDING_MFA、READY、COMPLETED、EXPIRED、LOCKED、BLOCKED。 */
+    /** 请求状态。 */
     private String state;
     /** 请求 IP，用于限流和安全审计。 */
     private String requestIp;
     /** 截断后的 User-Agent，用于安全审计。 */
     private String userAgent;
-
     /** 邮件语言：zh-CN 或 en-US。 */
     private String locale;
     /** 密码重置完成时间。 */
