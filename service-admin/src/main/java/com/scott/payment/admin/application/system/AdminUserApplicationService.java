@@ -199,6 +199,15 @@ public class AdminUserApplicationService {
     }
 
     /**
+     * 查询新增用户表单可选择的角色。
+     *
+     * @return 角色授权选项
+     */
+    public SysUserRoleAuthDTO userRoleOptions() {
+        return adminUserService.userRoleOptions();
+    }
+
+    /**
      * 分配后台用户角色。
      *
      * @param request 角色分配请求

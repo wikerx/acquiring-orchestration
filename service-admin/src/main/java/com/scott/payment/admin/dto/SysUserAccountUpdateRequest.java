@@ -51,6 +51,11 @@ public class SysUserAccountUpdateRequest implements Serializable {
     private List<Long> postIds;
 
     /**
+     * 保存后的角色ID集合；不传表示保留原角色，空集合表示清空角色。
+     */
+    private List<Long> roleIds;
+
+    /**
      * 手机号，允许为空。
      */
     @Size(max = 30, message = "手机号长度不能超过30位")

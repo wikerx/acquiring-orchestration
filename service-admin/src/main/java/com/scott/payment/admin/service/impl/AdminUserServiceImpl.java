@@ -93,6 +93,8 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 系统超级权限编码。
      */
     private static final String SUPER_PERMISSION = "*:*:*";
+    /** 用户角色授权权限编码，防止通过新增或编辑接口绕过独立授权接口。 */
+    private static final String ASSIGN_ROLE_PERMISSION = "system:user:assign-role";
     /** 邮箱尚未通过所有权验证。 */
     private static final String EMAIL_VERIFICATION_PENDING = "PENDING";
     /** 邮箱已经通过所有权验证。 */
@@ -353,7 +355,8 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
-     * 新增后台用户。新账号不自动绑定角色，角色必须通过“分配角色”单独授权。
+     * 新增后台用户。具备角色授权权限时，可在创建事务内同步绑定可下放角色；
+     * 未提交角色字段时仍可通过独立“分配角色”功能后续授权。
      *
      * @param request 新增请求
      * @return 用户详情
@@ -363,6 +366,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public SysUserAccountDTO createUser(SysUserAccountCreateRequest request) {
         SysAppDO app = getAdminApp();
+        List<Long> requestedRoleIds = validateRequestedRoleAssignment(app.getId(), request.getRoleIds());
         assertAccountNotExists(app.getId(), request.getLoginAccount());
         LocalDateTime now = LocalDateTime.now();
         Integer status = request.getStatus() == null ? AuthConstants.ENABLED : validStatus(request.getStatus());
@@ -414,6 +418,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         createDefaultRequiredMfa(app, account, now);
 
         bindUserPosts(app.getId(), user.getId(), request.getPostIds(), now);
+        if (requestedRoleIds != null) {
+            replaceAccountRoles(app.getId(), account.getId(), requestedRoleIds, now, false);
+        }
         adminEmailVerificationService.issue(account.getId(),
                 AdminEmailVerificationService.PURPOSE_ACCOUNT_ACTIVATION,
                 user.getLanguage(), "internal:create-user", null, false);
@@ -432,6 +439,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public SysUserAccountDTO updateUser(SysUserAccountUpdateRequest request) {
         SysAppDO app = getAdminApp();
+        List<Long> requestedRoleIds = validateRequestedRoleAssignment(app.getId(), request.getRoleIds());
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
         SysUserDO user = getUser(account.getUserId());
         LocalDateTime now = LocalDateTime.now();
@@ -463,6 +471,9 @@ public class AdminUserServiceImpl implements AdminUserService {
             logoutSessions(app.getId(), account.getId(), now);
         }
         bindUserPosts(app.getId(), user.getId(), request.getPostIds(), now);
+        if (requestedRoleIds != null) {
+            replaceAccountRoles(app.getId(), account.getId(), requestedRoleIds, now, true);
+        }
         if (emailChanged) {
             adminEmailVerificationService.issue(account.getId(), verificationPurpose(account,
                             AdminEmailVerificationService.PURPOSE_EMAIL_CHANGE),
@@ -535,6 +546,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Override
     @DS(DataSourceName.SLAVE)
     public SysUserRoleAuthDTO userRoles(Long accountId) {
+        assertRoleAssignmentPermission();
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), accountId);
         List<SysRoleDO> roles = loadEnabledRoles(app.getId());
@@ -549,6 +561,26 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
+     * 查询新增用户表单可使用的角色选项，不依赖尚未创建的账号主键。
+     *
+     * @return 当前操作人可见的角色选项
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public SysUserRoleAuthDTO userRoleOptions() {
+        assertRoleAssignmentPermission();
+        SysAppDO app = getAdminApp();
+        List<SysRoleDO> roles = loadEnabledRoles(app.getId());
+        Set<Long> assignableRoleIds = loadAssignableRoleIds(app.getId(), roles);
+        SysUserRoleAuthDTO dto = new SysUserRoleAuthDTO();
+        dto.setRoles(roles.stream()
+                .map(role -> toRoleDTO(role, assignableRoleIds.contains(role.getId())))
+                .toList());
+        dto.setCheckedRoleIds(Collections.emptyList());
+        return dto;
+    }
+
+    /**
      * 保存后台用户角色授权，并使旧会话失效以便权限即时生效。
      *
      * @param request 角色授权请求
@@ -558,36 +590,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     @Transactional(rollbackFor = Exception.class)
     public void grantRoles(SysUserRoleGrantRequest request) {
         SysAppDO app = getAdminApp();
+        List<Long> roleIds = validateRequestedRoleAssignment(
+                app.getId(), request.getRoleIds() == null ? Collections.emptyList() : request.getRoleIds());
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
-        List<Long> roleIds = normalizeIds(request.getRoleIds());
-        validateRoleIds(app.getId(), roleIds);
-        assertAssignableRoles(app.getId(), roleIds);
-        LocalDateTime now = LocalDateTime.now();
-
-        List<SysAccountRoleDO> oldRelations = sysAccountRoleMapper.selectList(
-                Wrappers.<SysAccountRoleDO>lambdaQuery()
-                        .eq(SysAccountRoleDO::getAppId, app.getId())
-                        .eq(SysAccountRoleDO::getAccountId, account.getId())
-                        .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
-        );
-        assertAssignableRoles(app.getId(), oldRelations.stream().map(SysAccountRoleDO::getRoleId).toList());
-        oldRelations.forEach(relation -> sysAccountRoleMapper.update(
-                Wrappers.<SysAccountRoleDO>lambdaUpdate()
-                        .set(SysAccountRoleDO::getDeleted, relation.getId())
-                        .eq(SysAccountRoleDO::getId, relation.getId())
-                        .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
-        ));
-
-        for (Long roleId : roleIds) {
-            SysAccountRoleDO relation = new SysAccountRoleDO();
-            relation.setAppId(app.getId());
-            relation.setAccountId(account.getId());
-            relation.setRoleId(roleId);
-            relation.setCreatedAt(now);
-            relation.setDeleted(NOT_DELETED);
-            sysAccountRoleMapper.insert(relation);
-        }
-        logoutSessions(app.getId(), account.getId(), now);
+        replaceAccountRoles(app.getId(), account.getId(), roleIds, LocalDateTime.now(), true);
     }
 
     /**
@@ -718,6 +724,75 @@ public class AdminUserServiceImpl implements AdminUserService {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "user not found");
         }
         return user;
+    }
+
+    /**
+     * 校验新增或编辑请求中的内嵌角色授权。
+     *
+     * <p>{@code null} 表示调用方没有发起角色变更；显式空集合表示清空角色，
+     * 两者必须区分，避免编辑基础资料时意外移除已有角色。</p>
+     *
+     * @param appId   应用主键
+     * @param roleIds 请求角色主键集合
+     * @return 规范化角色主键集合；未发起角色变更时返回 {@code null}
+     */
+    private List<Long> validateRequestedRoleAssignment(Long appId, List<Long> roleIds) {
+        if (roleIds == null) {
+            return null;
+        }
+        assertRoleAssignmentPermission();
+        List<Long> normalizedRoleIds = normalizeIds(roleIds);
+        validateRoleIds(appId, normalizedRoleIds);
+        assertAssignableRoles(appId, normalizedRoleIds);
+        return normalizedRoleIds;
+    }
+
+    /** 服务层再次校验角色授权权限，防止通过新增或编辑接口绕过独立授权接口。 */
+    private void assertRoleAssignmentPermission() {
+        Set<String> operatorPermissions = currentOperatorPermissions();
+        if (!operatorPermissions.contains(SUPER_PERMISSION)
+                && !operatorPermissions.contains(ASSIGN_ROLE_PERMISSION)) {
+            throw new ServiceException(ApiResultEnum.FORBIDDEN.getCode(), "当前账号无权分配用户角色");
+        }
+    }
+
+    /**
+     * 替换账号角色关系；调用方必须先完成角色合法性和可授权范围校验。
+     *
+     * @param appId             应用主键
+     * @param accountId         账号主键
+     * @param roleIds           保存后的角色主键集合
+     * @param now               操作时间
+     * @param invalidateSession 是否使账号现有会话失效
+     */
+    private void replaceAccountRoles(Long appId, Long accountId, List<Long> roleIds,
+                                     LocalDateTime now, boolean invalidateSession) {
+        List<SysAccountRoleDO> oldRelations = sysAccountRoleMapper.selectList(
+                Wrappers.<SysAccountRoleDO>lambdaQuery()
+                        .eq(SysAccountRoleDO::getAppId, appId)
+                        .eq(SysAccountRoleDO::getAccountId, accountId)
+                        .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
+        );
+        assertAssignableRoles(appId, oldRelations.stream().map(SysAccountRoleDO::getRoleId).toList());
+        oldRelations.forEach(relation -> sysAccountRoleMapper.update(
+                Wrappers.<SysAccountRoleDO>lambdaUpdate()
+                        .set(SysAccountRoleDO::getDeleted, relation.getId())
+                        .eq(SysAccountRoleDO::getId, relation.getId())
+                        .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
+        ));
+
+        for (Long roleId : roleIds) {
+            SysAccountRoleDO relation = new SysAccountRoleDO();
+            relation.setAppId(appId);
+            relation.setAccountId(accountId);
+            relation.setRoleId(roleId);
+            relation.setCreatedAt(now);
+            relation.setDeleted(NOT_DELETED);
+            sysAccountRoleMapper.insert(relation);
+        }
+        if (invalidateSession) {
+            logoutSessions(appId, accountId, now);
+        }
     }
 
     /**
