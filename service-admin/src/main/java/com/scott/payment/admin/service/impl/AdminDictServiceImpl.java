@@ -78,11 +78,6 @@ public class AdminDictServiceImpl implements AdminDictService {
      */
     private final SysDictDataMapper dictDataMapper;
 
-    /**
-     * 数据字典对象转换器。
-     */
-    private final DictConverter dictConverter;
-
     /** 跨系统启用字典下拉快照读取器。 */
     private final DictionaryOptionCacheReader dictionaryOptionCacheReader;
 
@@ -97,20 +92,17 @@ public class AdminDictServiceImpl implements AdminDictService {
      *
      * @param dictTypeMapper 字典类型数据访问组件
      * @param dictDataMapper 字典项数据访问组件
-     * @param dictConverter  数据字典对象转换器
      * @param dictionaryOptionCacheReader 跨系统启用字典下拉快照读取器
      * @param cacheManager 事务感知的 Spring Cache 管理器
      * @param cacheInvalidationCoordinator 事务缓存可靠失效协调器
      */
     public AdminDictServiceImpl(SysDictTypeMapper dictTypeMapper,
                                 SysDictDataMapper dictDataMapper,
-                                DictConverter dictConverter,
                                 DictionaryOptionCacheReader dictionaryOptionCacheReader,
                                 CacheManager cacheManager,
                                 ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.dictTypeMapper = dictTypeMapper;
         this.dictDataMapper = dictDataMapper;
-        this.dictConverter = dictConverter;
         this.dictionaryOptionCacheReader = dictionaryOptionCacheReader;
         this.cacheManager = cacheManager;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
@@ -142,7 +134,7 @@ public class AdminDictServiceImpl implements AdminDictService {
             dictTypeMapper.updateById(entity);
         }
         clearOptionCache();
-        return dictConverter.toTypeDTO(entity);
+        return DictConverter.INSTANCE.toTypeDTO(entity);
     }
 
     /**
@@ -163,7 +155,7 @@ public class AdminDictServiceImpl implements AdminDictService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(dictConverter::toTypeDTO).toList()
+                page.getRecords().stream().map(DictConverter.INSTANCE::toTypeDTO).toList()
         );
     }
 
@@ -179,7 +171,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
         return dictTypeMapper.selectList(buildDictTypeQueryWrapper(query))
                 .stream()
-                .map(dictConverter::toTypeDTO)
+                .map(DictConverter.INSTANCE::toTypeDTO)
                 .toList();
     }
 
@@ -233,7 +225,7 @@ public class AdminDictServiceImpl implements AdminDictService {
             dictDataMapper.updateById(entity);
         }
         evictOptionCaches(previousType, previousLocale, entity.getDictType(), entity.getLocale());
-        return dictConverter.toDataDTO(entity);
+        return DictConverter.INSTANCE.toDataDTO(entity);
     }
 
     /**
@@ -254,7 +246,7 @@ public class AdminDictServiceImpl implements AdminDictService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(dictConverter::toDataDTO).toList()
+                page.getRecords().stream().map(DictConverter.INSTANCE::toDataDTO).toList()
         );
     }
 
@@ -272,12 +264,12 @@ public class AdminDictServiceImpl implements AdminDictService {
             String locale = defaultIfBlank(query.getLocale(), DEFAULT_LOCALE);
             return dictionaryOptionCacheReader.findEnabled(query.getDictType().trim(), locale)
                     .stream()
-                    .map(this::toDataDTO)
+                    .map(DictConverter.INSTANCE::toDataDTO)
                     .toList();
         }
         return dictDataMapper.selectList(buildDictDataQueryWrapper(query))
                 .stream()
-                .map(dictConverter::toDataDTO)
+                .map(DictConverter.INSTANCE::toDataDTO)
                 .toList();
     }
 
@@ -291,7 +283,7 @@ public class AdminDictServiceImpl implements AdminDictService {
     @DS(DataSourceName.SLAVE)
     public SysDictDataDTO getDictDataById(Long id) {
         SysDictDataDO entity = findDictDataById(id);
-        return dictConverter.toDataDTO(entity);
+        return DictConverter.INSTANCE.toDataDTO(entity);
     }
 
     /**
@@ -312,7 +304,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         fillDictData(entity, request, defaultIfBlank(request.getLocale(), entity.getLocale()), now);
         dictDataMapper.updateById(entity);
         evictOptionCaches(previousType, previousLocale, entity.getDictType(), entity.getLocale());
-        return dictConverter.toDataDTO(entity);
+        return DictConverter.INSTANCE.toDataDTO(entity);
     }
 
     /**
@@ -401,23 +393,6 @@ public class AdminDictServiceImpl implements AdminDictService {
                 && !StringUtils.hasText(query.getParentValue())
                 && query.getStatus() != null
                 && query.getStatus() == ENABLED;
-    }
-
-    /** 将共享下拉快照转换为管理端字典数据响应。 */
-    private SysDictDataDTO toDataDTO(DictionaryOptionSnapshot snapshot) {
-        SysDictDataDTO response = new SysDictDataDTO();
-        response.setId(snapshot.getId());
-        response.setDictType(snapshot.getDictType());
-        response.setDictLabel(snapshot.getDictLabel());
-        response.setDictValue(snapshot.getDictValue());
-        response.setParentValue(snapshot.getParentValue());
-        response.setLocale(snapshot.getLocale());
-        response.setDictSort(snapshot.getDictSort());
-        response.setListClass(snapshot.getListClass());
-        response.setExtraJson(snapshot.getExtraJson());
-        response.setIsDefault(snapshot.getIsDefault());
-        response.setStatus(snapshot.getStatus());
-        return response;
     }
 
     /** 在当前业务事务内登记指定字典类型和语言的下拉快照可靠失效。 */

@@ -101,7 +101,7 @@ public class TransactionShardingDataSourceConfiguration {
         }
         try {
             DataSource transactionDataSource = ShardingSphereDataSourceFactory.createDataSource(
-                    resources, buildRules(properties, replicas), buildSystemProperties());
+                    resources, buildRules(properties, replicas), buildSystemProperties(properties));
             registerCompositeDataSource(routingDataSource, routingResources, transactionDataSource);
             log.info("Transaction ShardingSphere datasource registered for service {}, ruleVersion={}, checksumPrefix={}",
                     applicationName, properties.getRuleVersion(), checksumPrefix(properties.getRuleChecksum()));
@@ -221,9 +221,15 @@ public class TransactionShardingDataSourceConfiguration {
         return result;
     }
 
-    Properties buildSystemProperties() {
+    /**
+     * 构造 ShardingSphere 运行属性。SQL 输出由环境配置显式控制，代码默认保持关闭。
+     *
+     * @param properties 当前交易分片配置
+     * @return 传递给 ShardingSphere 数据源工厂的系统属性
+     */
+    Properties buildSystemProperties(TransactionShardingProperties properties) {
         Properties result = new Properties();
-        result.setProperty("sql-show", "false");
+        result.setProperty("sql-show", Boolean.toString(properties.isSqlShow()));
         result.setProperty("check-table-metadata-enabled", "true");
         return result;
     }

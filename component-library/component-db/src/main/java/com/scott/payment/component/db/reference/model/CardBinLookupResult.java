@@ -9,8 +9,8 @@ package com.scott.payment.component.db.reference.model;
  * @description : 公共卡 BIN 检索结果，仅返回归属信息，不暴露区间、来源批次或审计字段
  * @status : create
  *
- * @param matched                是否命中有效卡 BIN 区间，不允许为空
- * @param cardBin                商户提交的 6 至 11 位 BIN，可识别字段，日志中不得完整输出
+ * @param matched                是否命中启用的卡 BIN 区间，不允许为空
+ * @param cardBin                实际查询使用的十一位 BIN；日志中不得完整输出
  * @param binLength              命中记录精度，允许为空
  * @param cardBrand              卡品牌代码，允许为空
  * @param cardSubBrand           卡子品牌或产品名称，允许为空
@@ -38,7 +38,7 @@ public record CardBinLookupResult(Boolean matched,
     /**
      * 构造未命中的合法卡 BIN 查询结果。
      *
-     * @param cardBin 商户提交的卡 BIN
+     * @param cardBin 规范化后的十一位卡 BIN
      * @return 未命中结果
      */
     public static CardBinLookupResult miss(String cardBin) {

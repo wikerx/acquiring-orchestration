@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.LoginTokenUtils;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
+import com.scott.payment.component.core.auth.PasswordPolicy;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
@@ -47,6 +48,7 @@ import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.event.LoginAuditEvent;
+import com.scott.payment.component.db.auth.event.AccountEmailChangedEvent;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantMenuGrantMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantPermissionGrantMapper;
@@ -61,6 +63,7 @@ import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysVerifyCodeMapper;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
+import com.scott.payment.component.db.auth.service.AccountPasswordHistoryService;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.db.auth.support.MfaSecretCrypto;
 import com.scott.payment.component.db.auth.support.TotpUtils;
@@ -296,6 +299,8 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * Spring 领域事件发布器，用于把登录审计移出可能回滚的认证事务。
      */
     private final ApplicationEventPublisher applicationEventPublisher;
+    /** 密码历史服务，用于在账号行锁内阻止当前及最近四个密码复用。 */
+    private final AccountPasswordHistoryService accountPasswordHistoryService;
     /**
      * 创建系统登录权限服务。
      *
@@ -341,7 +346,8 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                  SysAccountMfaLogMapper sysAccountMfaLogMapper,
                                  BaseMerchantInfoMapper baseMerchantInfoMapper,
                                  MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
-                                 ApplicationEventPublisher applicationEventPublisher) {
+                                 ApplicationEventPublisher applicationEventPublisher,
+                                 AccountPasswordHistoryService accountPasswordHistoryService) {
         this.sysAppMapper = sysAppMapper;
         this.sysUserMapper = sysUserMapper;
         this.sysAccountMapper = sysAccountMapper;
@@ -363,6 +369,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         this.baseMerchantInfoMapper = baseMerchantInfoMapper;
         this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
         this.applicationEventPublisher = applicationEventPublisher;
+        this.accountPasswordHistoryService = accountPasswordHistoryService;
     }
 
     /**
@@ -460,6 +467,11 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_FAILED, "account disabled or not found");
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account disabled or not found");
         }
+        if (AuthConstants.ACTIVATION_STATUS_PENDING.equals(account.getActivationStatus())) {
+            recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent,
+                    LOGIN_FAILED, "account pending activation");
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account or password is invalid");
+        }
         if (account.getLocked() != null && account.getLocked() == AuthConstants.ENABLED) {
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_FAILED, "account locked");
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account locked");
@@ -468,7 +480,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_FAILED, "merchant mismatch");
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "merchant mismatch");
         }
-        validateLoginVerifyCode(app, account, request, clientIp);
+        validateLoginVerifyCode(app, request.getVerifyCodeId(), request.getVerifyCode(), clientIp);
         if (!PasswordHashUtils.matches(request.getPassword(), account.getPasswordSalt(), account.getPasswordHash())) {
             increaseFailedLoginCount(account);
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_FAILED, "password mismatch");
@@ -641,27 +653,43 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     @Override
     @DS(DataSourceName.MASTER)
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class, noRollbackFor = ProfileMfaVerificationException.class)
     public AuthLoginResponse updateCurrentProfile(String appCode, String token, AuthProfileUpdateRequest request) {
         SysAppDO app = getEnabledApp(appCode);
         SysLoginSessionDO session = getActiveSession(app.getId(), token);
-        SysAccountDO account = getEnabledAccount(session.getAccountId());
+        SysAccountDO account = getEnabledAccountForUpdate(app.getId(), session.getAccountId());
         SysUserDO user = getEnabledUser(session.getUserId());
         LocalDateTime now = LocalDateTime.now();
 
         String nickname = requiredText(request.getNickname(), "nickname");
         String mobile = optionalText(request.getMobile());
         String email = requiredText(request.getEmail(), "email");
+        boolean emailChanged = !Objects.equals(account.getEmail(), email);
+
+        if (emailChanged && requiresVerifiedEmailChange(app.getAppCode())) {
+            verifyProfileEmailChangeMfa(app, account, request.getMfaCode());
+        }
 
         user.setNickname(nickname);
         user.setMobile(mobile);
-        user.setEmail(email);
+        if (!emailChanged || !requiresVerifiedEmailChange(app.getAppCode())) {
+            user.setEmail(email);
+        }
         user.setUpdatedAt(now);
         user.setUpdatedBy(account.getId());
         sysUserMapper.updateById(user);
 
         account.setMobile(mobile);
-        account.setEmail(email);
+        if (emailChanged && requiresVerifiedEmailChange(app.getAppCode())) {
+            account.setPendingEmail(email);
+        } else {
+            account.setEmail(email);
+            // Restoring the trusted address explicitly cancels any older, unverified email change.
+            account.setPendingEmail(null);
+        }
+        if (emailChanged && !requiresVerifiedEmailChange(app.getAppCode())) {
+            account.setEmailVerifiedAt(null);
+        }
         account.setUpdatedAt(now);
         account.setUpdatedBy(account.getId());
         sysAccountMapper.updateById(account);
@@ -672,6 +700,11 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             merchantUser.setUpdatedAt(now);
             merchantUser.setUpdatedBy(account.getId());
             sysMerchantUserMapper.updateById(merchantUser);
+        }
+
+        if (emailChanged) {
+            applicationEventPublisher.publishEvent(
+                    new AccountEmailChangedEvent(app.getAppCode(), account.getId(), user.getLanguage()));
         }
 
         return buildLoginResponse(app, user, account, null, session.getExpireAt());
@@ -690,16 +723,19 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     public void changeCurrentPassword(String appCode, String token, AuthPasswordChangeRequest request) {
         SysAppDO app = getEnabledApp(appCode);
         SysLoginSessionDO session = getActiveSession(app.getId(), token);
-        SysAccountDO account = getEnabledAccount(session.getAccountId());
+        SysAccountDO account = getEnabledAccountForUpdate(app.getId(), session.getAccountId());
         String oldPassword = requiredText(request.getOldPassword(), "oldPassword");
         String newPassword = requiredText(request.getNewPassword(), "newPassword");
-        if (oldPassword.equals(newPassword)) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "new password can not equal old password");
+        if (!PasswordPolicy.isValid(newPassword)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "new password must be 12-64 characters and include uppercase, lowercase, number and special character");
         }
         if (!PasswordHashUtils.matches(oldPassword, account.getPasswordSalt(), account.getPasswordHash())) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "old password is invalid");
         }
         LocalDateTime now = LocalDateTime.now();
+        accountPasswordHistoryService.assertNotRecentlyUsed(account, newPassword);
+        accountPasswordHistoryService.recordCurrentPassword(account, now);
         String salt = PasswordHashUtils.generateSalt();
         account.setPasswordSalt(salt);
         account.setPasswordHash(PasswordHashUtils.hashPassword(newPassword, salt));
@@ -709,6 +745,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         account.setUpdatedAt(now);
         account.setUpdatedBy(account.getId());
         sysAccountMapper.updateById(account);
+        sysLoginSessionMapper.logoutAllActive(app.getId(), account.getId(), now);
     }
 
     /**
@@ -879,16 +916,24 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     /**
      * 校验登录动态验证码。
      *
-     * @param app     系统应用
-     * @param account 登录账号
-     * @param request 登录请求
+     * @param appCode      系统应用编码
+     * @param verifyCodeId 图形验证码记录 ID
+     * @param verifyCodeText 图形验证码明文
+     * @param clientIp     客户端 IP
      */
-    private void validateLoginVerifyCode(SysAppDO app, SysAccountDO account, AuthLoginRequest request, String clientIp) {
-        if (!StringUtils.hasText(request.getVerifyCodeId()) || !StringUtils.hasText(request.getVerifyCode())) {
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void verifyLoginCaptcha(String appCode, String verifyCodeId, String verifyCodeText, String clientIp) {
+        validateLoginVerifyCode(getEnabledApp(appCode), verifyCodeId, verifyCodeText, clientIp);
+    }
+
+    private void validateLoginVerifyCode(SysAppDO app, String verifyCodeId, String verifyCodeText, String clientIp) {
+        if (!StringUtils.hasText(verifyCodeId) || !StringUtils.hasText(verifyCodeText)) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is required");
         }
-        Long verifyCodeId = parseVerifyCodeId(request.getVerifyCodeId());
-        SysVerifyCodeDO verifyCode = sysVerifyCodeMapper.selectById(verifyCodeId);
+        Long verifyCodeRecordId = parseVerifyCodeId(verifyCodeId);
+        SysVerifyCodeDO verifyCode = sysVerifyCodeMapper.selectById(verifyCodeRecordId);
         if (verifyCode == null
                 || !Objects.equals(verifyCode.getAppId(), app.getId())
                 || !VERIFY_SCENE_LOGIN.equals(verifyCode.getScene())
@@ -905,7 +950,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code retry limit exceeded");
         }
         verifyCode.setVerifyCount(defaultInt(verifyCode.getVerifyCount()) + 1);
-        if (!PasswordHashUtils.matches(request.getVerifyCode().trim().toLowerCase(), verifyCode.getCodeSalt(), verifyCode.getCodeHash())) {
+        if (!PasswordHashUtils.matches(verifyCodeText.trim().toLowerCase(), verifyCode.getCodeSalt(), verifyCode.getCodeHash())) {
             sysVerifyCodeMapper.updateById(verifyCode);
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is invalid or expired");
         }
@@ -1279,6 +1324,76 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account is invalid");
         }
         return account;
+    }
+
+    /**
+     * 锁定并读取当前应用下的启用账号，供密码和敏感联系方式变更使用。
+     */
+    private SysAccountDO getEnabledAccountForUpdate(Long appId, Long accountId) {
+        SysAccountDO account = sysAccountMapper.selectByIdForUpdate(accountId);
+        if (account == null
+                || !Objects.equals(account.getAppId(), appId)
+                || !Objects.equals(account.getDeleted(), AuthConstants.NOT_DELETED)
+                || !Objects.equals(account.getStatus(), AuthConstants.ENABLED)) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account is invalid");
+        }
+        return account;
+    }
+
+    /**
+     * 管理端邮箱变更必须消费当前操作人的已绑定 TOTP；时间步与登录校验共享，防止验证码跨操作重放。
+     */
+    private void verifyProfileEmailChangeMfa(SysAppDO app, SysAccountDO account, String code) {
+        SysAccountMfaDO mfa = sysAccountMfaMapper.selectByAccountForUpdate(app.getId(), account.getId());
+        if (mfa == null
+                || !AuthConstants.MFA_STATUS_ENABLED.equals(mfa.getMfaStatus())
+                || !StringUtils.hasText(mfa.getSecretCipher())) {
+            throw new ProfileMfaVerificationException(ApiResultEnum.UNAUTHORIZED.getCode(),
+                    "mfa is required for email change");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (!StringUtils.hasText(code)
+                || !code.trim().matches("\\d{6}")
+                || (AuthConstants.MFA_STATUS_LOCKED.equals(mfa.getMfaStatus())
+                && mfa.getLockedUntil() != null && mfa.getLockedUntil().isAfter(now))) {
+            recordProfileMfaFailure(app, account, mfa, now, "mfa code is invalid");
+        }
+        Long timeStep = TotpUtils.verify(MfaSecretCrypto.decrypt(mfa.getSecretCipher()), code.trim(),
+                Instant.now(), MFA_TOTP_PERIOD_SECONDS, MFA_TOTP_WINDOW);
+        if (timeStep == null || (mfa.getLastSuccessTimeStep() != null && timeStep <= mfa.getLastSuccessTimeStep())) {
+            recordProfileMfaFailure(app, account, mfa, now, "mfa code is invalid or replayed");
+        }
+        mfa.setLastSuccessTimeStep(timeStep);
+        mfa.setLastVerifyTime(now);
+        mfa.setFailedVerifyCount(0);
+        mfa.setLockedUntil(null);
+        mfa.setUpdatedAt(now);
+        sysAccountMfaMapper.updateById(mfa);
+        recordMfaLog(app, account, mfa, "PROFILE_EMAIL_CHANGE", MFA_RESULT_SUCCESS,
+                null, null, null, null);
+    }
+
+    private boolean requiresVerifiedEmailChange(String appCode) {
+        return AuthConstants.APP_ADMIN.equals(appCode) || AuthConstants.APP_MERCHANT.equals(appCode);
+    }
+
+    /** 保存邮箱变更 MFA 失败计数和审计后抛出不会回滚这些安全状态的异常。 */
+    private void recordProfileMfaFailure(SysAppDO app,
+                                         SysAccountDO account,
+                                         SysAccountMfaDO mfa,
+                                         LocalDateTime now,
+                                         String reason) {
+        int failedCount = defaultInt(mfa.getFailedVerifyCount()) + 1;
+        mfa.setFailedVerifyCount(failedCount);
+        if (failedCount >= MFA_MAX_FAILED_ATTEMPTS) {
+            mfa.setMfaStatus(AuthConstants.MFA_STATUS_LOCKED);
+            mfa.setLockedUntil(now.plusMinutes(MFA_LOCK_MINUTES));
+        }
+        mfa.setUpdatedAt(now);
+        sysAccountMfaMapper.updateById(mfa);
+        recordMfaLog(app, account, mfa, "PROFILE_EMAIL_CHANGE", MFA_RESULT_FAILED,
+                reason, null, null, null);
+        throw new ProfileMfaVerificationException(ApiResultEnum.UNAUTHORIZED.getCode(), "mfa code is invalid");
     }
 
     /**
@@ -2056,6 +2171,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         dto.setNickname(user.getNickname());
         dto.setMobile(firstText(user.getMobile(), account.getMobile()));
         dto.setEmail(firstText(user.getEmail(), account.getEmail()));
+        dto.setPendingEmail(account.getPendingEmail());
         dto.setRoleNames(queryRoleNames(app, roleIds));
         dto.setCreatedAt(user.getCreatedAt());
         dto.setMerchantId(account.getMerchantId());
@@ -2776,5 +2892,12 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     private int defaultInt(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    /** 邮箱变更 MFA 失败异常；事务保留失败计数、锁定状态和审计日志。 */
+    private static final class ProfileMfaVerificationException extends ServiceException {
+        private ProfileMfaVerificationException(String code, String message) {
+            super(code, message);
+        }
     }
 }

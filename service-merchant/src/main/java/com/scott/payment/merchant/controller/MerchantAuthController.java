@@ -16,7 +16,20 @@ import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import com.scott.payment.merchant.application.auth.MerchantAuthApplicationService;
+import com.scott.payment.merchant.application.auth.MerchantEmailVerificationApplicationService;
+import com.scott.payment.merchant.application.auth.MerchantPasswordResetApplicationService;
 import com.scott.payment.merchant.dto.MerchantDefaultLoginCredentialDTO;
+import com.scott.payment.merchant.dto.auth.MerchantEmailVerificationDTOs.AccountActivationCompleteRequest;
+import com.scott.payment.merchant.dto.auth.MerchantEmailVerificationDTOs.AccountActivationCompleteResponse;
+import com.scott.payment.merchant.dto.auth.MerchantEmailVerificationDTOs.EmailVerificationVerifyRequest;
+import com.scott.payment.merchant.dto.auth.MerchantEmailVerificationDTOs.EmailVerificationVerifyResponse;
+import com.scott.payment.merchant.dto.auth.MerchantPasswordResetDTOs.PasswordResetConfirmRequest;
+import com.scott.payment.merchant.dto.auth.MerchantPasswordResetDTOs.PasswordResetConfirmResponse;
+import com.scott.payment.merchant.dto.auth.MerchantPasswordResetDTOs.PasswordResetEmailVerifyRequest;
+import com.scott.payment.merchant.dto.auth.MerchantPasswordResetDTOs.PasswordResetMfaVerifyRequest;
+import com.scott.payment.merchant.dto.auth.MerchantPasswordResetDTOs.PasswordResetRequest;
+import com.scott.payment.merchant.dto.auth.MerchantPasswordResetDTOs.PasswordResetRequestResponse;
+import com.scott.payment.merchant.dto.auth.MerchantPasswordResetDTOs.PasswordResetVerifyResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,14 +59,68 @@ public class MerchantAuthController {
      * 商户认证应用服务。
      */
     private final MerchantAuthApplicationService merchantAuthApplicationService;
+    private final MerchantPasswordResetApplicationService passwordResetApplicationService;
+    private final MerchantEmailVerificationApplicationService emailVerificationApplicationService;
 
     /**
      * 创建商户管理系统登录权限接口。
      *
      * @param merchantAuthApplicationService 商户认证应用服务
      */
-    public MerchantAuthController(MerchantAuthApplicationService merchantAuthApplicationService) {
+    public MerchantAuthController(MerchantAuthApplicationService merchantAuthApplicationService,
+                                  MerchantPasswordResetApplicationService passwordResetApplicationService,
+                                  MerchantEmailVerificationApplicationService emailVerificationApplicationService) {
         this.merchantAuthApplicationService = merchantAuthApplicationService;
+        this.passwordResetApplicationService = passwordResetApplicationService;
+        this.emailVerificationApplicationService = emailVerificationApplicationService;
+    }
+
+    /** 校验商户账号激活或邮箱变更邮件中的一次性验证码。 */
+    @PostMapping("/email-verification/verify")
+    public CommonResult<EmailVerificationVerifyResponse> verifyEmail(
+            @Valid @RequestBody EmailVerificationVerifyRequest request,
+            HttpServletRequest servletRequest) {
+        return success(emailVerificationApplicationService.verify(request, servletRequest));
+    }
+
+    /** 原子消费短期动作令牌，完成商户新账号首次设密和激活。 */
+    @PostMapping("/account-activation/complete")
+    public CommonResult<AccountActivationCompleteResponse> completeAccountActivation(
+            @Valid @RequestBody AccountActivationCompleteRequest request,
+            HttpServletRequest servletRequest) {
+        return success(emailVerificationApplicationService.completeActivation(request, servletRequest));
+    }
+
+    /** 创建找回密码请求；账号是否存在不会改变响应结构。 */
+    @PostMapping("/password-reset/request")
+    public CommonResult<PasswordResetRequestResponse> requestPasswordReset(
+            @Valid @RequestBody PasswordResetRequest request,
+            HttpServletRequest servletRequest) {
+        return success(passwordResetApplicationService.requestReset(request, servletRequest));
+    }
+
+    /** 校验找回密码邮件验证码。 */
+    @PostMapping("/password-reset/email/verify")
+    public CommonResult<PasswordResetVerifyResponse> verifyPasswordResetEmail(
+            @Valid @RequestBody PasswordResetEmailVerifyRequest request,
+            HttpServletRequest servletRequest) {
+        return success(passwordResetApplicationService.verifyEmail(request, servletRequest));
+    }
+
+    /** 校验找回密码 MFA 动态验证码。 */
+    @PostMapping("/password-reset/mfa/verify")
+    public CommonResult<PasswordResetVerifyResponse> verifyPasswordResetMfa(
+            @Valid @RequestBody PasswordResetMfaVerifyRequest request,
+            HttpServletRequest servletRequest) {
+        return success(passwordResetApplicationService.verifyMfa(request, servletRequest));
+    }
+
+    /** 原子消费重置令牌并设置新密码。 */
+    @PostMapping("/password-reset/confirm")
+    public CommonResult<PasswordResetConfirmResponse> confirmPasswordReset(
+            @Valid @RequestBody PasswordResetConfirmRequest request,
+            HttpServletRequest servletRequest) {
+        return success(passwordResetApplicationService.confirm(request, servletRequest));
     }
 
     /**

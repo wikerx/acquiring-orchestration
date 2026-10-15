@@ -152,7 +152,7 @@ public final class CardBinDTOs {
         private String dataSource;
 
         /**
-         * 来源优先级，数值越大匹配越优先。
+         * 来源侧参考等级，仅用于数据追溯，不参与运行时匹配顺序。
          */
         private Integer sourcePriority;
 
@@ -369,7 +369,7 @@ public final class CardBinDTOs {
          */
         private String sourceBatchNo;
         /**
-         * 来源优先级。
+         * 来源侧参考等级，仅用于数据追溯，不参与运行时匹配顺序。
          */
         private Integer sourcePriority;
         /**

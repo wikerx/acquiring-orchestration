@@ -271,7 +271,7 @@ HMAC 密钥随 Admin 与 Settlement 各自的服务 DataId 注入，脚本校验
 
 | 组件 | 默认地址 | 默认账号 | 说明 |
 | --- | --- | --- | --- |
-| MySQL | `${MYSQL_ENDPOINT}` | 环境注入 | `master`、`slave_1`、`slave_2` 由环境安全配置提供，仓库文档不保存真实连接信息。 |
+| MySQL | `${MYSQL_ENDPOINT}` | 环境注入 | `master`、`slave` 由环境安全配置提供，仓库文档不保存真实连接信息。 |
 | Redis | `${REDIS_ENDPOINTS}` | 环境注入 | 集群节点和认证信息由环境变量或受控配置中心提供。 |
 | Nacos | `${NACOS_ENDPOINT}` | 环境注入 | namespace、认证和网络边界由各环境独立配置。 |
 
@@ -281,11 +281,13 @@ HMAC 密钥随 Admin 与 Settlement 各自的服务 DataId 注入，脚本校验
 
 数据库时区统一使用 UTC+8，即 `Asia/Shanghai`。JDBC URL 必须显式携带 `serverTimezone=Asia/Shanghai`。
 
-数据库支持一主多从：
+数据库当前配置一主一从：
 
 - `master`：写库，负责新增、更新、删除。
-- `slave`：读库分组，负责查询、统计、报表等读请求。
-- `slave_1`、`slave_2`：当前 dev 默认都连接同一个 MySQL，生产环境按真实从库拆分。
+- `slave`：唯一只读数据源，负责允许复制延迟的查询、统计和报表；通过
+  `MYSQL_SLAVE_URL`、`MYSQL_SLAVE_USERNAME`、`MYSQL_SLAVE_PASSWORD` 配置。
+
+后续增加多个只读实例时，再引入独立物理名称和明确的路由策略；当前配置不得预留不存在的从库。
 
 交易分片与治理代码位置：
 

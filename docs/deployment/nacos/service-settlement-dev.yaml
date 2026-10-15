@@ -1,5 +1,12 @@
 # service-settlement 专属配置不承载业务启停、资金规则、汇率、费用或保证金规则。
 # enabled 安全门禁固定在本地；调用方、最小路径权限和时间窗集中维护在当前服务 DataId。
+acquiring:
+  mq:
+    outbox:
+      # 当前结算服务不向通用 sys_mq_outbox 写入事件，关闭无业务数据可处理的 SELECT/UPDATE 补偿扫描。
+      # 后续如引入 ReliableMqPublisher，必须先恢复为 true 并完成失败补偿和积压告警验证。
+      service-relay-enabled: false
+
 internal-service:
   auth:
     callers:

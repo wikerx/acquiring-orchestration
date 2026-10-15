@@ -70,7 +70,8 @@ public class AdminBaseCurrencyApplicationService {
     private final IsoCurrencyMapper isoCurrencyMapper;
 
     /**
-     * ISO 字典缓存失效器；币种资料持久化成功后同步删除新旧币种缓存。
+     * ISO 字典缓存失效器。写操作在主库事务内登记全量、代码和展示快照失效事件，
+     * 待从库看见同事务 Outbox 后再删除永久缓存，确保所有消费服务读取同一份币种资料。
      */
     private final IsoDictionaryCacheInvalidator isoDictionaryCacheInvalidator;
 

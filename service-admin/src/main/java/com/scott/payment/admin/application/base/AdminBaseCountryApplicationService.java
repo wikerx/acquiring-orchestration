@@ -69,7 +69,8 @@ public class AdminBaseCountryApplicationService {
     private final IsoCountryMapper isoCountryMapper;
 
     /**
-     * ISO 字典缓存失效器；国家资料持久化成功后同步删除新旧国家缓存。
+     * ISO 字典缓存失效器。写操作在主库事务内登记 {@code all} 与 {@code codes} 两个失效事件，
+     * 待从库看见同事务 Outbox 后再删除永久缓存，供管理端、OpenAPI、支付和收银台按需重建。
      */
     private final IsoDictionaryCacheInvalidator isoDictionaryCacheInvalidator;
 

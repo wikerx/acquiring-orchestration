@@ -35,6 +35,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TransactionShardingDataSourceConfigurationTest {
 
     @Test
+    void shouldKeepSqlLoggingDisabledByDefaultAndPassExplicitSettingToShardingSphere() {
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        TransactionShardingDataSourceConfiguration configuration =
+                new TransactionShardingDataSourceConfiguration();
+
+        assertThat(configuration.buildSystemProperties(properties))
+                .containsEntry("sql-show", "false");
+
+        properties.setSqlShow(true);
+        assertThat(configuration.buildSystemProperties(properties))
+                .containsEntry("sql-show", "true");
+    }
+
+    @Test
     void shouldRejectMissingPublishedRule() {
         HikariDataSource primary = h2DataSource("missing_rule_primary");
 
@@ -60,14 +74,14 @@ class TransactionShardingDataSourceConfigurationTest {
         String checksum = checksum(ruleVersion);
         Map<String, DataSource> resources = new LinkedHashMap<>();
         resources.put(DataSourceName.MASTER, primary);
-        resources.put(DataSourceName.SLAVE_1, replica);
+        resources.put(DataSourceName.SLAVE, replica);
 
         contextRunner(resources)
                 .withPropertyValues(
                         "spring.application.name=service-payment",
                         "transaction-sharding.rule-version=" + ruleVersion,
                         "transaction-sharding.rule-checksum=" + checksum,
-                        "transaction-sharding.replica-data-sources[0]=" + DataSourceName.SLAVE_1,
+                        "transaction-sharding.replica-data-sources[0]=" + DataSourceName.SLAVE,
                         "transaction-sharding.physical-nodes[0]=202603",
                         "transaction-sharding.physical-nodes[1]=202604")
                 .run(context -> {
@@ -75,13 +89,13 @@ class TransactionShardingDataSourceConfigurationTest {
                     assertThat(context).hasSingleBean(DynamicRoutingDataSource.class);
                     DynamicRoutingDataSource routing = context.getBean(DynamicRoutingDataSource.class);
                     assertThat(routing.getDataSources()).containsKeys(
-                            DataSourceName.MASTER, DataSourceName.SLAVE_1, DataSourceName.TRANSACTION);
+                            DataSourceName.MASTER, DataSourceName.SLAVE, DataSourceName.TRANSACTION);
                     assertThat(routing.getDataSources().get(DataSourceName.TRANSACTION))
                             .isInstanceOf(ShardingSphereDataSource.class);
                     assertThat(routing.getDataSources().get(DataSourceName.MASTER))
                             .isNotInstanceOf(ItemDataSource.class)
                             .isNotInstanceOf(AutoCloseable.class);
-                    assertThat(routing.getDataSources().get(DataSourceName.SLAVE_1))
+                    assertThat(routing.getDataSources().get(DataSourceName.SLAVE))
                             .isNotInstanceOf(ItemDataSource.class)
                             .isNotInstanceOf(AutoCloseable.class);
                     DynamicDataSourceContextHolder.push(DataSourceName.TRANSACTION);
@@ -125,14 +139,14 @@ class TransactionShardingDataSourceConfigurationTest {
         String checksum = checksum(ruleVersion);
         Map<String, DataSource> resources = new LinkedHashMap<>();
         resources.put(DataSourceName.MASTER, primary);
-        resources.put(DataSourceName.SLAVE_1, replica);
+        resources.put(DataSourceName.SLAVE, replica);
 
         contextRunner(resources, true)
                 .withPropertyValues(
                         "spring.application.name=service-payment",
                         "transaction-sharding.rule-version=" + ruleVersion,
                         "transaction-sharding.rule-checksum=" + checksum,
-                        "transaction-sharding.replica-data-sources[0]=" + DataSourceName.SLAVE_1,
+                        "transaction-sharding.replica-data-sources[0]=" + DataSourceName.SLAVE,
                         "transaction-sharding.physical-nodes[0]=202603",
                         "transaction-sharding.physical-nodes[1]=202604")
                 .run(context -> assertThat(context)
@@ -181,7 +195,7 @@ class TransactionShardingDataSourceConfigurationTest {
     private String checksum(String ruleVersion) {
         TransactionShardingProperties properties = new TransactionShardingProperties();
         properties.setRuleVersion(ruleVersion);
-        properties.setReplicaDataSources(List.of(DataSourceName.SLAVE_1));
+        properties.setReplicaDataSources(List.of(DataSourceName.SLAVE));
         properties.setPhysicalNodes(List.of("202603", "202604"));
         return TransactionShardingRuleChecksum.calculate(properties);
     }

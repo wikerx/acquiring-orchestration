@@ -5,20 +5,22 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.reference.cache.IpShardRoutingSnapshot;
 import com.scott.payment.component.db.reference.entity.CardBinRangeDO;
 import com.scott.payment.component.db.reference.entity.IpLibraryDataRow;
-import com.scott.payment.component.db.reference.entity.IpLibraryShardDO;
 import com.scott.payment.component.db.reference.mapper.CardBinLookupMapper;
 import com.scott.payment.component.db.reference.mapper.IpLocationLookupMapper;
 import com.scott.payment.component.db.reference.model.CardBinLookupResult;
+import com.scott.payment.component.db.reference.model.IpLookupDetail;
 import com.scott.payment.component.db.reference.model.IpLookupResult;
+import com.scott.payment.component.db.reference.model.IpLookupSnapshot;
+import com.scott.payment.component.db.reference.model.IpShardRoute;
 import com.scott.payment.component.db.reference.service.ReferenceDataLookupService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.math.BigInteger;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,7 +32,7 @@ import java.util.stream.IntStream;
  * @classname : ReferenceDataLookupServiceImpl
  * @date : 2026-08-11 15:35
  * @email : scott_x@163.com
- * @description : 基础数据公共只读检索实现，固定路由到从库并保护 IP 动态分表边界
+ * @description : 基础数据公共只读检索；IP 与 BIN 查询均走从库，并保护 IP 动态分表边界。
  * @status : create
  */
 @Service
@@ -79,16 +81,22 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
     /** 卡 BIN 最优匹配只读 Mapper，不允许为空。 */
     private final CardBinLookupMapper cardBinLookupMapper;
 
+    /** IP 分片本地不可变路由快照，避免每个冷 IP 先查询一次路由表。 */
+    private final IpShardRoutingSnapshot ipShardRoutingSnapshot;
+
     /**
      * 创建基础数据公共检索服务。
      *
      * @param ipLocationLookupMapper IP 归属 Mapper
      * @param cardBinLookupMapper    卡 BIN Mapper
+     * @param ipShardRoutingSnapshot IP 分片路由快照
      */
     public ReferenceDataLookupServiceImpl(IpLocationLookupMapper ipLocationLookupMapper,
-                                          CardBinLookupMapper cardBinLookupMapper) {
+                                          CardBinLookupMapper cardBinLookupMapper,
+                                          IpShardRoutingSnapshot ipShardRoutingSnapshot) {
         this.ipLocationLookupMapper = ipLocationLookupMapper;
         this.cardBinLookupMapper = cardBinLookupMapper;
+        this.ipShardRoutingSnapshot = ipShardRoutingSnapshot;
     }
 
     /**
@@ -99,24 +107,37 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
      */
     @Override
     @DS(DataSourceName.SLAVE)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public IpLookupResult lookupIp(String ipAddress) {
+        return lookupIpSnapshot(ipAddress).result();
+    }
+
+    /**
+     * 在同一个不可变路由上下文中完成分片选择和数据查询，防止刷新并发导致缓存版本与查询数据错配。
+     *
+     * @param ipAddress IP 字面量
+     * @return 实际路由版本和查询结果
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    public IpLookupSnapshot lookupIpSnapshot(String ipAddress) {
         IpAddressNormalizer.NormalizedIp normalizedIp = IpAddressNormalizer.normalizeExact(ipAddress);
         String ipType = normalizedIp.ipv4() ? IPV4 : IPV6;
-        String ipNumber = toIpNumber(normalizedIp.ipValue());
-        List<IpLibraryShardDO> shards = ipLocationLookupMapper.selectReadyShards(ipType, ipNumber);
-        if (shards == null || shards.size() != 1) {
+        String ipNumber = IpAddressNormalizer.toUnsignedNumber(normalizedIp);
+        // 路由必须唯一：缺失或重叠是库配置错误，不能伪装成普通未命中。
+        IpShardRoute route = ipShardRoutingSnapshot.resolve(ipType, ipNumber);
+        if (!isAllowedIpTable(ipType, route.tableName()) || !StringUtils.hasText(route.dataVersion())) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
         }
-        IpLibraryShardDO shard = shards.get(0);
-        if (!isAllowedIpTable(ipType, shard.getTableName()) || !StringUtils.hasText(shard.getDataVersion())) {
-            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
-        }
+        // 表名由数据库配置提供，只允许固定表族；数据版本与路由记录保持一致。
         IpLibraryDataRow row = ipLocationLookupMapper.selectLookupCandidate(
-                shard.getTableName(), shard.getDataVersion(), ipNumber);
+                route.tableName(), route.dataVersion(), ipNumber);
         if (row == null) {
-            return IpLookupResult.miss(normalizedIp.ipValue(), ipType);
+            return new IpLookupSnapshot(route.routingVersion(), IpLookupDetail.miss(
+                    IpLookupResult.miss(normalizedIp.ipValue(), ipType)));
         }
-        return new IpLookupResult(
+        IpLookupResult result = new IpLookupResult(
                 true,
                 normalizedIp.ipValue(),
                 ipType,
@@ -127,31 +148,47 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
                 row.getStateProvince(),
                 row.getCity()
         );
+        return new IpLookupSnapshot(route.routingVersion(), new IpLookupDetail(
+                result,
+                row.getId(),
+                row.getIpNumberStart(),
+                row.getIpNumberEnd(),
+                row.getDataVersion(),
+                row.getCreateTime(),
+                row.getCreateBy()
+        ));
     }
 
     /**
-     * 查询 6 至 11 位纯数字卡 BIN 的当前有效归属信息；合法输入未命中时返回 matched=false。
+     * 查询 6 至 11 位纯数字卡 BIN 的启用归属信息；独立只读事务确保支付主事务内仍路由从库。
+     *
+     * <p>输入先右补零为十一位数值，再通过一条区间 SQL 查询覆盖记录。重叠区间固定选择
+     * 主键最大的增量记录；数据库未命中直接返回 {@code matched=false}，由支付或 OpenAPI
+     * 上层执行卡品牌规则兜底。</p>
      *
      * @param cardBin 商户提交的卡 BIN
      * @return 卡 BIN 归属查询结果
      */
     @Override
     @DS(DataSourceName.SLAVE)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     public CardBinLookupResult lookupCardBin(String cardBin) {
         if (cardBin == null || !cardBin.matches("^[0-9]{6,11}$")) {
             throw new IllegalArgumentException("cardBin must be 6 to 11 digits");
         }
-        long numericValue = Long.parseLong(cardBin + "0".repeat(NORMALIZED_BIN_LENGTH - cardBin.length()));
-        CardBinRangeDO row = cardBinLookupMapper.selectBestMatch(numericValue, cardBin.length());
+        // 数据库起止区间统一使用十一位数值；短输入右补零后只执行一次覆盖查询。
+        String normalizedCardBin = cardBin + "0".repeat(NORMALIZED_BIN_LENGTH - cardBin.length());
+        long numericValue = Long.parseLong(normalizedCardBin);
+        CardBinRangeDO row = cardBinLookupMapper.selectBestMatch(numericValue);
         if (row == null) {
-            return CardBinLookupResult.miss(cardBin);
+            return CardBinLookupResult.miss(normalizedCardBin);
         }
-        if (!isValidBinMatch(row, cardBin.length())) {
+        if (!isValidBinMatch(row, numericValue)) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR);
         }
         return new CardBinLookupResult(
                 true,
-                cardBin,
+                normalizedCardBin,
                 row.getBinLength(),
                 row.getCardBrand(),
                 row.getCardSubBrand(),
@@ -186,31 +223,22 @@ public class ReferenceDataLookupServiceImpl implements ReferenceDataLookupServic
     }
 
     /**
-     * 校验数据库返回的 BIN 精度满足对外查询约束，防止异常配置暴露超过请求长度的匹配结果。
+     * 校验数据库返回记录确实覆盖查询值，防止异常映射或脏数据被当作有效归属返回。
      *
-     * @param row         数据库命中记录
-     * @param inputLength 商户输入 BIN 长度
+     * @param row 数据库命中记录
+     * @param numericValue 规范化后的十一位查询数值
      * @return true 表示命中记录可以返回
      */
-    private boolean isValidBinMatch(CardBinRangeDO row, int inputLength) {
+    private boolean isValidBinMatch(CardBinRangeDO row, long numericValue) {
         Integer binLength = row.getBinLength();
-        return binLength != null
+        return row.getId() != null
+                && row.getCardBinStart() != null
+                && row.getCardBinEnd() != null
+                && row.getCardBinStart() <= numericValue
+                && row.getCardBinEnd() >= numericValue
+                && binLength != null
                 && binLength >= MIN_BIN_LENGTH
-                && binLength <= NORMALIZED_BIN_LENGTH
-                && binLength <= inputLength;
+                && binLength <= NORMALIZED_BIN_LENGTH;
     }
 
-    /**
-     * 将已验证的 IP 字面量转换为无符号数值字符串，用于 IPv4/IPv6 分片和区间比较。
-     *
-     * @param ipAddress 已规范化的 IP 地址
-     * @return 无符号十进制数值字符串
-     */
-    private String toIpNumber(String ipAddress) {
-        try {
-            return new BigInteger(1, InetAddress.getByName(ipAddress).getAddress()).toString();
-        } catch (UnknownHostException exception) {
-            throw new IllegalArgumentException("IP address is invalid", exception);
-        }
-    }
 }

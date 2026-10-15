@@ -14,6 +14,15 @@ import lombok.Data;
 @Data
 public class CardBinRangeDO {
 
+    /** 区间主键，用于分页构建快照以及重叠记录的唯一优先级比较。 */
+    private Long id;
+
+    /** 十一位数值区间起点，查询值必须大于或等于该值。 */
+    private Long cardBinStart;
+
+    /** 十一位数值区间终点，查询值必须小于或等于该值。 */
+    private Long cardBinEnd;
+
     /** 命中 BIN 的精度长度，范围为 6 至 11，不允许为空。 */
     private Integer binLength;
 
@@ -43,4 +52,5 @@ public class CardBinRangeDO {
 
     /** 发卡行名称，允许为空，非敏感字段。 */
     private String issuerBank;
+
 }

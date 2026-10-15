@@ -15,7 +15,7 @@ import lombok.Data;
 @Data
 public class DataSourceMonitorExportRow {
 
-    /** 运行时数据源唯一标识，例如 master 或 slave_1；非敏感且不允许为空。 */
+    /** 运行时数据源唯一标识，例如 master 或 slave；非敏感且不允许为空。 */
     @ExcelExportColumn(order = 1, headerKey = "excel.datasource.dataSourceKey", width = 18)
     private String dataSourceKey;
 

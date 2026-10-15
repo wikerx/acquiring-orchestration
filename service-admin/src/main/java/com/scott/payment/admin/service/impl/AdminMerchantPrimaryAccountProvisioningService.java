@@ -4,8 +4,10 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.constant.SystemConfigKeys;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendRequest;
+import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendResult;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.admin.service.AdminEmailService;
+import com.scott.payment.component.core.auth.LoginTokenUtils;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -14,6 +16,7 @@ import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.entity.SysAccountMfaDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
+import com.scott.payment.component.db.auth.entity.SysEmailVerificationRequestDO;
 import com.scott.payment.component.db.auth.entity.SysMenuDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantUserDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantUserRoleDO;
@@ -27,6 +30,7 @@ import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMfaMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
+import com.scott.payment.component.db.auth.mapper.SysEmailVerificationRequestMapper;
 import com.scott.payment.component.db.auth.mapper.SysMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantUserRoleMapper;
@@ -39,19 +43,24 @@ import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.auth.support.MerchantLocaleSupport;
-import lombok.extern.slf4j.Slf4j;
+import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Base64;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -63,7 +72,6 @@ import java.util.Set;
  * @description : 管理端商户开户应用服务，负责在商户资料事务中创建独立管理员角色、主账号和强制 MFA，并在提交后发送开户通知
  * @status : create
  */
-@Slf4j
 @Service
 public class AdminMerchantPrimaryAccountProvisioningService {
 
@@ -74,7 +82,7 @@ public class AdminMerchantPrimaryAccountProvisioningService {
      * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
-    private static final String ACCOUNT_CREATED_TEMPLATE = "MERCHANT_ACCOUNT_CREATED";
+    private static final String ACCOUNT_ACTIVATION_TEMPLATE = "MERCHANT_ACCOUNT_ACTIVATION";
     /**
      * 账号创建场景常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
      * <p>
@@ -82,7 +90,17 @@ public class AdminMerchantPrimaryAccountProvisioningService {
      * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
-    private static final String ACCOUNT_CREATED_SCENE = "ACCOUNT_CREATED";
+    private static final String ACCOUNT_ACTIVATION_SCENE = "ACCOUNT_ACTIVATION";
+    private static final String ACCOUNT_ACTIVATION_PURPOSE = "ACCOUNT_ACTIVATION";
+    private static final String VERIFICATION_STATE_PENDING = "PENDING";
+    private static final int EMAIL_CODE_TTL_MINUTES = 30;
+    private static final String ACCOUNT_LOGIN_SEPARATOR = "_";
+    private static final String CODE_DIGITS = "23456789";
+    private static final String CODE_LOWERCASE = "abcdefghijkmnopqrstuvwxyz";
+    private static final String CODE_UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    private static final String CODE_CHARACTERS = CODE_DIGITS + CODE_LOWERCASE + CODE_UPPERCASE;
+    private static final DateTimeFormatter EMAIL_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     /**
      * 角色类型系统，用于区分 {@code AdminMerchantPrimaryAccountProvisioningService} 记录的处理类别、配置维度或外部协议枚举。
      * <p>
@@ -121,6 +139,7 @@ public class AdminMerchantPrimaryAccountProvisioningService {
     private final SysMerchantUserRoleMapper merchantUserRoleMapper;
     private final SysMerchantMenuGrantMapper merchantMenuGrantMapper;
     private final SysMerchantPermissionGrantMapper merchantPermissionGrantMapper;
+    private final SysEmailVerificationRequestMapper emailVerificationRequestMapper;
     private final AdminEmailService emailService;
     private final AdminConfigService configService;
 
@@ -138,6 +157,7 @@ public class AdminMerchantPrimaryAccountProvisioningService {
             SysMerchantUserRoleMapper merchantUserRoleMapper,
             SysMerchantMenuGrantMapper merchantMenuGrantMapper,
             SysMerchantPermissionGrantMapper merchantPermissionGrantMapper,
+            SysEmailVerificationRequestMapper emailVerificationRequestMapper,
             AdminEmailService emailService,
             AdminConfigService configService) {
         this.appMapper = appMapper;
@@ -153,6 +173,7 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         this.merchantUserRoleMapper = merchantUserRoleMapper;
         this.merchantMenuGrantMapper = merchantMenuGrantMapper;
         this.merchantPermissionGrantMapper = merchantPermissionGrantMapper;
+        this.emailVerificationRequestMapper = emailVerificationRequestMapper;
         this.emailService = emailService;
         this.configService = configService;
     }
@@ -170,8 +191,9 @@ public class AdminMerchantPrimaryAccountProvisioningService {
             return;
         }
         SysAppDO app = merchantApp();
-        String loginAccount = merchant.getContactEmail().trim().toLowerCase();
-        assertAccountAvailable(app.getId(), loginAccount);
+        String displayLoginAccount = merchant.getContactEmail().trim().toLowerCase();
+        String accountLoginName = toAccountLoginName(merchant.getMerchantId(), displayLoginAccount);
+        assertAccountAvailable(app.getId(), accountLoginName);
         String roleCode = AuthConstants.DEFAULT_MERCHANT_ROLE + "_" + merchant.getMerchantId();
         assertRoleAvailable(app.getId(), roleCode);
 
@@ -181,12 +203,11 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         grantMerchantScope(app.getId(), merchant.getMerchantId(), now);
 
         SysUserDO user = createUser(merchant, now);
-        String initialPassword = generateInitialPassword();
-        SysAccountDO account = createAccount(app, merchant, user, loginAccount, initialPassword, now);
+        SysAccountDO account = createAccount(app, merchant, user, accountLoginName, now);
         createRequiredMfa(app, merchant, account, now);
-        SysMerchantUserDO merchantUser = createMerchantUser(merchant, user, account, now);
+        SysMerchantUserDO merchantUser = createMerchantUser(merchant, user, account, displayLoginAccount, now);
         bindAdministratorRole(app, merchant, merchantUser, role, now);
-        sendAccountCreatedNoticeAfterCommit(merchant, account, initialPassword);
+        createActivationRequestAndScheduleEmail(merchant, account, displayLoginAccount, now);
     }
 
     /**
@@ -353,22 +374,25 @@ public class AdminMerchantPrimaryAccountProvisioningService {
                                        BaseMerchantInfoDO merchant,
                                        SysUserDO user,
                                        String loginAccount,
-                                       String initialPassword,
                                        LocalDateTime now) {
         String salt = PasswordHashUtils.generateSalt();
+        String placeholderPassword = LoginTokenUtils.generateToken();
         SysAccountDO account = new SysAccountDO();
         account.setAppId(app.getId());
         account.setUserId(user.getId());
         account.setMerchantId(merchant.getMerchantId());
         account.setLoginAccount(loginAccount);
         account.setPasswordSalt(salt);
-        account.setPasswordHash(PasswordHashUtils.hashPassword(initialPassword, salt));
+        account.setPasswordHash(PasswordHashUtils.hashPassword(placeholderPassword, salt));
         account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
         account.setMobile(trim(merchant.getContactPhone()));
-        account.setEmail(loginAccount);
+        account.setEmail(merchant.getContactEmail().trim().toLowerCase());
         account.setMfaEnabled(AuthConstants.DISABLED);
         account.setPasswordExpired(AuthConstants.DISABLED);
         account.setPasswordUpdatedAt(now);
+        account.setActivationStatus(AuthConstants.ACTIVATION_STATUS_PENDING);
+        account.setActivatedAt(null);
+        account.setEmailVerifiedAt(null);
         account.setFailedLoginCount(0);
         account.setLocked(AuthConstants.DISABLED);
         account.setStatus(AuthConstants.ENABLED);
@@ -404,13 +428,14 @@ public class AdminMerchantPrimaryAccountProvisioningService {
     private SysMerchantUserDO createMerchantUser(BaseMerchantInfoDO merchant,
                                                   SysUserDO user,
                                                   SysAccountDO account,
+                                                  String displayLoginAccount,
                                                   LocalDateTime now) {
         SysMerchantUserDO merchantUser = new SysMerchantUserDO();
         merchantUser.setMerchantInfoId(merchant.getId());
         merchantUser.setMerchantId(merchant.getMerchantId());
         merchantUser.setUserId(user.getId());
         merchantUser.setAccountId(account.getId());
-        merchantUser.setLoginAccount(account.getLoginAccount());
+        merchantUser.setLoginAccount(displayLoginAccount);
         merchantUser.setRealName(user.getRealName());
         merchantUser.setStatus(AuthConstants.ENABLED);
         merchantUser.setCreatedAt(now);
@@ -435,10 +460,32 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         merchantUserRoleMapper.insert(relation);
     }
 
-    private void sendAccountCreatedNoticeAfterCommit(BaseMerchantInfoDO merchant,
-                                                     SysAccountDO account,
-                                                     String initialPassword) {
-        Runnable task = () -> sendAccountCreatedNotice(merchant, account, initialPassword);
+    private void createActivationRequestAndScheduleEmail(BaseMerchantInfoDO merchant,
+                                                         SysAccountDO account,
+                                                         String displayLoginAccount,
+                                                         LocalDateTime now) {
+        String verificationCode = generateEmailCode();
+        String salt = PasswordHashUtils.generateSalt();
+        SysEmailVerificationRequestDO request = new SysEmailVerificationRequestDO();
+        request.setRequestNo(LoginTokenUtils.generateToken());
+        request.setAppId(account.getAppId());
+        request.setMerchantId(merchant.getMerchantId());
+        request.setAccountId(account.getId());
+        request.setPurpose(ACCOUNT_ACTIVATION_PURPOSE);
+        request.setEmailFingerprint(emailFingerprint(account.getEmail()));
+        request.setCodeSalt(salt);
+        request.setCodeHash(PasswordHashUtils.hashPassword(verificationCode, salt));
+        request.setExpireAt(now.plusMinutes(EMAIL_CODE_TTL_MINUTES));
+        request.setVerifyCount(0);
+        request.setState(VERIFICATION_STATE_PENDING);
+        request.setRequestIp("internal");
+        request.setLocale(MerchantLocaleSupport.normalize(merchant.getDefaultLocale()));
+        request.setCreatedAt(now);
+        request.setUpdatedAt(now);
+        emailVerificationRequestMapper.insert(request);
+
+        Runnable task = () -> sendAccountActivationNotice(
+                merchant, account, displayLoginAccount, request, verificationCode);
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             task.run();
             return;
@@ -451,41 +498,54 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         });
     }
 
-    private void sendAccountCreatedNotice(BaseMerchantInfoDO merchant,
-                                          SysAccountDO account,
-                                          String initialPassword) {
-        try {
-            String baseUrl = merchantSystemBaseUrl();
-            EmailSendRequest request = new EmailSendRequest();
-            request.setAppCode(AuthConstants.APP_MERCHANT);
-            request.setMerchantId(merchant.getMerchantId());
-            request.setMerchantNo(merchant.getMerchantId());
-            request.setMerchantName(merchant.getMerchantName());
-            request.setTemplateCode(ACCOUNT_CREATED_TEMPLATE);
-            request.setSceneCode(ACCOUNT_CREATED_SCENE);
-            request.setLocale(MerchantLocaleSupport.normalize(merchant.getDefaultLocale()));
-            request.setToEmails(List.of(account.getEmail()));
-            request.setBizType(ACCOUNT_CREATED_SCENE);
-            request.setBizNo(String.valueOf(account.getId()));
-            Map<String, Object> variables = new LinkedHashMap<>();
-            variables.put("systemName", "Vexra Merchant");
-            variables.put("userName", StringUtils.hasText(merchant.getContactName())
-                    ? merchant.getContactName().trim()
-                    : account.getLoginAccount());
-            variables.put("merchantId", merchant.getMerchantId());
-            variables.put("merchantName", merchant.getMerchantName());
-            variables.put("loginAccount", account.getLoginAccount());
-            variables.put("initialPassword", initialPassword);
-            variables.put("loginUrl", baseUrl + "/login");
-            variables.put("merchantSystemBaseUrl", baseUrl);
-            variables.put("verifyCodeGuide", "登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。");
-            variables.put("mfaGuide", "首次登录时请按页面提示完成多因素认证（MFA）绑定。邮件不会包含 MFA 密钥、二维码或验证码。");
-            request.setVariables(variables);
-            emailService.sendByTemplate(request);
-        } catch (RuntimeException exception) {
-            log.warn("merchant primary account notice send failed, merchantId: {}, accountId: {}, exceptionType: {}",
-                    merchant.getMerchantId(), account.getId(), exception.getClass().getSimpleName());
+    private void sendAccountActivationNotice(BaseMerchantInfoDO merchant,
+                                             SysAccountDO account,
+                                             String displayLoginAccount,
+                                             SysEmailVerificationRequestDO verificationRequest,
+                                             String verificationCode) {
+        String baseUrl = merchantSystemBaseUrl();
+        EmailSendRequest request = new EmailSendRequest();
+        request.setAppCode(AuthConstants.APP_MERCHANT);
+        request.setMerchantId(merchant.getMerchantId());
+        request.setMerchantNo(merchant.getMerchantId());
+        request.setMerchantName(merchant.getMerchantName());
+        request.setTemplateCode(ACCOUNT_ACTIVATION_TEMPLATE);
+        request.setSceneCode(ACCOUNT_ACTIVATION_SCENE);
+        request.setLocale(verificationRequest.getLocale());
+        request.setToEmails(List.of(account.getEmail()));
+        request.setBizType(ACCOUNT_ACTIVATION_PURPOSE);
+        request.setBizNo(verificationRequest.getRequestNo());
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("systemName", "Vexra Merchant");
+        variables.put("userName", StringUtils.hasText(merchant.getContactName())
+                ? merchant.getContactName().trim()
+                : displayLoginAccount);
+        variables.put("merchantId", merchant.getMerchantId());
+        variables.put("merchantName", merchant.getMerchantName());
+        variables.put("loginAccount", displayLoginAccount);
+        variables.put("verificationCode", verificationCode);
+        variables.put("expireMinutes", EMAIL_CODE_TTL_MINUTES);
+        variables.put("verificationUrl", activationUrl(baseUrl, verificationRequest.getRequestNo()));
+        variables.put("requestTime", EMAIL_TIME_FORMATTER.format(verificationRequest.getCreatedAt()));
+        variables.put("securityNotice", "en-US".equals(verificationRequest.getLocale())
+                ? "If you did not request this account, ignore this email and contact Vexra support."
+                : "如非本人申请此账号，请忽略本邮件并联系 Vexra 支持。");
+        request.setVariables(variables);
+        EmailSendResult result = emailService.sendByTemplate(request);
+        if (result == null || Objects.equals(result.getSendStatus(), EmailDeliveryStatus.CLOSED.getCode())
+                || Objects.equals(result.getSendStatus(), EmailDeliveryStatus.CANCELLED.getCode())) {
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "merchant account activation email could not be prepared");
         }
+    }
+
+    private String activationUrl(String baseUrl, String requestNo) {
+        return UriComponentsBuilder.fromUriString(baseUrl)
+                .path("/account-verification")
+                .queryParam("requestId", requestNo)
+                .build()
+                .encode()
+                .toUriString();
     }
 
     private String merchantSystemBaseUrl() {
@@ -495,10 +555,43 @@ public class AdminMerchantPrimaryAccountProvisioningService {
         return baseUrl.replaceAll("/+$", "");
     }
 
-    private String generateInitialPassword() {
-        byte[] bytes = new byte[18];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    private String generateEmailCode() {
+        char[] code = new char[6];
+        code[0] = randomCharacter(CODE_DIGITS);
+        code[1] = randomCharacter(CODE_LOWERCASE);
+        code[2] = randomCharacter(CODE_UPPERCASE);
+        for (int index = 3; index < code.length; index++) {
+            code[index] = randomCharacter(CODE_CHARACTERS);
+        }
+        for (int index = code.length - 1; index > 0; index--) {
+            int swapIndex = SECURE_RANDOM.nextInt(index + 1);
+            char current = code[index];
+            code[index] = code[swapIndex];
+            code[swapIndex] = current;
+        }
+        return new String(code);
+    }
+
+    private char randomCharacter(String characters) {
+        return characters.charAt(SECURE_RANDOM.nextInt(characters.length()));
+    }
+
+    private String emailFingerprint(String email) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(email.trim().toLowerCase().getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(digest.length * 2);
+            for (byte item : digest) {
+                builder.append(String.format("%02x", item));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private String toAccountLoginName(String merchantId, String displayLoginAccount) {
+        return displayLoginAccount + ACCOUNT_LOGIN_SEPARATOR + merchantId;
     }
 
     private void requireProvisioningFields(BaseMerchantInfoDO merchant) {

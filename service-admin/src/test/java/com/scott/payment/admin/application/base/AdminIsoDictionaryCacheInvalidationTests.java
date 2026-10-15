@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -84,6 +85,26 @@ class AdminIsoDictionaryCacheInvalidationTests {
         log.info("管理端国家资料缓存失效验证完成，结果: insert 后已调用国家缓存失效");
     }
 
+    /** 国家编辑、启停和逻辑删除必须全部进入同一个国家缓存可靠失效入口。 */
+    @Test
+    void shouldEvictCountryCacheAfterEveryCountryMutation() {
+        IsoCountryMapper countryMapper = mock(IsoCountryMapper.class);
+        IsoDictionaryCacheInvalidator invalidator = mock(IsoDictionaryCacheInvalidator.class);
+        IsoCountryDO country = new IsoCountryDO();
+        country.setId(1L);
+        country.setAlpha2Code("US");
+        country.setAlpha3Code("USA");
+        when(countryMapper.selectById(1L)).thenReturn(country);
+        AdminBaseCountryApplicationService service = countryService(countryMapper, invalidator);
+
+        service.updateCountry(1L, new IsoCountryDO());
+        service.updateStatus(1L, Map.of("status", 0));
+        service.removeCountry(1L);
+
+        verify(countryMapper, times(3)).updateById(country);
+        verify(invalidator, times(3)).evictCountries();
+    }
+
     /**
      * 更新币种状态持久化后必须失效币种字典缓存。
      */
@@ -104,6 +125,30 @@ class AdminIsoDictionaryCacheInvalidationTests {
         verify(currencyMapper).updateById(currency);
         verify(invalidator).evictCurrencies();
         log.info("管理端币种缓存失效验证完成，结果: update 后已调用币种缓存失效");
+    }
+
+    /** 币种新增、编辑和逻辑删除必须全部删除全量、代码与展示三个永久读模型。 */
+    @Test
+    void shouldEvictCurrencyCacheAfterEveryCurrencyMutation() {
+        IsoCurrencyMapper currencyMapper = mock(IsoCurrencyMapper.class);
+        IsoDictionaryCacheInvalidator invalidator = mock(IsoDictionaryCacheInvalidator.class);
+        IsoCurrencyDO existing = new IsoCurrencyDO();
+        existing.setId(1L);
+        existing.setAlpha3Code("USD");
+        existing.setIconKey("flag:US");
+        when(currencyMapper.selectById(1L)).thenReturn(existing);
+        AdminBaseCurrencyApplicationService service = currencyService(currencyMapper, invalidator);
+
+        IsoCurrencyDO created = new IsoCurrencyDO();
+        created.setAlpha3Code("EUR");
+        created.setIconKey("flag:EU");
+        service.createCurrency(created);
+        service.updateCurrency(1L, new IsoCurrencyDO());
+        service.removeCurrency(1L);
+
+        verify(currencyMapper).insert(created);
+        verify(currencyMapper, times(2)).updateById(existing);
+        verify(invalidator, times(3)).evictCurrencies();
     }
 
     /**
@@ -148,6 +193,27 @@ class AdminIsoDictionaryCacheInvalidationTests {
 
         verify(countryMapper).updateById(country);
         verify(invalidator).evictCountries();
+    }
+
+    /** 地区币种新增和删除本质上都会修改国家默认币种，必须复用国家缓存失效链路。 */
+    @Test
+    void shouldEvictCountryCacheAfterRegionCurrencyCreateAndRemove() {
+        IsoCountryMapper countryMapper = mock(IsoCountryMapper.class);
+        IsoDictionaryCacheInvalidator invalidator = mock(IsoDictionaryCacheInvalidator.class);
+        IsoCountryDO country = new IsoCountryDO();
+        country.setId(1L);
+        when(countryMapper.selectById(1L)).thenReturn(country);
+        AdminBaseRegionCurrencyApplicationService service = regionCurrencyService(
+                countryMapper,
+                mock(IsoCurrencyMapper.class),
+                invalidator
+        );
+
+        service.createRegionCurrency(Map.of("countryId", "1", "currencyAlpha3Code", "USD"));
+        service.removeRegionCurrency(1L);
+
+        verify(countryMapper, times(2)).updateById(country);
+        verify(invalidator, times(2)).evictCountries();
     }
 
     /**

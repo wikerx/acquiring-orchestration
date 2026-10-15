@@ -46,6 +46,16 @@
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--复用统一 Redis Key 和滑动窗口 Lua；网关仅使用响应式连接，不访问业务数据库。-->
+        <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

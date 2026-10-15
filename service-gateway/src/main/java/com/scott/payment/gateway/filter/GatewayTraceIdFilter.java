@@ -33,7 +33,7 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
     private static final String UNKNOWN_ROUTE = "unknown";
 
     /**
-     * 为进入网关的请求建立 trace 上下文，并记录路由开始、完成和异常事件。
+     * 为进入网关的请求建立 trace 上下文，并在结束时记录一条成功或异常事件。
      * <p>
      * 外部 traceId 先经过统一格式校验；响应头和下游请求使用同一标识。Reactor 链结束时清理
      * 线程上下文，避免复用线程把一次请求的 traceId 泄漏到后续请求。
@@ -52,18 +52,7 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
                 .headers(headers -> headers.set(TraceContext.TRACE_ID_HEADER, traceId))
                 .build();
         exchange.getResponse().getHeaders().set(TraceContext.TRACE_ID_HEADER, traceId);
-        log.info("event: GATEWAY_REQUEST_START traceId: {} method: {} path: {} queryKeys: {} clientIp: {} userAgent: {}",
-                traceId,
-                request.getMethod(),
-                request.getURI().getPath(),
-                request.getQueryParams().keySet(),
-                request.getRemoteAddress() == null ? null : request.getRemoteAddress().getAddress().getHostAddress(),
-                safeUserAgent(request.getHeaders().getFirst("User-Agent")));
         return chain.filter(exchange.mutate().request(request).build())
-                .doOnTerminate(() -> {
-                    TraceContext.setTraceId(traceId);
-                    logRouteComplete(exchange, startNanos);
-                })
                 .doOnSuccess(ignored -> {
                     TraceContext.setTraceId(traceId);
                     logFinish(exchange, startNanos, null);
@@ -104,7 +93,7 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
         String targetService = targetService(exchange);
         String traceId = TraceContext.getTraceId();
         if (error == null) {
-            log.info("event: GATEWAY_REQUEST_END traceId: {} routeId: {} targetService: {} status: {} durationMs: {}",
+            log.debug("event: GATEWAY_REQUEST_END traceId: {} routeId: {} targetService: {} status: {} durationMs: {}",
                     traceId, routeId, targetService, statusCode, durationMs);
             return;
         }
@@ -117,22 +106,6 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
                 error.getClass().getSimpleName(),
                 error.getMessage(),
                 error);
-    }
-
-    /**
-     * 记录网关路由链执行完成事件。
-     *
-     * @param exchange   WebFlux 请求交换对象
-     * @param startNanos 请求进入网关的纳秒时间
-     */
-    private void logRouteComplete(ServerWebExchange exchange, long startNanos) {
-        long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-        log.info("event: GATEWAY_ROUTE_COMPLETE traceId: {} routeId: {} targetService: {} path: {} durationMs: {}",
-                TraceContext.getTraceId(),
-                routeId(exchange),
-                targetService(exchange),
-                exchange.getRequest().getURI().getPath(),
-                durationMs);
     }
 
     /**
@@ -161,18 +134,5 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
             return route.getUri().getHost();
         }
         return route.getUri().getSchemeSpecificPart();
-    }
-
-    /**
-     * 截断 User-Agent 后再写入入口日志，控制单条日志大小。
-     *
-     * @param userAgent 请求头中的 User-Agent
-     * @return 最长 120 个字符的日志值；原值为空时返回 {@code null}
-     */
-    private String safeUserAgent(String userAgent) {
-        if (!StringUtils.hasText(userAgent)) {
-            return null;
-        }
-        return userAgent.length() <= 120 ? userAgent : userAgent.substring(0, 120);
     }
 }

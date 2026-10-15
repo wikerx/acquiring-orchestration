@@ -57,7 +57,9 @@ class AdminEmailTemplateContractTests {
             "MERCHANT_MFA_RESET_NOTICE",
             "MERCHANT_MFA_DISABLED_NOTICE",
             "MERCHANT_MFA_EXEMPT_NOTICE",
-            "CHANNEL_ALERT_DEFAULT"
+            "CHANNEL_ALERT_DEFAULT",
+            "ADMIN_PASSWORD_RESET_VERIFY",
+            "ADMIN_PASSWORD_RESET_SUCCESS"
     );
     private static final Set<String> ACTIVE_TEMPLATE_CODES = Set.of(
             "ADMIN_ACCOUNT_CREATED",
@@ -81,6 +83,14 @@ class AdminEmailTemplateContractTests {
             "CHANNEL_ALERT_DEFAULT",
             "MERCHANT_FROZEN",
             "MERCHANT_UNFROZEN",
+            "ADMIN_ACCOUNT_ACTIVATION",
+            "ADMIN_EMAIL_VERIFICATION",
+            "ADMIN_PASSWORD_RESET_VERIFY",
+            "ADMIN_PASSWORD_RESET_SUCCESS",
+            "MERCHANT_ACCOUNT_ACTIVATION",
+            "MERCHANT_EMAIL_VERIFICATION",
+            "MERCHANT_PASSWORD_RESET_VERIFY",
+            "MERCHANT_PASSWORD_RESET_SUCCESS",
             "FEE_CONFIG_PENDING_REVIEW",
             "FEE_CONFIG_REJECTED",
             "FEE_RULE_MISSING",
@@ -110,32 +120,80 @@ class AdminEmailTemplateContractTests {
     void shouldKeepAdminTemplateVariablesAlignedWithTriggerCode() throws IOException {
         String schema = readRepositoryFile("service-admin/src/main/resources/sql/admin-system-schema.sql");
         String adminMfa = readRepositoryFile("service-admin/src/main/resources/sql/admin-mfa-management.sql");
+        String passwordResetMigration = readRepositoryFile(
+                "service-admin/src/main/resources/sql/admin-password-reset-migration.sql"
+        );
+        String emailVerificationMigration = readRepositoryFile(
+                "service-admin/src/main/resources/sql/admin-email-verification-lifecycle-migration.sql"
+        );
+        String securityHardeningMigration = readRepositoryFile(
+                "service-admin/src/main/resources/sql/admin-auth-security-hardening-migration.sql"
+        );
 
-        assertTemplateContract(schema, "ADMIN_ACCOUNT_CREATED", Set.of(
-                "systemName", "userName", "loginAccount", "initialPassword", "loginUrl",
-                "verifyCodeGuide", "mfaGuide"
-        ));
-        assertTemplateContract(schema, "ADMIN_PASSWORD_CHANGED_BY_ADMIN", Set.of(
-                "systemName", "userName", "loginAccount", "temporaryPassword", "operatorName",
-                "operationTime", "loginUrl"
-        ));
+        Set<String> emailVerificationVariables = Set.of(
+                "systemName", "userName", "loginAccount", "verificationCode", "expireMinutes",
+                "verificationUrl", "requestTime", "securityNotice"
+        );
+        assertTemplateContract(schema, "ADMIN_ACCOUNT_ACTIVATION", emailVerificationVariables);
+        assertTemplateContract(schema, "ADMIN_EMAIL_VERIFICATION", emailVerificationVariables);
+        assertTemplateContract(emailVerificationMigration, "ADMIN_ACCOUNT_ACTIVATION", emailVerificationVariables);
+        assertTemplateContract(emailVerificationMigration, "ADMIN_EMAIL_VERIFICATION", emailVerificationVariables);
         assertTemplateContract(adminMfa, "ADMIN_MFA_BIND_NOTICE", Set.of("loginAccount", "bindUrl", "reason"));
         assertTemplateContract(adminMfa, "ADMIN_MFA_ENABLED_NOTICE", Set.of("loginAccount", "bindUrl", "reason"));
         assertTemplateContract(adminMfa, "ADMIN_MFA_RESET_NOTICE", Set.of("loginAccount", "bindUrl", "reason"));
         assertTemplateContract(adminMfa, "ADMIN_MFA_DISABLED_NOTICE", Set.of("loginAccount", "reason"));
         assertTemplateContract(adminMfa, "ADMIN_MFA_EXEMPT_NOTICE", Set.of("loginAccount", "reason", "exemptUntil"));
-
-        String userService = readRepositoryFile(
-                "service-admin/src/main/java/com/scott/payment/admin/service/impl/AdminUserServiceImpl.java"
+        assertTemplateContract(schema, "ADMIN_PASSWORD_RESET_VERIFY", Set.of(
+                "systemName", "userName", "verifyCode", "expireMinutes", "requestTime", "securityNotice"
+        ));
+        assertTemplateContract(schema, "ADMIN_PASSWORD_RESET_SUCCESS", Set.of(
+                "systemName", "userName", "operationTime", "securityNotice"
+        ));
+        assertTemplateContract(passwordResetMigration, "ADMIN_PASSWORD_RESET_VERIFY", Set.of(
+                "systemName", "userName", "verifyCode", "expireMinutes", "requestTime", "securityNotice"
+        ));
+        assertTemplateContract(passwordResetMigration, "ADMIN_PASSWORD_RESET_SUCCESS", Set.of(
+                "systemName", "userName", "operationTime", "securityNotice"
+        ));
+        assertThat(templateBlock(schema, "ADMIN_PASSWORD_RESET_VERIFY")).contains(
+                "data-template-theme=\"vexra-blue-white-v1\"", "[\"verifyCode\"]",
+                "\"verifyCode\":\"aB3xY7\"", "\"expireMinutes\":30"
         );
-        assertTriggerContract(userService, "ADMIN_ACCOUNT_CREATED", Set.of(
-                "systemName", "userName", "loginAccount", "initialPassword", "loginUrl",
-                "verifyCodeGuide", "mfaGuide"
+        assertThat(templateBlock(schema, "ADMIN_PASSWORD_RESET_VERIFY"))
+                .doesNotContain("区分大小写", "case-sensitive letters");
+        assertThat(templateBlock(passwordResetMigration, "ADMIN_PASSWORD_RESET_VERIFY")).contains(
+                "data-template-theme=\"vexra-blue-white-v1\"", "[\"verifyCode\"]",
+                "\"verifyCode\":\"aB3xY7\"", "\"expireMinutes\":30"
+        );
+        assertThat(templateBlock(passwordResetMigration, "ADMIN_PASSWORD_RESET_VERIFY"))
+                .doesNotContain("区分大小写", "case-sensitive letters");
+        assertThat(schema).contains("${verificationUrl}");
+        assertThat(passwordResetMigration).contains("${verificationUrl}");
+        assertThat(securityHardeningMigration).contains(
+                "DELETE FROM msg_email_template",
+                "template_code = 'ADMIN_PASSWORD_CHANGED_BY_ADMIN'",
+                "${verificationUrl}"
+        );
+        assertThat(emailVerificationMigration).contains(
+                "DELETE FROM msg_email_template",
+                "template_code = 'ADMIN_ACCOUNT_CREATED'",
+                "data-template-theme=\"vexra-blue-white-v1\"",
+                "SET NAMES utf8mb4;"
+        );
+
+        String passwordResetService = readRepositoryFile(
+                "service-admin/src/main/java/com/scott/payment/admin/service/impl/AdminPasswordResetServiceImpl.java"
+        );
+        assertTriggerContract(passwordResetService, "ADMIN_PASSWORD_RESET_VERIFY", Set.of(
+                "systemName", "userName", "verifyCode", "expireMinutes", "verificationUrl",
+                "requestTime", "securityNotice"
         ));
-        assertTriggerContract(userService, "ADMIN_PASSWORD_CHANGED_BY_ADMIN", Set.of(
-                "systemName", "userName", "loginAccount", "temporaryPassword", "operatorName",
-                "operationTime", "loginUrl"
-        ));
+
+        String emailVerificationService = readRepositoryFile(
+                "service-admin/src/main/java/com/scott/payment/admin/service/impl/AdminEmailVerificationServiceImpl.java"
+        );
+        assertTriggerContract(emailVerificationService, "ADMIN_ACCOUNT_ACTIVATION", emailVerificationVariables);
+        assertTriggerContract(emailVerificationService, "ADMIN_EMAIL_VERIFICATION", emailVerificationVariables);
 
         String mfaService = readRepositoryFile(
                 "service-admin/src/main/java/com/scott/payment/admin/service/impl/AdminUserMfaServiceImpl.java"
@@ -155,24 +213,43 @@ class AdminEmailTemplateContractTests {
     @Test
     void shouldKeepMerchantAndApiKeyVariablesAlignedWithTriggerCode() throws IOException {
         String schema = readRepositoryFile("service-admin/src/main/resources/sql/admin-system-schema.sql");
+        String merchantSecurity = readRepositoryFile(
+                "service-admin/src/main/resources/sql/merchant-auth-security-hardening-migration.sql"
+        );
         String merchantMfa = readRepositoryFile(
                 "service-merchant/src/main/resources/sql/merchant-mfa-management.sql"
         );
-        Set<String> accountVariables = Set.of(
+        Set<String> emailVerificationVariables = Set.of(
                 "systemName", "userName", "merchantId", "merchantName", "loginAccount",
-                "initialPassword", "loginUrl", "verifyCodeGuide", "mfaGuide"
+                "verificationCode", "expireMinutes", "verificationUrl", "requestTime", "securityNotice"
         );
-        Set<String> passwordChangedVariables = Set.of(
-                "systemName", "userName", "merchantId", "merchantName", "loginAccount",
-                "temporaryPassword", "operatorName", "operationTime", "loginUrl"
+        Set<String> emailTemplateVariables = Set.of(
+                "systemName", "userName", "merchantId", "loginAccount", "verificationCode",
+                "expireMinutes", "verificationUrl", "requestTime", "securityNotice"
+        );
+        Set<String> passwordResetVariables = Set.of(
+                "systemName", "userName", "merchantId", "verifyCode", "expireMinutes",
+                "verificationUrl", "requestTime", "securityNotice"
+        );
+        Set<String> passwordResetSuccessVariables = Set.of(
+                "systemName", "userName", "merchantId", "operationTime", "securityNotice"
         );
         Set<String> apiKeyVariables = Set.of(
                 "systemName", "merchantName", "merchantNo", "keyName", "keyLast4",
                 "operatorName", "operationTime"
         );
 
-        assertTemplateContract(schema, "MERCHANT_ACCOUNT_CREATED", accountVariables);
-        assertTemplateContract(schema, "MERCHANT_PASSWORD_CHANGED_BY_ADMIN", passwordChangedVariables);
+        assertTemplateContract(merchantSecurity, "MERCHANT_ACCOUNT_ACTIVATION", emailTemplateVariables);
+        assertTemplateContract(merchantSecurity, "MERCHANT_EMAIL_VERIFICATION", emailTemplateVariables);
+        assertTemplateContract(merchantSecurity, "MERCHANT_PASSWORD_RESET_VERIFY", passwordResetVariables);
+        assertTemplateContract(merchantSecurity, "MERCHANT_PASSWORD_RESET_SUCCESS", passwordResetSuccessVariables);
+        for (String code : List.of(
+                "MERCHANT_ACCOUNT_ACTIVATION", "MERCHANT_EMAIL_VERIFICATION",
+                "MERCHANT_PASSWORD_RESET_VERIFY", "MERCHANT_PASSWORD_RESET_SUCCESS")) {
+            assertThat(templateBlock(merchantSecurity, code))
+                    .contains("data-template-theme=\"vexra-merchant-blue-green-v1\"")
+                    .doesNotContain("initialPassword", "temporaryPassword", "区分大小写", "case-sensitive letters");
+        }
         assertTemplateContract(merchantMfa, "MERCHANT_MFA_BIND_NOTICE", Set.of(
                 "merchantName", "merchantId", "loginAccount", "bindUrl", "reason"
         ));
@@ -198,13 +275,25 @@ class AdminEmailTemplateContractTests {
         String provisioningService = readRepositoryFile(
                 "service-admin/src/main/java/com/scott/payment/admin/service/impl/AdminMerchantPrimaryAccountProvisioningService.java"
         );
-        assertTriggerContract(provisioningService, "MERCHANT_ACCOUNT_CREATED", accountVariables);
+        assertTriggerContract(provisioningService, "MERCHANT_ACCOUNT_ACTIVATION", emailVerificationVariables);
+
+        String merchantEmailVerificationService = readRepositoryFile(
+                "service-merchant/src/main/java/com/scott/payment/merchant/service/impl/MerchantEmailVerificationServiceImpl.java"
+        );
+        assertTriggerContract(merchantEmailVerificationService, "MERCHANT_ACCOUNT_ACTIVATION", emailTemplateVariables);
+        assertTriggerContract(merchantEmailVerificationService, "MERCHANT_EMAIL_VERIFICATION", emailTemplateVariables);
+
+        String merchantPasswordResetService = readRepositoryFile(
+                "service-merchant/src/main/java/com/scott/payment/merchant/service/impl/MerchantPasswordResetServiceImpl.java"
+        );
+        assertTriggerContract(merchantPasswordResetService, "MERCHANT_PASSWORD_RESET_VERIFY", passwordResetVariables);
+        assertTriggerContract(merchantPasswordResetService, "MERCHANT_PASSWORD_RESET_SUCCESS", passwordResetSuccessVariables);
 
         String merchantSystemService = readRepositoryFile(
                 "service-merchant/src/main/java/com/scott/payment/merchant/service/impl/MerchantSystemServiceImpl.java"
         );
-        assertTriggerContract(merchantSystemService, "MERCHANT_ACCOUNT_CREATED", accountVariables);
-        assertTriggerContract(merchantSystemService, "MERCHANT_PASSWORD_CHANGED_BY_ADMIN", passwordChangedVariables);
+        assertThat(provisioningService + merchantEmailVerificationService + merchantPasswordResetService + merchantSystemService)
+                .doesNotContain("variables.put(\"initialPassword\"", "variables.put(\"temporaryPassword\"");
         assertThat(merchantSystemService).contains(
                 "MERCHANT_MFA_BIND_NOTICE",
                 "MERCHANT_MFA_ENABLED_NOTICE",
@@ -271,6 +360,8 @@ class AdminEmailTemplateContractTests {
         );
         String adminMfa = readRepositoryFile("service-admin/src/main/resources/sql/admin-mfa-management.sql");
         String merchantMfa = readRepositoryFile("service-merchant/src/main/resources/sql/merchant-mfa-management.sql");
+        String merchantSecurity = readRepositoryFile(
+                "service-admin/src/main/resources/sql/merchant-auth-security-hardening-migration.sql");
         String channelAlert = readRepositoryFile(
                 "service-admin/src/main/resources/sql/channel-alert-management-schema.sql"
         );
@@ -289,9 +380,14 @@ class AdminEmailTemplateContractTests {
             assertThat(channelAlert).contains(token);
         }
 
-        assertThat(templateBlock(schema, "ADMIN_ACCOUNT_CREATED")).contains("[\"initialPassword\"]");
-        assertThat(templateBlock(schema, "MERCHANT_ACCOUNT_CREATED")).contains("[\"initialPassword\"]");
-        assertThat(schema).contains("'[\"temporaryPassword\"]', 1, 1, 2");
+        assertThat(schema).contains("template_code = 'ADMIN_ACCOUNT_CREATED'", "DELETE FROM msg_email_template");
+        assertThat(merchantSecurity).contains(
+                "WHERE template_code IN ('MERCHANT_ACCOUNT_CREATED', 'MERCHANT_PASSWORD_CHANGED_BY_ADMIN')",
+                "SET status = 0",
+                "'[\"verificationCode\"]'",
+                "'[\"verifyCode\"]'");
+        assertThat(merchantSecurity).doesNotContain(
+                "variables.put(\"initialPassword\"", "variables.put(\"temporaryPassword\"");
         assertThat(migration).contains(
                 "WHEN template_code IN ('ADMIN_PASSWORD_CHANGED_BY_ADMIN', 'MERCHANT_PASSWORD_CHANGED_BY_ADMIN') "
                         + "THEN '[\"temporaryPassword\"]'"
@@ -363,6 +459,47 @@ class AdminEmailTemplateContractTests {
             assertThat(schema).contains(token);
             assertThat(accessMigration).contains(token);
         }
+    }
+
+    /** 所有内置模板必须使用与管理系统一致的字体栈，迁移需可重复执行且可回滚。 */
+    @Test
+    void shouldKeepPasswordResetTemplatesUtf8AndPolishBuiltInTemplateFonts() throws IOException {
+        String schema = readRepositoryFile("service-admin/src/main/resources/sql/admin-system-schema.sql");
+        String governance = readRepositoryFile(
+                "service-admin/src/main/resources/sql/email-template-governance-migration.sql");
+        String passwordReset = readRepositoryFile(
+                "service-admin/src/main/resources/sql/admin-password-reset-migration.sql");
+        String visualPolish = readRepositoryFile(
+                "service-admin/src/main/resources/sql/email-template-visual-polish-migration.sql");
+        String visualPolishRollback = readRepositoryFile(
+                "service-admin/src/main/resources/sql/email-template-visual-polish-rollback.sql");
+        String systemFontStack = "font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',"
+                + "''Microsoft YaHei'',sans-serif";
+
+        assertThat(passwordReset).startsWith("-- 管理后台安全找回密码迁移。")
+                .contains("SET NAMES utf8mb4;")
+                .contains("【${systemName}】找回密码验证码", "【${systemName}】密码已重置")
+                .doesNotContain("ã€", "æ‰", "éª", "å¯");
+        for (String source : List.of(schema, governance, passwordReset)) {
+            assertThat(templateBlock(source, "ADMIN_PASSWORD_RESET_VERIFY"))
+                    .contains(systemFontStack, ">Vexra Admin<");
+            assertThat(templateBlock(source, "ADMIN_PASSWORD_RESET_SUCCESS"))
+                    .contains(systemFontStack, ">Vexra Admin<");
+        }
+        assertThat(visualPolish).contains(
+                "SET NAMES utf8mb4;",
+                "msg_email_template_visual_backup_20261014",
+                "template.system_builtin = 1",
+                "template.status = 1",
+                "template.deleted = 0",
+                systemFontStack,
+                "template.version_no = template.version_no + 1"
+        );
+        assertThat(visualPolishRollback).contains(
+                "JOIN msg_email_template_visual_backup_20261014",
+                "backup.content_template",
+                "DROP TABLE msg_email_template_visual_backup_20261014"
+        );
     }
 
     @Test

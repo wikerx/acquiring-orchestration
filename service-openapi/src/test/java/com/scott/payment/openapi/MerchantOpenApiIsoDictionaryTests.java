@@ -48,7 +48,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 "spring.cloud.nacos.discovery.enabled=false",
                 MerchantOpenApiTestSupport.GATEWAY_INGRESS_TEST_SECRET_PROPERTY,
                 MerchantOpenApiTestSupport.GATEWAY_INGRESS_REPLAY_DISABLED_PROPERTY,
-                MerchantOpenApiTestSupport.GATEWAY_INGRESS_LEGACY_DISABLED_PROPERTY
+                MerchantOpenApiTestSupport.GATEWAY_INGRESS_LEGACY_DISABLED_PROPERTY,
+                MerchantOpenApiTestSupport.CARD_BIN_INDEX_INITIALIZER_DISABLED_PROPERTY
         }
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -163,6 +164,48 @@ class MerchantOpenApiIsoDictionaryTests {
                 .first()
                 .extracting(IsoCurrencyVO::getDefaultFractionDigits)
                 .isEqualTo(2);
+    }
+
+    /** 两个币种代码必须精确组合，冲突条件不能回退到全量结果。 */
+    @Test
+    void shouldMatchBothCurrencyCodesAndReturnEmptyForConflict() throws Exception {
+        MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
+        MvcResult matched = performEncryptedQuery(
+                CURRENCY_PATH,
+                JsonUtils.toJsonString(Map.of("alphabeticCode", "USD", "numericCode", "840")),
+                merchantMaterial,
+                MerchantOpenApiTestSupport.uniqueJwtId("iso-currency-both-match")
+        );
+        List<IsoCurrencyVO> matchedCurrencies = decryptDataList(
+                matched.getResponse().getContentAsString(), merchantMaterial,
+                new TypeReference<List<IsoCurrencyVO>>() {
+                });
+        assertThat(matchedCurrencies).extracting(IsoCurrencyVO::getAlphabeticCode).containsExactly("USD");
+
+        MvcResult conflicting = performEncryptedQuery(
+                CURRENCY_PATH,
+                JsonUtils.toJsonString(Map.of("alphabeticCode", "USD", "numericCode", "156")),
+                merchantMaterial,
+                MerchantOpenApiTestSupport.uniqueJwtId("iso-currency-both-conflict")
+        );
+        List<IsoCurrencyVO> conflictingCurrencies = decryptDataList(
+                conflicting.getResponse().getContentAsString(), merchantMaterial,
+                new TypeReference<List<IsoCurrencyVO>>() {
+                });
+        assertThat(conflictingCurrencies).isEmpty();
+    }
+
+    /** 旧名称字段必须拒绝，不能因为被忽略而返回全部币种。 */
+    @Test
+    void shouldRejectCurrencyNameAsQueryParameter() throws Exception {
+        MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
+        performEncryptedQueryExpectError(
+                CURRENCY_PATH,
+                JsonUtils.toJsonString(Map.of("englishName", "Dollar")),
+                merchantMaterial,
+                MerchantOpenApiTestSupport.uniqueJwtId("iso-currency-old-field"),
+                ApiResultEnum.PARAM_INVALID
+        );
     }
 
     /**

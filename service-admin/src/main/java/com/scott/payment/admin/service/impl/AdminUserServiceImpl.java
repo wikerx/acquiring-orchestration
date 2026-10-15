@@ -10,16 +10,16 @@ import com.scott.payment.admin.dto.SysUserAccountQueryRequest;
 import com.scott.payment.admin.dto.SysUserAccountResetPasswordRequest;
 import com.scott.payment.admin.dto.SysUserAccountStatusRequest;
 import com.scott.payment.admin.dto.SysUserAccountUpdateRequest;
+import com.scott.payment.admin.dto.SysUserEmailVerificationSendRequest;
 import com.scott.payment.admin.dto.SysRoleDTO;
 import com.scott.payment.admin.dto.SysUserRoleAuthDTO;
 import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
-import com.scott.payment.admin.constant.SystemConfigKeys;
-import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendRequest;
-import com.scott.payment.admin.service.AdminConfigService;
-import com.scott.payment.admin.service.AdminEmailService;
+import com.scott.payment.admin.service.AdminEmailVerificationService;
+import com.scott.payment.admin.service.AdminPasswordResetService;
 import com.scott.payment.admin.service.AdminUserService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.auth.LoginTokenUtils;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -57,12 +57,9 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -96,12 +93,10 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 系统超级权限编码。
      */
     private static final String SUPER_PERMISSION = "*:*:*";
-    /** 管理员重置后台账号密码后的安全通知模板。 */
-    private static final String PASSWORD_CHANGED_TEMPLATE = "ADMIN_PASSWORD_CHANGED_BY_ADMIN";
-    /** 密码被管理员修改通知场景。 */
-    private static final String PASSWORD_CHANGED_SCENE = "PASSWORD_CHANGED";
-    /** 邮件中统一展示到秒的操作时间。 */
-    private static final DateTimeFormatter EMAIL_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    /** 邮箱尚未通过所有权验证。 */
+    private static final String EMAIL_VERIFICATION_PENDING = "PENDING";
+    /** 邮箱已经通过所有权验证。 */
+    private static final String EMAIL_VERIFICATION_VERIFIED = "VERIFIED";
 
     /**
      * 应用数据访问接口。
@@ -159,14 +154,10 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 登录会话数据访问接口。
      */
     private final SysLoginSessionMapper sysLoginSessionMapper;
-    /**
-     * 邮件发送服务，用于账号开户通知。
-     */
-    private final AdminEmailService adminEmailService;
-    /**
-     * 系统参数服务，用于读取管理系统访问地址。
-     */
-    private final AdminConfigService adminConfigService;
+    /** 账号激活和邮箱变更验证服务。 */
+    private final AdminEmailVerificationService adminEmailVerificationService;
+    /** 一次性密码找回服务，管理员重置只负责签发邮件流程。 */
+    private final AdminPasswordResetService adminPasswordResetService;
     /**
      * 创建后台用户服务实现，显式注入用户、组织、角色和会话相关数据访问接口。
      *
@@ -201,8 +192,8 @@ public class AdminUserServiceImpl implements AdminUserService {
                                 SysRolePermissionMapper sysRolePermissionMapper,
                                 SysPermissionMapper sysPermissionMapper,
                                 SysLoginSessionMapper sysLoginSessionMapper,
-                                AdminEmailService adminEmailService,
-                                AdminConfigService adminConfigService) {
+                                AdminEmailVerificationService adminEmailVerificationService,
+                                AdminPasswordResetService adminPasswordResetService) {
         this.sysAppMapper = sysAppMapper;
         this.sysAccountMapper = sysAccountMapper;
         this.sysAccountMfaMapper = sysAccountMfaMapper;
@@ -217,8 +208,8 @@ public class AdminUserServiceImpl implements AdminUserService {
         this.sysRolePermissionMapper = sysRolePermissionMapper;
         this.sysPermissionMapper = sysPermissionMapper;
         this.sysLoginSessionMapper = sysLoginSessionMapper;
-        this.adminEmailService = adminEmailService;
-        this.adminConfigService = adminConfigService;
+        this.adminEmailVerificationService = adminEmailVerificationService;
+        this.adminPasswordResetService = adminPasswordResetService;
     }
 
     /**
@@ -231,6 +222,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @DS(DataSourceName.SLAVE)
     public PageResult<SysUserAccountDTO> pageUsers(SysUserAccountQueryRequest request) {
         SysUserAccountQueryRequest query = request == null ? new SysUserAccountQueryRequest() : request;
+        validateLifecycleQuery(query);
         SysAppDO app = getAdminApp();
         List<Long> filteredUserIds = loadUserIdsByDept(query.getDeptId());
         if (query.getDeptId() != null && filteredUserIds.isEmpty()) {
@@ -246,6 +238,12 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .likeRight(StringUtils.hasText(query.getMobile()), SysAccountDO::getMobile, query.getMobile())
                         .likeRight(StringUtils.hasText(query.getEmail()), SysAccountDO::getEmail, query.getEmail())
                         .eq(query.getStatus() != null, SysAccountDO::getStatus, query.getStatus())
+                        .eq(StringUtils.hasText(query.getActivationStatus()), SysAccountDO::getActivationStatus,
+                                query.getActivationStatus())
+                        .isNull(EMAIL_VERIFICATION_PENDING.equals(query.getEmailVerificationStatus()),
+                                SysAccountDO::getEmailVerifiedAt)
+                        .isNotNull(EMAIL_VERIFICATION_VERIFIED.equals(query.getEmailVerificationStatus()),
+                                SysAccountDO::getEmailVerifiedAt)
                         .in(query.getDeptId() != null, SysAccountDO::getUserId, filteredUserIds)
                         .orderByDesc(SysAccountDO::getUpdatedAt)
         );
@@ -275,6 +273,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     @DS(DataSourceName.SLAVE)
     public List<SysUserAccountDTO> listUsers(SysUserAccountQueryRequest request) {
         SysUserAccountQueryRequest query = request == null ? new SysUserAccountQueryRequest() : request;
+        validateLifecycleQuery(query);
         SysAppDO app = getAdminApp();
         List<Long> filteredUserIds = loadUserIdsByDept(query.getDeptId());
         if (query.getDeptId() != null && filteredUserIds.isEmpty()) {
@@ -288,6 +287,12 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .likeRight(StringUtils.hasText(query.getMobile()), SysAccountDO::getMobile, query.getMobile())
                         .likeRight(StringUtils.hasText(query.getEmail()), SysAccountDO::getEmail, query.getEmail())
                         .eq(query.getStatus() != null, SysAccountDO::getStatus, query.getStatus())
+                        .eq(StringUtils.hasText(query.getActivationStatus()), SysAccountDO::getActivationStatus,
+                                query.getActivationStatus())
+                        .isNull(EMAIL_VERIFICATION_PENDING.equals(query.getEmailVerificationStatus()),
+                                SysAccountDO::getEmailVerifiedAt)
+                        .isNotNull(EMAIL_VERIFICATION_VERIFIED.equals(query.getEmailVerificationStatus()),
+                                SysAccountDO::getEmailVerifiedAt)
                         .in(query.getDeptId() != null, SysAccountDO::getUserId, filteredUserIds)
                         .orderByDesc(SysAccountDO::getUpdatedAt)
         );
@@ -381,17 +386,21 @@ public class AdminUserServiceImpl implements AdminUserService {
         sysUserMapper.insert(user);
 
         String salt = PasswordHashUtils.generateSalt();
+        String provisionalPassword = LoginTokenUtils.generateToken();
         SysAccountDO account = new SysAccountDO();
         account.setAppId(app.getId());
         account.setUserId(user.getId());
         account.setLoginAccount(normalize(request.getLoginAccount()));
         account.setPasswordSalt(salt);
-        account.setPasswordHash(PasswordHashUtils.hashPassword(request.getPassword(), salt));
+        account.setPasswordHash(PasswordHashUtils.hashPassword(provisionalPassword, salt));
         account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
         account.setMobile(normalize(request.getMobile()));
         account.setEmail(email);
+        account.setEmailVerifiedAt(null);
+        account.setActivationStatus(AuthConstants.ACTIVATION_STATUS_PENDING);
+        account.setActivatedAt(null);
         account.setMfaEnabled(AuthConstants.DISABLED);
-        account.setPasswordExpired(AuthConstants.DISABLED);
+        account.setPasswordExpired(AuthConstants.ENABLED);
         account.setPasswordUpdatedAt(now);
         account.setFailedLoginCount(0);
         account.setLocked(AuthConstants.DISABLED);
@@ -405,7 +414,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         createDefaultRequiredMfa(app, account, now);
 
         bindUserPosts(app.getId(), user.getId(), request.getPostIds(), now);
-        sendAccountCreatedNoticeAfterCommit(account, user, request.getPassword());
+        adminEmailVerificationService.issue(account.getId(),
+                AdminEmailVerificationService.PURPOSE_ACCOUNT_ACTIVATION,
+                user.getLanguage(), "internal:create-user", null, false);
         return toDTO(account, user, loadDeptNameMap(Collections.singletonList(user.getDeptId())),
                 loadUserPostMap(List.of(user.getId())), loadAccountRoleMap(app.getId(), List.of(account.getId())));
     }
@@ -428,6 +439,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         String realName = request.getRealName() == null ? user.getRealName() : normalize(request.getRealName());
         String mobile = request.getMobile() == null ? account.getMobile() : normalize(request.getMobile());
         String email = requireEmail(request.getEmail());
+        boolean emailChanged = !sameEmail(account.getEmail(), email);
         String remark = normalize(request.getRemark());
         user.setRealName(realName);
         user.setDeptId(validateDept(app.getId(), request.getDeptId()));
@@ -440,6 +452,9 @@ public class AdminUserServiceImpl implements AdminUserService {
 
         account.setMobile(mobile);
         account.setEmail(email);
+        if (emailChanged) {
+            account.setEmailVerifiedAt(null);
+        }
         account.setStatus(status);
         account.setRemark(remark);
         account.setUpdatedAt(now);
@@ -448,6 +463,11 @@ public class AdminUserServiceImpl implements AdminUserService {
             logoutSessions(app.getId(), account.getId(), now);
         }
         bindUserPosts(app.getId(), user.getId(), request.getPostIds(), now);
+        if (emailChanged) {
+            adminEmailVerificationService.issue(account.getId(), verificationPurpose(account,
+                            AdminEmailVerificationService.PURPOSE_EMAIL_CHANGE),
+                    user.getLanguage(), "internal:update-user", null, false);
+        }
         return toDTO(account, user, loadDeptNameMap(Collections.singletonList(user.getDeptId())),
                 loadUserPostMap(List.of(user.getId())), loadAccountRoleMap(app.getId(), List.of(account.getId())));
     }
@@ -478,31 +498,32 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
-     * 重置后台用户密码，并强制注销已有会话。
+     * 为后台用户签发一次性邮件重置流程；密码真正变更前保留现有会话。
      *
      * @param request 重置密码请求
      */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    public void resetPassword(SysUserAccountResetPasswordRequest request) {
+    public void resetPassword(SysUserAccountResetPasswordRequest request,
+                              String locale,
+                              String requestIp,
+                              String userAgent) {
+        adminPasswordResetService.requestResetForAccount(
+                request.getAccountId(), locale, requestIp, userAgent);
+    }
+
+    /** 为未验证邮箱签发最新验证请求，待激活账号始终沿用账号激活流程。 */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void sendEmailVerification(SysUserEmailVerificationSendRequest request, String locale,
+                                      String requestIp, String userAgent) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
-        LocalDateTime now = LocalDateTime.now();
-        String salt = PasswordHashUtils.generateSalt();
-        account.setPasswordSalt(salt);
-        account.setPasswordHash(PasswordHashUtils.hashPassword(request.getPassword(), salt));
-        account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
-        account.setPasswordExpired(AuthConstants.DISABLED);
-        account.setPasswordUpdatedAt(now);
-        account.setFailedLoginCount(0);
-        account.setLocked(AuthConstants.DISABLED);
-        account.setLockedAt(null);
-        account.setLockedReason(null);
-        account.setUpdatedAt(now);
-        sysAccountMapper.updateById(account);
-        logoutSessions(app.getId(), account.getId(), now);
-        sendPasswordChangedNoticeAfterCommit(account, getUser(account.getUserId()), request.getPassword(), now);
+        adminEmailVerificationService.issue(account.getId(), verificationPurpose(account,
+                        AdminEmailVerificationService.PURPOSE_EMAIL_VERIFICATION), locale,
+                requestIp, userAgent, true);
     }
 
     /**
@@ -1018,6 +1039,39 @@ public class AdminUserServiceImpl implements AdminUserService {
         return normalizedEmail;
     }
 
+    /** 校验用户列表生命周期筛选值，避免未知状态被静默忽略。 */
+    private void validateLifecycleQuery(SysUserAccountQueryRequest query) {
+        if (StringUtils.hasText(query.getEmailVerificationStatus())
+                && !Set.of(EMAIL_VERIFICATION_PENDING, EMAIL_VERIFICATION_VERIFIED)
+                .contains(query.getEmailVerificationStatus())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "email verification status is invalid");
+        }
+        if (StringUtils.hasText(query.getActivationStatus())
+                && !Set.of(AuthConstants.ACTIVATION_STATUS_PENDING, AuthConstants.ACTIVATION_STATUS_ACTIVE)
+                .contains(query.getActivationStatus())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "activation status is invalid");
+        }
+    }
+
+    /** 邮箱比较忽略大小写，避免仅修改字母大小写就重复清除验证状态。 */
+    private boolean sameEmail(String left, String right) {
+        return left != null && right != null && left.equalsIgnoreCase(right);
+    }
+
+    /** 待激活账号始终发送激活邮件；已激活账号保留调用场景指定的验证用途。 */
+    private String verificationPurpose(SysAccountDO account, String activeAccountPurpose) {
+        return AuthConstants.ACTIVATION_STATUS_PENDING.equals(account.getActivationStatus())
+                ? AdminEmailVerificationService.PURPOSE_ACCOUNT_ACTIVATION
+                : activeAccountPurpose;
+    }
+
+    /** 兼容迁移前没有激活状态的历史账号，历史账号按已激活展示。 */
+    private String activationStatus(SysAccountDO account) {
+        return StringUtils.hasText(account.getActivationStatus())
+                ? account.getActivationStatus() : AuthConstants.ACTIVATION_STATUS_ACTIVE;
+    }
+
     /**
      * 注销账号当前有效会话，用于密码、状态和授权变更后触发权限即时刷新。
      *
@@ -1220,6 +1274,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         dto.setRealName(user == null ? null : user.getRealName());
         dto.setMobile(account.getMobile());
         dto.setEmail(account.getEmail());
+        dto.setPendingEmail(account.getPendingEmail());
+        dto.setEmailVerificationStatus(account.getEmailVerifiedAt() == null
+                ? EMAIL_VERIFICATION_PENDING : EMAIL_VERIFICATION_VERIFIED);
+        dto.setEmailVerifiedAt(account.getEmailVerifiedAt());
+        dto.setActivationStatus(activationStatus(account));
+        dto.setActivatedAt(account.getActivatedAt());
         dto.setUserType(user == null ? null : user.getUserType());
         dto.setStatus(account.getStatus());
         dto.setLocked(account.getLocked());
@@ -1255,140 +1315,6 @@ public class AdminUserServiceImpl implements AdminUserService {
         mfa.setUpdatedAt(now);
         mfa.setDeleted(NOT_DELETED);
         sysAccountMfaMapper.insert(mfa);
-    }
-
-    /**
-     * 事务提交后发送管理系统账号开户通知，避免账号创建回滚后误发邮件。
-     *
-     * @param account         登录账号
-     * @param user            用户主体
-     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
-     */
-    private void sendAccountCreatedNoticeAfterCommit(SysAccountDO account, SysUserDO user, String initialPassword) {
-        Runnable task = () -> sendAccountCreatedNotice(account, user, initialPassword);
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            task.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                task.run();
-            }
-        });
-    }
-
-    /**
-     * 发送管理系统开户通知。发送失败仅记录告警，不影响账号创建结果。
-     *
-     * @param account         登录账号
-     * @param user            用户主体
-     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
-     */
-    private void sendAccountCreatedNotice(SysAccountDO account, SysUserDO user, String initialPassword) {
-        if (!StringUtils.hasText(account.getEmail())) {
-            return;
-        }
-        try {
-            EmailSendRequest request = new EmailSendRequest();
-            request.setAppCode(AuthConstants.APP_ADMIN);
-            request.setTemplateCode("ADMIN_ACCOUNT_CREATED");
-            request.setSceneCode("ACCOUNT_CREATED");
-            request.setLocale("zh-CN");
-            request.getToEmails().add(account.getEmail());
-            request.setBizType("ACCOUNT_CREATED");
-            request.setBizNo(String.valueOf(account.getId()));
-            Map<String, Object> variables = new HashMap<>();
-            variables.put("systemName", "管理系统");
-            variables.put("userName", StringUtils.hasText(user.getRealName()) ? user.getRealName() : account.getLoginAccount());
-            variables.put("loginAccount", account.getLoginAccount());
-            variables.put("initialPassword", initialPassword);
-            variables.put("loginUrl", adminLoginUrl());
-            variables.put("mfaGuide", "首次登录时请按页面提示完成多因素认证（MFA）绑定。绑定二维码和手动密钥只会在登录页身份校验通过后展示，邮件不会包含 MFA 密钥。");
-            variables.put("verifyCodeGuide", "登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。");
-            request.setVariables(variables);
-            adminEmailService.sendByTemplate(request);
-        } catch (RuntimeException exception) {
-            log.warn("admin account created notice send failed, accountId: {}, exceptionType: {}",
-                    account.getId(), exception.getClass().getSimpleName());
-        }
-    }
-
-    /** 事务提交后发送管理员重置密码通知，避免数据库回滚后误发。 */
-    private void sendPasswordChangedNoticeAfterCommit(SysAccountDO account,
-                                                      SysUserDO user,
-                                                      String temporaryPassword,
-                                                      LocalDateTime operationTime) {
-        Runnable task = () -> sendPasswordChangedNotice(account, user, temporaryPassword, operationTime);
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            task.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                task.run();
-            }
-        });
-    }
-
-    /** 发送管理员重置后台账号密码通知，发送失败不回滚已完成的密码更新。 */
-    private void sendPasswordChangedNotice(SysAccountDO account,
-                                           SysUserDO user,
-                                           String temporaryPassword,
-                                           LocalDateTime operationTime) {
-        if (!StringUtils.hasText(account.getEmail())) {
-            return;
-        }
-        try {
-            EmailSendRequest request = new EmailSendRequest();
-            request.setAppCode(AuthConstants.APP_ADMIN);
-            request.setTemplateCode(PASSWORD_CHANGED_TEMPLATE);
-            request.setSceneCode(PASSWORD_CHANGED_SCENE);
-            request.setLocale("zh-CN");
-            request.setToEmails(List.of(account.getEmail()));
-            request.setBizType(PASSWORD_CHANGED_SCENE);
-            request.setBizNo(String.valueOf(account.getId()));
-            Map<String, Object> variables = new HashMap<>();
-            variables.put("systemName", "Vexra Admin");
-            variables.put("userName", StringUtils.hasText(user.getRealName()) ? user.getRealName() : account.getLoginAccount());
-            variables.put("loginAccount", account.getLoginAccount());
-            variables.put("temporaryPassword", temporaryPassword);
-            variables.put("operatorName", currentOperatorName());
-            variables.put("operationTime", EMAIL_TIME_FORMATTER.format(operationTime));
-            variables.put("loginUrl", adminLoginUrl());
-            request.setVariables(variables);
-            adminEmailService.sendByTemplate(request);
-        } catch (RuntimeException exception) {
-            log.warn("admin password changed notice send failed, accountId: {}, exceptionType: {}",
-                    account.getId(), exception.getClass().getSimpleName());
-        }
-    }
-
-    /** 返回当前后台操作人的可展示名称，不在通知中暴露内部身份上下文。 */
-    private String currentOperatorName() {
-        InternalAuthAccount operator = InternalAuthContextHolder.get();
-        if (operator == null) {
-            return "System Administrator";
-        }
-        if (StringUtils.hasText(operator.getRealName())) {
-            return operator.getRealName();
-        }
-        return StringUtils.hasText(operator.getLoginAccount()) ? operator.getLoginAccount() : "System Administrator";
-    }
-
-    /**
-     * 获取管理系统登录地址，优先使用参数管理配置。
-     *
-     * @return 管理系统登录页地址
-     */
-    private String adminLoginUrl() {
-        Map<String, String> configValues = adminConfigService.enabledConfigValues(Set.of(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL));
-        String baseUrl = configValues.get(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL);
-        if (!StringUtils.hasText(baseUrl)) {
-            return "http://127.0.0.1:5173/login";
-        }
-        return baseUrl.replaceAll("/+$", "") + "/login";
     }
 
     /**

@@ -68,7 +68,8 @@ class AdminEmailTemplatePaginationTests {
                 mock(AdminSmtpEmailSender.class),
                 new EmailDeliveryProperties(),
                 mock(EnabledEmailTemplateCacheReader.class),
-                mock(com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator.class)
+                mock(com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator.class),
+                mock(AdminEmailPreparationFailureRecorder.class)
         );
 
         service.pageTemplates(new EmailTemplateQuery());

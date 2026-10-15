@@ -119,7 +119,7 @@ public final class CardBinEntities {
         private String sourceBatchNo;
 
         /**
-         * 来源优先级，匹配时数值越大越优先。
+         * 来源侧参考等级，仅用于导入追溯，不参与运行时匹配顺序。
          */
         private Integer sourcePriority;
 

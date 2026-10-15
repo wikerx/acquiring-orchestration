@@ -2,6 +2,7 @@ package com.scott.payment.component.web.handler;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.exception.RateLimitExceededException;
 import com.scott.payment.component.core.exception.BizException;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
@@ -15,6 +16,9 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -38,6 +42,21 @@ import jakarta.validation.ConstraintViolationException;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /**
+     * 处理商户级限流异常，返回标准业务结构、HTTP 429 和动态 Retry-After。
+     */
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<CommonResult<Void>> handleRateLimitExceeded(
+            RateLimitExceededException exception) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfterSeconds()));
+        return new ResponseEntity<>(
+                CommonResult.error(exception.getCode(), exception.getMessage()),
+                headers,
+                HttpStatus.TOO_MANY_REQUESTS
+        );
+    }
 
     /**
      * 处理开放 API 业务异常。

@@ -5,6 +5,7 @@ import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundQuery
 import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundRecord;
 import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundSearchResponse;
 import com.scott.payment.merchant.dto.export.MerchantRefundExportRow;
+import com.scott.payment.merchant.converter.MerchantExportConverter;
 import com.scott.payment.merchant.service.MerchantRefundQueryService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
@@ -204,24 +205,7 @@ public class MerchantRefundApplicationService {
         if (searchResponse == null || searchResponse.getPage() == null) {
             return List.of();
         }
-        return searchResponse.getPage().getRecords().stream().map(this::toExportRow).toList();
-    }
-
-    private MerchantRefundExportRow toExportRow(RefundRecord source) {
-        MerchantRefundExportRow row = new MerchantRefundExportRow();
-        row.setRefundTransactionId(source.getRefundTransactionId());
-        row.setSourceTransactionId(source.getSourceTransactionId());
-        row.setMerchantOrderNo(source.getMerchantOrderNo());
-        row.setTransactionType(source.getTransactionType());
-        row.setRefundScope(source.getRefundScope());
-        row.setTransactionAmount(source.getTransactionAmount());
-        row.setTransactionCurrency(source.getTransactionCurrency());
-        row.setTransactionStatus(source.getTransactionStatus());
-        row.setApprovalStatus(source.getApprovalStatus());
-        row.setMerchantVisibleMessage(source.getMerchantVisibleMessage());
-        row.setPaymentMethod(source.getPaymentMethod());
-        row.setTransactionDateTime(source.getTransactionDateTime());
-        row.setCompleteTime(source.getCompleteTime());
-        return row;
+        return searchResponse.getPage().getRecords().stream()
+                .map(MerchantExportConverter.INSTANCE::toRefundExportRow).toList();
     }
 }

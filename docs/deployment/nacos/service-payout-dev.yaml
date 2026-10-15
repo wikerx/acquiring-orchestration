@@ -1,4 +1,11 @@
 # service-payout 专属配置：代付内部接口只接受 service-openapi 的可信调用。
+acquiring:
+  mq:
+    outbox:
+      # 当前代付服务不向通用 sys_mq_outbox 写入事件，关闭无业务数据可处理的 SELECT/UPDATE 补偿扫描。
+      # 后续如引入 ReliableMqPublisher，必须先恢复为 true 并完成失败补偿和积压告警验证。
+      service-relay-enabled: false
+
 internal-service:
   auth:
     # enabled 安全门禁固定在本地，密钥正文由受控脚本合入同一服务 DataId。

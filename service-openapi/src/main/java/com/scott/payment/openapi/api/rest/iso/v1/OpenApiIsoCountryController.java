@@ -45,12 +45,22 @@ public class OpenApiIsoCountryController {
     }
 
     /**
-     * 查询系统支持的国家地区列表。
+     * 查询系统支持的国家或地区。
      *
-     * @param request       Servlet 请求上下文
-     * @param encryptedData 商户加密查询参数
-     * @param requestDTO    解密后的查询条件
-     * @return 国家地区列表，响应 data 会由响应增强统一加密
+     * <p><strong>安全边界：</strong>{@link VerificationAndProcessing} 在进入 Controller 前完成
+     * 商户身份校验、访问策略检查、商户维度限流、JWT 防重放、请求体解密和 DTO 校验；方法返回后，
+     * 统一响应增强器只加密成功响应的 {@code data}，平台 {@code code/message} 保持统一响应格式。</p>
+     *
+     * <p><strong>查询与缓存：</strong>未提供 {@code alpha2/alpha3/numeric} 时读取全部启用国家的
+     * 常驻快照；提供一个或多个代码时，从固定代码 Hash 一次读取对应别名，多个代码必须解析为
+     * 同一条国家记录，因此语义等同于精确 {@code AND} 查询。代码 Hash 未建立时从 SLAVE 全量加载
+     * 一次并原子重建；Hash 已就绪但别名不存在时直接返回空列表；Redis 不可用时使用全部已提供条件
+     * 执行一次 SLAVE 精确查询。管理端数据变更必须在从库同步完成后删除全量快照和代码 Hash。</p>
+     *
+     * @param request       Servlet 请求上下文，由统一安全链路读取请求头和调用方信息
+     * @param encryptedData 商户加密查询参数，仅由请求解密组件处理，业务方法不直接读取
+     * @param requestDTO    解密并校验后的精确查询条件；全部字段为空表示查询全部启用国家
+     * @return 国家地区列表；未命中返回空列表，成功响应 data 由统一响应增强器加密
      */
     @VerificationAndProcessing(dataReceiver = IsoCountryQueryRequestDTO.class)
     @PostMapping("/countries/query")

@@ -52,7 +52,8 @@ public class OpenApiDiagnosticLogSupport {
      * 生成 OpenAPI 请求头诊断摘要。
      * <p>
      * Authorization 只保留存在性、Bearer 前缀、长度和 SHA-256 短摘要；不会输出 JWT 原文。
-     * 其它与商户排障相关的头只记录受控字段，避免 Cookie 或内部签名头泄漏。
+     * IP 类请求头只记录不可逆短摘要，其它与商户排障相关的头只记录受控字段，避免泄漏来源地址、
+     * Cookie 或内部签名头。
      * </p>
      * @param request 当前 HTTP 请求
      * @return 请求头诊断摘要 JSON
@@ -65,9 +66,11 @@ public class OpenApiDiagnosticLogSupport {
         putIfPresent(summary, "traceId", TraceContext.getTraceId());
         putIfPresent(summary, "xTraceId", request.getHeader(TraceContext.TRACE_ID_HEADER));
         putIfPresent(summary, "xRequestId", request.getHeader("X-Request-Id"));
-        putIfPresent(summary, "gatewayClientIp", request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP));
-        putIfPresent(summary, "xForwardedFor", firstForwardedFor(request.getHeader("X-Forwarded-For")));
-        putIfPresent(summary, "xRealIp", request.getHeader("X-Real-IP"));
+        putIfPresent(summary, "gatewayClientIpDigest",
+                identifierDigest(request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP)));
+        putIfPresent(summary, "xForwardedForDigest",
+                identifierDigest(firstForwardedFor(request.getHeader("X-Forwarded-For"))));
+        putIfPresent(summary, "xRealIpDigest", identifierDigest(request.getHeader("X-Real-IP")));
         putIfPresent(summary, "origin", request.getHeader("Origin"));
         putIfPresent(summary, "referer", request.getHeader("Referer"));
         putIfPresent(summary, "userAgent", limit(request.getHeader("User-Agent"), MAX_HEADER_VALUE_LENGTH));
@@ -187,6 +190,20 @@ public class OpenApiDiagnosticLogSupport {
      */
     public String responseEnvelopeSummary(Object body) {
         return objectSummary(body);
+    }
+
+    /**
+     * 生成日志关联用的不可逆标识摘要。
+     * <p>
+     * 适用于客户端 IP、请求标识等不应以原文进入日志的字段。相同输入会得到相同摘要，
+     * 便于按调用来源关联请求；摘要不能用于认证、签名或业务唯一性判断。
+     * </p>
+     *
+     * @param value 待摘要的标识文本，可为空
+     * @return SHA-256 前 16 位十六进制摘要；输入为空时返回 null
+     */
+    public String identifierDigest(String value) {
+        return digest16(value);
     }
 
     /**

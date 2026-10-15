@@ -129,7 +129,7 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
                 httpRequest.setAttribute(OpenApiRequestAttributes.BUSINESS_CODE, commonResult.getCode());
                 String responseSummary = diagnosticLogSupport.responseEnvelopeSummary(commonResult);
                 httpRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY, responseSummary);
-                log.info("event: OPENAPI_RESPONSE_PLAIN_END stage=RESPONSE traceId: {} merchantId: {} path: {} platformCode: {} encryptRequired=false responseSummary: {}",
+                log.debug("event: OPENAPI_RESPONSE_PLAIN_END stage=RESPONSE traceId: {} merchantId: {} path: {} platformCode: {} encryptRequired=false responseSummary: {}",
                         TraceContext.getTraceId(),
                         merchantIdSafely(httpRequest),
                         request.getURI().getPath(),
@@ -153,7 +153,7 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         String cipherSummary = diagnosticLogSupport.cipherResponseSummary(encryptedData);
         httpServletRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY, plainSummary);
         httpServletRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_CIPHER_SUMMARY, cipherSummary);
-        log.info("event: OPENAPI_RESPONSE_ENCRYPT_END stage=ENCRYPT traceId: {} merchantId: {} path: {} platformCode: {} encryptSuccess=true plainLength: {} cipherLength: {} plainResponseSummary: {} cipherResponseSummary: {}",
+        log.debug("event: OPENAPI_RESPONSE_ENCRYPT_END stage=ENCRYPT traceId: {} merchantId: {} path: {} platformCode: {} encryptSuccess=true plainLength: {} cipherLength: {} plainResponseSummary: {} cipherResponseSummary: {}",
                 TraceContext.getTraceId(),
                 merchantId,
                 request.getURI().getPath(),

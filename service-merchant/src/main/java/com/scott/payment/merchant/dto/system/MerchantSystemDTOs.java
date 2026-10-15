@@ -2,6 +2,7 @@ package com.scott.payment.merchant.dto.system;
 
 import com.scott.payment.component.core.model.PageRequest;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -495,10 +496,6 @@ public final class MerchantSystemDTOs {
          */
         private String loginAccount;
         /**
-         * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
-         */
-        private String password;
-        /**
          * {@code realName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -541,6 +538,9 @@ public final class MerchantSystemDTOs {
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class AccountSaveRequest extends AccountBaseSaveRequest {
+        /** 激活邮件语言，目前支持 zh-CN 和 en-US。 */
+        @Pattern(regexp = "^(zh-CN|en-US)?$", message = "locale is invalid")
+        private String locale;
         /**
          * {@code roleIds}集合，承载 {@code AccountSaveRequest} 当前请求或响应中的多值数据。
          * <p>
@@ -581,12 +581,9 @@ public final class MerchantSystemDTOs {
      */
     @Data
     public static class AccountResetPasswordRequest {
-        /**
-         * 商户员工新登录密码。接口层只接收明文，服务层必须立即哈希后落库，禁止写入日志。
-         */
-        @NotBlank(message = "password is required")
-        @Size(min = 8, max = 64, message = "password length must be between 8 and 64")
-        private String password;
+        /** 重置邮件语言，目前支持 zh-CN 和 en-US。 */
+        @Pattern(regexp = "^(zh-CN|en-US)?$", message = "locale is invalid")
+        private String locale;
     }
 
     /**
@@ -652,6 +649,16 @@ public final class MerchantSystemDTOs {
          * 商户管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
          */
         private String email;
+        /** 待验证的新邮箱；验证完成前正式邮箱保持不变。 */
+        private String pendingEmail;
+        /** 账号激活状态：PENDING_ACTIVATION、ACTIVE。 */
+        private String activationStatus;
+        /** 账号激活完成时间。 */
+        private LocalDateTime activatedAt;
+        /** 当前正式邮箱验证完成时间；为空表示未验证。 */
+        private LocalDateTime emailVerifiedAt;
+        /** 当前正式邮箱验证状态：PENDING、VERIFIED。 */
+        private String emailVerificationStatus;
         /**
          * 状态，表示当前记录在业务流程中的处理状态。
          * <p>

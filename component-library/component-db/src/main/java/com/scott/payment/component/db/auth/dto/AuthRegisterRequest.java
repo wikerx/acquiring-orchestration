@@ -2,8 +2,11 @@ package com.scott.payment.component.db.auth.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+
+import com.scott.payment.component.core.auth.PasswordPolicy;
 
 import java.io.Serializable;
 
@@ -35,7 +38,9 @@ public class AuthRegisterRequest implements Serializable {
      * 登录密码。
      */
     @NotBlank(message = "password")
-    @Size(min = 8, max = 64, message = "password length must be between 8 and 64")
+    @Size(min = PasswordPolicy.MIN_LENGTH, max = PasswordPolicy.MAX_LENGTH,
+            message = "password length must be between 12 and 64")
+    @Pattern(regexp = PasswordPolicy.REGEX, message = "password complexity is insufficient")
     private String password;
 
     /**

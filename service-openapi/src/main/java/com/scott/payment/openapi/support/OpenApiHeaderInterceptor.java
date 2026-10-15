@@ -76,20 +76,6 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         request.setAttribute(OpenApiRequestAttributes.REQUEST_START_NANOS, startNanos);
         request.setAttribute(OpenApiRequestAttributes.API_VERSION, apiVersion(request.getRequestURI()));
         request.setAttribute(OpenApiRequestAttributes.INTERFACE_TYPE, interfaceType(request.getRequestURI()));
-        log.info("event: OPENAPI_REQUEST_ENTER stage=ACCEPT traceId: {} method: {} path: {} queryKeys: {} apiVersion: {} interfaceType: {} clientIp: {} contentType: {} contentLength: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {}",
-                TraceContext.getTraceId(),
-                request.getMethod(),
-                request.getRequestURI(),
-                queryKeys(request),
-                request.getAttribute(OpenApiRequestAttributes.API_VERSION),
-                request.getAttribute(OpenApiRequestAttributes.INTERFACE_TYPE),
-                clientIp(request),
-                request.getContentType(),
-                request.getContentLengthLong(),
-                diagnosticLogSupport.headerSummary(request),
-                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
-                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE),
-                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_SUMMARY_ATTRIBUTE));
         OpenApiRequestHeaderDTO headerDTO = headerExtractor.extract(
                 request,
                 annotation.requiredHeaders(),
@@ -119,7 +105,7 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         }
         OpenApiRequestHeaderDTO headerDTO = (OpenApiRequestHeaderDTO) request.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-        log.info("event: OPENAPI_REQUEST_END stage=FINISH traceId: {} merchantId: {} method: {} path: {} queryKeys: {} apiVersion: {} interfaceType: {} clientIp: {} httpStatus: {} platformCode: {} durationMs: {} exceptionType: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {} cipherRequestSummary: {} plainRequestSummary: {} plainResponseSummary: {} cipherResponseSummary: {}",
+        log.info("event: OPENAPI_REQUEST_END stage=FINISH traceId: {} merchantId: {} method: {} path: {} queryKeys: {} apiVersion: {} interfaceType: {} clientIpDigest: {} httpStatus: {} platformCode: {} durationMs: {} exceptionType: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {} cipherRequestSummary: {} plainRequestSummary: {} plainResponseSummary: {} cipherResponseSummary: {}",
                 TraceContext.getTraceId(),
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 request.getMethod(),
@@ -127,7 +113,8 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
                 queryKeys(request),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 request.getAttribute(OpenApiRequestAttributes.INTERFACE_TYPE),
-                headerDTO == null ? clientIp(request) : headerDTO.getClientIp(),
+                diagnosticLogSupport.identifierDigest(
+                        headerDTO == null ? request.getRemoteAddr() : headerDTO.getClientIp()),
                 response.getStatus(),
                 request.getAttribute(OpenApiRequestAttributes.BUSINESS_CODE),
                 durationMs,
@@ -214,20 +201,4 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         return path.replaceFirst("^/+", "").split("/");
     }
 
-    /**
-     * 提取商户请求来源 IP。
-     * <p>
-     * 优先使用代理透传的 X-Forwarded-For 首个地址，用于 OpenAPI 接入日志和白名单排查；字段可能包含公网代理地址，
-     * 不打印完整代理链。
-     * </p>
-     * @param request 当前 HTTP 请求
-     * @return 请求来源 IP
-     */
-    private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
-    }
 }

@@ -66,7 +66,7 @@ public class AdminAuthApplicationService {
         return systemAuthService.sendLoginVerifyCode(
                 AuthConstants.APP_ADMIN,
                 request,
-                clientIp(servletRequest)
+                AdminClientIpResolver.resolve(servletRequest)
         );
     }
 
@@ -81,7 +81,7 @@ public class AdminAuthApplicationService {
         return systemAuthService.login(
                 AuthConstants.APP_ADMIN,
                 request,
-                clientIp(servletRequest),
+                AdminClientIpResolver.resolve(servletRequest),
                 servletRequest.getHeader("User-Agent")
         );
     }
@@ -107,7 +107,7 @@ public class AdminAuthApplicationService {
         return systemAuthService.mfaBindConfirm(
                 AuthConstants.APP_ADMIN,
                 request,
-                clientIp(servletRequest),
+                AdminClientIpResolver.resolve(servletRequest),
                 servletRequest.getHeader("User-Agent")
         );
     }
@@ -123,7 +123,7 @@ public class AdminAuthApplicationService {
         return systemAuthService.mfaVerify(
                 AuthConstants.APP_ADMIN,
                 request,
-                clientIp(servletRequest),
+                AdminClientIpResolver.resolve(servletRequest),
                 servletRequest.getHeader("User-Agent")
         );
     }
@@ -168,17 +168,4 @@ public class AdminAuthApplicationService {
         systemAuthService.logout(AuthConstants.APP_ADMIN, authorization);
     }
 
-    /**
-     * 获取客户端 IP。
-     *
-     * @param request Servlet 请求
-     * @return 客户端 IP
-     */
-    private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
-    }
 }

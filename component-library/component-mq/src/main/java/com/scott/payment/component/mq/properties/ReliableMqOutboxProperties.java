@@ -18,6 +18,8 @@ public class ReliableMqOutboxProperties {
 
     /** 是否启用定时补偿 Relay；即时 afterCommit 投递不受此开关影响。 */
     private boolean relayEnabled = true;
+    /** 当前服务是否拥有通用 Outbox 生产职责；消费型服务关闭后不执行空表补偿扫描。 */
+    private boolean serviceRelayEnabled = true;
     /** 单次扫描最大消息数。 */
     private int batchSize = 100;
     /** 单条消息最大失败重试次数。 */

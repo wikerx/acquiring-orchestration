@@ -34,6 +34,9 @@ public final class PaymentRedisScripts {
     private static final DefaultRedisScript<Long> TOKEN_LEASE_RELEASE_V1 =
             load("v1/token-lease-release.lua", Long.class);
 
+    private static final DefaultRedisScript<Long> TOKEN_LEASE_RENEW_V1 =
+            load("v1/token-lease-renew.lua", Long.class);
+
     private static final DefaultRedisScript<Long> CONCURRENCY_LEASE_ACQUIRE_V1 =
             load("v1/concurrency-lease-acquire.lua", Long.class);
 
@@ -48,6 +51,12 @@ public final class PaymentRedisScripts {
 
     private static final DefaultRedisScript<Long> CACHE_GENERATION_COMMIT_V1 =
             load("v1/cache-generation-commit.lua", Long.class);
+
+    private static final DefaultRedisScript<Long> CARD_BIN_BUCKET_APPEND_V1 =
+            load("v1/card-bin-bucket-append.lua", Long.class);
+
+    private static final DefaultRedisScript<List> SLIDING_WINDOW_RATE_LIMIT_V1 =
+            load("v1/sliding-window-rate-limit.lua", List.class);
 
     private PaymentRedisScripts() {
     }
@@ -86,6 +95,15 @@ public final class PaymentRedisScripts {
      */
     public static RedisScript<Long> tokenLeaseReleaseV1() {
         return TOKEN_LEASE_RELEASE_V1;
+    }
+
+    /**
+     * 获取 token 租约持有者安全续期 v1 脚本。
+     *
+     * @return token 匹配时延长租约并返回 1，否则返回 0
+     */
+    public static RedisScript<Long> tokenLeaseRenewV1() {
+        return TOKEN_LEASE_RENEW_V1;
     }
 
     /**
@@ -131,6 +149,16 @@ public final class PaymentRedisScripts {
      */
     public static RedisScript<Long> cacheGenerationCommitV1() {
         return CACHE_GENERATION_COMMIT_V1;
+    }
+
+    /** 获取 Card BIN 单分片候选批量追加脚本，并限制每个前缀字段的候选数量。 */
+    public static RedisScript<Long> cardBinBucketAppendV1() {
+        return CARD_BIN_BUCKET_APPEND_V1;
+    }
+
+    /** 获取精确滑动窗口限流脚本。 */
+    public static RedisScript<List> slidingWindowRateLimitV1() {
+        return SLIDING_WINDOW_RATE_LIMIT_V1;
     }
 
     /**

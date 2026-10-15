@@ -107,7 +107,7 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         String requestBody = String.valueOf(body);
         String cipherSummary = diagnosticLogSupport.cipherRequestSummary(requestBody);
         request.setAttribute(OpenApiRequestAttributes.REQUEST_CIPHER_SUMMARY, cipherSummary);
-        log.info("event: OPENAPI_REQUEST_CIPHER_RECEIVED stage=DECRYPT traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} cipherSummary: {}",
+        log.debug("event: OPENAPI_REQUEST_CIPHER_RECEIVED stage=DECRYPT traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} cipherSummary: {}",
                 TraceContext.getTraceId(),
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 request.getRequestURI(),
@@ -153,7 +153,7 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
                 throw exception;
             }
         }
-        log.info("event: OPENAPI_REQUEST_DECRYPT_END stage=DECRYPT traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} decryptSuccess=true cipherSummary: {} plainRequestSummary: {}",
+        log.debug("event: OPENAPI_REQUEST_DECRYPT_END stage=DECRYPT traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} decryptSuccess=true cipherSummary: {} plainRequestSummary: {}",
                 TraceContext.getTraceId(),
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 request.getRequestURI(),

@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -71,6 +72,71 @@ class MerchantTemplateEmailServiceAsyncTests {
         assertThat(record.getDeliveryContentCipher()).isEqualTo("cipher-content");
         assertThat(record.getContentSnapshot()).isEqualTo("Code ******");
         assertThat(record.getVariablesSnapshot()).doesNotContain("123456");
+        verify(deliveryService).enqueue(record);
+    }
+
+    @Test
+    void shouldEscapeDynamicValuesInHtmlContentButKeepSubjectPlainText() {
+        MerchantEmailAccountMapper accountMapper = mock(MerchantEmailAccountMapper.class);
+        MerchantEmailSendRecordMapper recordMapper = mock(MerchantEmailSendRecordMapper.class);
+        EnabledEmailTemplateCacheReader templateReader = mock(EnabledEmailTemplateCacheReader.class);
+        EmailPayloadCrypto payloadCrypto = mock(EmailPayloadCrypto.class);
+        MerchantEmailDeliveryService deliveryService = mock(MerchantEmailDeliveryService.class);
+        MerchantTemplateEmailServiceImpl service = new MerchantTemplateEmailServiceImpl(
+                accountMapper, recordMapper, new ObjectMapper(), payloadCrypto,
+                deliveryService, new EmailDeliveryProperties(), templateReader);
+        EnabledEmailTemplateSnapshot template = templateSnapshot();
+        template.setSubjectTemplate("Hello ${name}");
+        template.setContentTemplate("<p>${name}</p><a href=\"${verificationUrl}\">open</a>");
+        template.setSensitiveVariableNames("[]");
+        when(templateReader.findEnabled("MFA_CODE", "zh-CN")).thenReturn(template);
+        when(accountMapper.selectOne(any())).thenReturn(account());
+        when(payloadCrypto.encrypt(anyString())).thenReturn("cipher-content");
+
+        service.sendByTemplate(new MerchantEmailSendCommand(
+                "MERCHANT", "M100", "M100", "Merchant", "MFA_CODE", "MERCHANT_MFA", "zh-CN",
+                List.of("masked@example.invalid"),
+                Map.of("name", "<img src=x onerror=\"alert(1)\">",
+                        "verificationUrl", "https://merchant.example/verify?requestId=1&source=email"),
+                "MERCHANT_MFA", "11"));
+
+        ArgumentCaptor<String> contentCaptor = ArgumentCaptor.forClass(String.class);
+        verify(payloadCrypto).encrypt(contentCaptor.capture());
+        assertThat(contentCaptor.getValue())
+                .contains("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;")
+                .contains("requestId=1&amp;source=email")
+                .doesNotContain("<img");
+        ArgumentCaptor<MerchantEmailSendRecordDO> recordCaptor = ArgumentCaptor.forClass(MerchantEmailSendRecordDO.class);
+        verify(recordMapper).insert(recordCaptor.capture());
+        assertThat(recordCaptor.getValue().getSubject())
+                .isEqualTo("Hello <img src=x onerror=\"alert(1)\">");
+    }
+
+    @Test
+    void shouldPersistSuppressedEmailAsCancelledAndStillWriteOutbox() {
+        MerchantEmailAccountMapper accountMapper = mock(MerchantEmailAccountMapper.class);
+        MerchantEmailSendRecordMapper recordMapper = mock(MerchantEmailSendRecordMapper.class);
+        EnabledEmailTemplateCacheReader templateReader = mock(EnabledEmailTemplateCacheReader.class);
+        EmailPayloadCrypto payloadCrypto = mock(EmailPayloadCrypto.class);
+        MerchantEmailDeliveryService deliveryService = mock(MerchantEmailDeliveryService.class);
+        MerchantTemplateEmailServiceImpl service = new MerchantTemplateEmailServiceImpl(
+                accountMapper, recordMapper, new ObjectMapper(), payloadCrypto,
+                deliveryService, new EmailDeliveryProperties(), templateReader);
+        when(templateReader.findEnabled("MFA_CODE", "zh-CN")).thenReturn(templateSnapshot());
+        when(accountMapper.selectOne(any())).thenReturn(account());
+        when(payloadCrypto.encrypt("Code 123456")).thenReturn("cipher-content");
+
+        service.prepareSuppressedByTemplate(new MerchantEmailSendCommand(
+                "MERCHANT", "M100", "M100", "Merchant", "MFA_CODE", "MERCHANT_MFA", "zh-CN",
+                List.of(), Map.of("otp", "123456"), "PASSWORD_RESET", "virtual-1"));
+
+        ArgumentCaptor<MerchantEmailSendRecordDO> recordCaptor = ArgumentCaptor.forClass(MerchantEmailSendRecordDO.class);
+        verify(recordMapper).insert(recordCaptor.capture());
+        MerchantEmailSendRecordDO record = recordCaptor.getValue();
+        assertThat(record.getSendStatus()).isEqualTo(EmailDeliveryStatus.CANCELLED.getCode());
+        assertThat(record.getToEmails()).isEqualTo("[]");
+        assertThat(record.getMaxRetryCount()).isZero();
+        assertThat(record.getDeliveryContentCipher()).isEqualTo("cipher-content");
         verify(deliveryService).enqueue(record);
     }
 

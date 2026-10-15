@@ -1,5 +1,5 @@
 # 环境接入配置：当前文件只负责连接对应环境的 Nacos 命名空间。
-# 网关只拉取服务专属配置和公共配置，不引入数据库、分表、Redis、MQ、Seata、XXL-JOB。
+# 网关只拉取服务专属、公共和 Redis 配置，不引入数据库、分表、MQ、Seata、XXL-JOB。
 spring:
   config:
     import:
@@ -7,6 +7,8 @@ spring:
       - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入公共 Nacos DataId，统一时间、监控和链路追踪配置。
       - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # 参数说明：导入 Redis 连接和环境 Key 前缀，供网关分布式 IP 限流使用。
+      - optional:nacos:redis-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
   cloud:
     bootstrap:
       # 参数说明：控制 Spring Cloud Bootstrap 提前加载 Nacos 配置；关闭会导致远程配置无法在自动装配前生效。
@@ -51,3 +53,26 @@ spring:
 logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml
+
+acquiring:
+  gateway:
+    client-ip:
+      # 是否允许从 X-Forwarded-For 解析真实客户端 IP，取值为 true/false。
+      # false：忽略外部转发头并使用 TCP 直连地址；true：仅当 TCP 直连地址命中下方可信 CIDR 时才读取转发链。
+      trust-forwarded-header: ${GATEWAY_TRUST_FORWARDED_HEADER:false}
+      # 可信反向代理或负载均衡器网段，多个 CIDR 使用英文逗号分隔，例如 10.0.0.0/8,2001:db8::/32。
+      # 留空表示不信任任何代理；禁止配置 0.0.0.0/0 或 ::/0，否则调用方可能伪造 IP 绕过白名单和限流。
+      trusted-proxy-cidrs: ${GATEWAY_TRUSTED_PROXY_CIDRS:}
+    rate-limit:
+      # 是否启用 Gateway 第一层 IP 限流；true 时按解析后的客户端 IP 累计全部 /api/rest/** 请求，OPTIONS 不计数。
+      enabled: true
+      # 单个客户端 IP 在一个滚动窗口内允许通过的最大请求数，必须为正整数；不同 OpenAPI 接口共享该额度。
+      max-requests: 200
+      # 精确滚动窗口长度，支持 Spring Duration 格式，例如 1m、60s 或 PT1M；必须大于 0。
+      window: 1m
+      # Redis 不可用时，每个 Gateway 实例最多保存的本地限流身份数，必须为正整数；达到上限后拒绝新的 IP 身份。
+      # 该值只限制降级缓存的内存占用；本地降级时各实例独立计数，集群最坏可放行约“200 × Gateway 实例数”。
+      local-max-identities: 10000
+      # Redis 限流不可用时的策略：LOCAL_FALLBACK 使用本机有界窗口，FAIL_CLOSED 直接返回统一 HTTP 429。
+      # 开发环境默认 LOCAL_FALLBACK，便于 Redis 未启动时联调；不得据此评估生产环境的全局额度精度。
+      failure-policy: LOCAL_FALLBACK

@@ -6,12 +6,14 @@ import ch.qos.logback.core.read.ListAppender;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.exception.BizException;
+import com.scott.payment.component.core.exception.RateLimitExceededException;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
 import com.scott.payment.component.core.model.CommonResult;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.validation.BeanPropertyBindingResult;
@@ -31,6 +33,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @status : create
  */
 class GlobalExceptionHandlerTest {
+
+    @Test
+    void shouldReturnStandardRateLimitResponseAndRetryAfter() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+        var response = handler.handleRateLimitExceeded(new RateLimitExceededException(17L));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(response.getHeaders().getFirst("Retry-After")).isEqualTo("17");
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo("F429");
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("Too many requests. Please retry later.");
+    }
 
     /** 所有 F500 异常都只向商户返回统一繁忙提示，不暴露内部失败详情。 */
     @Test

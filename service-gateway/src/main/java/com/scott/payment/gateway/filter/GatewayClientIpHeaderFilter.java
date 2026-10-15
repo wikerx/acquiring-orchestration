@@ -2,6 +2,7 @@ package com.scott.payment.gateway.filter;
 
 import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.gateway.config.GatewayClientIpProperties;
+import com.scott.payment.gateway.support.TrustedProxyMatcher;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -40,6 +41,9 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
      */
     private final GatewayClientIpProperties clientIpProperties;
 
+    /** 仅接受配置网段内的直接上游代理，并用于从右向左剥离可信代理链。 */
+    private final TrustedProxyMatcher trustedProxyMatcher;
+
     /**
      * 创建网关客户端 IP 透传过滤器。
      *
@@ -47,6 +51,7 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
      */
     public GatewayClientIpHeaderFilter(GatewayClientIpProperties clientIpProperties) {
         this.clientIpProperties = clientIpProperties;
+        this.trustedProxyMatcher = new TrustedProxyMatcher(clientIpProperties.getTrustedProxyCidrs());
     }
 
     /**
@@ -88,40 +93,58 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
      * @return 已解析的客户端 IP；连接没有可用远端地址时返回 {@code null}
      */
     private String resolveClientIp(ServerHttpRequest request) {
-        if (clientIpProperties.isTrustForwardedHeader()) {
+        String remoteIp = remoteIp(request);
+        if (clientIpProperties.isTrustForwardedHeader()
+                && remoteIp != null
+                && trustedProxyMatcher.matches(remoteIp)) {
             String forwardedFor = request.getHeaders().getFirst(HEADER_X_FORWARDED_FOR);
-            String forwardedClientIp = firstForwardedIp(forwardedFor);
+            String forwardedClientIp = firstUntrustedForwardedIp(forwardedFor);
             if (StringUtils.hasText(forwardedClientIp)) {
                 return forwardedClientIp;
             }
         }
+        return remoteIp;
+    }
+
+    private String remoteIp(ServerHttpRequest request) {
         InetSocketAddress remoteAddress = request.getRemoteAddress();
         if (remoteAddress == null || remoteAddress.getAddress() == null) {
             return null;
         }
-        return remoteAddress.getAddress().getHostAddress();
+        return trustedProxyMatcher.normalize(remoteAddress.getAddress().getHostAddress());
     }
 
     /**
-     * 从标准逗号分隔的代理链中提取最左侧非空地址。
+     * 从右向左剥离标准代理链中的可信节点，并返回第一个不可信地址。
      * <p>
-     * 该地址代表可信边界配置下的原始客户端；本方法只做格式拆分，代理可信性由调用方在读取
-     * 请求头前完成判定。
+     * 只有 TCP 直接上游已在可信 CIDR 中时才调用本方法。链内任一片段为空或不是精确 IP，
+     * 整条转发链均作废并回退 TCP 地址，避免攻击者利用畸形或伪造头绕过白名单和 IP 限流。
+     * 如果整条链均为可信代理，则返回最左侧地址。
      * </p>
      *
      * @param forwardedFor 代理链原始值
-     * @return 首个非空地址；请求头为空或不含有效片段时返回 {@code null}
+     * @return 第一个非可信地址；请求头无效时返回 {@code null}
      */
-    private String firstForwardedIp(String forwardedFor) {
+    private String firstUntrustedForwardedIp(String forwardedFor) {
         if (!StringUtils.hasText(forwardedFor)) {
             return null;
         }
         String[] segments = forwardedFor.split(",");
-        for (String segment : segments) {
-            if (StringUtils.hasText(segment)) {
-                return segment.trim();
+        String leftmost = null;
+        try {
+            for (int index = segments.length - 1; index >= 0; index--) {
+                if (!StringUtils.hasText(segments[index])) {
+                    return null;
+                }
+                String normalized = trustedProxyMatcher.normalize(segments[index].trim());
+                leftmost = normalized;
+                if (!trustedProxyMatcher.matches(normalized)) {
+                    return normalized;
+                }
             }
+        } catch (IllegalArgumentException exception) {
+            return null;
         }
-        return null;
+        return leftmost;
     }
 }

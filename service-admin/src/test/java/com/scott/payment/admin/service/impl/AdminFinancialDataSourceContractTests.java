@@ -69,7 +69,7 @@ class AdminFinancialDataSourceContractTests {
                 .getMethod("read", java.util.function.Supplier.class)
                 .getAnnotation(DS.class).value()).isEqualTo(DataSourceName.TRANSACTION);
         assertThat(new TransactionShardingProperties().getReplicaDataSources())
-                .containsExactly(DataSourceName.SLAVE_1, DataSourceName.SLAVE_2);
+                .containsExactly(DataSourceName.SLAVE);
     }
 
     /**

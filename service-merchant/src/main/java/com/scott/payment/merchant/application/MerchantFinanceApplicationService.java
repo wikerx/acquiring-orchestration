@@ -9,6 +9,7 @@ import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
+import com.scott.payment.merchant.converter.MerchantExportConverter;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.CurrentFeeResponse;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.DetailQuery;
 import com.scott.payment.merchant.dto.MerchantFinanceDTOs.FundAccountResponse;
@@ -126,7 +127,7 @@ public class MerchantFinanceApplicationService {
                     query.setPageNo(pageNo);
                     query.setPageSize(EXPORT_PAGE_SIZE);
                     return financeService.pageLedgers(merchantId, query).getRecords().stream()
-                            .map(this::toLedgerExportRow).toList();
+                            .map(MerchantExportConverter.INSTANCE::toLedgerExportRow).toList();
                 })
                 .build(), response);
     }
@@ -146,22 +147,4 @@ public class MerchantFinanceApplicationService {
         return StringUtils.hasText(account.getRealName()) ? account.getRealName() : account.getLoginAccount();
     }
 
-    /** 将商户可见流水映射为导出行，不带内部幂等键和追踪字段。 */
-    private MerchantFundLedgerExportRow toLedgerExportRow(FundLedgerResponse source) {
-        MerchantFundLedgerExportRow row = new MerchantFundLedgerExportRow();
-        row.setLedgerNo(source.getLedgerNo());
-        row.setBusinessType(source.getBusinessType());
-        row.setSummary(source.getSummary());
-        row.setBusinessNo(source.getBusinessNo());
-        row.setBalanceType(source.getBalanceType());
-        row.setDirection(source.getDirection());
-        row.setAmount(source.getAmount());
-        row.setCurrency(source.getCurrency());
-        row.setBalanceBefore(source.getBalanceBefore());
-        row.setBalanceAfter(source.getBalanceAfter());
-        row.setOperatorName(source.getOperatorName());
-        row.setReviewerName(source.getReviewerName());
-        row.setPostedTime(source.getPostedTime());
-        return row;
-    }
 }

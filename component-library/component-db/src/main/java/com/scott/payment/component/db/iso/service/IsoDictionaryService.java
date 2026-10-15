@@ -22,9 +22,26 @@ public interface IsoDictionaryService {
     /**
      * 查询系统当前启用的全部国家地区。
      *
+     * <p>全量快照未命中时从 SLAVE 读取一次，并使用同一份结果构建 {@code all} 列表和
+     * {@code codes} 代码索引，供管理端、OpenAPI、支付和收银台共同复用。</p>
+     *
      * @return 启用国家地区列表
      */
     List<IsoCountryInfo> listCountries();
+
+    /**
+     * 根据已提供的 ISO 国家代码精确查询启用国家，多个代码使用 AND 组合。
+     *
+     * <p>正常路径读取固定 Redis Hash；Hash 未建立时优先用 {@code all} 全量快照重建，
+     * 两个缓存均不存在时才从 SLAVE 读取一次。Redis 不可用时执行一次精确 SLAVE SQL，
+     * 无条件时复用全量常驻快照。</p>
+     *
+     * @param alpha2 ISO 3166-1 两位代码，未传时为 null
+     * @param alpha3 ISO 3166-1 三位代码，未传时为 null
+     * @param numeric ISO 3166-1 三位数字字符串，未传时为 null
+     * @return 命中的启用国家；无条件时使用全量字典快照
+     */
+    List<IsoCountryInfo> listCountriesByCodes(String alpha2, String alpha3, String numeric);
 
     /**
      * 根据关键字查询国家地区，支持 alpha-2、alpha-3、numeric、英文名、中文名、地区、默认币种和主要语言。
@@ -61,9 +78,25 @@ public interface IsoDictionaryService {
     /**
      * 查询系统当前启用的全部币种。
      *
+     * <p>全量快照未命中时从 SLAVE 读取一次，并使用同一份结果构建 {@code all} 列表和
+     * {@code codes} 代码索引。界面展示字段继续使用独立的版本化快照。</p>
+     *
      * @return 启用币种列表
      */
     List<IsoCurrencyInfo> listCurrencies();
+
+    /**
+     * 根据已提供的 ISO 币种代码精确查询启用币种，两个代码使用 AND 组合。
+     *
+     * <p>正常路径读取固定 Redis Hash；Hash 未建立时优先用 {@code all} 全量快照重建，
+     * 两个缓存均不存在时才从 SLAVE 读取一次。Redis 不可用时执行一次精确 SLAVE SQL，
+     * 无条件时复用全量常驻快照。</p>
+     *
+     * @param alphabeticCode ISO 4217 三位字母代码，未传时为 null
+     * @param numericCode ISO 4217 三位数字字符串，未传时为 null
+     * @return 命中的启用币种；无条件时使用全量字典快照
+     */
+    List<IsoCurrencyInfo> listCurrenciesByCodes(String alphabeticCode, String numericCode);
 
     /**
      * 查询系统当前启用币种的界面展示信息。

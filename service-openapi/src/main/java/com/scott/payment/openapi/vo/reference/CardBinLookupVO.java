@@ -21,13 +21,13 @@ public class CardBinLookupVO implements Serializable {
     /** 是否命中当前有效卡 BIN 区间，不允许为空。 */
     private Boolean matched;
 
-    /** 商户提交的 6 至 11 位卡 BIN，不允许为空；响应 data 必须加密。 */
+    /** 6 至 11 位查询 BIN；长输入仅回显前 11 位，响应 data 必须加密。 */
     private String cardBin;
 
     /** 命中记录的 BIN 精度，范围为 6 至 11，未命中时为空。 */
     private Integer binLength;
 
-    /** 卡品牌代码，未命中时为空。 */
+    /** 卡品牌代码，区间未命中时可能由平台前缀规则识别；无法识别时为 UNKNOWN。 */
     private String cardBrand;
 
     /** 卡子品牌或产品名称，未命中时为空。 */

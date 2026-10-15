@@ -136,7 +136,7 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
         byte[] requestBody = requestBody(request, preReadRequestBody);
         exposeRequestBodySummary(request, requestBody);
-        log.info("event: HTTP_TRAFFIC_SUMMARY traceId: {} method: {} path: {} status: {} requestContentType: {} requestLength: {} requestDigest: {} requestSummary: {} responseContentType: {} responseLength: {} responseDigest: {} responseSummary: {} durationMs: {} exceptionType: {}",
+        log.debug("event: HTTP_TRAFFIC_SUMMARY traceId: {} method: {} path: {} status: {} requestContentType: {} requestLength: {} requestDigest: {} requestSummary: {} responseContentType: {} responseLength: {} responseDigest: {} responseSummary: {} durationMs: {} exceptionType: {}",
                 TraceContext.getTraceId(),
                 request.getMethod(),
                 request.getRequestURI(),

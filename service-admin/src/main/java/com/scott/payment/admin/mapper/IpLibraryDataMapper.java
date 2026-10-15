@@ -76,31 +76,4 @@ public interface IpLibraryDataMapper {
                    @Param("dataVersion") String dataVersion,
                    @Param("ipNumber") String ipNumber);
 
-    /**
-     * 按起始值倒序查询单个 IP 的最近候选区间。
-     */
-    @Select("""
-            SELECT id,
-                   ip_type AS ipType,
-                   CAST(ip_number_start AS CHAR) AS ipNumberStart,
-                   CAST(ip_number_end AS CHAR) AS ipNumberEnd,
-                   country_alpha2 AS countryAlpha2,
-                   country_alpha3 AS countryAlpha3,
-                   country_numeric AS countryNumeric,
-                   country_name AS countryName,
-                   state_province AS stateProvince,
-                   city,
-                   data_version AS dataVersion,
-                   create_time AS createTime,
-                   create_by AS createBy
-            FROM ${tableName}
-            WHERE deleted = 0
-              AND data_version = #{dataVersion}
-              AND ip_number_start <= #{ipNumber}
-            ORDER BY ip_number_start DESC
-            LIMIT 1
-            """)
-    IpLibraryEntities.IpLibraryDataRow selectLookupCandidate(@Param("tableName") String tableName,
-                                                             @Param("dataVersion") String dataVersion,
-                                                             @Param("ipNumber") String ipNumber);
 }

@@ -4,9 +4,11 @@ import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.exception.RateLimitExceededException;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.MerchantKeyProvider;
+import com.scott.payment.openapi.security.OpenApiMerchantRateLimitService;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
@@ -14,6 +16,8 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +32,37 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class OpenApiRequestHeaderExtractorTests {
+
+    @Test
+    void shouldRejectRateLimitedMerchantBeforeWritingReplayToken() {
+        MerchantJwtVerifier jwtVerifier = mock(MerchantJwtVerifier.class);
+        MerchantKeyProvider keyProvider = mock(MerchantKeyProvider.class);
+        OpenApiJwtReplayProtectionService replayProtectionService = mock(OpenApiJwtReplayProtectionService.class);
+        MerchantIpWhitelistAccessService ipWhitelistAccessService = mock(MerchantIpWhitelistAccessService.class);
+        OpenApiMerchantRateLimitService rateLimitService = mock(OpenApiMerchantRateLimitService.class);
+        HttpServletRequest request = mock(HttpServletRequest.class);
+        JwtMerchantClaims claims = claims();
+        when(request.getHeader("authorization")).thenReturn("Bearer signed-token");
+        when(request.getRequestURI()).thenReturn("/api/rest/iso/v1/countries/query");
+        when(jwtVerifier.peekMerchantId("signed-token")).thenReturn("200045");
+        when(keyProvider.getMerchantKey("200045")).thenReturn("merchant-key");
+        when(jwtVerifier.verify("signed-token", "merchant-key")).thenReturn(claims);
+        when(ipWhitelistAccessService.checkAccess("200045", request)).thenReturn("127.0.0.1");
+        doThrow(new RateLimitExceededException(3L)).when(rateLimitService).check("200045");
+        OpenApiRequestHeaderExtractor extractor = new OpenApiRequestHeaderExtractor(
+                jwtVerifier,
+                keyProvider,
+                replayProtectionService,
+                ipWhitelistAccessService,
+                rateLimitService,
+                mock(SecurityInterceptEventRecorder.class),
+                mock(OpenApiDiagnosticLogSupport.class)
+        );
+
+        assertThatThrownBy(() -> extractor.extract(request, new String[]{"authorization"}, false))
+                .isInstanceOf(RateLimitExceededException.class);
+        verify(replayProtectionService, never()).checkAndMark("200045", "jwt-id", 2000L);
+    }
 
     @Test
     void shouldRequireJsonContentTypeWhenDeclared() {
@@ -72,6 +107,7 @@ class OpenApiRequestHeaderExtractorTests {
         MerchantIpWhitelistAccessService ipWhitelistAccessService = mock(MerchantIpWhitelistAccessService.class);
         SecurityInterceptEventRecorder eventRecorder = mock(SecurityInterceptEventRecorder.class);
         OpenApiDiagnosticLogSupport diagnosticLogSupport = mock(OpenApiDiagnosticLogSupport.class);
+        OpenApiMerchantRateLimitService rateLimitService = mock(OpenApiMerchantRateLimitService.class);
         HttpServletRequest request = mock(HttpServletRequest.class);
         JwtMerchantClaims claims = claims();
 
@@ -89,6 +125,7 @@ class OpenApiRequestHeaderExtractorTests {
                 keyProvider,
                 replayProtectionService,
                 ipWhitelistAccessService,
+                rateLimitService,
                 eventRecorder,
                 diagnosticLogSupport
         );
@@ -103,7 +140,10 @@ class OpenApiRequestHeaderExtractorTests {
         assertThat(result.getClientIp()).isEqualTo("127.0.0.1");
         verify(ipWhitelistAccessService).resolveClientIp(request);
         verify(ipWhitelistAccessService, never()).checkAccess("200045", request);
-        verify(replayProtectionService).checkAndMark("200045", "jwt-id", 2000L);
+        var order = inOrder(ipWhitelistAccessService, rateLimitService, replayProtectionService);
+        order.verify(ipWhitelistAccessService).resolveClientIp(request);
+        order.verify(rateLimitService).check("200045");
+        order.verify(replayProtectionService).checkAndMark("200045", "jwt-id", 2000L);
     }
 
     private OpenApiRequestHeaderExtractor extractor() {
@@ -112,6 +152,7 @@ class OpenApiRequestHeaderExtractorTests {
                 mock(MerchantKeyProvider.class),
                 mock(OpenApiJwtReplayProtectionService.class),
                 mock(MerchantIpWhitelistAccessService.class),
+                mock(OpenApiMerchantRateLimitService.class),
                 mock(SecurityInterceptEventRecorder.class),
                 mock(OpenApiDiagnosticLogSupport.class)
         );

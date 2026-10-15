@@ -67,6 +67,26 @@ public class SysUserAccountDTO {
      */
     private String email;
     /**
+     * 等待所有权验证的新邮箱；验证成功前不会替换当前邮箱。
+     */
+    private String pendingEmail;
+    /**
+     * 邮箱验证状态：PENDING、VERIFIED。
+     */
+    private String emailVerificationStatus;
+    /**
+     * 当前登录邮箱通过所有权验证的时间。
+     */
+    private LocalDateTime emailVerifiedAt;
+    /**
+     * 账号激活状态：PENDING_ACTIVATION、ACTIVE。
+     */
+    private String activationStatus;
+    /**
+     * 账号首次激活完成时间。
+     */
+    private LocalDateTime activatedAt;
+    /**
      * 用户类型。
      */
     private String userType;

@@ -1,5 +1,33 @@
 # service-admin 专属配置：管理后台服务个性化参数。
 acquiring:
+  mq:
+    outbox:
+      # 参数说明：service-admin 启动后首次扫描通用 MQ Outbox 到期消息前的等待时间，单位毫秒。
+      # 30000 表示等待 30 秒再执行首轮补偿，避开应用启动阶段数据库连接池、Redis 和 RocketMQ 初始化峰值。
+      # 正常消息仍由业务事务提交后的即时 Relay 发送，本参数只影响进程退出、线程池拒绝或 MQ 短暂故障后的补偿扫描。
+      # 环境说明：环境变量 ADMIN_MQ_OUTBOX_RELAY_INITIAL_DELAY_MS；dev 默认 30000，test/uat/prod 应按故障恢复 SLA 单独配置。
+      relay-initial-delay-ms: ${ADMIN_MQ_OUTBOX_RELAY_INITIAL_DELAY_MS:30000}
+      # 参数说明：service-admin 每轮通用 MQ Outbox 到期消息扫描完成后，到下一轮扫描开始前的固定等待时间，单位毫秒。
+      # 30000 表示空闲状态下每 30 秒查询一次；最坏情况下，即时投递失败的消息会比原 5 秒配置晚约 25 秒被补偿发现。
+      # 调小会提高异常消息发现速度，但会按 Admin 实例数增加 sys_mq_outbox 主库空查询；禁止配置为无间隔或毫秒级轮询。
+      # 环境说明：环境变量 ADMIN_MQ_OUTBOX_RELAY_DELAY_MS；dev 默认 30000，生产建议根据告警和恢复目标设置为 5000～10000。
+      relay-delay-ms: ${ADMIN_MQ_OUTBOX_RELAY_DELAY_MS:30000}
+      # 参数说明：service-admin 启动后首次恢复超时 PROCESSING 消息前的等待时间，单位毫秒。
+      # 60000 表示启动 1 分钟后再检查异常占用，必须与 processing-timeout-seconds 配合，不能早于正常消息发送超时。
+      # 环境说明：环境变量 ADMIN_MQ_OUTBOX_RECOVERY_INITIAL_DELAY_MS；dev 默认 60000，其他环境需覆盖为经容量验证的值。
+      recovery-initial-delay-ms: ${ADMIN_MQ_OUTBOX_RECOVERY_INITIAL_DELAY_MS:60000}
+      # 参数说明：相邻两次 PROCESSING 超时恢复执行之间的固定等待时间，单位毫秒；该任务会向 sys_mq_outbox 主库发送条件 UPDATE。
+      # 60000 表示每分钟检查一次，实际恢复时间最多比 processing-timeout-seconds 定义的超时点再晚一个调度周期。
+      # 环境说明：环境变量 ADMIN_MQ_OUTBOX_RECOVERY_DELAY_MS；dev 默认 60000，缩短前必须评估主库写入频率和多实例重复执行。
+      recovery-delay-ms: ${ADMIN_MQ_OUTBOX_RECOVERY_DELAY_MS:60000}
+      # 参数说明：service-admin 启动后首次聚合通用 MQ Outbox 状态指标前的等待时间，单位毫秒。
+      # 指标用于积压和失败告警，不参与消息投递；60000 表示启动 1 分钟后采集首个样本，避免启动阶段执行聚合查询。
+      # 环境说明：环境变量 ADMIN_MQ_OUTBOX_METRICS_INITIAL_DELAY_MS；dev 默认 60000，监控平台采集周期变化时应同步评估。
+      metrics-initial-delay-ms: ${ADMIN_MQ_OUTBOX_METRICS_INITIAL_DELAY_MS:60000}
+      # 参数说明：通用 MQ Outbox 数据库状态指标相邻两次聚合之间的固定等待时间，单位毫秒。
+      # 60000 表示每分钟刷新一次；提高频率不会加快消息补偿，只会增加历史 Outbox 状态聚合查询压力。
+      # 环境说明：环境变量 ADMIN_MQ_OUTBOX_METRICS_DELAY_MS；dev 默认 60000，长期数据增长后应配合终态记录归档治理。
+      metrics-delay-ms: ${ADMIN_MQ_OUTBOX_METRICS_DELAY_MS:60000}
   monitor:
     datasource-console:
       # 参数说明：是否在数据源监控页提供外部 Druid 控制台入口；Druid 不是 JDBC 默认监控，目标服务必须实际使用 DruidDataSource。
@@ -15,6 +43,39 @@ acquiring:
       # 参数说明：声明 OpenAPI SDK 使用的签名与加密套件，仅可选择双方已实现并完成安全评审的模式。
       # 环境说明：环境变量：OPENAPI_CRYPTO_MODE，dev 配置默认值为 "JWT + RSA-OAEP-256 + A256GCM"；test/uat/prod 必须选择已完成该环境验证的模式，切换时保留回退方案。
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
+
+payment:
+  merchant:
+    cache-invalidation:
+      # 参数说明：service-admin 启动后首次扫描商户及永久业务缓存失效 Outbox 前的等待时间，单位毫秒。
+      # 30000 表示启动 30 秒后执行首轮补偿；正常数据变更仍在事务提交后立即发布失效事件，不依赖本任务轮询。
+      # 环境说明：环境变量 ADMIN_MERCHANT_CACHE_INVALIDATION_RELAY_INITIAL_DELAY_MS；dev 默认 30000，生产按缓存一致性 SLA 配置。
+      relay-initial-delay-ms: ${ADMIN_MERCHANT_CACHE_INVALIDATION_RELAY_INITIAL_DELAY_MS:30000}
+      # 参数说明：商户及永久业务缓存失效补偿每轮执行完成后，到下一轮扫描开始前的固定等待时间，单位毫秒。
+      # 30000 表示每 30 秒扫描一次未成功发布的失效事件；只影响异常补偿速度，不改变正常事务提交后的缓存失效链路。
+      # 环境说明：环境变量 ADMIN_MERCHANT_CACHE_INVALIDATION_RELAY_FIXED_DELAY_MS；dev 默认 30000，缩短会增加主库空查询。
+      relay-fixed-delay-ms: ${ADMIN_MERCHANT_CACHE_INVALIDATION_RELAY_FIXED_DELAY_MS:30000}
+  risk:
+    cache-invalidation:
+      # 参数说明：service-admin 启动后首次扫描风控规则缓存失效 Outbox 前的等待时间，单位毫秒。
+      # 30000 表示启动 30 秒后执行首轮补偿；规则变更成功后的 generation 即时发布路径保持不变。
+      # 环境说明：环境变量 ADMIN_RISK_CACHE_INVALIDATION_RELAY_INITIAL_DELAY_MS；dev 默认 30000，生产按风控规则生效 SLA 配置。
+      relay-initial-delay-ms: ${ADMIN_RISK_CACHE_INVALIDATION_RELAY_INITIAL_DELAY_MS:30000}
+      # 参数说明：风控规则缓存失效补偿每轮执行完成后，到下一轮扫描开始前的固定等待时间，单位毫秒。
+      # 30000 表示每 30 秒扫描一次待补偿事件；异常期间最长发现延迟随该值增加，但正常发布和规则查询性能不受影响。
+      # 环境说明：环境变量 ADMIN_RISK_CACHE_INVALIDATION_RELAY_FIXED_DELAY_MS；dev 默认 30000，禁止配置成无间隔轮询。
+      relay-fixed-delay-ms: ${ADMIN_RISK_CACHE_INVALIDATION_RELAY_FIXED_DELAY_MS:30000}
+  ip:
+    lookup:
+      # IP 命中结果写入共享 String Key 的物理有效期，使用 Spring Duration；默认 PT6H 表示 6 小时。
+      # 管理端与 OpenAPI 必须保持一致，避免同一 IP 被不同服务反复改写为不同生命周期。
+      hit-ttl: ${PAYMENT_IP_LOOKUP_HIT_TTL:PT6H}
+      # 合法 IP 未命中结果的物理有效期，使用 Spring Duration；默认 PT2M 用于抑制随机 IP 穿透且避免长期空缓存。
+      # 管理端与 OpenAPI 必须保持一致，调整前应评估从库压力和数据发布后的收敛时间。
+      miss-ttl: ${PAYMENT_IP_LOOKUP_MISS_TTL:PT2M}
+      # 从 SLAVE 刷新 IP 分片及数据版本快照的固定延迟，单位毫秒；60000 表示每次刷新完成后等待 1 分钟。
+      # 新版本在从库可见后，管理端与 OpenAPI 会拒绝旧版本缓存并在下一次访问时覆盖相同短 Key。
+      route-refresh-ms: ${PAYMENT_IP_LOOKUP_ROUTE_REFRESH_MS:60000}
 
 admin:
   clearing-client:

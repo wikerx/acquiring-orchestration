@@ -1,8 +1,11 @@
 package com.scott.payment.component.db.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+
+import com.scott.payment.component.core.auth.PasswordPolicy;
 
 import java.io.Serializable;
 
@@ -27,13 +30,15 @@ public class AuthPasswordChangeRequest implements Serializable {
      * 当前登录密码，用于修改密码前校验身份。
      */
     @NotBlank(message = "oldPassword is required")
-    @Size(min = 8, max = 64, message = "oldPassword length must be between 8 and 64")
+    @Size(max = PasswordPolicy.MAX_LENGTH, message = "oldPassword length must not exceed 64")
     private String oldPassword;
 
     /**
      * 新登录密码，修改成功后会重新生成密码盐和 PBKDF2 哈希。
      */
     @NotBlank(message = "newPassword is required")
-    @Size(min = 8, max = 64, message = "newPassword length must be between 8 and 64")
+    @Size(min = PasswordPolicy.MIN_LENGTH, max = PasswordPolicy.MAX_LENGTH,
+            message = "newPassword length must be between 12 and 64")
+    @Pattern(regexp = PasswordPolicy.REGEX, message = "newPassword complexity is insufficient")
     private String newPassword;
 }

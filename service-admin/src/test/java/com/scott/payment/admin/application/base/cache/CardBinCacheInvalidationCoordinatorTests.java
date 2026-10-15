@@ -42,13 +42,12 @@ class CardBinCacheInvalidationCoordinatorTests {
     }
 
     @Test
-    void shouldPublishOneStableOutboxMessageAndCommitGenerationAfterTransactionCommit() {
+    void shouldPublishOneStableOutboxMessageAndLeaveActivationToConsumerAfterCommit() {
         RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
         ReliableMqPublisher publisher = mock(ReliableMqPublisher.class);
         RedisCachePublication publication = publication();
         when(generationStore.begin(CardBinCacheInvalidationCoordinator.CACHE_NAMESPACE,
                 Duration.ofMinutes(30))).thenReturn(publication);
-        when(generationStore.commit(publication)).thenReturn(true);
         CardBinCacheInvalidationCoordinator coordinator =
                 new CardBinCacheInvalidationCoordinator(generationStore, publisher);
         beginTransactionSynchronization();
@@ -71,10 +70,9 @@ class CardBinCacheInvalidationCoordinatorTests {
 
         TransactionSynchronization synchronization =
                 TransactionSynchronizationManager.getSynchronizations().get(0);
-        synchronization.afterCommit();
         synchronization.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
 
-        verify(generationStore).commit(publication);
+        verify(generationStore, never()).commit(publication);
         verify(generationStore, never()).abort(publication);
         verify(generationStore, times(1)).begin(
                 CardBinCacheInvalidationCoordinator.CACHE_NAMESPACE, Duration.ofMinutes(30));

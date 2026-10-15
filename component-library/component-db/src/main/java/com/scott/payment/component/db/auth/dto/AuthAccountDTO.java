@@ -70,6 +70,11 @@ public class AuthAccountDTO implements Serializable {
     private String email;
 
     /**
+     * 等待验证的新邮箱，仅管理端个人中心用于提示验证尚未完成。
+     */
+    private String pendingEmail;
+
+    /**
      * 当前账号角色名称集合，仅用于页面展示，权限判断仍使用登录响应 roles 中的角色编码。
      */
     private List<String> roleNames = Collections.emptyList();

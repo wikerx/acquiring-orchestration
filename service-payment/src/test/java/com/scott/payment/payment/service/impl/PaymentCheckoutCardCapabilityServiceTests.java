@@ -1,9 +1,11 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.db.route.model.MerchantRouteProfile;
+import com.scott.payment.component.db.reference.model.CardBinLookupCacheEntry;
+import com.scott.payment.component.db.reference.cache.CardBinCacheReader;
+import com.scott.payment.component.db.reference.model.CardBinLookupResult;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO;
-import com.scott.payment.payment.model.PaymentCardBinCacheEntry;
 import com.scott.payment.payment.service.MerchantRouteProfileCacheService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -32,7 +35,7 @@ class PaymentCheckoutCardCapabilityServiceTests {
     @Test
     void shouldIntersectRequestedBrandsWithActiveMidScope() {
         MerchantRouteProfileCacheService routeProfileCacheService = mock(MerchantRouteProfileCacheService.class);
-        PaymentCardBinCacheReader cardBinCacheReader = mock(PaymentCardBinCacheReader.class);
+        CardBinCacheReader cardBinCacheReader = mock(CardBinCacheReader.class);
         when(routeProfileCacheService.findRouteProfile("200045")).thenReturn(profile("VISA,MASTERCARD"));
         PaymentCheckoutCardCapabilityService service =
                 new PaymentCheckoutCardCapabilityService(routeProfileCacheService, cardBinCacheReader);
@@ -52,9 +55,8 @@ class PaymentCheckoutCardCapabilityServiceTests {
     @Test
     void shouldPreferDatabaseBinBrandOverPrefixFallback() {
         MerchantRouteProfileCacheService routeProfileCacheService = mock(MerchantRouteProfileCacheService.class);
-        PaymentCardBinCacheReader cardBinCacheReader = mock(PaymentCardBinCacheReader.class);
-        PaymentCardBinCacheEntry databaseMatch = new PaymentCardBinCacheEntry();
-        databaseMatch.setCardBrand("MASTERCARD");
+        CardBinCacheReader cardBinCacheReader = mock(CardBinCacheReader.class);
+        CardBinLookupCacheEntry databaseMatch = cacheHit("41111100000", "MASTERCARD", null, null);
         when(cardBinCacheReader.findByPrefix("41111100000")).thenReturn(databaseMatch);
         PaymentCheckoutCardCapabilityService service =
                 new PaymentCheckoutCardCapabilityService(routeProfileCacheService, cardBinCacheReader);
@@ -67,7 +69,7 @@ class PaymentCheckoutCardCapabilityServiceTests {
     /** BIN 基础表未命中时，使用平台卡品牌标准和公开 IIN 范围识别卡品牌。 */
     @Test
     void shouldResolvePlatformCardBrandsFromCardNumberPrefixWhenDatabaseMisses() {
-        PaymentCardBinCacheReader cardBinCacheReader = mock(PaymentCardBinCacheReader.class);
+        CardBinCacheReader cardBinCacheReader = mock(CardBinCacheReader.class);
         PaymentCheckoutCardCapabilityService service = new PaymentCheckoutCardCapabilityService(
                 mock(MerchantRouteProfileCacheService.class), cardBinCacheReader);
 
@@ -87,7 +89,7 @@ class PaymentCheckoutCardCapabilityServiceTests {
     @Test
     void shouldFallbackToPlatformCardBrandRuleWhenDatabaseLookupFails() {
         log.info("验证 BIN 数据源异常时降级使用平台卡品牌规则");
-        PaymentCardBinCacheReader cardBinCacheReader = mock(PaymentCardBinCacheReader.class);
+        CardBinCacheReader cardBinCacheReader = mock(CardBinCacheReader.class);
         when(cardBinCacheReader.findByPrefix("22230000000"))
                 .thenThrow(new DataAccessResourceFailureException("simulated BIN data source failure"));
         PaymentCheckoutCardCapabilityService service = new PaymentCheckoutCardCapabilityService(
@@ -102,11 +104,8 @@ class PaymentCheckoutCardCapabilityServiceTests {
     /** 商户不传 cardBrand 时，服务端必须在风控和路由前补齐卡品牌和 ISO Alpha-3 发卡国家。 */
     @Test
     void shouldEnrichInternalTransactionCardBrandFromCardNumber() {
-        PaymentCardBinCacheReader cardBinCacheReader = mock(PaymentCardBinCacheReader.class);
-        PaymentCardBinCacheEntry databaseMatch = new PaymentCardBinCacheEntry();
-        databaseMatch.setCardBrand("MASTERCARD");
-        databaseMatch.setIssuerCountryAlpha2("AE");
-        databaseMatch.setIssuerCountryAlpha3("ARE");
+        CardBinCacheReader cardBinCacheReader = mock(CardBinCacheReader.class);
+        CardBinLookupCacheEntry databaseMatch = cacheHit("51234567890", "MASTERCARD", "AE", "ARE");
         when(cardBinCacheReader.findByPrefix("51234567890")).thenReturn(databaseMatch);
         PaymentCheckoutCardCapabilityService service = new PaymentCheckoutCardCapabilityService(
                 mock(MerchantRouteProfileCacheService.class), cardBinCacheReader);
@@ -126,11 +125,8 @@ class PaymentCheckoutCardCapabilityServiceTests {
     /** BIN 数据缺少有效 Alpha-3 时不得降级保存两位代码，避免分析维度混用国家代码标准。 */
     @Test
     void shouldNotFallbackToAlpha2IssuerCountry() {
-        PaymentCardBinCacheReader cardBinCacheReader = mock(PaymentCardBinCacheReader.class);
-        PaymentCardBinCacheEntry databaseMatch = new PaymentCardBinCacheEntry();
-        databaseMatch.setCardBrand("MASTERCARD");
-        databaseMatch.setIssuerCountryAlpha2("AE");
-        databaseMatch.setIssuerCountryAlpha3("AE");
+        CardBinCacheReader cardBinCacheReader = mock(CardBinCacheReader.class);
+        CardBinLookupCacheEntry databaseMatch = cacheHit("51234500000", "MASTERCARD", "AE", "AE");
         when(cardBinCacheReader.findByPrefix("51234500000")).thenReturn(databaseMatch);
         PaymentCheckoutCardCapabilityService service = new PaymentCheckoutCardCapabilityService(
                 mock(MerchantRouteProfileCacheService.class), cardBinCacheReader);
@@ -154,6 +150,13 @@ class PaymentCheckoutCardCapabilityServiceTests {
         method.setChannelCode("MPGS");
         method.setBrands(List.of("VISA", "MASTERCARD", "AMEX"));
         return method;
+    }
+
+    private CardBinLookupCacheEntry cacheHit(String prefix, String brand, String alpha2, String alpha3) {
+        CardBinLookupResult result = new CardBinLookupResult(true, prefix, 6, brand, null,
+                null, null, null, alpha2, alpha3, null, null);
+        return new CardBinLookupCacheEntry("g-1", CardBinLookupCacheEntry.FORMAT_VERSION,
+                result, null);
     }
 
     /** 构造启用且具备银行卡支付能力的商户 MID 路由快照。 */

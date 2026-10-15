@@ -89,7 +89,7 @@ public class RiskRuleSnapshotRow extends RiskListMatch {
     /** 规则优先级，数值越小越优先；非优先级规则允许为空。 */
     private Integer priority;
 
-    /** BIN 数据源优先级，数值越大越优先；非 BIN 基础数据允许为空。 */
+    /** BIN 数据来源的追溯元数据，不参与运行时匹配顺序；非 BIN 基础数据允许为空。 */
     private Integer sourcePriority;
 
     /** BIN 有效长度；匹配时长度越长越具体，非 BIN 基础数据允许为空。 */

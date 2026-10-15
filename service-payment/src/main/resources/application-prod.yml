@@ -72,3 +72,23 @@ payment:
       private-key-pkcs8-base64: ${CHECKOUT_CARD_ENCRYPTION_PRIVATE_KEY_PKCS8_BASE64}
       allow-ephemeral-key: false
       replay-store-required: true
+  card-bin:
+    cache:
+      # 是否在查询服务启动且当前 generation 缺失或索引格式过期时从 SLAVE 重建；支付与 OpenAPI 共用此开关和索引。
+      index-initializer-enabled: ${PAYMENT_CARD_BIN_CACHE_INDEX_INITIALIZER_ENABLED:true}
+      # 管理端确认从库同步后，首次发布失败时是否通过可靠消息重试；UAT/生产建议保持 true。
+      invalidation-mq-enabled: ${PAYMENT_CARD_BIN_CACHE_INVALIDATION_MQ_ENABLED:true}
+      # 从 SLAVE 按 id 递增读取的单页行数，范围 1 至 10000；增大可减少 SQL 次数但提高单页内存。
+      index-page-size: ${PAYMENT_CARD_BIN_CACHE_INDEX_PAGE_SIZE:2000}
+      # 单个前缀字段允许的候选上限，范围 1 至 1000；默认 64，超限表示基础数据存在异常重叠。
+      max-candidates-per-prefix: ${PAYMENT_CARD_BIN_CACHE_MAX_CANDIDATES_PER_PREFIX:64}
+      # 单次发布允许写入的分片索引总数；宽区间会复制到实际覆盖的三位分片。
+      max-expanded-entries: ${PAYMENT_CARD_BIN_CACHE_MAX_EXPANDED_ENTRIES:3000000}
+      # 单次 Lua 追加候选条数，范围 1 至 200；默认 100，避免大参数占用 Redis 事件循环。
+      write-batch-entries: ${PAYMENT_CARD_BIN_CACHE_WRITE_BATCH_ENTRIES:100}
+      # 单次 Lua 参数估算字节上限，范围 1024 至 1048576；131072 表示 128 KiB。
+      write-batch-bytes: ${PAYMENT_CARD_BIN_CACHE_WRITE_BATCH_BYTES:131072}
+      # 完整分片索引估算字节预算，必须不小于单批上限；536870912 表示 512 MiB。
+      max-snapshot-bytes: ${PAYMENT_CARD_BIN_CACHE_MAX_SNAPSHOT_BYTES:536870912}
+      # 发布锁租约，使用 Spring Duration 且必须大于 0；每批成功写入会续租，PT5M 表示五分钟。
+      publication-lease: ${PAYMENT_CARD_BIN_CACHE_PUBLICATION_LEASE:PT5M}

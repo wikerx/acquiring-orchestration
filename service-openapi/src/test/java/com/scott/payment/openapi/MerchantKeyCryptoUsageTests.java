@@ -33,7 +33,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Slf4j
 @SpringBootTest(
         classes = OpenApiApplication.class,
-        properties = "spring.cloud.nacos.discovery.enabled=false"
+        properties = {
+                "spring.cloud.nacos.discovery.enabled=false",
+                MerchantOpenApiTestSupport.CARD_BIN_INDEX_INITIALIZER_DISABLED_PROPERTY
+        }
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)

@@ -3,7 +3,6 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.scott.payment.admin.converter.DictConverter;
 import com.scott.payment.admin.dto.SysDictDataSaveRequest;
 import com.scott.payment.admin.dto.SysDictTypeSaveRequest;
 import com.scott.payment.admin.entity.SysDictDataDO;
@@ -133,7 +132,6 @@ class AdminDictionaryOptionCacheInvalidationTests {
         AdminDictServiceImpl service = new AdminDictServiceImpl(
                 typeMapper,
                 dataMapper,
-                mock(DictConverter.class),
                 mock(DictionaryOptionCacheReader.class),
                 cacheManager,
                 invalidationCoordinator

@@ -10,6 +10,8 @@ import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.HikariPoolMXBean;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -41,6 +43,9 @@ import java.util.Map;
 @Slf4j
 @Component
 public class AdminDatasourceMonitorSampler {
+
+    /** 专门输出绕过 MyBatis 和 JdbcTemplate 的固定 JDBC SQL，便于独立调整日志级别。 */
+    private static final Logger SQL_LOG = LoggerFactory.getLogger("sql.jdbc.direct");
 
     /** 七天、每分钟一条采样对应的最大历史容量。 */
     static final int MAX_SAMPLES = 7 * 24 * 60;
@@ -244,6 +249,7 @@ public class AdminDatasourceMonitorSampler {
      */
     private SqlMetrics readSqlMetrics(Connection connection) throws SQLException {
         BigDecimal averageMillis;
+        SQL_LOG.debug("Executing direct JDBC SQL [admin datasource average latency]: {}", SQL_AVERAGE_LATENCY);
         try (PreparedStatement statement = connection.prepareStatement(SQL_AVERAGE_LATENCY);
              ResultSet resultSet = statement.executeQuery()) {
             averageMillis = resultSet.next() ? resultSet.getBigDecimal("avg_millis") : null;
@@ -251,6 +257,7 @@ public class AdminDatasourceMonitorSampler {
 
         BigDecimal p95Millis;
         BigDecimal p99Millis;
+        SQL_LOG.debug("Executing direct JDBC SQL [admin datasource percentile latency]: {}", SQL_PERCENTILE_LATENCY);
         try (PreparedStatement statement = connection.prepareStatement(SQL_PERCENTILE_LATENCY);
              ResultSet resultSet = statement.executeQuery()) {
             if (resultSet.next()) {
@@ -263,6 +270,7 @@ public class AdminDatasourceMonitorSampler {
         }
 
         List<CategoryMetric> slowSql = new ArrayList<>();
+        SQL_LOG.debug("Executing direct JDBC SQL [admin datasource slow statement top]: {}", SQL_SLOW_TOP);
         try (PreparedStatement statement = connection.prepareStatement(SQL_SLOW_TOP);
              ResultSet resultSet = statement.executeQuery()) {
             int index = 0;

@@ -1,6 +1,8 @@
 package com.scott.payment.payment.mq;
 
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.db.outbox.service.ReliableMqOutboxReplicaProbe;
+import com.scott.payment.component.db.reference.cache.CardBinRangeIndex;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.CacheGenerationChangedMessage;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
@@ -33,13 +35,17 @@ class CardBinCacheGenerationConsumerTests {
         RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
         RedisCachePublication original = originalPublication();
         when(generationStore.commit(original)).thenReturn(true);
-        CardBinCacheGenerationConsumer consumer = new CardBinCacheGenerationConsumer(generationStore);
+        CardBinRangeIndex rangeIndex = mock(CardBinRangeIndex.class);
+        ReliableMqOutboxReplicaProbe replicaProbe = visibleReplica();
+        CardBinCacheGenerationConsumer consumer = new CardBinCacheGenerationConsumer(
+                generationStore, rangeIndex, replicaProbe);
         String payload = payload();
 
         consumer.onMessage(payload);
         consumer.onMessage(payload);
 
         verify(generationStore, times(2)).commit(original);
+        verify(rangeIndex, times(2)).publishFromReplica("g-original");
         verify(generationStore, never()).begin(any(), any());
     }
 
@@ -52,11 +58,15 @@ class CardBinCacheGenerationConsumerTests {
         when(generationStore.commit(original)).thenReturn(false);
         when(generationStore.begin("card-bin-range", Duration.ofMinutes(30))).thenReturn(replacement);
         when(generationStore.commit(replacement)).thenReturn(true);
+        CardBinRangeIndex rangeIndex = mock(CardBinRangeIndex.class);
 
-        new CardBinCacheGenerationConsumer(generationStore).onMessage(payload());
+        new CardBinCacheGenerationConsumer(generationStore, rangeIndex, visibleReplica())
+                .onMessage(payload());
 
         verify(generationStore).commit(original);
         verify(generationStore).commit(replacement);
+        verify(rangeIndex).publishFromReplica("g-original");
+        verify(rangeIndex).publishFromReplica("g-recovery");
         verify(generationStore, never()).abort(replacement);
     }
 
@@ -70,10 +80,33 @@ class CardBinCacheGenerationConsumerTests {
         when(generationStore.begin("card-bin-range", Duration.ofMinutes(30))).thenReturn(replacement);
         when(generationStore.commit(replacement)).thenReturn(false);
 
-        assertThatThrownBy(() -> new CardBinCacheGenerationConsumer(generationStore).onMessage(payload()))
+        assertThatThrownBy(() -> new CardBinCacheGenerationConsumer(
+                generationStore, mock(CardBinRangeIndex.class), visibleReplica()).onMessage(payload()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("recovery generation commit failed");
         verify(generationStore).abort(replacement);
+    }
+
+    @Test
+    void shouldRetryWithoutPublishingWhenReplicaHasNotCaughtUp() {
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        CardBinRangeIndex rangeIndex = mock(CardBinRangeIndex.class);
+        ReliableMqOutboxReplicaProbe replicaProbe = mock(ReliableMqOutboxReplicaProbe.class);
+        when(replicaProbe.isVisible("card-bin-cache-g-original")).thenReturn(false);
+
+        assertThatThrownBy(() -> new CardBinCacheGenerationConsumer(
+                generationStore, rangeIndex, replicaProbe).onMessage(payload()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not visible on replica");
+
+        verify(rangeIndex, never()).publishFromReplica(any());
+        verify(generationStore, never()).commit(any());
+    }
+
+    private ReliableMqOutboxReplicaProbe visibleReplica() {
+        ReliableMqOutboxReplicaProbe probe = mock(ReliableMqOutboxReplicaProbe.class);
+        when(probe.isVisible("card-bin-cache-g-original")).thenReturn(true);
+        return probe;
     }
 
     private RedisCachePublication originalPublication() {

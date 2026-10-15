@@ -1488,7 +1488,7 @@ WHERE NOT EXISTS (
 -- 新环境初始化时直接使用与系统既有邮件一致的蓝白主题。
 UPDATE msg_email_template template
 SET template.content_template = CONCAT(
-        '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;">',
+        '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;">',
         '<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;">',
         '<div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">',
         CASE WHEN template.app_code = 'MERCHANT' THEN 'Vexra Merchant' ELSE 'Vexra Admin' END,

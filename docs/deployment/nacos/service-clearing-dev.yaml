@@ -1,4 +1,11 @@
 # service-clearing 专属配置：服务启动即处理全部合法终态事件，只保留容量、安全和调度周期参数。
+acquiring:
+  mq:
+    outbox:
+      # 清分使用自己的 transaction_event_outbox，不向通用 sys_mq_outbox 写入事件；关闭空表补偿扫描。
+      # 后续如引入 ReliableMqPublisher，必须先恢复为 true 并完成失败补偿和积压告警验证。
+      service-relay-enabled: false
+
 clearing:
   # 参数说明：清分记录进入 PROCESSING 后允许被恢复任务重新认领的超时，单位秒。
   processing-timeout-seconds: ${CLEARING_PROCESSING_TIMEOUT_SECONDS:120}

@@ -22,6 +22,7 @@ import com.scott.payment.component.db.auth.entity.SysRoleDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.entity.SysVerifyCodeDO;
 import com.scott.payment.component.db.auth.event.LoginAuditEvent;
+import com.scott.payment.component.db.auth.event.AccountEmailChangedEvent;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMfaLogMapper;
@@ -44,12 +45,20 @@ import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysVerifyCodeMapper;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
+import com.scott.payment.component.db.auth.service.AccountPasswordHistoryService;
+import com.scott.payment.component.db.auth.support.MfaSecretCrypto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -111,6 +120,8 @@ class SystemAuthServiceImplTest {
     private MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
     /** 登录审计事件发布器，用于验证失败审计不再依赖认证事务直接落库。 */
     private ApplicationEventPublisher applicationEventPublisher;
+    /** 密码历史服务，用于验证改密入口会检查并保存最近密码。 */
+    private AccountPasswordHistoryService accountPasswordHistoryService;
     /** 登录日志 Mapper，仅用于断言认证服务不再同步写审计表。 */
     private SysLoginLogMapper sysLoginLogMapper;
     private SystemAuthServiceImpl systemAuthService;
@@ -142,6 +153,7 @@ class SystemAuthServiceImplTest {
         baseMerchantInfoMapper = mock(BaseMerchantInfoMapper.class);
         merchantRuntimeProfileCacheService = mock(MerchantRuntimeProfileCacheService.class);
         applicationEventPublisher = mock(ApplicationEventPublisher.class);
+        accountPasswordHistoryService = mock(AccountPasswordHistoryService.class);
 
         systemAuthService = new SystemAuthServiceImpl(
                 sysAppMapper,
@@ -164,7 +176,8 @@ class SystemAuthServiceImplTest {
                 sysAccountMfaLogMapper,
                 baseMerchantInfoMapper,
                 merchantRuntimeProfileCacheService,
-                applicationEventPublisher
+                applicationEventPublisher,
+                accountPasswordHistoryService
         );
     }
 
@@ -220,13 +233,14 @@ class SystemAuthServiceImplTest {
         SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
         SysUserDO user = adminUser();
         SysAccountDO account = adminAccount();
+        account.setPendingEmail("stale@example.com");
         AuthProfileUpdateRequest request = new AuthProfileUpdateRequest();
         request.setNickname("Scott Admin");
         request.setMobile("18777777777");
-        request.setEmail("scott@vip.com");
+        request.setEmail(account.getEmail());
         when(sysAppMapper.selectOne(any())).thenReturn(adminApp());
         when(sysLoginSessionMapper.selectOne(any())).thenReturn(session);
-        when(sysAccountMapper.selectById(eq(10L))).thenReturn(account);
+        when(sysAccountMapper.selectByIdForUpdate(eq(10L))).thenReturn(account);
         when(sysUserMapper.selectById(eq(20L))).thenReturn(user);
         when(sysAccountRoleMapper.selectList(any())).thenReturn(List.of(adminAccountRole()));
         when(sysRoleMapper.selectList(any())).thenReturn(List.of(adminRole()));
@@ -236,13 +250,67 @@ class SystemAuthServiceImplTest {
         assertThat(response.getAccount().getRealName()).isEqualTo("Admin");
         assertThat(response.getAccount().getNickname()).isEqualTo("Scott Admin");
         assertThat(response.getAccount().getMobile()).isEqualTo("18777777777");
-        assertThat(response.getAccount().getEmail()).isEqualTo("scott@vip.com");
+        assertThat(response.getAccount().getEmail()).isEqualTo("account@example.com");
         assertThat(user.getNickname()).isEqualTo("Scott Admin");
         assertThat(user.getUpdatedBy()).isEqualTo(10L);
         assertThat(account.getMobile()).isEqualTo("18777777777");
-        assertThat(account.getEmail()).isEqualTo("scott@vip.com");
+        assertThat(account.getEmail()).isEqualTo("account@example.com");
+        assertThat(account.getPendingEmail()).isNull();
         verify(sysUserMapper).updateById(user);
         verify(sysAccountMapper).updateById(account);
+    }
+
+    @Test
+    void updateCurrentProfileShouldRequireAndConsumeMfaBeforeChangingAdminEmail() throws Exception {
+        String secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+        long timeStep = Instant.now().getEpochSecond() / 30;
+        SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
+        SysAccountDO account = adminAccount();
+        SysUserDO user = adminUser();
+        SysAccountMfaDO mfa = enabledAdminMfa(secret);
+        AuthProfileUpdateRequest request = new AuthProfileUpdateRequest();
+        request.setNickname("Scott Admin");
+        request.setMobile("18777777777");
+        request.setEmail("pending@example.com");
+        request.setMfaCode(generateTotp("12345678901234567890".getBytes(StandardCharsets.US_ASCII), timeStep));
+        when(sysAppMapper.selectOne(any())).thenReturn(adminApp());
+        when(sysLoginSessionMapper.selectOne(any())).thenReturn(session);
+        when(sysAccountMapper.selectByIdForUpdate(10L)).thenReturn(account);
+        when(sysUserMapper.selectById(20L)).thenReturn(user);
+        when(sysAccountMfaMapper.selectByAccountForUpdate(1L, 10L)).thenReturn(mfa);
+        when(sysAccountRoleMapper.selectList(any())).thenReturn(List.of(adminAccountRole()));
+        when(sysRoleMapper.selectList(any())).thenReturn(List.of(adminRole()));
+
+        AuthLoginResponse response = systemAuthService.updateCurrentProfile(
+                AuthConstants.APP_ADMIN, "Bearer " + RAW_TOKEN, request);
+
+        assertThat(account.getEmail()).isEqualTo("account@example.com");
+        assertThat(account.getPendingEmail()).isEqualTo("pending@example.com");
+        assertThat(user.getEmail()).isEqualTo("admin@example.com");
+        assertThat(mfa.getLastSuccessTimeStep()).isEqualTo(timeStep);
+        assertThat(response.getAccount().getPendingEmail()).isEqualTo("pending@example.com");
+        verify(applicationEventPublisher).publishEvent(any(AccountEmailChangedEvent.class));
+    }
+
+    @Test
+    void updateCurrentProfileShouldRejectAdminEmailChangeWithoutEnabledMfa() {
+        SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
+        SysAccountDO account = adminAccount();
+        AuthProfileUpdateRequest request = new AuthProfileUpdateRequest();
+        request.setNickname("Scott Admin");
+        request.setMobile("18777777777");
+        request.setEmail("pending@example.com");
+        when(sysAppMapper.selectOne(any())).thenReturn(adminApp());
+        when(sysLoginSessionMapper.selectOne(any())).thenReturn(session);
+        when(sysAccountMapper.selectByIdForUpdate(10L)).thenReturn(account);
+        when(sysUserMapper.selectById(20L)).thenReturn(adminUser());
+
+        assertThatThrownBy(() -> systemAuthService.updateCurrentProfile(
+                AuthConstants.APP_ADMIN, "Bearer " + RAW_TOKEN, request))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("mfa is required for email change");
+
+        verify(sysAccountMapper, never()).updateById(any(SysAccountDO.class));
     }
 
     /**
@@ -252,10 +320,10 @@ class SystemAuthServiceImplTest {
     void changeCurrentPasswordShouldRejectWrongOldPassword() {
         SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
         SysAccountDO account = adminAccountWithPassword("Old@123456");
-        AuthPasswordChangeRequest request = passwordChangeRequest("Wrong@123456", "New@123456");
+        AuthPasswordChangeRequest request = passwordChangeRequest("Wrong@123456", "NewAdmin@123456");
         when(sysAppMapper.selectOne(any())).thenReturn(adminApp());
         when(sysLoginSessionMapper.selectOne(any())).thenReturn(session);
-        when(sysAccountMapper.selectById(eq(10L))).thenReturn(account);
+        when(sysAccountMapper.selectByIdForUpdate(eq(10L))).thenReturn(account);
 
         assertThatThrownBy(() -> systemAuthService.changeCurrentPassword(AuthConstants.APP_ADMIN, "Bearer " + RAW_TOKEN, request))
                 .isInstanceOf(ServiceException.class)
@@ -271,19 +339,21 @@ class SystemAuthServiceImplTest {
         SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
         SysAccountDO account = adminAccountWithPassword("Old@123456");
         String oldSalt = account.getPasswordSalt();
-        AuthPasswordChangeRequest request = passwordChangeRequest("Old@123456", "New@123456");
+        AuthPasswordChangeRequest request = passwordChangeRequest("Old@123456", "NewAdmin@123456");
         when(sysAppMapper.selectOne(any())).thenReturn(adminApp());
         when(sysLoginSessionMapper.selectOne(any())).thenReturn(session);
-        when(sysAccountMapper.selectById(eq(10L))).thenReturn(account);
+        when(sysAccountMapper.selectByIdForUpdate(eq(10L))).thenReturn(account);
 
         systemAuthService.changeCurrentPassword(AuthConstants.APP_ADMIN, "Bearer " + RAW_TOKEN, request);
 
         assertThat(account.getPasswordSalt()).isNotEqualTo(oldSalt);
-        assertThat(PasswordHashUtils.matches("New@123456", account.getPasswordSalt(), account.getPasswordHash())).isTrue();
+        assertThat(PasswordHashUtils.matches("NewAdmin@123456", account.getPasswordSalt(), account.getPasswordHash())).isTrue();
         assertThat(account.getPasswordAlgo()).isEqualTo(PasswordHashUtils.ALGORITHM);
         assertThat(account.getPasswordExpired()).isEqualTo(AuthConstants.DISABLED);
         assertThat(account.getPasswordUpdatedAt()).isNotNull();
         verify(sysAccountMapper).updateById(account);
+        verify(accountPasswordHistoryService).assertNotRecentlyUsed(account, "NewAdmin@123456");
+        verify(accountPasswordHistoryService).recordCurrentPassword(eq(account), any(LocalDateTime.class));
     }
 
     /**
@@ -527,6 +597,31 @@ class SystemAuthServiceImplTest {
         mfa.setMfaStatus(AuthConstants.MFA_STATUS_NOT_ENABLED);
         mfa.setDeleted(AuthConstants.NOT_DELETED);
         return mfa;
+    }
+
+    private SysAccountMfaDO enabledAdminMfa(String secret) {
+        SysAccountMfaDO mfa = new SysAccountMfaDO();
+        mfa.setId(300L);
+        mfa.setAppId(1L);
+        mfa.setAccountId(10L);
+        mfa.setMfaPolicy(AuthConstants.MFA_POLICY_REQUIRED);
+        mfa.setMfaStatus(AuthConstants.MFA_STATUS_ENABLED);
+        mfa.setSecretCipher(MfaSecretCrypto.encrypt(secret));
+        mfa.setFailedVerifyCount(0);
+        mfa.setDeleted(AuthConstants.NOT_DELETED);
+        return mfa;
+    }
+
+    private String generateTotp(byte[] secret, long step) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA1");
+        mac.init(new SecretKeySpec(secret, "HmacSHA1"));
+        byte[] hash = mac.doFinal(ByteBuffer.allocate(Long.BYTES).putLong(step).array());
+        int offset = hash[hash.length - 1] & 0x0F;
+        int binary = ((hash[offset] & 0x7F) << 24)
+                | ((hash[offset + 1] & 0xFF) << 16)
+                | ((hash[offset + 2] & 0xFF) << 8)
+                | (hash[offset + 3] & 0xFF);
+        return String.format(Locale.ROOT, "%06d", binary % 1_000_000);
     }
 
     private SysVerifyCodeDO validLoginCaptcha() {

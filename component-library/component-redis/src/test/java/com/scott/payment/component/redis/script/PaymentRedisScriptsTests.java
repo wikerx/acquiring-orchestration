@@ -85,6 +85,18 @@ class PaymentRedisScriptsTests {
         log.info("token 租约释放 Lua 资源测试完成，结果: 比较后删除契约存在");
     }
 
+    /** token 租约续期脚本只有在持有者一致时才能延长发布锁。 */
+    @Test
+    void shouldLoadVersionedTokenLeaseRenewScript() {
+        var script = PaymentRedisScripts.tokenLeaseRenewV1();
+
+        assertThat(script.getResultType()).isEqualTo(Long.class);
+        assertThat(script.getScriptAsString())
+                .contains("redis.call('GET', KEYS[1]) ~= ARGV[1]")
+                .contains("redis.call('PEXPIRE', KEYS[1], ARGV[2])");
+        assertThat(script.getSha1()).matches("[0-9a-f]{40}");
+    }
+
     /**
      * 并发租约 v1 脚本必须原子清理过期持有者、检查容量并写入新 token。
      */
@@ -114,6 +126,19 @@ class PaymentRedisScriptsTests {
                 .contains("TIME")
                 .contains("ZADD")
                 .contains("PEXPIRE");
+        assertThat(script.getSha1()).matches("[0-9a-f]{40}");
+    }
+
+    /** Card BIN 发布脚本必须按单个分片限制每个前缀字段的候选数量。 */
+    @Test
+    void shouldBoundCardBinPrefixCandidatesDuringPublication() {
+        var script = PaymentRedisScripts.cardBinBucketAppendV1();
+
+        assertThat(script.getResultType()).isEqualTo(Long.class);
+        assertThat(script.getScriptAsString())
+                .contains("maxCandidates = tonumber(ARGV[1])")
+                .contains("#cjson.decode(current) >= maxCandidates")
+                .contains("card BIN prefix candidate limit exceeded");
         assertThat(script.getSha1()).matches("[0-9a-f]{40}");
     }
 }

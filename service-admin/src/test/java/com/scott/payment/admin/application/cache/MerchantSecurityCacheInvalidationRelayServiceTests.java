@@ -7,6 +7,7 @@ import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.db.cache.entity.ManagedCacheInvalidationOutboxDO;
 import com.scott.payment.component.db.cache.mapper.ManagedCacheInvalidationOutboxMapper;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationRelayService;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationReplicaProbe;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -44,11 +45,12 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
                 mock(ManagedCacheInvalidationOutboxMapper.class);
         CacheEvictionExecutor evictionService = mock(CacheEvictionExecutor.class);
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
+        ManagedCacheInvalidationReplicaProbe replicaProbe = visibleReplica();
         ManagedCacheInvalidationOutboxDO event = event("INIT");
         when(mapper.selectByEventId("event-1")).thenReturn(event);
         when(mapper.markSent(eq(1L), eq(0), any())).thenReturn(1);
         ManagedCacheInvalidationRelayService relay =
-                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard);
+                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard, replicaProbe);
 
         assertThat(relay.publish("event-1")).isTrue();
 
@@ -70,6 +72,7 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
                 mock(ManagedCacheInvalidationOutboxMapper.class);
         CacheEvictionExecutor evictionService = mock(CacheEvictionExecutor.class);
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
+        ManagedCacheInvalidationReplicaProbe replicaProbe = visibleReplica();
         ManagedCacheInvalidationOutboxDO event = event("INIT");
         when(mapper.selectByEventId("event-1")).thenReturn(event);
         doThrow(new IllegalStateException("redis unavailable"))
@@ -77,7 +80,7 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
                 .evict(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS, "200045");
         when(mapper.markFailed(eq(1L), eq(0), any(), anyString(), any())).thenReturn(1);
         ManagedCacheInvalidationRelayService relay =
-                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard);
+                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard, replicaProbe);
 
         assertThat(relay.publish("event-1")).isFalse();
 
@@ -103,12 +106,13 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
                 mock(ManagedCacheInvalidationOutboxMapper.class);
         CacheEvictionExecutor evictionService = mock(CacheEvictionExecutor.class);
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
+        ManagedCacheInvalidationReplicaProbe replicaProbe = visibleReplica();
         ManagedCacheInvalidationOutboxDO event = event("FAILED");
         when(mapper.selectByEventId("event-1")).thenReturn(event);
         when(guard.release(lease())).thenThrow(new IllegalStateException("redis timeout"));
         when(mapper.markFailed(eq(1L), eq(0), any(), anyString(), any())).thenReturn(1);
         ManagedCacheInvalidationRelayService relay =
-                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard);
+                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard, replicaProbe);
 
         assertThat(relay.publish("event-1")).isFalse();
 
@@ -127,15 +131,37 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
                 mock(ManagedCacheInvalidationOutboxMapper.class);
         CacheEvictionExecutor evictionService = mock(CacheEvictionExecutor.class);
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
+        ManagedCacheInvalidationReplicaProbe replicaProbe = visibleReplica();
         when(mapper.selectByEventId("event-1")).thenReturn(event("SENT"));
         ManagedCacheInvalidationRelayService relay =
-                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard);
+                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard, replicaProbe);
 
         assertThat(relay.publish("event-1")).isTrue();
 
         verify(evictionService, never()).evict(anyString(), anyString());
         verify(guard, never()).release(any());
         log.info("永久缓存已发布事件幂等测试完成，结果: 未重复删除缓存或释放门禁");
+    }
+
+    @Test
+    void shouldKeepCacheAndGateWhileEventIsNotVisibleOnReplica() {
+        ManagedCacheInvalidationOutboxMapper mapper =
+                mock(ManagedCacheInvalidationOutboxMapper.class);
+        CacheEvictionExecutor evictionService = mock(CacheEvictionExecutor.class);
+        CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
+        ManagedCacheInvalidationReplicaProbe replicaProbe =
+                mock(ManagedCacheInvalidationReplicaProbe.class);
+        ManagedCacheInvalidationOutboxDO event = event("INIT");
+        when(mapper.selectByEventId("event-1")).thenReturn(event);
+        when(replicaProbe.isVisible("event-1")).thenReturn(false);
+        ManagedCacheInvalidationRelayService relay =
+                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard, replicaProbe);
+
+        assertThat(relay.publish("event-1")).isFalse();
+
+        verify(evictionService, never()).evict(anyString(), anyString());
+        verify(guard, never()).release(any());
+        verify(mapper).markFailed(eq(1L), eq(0), any(), eq("ReplicaNotReady"), any());
     }
 
     private ManagedCacheInvalidationOutboxDO event(String status) {
@@ -158,5 +184,12 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
                 "200045",
                 "t-owner"
         );
+    }
+
+    private ManagedCacheInvalidationReplicaProbe visibleReplica() {
+        ManagedCacheInvalidationReplicaProbe replicaProbe =
+                mock(ManagedCacheInvalidationReplicaProbe.class);
+        when(replicaProbe.isVisible(anyString())).thenReturn(true);
+        return replicaProbe;
     }
 }

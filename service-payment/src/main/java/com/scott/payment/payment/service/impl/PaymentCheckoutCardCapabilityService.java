@@ -1,9 +1,11 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.db.route.model.MerchantRouteProfile;
+import com.scott.payment.component.db.reference.cache.CardBinCacheReader;
+import com.scott.payment.component.db.reference.model.CardBinLookupCacheEntry;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO;
-import com.scott.payment.payment.model.PaymentCardBinCacheEntry;
 import com.scott.payment.payment.service.MerchantRouteProfileCacheService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -47,7 +49,7 @@ public class PaymentCheckoutCardCapabilityService {
     private static final Pattern ISO_ALPHA_3_PATTERN = Pattern.compile("[A-Z]{3}");
 
     private final MerchantRouteProfileCacheService routeProfileCacheService;
-    private final PaymentCardBinCacheReader cardBinCacheReader;
+    private final CardBinCacheReader cardBinCacheReader;
 
     /**
      * 创建收银台银行卡能力服务。
@@ -56,7 +58,7 @@ public class PaymentCheckoutCardCapabilityService {
      * @param cardBinCacheReader       BIN 基础数据缓存读取服务
      */
     public PaymentCheckoutCardCapabilityService(MerchantRouteProfileCacheService routeProfileCacheService,
-                                                PaymentCardBinCacheReader cardBinCacheReader) {
+                                                CardBinCacheReader cardBinCacheReader) {
         this.routeProfileCacheService = routeProfileCacheService;
         this.cardBinCacheReader = cardBinCacheReader;
     }
@@ -137,9 +139,9 @@ public class PaymentCheckoutCardCapabilityService {
      */
     public String resolveCardBrand(String cardDigits) {
         String digits = digits(cardDigits);
-        PaymentCardBinCacheEntry matched = resolveCardBin(digits);
-        if (matched != null && StringUtils.hasText(matched.getCardBrand())) {
-            return normalizeCardBrand(matched.getCardBrand());
+        CardBinLookupCacheEntry matched = resolveCardBin(digits);
+        if (matched != null && StringUtils.hasText(matched.result().cardBrand())) {
+            return normalizeCardBrand(matched.result().cardBrand());
         }
         return PaymentCardBrandRuleMatcher.resolve(digits);
     }
@@ -159,9 +161,9 @@ public class PaymentCheckoutCardCapabilityService {
             return;
         }
         String cardDigits = digits(commandDTO.getCardInfo().getCardNo());
-        PaymentCardBinCacheEntry matched = resolveCardBin(cardDigits);
-        String cardBrand = matched != null && StringUtils.hasText(matched.getCardBrand())
-                ? normalizeCardBrand(matched.getCardBrand())
+        CardBinLookupCacheEntry matched = resolveCardBin(cardDigits);
+        String cardBrand = matched != null && StringUtils.hasText(matched.result().cardBrand())
+                ? normalizeCardBrand(matched.result().cardBrand())
                 : PaymentCardBrandRuleMatcher.resolve(cardDigits);
         if (commandDTO.getTransactionInfo() == null) {
             commandDTO.setTransactionInfo(new PaymentCreateCommandDTO.TransactionInfoDTO());
@@ -169,7 +171,7 @@ public class PaymentCheckoutCardCapabilityService {
         commandDTO.getTransactionInfo().setCardBrand(cardBrand);
         if (matched != null) {
             commandDTO.getTransactionInfo().setIssuerCountry(
-                    normalizeIssuerCountryAlpha3(matched.getIssuerCountryAlpha3()));
+                    normalizeIssuerCountryAlpha3(matched.result().issuerCountryAlpha3()));
         }
     }
 
@@ -181,14 +183,15 @@ public class PaymentCheckoutCardCapabilityService {
      * @param cardDigits 已规范化的卡号数字
      * @return BIN 命中结果；长度不足或数据访问异常时返回 {@code null}
      */
-    private PaymentCardBinCacheEntry resolveCardBin(String cardDigits) {
+    private CardBinLookupCacheEntry resolveCardBin(String cardDigits) {
         if (cardDigits.length() < 6) {
             return null;
         }
-        String prefix = (cardDigits + "00000000000").substring(0, 11);
+        // 支付侧按卡号前 11 位识别；输入仅有 6 至 10 位时沿用补零规则，不改变既有路由行为。
+        String prefix = CardBinCacheReader.toElevenDigitPrefix(cardDigits);
         try {
             return cardBinCacheReader.findByPrefix(prefix);
-        } catch (DataAccessException exception) {
+        } catch (DataAccessException | ServiceException exception) {
             log.warn("BIN 基础数据查询异常，已降级使用平台卡品牌规则，exceptionType={}",
                     exception.getClass().getSimpleName());
             return null;

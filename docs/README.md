@@ -4,7 +4,7 @@
 
 ## 1. 架构设计
 
-* [支付收单平台系统架构说明](architecture/system-architecture.md)：后端与前端双仓库边界、整体服务关系、OpenAPI 授权链路、退款/授权/回调目标链路、状态机目标和当前风险。
+* [支付收单平台系统架构说明](architecture/system-architecture.md)：完整系统全景，覆盖 12 个后端服务、三类公共库、三个前端应用、Gateway 路由、同步调用、支付与 Hosted Checkout、渠道回调、MQ/Outbox、清分结算、数据所有权、安全运行模型、当前风险和 V2 演进基线。
 * [支付收单系统工程约束](architecture/payment-engineering.md)：资金安全、模块边界、状态机、幂等、金额币种、OpenAPI、渠道回调、内部接口和前端限制。
 * [Hosted Checkout V1 数据库与状态机设计草案](architecture/hosted-checkout-v1-database-design.md)：自建收银台的会话表、token、支付尝试、事件、安全事件和 MPGS 3DS 状态机设计。
 * [ShardingSphere SQL 兼容矩阵](architecture/shardingsphere-sql-compatibility-matrix.md)：动态 Mapper、分片键 SQL、事务、分页、治理和回归证据基线。
