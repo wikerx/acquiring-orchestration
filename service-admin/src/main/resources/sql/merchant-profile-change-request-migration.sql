@@ -1,4 +1,6 @@
 -- 商户资料变更申请迁移：可重复执行，新增申请表、扩展审核与资料元数据，并补齐商户端最小权限。
+-- 显式声明连接字符集，避免中文菜单和权限名称被非 UTF-8 客户端二次编码。
+SET NAMES utf8mb4;
 
 CREATE TABLE IF NOT EXISTS merchant_profile_change_request (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
