@@ -1,10 +1,9 @@
 # 环境接入配置：当前文件只负责连接对应环境的 Nacos 命名空间。
-# spring.config.import 会按顺序拉取服务专属、公共、数据库、分表、Redis、MQ、Seata、XXL-JOB 等 yaml 配置。
+# spring.config.import 先拉取公共基础设施配置，最后拉取 service-admin 专属配置。
+# Spring Config Data 中后导入的配置优先级更高，服务专属 DataId 必须保持在列表末尾，才能覆盖共享默认值。
 spring:
   config:
     import:
-      # 参数说明：导入当前服务专属 Nacos DataId，承载当前服务业务参数和其参与的内部鉴权配置。
-      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入公共 Nacos DataId，统一时间、监控和链路追踪配置。
       - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入数据源 Nacos DataId，提供主从数据库连接与 MyBatis 配置。
@@ -19,6 +18,9 @@ spring:
       - optional:nacos:seata-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入 XXL-JOB Nacos DataId，提供调度中心和执行器配置。
       - optional:nacos:xxl-job-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # 参数说明：最后导入当前服务专属 Nacos DataId，承载 Admin 业务参数、调度覆盖值和内部鉴权配置。
+      # 顺序约束：不得移到共享 DataId 之前，否则 rocketmq 等共享配置会覆盖 service-admin 的个性化参数。
+      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
   cloud:
     bootstrap:
       # 参数说明：控制 Spring Cloud Bootstrap 提前加载 Nacos 配置；关闭会导致远程配置无法在自动装配前生效。
