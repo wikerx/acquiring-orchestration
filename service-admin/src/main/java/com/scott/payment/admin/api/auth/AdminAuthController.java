@@ -1,6 +1,19 @@
 package com.scott.payment.admin.api.auth;
 
 import com.scott.payment.admin.application.auth.AdminAuthApplicationService;
+import com.scott.payment.admin.application.auth.AdminEmailVerificationApplicationService;
+import com.scott.payment.admin.application.auth.AdminPasswordResetApplicationService;
+import com.scott.payment.admin.dto.auth.AdminEmailVerificationDTOs.AccountActivationCompleteRequest;
+import com.scott.payment.admin.dto.auth.AdminEmailVerificationDTOs.AccountActivationCompleteResponse;
+import com.scott.payment.admin.dto.auth.AdminEmailVerificationDTOs.EmailVerificationVerifyRequest;
+import com.scott.payment.admin.dto.auth.AdminEmailVerificationDTOs.EmailVerificationVerifyResponse;
+import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetConfirmRequest;
+import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetConfirmResponse;
+import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetEmailVerifyRequest;
+import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetMfaVerifyRequest;
+import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetRequest;
+import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetRequestResponse;
+import com.scott.payment.admin.dto.auth.AdminPasswordResetDTOs.PasswordResetVerifyResponse;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
@@ -46,13 +59,72 @@ public class AdminAuthController {
      */
     private final AdminAuthApplicationService adminAuthApplicationService;
 
+    /** 找回密码应用服务。 */
+    private final AdminPasswordResetApplicationService passwordResetApplicationService;
+    /** 账号激活和邮箱验证应用服务。 */
+    private final AdminEmailVerificationApplicationService emailVerificationApplicationService;
+
     /**
      * 创建管理后台登录权限接口。
      *
      * @param adminAuthApplicationService 后台认证应用服务
      */
-    public AdminAuthController(AdminAuthApplicationService adminAuthApplicationService) {
+    public AdminAuthController(AdminAuthApplicationService adminAuthApplicationService,
+                               AdminPasswordResetApplicationService passwordResetApplicationService,
+                               AdminEmailVerificationApplicationService emailVerificationApplicationService) {
         this.adminAuthApplicationService = adminAuthApplicationService;
+        this.passwordResetApplicationService = passwordResetApplicationService;
+        this.emailVerificationApplicationService = emailVerificationApplicationService;
+    }
+
+    /** 校验账号激活或邮箱变更邮件中的一次性验证码。 */
+    @PostMapping("/email-verification/verify")
+    public CommonResult<EmailVerificationVerifyResponse> verifyEmail(
+            @Valid @RequestBody EmailVerificationVerifyRequest request,
+            HttpServletRequest servletRequest) {
+        return success(emailVerificationApplicationService.verify(request, servletRequest));
+    }
+
+    /** 原子消费短期动作令牌，完成新账号首次设密和激活。 */
+    @PostMapping("/account-activation/complete")
+    public CommonResult<AccountActivationCompleteResponse> completeAccountActivation(
+            @Valid @RequestBody AccountActivationCompleteRequest request,
+            HttpServletRequest servletRequest) {
+        return success(emailVerificationApplicationService.completeActivation(request, servletRequest));
+    }
+
+    /**
+     * 创建找回密码请求；无论账号是否存在均返回相同结构。
+     */
+    @PostMapping("/password-reset/request")
+    public CommonResult<PasswordResetRequestResponse> requestPasswordReset(
+            @Valid @RequestBody PasswordResetRequest request,
+            HttpServletRequest servletRequest) {
+        return success(passwordResetApplicationService.requestReset(request, servletRequest));
+    }
+
+    /** 校验找回密码邮件验证码。 */
+    @PostMapping("/password-reset/email/verify")
+    public CommonResult<PasswordResetVerifyResponse> verifyPasswordResetEmail(
+            @Valid @RequestBody PasswordResetEmailVerifyRequest request,
+            HttpServletRequest servletRequest) {
+        return success(passwordResetApplicationService.verifyEmail(request, servletRequest));
+    }
+
+    /** 校验找回密码 MFA 动态验证码。 */
+    @PostMapping("/password-reset/mfa/verify")
+    public CommonResult<PasswordResetVerifyResponse> verifyPasswordResetMfa(
+            @Valid @RequestBody PasswordResetMfaVerifyRequest request,
+            HttpServletRequest servletRequest) {
+        return success(passwordResetApplicationService.verifyMfa(request, servletRequest));
+    }
+
+    /** 原子消费重置令牌并设置新密码。 */
+    @PostMapping("/password-reset/confirm")
+    public CommonResult<PasswordResetConfirmResponse> confirmPasswordReset(
+            @Valid @RequestBody PasswordResetConfirmRequest request,
+            HttpServletRequest servletRequest) {
+        return success(passwordResetApplicationService.confirm(request, servletRequest));
     }
 
     /**

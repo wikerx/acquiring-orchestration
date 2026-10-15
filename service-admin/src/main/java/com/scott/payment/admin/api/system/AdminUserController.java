@@ -9,6 +9,7 @@ import com.scott.payment.admin.dto.SysUserAccountQueryRequest;
 import com.scott.payment.admin.dto.SysUserAccountResetPasswordRequest;
 import com.scott.payment.admin.dto.SysUserAccountStatusRequest;
 import com.scott.payment.admin.dto.SysUserAccountUpdateRequest;
+import com.scott.payment.admin.dto.SysUserEmailVerificationSendRequest;
 import com.scott.payment.admin.dto.SysUserRoleAuthDTO;
 import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
@@ -19,6 +20,7 @@ import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -155,8 +157,26 @@ public class AdminUserController {
     @RequiresPermission("system:user:resetPwd")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "重置后台用户密码", recordRequest = false, recordResponse = false)
-    public CommonResult<Void> resetPassword(@Valid @RequestBody SysUserAccountResetPasswordRequest request) {
-        adminUserApplicationService.resetPassword(request);
+    public CommonResult<Void> resetPassword(
+            @Valid @RequestBody SysUserAccountResetPasswordRequest request,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "Accept-Language", required = false)
+            String locale,
+            HttpServletRequest servletRequest) {
+        adminUserApplicationService.resetPassword(request, locale, servletRequest);
+        return success();
+    }
+
+    /** 发送或重发后台账号激活、邮箱变更验证邮件。 */
+    @PostMapping("/email-verification/send")
+    @RequiresPermission("system:user:emailVerify")
+    @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
+            operation = "发送后台账号邮箱验证邮件", recordRequest = false, recordResponse = false)
+    public CommonResult<Void> sendEmailVerification(
+            @Valid @RequestBody SysUserEmailVerificationSendRequest request,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "Accept-Language", required = false)
+            String locale,
+            HttpServletRequest servletRequest) {
+        adminUserApplicationService.sendEmailVerification(request, locale, servletRequest);
         return success();
     }
 

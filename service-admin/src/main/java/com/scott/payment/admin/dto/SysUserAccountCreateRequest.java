@@ -34,13 +34,6 @@ public class SysUserAccountCreateRequest implements Serializable {
     private String loginAccount;
 
     /**
-     * 初始密码，日志和操作记录中不得明文输出。
-     */
-    @NotBlank(message = "请输入初始密码")
-    @Size(min = 8, max = 64, message = "初始密码长度必须在8到64位之间")
-    private String password;
-
-    /**
      * 用户真实姓名。
      */
     @NotBlank(message = "请输入姓名")

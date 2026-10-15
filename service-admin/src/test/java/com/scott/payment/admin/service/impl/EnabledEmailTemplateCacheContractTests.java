@@ -213,7 +213,8 @@ class EnabledEmailTemplateCacheContractTests {
                 mock(AdminSmtpEmailSender.class),
                 new EmailDeliveryProperties(),
                 enabledTemplateCacheReader,
-                cacheInvalidationCoordinator
+                cacheInvalidationCoordinator,
+                mock(AdminEmailPreparationFailureRecorder.class)
         );
         return new Fixture(service, templateMapper, enabledTemplateCacheReader,
                 cacheInvalidationCoordinator);

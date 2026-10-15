@@ -1,8 +1,6 @@
 package com.scott.payment.admin.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -16,7 +14,7 @@ import java.io.Serializable;
  * @description : 管理后台用户重置密码请求 DTO
  * @status : create
  *
- * <p>用于后台管理员重置指定用户密码，承载账号主键和新的明文密码入参。</p>
+ * <p>用于后台管理员为指定账号发送一次性重置邮件，接口不接收、生成或返回明文密码。</p>
  */
 @Data
 public class SysUserAccountResetPasswordRequest implements Serializable {
@@ -33,10 +31,4 @@ public class SysUserAccountResetPasswordRequest implements Serializable {
     @NotNull(message = "accountId")
     private Long accountId;
 
-    /**
-     * 系统管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
-     */
-    @NotBlank(message = "password")
-    @Size(min = 8, max = 64, message = "password length must be between 8 and 64")
-    private String password;
 }

@@ -226,6 +226,10 @@ CREATE TABLE IF NOT EXISTS sys_account (
     password_algo VARCHAR(50) NOT NULL COMMENT '密码算法，如 PBKDF2WithHmacSHA256',
     mobile VARCHAR(30) NULL COMMENT '该系统登录手机号',
     email VARCHAR(150) NULL COMMENT '该系统登录邮箱',
+    pending_email VARCHAR(150) NULL COMMENT '等待所有权验证的新邮箱；验证完成前不得替换正式邮箱',
+    email_verified_at DATETIME(3) NULL COMMENT '登录邮箱可信确认时间；为空时不得用于匿名找回密码',
+    activation_status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE' COMMENT '账号激活状态：PENDING_ACTIVATION、ACTIVE',
+    activated_at DATETIME(3) NULL COMMENT '账号所有人完成邮箱验证并设置首次密码的时间',
     mfa_enabled TINYINT NOT NULL DEFAULT 0 COMMENT '是否开启MFA：0否，1是',
     mfa_type VARCHAR(30) NULL COMMENT 'MFA类型：SMS短信，EMAIL邮箱，TOTP身份验证器',
     totp_secret VARCHAR(255) NULL COMMENT 'TOTP密钥，生产环境建议加密存储',
@@ -250,6 +254,19 @@ CREATE TABLE IF NOT EXISTS sys_account (
     KEY idx_sys_account_merchant (merchant_id, status, deleted),
     KEY idx_sys_account_status_locked (status, locked, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统登录账号表';
+
+CREATE TABLE IF NOT EXISTS sys_account_password_history (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    app_id BIGINT NOT NULL COMMENT '系统应用ID',
+    account_id BIGINT NOT NULL COMMENT '登录账号ID',
+    password_hash VARCHAR(255) NOT NULL COMMENT '历史密码PBKDF2哈希',
+    password_salt VARCHAR(100) NOT NULL COMMENT '历史密码随机盐',
+    password_algo VARCHAR(50) NOT NULL COMMENT '历史密码哈希算法',
+    changed_at DATETIME(3) NOT NULL COMMENT '该密码被替换或迁移播种的时间',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    PRIMARY KEY (id),
+    KEY idx_account_password_history_recent (app_id, account_id, changed_at DESC, id DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='账号历史密码哈希表';
 
 CREATE TABLE IF NOT EXISTS sys_verify_code (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -489,6 +506,66 @@ CREATE TABLE IF NOT EXISTS sys_login_session (
     KEY idx_sys_login_session_merchant (merchant_id, logout, expire_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='登录会话表';
 
+CREATE TABLE IF NOT EXISTS sys_password_reset_request (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    request_no VARCHAR(64) NOT NULL COMMENT '高熵公开请求编号，不包含账号信息',
+    app_id BIGINT NOT NULL COMMENT '系统应用ID',
+    account_id BIGINT NULL COMMENT '合格账号ID；虚拟请求为空',
+    account_fingerprint CHAR(64) NOT NULL COMMENT '规范化登录账号SHA-256指纹，仅用于限流',
+    email_code_hash VARCHAR(255) NOT NULL COMMENT '邮件验证码PBKDF2哈希',
+    email_code_salt VARCHAR(100) NOT NULL COMMENT '邮件验证码随机盐',
+    email_expire_at DATETIME(3) NOT NULL COMMENT '邮件验证码到期时间',
+    email_verify_count INT NOT NULL DEFAULT 0 COMMENT '邮件验证码累计失败次数',
+    email_verified_at DATETIME(3) NULL COMMENT '邮件验证码验证成功时间',
+    mfa_verified_at DATETIME(3) NULL COMMENT 'MFA验证成功时间',
+    stage_token_hash CHAR(64) NULL COMMENT '邮箱验证后阶段令牌SHA-256哈希',
+    stage_token_expire_at DATETIME(3) NULL COMMENT '阶段令牌到期时间',
+    reset_token_hash CHAR(64) NULL COMMENT '最终重置令牌SHA-256哈希',
+    reset_token_expire_at DATETIME(3) NULL COMMENT '最终重置令牌到期时间',
+    state VARCHAR(30) NOT NULL COMMENT 'PENDING_EMAIL、PENDING_MFA、READY、COMPLETED、EXPIRED、LOCKED、BLOCKED',
+    request_ip VARCHAR(64) NOT NULL COMMENT '请求IP，用于限流和安全审计',
+    user_agent VARCHAR(500) NULL COMMENT '截断后的User-Agent',
+    locale VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '邮件语言',
+    completed_at DATETIME(3) NULL COMMENT '密码重置完成时间',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_sys_password_reset_request_no (request_no),
+    KEY idx_sys_password_reset_account_time (app_id, account_fingerprint, created_at),
+    KEY idx_sys_password_reset_ip_time (app_id, request_ip, created_at),
+    KEY idx_sys_password_reset_account_state (app_id, account_id, state, created_at),
+    KEY idx_sys_password_reset_expire_state (state, email_expire_at, reset_token_expire_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='管理后台找回密码安全请求表';
+
+CREATE TABLE IF NOT EXISTS sys_email_verification_request (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    request_no VARCHAR(64) NOT NULL COMMENT '高熵公开请求编号，不包含账号或邮箱信息',
+    app_id BIGINT NOT NULL COMMENT '系统应用ID',
+    account_id BIGINT NOT NULL COMMENT '待验证账号ID',
+    purpose VARCHAR(30) NOT NULL COMMENT '用途：ACCOUNT_ACTIVATION、EMAIL_VERIFICATION、EMAIL_CHANGE',
+    email_fingerprint CHAR(64) NOT NULL COMMENT '规范化目标邮箱SHA-256指纹',
+    code_hash VARCHAR(255) NOT NULL COMMENT '邮件验证码PBKDF2哈希',
+    code_salt VARCHAR(100) NOT NULL COMMENT '邮件验证码随机盐',
+    expire_at DATETIME(3) NOT NULL COMMENT '邮件验证码到期时间',
+    verify_count INT NOT NULL DEFAULT 0 COMMENT '邮件验证码累计失败次数',
+    verified_at DATETIME(3) NULL COMMENT '验证码验证成功时间',
+    action_token_hash CHAR(64) NULL COMMENT '首次设密一次性动作令牌SHA-256哈希',
+    action_token_expire_at DATETIME(3) NULL COMMENT '首次设密动作令牌到期时间',
+    state VARCHAR(30) NOT NULL COMMENT 'PENDING、VERIFIED、COMPLETED、EXPIRED、LOCKED、SUPERSEDED、BLOCKED',
+    request_ip VARCHAR(64) NOT NULL COMMENT '发起IP，用于限流和安全审计',
+    user_agent VARCHAR(500) NULL COMMENT '截断后的User-Agent',
+    locale VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '邮件语言',
+    completed_at DATETIME(3) NULL COMMENT '验证或激活完成时间',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_sys_email_verification_request_no (request_no),
+    KEY idx_sys_email_verification_account_state (app_id, account_id, state, created_at),
+    KEY idx_sys_email_verification_account_time (app_id, account_id, created_at),
+    KEY idx_sys_email_verification_ip_time (app_id, request_ip, created_at),
+    KEY idx_sys_email_verification_expire_state (state, expire_at, action_token_expire_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='管理账号激活与邮箱所有权验证请求表';
+
 INSERT IGNORE INTO sys_app (id, app_code, app_name, app_type, description, status, sort_no, deleted)
 VALUES
     (1, 'ADMIN', '管理后台', 'ADMIN', '平台运营、合规、风控、财务等内部人员使用', 1, 1, 0),
@@ -512,14 +589,14 @@ WHERE NOT EXISTS (
       AND account.deleted = 0
 );
 
-INSERT IGNORE INTO sys_account (app_id, user_id, login_account, password_hash, password_salt, password_algo, email,
+INSERT IGNORE INTO sys_account (app_id, user_id, login_account, password_hash, password_salt, password_algo, email, email_verified_at,
                                 mfa_enabled, password_expired, password_updated_at, failed_login_count, locked,
                                 status, remark, created_at, updated_at, deleted)
 SELECT app.id, user.id, 'admin',
        'F3jyTUusOGYVQtJAfGYb8wIZBLwL4gfaH1GZduj5C-U',
        'QWRtaW5TZWVkU2FsdDIwMjY',
        'PBKDF2WithHmacSHA256',
-       'admin@local.local',
+       'admin@local.local', CURRENT_TIMESTAMP(3),
        0, 0, CURRENT_TIMESTAMP(3), 0, 0, 1,
        '初始密码 Admin@123456，仅用于本地开发和首次初始化',
        CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0
@@ -549,14 +626,14 @@ WHERE NOT EXISTS (
       AND account.deleted = 0
 );
 
-INSERT IGNORE INTO sys_account (app_id, user_id, login_account, password_hash, password_salt, password_algo, email,
+INSERT IGNORE INTO sys_account (app_id, user_id, login_account, password_hash, password_salt, password_algo, email, email_verified_at,
                                 mfa_enabled, password_expired, password_updated_at, failed_login_count, locked,
                                 status, remark, created_at, updated_at, deleted)
 SELECT app.id, user.id, 'scott',
        '70eqcgzJv9VluOi_B5gJ--BLheHqRkYIYKVym2pXYiY',
        'oBNauY5qz6eqJfnVagG4pw',
        'PBKDF2WithHmacSHA256',
-       'scott@local.local',
+       'scott@local.local', CURRENT_TIMESTAMP(3),
        0, 0, CURRENT_TIMESTAMP(3), 0, 0, 1,
        '初始密码 Admin@123456，仅用于本地开发和首次初始化',
        CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0
@@ -2276,18 +2353,18 @@ WHERE NOT EXISTS (
 
 UPDATE msg_email_template
 SET content_template = CASE template_code
-    WHEN 'ADMIN_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如果本次操作不是您本人发起，请立即联系系统管理员。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如非本人操作，请及时修改密码或联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'ADMIN_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件并及时联系系统管理员。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'ADMIN_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:660px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:26px 30px;background:#2563EB;color:#FFFFFF;"><div style="font-size:12px;letter-spacing:0;text-transform:uppercase;color:#DBEAFE;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:660px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:26px 30px;background:#2563EB;color:#FFFFFF;"><div style="font-size:12px;letter-spacing:0;text-transform:uppercase;color:#DBEAFE;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">商户账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantId}</strong></p><p style="margin:0 0 8px;">商户名称：<strong>${merchantName}</strong></p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_ONBOARDING_APPROVED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请已审核通过。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0;">审核时间：${reviewTime}</p></div><p style="margin:0 0 12px;">您可以登录商户系统查看商户资料、配置 API 密钥并进行后续对接。</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_ONBOARDING_REJECTED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核未通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请暂未通过审核。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">审核时间：${reviewTime}</p><p style="margin:0;">未通过原因：${rejectReason}</p></div><p style="margin:0;">请根据提示补充或修改资料后重新提交。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_CREATED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥生成通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已生成。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">为保障账户安全，邮件中不会展示完整密钥内容。请登录商户系统查看或下载相关密钥信息。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#7c2d12;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥重置通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已被重置。</p><div style="margin:20px 0;padding:18px 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">新密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">请确认该操作是否由授权人员发起。如非本人或授权人员操作，请立即联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_ENABLED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥启用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已启用。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_DISABLED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥停用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已停用。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">如果该操作不是您或授权人员发起，请及时联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如果本次操作不是您本人发起，请立即联系系统管理员。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如非本人操作，请及时修改密码或联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件并及时联系系统管理员。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:660px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:26px 30px;background:#2563EB;color:#FFFFFF;"><div style="font-size:12px;letter-spacing:0;text-transform:uppercase;color:#DBEAFE;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:660px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:26px 30px;background:#2563EB;color:#FFFFFF;"><div style="font-size:12px;letter-spacing:0;text-transform:uppercase;color:#DBEAFE;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">商户账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantId}</strong></p><p style="margin:0 0 8px;">商户名称：<strong>${merchantName}</strong></p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ONBOARDING_APPROVED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请已审核通过。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0;">审核时间：${reviewTime}</p></div><p style="margin:0 0 12px;">您可以登录商户系统查看商户资料、配置 API 密钥并进行后续对接。</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ONBOARDING_REJECTED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核未通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请暂未通过审核。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">审核时间：${reviewTime}</p><p style="margin:0;">未通过原因：${rejectReason}</p></div><p style="margin:0;">请根据提示补充或修改资料后重新提交。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_CREATED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥生成通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已生成。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">为保障账户安全，邮件中不会展示完整密钥内容。请登录商户系统查看或下载相关密钥信息。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#7c2d12;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥重置通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已被重置。</p><div style="margin:20px 0;padding:18px 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">新密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">请确认该操作是否由授权人员发起。如非本人或授权人员操作，请立即联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_ENABLED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥启用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已启用。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_DISABLED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥停用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已停用。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">如果该操作不是您或授权人员发起，请及时联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
     ELSE content_template
 END,
 update_by = 'system',
@@ -2337,14 +2414,14 @@ FROM (
            '管理系统密码变更通知' template_name,
            'ADMIN' app_code,
            '【${systemName}】密码已由管理员修改' subject_template,
-           '<div style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">管理系统密码已修改</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 14px;font-size:20px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 16px;color:#64748B;">您的管理系统密码已由 ${operatorName} 修改。</p><div style="margin:18px 0;padding:18px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:6px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">临时密码：<strong>${temporaryPassword}</strong></p><p style="margin:0 0 8px;">操作时间：${operationTime}</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;word-break:break-all;">${loginUrl}</a></p></div><div style="padding:12px 14px;background:#FEF2F2;border-left:4px solid #DC2626;color:#991B1B;">请登录后立即修改密码。如非本人授权，请立即联系系统管理员。</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由系统自动发送，请勿直接回复或转发敏感信息。</div></div></div>' content_template,
+           '<div style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">管理系统密码已修改</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 14px;font-size:20px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 16px;color:#64748B;">您的管理系统密码已由 ${operatorName} 修改。</p><div style="margin:18px 0;padding:18px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:6px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">临时密码：<strong>${temporaryPassword}</strong></p><p style="margin:0 0 8px;">操作时间：${operationTime}</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;word-break:break-all;">${loginUrl}</a></p></div><div style="padding:12px 14px;background:#FEF2F2;border-left:4px solid #DC2626;color:#991B1B;">请登录后立即修改密码。如非本人授权，请立即联系系统管理员。</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由系统自动发送，请勿直接回复或转发敏感信息。</div></div></div>' content_template,
            '{"systemName":"Vexra Admin","userName":"张三","loginAccount":"admin@example.com","temporaryPassword":"******","operatorName":"系统管理员","operationTime":"2026-07-29 10:00:00","loginUrl":"https://admin.example.com/login"}' variable_schema,
            '系统内置模板：管理员修改管理系统账号密码通知' remark
     UNION ALL SELECT 'MERCHANT_PASSWORD_CHANGED_BY_ADMIN',
            '商户系统密码变更通知',
            'MERCHANT',
            '【${systemName}】密码已由管理员修改',
-           '<div style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Merchant</div><div style="margin-top:6px;font-size:22px;font-weight:700;">商户系统密码已修改</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 14px;font-size:20px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 16px;color:#64748B;">您的商户系统密码已由 ${operatorName} 修改。</p><div style="margin:18px 0;padding:18px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:6px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">临时密码：<strong>${temporaryPassword}</strong></p><p style="margin:0 0 8px;">操作时间：${operationTime}</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;word-break:break-all;">${loginUrl}</a></p></div><div style="padding:12px 14px;background:#FEF2F2;border-left:4px solid #DC2626;color:#991B1B;">请登录后立即修改密码。如非本人授权，请立即联系商户管理员。</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由系统自动发送，请勿直接回复或转发敏感信息。</div></div></div>',
+           '<div style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Merchant</div><div style="margin-top:6px;font-size:22px;font-weight:700;">商户系统密码已修改</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 14px;font-size:20px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 16px;color:#64748B;">您的商户系统密码已由 ${operatorName} 修改。</p><div style="margin:18px 0;padding:18px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:6px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">临时密码：<strong>${temporaryPassword}</strong></p><p style="margin:0 0 8px;">操作时间：${operationTime}</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;word-break:break-all;">${loginUrl}</a></p></div><div style="padding:12px 14px;background:#FEF2F2;border-left:4px solid #DC2626;color:#991B1B;">请登录后立即修改密码。如非本人授权，请立即联系商户管理员。</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由系统自动发送，请勿直接回复或转发敏感信息。</div></div></div>',
            '{"systemName":"Vexra Merchant","userName":"张三","merchantId":"M10000001","merchantName":"示例商户","loginAccount":"merchant@example.com","temporaryPassword":"******","operatorName":"商户管理员","operationTime":"2026-07-29 10:00:00","loginUrl":"https://merchant.example.com/login"}',
            '系统内置模板：商户管理员修改员工密码通知'
 ) item
@@ -3728,7 +3805,7 @@ ON DUPLICATE KEY UPDATE
 -- 新环境初始化时直接使用与系统既有邮件一致的蓝白主题。
 UPDATE msg_email_template template
 SET template.content_template = CONCAT(
-        '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;">',
+        '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;">',
         '<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;">',
         '<div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Merchant</div>',
         '<div style="margin-top:6px;font-size:22px;font-weight:700;">', template.template_name, '</div></div>',
@@ -3749,3 +3826,172 @@ WHERE template.system_builtin = 1
       'MERCHANT_IP_WHITELIST_APPROVED', 'MERCHANT_IP_WHITELIST_REJECTED'
   )
   AND template.content_template NOT LIKE '%data-template-theme="vexra-blue-white-v1"%';
+-- ===================== 管理后台安全找回密码邮件 =====================
+INSERT INTO msg_email_template (
+    template_code, template_name, app_code, scene_code, locale, subject_template, content_type,
+    content_template, variable_schema, sensitive_variable_names, status, system_builtin, version_no,
+    remark, create_by, update_by, deleted
+)
+SELECT item.template_code, item.template_name, 'ADMIN', item.scene_code, item.locale,
+       item.subject_template, 'HTML', item.content_template, item.variable_schema,
+       item.sensitive_variable_names, 1, 1, 1, item.remark, 'system', 'system', 0
+FROM (
+    SELECT 'ADMIN_PASSWORD_RESET_VERIFY' template_code, '管理系统找回密码验证码' template_name,
+           'PASSWORD_RESET_VERIFY' scene_code, 'zh-CN' locale,
+           '【${systemName}】找回密码验证码' subject_template,
+           '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">找回管理系统密码</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 8px;font-size:18px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 18px;color:#64748B;">请使用以下验证码继续 ${systemName} 的身份验证。</p><div style="margin:20px 0;padding:22px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:12px;color:#64748B;">一次性验证码</div><div style="margin-top:8px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div><div style="margin-top:8px;font-size:12px;color:#64748B;">${expireMinutes} 分钟内有效</div></div><div style="padding:14px 16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;color:#475569;">申请时间：${requestTime}</div><div style="margin-top:18px;padding:12px 14px;background:#FFF7ED;border-left:4px solid #F59E0B;color:#9A3412;">${securityNotice}</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿回复、转发或向任何人透露验证码。</div></div></div>' content_template,
+           '{"systemName":"Vexra Admin","userName":"admin","verifyCode":"aB3xY7","expireMinutes":30,"verificationUrl":"https://admin.example.com/forgot-password?requestId=example","requestTime":"2026-10-14 10:00:00","securityNotice":"如非本人操作，请忽略本邮件并联系其他管理员。"}' variable_schema,
+           '["verifyCode"]' sensitive_variable_names, '系统内置模板：管理后台找回密码邮箱验证码' remark
+    UNION ALL SELECT 'ADMIN_PASSWORD_RESET_VERIFY', 'Admin password recovery code',
+           'PASSWORD_RESET_VERIFY', 'en-US',
+           '[${systemName}] Password recovery code',
+           '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">Recover your admin password</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 8px;font-size:18px;font-weight:700;">Hello ${userName},</p><p style="margin:0 0 18px;color:#64748B;">Use the code below to continue identity verification for ${systemName}.</p><div style="margin:20px 0;padding:22px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:12px;color:#64748B;">ONE-TIME CODE</div><div style="margin-top:8px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div><div style="margin-top:8px;font-size:12px;color:#64748B;">Valid for ${expireMinutes} minutes</div></div><div style="padding:14px 16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;color:#475569;">Requested at: ${requestTime}</div><div style="margin-top:18px;padding:12px 14px;background:#FFF7ED;border-left:4px solid #F59E0B;color:#9A3412;">${securityNotice}</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">This message was sent automatically by ${systemName}. Never share this code.</div></div></div>',
+           '{"systemName":"Vexra Admin","userName":"admin","verifyCode":"aB3xY7","expireMinutes":30,"verificationUrl":"https://admin.example.com/forgot-password?requestId=example","requestTime":"2026-10-14 10:00:00","securityNotice":"If you did not request this, ignore this email and contact another administrator."}',
+           '["verifyCode"]', 'Built-in template: admin password recovery verification'
+    UNION ALL SELECT 'ADMIN_PASSWORD_RESET_SUCCESS', '管理系统密码重置成功通知',
+           'PASSWORD_RESET_SUCCESS', 'zh-CN',
+           '【${systemName}】密码已重置',
+           '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">密码重置成功</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 8px;font-size:18px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 18px;color:#64748B;">您的 ${systemName} 登录密码已更新。</p><div style="padding:18px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;color:#065F46;"><div style="font-weight:700;">安全变更已完成</div><div style="margin-top:6px;">操作时间：${operationTime}</div></div><div style="margin-top:18px;padding:12px 14px;background:#FEF2F2;border-left:4px solid #DC2626;color:#991B1B;">${securityNotice}</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>',
+           '{"systemName":"Vexra Admin","userName":"admin","operationTime":"2026-10-14 10:05:00","securityNotice":"所有旧会话均已退出。如非本人操作，请立即联系其他管理员。"}',
+           '[]', '系统内置模板：管理后台密码重置成功通知'
+    UNION ALL SELECT 'ADMIN_PASSWORD_RESET_SUCCESS', 'Admin password reset confirmation',
+           'PASSWORD_RESET_SUCCESS', 'en-US',
+           '[${systemName}] Password reset completed',
+           '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">Password reset completed</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 8px;font-size:18px;font-weight:700;">Hello ${userName},</p><p style="margin:0 0 18px;color:#64748B;">Your ${systemName} sign-in password has been updated.</p><div style="padding:18px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:8px;color:#065F46;"><div style="font-weight:700;">Security change completed</div><div style="margin-top:6px;">Completed at: ${operationTime}</div></div><div style="margin-top:18px;padding:12px 14px;background:#FEF2F2;border-left:4px solid #DC2626;color:#991B1B;">${securityNotice}</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">This message was sent automatically by ${systemName}. Please do not reply.</div></div></div>',
+           '{"systemName":"Vexra Admin","userName":"admin","operationTime":"2026-10-14 10:05:00","securityNotice":"All previous sessions were signed out. Contact another administrator immediately if this was not you."}',
+           '[]', 'Built-in template: admin password reset confirmation'
+) item
+ON DUPLICATE KEY UPDATE
+    template_name = VALUES(template_name),
+    app_code = VALUES(app_code),
+    scene_code = VALUES(scene_code),
+    subject_template = VALUES(subject_template),
+    content_type = VALUES(content_type),
+    content_template = VALUES(content_template),
+    variable_schema = VALUES(variable_schema),
+    sensitive_variable_names = VALUES(sensitive_variable_names),
+    status = 1,
+    system_builtin = 1,
+    version_no = GREATEST(version_no, 1),
+    remark = VALUES(remark),
+    update_by = 'system',
+    deleted = 0;
+
+UPDATE msg_email_template
+SET content_template = REPLACE(
+        content_template,
+        '</div><div style="padding:14px 16px;background:#F8FAFC',
+        CONCAT('</div><div style="margin:18px 0;text-align:center;"><a href="${verificationUrl}" style="display:inline-block;padding:11px 22px;border-radius:6px;background:#2563EB;color:#FFFFFF;text-decoration:none;font-weight:700;">',
+               IF(locale = 'en-US', 'Continue secure password reset', '继续安全重置密码'),
+               '</a></div><div style="padding:14px 16px;background:#F8FAFC')
+    )
+WHERE template_code = 'ADMIN_PASSWORD_RESET_VERIFY'
+  AND deleted = 0
+  AND content_template NOT LIKE '%${verificationUrl}%';
+
+-- 管理员重置密码统一使用一次性邮件流程，清理旧明文临时密码模板。
+DELETE FROM msg_email_template
+WHERE template_code = 'ADMIN_PASSWORD_CHANGED_BY_ADMIN'
+  AND system_builtin = 1;
+
+-- ===================== 管理账号激活与邮箱所有权验证 =====================
+
+-- 管理账号改为邮箱激活与首次设密后，停用并移除旧的明文初始密码模板。
+DELETE FROM msg_email_template
+WHERE template_code = 'ADMIN_ACCOUNT_CREATED'
+  AND system_builtin = 1;
+INSERT INTO sys_permission (
+    app_id, menu_id, permission_code, permission_name, permission_type,
+    resource_method, resource_path, description, status, created_at, updated_at, deleted
+)
+SELECT app.id, menu.id, 'system:user:emailVerify', '用户邮箱验证邮件发送', 'BUTTON',
+       'POST', '/admin/system/users/email-verification/send',
+       '允许发送或重发账号激活及邮箱变更验证邮件', 1, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0
+FROM sys_app app
+JOIN sys_menu menu ON menu.app_id = app.id
+    AND menu.menu_code IN ('admin_system_user_v3', 'system_user')
+    AND menu.deleted = 0
+WHERE app.app_code = 'ADMIN' AND app.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_permission permission
+      WHERE permission.app_id = app.id
+        AND permission.permission_code = 'system:user:emailVerify'
+        AND permission.deleted = 0
+  )
+ORDER BY CASE WHEN menu.menu_code = 'admin_system_user_v3' THEN 0 ELSE 1 END
+LIMIT 1;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, created_at, deleted)
+SELECT permission.app_id, role.id, permission.id, CURRENT_TIMESTAMP(3), 0
+FROM sys_permission permission
+JOIN sys_role role ON role.app_id = permission.app_id
+    AND role.role_code IN ('SUPER_ADMIN', 'ADMIN_OPERATOR', 'ADMIN')
+    AND role.deleted = 0
+WHERE permission.permission_code = 'system:user:emailVerify'
+  AND permission.deleted = 0;
+
+INSERT INTO sys_dict_data (
+    dict_type, dict_label, dict_value, locale, dict_sort, list_class,
+    is_default, status, created_by, updated_by, created_at, updated_at, deleted
+) VALUES
+    ('email_scene_code', '账号激活', 'ACCOUNT_ACTIVATION', 'zh-CN', 12, 'success', 0, 1, 'system', 'system', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0),
+    ('email_scene_code', '邮箱验证', 'EMAIL_VERIFICATION', 'zh-CN', 13, 'primary', 0, 1, 'system', 'system', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0),
+    ('email_scene_code', 'Account Activation', 'ACCOUNT_ACTIVATION', 'en-US', 12, 'success', 0, 1, 'system', 'system', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0),
+    ('email_scene_code', 'Email Verification', 'EMAIL_VERIFICATION', 'en-US', 13, 'primary', 0, 1, 'system', 'system', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0)
+ON DUPLICATE KEY UPDATE
+    dict_label = VALUES(dict_label),
+    dict_sort = VALUES(dict_sort),
+    list_class = VALUES(list_class),
+    status = 1,
+    updated_by = 'system',
+    updated_at = CURRENT_TIMESTAMP(3);
+
+INSERT INTO msg_email_template (
+    template_code, template_name, app_code, scene_code, locale, subject_template, content_type,
+    content_template, variable_schema, sensitive_variable_names, status, system_builtin, version_no,
+    remark, create_by, update_by, create_time, update_time, deleted
+)
+SELECT item.template_code, item.template_name, 'ADMIN', item.scene_code, item.locale,
+       item.subject_template, 'HTML', item.content_template, item.variable_schema,
+       item.sensitive_variable_names, 1, 1, 1, item.remark,
+       'system', 'system', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3), 0
+FROM (
+    SELECT 'ADMIN_ACCOUNT_ACTIVATION' template_code, '管理系统账号激活' template_name,
+           'ACCOUNT_ACTIVATION' scene_code, 'zh-CN' locale,
+           '【${systemName}】请完成账号激活' subject_template,
+           '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">激活您的管理账号</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 8px;font-size:18px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 18px;color:#64748B;">管理员已为您创建 ${systemName} 账号 <strong>${loginAccount}</strong>。请验证邮箱并设置首次登录密码。</p><div style="margin:20px 0;padding:22px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:12px;color:#64748B;">一次性验证码</div><div style="margin-top:8px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verificationCode}</div><div style="margin-top:8px;font-size:12px;color:#64748B;">${expireMinutes} 分钟内有效</div></div><div style="text-align:center;"><a href="${verificationUrl}" style="display:inline-block;padding:11px 22px;border-radius:6px;background:#2563EB;color:#FFFFFF;text-decoration:none;font-weight:700;">验证邮箱并设置密码</a></div><div style="margin-top:18px;padding:14px 16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;color:#475569;">创建时间：${requestTime}</div><div style="margin-top:18px;padding:12px 14px;background:#FFF7ED;border-left:4px solid #F59E0B;color:#9A3412;">${securityNotice}</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿回复、转发或向任何人透露验证码。</div></div></div>' content_template,
+           '{"systemName":"Vexra Admin","userName":"张三","loginAccount":"zhangsan","verificationCode":"aB3xY7","expireMinutes":30,"verificationUrl":"https://admin.example.com/account-verification?requestId=example","requestTime":"2026-10-15 10:00:00","securityNotice":"如非本人或授权管理员发起，请忽略本邮件并联系其他管理员。"}' variable_schema,
+           '["verificationCode"]' sensitive_variable_names,
+           '系统内置模板：管理账号邮箱验证与首次设密' remark
+    UNION ALL SELECT 'ADMIN_ACCOUNT_ACTIVATION', 'Admin account activation',
+           'ACCOUNT_ACTIVATION', 'en-US', '[${systemName}] Activate your account',
+           '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">Activate your admin account</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 8px;font-size:18px;font-weight:700;">Hello ${userName},</p><p style="margin:0 0 18px;color:#64748B;">An administrator created the ${systemName} account <strong>${loginAccount}</strong> for you. Verify your email and set your first password.</p><div style="margin:20px 0;padding:22px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:12px;color:#64748B;">ONE-TIME CODE</div><div style="margin-top:8px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verificationCode}</div><div style="margin-top:8px;font-size:12px;color:#64748B;">Valid for ${expireMinutes} minutes</div></div><div style="text-align:center;"><a href="${verificationUrl}" style="display:inline-block;padding:11px 22px;border-radius:6px;background:#2563EB;color:#FFFFFF;text-decoration:none;font-weight:700;">Verify email and set password</a></div><div style="margin-top:18px;padding:14px 16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;color:#475569;">Created at: ${requestTime}</div><div style="margin-top:18px;padding:12px 14px;background:#FFF7ED;border-left:4px solid #F59E0B;color:#9A3412;">${securityNotice}</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">This message was sent automatically by ${systemName}. Never reply, forward, or share the code.</div></div></div>',
+           '{"systemName":"Vexra Admin","userName":"Alex","loginAccount":"alex","verificationCode":"aB3xY7","expireMinutes":30,"verificationUrl":"https://admin.example.com/account-verification?requestId=example","requestTime":"2026-10-15 10:00:00","securityNotice":"If you did not request this change, ignore this email and contact another administrator."}',
+           '["verificationCode"]', 'Built-in template: admin account activation and first password setup'
+    UNION ALL SELECT 'ADMIN_EMAIL_VERIFICATION', '管理系统邮箱验证',
+           'EMAIL_VERIFICATION', 'zh-CN', '【${systemName}】请验证新的登录邮箱',
+           '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">验证登录邮箱</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 8px;font-size:18px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 18px;color:#64748B;">请验证账号 <strong>${loginAccount}</strong> 当前绑定的登录邮箱。</p><div style="margin:20px 0;padding:22px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:12px;color:#64748B;">一次性验证码</div><div style="margin-top:8px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verificationCode}</div><div style="margin-top:8px;font-size:12px;color:#64748B;">${expireMinutes} 分钟内有效</div></div><div style="text-align:center;"><a href="${verificationUrl}" style="display:inline-block;padding:11px 22px;border-radius:6px;background:#2563EB;color:#FFFFFF;text-decoration:none;font-weight:700;">验证邮箱</a></div><div style="margin-top:18px;padding:14px 16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;color:#475569;">申请时间：${requestTime}</div><div style="margin-top:18px;padding:12px 14px;background:#FFF7ED;border-left:4px solid #F59E0B;color:#9A3412;">${securityNotice}</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿回复、转发或向任何人透露验证码。</div></div></div>',
+           '{"systemName":"Vexra Admin","userName":"张三","loginAccount":"zhangsan","verificationCode":"aB3xY7","expireMinutes":30,"verificationUrl":"https://admin.example.com/account-verification?requestId=example","requestTime":"2026-10-15 10:00:00","securityNotice":"如非本人或授权管理员发起，请忽略本邮件并联系其他管理员。"}',
+           '["verificationCode"]', '系统内置模板：管理账号邮箱所有权验证'
+    UNION ALL SELECT 'ADMIN_EMAIL_VERIFICATION', 'Admin email verification',
+           'EMAIL_VERIFICATION', 'en-US', '[${systemName}] Verify your sign-in email',
+           '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">Verify your sign-in email</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 8px;font-size:18px;font-weight:700;">Hello ${userName},</p><p style="margin:0 0 18px;color:#64748B;">Verify the email address currently bound to account <strong>${loginAccount}</strong>.</p><div style="margin:20px 0;padding:22px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:12px;color:#64748B;">ONE-TIME CODE</div><div style="margin-top:8px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verificationCode}</div><div style="margin-top:8px;font-size:12px;color:#64748B;">Valid for ${expireMinutes} minutes</div></div><div style="text-align:center;"><a href="${verificationUrl}" style="display:inline-block;padding:11px 22px;border-radius:6px;background:#2563EB;color:#FFFFFF;text-decoration:none;font-weight:700;">Verify email</a></div><div style="margin-top:18px;padding:14px 16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;color:#475569;">Requested at: ${requestTime}</div><div style="margin-top:18px;padding:12px 14px;background:#FFF7ED;border-left:4px solid #F59E0B;color:#9A3412;">${securityNotice}</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">This message was sent automatically by ${systemName}. Never reply, forward, or share the code.</div></div></div>',
+           '{"systemName":"Vexra Admin","userName":"Alex","loginAccount":"alex","verificationCode":"aB3xY7","expireMinutes":30,"verificationUrl":"https://admin.example.com/account-verification?requestId=example","requestTime":"2026-10-15 10:00:00","securityNotice":"If you did not request this change, ignore this email and contact another administrator."}',
+           '["verificationCode"]', 'Built-in template: admin sign-in email ownership verification'
+) item
+ON DUPLICATE KEY UPDATE
+    template_name = VALUES(template_name),
+    app_code = VALUES(app_code),
+    scene_code = VALUES(scene_code),
+    subject_template = VALUES(subject_template),
+    content_type = VALUES(content_type),
+    content_template = VALUES(content_template),
+    variable_schema = VALUES(variable_schema),
+    sensitive_variable_names = VALUES(sensitive_variable_names),
+    status = 1,
+    system_builtin = 1,
+    version_no = GREATEST(version_no, 1),
+    remark = VALUES(remark),
+    update_by = 'system',
+    update_time = CURRENT_TIMESTAMP(3),
+    deleted = 0;

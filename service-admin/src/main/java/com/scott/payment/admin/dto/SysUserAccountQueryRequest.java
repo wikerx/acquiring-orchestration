@@ -54,4 +54,12 @@ public class SysUserAccountQueryRequest extends PageRequest {
      * </p>
      */
     private Integer status;
+    /**
+     * 邮箱验证状态筛选：PENDING、VERIFIED；为空时不限制。
+     */
+    private String emailVerificationStatus;
+    /**
+     * 账号激活状态筛选：PENDING_ACTIVATION、ACTIVE；为空时不限制。
+     */
+    private String activationStatus;
 }

@@ -61,7 +61,8 @@ class AdminEmailRecordProjectionTests {
                     mock(AdminSmtpEmailSender.class),
                     new EmailDeliveryProperties(),
                     mock(EnabledEmailTemplateCacheReader.class),
-                    mock(com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator.class));
+                    mock(com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator.class),
+                    mock(AdminEmailPreparationFailureRecorder.class));
 
             EmailRecordQuery query = new EmailRecordQuery();
             query.setEmailNo("PROJECTION");

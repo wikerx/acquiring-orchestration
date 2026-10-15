@@ -44,6 +44,16 @@ public interface SystemAuthService extends InternalAuthChecker {
     AuthVerifyCodeSendResponse sendLoginVerifyCode(String appCode, AuthVerifyCodeSendRequest request, String clientIp);
 
     /**
+     * 校验并一次性消费登录页图形验证码。
+     *
+     * @param appCode      系统应用编码
+     * @param verifyCodeId 图形验证码记录 ID
+     * @param verifyCode   图形验证码明文，禁止日志记录
+     * @param clientIp     客户端 IP，必须与验证码申请 IP 一致
+     */
+    void verifyLoginCaptcha(String appCode, String verifyCodeId, String verifyCode, String clientIp);
+
+    /**
      * 登录系统账号。
      *
      * @param appCode   系统应用编码

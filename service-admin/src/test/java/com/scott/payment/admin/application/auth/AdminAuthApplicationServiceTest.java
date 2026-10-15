@@ -10,6 +10,7 @@ import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
+import com.scott.payment.component.core.security.GatewayIngressSignature;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,10 +60,10 @@ class AdminAuthApplicationServiceTest {
     }
 
     @Test
-    void shouldUseForwardedIpWhenSendingVerifyCode() {
+    void shouldUseGatewayClientIpAndIgnoreSpoofedForwardedHeader() {
         AuthVerifyCodeSendRequest request = new AuthVerifyCodeSendRequest();
         AuthVerifyCodeSendResponse expected = new AuthVerifyCodeSendResponse();
-        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn("1.1.1.1, 2.2.2.2");
+        when(servletRequest.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn("1.1.1.1");
         when(systemAuthService.sendLoginVerifyCode(AuthConstants.APP_ADMIN, request, "1.1.1.1"))
                 .thenReturn(expected);
 
@@ -70,13 +71,14 @@ class AdminAuthApplicationServiceTest {
 
         assertThat(actual).isSameAs(expected);
         verify(systemAuthService).sendLoginVerifyCode(AuthConstants.APP_ADMIN, request, "1.1.1.1");
+        verify(servletRequest, org.mockito.Mockito.never()).getHeader("X-Forwarded-For");
     }
 
     @Test
     void shouldUseRemoteAddressAndUserAgentWhenLoggingIn() {
         AuthLoginRequest request = new AuthLoginRequest();
         AuthLoginResponse expected = new AuthLoginResponse();
-        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn(null);
+        when(servletRequest.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn(null);
         when(servletRequest.getRemoteAddr()).thenReturn("127.0.0.1");
         when(servletRequest.getHeader("User-Agent")).thenReturn("admin-browser");
         when(systemAuthService.login(AuthConstants.APP_ADMIN, request, "127.0.0.1", "admin-browser"))

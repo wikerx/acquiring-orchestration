@@ -72,6 +72,26 @@ public class SysAccountDO {
     private String email;
 
     /**
+     * 等待所有权验证的新邮箱；验证完成前正式邮箱和找回密码渠道保持不变。
+     */
+    private String pendingEmail;
+
+    /**
+     * 登录邮箱可信确认时间；为空时不得用于匿名找回密码。
+     */
+    private LocalDateTime emailVerifiedAt;
+
+    /**
+     * 账号激活状态：PENDING_ACTIVATION、ACTIVE。
+     */
+    private String activationStatus;
+
+    /**
+     * 账号所有人完成邮箱验证并设置首次密码的时间。
+     */
+    private LocalDateTime activatedAt;
+
+    /**
      * 是否开启 MFA。
      */
     private Integer mfaEnabled;

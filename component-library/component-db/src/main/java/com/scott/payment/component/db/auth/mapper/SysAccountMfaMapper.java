@@ -2,6 +2,8 @@ package com.scott.payment.component.db.auth.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.component.db.auth.entity.SysAccountMfaDO;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 /**
  * @author : scott
@@ -13,4 +15,17 @@ import com.scott.payment.component.db.auth.entity.SysAccountMfaDO;
  * @status : create
  */
 public interface SysAccountMfaMapper extends BaseMapper<SysAccountMfaDO> {
+
+    /** 锁定指定账号的有效 MFA 配置，保证同一 TOTP 时间步不能被并发敏感操作重复消费。 */
+    @Select("""
+            SELECT *
+            FROM sys_account_mfa
+            WHERE app_id = #{appId}
+              AND account_id = #{accountId}
+              AND deleted = 0
+            LIMIT 1
+            FOR UPDATE
+            """)
+    SysAccountMfaDO selectByAccountForUpdate(@Param("appId") Long appId,
+                                             @Param("accountId") Long accountId);
 }

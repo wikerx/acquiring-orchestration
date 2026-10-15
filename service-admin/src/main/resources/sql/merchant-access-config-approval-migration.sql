@@ -122,28 +122,28 @@ SELECT item.template_code, item.template_name, 'MERCHANT', 'MERCHANT_ACCESS_CONF
 FROM (
     SELECT 'MERCHANT_SOURCE_URL_APPROVED' template_code, '商户来源网址审核通过通知' template_name, 'zh-CN' locale,
            '【${systemName}】商户来源网址审核通过' subject_template,
-           '<div style="font-family:Arial,sans-serif;line-height:1.7"><h2>商户来源网址审核通过</h2><p>您好，${merchantName}：</p><p>您提交的来源网址 <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p></div>' content_template
+           '<div style="font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;line-height:1.7"><h2>商户来源网址审核通过</h2><p>您好，${merchantName}：</p><p>您提交的来源网址 <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p></div>' content_template
     UNION ALL SELECT 'MERCHANT_SOURCE_URL_REJECTED', '商户来源网址审核拒绝通知', 'zh-CN',
            '【${systemName}】商户来源网址审核未通过',
-           '<div style="font-family:Arial,sans-serif;line-height:1.7"><h2>商户来源网址审核未通过</h2><p>您好，${merchantName}：</p><p>您提交的来源网址 <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p></div>'
+           '<div style="font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;line-height:1.7"><h2>商户来源网址审核未通过</h2><p>您好，${merchantName}：</p><p>您提交的来源网址 <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p></div>'
     UNION ALL SELECT 'MERCHANT_IP_WHITELIST_APPROVED', '商户 IP 白名单审核通过通知', 'zh-CN',
            '【${systemName}】商户 IP 白名单审核通过',
-           '<div style="font-family:Arial,sans-serif;line-height:1.7"><h2>商户 IP 白名单审核通过</h2><p>您好，${merchantName}：</p><p>您提交的 IP <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p></div>'
+           '<div style="font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;line-height:1.7"><h2>商户 IP 白名单审核通过</h2><p>您好，${merchantName}：</p><p>您提交的 IP <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p></div>'
     UNION ALL SELECT 'MERCHANT_IP_WHITELIST_REJECTED', '商户 IP 白名单审核拒绝通知', 'zh-CN',
            '【${systemName}】商户 IP 白名单审核未通过',
-           '<div style="font-family:Arial,sans-serif;line-height:1.7"><h2>商户 IP 白名单审核未通过</h2><p>您好，${merchantName}：</p><p>您提交的 IP <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p></div>'
+           '<div style="font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;line-height:1.7"><h2>商户 IP 白名单审核未通过</h2><p>您好，${merchantName}：</p><p>您提交的 IP <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p></div>'
     UNION ALL SELECT 'MERCHANT_SOURCE_URL_APPROVED', 'Merchant Source URL Approved', 'en-US',
            '[${systemName}] Source URL approved',
-           '<div style="font-family:Arial,sans-serif;line-height:1.7"><h2>Source URL approved</h2><p>Hello ${merchantName},</p><p>Your source URL <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p></div>'
+           '<div style="font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;line-height:1.7"><h2>Source URL approved</h2><p>Hello ${merchantName},</p><p>Your source URL <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p></div>'
     UNION ALL SELECT 'MERCHANT_SOURCE_URL_REJECTED', 'Merchant Source URL Rejected', 'en-US',
            '[${systemName}] Source URL rejected',
-           '<div style="font-family:Arial,sans-serif;line-height:1.7"><h2>Source URL rejected</h2><p>Hello ${merchantName},</p><p>Your source URL <strong>${configValue}</strong> was rejected and remains prohibited.</p><p>Reason: <strong>${rejectReason}</strong></p><p>Reviewed at: ${reviewTime}</p></div>'
+           '<div style="font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;line-height:1.7"><h2>Source URL rejected</h2><p>Hello ${merchantName},</p><p>Your source URL <strong>${configValue}</strong> was rejected and remains prohibited.</p><p>Reason: <strong>${rejectReason}</strong></p><p>Reviewed at: ${reviewTime}</p></div>'
     UNION ALL SELECT 'MERCHANT_IP_WHITELIST_APPROVED', 'Merchant IP Whitelist Approved', 'en-US',
            '[${systemName}] IP whitelist entry approved',
-           '<div style="font-family:Arial,sans-serif;line-height:1.7"><h2>IP whitelist entry approved</h2><p>Hello ${merchantName},</p><p>Your IP <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p></div>'
+           '<div style="font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;line-height:1.7"><h2>IP whitelist entry approved</h2><p>Hello ${merchantName},</p><p>Your IP <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p></div>'
     UNION ALL SELECT 'MERCHANT_IP_WHITELIST_REJECTED', 'Merchant IP Whitelist Rejected', 'en-US',
            '[${systemName}] IP whitelist entry rejected',
-           '<div style="font-family:Arial,sans-serif;line-height:1.7"><h2>IP whitelist entry rejected</h2><p>Hello ${merchantName},</p><p>Your IP <strong>${configValue}</strong> was rejected and remains prohibited.</p><p>Reason: <strong>${rejectReason}</strong></p><p>Reviewed at: ${reviewTime}</p></div>'
+           '<div style="font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;line-height:1.7"><h2>IP whitelist entry rejected</h2><p>Hello ${merchantName},</p><p>Your IP <strong>${configValue}</strong> was rejected and remains prohibited.</p><p>Reason: <strong>${rejectReason}</strong></p><p>Reviewed at: ${reviewTime}</p></div>'
 ) item
 ON DUPLICATE KEY UPDATE
     template_name = VALUES(template_name),
@@ -158,7 +158,7 @@ ON DUPLICATE KEY UPDATE
 -- 新环境初始化时直接使用与系统既有邮件一致的蓝白主题。
 UPDATE msg_email_template template
 SET template.content_template = CONCAT(
-        '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;">',
+        '<div data-template-theme="vexra-blue-white-v1" style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Helvetica Neue'',Helvetica,''PingFang SC'',''Microsoft YaHei'',sans-serif;color:#0F172A;">',
         '<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;">',
         '<div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Merchant</div>',
         '<div style="margin-top:6px;font-size:22px;font-weight:700;">', template.template_name, '</div></div>',

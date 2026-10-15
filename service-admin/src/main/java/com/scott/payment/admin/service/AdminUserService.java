@@ -7,6 +7,7 @@ import com.scott.payment.admin.dto.SysUserAccountQueryRequest;
 import com.scott.payment.admin.dto.SysUserAccountResetPasswordRequest;
 import com.scott.payment.admin.dto.SysUserAccountStatusRequest;
 import com.scott.payment.admin.dto.SysUserAccountUpdateRequest;
+import com.scott.payment.admin.dto.SysUserEmailVerificationSendRequest;
 import com.scott.payment.admin.dto.SysUserRoleAuthDTO;
 import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
 import com.scott.payment.component.core.model.PageResult;
@@ -78,7 +79,19 @@ public interface AdminUserService {
      *
      * @param request 重置密码请求
      */
-    void resetPassword(SysUserAccountResetPasswordRequest request);
+    void resetPassword(SysUserAccountResetPasswordRequest request, String locale,
+                       String requestIp, String userAgent);
+
+    /**
+     * 为尚未完成邮箱验证的后台账号发送最新验证邮件。
+     *
+     * @param request 账号定位请求
+     * @param locale 邮件语言
+     * @param requestIp 发起请求的客户端 IP
+     * @param userAgent 发起请求的客户端标识
+     */
+    void sendEmailVerification(SysUserEmailVerificationSendRequest request, String locale,
+                               String requestIp, String userAgent);
 
     /**
      * 查询后台用户角色授权。

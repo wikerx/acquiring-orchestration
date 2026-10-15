@@ -1,5 +1,10 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.scott.payment.admin.dto.email.EmailDTOs.EmailAccountTestRequest;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendRequest;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendResult;
 import com.scott.payment.admin.entity.email.EmailEntities.EmailAccountDO;
@@ -14,6 +19,7 @@ import com.scott.payment.component.db.email.model.EnabledEmailTemplateSnapshot;
 import com.scott.payment.component.db.email.service.EnabledEmailTemplateCacheReader;
 import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
 import com.scott.payment.component.mq.properties.EmailDeliveryProperties;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -22,7 +28,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -55,9 +63,13 @@ class AdminEmailServiceAsyncTests {
     /** 被测 Admin 邮件服务。 */
     private AdminEmailServiceImpl emailService;
     private EnabledEmailTemplateCacheReader enabledTemplateCacheReader;
+    /** 准备阶段失败记录器，用于断言模板或账户配置异常仍可追踪。 */
+    private AdminEmailPreparationFailureRecorder preparationFailureRecorder;
 
     @BeforeEach
     void setUp() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), "email-service-test"),
+                EmailAccountDO.class);
         accountMapper = mock(EmailAccountMapper.class);
         templateMapper = mock(EmailTemplateMapper.class);
         recordMapper = mock(EmailSendRecordMapper.class);
@@ -65,6 +77,7 @@ class AdminEmailServiceAsyncTests {
         smtpEmailSender = mock(AdminSmtpEmailSender.class);
         payloadCrypto = mock(EmailPayloadCrypto.class);
         enabledTemplateCacheReader = mock(EnabledEmailTemplateCacheReader.class);
+        preparationFailureRecorder = mock(AdminEmailPreparationFailureRecorder.class);
         AdminConfigService configService = mock(AdminConfigService.class);
         when(configService.enabledConfigValues(any())).thenReturn(Map.of());
         EmailDeliveryProperties properties = new EmailDeliveryProperties();
@@ -72,7 +85,20 @@ class AdminEmailServiceAsyncTests {
         emailService = new AdminEmailServiceImpl(accountMapper, templateMapper, recordMapper, configService,
                 payloadCrypto, deliveryService, smtpEmailSender, properties,
                 enabledTemplateCacheReader,
-                mock(com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator.class));
+                mock(com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator.class),
+                preparationFailureRecorder);
+    }
+
+    @Test
+    void shouldRecordClosedAuditWhenTemplatePreparationFails() {
+        EmailSendRequest request = request();
+        when(enabledTemplateCacheReader.findEnabled("LOGIN_NOTICE", "zh-CN")).thenReturn(null);
+
+        assertThatThrownBy(() -> emailService.sendByTemplate(request))
+                .isInstanceOf(RuntimeException.class);
+
+        verify(preparationFailureRecorder).record(request, "EMAIL_CONFIGURATION_INVALID");
+        verify(deliveryService, never()).enqueue(any());
     }
 
     @Test
@@ -97,10 +123,37 @@ class AdminEmailServiceAsyncTests {
         assertThat(record.getDeliveryContentCipher()).isEqualTo("cipher-content");
         assertThat(record.getContentSnapshot()).isEqualTo("Hello ******");
         assertThat(record.getVariablesSnapshot()).doesNotContain("123456");
+        ArgumentCaptor<Wrapper<EmailAccountDO>> accountQueryCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(accountMapper).selectOne(accountQueryCaptor.capture());
+        assertThat(accountQueryCaptor.getValue().getSqlSegment()).contains("verify_status");
         verify(deliveryService).enqueue(record);
         verify(smtpEmailSender, never()).send(any(), any(), any(), any(Boolean.class));
         assertThat(result.getRecordId()).isEqualTo(10L);
         assertThat(result.getSendStatus()).isEqualTo(EmailDeliveryStatus.PENDING.getCode());
+    }
+
+    @Test
+    void shouldExplicitlyClearPreviousAccountErrorAfterSuccessfulTestEmail() {
+        EmailAccountDO account = account();
+        account.setLastErrorMessage("previous failure");
+        when(accountMapper.selectOne(any())).thenReturn(account);
+        doAnswer(invocation -> {
+            EmailSendRecordDO record = invocation.getArgument(0);
+            record.setId(11L);
+            return 1;
+        }).when(recordMapper).insert(any(EmailSendRecordDO.class));
+
+        EmailAccountTestRequest request = new EmailAccountTestRequest();
+        request.setToEmail("masked@example.invalid");
+
+        EmailSendResult result = emailService.sendTestEmail(20L, request);
+
+        assertThat(result.getSendStatus()).isEqualTo(EmailDeliveryStatus.SUCCESS.getCode());
+        ArgumentCaptor<LambdaUpdateWrapper<EmailAccountDO>> updateCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(accountMapper).update(isNull(EmailAccountDO.class), updateCaptor.capture());
+        assertThat(updateCaptor.getValue().getSqlSet())
+                .contains("verify_status", "last_test_time", "last_error_message");
+        verify(accountMapper, never()).updateById(account);
     }
 
     private EmailTemplateDO template() {

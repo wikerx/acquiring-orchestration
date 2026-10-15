@@ -7,6 +7,7 @@ import com.scott.payment.admin.dto.SysUserAccountQueryRequest;
 import com.scott.payment.admin.dto.SysUserAccountResetPasswordRequest;
 import com.scott.payment.admin.dto.SysUserAccountStatusRequest;
 import com.scott.payment.admin.dto.SysUserAccountUpdateRequest;
+import com.scott.payment.admin.dto.SysUserEmailVerificationSendRequest;
 import com.scott.payment.admin.dto.SysUserRoleAuthDTO;
 import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
 import com.scott.payment.admin.dto.export.SysUserAccountExportRow;
@@ -18,6 +19,8 @@ import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.admin.service.AdminUserService;
 import com.scott.payment.component.core.model.PageResult;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import com.scott.payment.admin.application.auth.AdminClientIpResolver;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -165,8 +168,24 @@ public class AdminUserApplicationService {
      *
      * @param request 重置密码请求
      */
-    public void resetPassword(SysUserAccountResetPasswordRequest request) {
-        adminUserService.resetPassword(request);
+    public void resetPassword(SysUserAccountResetPasswordRequest request,
+                              String locale,
+                              HttpServletRequest servletRequest) {
+        adminUserService.resetPassword(request, locale,
+                AdminClientIpResolver.resolve(servletRequest),
+                servletRequest == null ? null : servletRequest.getHeader("User-Agent"));
+    }
+
+    /** 发送或重发账号激活、邮箱变更验证邮件。 */
+    public void sendEmailVerification(SysUserEmailVerificationSendRequest request,
+                                      String locale,
+                                      HttpServletRequest servletRequest) {
+        adminUserService.sendEmailVerification(
+                request,
+                locale,
+                AdminClientIpResolver.resolve(servletRequest),
+                servletRequest == null ? null : servletRequest.getHeader("User-Agent")
+        );
     }
 
     /**

@@ -62,6 +62,16 @@ public final class AuthConstants {
     public static final long DEFAULT_TOKEN_TTL_SECONDS = 7_200L;
 
     /**
+     * 账号激活状态：等待账号所有人完成邮箱验证并设置首次密码。
+     */
+    public static final String ACTIVATION_STATUS_PENDING = "PENDING_ACTIVATION";
+
+    /**
+     * 账号激活状态：已完成开户激活；账号是否允许登录仍同时受启停状态控制。
+     */
+    public static final String ACTIVATION_STATUS_ACTIVE = "ACTIVE";
+
+    /**
      * MFA 策略：上线前已有账号默认不启用 OTP。
      */
     public static final String MFA_POLICY_OPTIONAL = "OPTIONAL";

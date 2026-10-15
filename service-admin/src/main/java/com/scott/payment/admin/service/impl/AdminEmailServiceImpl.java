@@ -241,6 +241,8 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     private final EnabledEmailTemplateCacheReader enabledTemplateCacheReader;
     /** 已启用邮件模板缓存的事务门禁与 Outbox 可靠失效协调器。 */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+    /** 邮件准备事务失败后的独立失败记录器。 */
+    private final AdminEmailPreparationFailureRecorder preparationFailureRecorder;
 
     public AdminEmailServiceImpl(EmailAccountMapper accountMapper,
                                  EmailTemplateMapper templateMapper,
@@ -251,7 +253,8 @@ public class AdminEmailServiceImpl implements AdminEmailService {
                                  AdminSmtpEmailSender smtpEmailSender,
                                  EmailDeliveryProperties deliveryProperties,
                                  EnabledEmailTemplateCacheReader enabledTemplateCacheReader,
-                                 ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
+                                 ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
+                                 AdminEmailPreparationFailureRecorder preparationFailureRecorder) {
         this.accountMapper = accountMapper;
         this.templateMapper = templateMapper;
         this.recordMapper = recordMapper;
@@ -262,6 +265,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         this.deliveryProperties = deliveryProperties;
         this.enabledTemplateCacheReader = enabledTemplateCacheReader;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
+        this.preparationFailureRecorder = preparationFailureRecorder;
     }
 
     /**
@@ -425,12 +429,17 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         record.setDeleted(NOT_DELETED);
         recordMapper.insert(record);
         EmailSendResult result = doSend(record, account, record.getContentSnapshot(), true);
-        account.setVerifyStatus(result.getSendStatus() == SEND_SUCCESS ? VERIFY_SUCCESS : VERIFY_FAILED);
-        account.setLastTestTime(LocalDateTime.now());
-        account.setLastErrorMessage(result.getSendStatus() == SEND_SUCCESS ? null : result.getErrorMessage());
-        account.setUpdateBy(currentOperatorName());
-        account.setUpdateTime(LocalDateTime.now());
-        accountMapper.updateById(account);
+        LocalDateTime completedAt = LocalDateTime.now();
+        accountMapper.update(null, Wrappers.<EmailAccountDO>lambdaUpdate()
+                .eq(EmailAccountDO::getId, account.getId())
+                .eq(EmailAccountDO::getDeleted, NOT_DELETED)
+                .set(EmailAccountDO::getVerifyStatus,
+                        result.getSendStatus() == SEND_SUCCESS ? VERIFY_SUCCESS : VERIFY_FAILED)
+                .set(EmailAccountDO::getLastTestTime, completedAt)
+                .set(EmailAccountDO::getLastErrorMessage,
+                        result.getSendStatus() == SEND_SUCCESS ? null : result.getErrorMessage())
+                .set(EmailAccountDO::getUpdateBy, currentOperatorName())
+                .set(EmailAccountDO::getUpdateTime, completedAt));
         return result;
     }
 
@@ -648,29 +657,42 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public EmailSendResult sendByTemplate(EmailSendRequest request) {
-        EmailTemplateDO template = requireEnabledTemplate(request.getTemplateCode(), defaultIfBlank(request.getLocale(), DEFAULT_LOCALE));
-        Map<String, Object> variables = enrichSystemVariables(request.getVariables());
-        Set<String> missing = missingVariables(template.getSubjectTemplate() + template.getContentTemplate(), variables);
-        EmailAccountDO account = selectAccount(request.getAppCode(), request.getMerchantId(), defaultIfBlank(request.getSceneCode(), template.getSceneCode()));
-        EmailSendRecordDO record = buildRecord(request, template, account);
-        if (!missing.isEmpty()) {
-            record.setSubject(template.getSubjectTemplate());
-            record.setContentSnapshot("模板变量缺失：" + String.join(",", missing));
-            record.setSendStatus(SEND_FAILED);
-            record.setErrorCode("EMAIL_VARIABLE_MISSING");
-            record.setErrorMessage("模板变量缺失：" + String.join(",", missing));
+        try {
+            EmailTemplateDO template = requireEnabledTemplate(request.getTemplateCode(), defaultIfBlank(request.getLocale(), DEFAULT_LOCALE));
+            Map<String, Object> variables = enrichSystemVariables(request.getVariables());
+            Set<String> missing = missingVariables(template.getSubjectTemplate() + template.getContentTemplate(), variables);
+            EmailAccountDO account = selectAccount(request.getAppCode(), request.getMerchantId(), defaultIfBlank(request.getSceneCode(), template.getSceneCode()));
+            EmailSendRecordDO record = buildRecord(request, template, account);
+            if (!missing.isEmpty()) {
+                record.setSubject(template.getSubjectTemplate());
+                record.setContentSnapshot("模板变量缺失：" + String.join(",", missing));
+                record.setSendStatus(SEND_FAILED);
+                record.setErrorCode("EMAIL_VARIABLE_MISSING");
+                record.setErrorMessage("模板变量缺失：" + String.join(",", missing));
+                recordMapper.insert(record);
+                return toSendResult(record);
+            }
+            String content = render(template.getContentTemplate(), variables);
+            record.setSubject(render(template.getSubjectTemplate(), variables));
+            record.setContentSnapshot(maskSensitiveContent(template.getContentTemplate(), variables, parseStringList(template.getSensitiveVariableNames())));
+            record.setVariablesSnapshot(JSON.toJSONString(maskVariables(variables, parseStringList(template.getSensitiveVariableNames()))));
+            record.setDeliveryContentCipher(encryptSecret(content));
+            record.setContentType(defaultIfBlank(trimUpper(template.getContentType()), CONTENT_HTML));
             recordMapper.insert(record);
+            deliveryService.enqueue(record);
             return toSendResult(record);
+        } catch (RuntimeException exception) {
+            preparationFailureRecorder.record(request, preparationErrorCode(exception));
+            throw exception;
         }
-        String content = render(template.getContentTemplate(), variables);
-        record.setSubject(render(template.getSubjectTemplate(), variables));
-        record.setContentSnapshot(maskSensitiveContent(template.getContentTemplate(), variables, parseStringList(template.getSensitiveVariableNames())));
-        record.setVariablesSnapshot(JSON.toJSONString(maskVariables(variables, parseStringList(template.getSensitiveVariableNames()))));
-        record.setDeliveryContentCipher(encryptSecret(content));
-        record.setContentType(defaultIfBlank(trimUpper(template.getContentType()), CONTENT_HTML));
-        recordMapper.insert(record);
-        deliveryService.enqueue(record);
-        return toSendResult(record);
+    }
+
+    /** 将内部异常分类为稳定错误码，不把异常原文或敏感数据写入发送记录。 */
+    private String preparationErrorCode(RuntimeException exception) {
+        if (exception instanceof ServiceException) {
+            return "EMAIL_CONFIGURATION_INVALID";
+        }
+        return "EMAIL_PREPARATION_FAILED";
     }
 
     /**
@@ -950,6 +972,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return Wrappers.<EmailAccountDO>lambdaQuery()
                 .eq(EmailAccountDO::getDeleted, NOT_DELETED)
                 .eq(EmailAccountDO::getStatus, ENABLED)
+                .eq(EmailAccountDO::getVerifyStatus, VERIFY_SUCCESS)
                 .eq(EmailAccountDO::getDefaultFlag, YES)
                 .eq(EmailAccountDO::getAppCode, trimUpper(appCode))
                 .eq(EmailAccountDO::getScopeType, scopeType)
