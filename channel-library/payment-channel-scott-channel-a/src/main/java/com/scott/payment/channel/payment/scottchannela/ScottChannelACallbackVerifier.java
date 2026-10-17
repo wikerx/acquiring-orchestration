@@ -1,13 +1,12 @@
 package com.scott.payment.channel.payment.scottchannela;
 
-import com.scott.payment.channel.payment.api.PaymentChannelCallbackVerifier;
-import com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationRequest;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationContext;
+import com.scott.payment.channel.payment.dto.callback.RawChannelCallbackRequest;
 import com.scott.payment.channel.payment.exception.ChannelCallbackVerificationException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
-import java.util.Set;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -20,35 +19,27 @@ import javax.crypto.spec.SecretKeySpec;
  * @description : ScottChannelA 原始请求体 HMAC-SHA256 回调验签器，严格使用 raw body UTF-8 字节和渠道规定的小写十六进制签名。
  * @status : create
  */
-public class ScottChannelACallbackVerifier implements PaymentChannelCallbackVerifier {
+public class ScottChannelACallbackVerifier {
 
     public static final String MERCHANT_ID_HEADER = "X-Merchant-Id";
     public static final String EVENT_ID_HEADER = "X-Callback-Event-Id";
     public static final String SIGNATURE_HEADER = "X-Callback-Signature";
 
-    /** 返回该验签器支持的渠道编码集合。 */
-    @Override
-    public Set<String> channelCodes() {
-        return Set.of(ScottChannelACode.CODE);
-    }
-
-    /** 使用 MID 级回调密钥对 raw body 执行 HMAC-SHA256 验签。 */
-    @Override
-    public void verify(ChannelCallbackVerificationRequest request) {
+    /** Verify the exact HTTP entity bytes without a String re-encoding round trip. */
+    public void verify(RawChannelCallbackRequest request,
+                       ChannelCallbackVerificationContext context) {
         String merchantId = requiredHeader(request, MERCHANT_ID_HEADER);
         requiredHeader(request, EVENT_ID_HEADER);
         String actualSignature = requiredHeader(request, SIGNATURE_HEADER);
-        if (request.defaultSecret() == null || request.defaultSecret().isBlank()) {
+        if (context.defaultSecret() == null || context.defaultSecret().isBlank()) {
             throw failure(ChannelCallbackVerificationException.Reason.SECRET_MISSING,
                     "ScottChannelA callback secret is not configured");
         }
         String expectedSignature;
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(request.defaultSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            byte[] digest = mac.doFinal((request.rawBody() == null ? "" : request.rawBody())
-                    .getBytes(StandardCharsets.UTF_8));
-            expectedSignature = HexFormat.of().formatHex(digest);
+            mac.init(new SecretKeySpec(context.defaultSecret().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            expectedSignature = HexFormat.of().formatHex(mac.doFinal(request.body()));
         } catch (Exception exception) {
             throw failure(ChannelCallbackVerificationException.Reason.INTERNAL_ERROR,
                     "ScottChannelA callback signature could not be calculated");
@@ -60,14 +51,8 @@ public class ScottChannelACallbackVerifier implements PaymentChannelCallbackVeri
         }
     }
 
-    /** ScottChannelA 只接受正文为 SUCCESS 的回调确认响应。 */
-    @Override
-    public boolean requiresPlainTextSuccessAcknowledgement() {
-        return true;
-    }
-
-    private String requiredHeader(ChannelCallbackVerificationRequest request, String name) {
-        String value = request.header(name);
+    private String requiredHeader(RawChannelCallbackRequest request, String name) {
+        String value = request.firstHeader(name);
         if (value == null || value.isBlank()) {
             throw failure(ChannelCallbackVerificationException.Reason.HEADER_MISSING,
                     "ScottChannelA callback header is missing: " + name);

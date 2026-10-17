@@ -1,10 +1,13 @@
 package com.scott.payment.channel.payment.mpgs;
 
-import com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationRequest;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationContext;
+import com.scott.payment.channel.payment.dto.callback.RawChannelCallbackRequest;
+import com.scott.payment.channel.payment.enums.ChannelCallbackScene;
 import com.scott.payment.channel.payment.exception.ChannelCallbackVerificationException;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -26,13 +29,13 @@ class MpgsCallbackVerifierTests {
 
     @Test
     void shouldAcceptMatchingNotificationSecret() {
-        assertThatCode(() -> verifier.verify(request(CONFIGURED_SECRET, CONFIGURED_SECRET)))
+        assertThatCode(() -> verifier.verify(request(CONFIGURED_SECRET), context(CONFIGURED_SECRET)))
                 .doesNotThrowAnyException();
     }
 
     @Test
     void shouldRejectMismatchedNotificationSecret() {
-        assertThatThrownBy(() -> verifier.verify(request("different-notification-secret", CONFIGURED_SECRET)))
+        assertThatThrownBy(() -> verifier.verify(request("different-notification-secret"), context(CONFIGURED_SECRET)))
                 .isInstanceOfSatisfying(ChannelCallbackVerificationException.class,
                         exception -> org.assertj.core.api.Assertions.assertThat(exception.getReason())
                                 .isEqualTo(ChannelCallbackVerificationException.Reason.SIGNATURE_INVALID));
@@ -40,7 +43,7 @@ class MpgsCallbackVerifierTests {
 
     @Test
     void shouldRejectMissingNotificationSecretHeader() {
-        assertThatThrownBy(() -> verifier.verify(request(null, CONFIGURED_SECRET)))
+        assertThatThrownBy(() -> verifier.verify(request(null), context(CONFIGURED_SECRET)))
                 .isInstanceOfSatisfying(ChannelCallbackVerificationException.class,
                         exception -> org.assertj.core.api.Assertions.assertThat(exception.getReason())
                                 .isEqualTo(ChannelCallbackVerificationException.Reason.HEADER_MISSING));
@@ -48,18 +51,23 @@ class MpgsCallbackVerifierTests {
 
     @Test
     void shouldRejectMissingConfiguredNotificationSecret() {
-        assertThatThrownBy(() -> verifier.verify(request(CONFIGURED_SECRET, null)))
+        assertThatThrownBy(() -> verifier.verify(request(CONFIGURED_SECRET), context(null)))
                 .isInstanceOfSatisfying(ChannelCallbackVerificationException.class,
                         exception -> org.assertj.core.api.Assertions.assertThat(exception.getReason())
                                 .isEqualTo(ChannelCallbackVerificationException.Reason.SECRET_MISSING));
     }
 
-    private ChannelCallbackVerificationRequest request(String headerSecret, String configuredSecret) {
-        Map<String, String> headers = headerSecret == null
+    private RawChannelCallbackRequest request(String headerSecret) {
+        Map<String, List<String>> headers = headerSecret == null
                 ? Map.of()
-                : Map.of(MpgsCallbackVerifier.NOTIFICATION_SECRET_HEADER, headerSecret);
-        return new ChannelCallbackVerificationRequest(
-                "MPGS", "POST", "/channel/v1/callbacks/MPGS/3ds", headers, "{}",
+                : Map.of(MpgsCallbackVerifier.NOTIFICATION_SECRET_HEADER, List.of(headerSecret));
+        return new RawChannelCallbackRequest(
+                "MPGS", ChannelCallbackScene.THREE_DS, "POST", "/channel/v1/callbacks/MPGS/3ds",
+                null, headers, "{}".getBytes(java.nio.charset.StandardCharsets.UTF_8), "127.0.0.1");
+    }
+
+    private ChannelCallbackVerificationContext context(String configuredSecret) {
+        return new ChannelCallbackVerificationContext(
                 configuredSecret, Map.of(), 300_000L, System.currentTimeMillis());
     }
 }

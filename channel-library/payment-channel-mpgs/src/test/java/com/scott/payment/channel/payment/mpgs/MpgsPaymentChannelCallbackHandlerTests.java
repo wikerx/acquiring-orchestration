@@ -76,7 +76,8 @@ class MpgsPaymentChannelCallbackHandlerTests {
                         + "&threeDSSessionData=encrypted-session-data"
                         + "&orderId=TX202607141000000000003"));
 
-        assertThat(result.getCallbackEventId()).isEqualTo("7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8");
+        assertThat(result.getCallbackEventId())
+                .isEqualTo("7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8:3DS_METHOD_COMPLETED");
         assertThat(result.getChannelOrderNo()).isEqualTo("TX202607141000000000003");
         assertThat(result.getChannelTransactionId()).isEqualTo("7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8");
         assertThat(result.getRawChannelStatus()).isEqualTo("3DS_METHOD_COMPLETED");
@@ -127,6 +128,30 @@ class MpgsPaymentChannelCallbackHandlerTests {
 
         assertThat(result.getCallbackEventId()).isEqualTo("notification-005");
         assertThat(result.getExtension()).containsEntry("notificationAttempt", "2");
+    }
+
+    /** 缺少官方通知 ID 时，同一渠道交易的不同状态必须生成不同事件键。 */
+    @Test
+    void shouldDistinguishStatusChangesWhenNotificationIdIsMissing() {
+        ChannelCallbackResult authorized = handler.handle(request("""
+                {
+                  "result": "SUCCESS",
+                  "order": {"id": "ORDER-007", "status": "AUTHORIZED"},
+                  "transaction": {"id": "CHANNEL-TX-007", "type": "AUTHORIZATION"},
+                  "response": {"gatewayCode": "APPROVED", "acquirerCode": "00"}
+                }
+                """));
+        ChannelCallbackResult captured = handler.handle(request("""
+                {
+                  "result": "SUCCESS",
+                  "order": {"id": "ORDER-007", "status": "CAPTURED"},
+                  "transaction": {"id": "CHANNEL-TX-007", "type": "AUTHORIZATION"},
+                  "response": {"gatewayCode": "APPROVED", "acquirerCode": "00"}
+                }
+                """));
+
+        assertThat(authorized.getCallbackEventId()).isEqualTo("CHANNEL-TX-007:AUTHORIZED");
+        assertThat(captured.getCallbackEventId()).isEqualTo("CHANNEL-TX-007:CAPTURED");
     }
 
     /**

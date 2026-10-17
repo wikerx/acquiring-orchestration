@@ -66,6 +66,7 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
                        d.hit_element,
                        d.hit_value_masked,
                        d.decision_result,
+                       d.reason_code,
                        d.decision_reason,
                        d.decision_time,
                        d.stage_code,
@@ -107,7 +108,11 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
         event.put("eventType", "RISK_RULE_EVALUATED");
         event.put("eventStage", "RISK");
         event.put("eventName", firstText(row, "function_name", "stage_name", "function_code"));
-        event.put("eventStatus", eventStatus(value(row, "decision_effect"), value(row, "decision_result")));
+        event.put("eventStatus", eventStatus(
+                value(row, "decision_effect"),
+                value(row, "decision_result"),
+                value(row, "match_result"),
+                value(row, "reason_code")));
         event.put("eventContent", firstText(row, "decision_reason", "final_reason"));
         event.put("eventTime", value(row, "decision_time"));
         event.put("timelineSequence", intValue(stageOrder, 9999) + 200);
@@ -123,19 +128,32 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
         event.put("matchResult", value(row, "match_result"));
         event.put("decisionResult", value(row, "decision_result"));
         event.put("decisionEffect", value(row, "decision_effect"));
+        event.put("reasonCode", value(row, "reason_code"));
         event.put("finalDecision", value(row, "final_decision"));
         event.put("finalReason", value(row, "final_reason"));
         return event;
     }
 
     /**
-     * 将风控决策影响映射为时间轴状态：阻断为失败，复核/挑战为处理中，其余为成功。
+     * 将风控执行结果映射为时间轴状态：未启用或未配置为跳过，阻断为失败，复核/挑战为处理中。
      *
      * @param effect 规则节点决策影响
      * @param decision 节点决策结果，在影响为空时兜底
-     * @return 管理端统一状态 SUCCESS、PENDING 或 FAILED
+     * @param matchResult 规则匹配结果
+     * @param reasonCode 稳定原因码
+     * @return 管理端统一状态 SUCCESS、PENDING、FAILED 或 SKIPPED
      */
-    private String eventStatus(Object effect, Object decision) {
+    private String eventStatus(Object effect, Object decision, Object matchResult, Object reasonCode) {
+        String normalizedMatch = normalizeStatus(matchResult);
+        String normalizedDecision = normalizeStatus(decision);
+        String normalizedReason = normalizeStatus(reasonCode);
+        if ("SKIPPED".equals(normalizedMatch)
+                || "SKIP".equals(normalizedDecision)
+                || "SKIPPED".equals(normalizedDecision)
+                || "NOT_ENABLED".equals(normalizedReason)
+                || "NOT_CONFIGURED".equals(normalizedReason)) {
+            return "SKIPPED";
+        }
         String normalized = String.valueOf(effect == null ? decision : effect).trim().toUpperCase(Locale.ROOT);
         if ("BLOCK".equals(normalized) || "REJECT".equals(normalized)) {
             return "FAILED";
@@ -145,6 +163,10 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
             return "PENDING";
         }
         return "SUCCESS";
+    }
+
+    private String normalizeStatus(Object value) {
+        return value == null ? "" : String.valueOf(value).trim().toUpperCase(Locale.ROOT);
     }
 
     /**

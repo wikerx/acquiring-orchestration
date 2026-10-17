@@ -46,6 +46,7 @@ import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
+import com.scott.payment.payment.support.ProcessorNodeIdentity;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -82,6 +83,9 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class DefaultTransactionRecordService implements TransactionRecordService {
+
+    /** 节点身份来自进程启动时的显式部署环境，未完成迁移时默认关闭持久化。 */
+    private static final ProcessorNodeIdentity PROCESSOR_NODE_IDENTITY = ProcessorNodeIdentity.fromEnvironment();
 
     /**
      * 交易生命周期主单逻辑表名。
@@ -1719,6 +1723,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
         operationDO.setMerchantOperationNo(commandDTO.getMerchantOrderNo());
         operationDO.setRequestSource(commandDTO.getRequestSource());
+        operationDO.setIngressClientIp(commandDTO.getIngressClientIp());
+        operationDO.setIngressClientIpHash(sha256Hex(commandDTO.getIngressClientIp()));
         operationDO.setDescription(commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getDescription());
         operationDO.setOperationSequence(INITIAL_OPERATION_SEQUENCE);
@@ -1765,6 +1771,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setMerchantOperationNo(commandDTO.getMerchantOrderId());
         RefundRequestSourceEnum requestSource = RefundRequestSourceEnum.from(commandDTO.getRequestSource());
         operationDO.setRequestSource(requestSource.getCode());
+        operationDO.setIngressClientIp(commandDTO.getIngressClientIp());
+        operationDO.setIngressClientIpHash(sha256Hex(commandDTO.getIngressClientIp()));
         operationDO.setRefundScope(commandDTO.getRefundScope());
         operationDO.setRequestReason(commandDTO.getRequestReason());
         operationDO.setDescription(commandDTO.getTransactionInfo() == null
@@ -2537,6 +2545,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         target.setMerchantOrderNo(source.getMerchantOrderNo());
         target.setMerchantOrderId(source.getMerchantOrderId());
         target.setMerchantOperationNo(source.getMerchantOperationNo());
+        target.setIngressClientIp(source.getIngressClientIp());
+        target.setIngressClientIpHash(source.getIngressClientIpHash());
         target.setDescription(source.getDescription());
         target.setTransactionType(source.getTransactionType());
         target.setTransactionStatus(resultDTO.getStatus());
@@ -2625,7 +2635,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         eventDO.setTransactionId(operationDO.getTransactionId());
         eventDO.setOperationId(operationDO.getOperationId());
         eventDO.setEventType("CHANNEL_CALLBACK_PROCESSED");
-        eventDO.setEventStage("CALLBACK");
+        eventDO.setEventStage("CHANNEL");
         eventDO.setEventStatus(orderUpdated ? "SUCCESS" : "SKIPPED");
         eventDO.setEventName("渠道回调处理");
         eventDO.setEventContent(safeLength("回调状态：" + targetTransactionStatus, 1024));
@@ -2636,6 +2646,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         eventDO.setReferenceId(callbackId);
         eventDO.setErrorCode(failReasonCode);
         eventDO.setErrorMessage(safeLength(failReasonMessage, 512));
+        fillProcessorNodeAudit(eventDO);
         eventDO.setEventTime(now);
         fillTransactionTime(eventDO, operationDO.getTransactionDateTime());
         eventDO.setCreateTime(now);
@@ -3371,7 +3382,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         String merchantResponseCode = resolveMerchantResponseCode(resultDTO);
         String merchantResponseMessage = resolveMerchantResponseMessage(resultDTO);
         boolean transactionFailed = PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());
-        insertFlowEvent(commandDTO, resultDTO, "STATUS_RECORDED", "STATUS", resolveResultFlowEventStatus(resultDTO),
+        insertFlowEvent(commandDTO, resultDTO, "STATUS_RECORDED", "STATUS", TRANSITION_SUCCESS,
                 resultFlowEventName(resultDTO.getStatus()),
                 resultFlowEventContent(resultDTO.getStatus(), merchantResponseCode, merchantResponseMessage),
                 null, resultDTO.getStatus(),
@@ -3438,6 +3449,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (invokeResultDTO == null) {
             return PaymentTransactionStatusEnum.PROCESSING.getCode();
         }
+        if (invokeResultDTO.isOutcomeUncertain()) {
+            return PaymentTransactionStatusEnum.PROCESSING.getCode();
+        }
         if (StringUtils.hasText(invokeResultDTO.getExceptionType())
                 || "FAILED".equals(invokeResultDTO.getRequestStatus())
                 || "TIMEOUT".equals(invokeResultDTO.getRequestStatus())) {
@@ -3458,19 +3472,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return resultDTO == null || !StringUtils.hasText(resultDTO.getStatus())
                 ? PaymentTransactionStatusEnum.PROCESSING.getCode()
                 : resultDTO.getStatus();
-    }
-
-    /**
-     * 解析状态入库节点的时间轴状态。
-     *
-     * @param resultDTO 平台交易结果
-     * @return transaction_status 字典值
-     */
-    private String resolveResultFlowEventStatus(PaymentCreateResultDTO resultDTO) {
-        if (resultDTO == null || !StringUtils.hasText(resultDTO.getStatus())) {
-            return PaymentTransactionStatusEnum.PROCESSING.getCode();
-        }
-        return resultDTO.getStatus();
     }
 
     /**
@@ -3643,10 +3644,23 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         eventDO.setReferenceId(referenceId);
         eventDO.setErrorCode(errorCode);
         eventDO.setErrorMessage(safeLength(errorMessage, 512));
+        fillProcessorNodeAudit(eventDO);
         eventDO.setEventTime(now);
         fillTransactionTime(eventDO, commandDTO.getTransactionDateTime());
         eventDO.setCreateTime(now);
         transactionFlowEventMapper.insertLogical(eventDO);
+    }
+
+    /** 迁移完成并显式开启时，为流程事件写入当前支付节点的内部审计快照。 */
+    private void fillProcessorNodeAudit(TransactionFlowEventDO eventDO) {
+        if (!PROCESSOR_NODE_IDENTITY.persistenceEnabled()) {
+            return;
+        }
+        eventDO.setProcessorService(PROCESSOR_NODE_IDENTITY.serviceName());
+        eventDO.setProcessorInstanceId(PROCESSOR_NODE_IDENTITY.instanceId());
+        eventDO.setProcessorHostName(PROCESSOR_NODE_IDENTITY.hostName());
+        eventDO.setProcessorPrivateIp(PROCESSOR_NODE_IDENTITY.privateIp());
+        eventDO.setTraceId(safeLength(TraceContext.getTraceId(), 64));
     }
 
     /**

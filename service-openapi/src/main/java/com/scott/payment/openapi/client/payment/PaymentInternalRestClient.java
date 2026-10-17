@@ -12,7 +12,7 @@ import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDT
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
-import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionCallbackInboxAcceptClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.PaymentClientProperties;
@@ -123,7 +123,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     /**
      * service-payment 渠道回调内部入口，公网回调必须先经过 OpenAPI 安全校验。
      */
-    private static final String CHANNEL_CALLBACK_PATH = "/internal/payment/channel-callback";
+    private static final String CHANNEL_CALLBACK_INBOX_PATH = "/internal/payment/channel-callback/inbox";
 
     /**
      * service-payment 商户响应日志内部入口，只记录脱敏响应摘要。
@@ -345,18 +345,19 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     }
 
     /**
-     * 调用 service-payment 记录渠道回调。
+     * 调用 service-payment 可靠受理渠道回调 Inbox。
      *
      * @param requestDTO 渠道回调内部请求
-     * @return 渠道回调记录响应
+     * @return Inbox 持久化受理响应
      */
     @Override
-    public TransactionChannelCallbackClientResponseDTO recordChannelCallback(TransactionChannelCallbackClientRequestDTO requestDTO) {
+    public TransactionCallbackInboxAcceptClientResponseDTO acceptChannelCallback(
+            TransactionChannelCallbackClientRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
-        String targetUrl = servicePaymentUrl(CHANNEL_CALLBACK_PATH);
+        String targetUrl = servicePaymentUrl(CHANNEL_CALLBACK_INBOX_PATH);
         URI uri = URI.create(targetUrl);
         HttpEntity<String> requestEntity = buildSignedEntity(uri, requestDTO);
-        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} targetService: {} path: {} requestSummary: {}",
+        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK_INBOX channelCode: {} transactionId: {} targetService: {} path: {} requestSummary: {}",
                 TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getChannelCode(),
                 requestDTO == null ? null : requestDTO.getTransactionId(),
@@ -370,18 +371,19 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     String.class
             );
             String responseBody = responseEntity.getBody();
-            CommonResult<TransactionChannelCallbackClientResponseDTO> result = JsonUtils.parseObject(
+            CommonResult<TransactionCallbackInboxAcceptClientResponseDTO> result = JsonUtils.parseObject(
                     responseBody,
-                    new TypeReference<CommonResult<TransactionChannelCallbackClientResponseDTO>>() {
+                    new TypeReference<CommonResult<TransactionCallbackInboxAcceptClientResponseDTO>>() {
                     }
             );
-            TransactionChannelCallbackClientResponseDTO responseDTO = result == null ? null : result.getData();
-            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} callbackId: {} callbackStatus: {} httpStatus: {} platformCode: {} success: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+            TransactionCallbackInboxAcceptClientResponseDTO responseDTO = result == null ? null : result.getData();
+            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK_INBOX channelCode: {} transactionId: {} inboxId: {} inboxStatus: {} acceptResult: {} httpStatus: {} platformCode: {} success: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
                     TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getChannelCode(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
-                    responseDTO == null ? null : responseDTO.getCallbackId(),
-                    responseDTO == null ? null : responseDTO.getCallbackStatus(),
+                    responseDTO == null ? null : responseDTO.getInboxId(),
+                    responseDTO == null ? null : responseDTO.getInboxStatus(),
+                    responseDTO == null ? null : responseDTO.getAcceptResult(),
                     responseEntity.getStatusCode().value(),
                     result == null ? null : result.getCode(),
                     CommonResult.isSuccess(result),
@@ -389,10 +391,10 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     responseBody == null ? 0 : responseBody.length(),
                     digest16(responseBody),
                     elapsedMillis(startNanos));
-            responseDTO = unwrapCallbackResult(result);
+            responseDTO = unwrapCallbackInboxResult(result);
             return responseDTO;
         } catch (RestClientException exception) {
-            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK_INBOX channelCode: {} transactionId: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
                     TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getChannelCode(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
@@ -960,13 +962,13 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     }
 
     /**
-     * 解包渠道回调内部服务统一响应。
+     * 解包渠道回调 Inbox 内部服务统一响应。
      *
      * @param result 内部服务统一响应
-     * @return 渠道回调记录响应
+     * @return Inbox 受理响应
      */
-    private TransactionChannelCallbackClientResponseDTO unwrapCallbackResult(
-            CommonResult<TransactionChannelCallbackClientResponseDTO> result) {
+    private TransactionCallbackInboxAcceptClientResponseDTO unwrapCallbackInboxResult(
+            CommonResult<TransactionCallbackInboxAcceptClientResponseDTO> result) {
         if (result == null) {
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment callback response is empty");
         }

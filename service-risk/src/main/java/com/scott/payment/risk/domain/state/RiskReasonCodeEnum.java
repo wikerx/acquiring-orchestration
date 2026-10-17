@@ -20,6 +20,31 @@ public enum RiskReasonCodeEnum {
     NONE("NONE", "risk rule not hit"),
 
     /**
+     * 当前交易没有可适用的已配置风控规则。
+     */
+    NO_APPLICABLE_RULE("NO_APPLICABLE_RULE", "no applicable risk rule"),
+
+    /**
+     * 已配置的名单规则未匹配当前交易。
+     */
+    NO_MATCH("NO_MATCH", "configured risk rule did not match"),
+
+    /**
+     * 商户未开通当前可选风控功能。
+     */
+    NOT_ENABLED("NOT_ENABLED", "merchant risk function is not enabled"),
+
+    /**
+     * 商户已开通功能但没有配置可执行规则。
+     */
+    NOT_CONFIGURED("NOT_CONFIGURED", "merchant risk function is not configured"),
+
+    /**
+     * 已配置规则所需的交易输入缺失。
+     */
+    INPUT_MISSING("INPUT_MISSING", "risk rule input is missing"),
+
+    /**
      * 请求参数缺失或非法。
      */
     PARAM_INVALID("PARAM_INVALID", "risk request parameter is invalid"),

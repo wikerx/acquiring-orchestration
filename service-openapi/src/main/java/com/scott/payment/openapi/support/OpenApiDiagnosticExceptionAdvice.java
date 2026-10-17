@@ -6,6 +6,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.web.trace.HttpTrafficLoggingFilter;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
+import com.scott.payment.openapi.security.MerchantIpWhitelistAccessDeniedException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
@@ -84,7 +85,7 @@ public class OpenApiDiagnosticExceptionAdvice {
         request.setAttribute(OpenApiRequestAttributes.EXCEPTION_TYPE, exception.getClass().getSimpleName());
         String responseSummary = diagnosticLogSupport.responseEnvelopeSummary(result);
         request.setAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY, responseSummary);
-        log.warn("event: OPENAPI_REQUEST_ABORTED stage=ERROR traceId: {} merchantId: {} method: {} path: {} apiVersion: {} interfaceType: {} platformCode: {} exceptionType: {} headerSummary: {} cipherRequestSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {} plainRequestSummary: {} plainResponseSummary: {} durationMs: {}",
+        log.warn("event: OPENAPI_REQUEST_ABORTED stage=ERROR traceId: {} merchantId: {} method: {} path: {} apiVersion: {} interfaceType: {} platformCode: {} exceptionType: {} requestIp: {} headerSummary: {} cipherRequestSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {} plainRequestSummary: {} plainResponseSummary: {} durationMs: {}",
                 TraceContext.getTraceId(),
                 merchantIdSafely(request),
                 request.getMethod(),
@@ -93,6 +94,7 @@ public class OpenApiDiagnosticExceptionAdvice {
                 request.getAttribute(OpenApiRequestAttributes.INTERFACE_TYPE),
                 result.getCode(),
                 exception.getClass().getSimpleName(),
+                deniedRequestIp(exception),
                 diagnosticLogSupport.headerSummary(request),
                 request.getAttribute(OpenApiRequestAttributes.REQUEST_CIPHER_SUMMARY),
                 request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
@@ -102,6 +104,13 @@ public class OpenApiDiagnosticExceptionAdvice {
                 responseSummary,
                 durationMs(request));
         return result;
+    }
+
+    private String deniedRequestIp(ServiceException exception) {
+        if (exception instanceof MerchantIpWhitelistAccessDeniedException deniedException) {
+            return deniedException.getRequestIp() == null ? "unknown" : deniedException.getRequestIp();
+        }
+        return null;
     }
 
     /**

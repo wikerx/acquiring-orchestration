@@ -137,11 +137,30 @@ public final class MerchantOpenApiTestSupport {
             Assertions.assertThat(merchantId)
                     .as("SDK live merchant %s must not be cleaned by automated tests", SDK_LIVE_MERCHANT_ID)
                     .isNotEqualTo(SDK_LIVE_MERCHANT_ID);
+            jdbcTemplate.update("DELETE FROM merchant_ip_whitelist WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_merchant_response_key WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_merchant_jwt_key WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_merchant_info WHERE merchant_id = ?", merchantId);
         });
+    }
+
+    /**
+     * 为隔离集成测试商户配置有效白名单，并放行测试 Gateway 传入的固定客户端 IP。
+     *
+     * @param jdbcTemplate JDBC 模板，仅写入 Testcontainers 测试数据库
+     * @param merchantId   测试商户号
+     */
+    public static void configureMerchantIpWhitelist(JdbcTemplate jdbcTemplate, String merchantId) {
+        jdbcTemplate.update("""
+                INSERT INTO merchant_ip_whitelist
+                    (merchant_id, ip_type, ip_value, status, approval_status, submit_source, deleted)
+                VALUES (?, 'IPv4', ?, 1, 1, 'ADMIN', 0)
+                ON DUPLICATE KEY UPDATE
+                    status = VALUES(status),
+                    approval_status = VALUES(approval_status),
+                    submit_source = VALUES(submit_source)
+                """, merchantId, GATEWAY_CLIENT_IP);
     }
 
     /**

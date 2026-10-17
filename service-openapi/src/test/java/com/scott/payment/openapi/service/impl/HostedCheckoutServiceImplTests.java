@@ -6,15 +6,17 @@ import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
-import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionCallbackInboxAcceptClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.HostedCheckoutProperties;
@@ -249,7 +251,7 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getCardDataEnvelope().getKeyId()).isEqualTo("checkout-card-v1");
         assertThat(captured.getCardDataEnvelope().getEncryptedKey()).startsWith("encryptedKey");
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
-        assertThat(captured.getPayerIp()).isEqualTo("203.0.113.9");
+        assertThat(captured.getPayerIp()).isEqualTo("198.51.100.11");
         assertThat(captured.getRequestFingerprint()).isNotBlank();
         assertThat(captured.getBrowserInfoJson()).doesNotContain(RAW_OPAQUE_TOKEN);
         assertThat(captured.getBrowserInfoJson())
@@ -302,7 +304,7 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getAuthenticationDataJsonMasked()).doesNotContain("raw-cres-value", "raw-cavv-value");
         assertThat(captured.getCardDataEnvelope().getEncryptedKey()).startsWith("encryptedKey");
         assertThat(captured.getBillingCardHolderInfo().getEmail()).isEqualTo("payer@example.com");
-        assertThat(captured.getPayerIp()).isEqualTo("203.0.113.9");
+        assertThat(captured.getPayerIp()).isEqualTo("198.51.100.11");
         assertThat(captured.getBrowserInfoJson()).contains("\"language\":\"en-US\"");
     }
 
@@ -334,8 +336,10 @@ class HostedCheckoutServiceImplTests {
     private void bindRequestContext(String merchantId, String forwardedFor) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/rest/checkout/v1/session");
-        request.setRemoteAddr("198.51.100.11");
+        request.setRemoteAddr("10.0.0.20");
         request.addHeader("X-Forwarded-For", forwardedFor);
+        request.addHeader(GatewayIngressSignature.HEADER_CLIENT_IP,
+                "203.0.113.9, 10.0.0.1".equals(forwardedFor) ? "198.51.100.11" : forwardedFor);
         request.addHeader("Origin", "https://merchant.example");
         request.addHeader("Referer", "https://merchant.example/order");
         request.addHeader("User-Agent", "JUnit");
@@ -345,6 +349,7 @@ class HostedCheckoutServiceImplTests {
         request.setAttribute(OpenApiRequestAttributes.REQUEST_HEADER, headerDTO);
         request.setAttribute(OpenApiRequestAttributes.API_VERSION, "v1");
         request.setAttribute(OpenApiRequestAttributes.INTERFACE_TYPE, "checkout");
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     }
 
@@ -635,7 +640,7 @@ class HostedCheckoutServiceImplTests {
 
         /** 本测试桩不覆盖渠道回调落库，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
-        public TransactionChannelCallbackClientResponseDTO recordChannelCallback(
+        public TransactionCallbackInboxAcceptClientResponseDTO acceptChannelCallback(
                 TransactionChannelCallbackClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }

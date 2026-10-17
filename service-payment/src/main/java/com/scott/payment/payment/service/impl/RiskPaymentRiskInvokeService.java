@@ -1,6 +1,9 @@
 package com.scott.payment.payment.service.impl;
 
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.client.risk.RiskInternalClient;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientRequestDTO;
@@ -10,7 +13,6 @@ import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,12 +26,8 @@ import org.springframework.util.StringUtils;
  * @status : create
  */
 @Service
-@ConditionalOnProperty(prefix = "payment.risk-client", name = "remote-enabled", havingValue = "true")
 @Slf4j
 public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
-
-    /** service-risk 不可用时返回的稳定风险原因码。 */
-    private static final String RISK_SERVICE_UNAVAILABLE = "RISK_SERVICE_UNAVAILABLE";
 
     /** service-risk 不可用时使用的安全失败说明。 */
     private static final String RISK_SERVICE_UNAVAILABLE_MESSAGE = "risk service is unavailable";
@@ -57,7 +55,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
     @Override
     public PaymentRiskDecisionDTO checkPreRoute(PaymentCreateCommandDTO commandDTO) {
         long startNanos = System.nanoTime();
-        log.info("event: PAYMENT_RISK_REQUEST_START stage=RISK traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} payerIp: {} sourceUrl: {} requestFingerprint: {}",
+        log.info("event: PAYMENT_RISK_REQUEST_START stage=RISK traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} ingressClientIpHash: {} payerIpHash: {} sourceUrl: {} requestFingerprint: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -66,7 +64,8 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
                 commandDTO.getPaymentMethod(),
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
-                commandDTO.getPayerIp(),
+                digestIp(commandDTO.getIngressClientIp()),
+                digestIp(commandDTO.getPayerIp()),
                 maskUrl(commandDTO.getSourceUrl()),
                 commandDTO.getRequestFingerprint());
         PaymentRiskDecisionDTO decisionDTO;
@@ -85,15 +84,18 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
             decisionDTO.setRiskMessage(responseDTO.getReasonMessage());
             decisionDTO.setMerchantLimitReserved(responseDTO.isMerchantLimitReserved());
         } catch (RuntimeException exception) {
-            decisionDTO = unavailableDecision();
-            log.error("event: PAYMENT_RISK_REQUEST_FAILED stage=RISK traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} exceptionType: {} durationMs: {}",
+            log.error("event: PAYMENT_RISK_REQUEST_FAILED stage=RISK traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} exceptionType: {} rootCauseType: {} durationMs: {}",
                     TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     commandDTO.getTransactionId(),
                     commandDTO.getTransactionType(),
                     exception.getClass().getSimpleName(),
+                    rootCauseType(exception),
                     elapsedMillis(startNanos));
+            // 技术故障必须 Fail Closed，但不能伪装成真实风控拒绝并落终态记录。
+            throw new ServiceException(ApiResultEnum.NETWORK_BUSY.getCode(),
+                    RISK_SERVICE_UNAVAILABLE_MESSAGE, exception);
         }
         commandDTO.setRiskRecordNo(decisionDTO.getRiskRecordNo());
         commandDTO.setRiskCode(decisionDTO.getRiskCode());
@@ -145,20 +147,6 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
     }
 
     /**
-     * 构造 service-risk 不可用时的 Fail Closed 决策。
-     *
-     * @return 不允许继续支付的 UNKNOWN 决策
-     */
-    private PaymentRiskDecisionDTO unavailableDecision() {
-        PaymentRiskDecisionDTO decisionDTO = new PaymentRiskDecisionDTO();
-        decisionDTO.setPassed(false);
-        decisionDTO.setDecision(PaymentRiskDecisionEnum.UNKNOWN.getCode());
-        decisionDTO.setRiskCode(RISK_SERVICE_UNAVAILABLE);
-        decisionDTO.setRiskMessage(RISK_SERVICE_UNAVAILABLE_MESSAGE);
-        return decisionDTO;
-    }
-
-    /**
      * 计算远程风控调用耗时。
      *
      * @param startNanos 调用开始的单调时钟纳秒值
@@ -166,6 +154,22 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
      */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
+    }
+
+    /**
+     * 返回受控异常链中最深层的异常类型，避免日志输出数据库语句或敏感报文。
+     */
+    private String rootCauseType(Throwable throwable) {
+        Throwable rootCause = throwable;
+        int depth = 0;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause && depth++ < 16) {
+            rootCause = rootCause.getCause();
+        }
+        return rootCause.getClass().getSimpleName();
+    }
+
+    private String digestIp(String value) {
+        return StringUtils.hasText(value) ? RedisKeyDigest.sha256(value.trim()) : null;
     }
 
     /**
@@ -194,6 +198,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setPaymentMethod(commandDTO.getPaymentMethod());
         requestDTO.setRequestId(commandDTO.getRequestId());
         requestDTO.setRequestSource(commandDTO.getRequestSource());
+        requestDTO.setIngressClientIp(commandDTO.getIngressClientIp());
         requestDTO.setAmount(commandDTO.getAmount());
         requestDTO.setCurrency(commandDTO.getCurrency());
         requestDTO.setTransactionDateTime(commandDTO.getTransactionDateTime());
@@ -256,7 +261,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setPayerRegion(payerInfo.getState());
         requestDTO.setPayerCity(payerInfo.getCity());
         requestDTO.setPayerSessionId(payerInfo.getSessionId());
-        requestDTO.setPayerIp(payerInfo.getIpAddress());
+        if (!StringUtils.hasText(requestDTO.getPayerIp())) {
+            requestDTO.setPayerIp(payerInfo.getIpAddress());
+        }
         if (StringUtils.hasText(payerInfo.getUserAgent())) {
             requestDTO.setUserAgent(payerInfo.getUserAgent());
         }

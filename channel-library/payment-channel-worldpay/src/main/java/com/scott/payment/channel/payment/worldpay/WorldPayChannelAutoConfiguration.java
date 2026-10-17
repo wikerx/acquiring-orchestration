@@ -97,7 +97,7 @@ public class WorldPayChannelAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    WorldPayCallbackVerifier worldPayCallbackVerifier() {
-        return new WorldPayCallbackVerifier();
+    WorldPayPaymentChannelCallbackProtocol worldPayPaymentChannelCallbackProtocol() {
+        return new WorldPayPaymentChannelCallbackProtocol();
     }
 }

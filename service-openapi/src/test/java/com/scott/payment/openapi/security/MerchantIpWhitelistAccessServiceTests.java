@@ -1,6 +1,5 @@
 package com.scott.payment.openapi.security;
 
-import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -16,6 +15,15 @@ import static org.mockito.Mockito.when;
 class MerchantIpWhitelistAccessServiceTests {
 
     private static final String MERCHANT_ID = "200045";
+
+    @Test
+    void shouldRejectWhenMerchantHasNoEffectiveWhitelist() {
+        MerchantOpenApiAccessPolicy policy = new MerchantOpenApiAccessPolicy();
+        MockHttpServletRequest request = requestFrom("203.0.113.10");
+
+        assertDenied(service(policy), request, MerchantIpWhitelistDenyReason.WHITELIST_EMPTY,
+                "Forbidden:merchant ip not allowed, requestIp: 203.0.113.10");
+    }
 
     @Test
     void shouldIgnoreSpoofedGatewayClientIpWithoutAuthenticatedGateway() {
@@ -45,9 +53,8 @@ class MerchantIpWhitelistAccessServiceTests {
         request.setRemoteAddr("127.0.0.1");
         request.setAttribute(GatewayIngressAuthFilter.GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
 
-        assertThatThrownBy(() -> service.checkAccess(MERCHANT_ID, request))
-                .isInstanceOf(ApiException.class)
-                .hasMessageContaining("merchant ip not allowed");
+        assertDenied(service, request, MerchantIpWhitelistDenyReason.CLIENT_IP_MISSING,
+                "Forbidden:merchant ip not allowed, requestIp: unknown");
     }
 
     @Test
@@ -57,8 +64,19 @@ class MerchantIpWhitelistAccessServiceTests {
         request.setRemoteAddr("203.0.113.10");
 
         assertThatThrownBy(() -> service.checkAccess(MERCHANT_ID, request))
-                .isInstanceOf(ApiException.class)
-                .hasMessageContaining("merchant ip not allowed");
+                .isInstanceOf(MerchantIpWhitelistAccessDeniedException.class)
+                .hasMessage("Forbidden:merchant ip not allowed, requestIp: 203.0.113.10")
+                .extracting(exception -> ((MerchantIpWhitelistAccessDeniedException) exception).getReason())
+                .isEqualTo(MerchantIpWhitelistDenyReason.IP_NOT_ALLOWED);
+    }
+
+    @Test
+    void shouldRejectInvalidClientIpWithInternalReasonOnly() {
+        MerchantIpWhitelistAccessService service = service(enabledPolicy("203.0.113.10"));
+        MockHttpServletRequest request = requestFrom("invalid-ip");
+
+        assertDenied(service, request, MerchantIpWhitelistDenyReason.CLIENT_IP_INVALID,
+                "Forbidden:merchant ip not allowed, requestIp: unknown");
     }
 
     @Test
@@ -78,8 +96,24 @@ class MerchantIpWhitelistAccessServiceTests {
 
     private MerchantOpenApiAccessPolicy enabledPolicy(String... allowedIps) {
         MerchantOpenApiAccessPolicy policy = new MerchantOpenApiAccessPolicy();
-        policy.setWhitelistEnabled(true);
         policy.setAllowedIps(new LinkedHashSet<>(Set.of(allowedIps)));
         return policy;
+    }
+
+    private MockHttpServletRequest requestFrom(String remoteAddress) {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr(remoteAddress);
+        return request;
+    }
+
+    private void assertDenied(MerchantIpWhitelistAccessService service,
+                              MockHttpServletRequest request,
+                              MerchantIpWhitelistDenyReason reason,
+                              String expectedMessage) {
+        assertThatThrownBy(() -> service.checkAccess(MERCHANT_ID, request))
+                .isInstanceOf(MerchantIpWhitelistAccessDeniedException.class)
+                .hasMessage(expectedMessage)
+                .extracting(exception -> ((MerchantIpWhitelistAccessDeniedException) exception).getReason())
+                .isEqualTo(reason);
     }
 }

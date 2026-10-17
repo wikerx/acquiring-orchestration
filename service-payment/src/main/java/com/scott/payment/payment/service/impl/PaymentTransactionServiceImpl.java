@@ -3121,11 +3121,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     private String requestSourceSummary(PaymentCreateCommandDTO commandDTO) {
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("payerIp", commandDTO.getPayerIp());
+        summary.put("ingressClientIpHash", digestNullable(commandDTO.getIngressClientIp()));
+        summary.put("payerIpHash", digestNullable(commandDTO.getPayerIp()));
         summary.put("sourceUrl", maskUrl(commandDTO.getSourceUrl()));
         summary.put("callbackUrl", maskUrl(commandDTO.getCallbackUrl()));
         summary.put("userAgent", truncateText(commandDTO.getUserAgent(), 160));
         return JsonUtils.toJsonString(summary);
+    }
+
+    private String digestNullable(String value) {
+        return StringUtils.hasText(value) ? sha256(value.trim()) : null;
     }
 
     /**

@@ -182,6 +182,21 @@ public class TransactionFlowEventDO implements Serializable {
      */
     private String errorMessage;
 
+    /** 处理当前事件的稳定服务名，仅在节点审计迁移完成并显式启用后写入。 */
+    private String processorService;
+
+    /** 部署平台注入的服务实例或 Pod 标识，不使用运行时随机值。 */
+    private String processorInstanceId;
+
+    /** 事件处理时的主机名快照，仅供内部排障。 */
+    private String processorHostName;
+
+    /** 部署平台显式注入的节点内网 IP，不通过本机多网卡自动推断。 */
+    private String processorPrivateIp;
+
+    /** 当前调用链 Trace ID，用于跨服务关联内部日志与流程事件。 */
+    private String traceId;
+
     /**
      * 持久化的{@code eventTime}，用于还原当前记录的业务事实。
      * <p>

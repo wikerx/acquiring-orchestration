@@ -4,9 +4,7 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.db.auth.entity.MerchantIpWhitelistDO;
-import com.scott.payment.component.db.auth.entity.MerchantOpenApiAccessConfigDO;
 import com.scott.payment.component.db.auth.mapper.MerchantIpWhitelistMapper;
-import com.scott.payment.component.db.auth.mapper.MerchantOpenApiAccessConfigMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -35,11 +33,6 @@ public class MerchantOpenApiAccessPolicyCacheReader {
     private static final int ENABLED = 1;
 
     /**
-     * 商户 OpenAPI 访问配置数据访问组件。
-     */
-    private final MerchantOpenApiAccessConfigMapper accessConfigMapper;
-
-    /**
      * 商户 IP 白名单数据访问组件。
      */
     private final MerchantIpWhitelistMapper whitelistMapper;
@@ -47,13 +40,9 @@ public class MerchantOpenApiAccessPolicyCacheReader {
     /**
      * 创建商户 OpenAPI 访问策略读取器。
      *
-     * @param accessConfigMapper 商户 OpenAPI 访问配置 Mapper
      * @param whitelistMapper    商户 IP 白名单 Mapper
      */
-    public MerchantOpenApiAccessPolicyCacheReader(
-            MerchantOpenApiAccessConfigMapper accessConfigMapper,
-            MerchantIpWhitelistMapper whitelistMapper) {
-        this.accessConfigMapper = accessConfigMapper;
+    public MerchantOpenApiAccessPolicyCacheReader(MerchantIpWhitelistMapper whitelistMapper) {
         this.whitelistMapper = whitelistMapper;
     }
 
@@ -84,19 +73,6 @@ public class MerchantOpenApiAccessPolicyCacheReader {
 
     private MerchantOpenApiAccessPolicy load(String merchantId) {
         MerchantOpenApiAccessPolicy policy = new MerchantOpenApiAccessPolicy();
-        MerchantOpenApiAccessConfigDO config = accessConfigMapper.selectOne(
-                Wrappers.<MerchantOpenApiAccessConfigDO>lambdaQuery()
-                        .select(MerchantOpenApiAccessConfigDO::getIpWhitelistEnabled)
-                        .eq(MerchantOpenApiAccessConfigDO::getDeleted, NOT_DELETED)
-                        .eq(MerchantOpenApiAccessConfigDO::getMerchantId, merchantId)
-                        .last("LIMIT 1")
-        );
-        boolean enabled =
-                config != null && Integer.valueOf(ENABLED).equals(config.getIpWhitelistEnabled());
-        policy.setWhitelistEnabled(enabled);
-        if (!enabled) {
-            return policy;
-        }
         whitelistMapper.selectList(
                         Wrappers.<MerchantIpWhitelistDO>lambdaQuery()
                                 .select(MerchantIpWhitelistDO::getIpValue)

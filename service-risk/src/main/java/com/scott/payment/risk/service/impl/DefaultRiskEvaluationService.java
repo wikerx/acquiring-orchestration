@@ -6,6 +6,7 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.mq.message.RiskAuditHitMessage;
 import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
@@ -64,26 +65,6 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     private static final String REQUEST_SOURCE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
 
     /**
-     * 来源阻断关键词，当前仅用于骨架验证，正式名单应来自配置或数据库。
-     */
-    private static final String BLOCKED_SOURCE_KEYWORD = "blocked";
-
-    /**
-     * 骨架阶段的 IP 阻断名单，正式名单应迁移到名单服务或风控规则库。
-     */
-    private static final Set<String> BLOCKED_PAYER_IPS = Set.of("127.0.0.2");
-
-    /**
-     * 要求 3DS 的最小金额阈值，单位为主币种单位；正式规则应按商户、币种和卡 BIN 配置。
-     */
-    private static final BigDecimal REQUIRE_3DS_AMOUNT = new BigDecimal("1000.00");
-
-    /**
-     * 人工复核金额阈值，单位为主币种单位；正式规则应按商户、币种和风险等级配置。
-     */
-    private static final BigDecimal MANUAL_REVIEW_AMOUNT = new BigDecimal("5000.00");
-
-    /**
      * 当前内置风控规则数量，用于日志展示评估覆盖范围。
      */
     private static final int BUILT_IN_RULE_COUNT = 5;
@@ -140,8 +121,6 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
 
     private static final Stage STAGE_THREE_DS = new Stage("THREE_DS", "3DS规则", 70);
 
-    private static final Stage STAGE_SKELETON = new Stage("SKELETON_FALLBACK", "本地骨架规则", 90);
-
     /** 提供名单、金额限额、频率和 3DS 运行时规则。 */
     private final RiskListRuntimeRepository riskListRuntimeRepository;
 
@@ -151,7 +130,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     /** 在决策完成后发布评估主记录和逐节点脱敏明细。 */
     private final RiskAuditRecordPublisher auditRecordPublisher;
 
-    /** 控制运行时规则和仅限兼容测试的骨架降级开关。 */
+    /** 控制运行时规则、并发边界、缓存与预占生命周期。 */
     private final RiskEvaluationProperties properties;
 
     /** 执行无状态只读规则组的专用执行器；累计限额和频控预占不得提交到该执行器。 */
@@ -160,39 +139,25 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     /**
      * 创建由 Spring 管理的实时风控评估服务。
      *
-     * <p>运行时仓储和审计发布器允许在兼容测试环境缺省；生产决策是否启用运行时规则
-     * 由 {@link RiskEvaluationProperties} 显式控制，不能因依赖缺失自动开启骨架放行。</p>
+     * <p>运行时仓储和值归一化器是支付决策的强依赖，缺失时由 Spring 在启动阶段失败关闭；
+     * 审计发布器仍允许在隔离测试环境缺省。</p>
      *
-     * @param riskListRuntimeRepositoryProvider 名单、限额、频控和 3DS 运行时仓储提供器
-     * @param valueNormalizerProvider 敏感风控值归一化组件提供器
+     * @param riskListRuntimeRepository 名单、限额、频控和 3DS 运行时仓储
+     * @param valueNormalizer 敏感风控值归一化组件
      * @param auditRecordPublisherProvider 脱敏评估审计发布器提供器
      * @param properties 风控运行模式及兼容降级配置
      */
     @Autowired
-    public DefaultRiskEvaluationService(ObjectProvider<RiskListRuntimeRepository> riskListRuntimeRepositoryProvider,
-                                        ObjectProvider<RiskRuntimeValueNormalizer> valueNormalizerProvider,
+    public DefaultRiskEvaluationService(RiskListRuntimeRepository riskListRuntimeRepository,
+                                        RiskRuntimeValueNormalizer valueNormalizer,
                                         ObjectProvider<RiskAuditRecordPublisher> auditRecordPublisherProvider,
                                         RiskEvaluationProperties properties,
                                         @Qualifier("riskReadOnlyEvaluationExecutor") Executor readOnlyEvaluationExecutor) {
-        this.riskListRuntimeRepository = riskListRuntimeRepositoryProvider.getIfAvailable();
-        this.valueNormalizer = valueNormalizerProvider.getIfAvailable(RiskRuntimeValueNormalizer::new);
+        this.riskListRuntimeRepository = riskListRuntimeRepository;
+        this.valueNormalizer = valueNormalizer;
         this.auditRecordPublisher = auditRecordPublisherProvider.getIfAvailable();
         this.properties = properties;
         this.readOnlyEvaluationExecutor = readOnlyEvaluationExecutor;
-    }
-
-    /**
-     * 创建仅用于兼容测试和无 Spring 场景的默认实例。
-     *
-     * <p>该构造器不装配运行时仓储和审计发布器，是否执行骨架规则仍受默认配置约束，
-     * 不应作为生产依赖注入入口。</p>
-     */
-    public DefaultRiskEvaluationService() {
-        this.riskListRuntimeRepository = null;
-        this.valueNormalizer = new RiskRuntimeValueNormalizer();
-        this.auditRecordPublisher = null;
-        this.properties = new RiskEvaluationProperties();
-        this.readOnlyEvaluationExecutor = Runnable::run;
     }
 
     DefaultRiskEvaluationService(RiskListRuntimeRepository riskListRuntimeRepository,
@@ -222,7 +187,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     public RiskPaymentEvaluateResultDTO evaluatePayment(RiskPaymentEvaluateRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
         String riskRecordNo = PaymentOrderNoGenerator.nextOrderNo(RISK_RECORD_PREFIX);
-        log.info("event: RISK_EVALUATION_START stage=ACCEPT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} amount: {} currency: {} ruleCount: {} payerIp: {} sourceUrl: {}",
+        log.info("event: RISK_EVALUATION_START stage=ACCEPT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} amount: {} currency: {} ruleCount: {} ingressClientIpHash: {} payerIpHash: {} sourceUrl: {}",
                 TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
@@ -232,7 +197,8 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 requestDTO == null ? null : requestDTO.getAmount(),
                 requestDTO == null ? null : requestDTO.getCurrency(),
                 BUILT_IN_RULE_COUNT,
-                requestDTO == null ? null : requestDTO.getPayerIp(),
+                requestDTO == null ? null : digestIp(requestDTO.getIngressClientIp()),
+                requestDTO == null ? null : digestIp(requestDTO.getPayerIp()),
                 maskUrl(requestDTO == null ? null : requestDTO.getSourceUrl()));
         RiskEvaluationOutcome outcome = evaluate(requestDTO, riskRecordNo);
         RiskPaymentEvaluateResultDTO resultDTO = outcome.getResult();
@@ -287,15 +253,17 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         }
         LookupContext context = lookupContext(requestDTO);
         List<RiskListMatch> details = new ArrayList<>();
-        findMerchantIpWhitelistHit(requestDTO, context).ifPresent(match -> details.add(stage(match, STAGE_MERCHANT_IP_WHITELIST, MATCH_HIT)));
-        Optional<RiskListMatch> merchantIpWhitelistMiss = findMerchantIpWhitelistMiss(requestDTO, context);
-        merchantIpWhitelistMiss.ifPresent(match -> details.add(stage(match, STAGE_MERCHANT_IP_WHITELIST, MATCH_MISS)));
-        if (merchantIpWhitelistMiss.isPresent()) {
-            return RiskEvaluationOutcome.of(
-                    buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.IP_WHITELIST_MISSED, riskRecordNo),
-                    details);
-        }
         if (!isHostedCheckout(requestDTO)) {
+            findMerchantIpWhitelistHit(requestDTO, context)
+                    .ifPresent(match -> details.add(stage(match, STAGE_MERCHANT_IP_WHITELIST, MATCH_HIT)));
+            Optional<RiskListMatch> merchantIpWhitelistMiss = findMerchantIpWhitelistMiss(requestDTO, context);
+            merchantIpWhitelistMiss
+                    .ifPresent(match -> details.add(stage(match, STAGE_MERCHANT_IP_WHITELIST, MATCH_MISS)));
+            if (merchantIpWhitelistMiss.isPresent()) {
+                return RiskEvaluationOutcome.of(
+                        buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.IP_WHITELIST_MISSED, riskRecordNo),
+                        details);
+            }
             Optional<RiskListMatch> sourceUrlMiss = findSourceUrlRestrictionMiss(requestDTO, context);
             sourceUrlMiss.ifPresent(match -> details.add(stage(match, STAGE_SOURCE_URL_RESTRICTION, MATCH_MISS)));
             if (sourceUrlMiss.isPresent()) {
@@ -406,16 +374,13 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 releaseFrequencySuccessReservations(requestDTO);
             }
         }
-        if (details.isEmpty()) {
-            Optional<RiskEvaluationOutcome> skeletonOutcome = evaluateSkeletonFallback(requestDTO, riskRecordNo);
-            if (skeletonOutcome.isPresent()) {
-                skeletonOutcome.get().getHits().forEach(match -> details.add(stage(match, STAGE_SKELETON, MATCH_HIT)));
-                skeletonOutcome.get().setHits(details);
-                return skeletonOutcome.get();
-            }
-        }
-        RiskPaymentEvaluateResultDTO resultDTO =
-                buildResult(RiskDecisionEnum.PASS, RiskReasonCodeEnum.NONE, riskRecordNo);
+        boolean explicitlyAllowed = hasExplicitAllow(details);
+        RiskPaymentEvaluateResultDTO resultDTO = explicitlyAllowed
+                ? buildResult(RiskDecisionEnum.PASS, RiskReasonCodeEnum.NONE, riskRecordNo)
+                : buildResult(
+                        RiskDecisionEnum.SKIP,
+                        resolveSkipReason(details),
+                        riskRecordNo);
         resultDTO.setMerchantLimitReserved(
                 cumulativeLimitEvaluation.lifecycleManaged()
                         && !cumulativeLimitEvaluation.reservations().isEmpty());
@@ -450,6 +415,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         RiskRuntimeLookupValue cardBinLookup = valueNormalizer.cardBin(StringUtils.hasText(requestDTO.getCardBin())
                 ? requestDTO.getCardBin()
                 : requestDTO.getCardNo());
+        RiskRuntimeLookupValue ingressIpLookup = valueNormalizer.ip(requestDTO.getIngressClientIp());
         RiskRuntimeLookupValue ipLookup = valueNormalizer.ip(requestDTO.getPayerIp());
         RiskRuntimeLookupValue billingEmailLookup = valueNormalizer.email(requestDTO.getBillingEmail());
         RiskRuntimeLookupValue billingEmailDomainLookup = valueNormalizer.emailDomain(requestDTO.getBillingEmail());
@@ -518,7 +484,10 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         RiskRuntimeLookupValue customerIdLookup = valueNormalizer.text(requestDTO.getCustomerId(), true);
         RiskRuntimeLookupValue deviceFingerprintLookup = valueNormalizer.text(
                 requestDTO.getDeviceFingerprint(), true);
-        return new LookupContext(cardNoLookup, cardFingerprintLookup, cardBinLookup, ipLookup, billingEmailLookup,
+        Set<RiskListFunction> enabledMerchantFunctions =
+                riskListRuntimeRepository.findEnabledMerchantFunctions(requestDTO.getMerchantId());
+        return new LookupContext(cardNoLookup, cardFingerprintLookup, cardBinLookup, ingressIpLookup, ipLookup,
+                billingEmailLookup,
                 billingEmailDomainLookup, billingEmailUsernameLookup, billingPhoneLookup,
                 tradeCountryLookup, billingCountryLookup,
                 issuerCountryLookup, sourceHostLookup, cardholderNameLookup, legalPersonLookup, enterpriseLookup,
@@ -528,29 +497,31 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 payerIdLookup, shippingAddressLookup, shippingZipLookup, shippingCountryLookup,
                 shippingNameLookup, shippingEmailLookup, shippingEmailDomainLookup,
                 shippingEmailUsernameLookup, shippingPhoneLookup, shippingRegionLookup, customerIdLookup,
-                deviceFingerprintLookup);
+                deviceFingerprintLookup, enabledMerchantFunctions);
     }
 
     /**
-     * 查询商户 IP 白名单启用但付款方 IP 未命中的拒绝明细。
+     * 查询商户 IP 白名单启用但可信接入 IP 未命中的拒绝明细。
      */
     private Optional<RiskListMatch> findMerchantIpWhitelistMiss(RiskPaymentEvaluateRequestDTO requestDTO,
                                                                 LookupContext context) {
         if (riskListRuntimeRepository == null) {
             return Optional.empty();
         }
-        return riskListRuntimeRepository.findMerchantIpWhitelistMiss(requestDTO.getMerchantId(), context.ipLookup());
+        return riskListRuntimeRepository.findMerchantIpWhitelistMiss(
+                requestDTO.getMerchantId(), context.ingressIpLookup());
     }
 
     /**
-     * 查询付款方 IP 命中商户 IP 白名单的放行明细。
+     * 查询可信接入 IP 命中商户 IP 白名单的放行明细。
      */
     private Optional<RiskListMatch> findMerchantIpWhitelistHit(RiskPaymentEvaluateRequestDTO requestDTO,
                                                                LookupContext context) {
         if (riskListRuntimeRepository == null) {
             return Optional.empty();
         }
-        return riskListRuntimeRepository.findMerchantIpWhitelistHit(requestDTO.getMerchantId(), context.ipLookup());
+        return riskListRuntimeRepository.findMerchantIpWhitelistHit(
+                requestDTO.getMerchantId(), context.ingressIpLookup());
     }
 
     /**
@@ -582,7 +553,8 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     private List<RiskListMatch> evaluateWhitelistChecks(RiskPaymentEvaluateRequestDTO requestDTO,
                                                         LookupContext context) {
-        return evaluateListChecks(requestDTO.getMerchantId(), STAGE_BLACK_WHITE, List.of(
+        return evaluateListChecks(requestDTO.getMerchantId(), STAGE_BLACK_WHITE,
+                context.enabledMerchantFunctions(), List.of(
                 new ListCheck(RiskListFunction.WHITE_MERCHANT, valueNormalizer.merchant(requestDTO.getMerchantId())),
                 new ListCheck(RiskListFunction.WHITE_CARD_NO, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.WHITE_CARD_FINGERPRINT, context.cardFingerprintLookup()),
@@ -615,7 +587,8 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     private List<RiskListMatch> evaluateBlacklistChecks(RiskPaymentEvaluateRequestDTO requestDTO,
                                                         LookupContext context) {
-        return evaluateListChecks(requestDTO.getMerchantId(), STAGE_BLACK_WHITE, List.of(
+        return evaluateListChecks(requestDTO.getMerchantId(), STAGE_BLACK_WHITE,
+                context.enabledMerchantFunctions(), List.of(
                 new ListCheck(RiskListFunction.BLACK_CARD_NO, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.BLACK_CARD_FINGERPRINT, context.cardFingerprintLookup()),
                 new ListCheck(RiskListFunction.BLACK_IP, context.ipLookup(), "payerIp"),
@@ -718,7 +691,8 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     private List<RiskListMatch> evaluateAmlChecks(RiskPaymentEvaluateRequestDTO requestDTO,
                                                  LookupContext context) {
-        return evaluateListChecks(requestDTO.getMerchantId(), STAGE_AML, List.of(
+        return evaluateListChecks(requestDTO.getMerchantId(), STAGE_AML,
+                context.enabledMerchantFunctions(), List.of(
                 new ListCheck(RiskListFunction.AML_CARD, context.cardNoLookup()),
                 new ListCheck(RiskListFunction.AML_CARD_BIN, context.cardBinLookup()),
                 new ListCheck(RiskListFunction.AML_COUNTRY, context.issuerCountryLookup(), "issuerCountry"),
@@ -981,10 +955,15 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     private List<RiskListMatch> evaluateListChecks(String merchantId,
                                                    Stage stage,
+                                                   Set<RiskListFunction> enabledMerchantFunctions,
                                                    List<ListCheck> checks) {
         List<RiskListMatch> details = new ArrayList<>();
         for (ListCheck check : checks) {
             if (check.lookupValue() == null) {
+                if (hasActiveListRule(check.function(), merchantId)) {
+                    details.add(listSkip(check.function(), null, check.auditElement(), stage,
+                            RiskReasonCodeEnum.INPUT_MISSING));
+                }
                 continue;
             }
             Optional<RiskListMatch> matched = findMatch(check.function(), merchantId, check.lookupValue());
@@ -997,6 +976,11 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             }
             if (hasActiveListRule(check.function(), merchantId)) {
                 details.add(listMiss(check.function(), check.lookupValue(), check.auditElement(), stage));
+            } else {
+                RiskReasonCodeEnum reasonCode = enabledMerchantFunctions.contains(check.function())
+                        ? RiskReasonCodeEnum.NOT_CONFIGURED
+                        : RiskReasonCodeEnum.NOT_ENABLED;
+                details.add(listSkip(check.function(), check.lookupValue(), check.auditElement(), stage, reasonCode));
             }
         }
         return details;
@@ -1033,10 +1017,52 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 ? blackWhiteStageOrder(staged)
                 : stage.order();
         staged.markStage(stage.code(), stage.name(), stageOrder, matchResult, decisionEffect(staged));
+        if (!StringUtils.hasText(staged.getReasonCode())) {
+            staged.setReasonCode(stageReasonCode(staged, stage, matchResult).getCode());
+        }
         if (!"ERROR".equalsIgnoreCase(matchResult) || !StringUtils.hasText(staged.getDecisionReason())) {
             staged.setDecisionReason(detailDecisionReason(staged, matchResult));
         }
         return staged;
+    }
+
+    /**
+     * 为数据库规则命中补齐稳定原因码，避免审计明细只保存可读文本。
+     */
+    private RiskReasonCodeEnum stageReasonCode(RiskListMatch detail, Stage stage, String matchResult) {
+        if (MATCH_MISS.equalsIgnoreCase(matchResult)) {
+            if (STAGE_MERCHANT_IP_WHITELIST.equals(stage)) {
+                return RiskReasonCodeEnum.IP_WHITELIST_MISSED;
+            }
+            if (STAGE_SOURCE_URL_RESTRICTION.equals(stage)) {
+                return RiskReasonCodeEnum.SOURCE_URL_NOT_ALLOWED;
+            }
+            return RiskReasonCodeEnum.NO_MATCH;
+        }
+        if (STAGE_AML.equals(stage)) {
+            return RiskReasonCodeEnum.AML_HIT;
+        }
+        if (STAGE_BLACK_WHITE.equals(stage)) {
+            return "BLACK".equalsIgnoreCase(detail.getModuleType())
+                    ? RiskReasonCodeEnum.BLACKLIST_HIT
+                    : RiskReasonCodeEnum.NONE;
+        }
+        if (STAGE_FREQUENCY.equals(stage)) {
+            return RiskReasonCodeEnum.FREQUENCY_LIMIT_HIT;
+        }
+        if (STAGE_THREE_DS.equals(stage)) {
+            RiskDecisionEnum decision = resolveDecision(detail, RiskDecisionEnum.PASS);
+            if (decision == RiskDecisionEnum.REQUIRE_3DS) {
+                return RiskReasonCodeEnum.THREE_DS_REQUIRED;
+            }
+            if (decision == RiskDecisionEnum.REVIEW) {
+                return RiskReasonCodeEnum.MANUAL_REVIEW_REQUIRED;
+            }
+        }
+        RiskDecisionEnum decision = resolveDecision(detail, RiskDecisionEnum.PASS);
+        return decision == RiskDecisionEnum.PASS
+                ? RiskReasonCodeEnum.NONE
+                : RiskReasonCodeEnum.RULE_HIT;
     }
 
     /**
@@ -1053,12 +1079,38 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         detail.setHitElement(auditElement);
         detail.setHitValueMasked(maskedLookupValue(lookupValue));
         detail.setRiskLevel(RISK_LEVEL_LOW);
-        detail.setDecisionAction(RiskDecisionEnum.PASS.getCode());
+        detail.setDecisionAction(RiskDecisionEnum.SKIP.getCode());
+        detail.setReasonCode(RiskReasonCodeEnum.NO_MATCH.getCode());
         int stageOrder = STAGE_BLACK_WHITE.code().equals(stage.code())
                 ? blackWhiteStageOrder(detail)
                 : stage.order();
-        detail.markStage(stage.code(), stage.name(), stageOrder, MATCH_MISS, EFFECT_ALLOW);
+        detail.markStage(stage.code(), stage.name(), stageOrder, MATCH_MISS, EFFECT_NONE);
         detail.setDecisionReason(detailDecisionReason(detail, MATCH_MISS));
+        return detail;
+    }
+
+    /**
+     * 为未开通、未配置或缺少输入的名单节点构建显式跳过审计明细。
+     */
+    private RiskListMatch listSkip(RiskListFunction function,
+                                   RiskRuntimeLookupValue lookupValue,
+                                   String auditElement,
+                                   Stage stage,
+                                   RiskReasonCodeEnum reasonCode) {
+        RiskListMatch detail = new RiskListMatch();
+        detail.setModuleType(function.getModuleType().getCode());
+        detail.setFunctionCode(function.getFunctionCode());
+        detail.setFunctionName(function.getFunctionName());
+        detail.setHitElement(auditElement);
+        detail.setHitValueMasked(maskedLookupValue(lookupValue));
+        detail.setRiskLevel(RISK_LEVEL_LOW);
+        detail.setDecisionAction(RiskDecisionEnum.SKIP.getCode());
+        detail.setReasonCode(reasonCode.getCode());
+        int stageOrder = STAGE_BLACK_WHITE.code().equals(stage.code())
+                ? blackWhiteStageOrder(detail)
+                : stage.order();
+        detail.markStage(stage.code(), stage.name(), stageOrder, "SKIPPED", EFFECT_NONE);
+        detail.setDecisionReason(reasonCode.getMessage());
         return detail;
     }
 
@@ -1115,7 +1167,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             if ("WHITE".equalsIgnoreCase(detail.getModuleType())) {
                 return prefix + "未命中" + functionName + "，继续执行后续风控";
             }
-            return prefix + "不在" + functionName + "中，放行";
+            return prefix + "未命中" + functionName + "，跳过该项检查";
         }
         RiskDecisionEnum decision = resolveDecision(detail, RiskDecisionEnum.PASS);
         return switch (decision) {
@@ -1163,6 +1215,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         target.setRiskLevel(source.getRiskLevel());
         target.setDecisionAction(source.getDecisionAction());
         target.setDecisionReason(source.getDecisionReason());
+        target.setReasonCode(source.getReasonCode());
         target.setTimeWindowSeconds(source.getTimeWindowSeconds());
         target.setThresholdCount(source.getThresholdCount());
         target.setElementsJson(source.getElementsJson());
@@ -1279,51 +1332,6 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
-     * 在没有任何运行时规则明细时执行显式开启的兼容骨架规则。
-     *
-     * <p>该路径仅用于兼容测试和受控环境；关闭开关时不参与生产决策。</p>
-     *
-     * @return 骨架规则阻断、复核或 3DS 结果；未触发时返回空
-     */
-    private Optional<RiskEvaluationOutcome> evaluateSkeletonFallback(RiskPaymentEvaluateRequestDTO requestDTO,
-                                                                     String riskRecordNo) {
-        if (!properties.isSkeletonFallbackEnabled()) {
-            return Optional.empty();
-        }
-        if (isBlockedSource(requestDTO.getSourceUrl())) {
-            RiskListMatch hit = RiskListMatch.system("skeletonSource", "骨架来源阻断", "sourceUrl", maskUrl(requestDTO.getSourceUrl()),
-                    RISK_LEVEL_HIGH, RiskDecisionEnum.REJECT.getCode(), RiskReasonCodeEnum.BLOCKED_SOURCE.getMessage());
-            return Optional.of(RiskEvaluationOutcome.of(
-                    buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.BLOCKED_SOURCE, riskRecordNo),
-                    List.of(hit)));
-        }
-        if (isBlockedPayerIp(requestDTO.getPayerIp())) {
-            RiskListMatch hit = RiskListMatch.system("skeletonIp", "骨架IP阻断", "ip", requestDTO.getPayerIp(),
-                    RISK_LEVEL_HIGH, RiskDecisionEnum.REJECT.getCode(), RiskReasonCodeEnum.BLOCKED_IP.getMessage());
-            return Optional.of(RiskEvaluationOutcome.of(
-                    buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.BLOCKED_IP, riskRecordNo),
-                    List.of(hit)));
-        }
-        if (requestDTO.getAmount().compareTo(MANUAL_REVIEW_AMOUNT) >= 0) {
-            RiskListMatch hit = RiskListMatch.system("skeletonAmountReview", "骨架金额复核", "amount", requestDTO.getAmount().toPlainString(),
-                    RISK_LEVEL_MEDIUM, RiskDecisionEnum.REVIEW.getCode(), RiskReasonCodeEnum.MANUAL_REVIEW_REQUIRED.getMessage());
-            return Optional.of(RiskEvaluationOutcome.of(
-                    buildResult(RiskDecisionEnum.REVIEW,
-                            RiskReasonCodeEnum.MANUAL_REVIEW_REQUIRED, riskRecordNo),
-                    List.of(hit)));
-        }
-        if (requestDTO.getAmount().compareTo(REQUIRE_3DS_AMOUNT) >= 0 && !hasThreeDsProof(requestDTO)) {
-            RiskListMatch hit = RiskListMatch.system("skeletonAmount3ds", "骨架3DS要求", "amount", requestDTO.getAmount().toPlainString(),
-                    RISK_LEVEL_MEDIUM, RiskDecisionEnum.REQUIRE_3DS.getCode(), RiskReasonCodeEnum.THREE_DS_REQUIRED.getMessage());
-            return Optional.of(RiskEvaluationOutcome.of(
-                    buildResult(RiskDecisionEnum.REQUIRE_3DS,
-                            RiskReasonCodeEnum.THREE_DS_REQUIRED, riskRecordNo),
-                    List.of(hit)));
-        }
-        return Optional.empty();
-    }
-
-    /**
      * 将规则动作解析为统一决策枚举，并兼容历史 {@code FORCE_3DS} 动作。
      *
      * @return 已知统一决策；动作缺失或未知时返回调用方指定默认值
@@ -1342,7 +1350,46 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         if (RiskDecisionEnum.REQUIRE_3DS.getCode().equals(action) || "FORCE_3DS".equals(action)) {
             return RiskDecisionEnum.REQUIRE_3DS;
         }
+        if (RiskDecisionEnum.SKIP.getCode().equals(action)) {
+            return RiskDecisionEnum.SKIP;
+        }
         return RiskDecisionEnum.PASS.getCode().equals(action) ? RiskDecisionEnum.PASS : defaultDecision;
+    }
+
+    /**
+     * 判断是否存在明确允许交易继续的规则结果。
+     */
+    private boolean hasExplicitAllow(List<RiskListMatch> details) {
+        return details.stream().anyMatch(detail -> detail != null
+                && RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(detail.getDecisionAction())
+                && (detail.actualHit() || MATCH_PASS.equalsIgnoreCase(detail.getMatchResult())));
+    }
+
+    /**
+     * 根据已审计的跳过原因选择稳定的最终原因码。
+     */
+    private RiskReasonCodeEnum resolveSkipReason(List<RiskListMatch> details) {
+        if (hasReason(details, RiskReasonCodeEnum.NO_MATCH)) {
+            return RiskReasonCodeEnum.NO_MATCH;
+        }
+        if (hasReason(details, RiskReasonCodeEnum.INPUT_MISSING)) {
+            return RiskReasonCodeEnum.INPUT_MISSING;
+        }
+        if (hasReason(details, RiskReasonCodeEnum.NOT_CONFIGURED)) {
+            return RiskReasonCodeEnum.NOT_CONFIGURED;
+        }
+        if (hasReason(details, RiskReasonCodeEnum.NOT_ENABLED)) {
+            return RiskReasonCodeEnum.NOT_ENABLED;
+        }
+        return RiskReasonCodeEnum.NO_APPLICABLE_RULE;
+    }
+
+    /**
+     * 判断审计明细中是否包含指定稳定原因码。
+     */
+    private boolean hasReason(List<RiskListMatch> details, RiskReasonCodeEnum reasonCode) {
+        return details.stream().anyMatch(detail -> detail != null
+                && reasonCode.getCode().equalsIgnoreCase(detail.getReasonCode()));
     }
 
     /**
@@ -1353,6 +1400,10 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             return requestDTO.getBillingCountry();
         }
         return requestDTO.getSubMerchantCountryCode();
+    }
+
+    private String digestIp(String value) {
+        return StringUtils.hasText(value) ? RedisKeyDigest.sha256(value.trim()) : null;
     }
 
     /** Return an audit label that preserves whether the transaction country came from billing or sub-merchant data. */
@@ -1438,6 +1489,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         message.setTransactionCurrency(requestDTO.getCurrency());
         message.setRiskLevel(highestRiskLevel(outcome.getHits()));
         message.setDecisionResult(outcome.getResult().getDecision());
+        message.setDecisionReasonCode(outcome.getResult().getReasonCode());
         message.setDecisionReason(outcome.getResult().getReasonMessage());
         message.setHitCount(hitCount(outcome.getHits(), outcome.getResult().getDecision()));
         message.setEvaluationTime(outcome.getResult().getDecisionTime());
@@ -1461,6 +1513,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         message.setHitValueMasked(match.getHitValueMasked());
         message.setRiskLevel(match.getRiskLevel());
         message.setDecisionAction(match.getDecisionAction());
+        message.setReasonCode(match.getReasonCode());
         message.setDecisionReason(match.getDecisionReason());
         message.setTimeWindowSeconds(match.getTimeWindowSeconds());
         message.setThresholdCount(match.getThresholdCount());
@@ -1534,27 +1587,6 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
-     * 检查兼容骨架规则中的来源 URL 阻断关键词。
-     *
-     * @param sourceUrl 商户请求来源页面 URL，仅在内存中比较且不得完整写入日志
-     * @return 忽略大小写后包含受控阻断关键词时返回 {@code true}
-     */
-    private boolean isBlockedSource(String sourceUrl) {
-        return StringUtils.hasText(sourceUrl)
-                && sourceUrl.toLowerCase(Locale.ROOT).contains(BLOCKED_SOURCE_KEYWORD);
-    }
-
-    /**
-     * 检查兼容骨架规则中的精确付款方 IP 阻断集合。
-     *
-     * @param payerIp 已由请求提供的付款方 IP
-     * @return 去除首尾空白后命中固定阻断集合时返回 {@code true}
-     */
-    private boolean isBlockedPayerIp(String payerIp) {
-        return StringUtils.hasText(payerIp) && BLOCKED_PAYER_IPS.contains(payerIp.trim());
-    }
-
-    /**
      * 判断请求是否携带至少一种 3DS 验证证明。
      *
      * @param requestDTO 当前支付风控请求
@@ -1599,6 +1631,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     private record LookupContext(RiskRuntimeLookupValue cardNoLookup,
                                  RiskRuntimeLookupValue cardFingerprintLookup,
                                  RiskRuntimeLookupValue cardBinLookup,
+                                 RiskRuntimeLookupValue ingressIpLookup,
                                  RiskRuntimeLookupValue ipLookup,
                                  RiskRuntimeLookupValue billingEmailLookup,
                                  RiskRuntimeLookupValue billingEmailDomainLookup,
@@ -1635,7 +1668,8 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                  RiskRuntimeLookupValue shippingPhoneLookup,
                                  RiskRuntimeLookupValue shippingRegionLookup,
                                  RiskRuntimeLookupValue customerIdLookup,
-                                 RiskRuntimeLookupValue deviceFingerprintLookup) {
+                                 RiskRuntimeLookupValue deviceFingerprintLookup,
+                                 Set<RiskListFunction> enabledMerchantFunctions) {
     }
 
     /** 三个独立只读规则组完成后交给请求线程确定性汇总的结果。 */

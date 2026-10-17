@@ -11,17 +11,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @classname : PayoutClientProperties
  * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : Payout Client Properties 配置属性模型，位于 商户开放接口服务，绑定 application 配置项并提供运行时默认值。
+ * @description : service-openapi 调用 service-payout 的客户端配置，维护固定调用方和内部服务签名密钥。
  * @status : create
  */
 @Data
 @ConfigurationProperties(prefix = "openapi.payout-client")
 public class PayoutClientProperties {
-
-    /**
-     * 是否启用远程 service-payout 调用。
-     */
-    private boolean remoteEnabled = true;
 
     /**
      * 内部服务调用方标识，用于 service-payout 审计调用来源。
@@ -33,11 +28,9 @@ public class PayoutClientProperties {
      */
     private String internalSecret;
 
-    /** 远程调用开启时校验固定调用方和 Nacos 注入的 active 密钥。 */
+    /** 校验固定调用方和 Nacos 注入的 active 密钥，禁止无密钥启动代付入口。 */
     public void validate() {
-        if (remoteEnabled) {
-            InternalServiceClientCredentialValidator.validate(
-                    "openapi payout-client", "service-openapi", internalCaller, internalSecret);
-        }
+        InternalServiceClientCredentialValidator.validate(
+                "openapi payout-client", "service-openapi", internalCaller, internalSecret);
     }
 }

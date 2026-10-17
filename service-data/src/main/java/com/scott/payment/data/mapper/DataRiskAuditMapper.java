@@ -41,11 +41,11 @@ public interface DataRiskAuditMapper {
             INSERT INTO risk_evaluation_record (
                 risk_record_no, merchant_id, merchant_order_no, payment_order_no,
                 transaction_amount, transaction_currency, risk_level, decision_result,
-                decision_reason, hit_count, evaluation_time
+                decision_reason_code, decision_reason, hit_count, evaluation_time
             ) VALUES (
                 #{riskRecordNo}, #{merchantId}, #{merchantOrderNo}, #{paymentOrderNo},
                 #{transactionAmount}, #{transactionCurrency}, #{riskLevel}, #{decisionResult},
-                #{decisionReason}, #{hitCount}, #{evaluationTime}
+                #{decisionReasonCode}, #{decisionReason}, #{hitCount}, #{evaluationTime}
             )
             """)
     int insertEvaluationRecord(@Param("riskRecordNo") String riskRecordNo,
@@ -56,6 +56,7 @@ public interface DataRiskAuditMapper {
                                @Param("transactionCurrency") String transactionCurrency,
                                @Param("riskLevel") String riskLevel,
                                @Param("decisionResult") String decisionResult,
+                               @Param("decisionReasonCode") String decisionReasonCode,
                                @Param("decisionReason") String decisionReason,
                                @Param("hitCount") Integer hitCount,
                                @Param("evaluationTime") LocalDateTime evaluationTime);
@@ -72,13 +73,13 @@ public interface DataRiskAuditMapper {
             INSERT INTO risk_evaluation_hit_detail (
                 risk_record_no, module_type, function_code, function_name, rule_id,
                 hit_element, hit_value_masked, risk_level, decision_result,
-                decision_reason, decision_time, time_window_seconds, threshold_count,
+                reason_code, decision_reason, decision_time, time_window_seconds, threshold_count,
                 elements_json, current_count, stage_code, stage_name, stage_order,
                 match_result, decision_effect
             ) VALUES (
                 #{riskRecordNo}, #{hit.moduleType}, #{hit.functionCode}, #{hit.functionName}, #{hit.ruleId},
                 #{hit.hitElement}, #{hit.hitValueMasked}, #{hit.riskLevel}, #{hit.decisionAction},
-                #{hit.decisionReason}, #{decisionTime}, #{hit.timeWindowSeconds}, #{hit.thresholdCount},
+                #{hit.reasonCode}, #{hit.decisionReason}, #{decisionTime}, #{hit.timeWindowSeconds}, #{hit.thresholdCount},
                 #{hit.elementsJson}, #{hit.currentCount}, #{hit.stageCode}, #{hit.stageName}, #{hit.stageOrder},
                 #{hit.matchResult}, #{hit.decisionEffect}
             )

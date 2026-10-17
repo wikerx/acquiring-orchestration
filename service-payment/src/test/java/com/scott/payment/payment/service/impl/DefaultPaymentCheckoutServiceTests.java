@@ -680,7 +680,8 @@ class DefaultPaymentCheckoutServiceTests {
                 .isEqualTo("buyer@example.com");
         assertThat(createCommandCaptor.getValue().getPayerInfo().getEmail())
                 .isEqualTo("merchant-payer@example.com");
-        assertThat(createCommandCaptor.getValue().getPayerIp()).isEqualTo("203.0.113.10");
+        assertThat(createCommandCaptor.getValue().getIngressClientIp()).isEqualTo("198.51.100.11");
+        assertThat(createCommandCaptor.getValue().getPayerIp()).isEqualTo("198.51.100.11");
         assertThat(createCommandCaptor.getValue().getPayerInfo().getSessionId()).isEqualTo("SESSION-001");
         assertThat(createCommandCaptor.getValue().getSubMerchantInfo().getSubId()).isEqualTo("SUB-1001");
         assertThat(createCommandCaptor.getValue().getShippingInfo().getStreet())

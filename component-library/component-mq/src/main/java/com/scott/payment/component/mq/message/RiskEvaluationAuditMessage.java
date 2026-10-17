@@ -47,6 +47,9 @@ public class RiskEvaluationAuditMessage extends BaseMqMessage {
     /** 最终风控决策：ALLOW、BLOCK、REVIEW 或 CHALLENGE。 */
     private String decisionResult;
 
+    /** 最终决策的稳定原因码，用于审计检索和跨服务统计。 */
+    private String decisionReasonCode;
+
     /** 决策原因摘要，不包含原始敏感匹配值。 */
     private String decisionReason;
 

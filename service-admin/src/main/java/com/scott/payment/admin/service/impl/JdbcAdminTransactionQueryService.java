@@ -11,6 +11,8 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionO
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPaymentMethodSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPayerInfoResponse;
@@ -18,6 +20,7 @@ import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
@@ -91,7 +94,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     /** 主单查询稳定显式投影，避免分片元数据刷新期间 SELECT * 产生列序错读。 */
     private static final String ORDER_QUERY_COLUMNS = """
             operation_id, root_transaction_id, latest_transaction_id, merchant_id,
-            merchant_order_no, merchant_order_id, payment_method, payment_brand,
+            merchant_order_no, merchant_order_id, merchant_website, payment_method, payment_brand,
             transaction_type, transaction_status, process_stage,
             label_currency, label_amount, transaction_currency, transaction_amount,
             currency_exponent, transaction_rate, dcc_enabled, edc_enabled,
@@ -114,7 +117,8 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             o.acquirer_reference_no, o.settlement_currency, o.settlement_amount,
             o.settlement_rate, o.settlement_date, o.settlement_batch_no,
             o.settlement_status, o.reconciliation_status, o.accounting_status,
-            o.channel_match_status, o.transaction_date_time, o.operation_time, o.request_source
+            o.channel_match_status, o.transaction_date_time, o.operation_time, o.request_source,
+            o.ingress_client_ip
             """;
     /** 付款人、账单和收货信息均按交易时间路由到季度分片。 */
     private static final String TRANSACTION_PAYER_INFO_TABLE = "transaction_payer_info";
@@ -330,6 +334,39 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             return emptyPage(safeQuery);
         }
         return executeRead(false, () -> pageOrdersNormalized(safeQuery));
+    }
+
+    /**
+     * 查询生命周期主单分页结果及相同条件下的全量统计。
+     *
+     * @param query 交易筛选和分页条件
+     * @return 主单分页和全量统计
+     */
+    @Override
+    public TransactionOrderSearchResponse searchOrders(TransactionPageQuery query) {
+        TransactionPageQuery safeQuery = normalize(query);
+        if (isEmptyTimeRange(safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+            TransactionOrderSearchResponse response = new TransactionOrderSearchResponse();
+            response.setPage(emptyPage(safeQuery));
+            response.setSummary(new TransactionOrderSummaryResponse());
+            return response;
+        }
+        return executeRead(false, () -> searchOrdersNormalized(safeQuery));
+    }
+
+    private TransactionOrderSearchResponse searchOrdersNormalized(TransactionPageQuery safeQuery) {
+        TransactionOrderSummaryResponse summary = orderSummary(safeQuery);
+        long offset = offset(safeQuery);
+        long limit = safeQuery.safePageSize();
+        List<TransactionOrderResponse> rows = offset < summary.getTotalCount()
+                ? selectOrders(TRANSACTION_ORDER_TABLE, safeQuery, offset, limit)
+                : List.of();
+        enrichOrderThreeDs(rows);
+        TransactionOrderSearchResponse response = new TransactionOrderSearchResponse();
+        response.setPage(PageResult.of(
+                summary.getTotalCount(), safeQuery.safePageNo(), safeQuery.safePageSize(), rows));
+        response.setSummary(summary);
+        return response;
     }
 
     /**
@@ -1086,18 +1123,22 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
     }
 
+    /**
+     * 按标签币种汇总交易操作。标签金额是商户看到的原始金额，不能在 DCC/EDC 场景下
+     * 使用交易币种、交易金额或交易币种辅币位替代。
+     */
     private TransactionOperationSummaryResponse operationSummary(TransactionPageQuery query) {
         SummaryAccumulator accumulator = new SummaryAccumulator();
         jdbcTemplate.query("""
                     SELECT o.transaction_status AS transaction_status,
-                           COALESCE(o.transaction_currency, 'UNKNOWN') AS currency,
-                           o.currency_exponent AS currency_exponent,
+                           COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN') AS currency,
                            COUNT(1) AS count,
-                           COALESCE(SUM(COALESCE(o.transaction_amount, 0)), 0) AS amount
+                           COALESCE(SUM(COALESCE(o.label_amount, 0)), 0) AS amount
                     FROM %s o
                     WHERE o.deleted = 0
                     %s
-                    GROUP BY o.transaction_status, COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent
+                    GROUP BY o.transaction_status, COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN')
+                    ORDER BY currency ASC
                     """.formatted(TRANSACTION_OPERATION_TABLE,
                     operationWhereSql(query, TRANSACTION_PAYMENT_METHOD_INFO_TABLE)),
                     operationParams(query), summaryMapper())
@@ -1105,21 +1146,59 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         jdbcTemplate.query("""
                     SELECT COALESCE(p.payment_method, 'UNKNOWN') AS payment_method,
                            p.payment_brand AS payment_brand,
-                           COALESCE(o.transaction_currency, 'UNKNOWN') AS currency,
-                           o.currency_exponent AS currency_exponent,
+                           COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN') AS currency,
                            COUNT(1) AS count,
-                           COALESCE(SUM(COALESCE(o.transaction_amount, 0)), 0) AS amount
+                           COALESCE(SUM(COALESCE(o.label_amount, 0)), 0) AS amount
                     FROM %s o
                     LEFT JOIN %s p ON p.transaction_id = o.transaction_id AND p.transaction_date_time = o.transaction_date_time
                     WHERE o.deleted = 0
                     %s
-                    GROUP BY COALESCE(p.payment_method, 'UNKNOWN'), p.payment_brand, COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent
+                    GROUP BY COALESCE(p.payment_method, 'UNKNOWN'), p.payment_brand,
+                             COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN')
+                    ORDER BY payment_method ASC, payment_brand ASC, currency ASC
                     """.formatted(
                     TRANSACTION_OPERATION_TABLE,
                     TRANSACTION_PAYMENT_METHOD_INFO_TABLE,
                     operationWhereSql(query, TRANSACTION_PAYMENT_METHOD_INFO_TABLE)),
                     operationParams(query), summaryMapper())
                     .forEach(accumulator::addPayment);
+        return accumulator.toResponse();
+    }
+
+    private TransactionOrderSummaryResponse orderSummary(TransactionPageQuery query) {
+        OrderSummaryAccumulator accumulator = new OrderSummaryAccumulator();
+        jdbcTemplate.query("""
+                SELECT COALESCE(transaction_currency, 'UNKNOWN') AS currency,
+                       currency_exponent,
+                       COUNT(1) AS total_count,
+                       COALESCE(SUM(CASE WHEN transaction_status = 'SUCCESS' THEN 1 ELSE 0 END), 0) AS success_count,
+                       COALESCE(SUM(CASE WHEN transaction_status = 'FAILED' THEN 1 ELSE 0 END), 0) AS failed_count,
+                       COALESCE(SUM(CASE WHEN transaction_status IN ('PENDING', 'PROCESSING') THEN 1 ELSE 0 END), 0) AS processing_count,
+                       COALESCE(SUM(CASE WHEN captured_amount > 0 THEN 1 ELSE 0 END), 0) AS captured_count,
+                       COALESCE(SUM(transaction_amount), 0) AS total_amount,
+                       COALESCE(SUM(CASE WHEN transaction_status = 'SUCCESS' THEN transaction_amount ELSE 0 END), 0) AS success_amount,
+                       COALESCE(SUM(CASE WHEN captured_amount > 0 THEN captured_amount ELSE 0 END), 0) AS captured_amount,
+                       COALESCE(SUM(CASE WHEN transaction_status = 'FAILED' THEN transaction_amount ELSE 0 END), 0) AS failed_amount
+                FROM %s
+                WHERE deleted = 0
+                %s
+                GROUP BY COALESCE(transaction_currency, 'UNKNOWN'), currency_exponent
+                ORDER BY currency ASC
+                """.formatted(TRANSACTION_ORDER_TABLE, orderWhereSql(query)),
+                orderParams(query),
+                (rs, rowNum) -> new OrderSummaryRow(
+                        rs.getString("currency"),
+                        nullableInt(rs, "currency_exponent"),
+                        rs.getLong("total_count"),
+                        rs.getLong("success_count"),
+                        rs.getLong("failed_count"),
+                        rs.getLong("processing_count"),
+                        rs.getLong("captured_count"),
+                        rs.getBigDecimal("total_amount"),
+                        rs.getBigDecimal("success_amount"),
+                        rs.getBigDecimal("captured_amount"),
+                        rs.getBigDecimal("failed_amount")))
+                .forEach(accumulator::add);
         return accumulator.toResponse();
     }
 
@@ -1417,6 +1496,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setMerchantId(rs.getString("merchant_id"));
             row.setMerchantOrderNo(rs.getString("merchant_order_no"));
             row.setMerchantOrderId(rs.getString("merchant_order_id"));
+            row.setMerchantWebsite(getStringIfExists(rs, "merchant_website"));
             row.setPaymentMethod(rs.getString("payment_method"));
             row.setPaymentBrand(rs.getString("payment_brand"));
             row.setTransactionType(rs.getString("transaction_type"));
@@ -1514,6 +1594,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setTransactionDateTime(localDateTime(rs, "transaction_date_time"));
             row.setOperationTime(localDateTime(rs, "operation_time"));
             row.setAccessType(resolveAccessType(getStringIfExists(rs, "request_source")));
+            row.setIngressClientIp(getStringIfExists(rs, "ingress_client_ip"));
             return row;
         };
     }
@@ -1531,9 +1612,17 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 getStringIfExists(rs, "payment_method"),
                 getStringIfExists(rs, "payment_brand"),
                 rs.getString("currency"),
-                nullableInt(rs, "currency_exponent"),
+                resolveLabelCurrencyExponent(rs.getString("currency")),
                 rs.getLong("count"),
                 rs.getBigDecimal("amount"));
+    }
+
+    /** ISO 4217 辅币位属于标签币种，无法识别时保留为空，禁止静默按两位小数展示。 */
+    private static Integer resolveLabelCurrencyExponent(String currency) {
+        return IsoCurrencyResolver.resolve(currency)
+                .map(info -> info.defaultFractionDigits())
+                .filter(exponent -> exponent >= 0)
+                .orElse(null);
     }
 
     private TransactionOperationResponse selectOperationByTransactionId(String table,
@@ -1842,66 +1931,92 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                               BigDecimal amount) {
     }
 
+    private record OrderSummaryRow(String currency,
+                                   Integer currencyExponent,
+                                   long totalCount,
+                                   long successCount,
+                                   long failedCount,
+                                   long processingCount,
+                                   long capturedCount,
+                                   BigDecimal totalAmount,
+                                   BigDecimal successAmount,
+                                   BigDecimal capturedAmount,
+                                   BigDecimal failedAmount) {
+    }
+
+    /** 汇总单次分币种查询结果，避免为四类订单指标重复扫描交易主单。 */
+    private static final class OrderSummaryAccumulator {
+
+        private long totalCount;
+        private long successCount;
+        private long failedCount;
+        private long processingCount;
+        private long capturedCount;
+        private final List<TransactionAmountSummaryResponse> amounts = new ArrayList<>();
+        private final List<TransactionAmountSummaryResponse> successAmounts = new ArrayList<>();
+        private final List<TransactionAmountSummaryResponse> capturedAmounts = new ArrayList<>();
+        private final List<TransactionAmountSummaryResponse> failedAmounts = new ArrayList<>();
+
+        private void add(OrderSummaryRow row) {
+            totalCount += row.totalCount();
+            successCount += row.successCount();
+            failedCount += row.failedCount();
+            processingCount += row.processingCount();
+            capturedCount += row.capturedCount();
+            if (row.totalCount() > 0) {
+                amounts.add(amount(row.currency(), row.currencyExponent(), row.totalAmount()));
+            }
+            if (row.successCount() > 0) {
+                successAmounts.add(amount(row.currency(), row.currencyExponent(), row.successAmount()));
+            }
+            if (row.capturedCount() > 0) {
+                capturedAmounts.add(amount(row.currency(), row.currencyExponent(), row.capturedAmount()));
+            }
+            if (row.failedCount() > 0) {
+                failedAmounts.add(amount(row.currency(), row.currencyExponent(), row.failedAmount()));
+            }
+        }
+
+        private TransactionAmountSummaryResponse amount(String currency,
+                                                        Integer currencyExponent,
+                                                        BigDecimal value) {
+            TransactionAmountSummaryResponse response = new TransactionAmountSummaryResponse();
+            response.setCurrency(currency);
+            response.setCurrencyExponent(currencyExponent);
+            response.setAmount(value == null ? BigDecimal.ZERO : value);
+            return response;
+        }
+
+        private TransactionOrderSummaryResponse toResponse() {
+            TransactionOrderSummaryResponse response = new TransactionOrderSummaryResponse();
+            response.setTotalCount(totalCount);
+            response.setSuccessCount(successCount);
+            response.setFailedCount(failedCount);
+            response.setProcessingCount(processingCount);
+            response.setCapturedCount(capturedCount);
+            response.setAmountSummaries(amounts);
+            response.setSuccessAmountSummaries(successAmounts);
+            response.setCapturedAmountSummaries(capturedAmounts);
+            response.setFailedAmountSummaries(failedAmounts);
+            return response;
+        }
+    }
+
     private static final class SummaryAccumulator {
 
-        /**
-         * 合计计数，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+        /** 当前筛选条件命中的交易操作单数量。 */
         private long totalCount;
-        /**
-         * 成功计数，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+        /** 当前筛选条件中成功的交易操作单数量。 */
         private long successCount;
-        /**
-         * 失败计数，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+        /** 当前筛选条件中失败的交易操作单数量。 */
         private long failedCount;
-        /**
-         * 按币种归集的交易金额汇总，用于列表统计展示。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
+        /** 按标签币种归集的全部标签金额，禁止跨币种相加。 */
         private final Map<String, TransactionAmountSummaryResponse> amounts = new LinkedHashMap<>();
-        /**
-         * 按币种归集的成功交易金额汇总。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
+        /** 按标签币种归集的成功交易标签金额。 */
         private final Map<String, TransactionAmountSummaryResponse> successAmounts = new LinkedHashMap<>();
-        /**
-         * 按币种归集的失败交易金额汇总。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
+        /** 按标签币种归集的失败交易标签金额。 */
         private final Map<String, TransactionAmountSummaryResponse> failedAmounts = new LinkedHashMap<>();
-        /**
-         * {@code payments}字段，保存 {@code SummaryAccumulator} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+        /** 按支付方式和支付品牌分组，并在每组内按标签币种归集金额。 */
         private final Map<String, TransactionPaymentMethodSummaryResponse> payments = new LinkedHashMap<>();
 
         private void addAmount(SummaryRow row) {

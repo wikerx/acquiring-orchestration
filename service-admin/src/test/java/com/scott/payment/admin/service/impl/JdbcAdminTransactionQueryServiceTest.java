@@ -3,6 +3,8 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSummaryResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.component.db.constant.DataSourceName;
@@ -221,6 +223,164 @@ class JdbcAdminTransactionQueryServiceTest {
         service.pageOrders(query);
 
         assertThat(query.getPageSize()).isEqualTo(7);
+    }
+
+    /** 支付方式汇总必须使用标签金额，并按标签币种解析 ISO 4217 辅币位。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationSummaryShouldAggregateLabelAmountsWithLabelCurrencyExponent() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        ResultSet jpyAmount = operationSummaryResultSet("SUCCESS", null, null, "JPY", 2L, "1200");
+        ResultSet kwdAmount = operationSummaryResultSet("FAILED", null, null, "KWD", 1L, "12.345");
+        ResultSet jpyPayment = operationSummaryResultSet(null, "BANK_CARD", "VISA", "JPY", 2L, "1200");
+        ResultSet kwdPayment = operationSummaryResultSet(null, "BANK_CARD", "VISA", "KWD", 1L, "12.345");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    RowMapper<Object> mapper = invocation.getArgument(2);
+                    if (sql.contains("AS payment_method")) {
+                        return List.of(mapper.mapRow(jpyPayment, 0), mapper.mapRow(kwdPayment, 1));
+                    }
+                    return List.of(mapper.mapRow(jpyAmount, 0), mapper.mapRow(kwdAmount, 1));
+                });
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setBeginTime(LocalDateTime.of(2026, 10, 17, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 10, 18, 0, 0));
+
+        TransactionOperationSummaryResponse response = ReflectionTestUtils.invokeMethod(service, "operationSummary", query);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getTotalCount()).isEqualTo(3L);
+        assertThat(response.getAmountSummaries()).extracting("currency", "currencyExponent", "amount")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("JPY", 0, new BigDecimal("1200")),
+                        org.assertj.core.groups.Tuple.tuple("KWD", 3, new BigDecimal("12.345")));
+        assertThat(response.getPaymentMethodSummaries()).singleElement().satisfies(payment -> {
+            assertThat(payment.getCount()).isEqualTo(3L);
+            assertThat(payment.getPaymentMethod()).isEqualTo("BANK_CARD");
+            assertThat(payment.getPaymentBrand()).isEqualTo("VISA");
+            assertThat(payment.getAmountSummaries()).extracting("currency", "currencyExponent", "amount")
+                    .containsExactly(
+                            org.assertj.core.groups.Tuple.tuple("JPY", 0, new BigDecimal("1200")),
+                            org.assertj.core.groups.Tuple.tuple("KWD", 3, new BigDecimal("12.345")));
+        });
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeast(2)).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertThat(sqlCaptor.getAllValues()).allSatisfy(sql -> assertThat(sql)
+                .contains("o.label_currency", "o.label_amount")
+                .doesNotContain("o.transaction_currency", "o.transaction_amount", "o.currency_exponent"));
+    }
+
+    private ResultSet operationSummaryResultSet(String transactionStatus,
+                                                String paymentMethod,
+                                                String paymentBrand,
+                                                String currency,
+                                                long count,
+                                                String amount) throws Exception {
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("transaction_status")).thenReturn(transactionStatus);
+        when(resultSet.getString("payment_method")).thenReturn(paymentMethod);
+        when(resultSet.getString("payment_brand")).thenReturn(paymentBrand);
+        when(resultSet.getString("currency")).thenReturn(currency);
+        when(resultSet.getLong("count")).thenReturn(count);
+        when(resultSet.getBigDecimal("amount")).thenReturn(new BigDecimal(amount));
+        return resultSet;
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchOrdersShouldReturnFullQuerySummaryIncludingCapturedAndProcessing() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        ResultSet hkdSummary = orderSummaryResultSet(
+                "HKD", 2, 7L, 5L, 1L, 1L, 4L,
+                "1000.10", "800.10", "700.10", "100.00");
+        ResultSet usdSummary = orderSummaryResultSet(
+                "USD", 2, 3L, 1L, 1L, 1L, 0L,
+                "200.00", "100.00", "0.00", "50.00");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    if (!sql.contains("GROUP BY COALESCE(transaction_currency")) {
+                        return Collections.emptyList();
+                    }
+                    RowMapper<Object> mapper = invocation.getArgument(2);
+                    return List.of(mapper.mapRow(hkdSummary, 0), mapper.mapRow(usdSummary, 1));
+                });
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setBeginTime(LocalDateTime.of(2026, 10, 17, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 10, 18, 0, 0));
+
+        TransactionOrderSearchResponse response = service.searchOrders(query);
+
+        assertThat(response.getPage().getTotal()).isEqualTo(10L);
+        assertThat(response.getSummary().getTotalCount()).isEqualTo(10L);
+        assertThat(response.getSummary().getSuccessCount()).isEqualTo(6L);
+        assertThat(response.getSummary().getFailedCount()).isEqualTo(2L);
+        assertThat(response.getSummary().getProcessingCount()).isEqualTo(2L);
+        assertThat(response.getSummary().getCapturedCount()).isEqualTo(4L);
+        assertThat(response.getSummary().getAmountSummaries()).satisfiesExactly(
+                amount -> assertThat(amount).extracting(
+                        "currency", "currencyExponent", "amount")
+                        .containsExactly("HKD", 2, new BigDecimal("1000.10")),
+                amount -> assertThat(amount).extracting(
+                        "currency", "currencyExponent", "amount")
+                        .containsExactly("USD", 2, new BigDecimal("200.00")));
+        assertThat(response.getSummary().getSuccessAmountSummaries()).extracting("currency", "amount")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("HKD", new BigDecimal("800.10")),
+                        org.assertj.core.groups.Tuple.tuple("USD", new BigDecimal("100.00")));
+        assertThat(response.getSummary().getCapturedAmountSummaries()).extracting("currency", "amount")
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("HKD", new BigDecimal("700.10")));
+        assertThat(response.getSummary().getFailedAmountSummaries()).extracting("currency", "amount")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("HKD", new BigDecimal("100.00")),
+                        org.assertj.core.groups.Tuple.tuple("USD", new BigDecimal("50.00")));
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeast(1)).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        String summarySql = sqlCaptor.getAllValues().stream()
+                .filter(sql -> sql.contains("GROUP BY COALESCE(transaction_currency"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(summarySql)
+                .contains("SUM(CASE WHEN transaction_status = 'SUCCESS' THEN 1 ELSE 0 END)")
+                .contains("SUM(CASE WHEN transaction_status = 'FAILED' THEN 1 ELSE 0 END)")
+                .contains("SUM(CASE WHEN transaction_status IN ('PENDING', 'PROCESSING') THEN 1 ELSE 0 END)")
+                .contains("SUM(CASE WHEN captured_amount > 0 THEN 1 ELSE 0 END)")
+                .contains("SUM(CASE WHEN captured_amount > 0 THEN captured_amount ELSE 0 END)")
+                .contains("GROUP BY COALESCE(transaction_currency, 'UNKNOWN'), currency_exponent")
+                .contains("FROM transaction_order")
+                .doesNotContain("transaction_order_2026");
+    }
+
+    private ResultSet orderSummaryResultSet(String currency,
+                                            int currencyExponent,
+                                            long totalCount,
+                                            long successCount,
+                                            long failedCount,
+                                            long processingCount,
+                                            long capturedCount,
+                                            String totalAmount,
+                                            String successAmount,
+                                            String capturedAmount,
+                                            String failedAmount) throws Exception {
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("currency")).thenReturn(currency);
+        when(resultSet.getInt("currency_exponent")).thenReturn(currencyExponent);
+        when(resultSet.wasNull()).thenReturn(false);
+        when(resultSet.getLong("total_count")).thenReturn(totalCount);
+        when(resultSet.getLong("success_count")).thenReturn(successCount);
+        when(resultSet.getLong("failed_count")).thenReturn(failedCount);
+        when(resultSet.getLong("processing_count")).thenReturn(processingCount);
+        when(resultSet.getLong("captured_count")).thenReturn(capturedCount);
+        when(resultSet.getBigDecimal("total_amount")).thenReturn(new BigDecimal(totalAmount));
+        when(resultSet.getBigDecimal("success_amount")).thenReturn(new BigDecimal(successAmount));
+        when(resultSet.getBigDecimal("captured_amount")).thenReturn(new BigDecimal(capturedAmount));
+        when(resultSet.getBigDecimal("failed_amount")).thenReturn(new BigDecimal(failedAmount));
+        return resultSet;
     }
 
     /** 详情首查必须使用列表返回的毫秒分片时间精确定位动作单。 */

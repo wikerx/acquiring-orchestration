@@ -7,6 +7,7 @@ import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSearchResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionPageQuery;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,71 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class JdbcMerchantTransactionQueryServiceTests {
+
+    /** 商户端支付方式汇总必须使用标签金额，并按标签币种解析 ISO 4217 辅币位。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationSummaryShouldAggregateLabelAmountsWithLabelCurrencyExponent() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        ResultSet jpyAmount = operationSummaryResultSet("SUCCESS", null, null, "JPY", 2L, "1200");
+        ResultSet kwdAmount = operationSummaryResultSet("FAILED", null, null, "KWD", 1L, "12.345");
+        ResultSet jpyPayment = operationSummaryResultSet(null, "BANK_CARD", "VISA", "JPY", 2L, "1200");
+        ResultSet kwdPayment = operationSummaryResultSet(null, "BANK_CARD", "VISA", "KWD", 1L, "12.345");
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    RowMapper<Object> mapper = invocation.getArgument(2);
+                    if (sql.contains("AS payment_method")) {
+                        return List.of(mapper.mapRow(jpyPayment, 0), mapper.mapRow(kwdPayment, 1));
+                    }
+                    return List.of(mapper.mapRow(jpyAmount, 0), mapper.mapRow(kwdAmount, 1));
+                });
+        JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setMerchantId("merchant-a");
+        query.setBeginTime(LocalDateTime.of(2026, 10, 17, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 10, 18, 0, 0));
+
+        TransactionOperationSummaryResponse response = ReflectionTestUtils.invokeMethod(service, "operationSummary", query);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getTotalCount()).isEqualTo(3L);
+        assertThat(response.getAmountSummaries()).extracting("currency", "currencyExponent", "amount")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("JPY", 0, new BigDecimal("1200")),
+                        org.assertj.core.groups.Tuple.tuple("KWD", 3, new BigDecimal("12.345")));
+        assertThat(response.getPaymentMethodSummaries()).singleElement().satisfies(payment -> {
+            assertThat(payment.getCount()).isEqualTo(3L);
+            assertThat(payment.getPaymentMethod()).isEqualTo("BANK_CARD");
+            assertThat(payment.getPaymentBrand()).isEqualTo("VISA");
+            assertThat(payment.getAmountSummaries()).extracting("currency", "currencyExponent", "amount")
+                    .containsExactly(
+                            org.assertj.core.groups.Tuple.tuple("JPY", 0, new BigDecimal("1200")),
+                            org.assertj.core.groups.Tuple.tuple("KWD", 3, new BigDecimal("12.345")));
+        });
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeast(2)).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertThat(sqlCaptor.getAllValues()).allSatisfy(sql -> assertThat(sql)
+                .contains("o.label_currency", "o.label_amount")
+                .doesNotContain("o.transaction_currency", "o.transaction_amount", "o.currency_exponent"));
+    }
+
+    private ResultSet operationSummaryResultSet(String transactionStatus,
+                                                String paymentMethod,
+                                                String paymentBrand,
+                                                String currency,
+                                                long count,
+                                                String amount) throws Exception {
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("transaction_status")).thenReturn(transactionStatus);
+        when(resultSet.getString("payment_method")).thenReturn(paymentMethod);
+        when(resultSet.getString("payment_brand")).thenReturn(paymentBrand);
+        when(resultSet.getString("currency")).thenReturn(currency);
+        when(resultSet.getLong("count")).thenReturn(count);
+        when(resultSet.getBigDecimal("amount")).thenReturn(new BigDecimal(amount));
+        return resultSet;
+    }
 
     /** 商户 3DS 富化必须批量回退，并在两类查询中绑定当前商户。 */
     @Test

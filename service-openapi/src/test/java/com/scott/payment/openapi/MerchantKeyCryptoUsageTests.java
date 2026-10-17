@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
-class MerchantKeyCryptoUsageTests {
+class MerchantKeyCryptoUsageTests extends OpenApiIsolatedMysqlIntegrationTest {
 
     /**
      * 测试商户号。

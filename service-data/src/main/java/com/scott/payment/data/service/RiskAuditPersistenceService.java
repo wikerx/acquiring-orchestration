@@ -59,6 +59,7 @@ public class RiskAuditPersistenceService {
                     message.getTransactionCurrency(),
                     message.getRiskLevel(),
                     message.getDecisionResult(),
+                    message.getDecisionReasonCode(),
                     message.getDecisionReason(),
                     message.getHitCount() == null ? 0 : message.getHitCount(),
                     evaluationTime

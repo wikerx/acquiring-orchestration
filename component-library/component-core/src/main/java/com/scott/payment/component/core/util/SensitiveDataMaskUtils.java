@@ -1,5 +1,11 @@
 package com.scott.payment.component.core.util;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
+
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.function.UnaryOperator;
@@ -21,6 +27,9 @@ public final class SensitiveDataMaskUtils {
      */
     private static final String MASK_FAILED_PLACEHOLDER = "***MASK_FAILED***";
 
+    /** 嵌套 JSON 字符串递归上限，避免异常深度载荷消耗线程栈。 */
+    private static final int MAX_JSON_MASK_DEPTH = 8;
+
     /**
      * 密钥类字段统一替换为固定星号，禁止日志中出现任何明文片段。
      */
@@ -41,7 +50,7 @@ public final class SensitiveDataMaskUtils {
      * IP 与卡 BIN 检索条件可识别具体查询对象，诊断日志中不保留任何明文片段。
      */
     private static final Pattern REFERENCE_LOOKUP_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:ipAddress|payerIp|cardBin)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:ipAddress|payerIp|ingressClientIp|cardBin)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -97,7 +106,7 @@ public final class SensitiveDataMaskUtils {
      * 姓名、地址、客户标识和设备指纹不保留明文片段。
      */
     private static final Pattern PERSONAL_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:firstName|lastName|cardholderName|nameOnCard|legalPerson|enterprise|subName|subCompanyName|customerId|deviceFingerprint|billingAddress|shippingAddress|merchantBillingAddress|street|subStreet)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:firstName|lastName|cardholderName|nameOnCard|legalPerson|enterprise|company|companyName|subName|subCompanyName|customerId|deviceFingerprint|address|billingAddress|shippingAddress|merchantBillingAddress|street|subStreet)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -131,7 +140,17 @@ public final class SensitiveDataMaskUtils {
         if (json == null || json.isEmpty()) {
             return json;
         }
-        String masked = SECRET_FIELD_PATTERN.matcher(json).replaceAll("$1***$3");
+        Object jsonValue = parseJsonValue(json);
+        if (jsonValue != null) {
+            maskJsonValue(jsonValue, 0);
+            return JSON.toJSONString(jsonValue);
+        }
+        return maskFlatText(json);
+    }
+
+    /** 对非 JSON 文本保留原正则脱敏能力，兼容 form-urlencoded 和日志片段。 */
+    private static String maskFlatText(String value) {
+        String masked = SECRET_FIELD_PATTERN.matcher(value).replaceAll("$1***$3");
         masked = maskCardNo(masked);
         masked = REFERENCE_LOOKUP_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         masked = maskAccountNumber(masked);
@@ -142,6 +161,171 @@ public final class SensitiveDataMaskUtils {
         masked = PERSONAL_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         masked = MERCHANT_WEBSITE_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         return FORM_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***");
+    }
+
+    /** 递归处理对象、数组及 JSON 编码字符串中的敏感字段。 */
+    private static void maskJsonValue(Object value, int depth) {
+        if (value == null || depth >= MAX_JSON_MASK_DEPTH) {
+            return;
+        }
+        if (value instanceof JSONObject object) {
+            for (Map.Entry<String, Object> entry : object.entrySet()) {
+                Object fieldValue = entry.getValue();
+                if (fieldValue instanceof String text) {
+                    entry.setValue(maskJsonStringField(entry.getKey(), text, depth));
+                } else if (isStructuredJson(fieldValue) && depth + 1 >= MAX_JSON_MASK_DEPTH) {
+                    entry.setValue("***");
+                } else {
+                    maskJsonValue(fieldValue, depth + 1);
+                }
+            }
+            return;
+        }
+        if (value instanceof JSONArray array) {
+            for (int index = 0; index < array.size(); index++) {
+                Object element = array.get(index);
+                if (element instanceof String text) {
+                    Object nested = parseJsonValue(text);
+                    if (nested != null) {
+                        if (depth + 1 >= MAX_JSON_MASK_DEPTH) {
+                            array.set(index, "***");
+                        } else {
+                            maskJsonValue(nested, depth + 1);
+                            array.set(index, JSON.toJSONString(nested));
+                        }
+                    }
+                } else if (isStructuredJson(element) && depth + 1 >= MAX_JSON_MASK_DEPTH) {
+                    array.set(index, "***");
+                } else {
+                    maskJsonValue(element, depth + 1);
+                }
+            }
+        }
+    }
+
+    /** 根据字段语义脱敏字符串；普通字符串若承载 JSON，则递归处理后重新编码。 */
+    private static String maskJsonStringField(String fieldName, String value, int depth) {
+        String key = fieldName == null ? "" : fieldName.toLowerCase(Locale.ROOT);
+        if (isSecretField(key) || isReferenceField(key) || isSecurityCodeField(key)
+                || isIdField(key) || isPersonalField(key) || isMerchantUrlField(key)) {
+            return "***";
+        }
+        if ("cardno".equals(key) || "pan".equals(key)) {
+            return maskPan(value);
+        }
+        if (isAccountField(key)) {
+            return maskAccountValue(value);
+        }
+        if (isMobileField(key)) {
+            return maskMobile(value);
+        }
+        if (isEmailField(key)) {
+            return maskEmail(value);
+        }
+        Object nested = parseJsonValue(value);
+        if (nested != null) {
+            if (depth + 1 >= MAX_JSON_MASK_DEPTH) {
+                return "***";
+            }
+            maskJsonValue(nested, depth + 1);
+            return JSON.toJSONString(nested);
+        }
+        return value;
+    }
+
+    /** 判断值是否仍需递归检查，超过深度限制时对这类值整体遮蔽。 */
+    private static boolean isStructuredJson(Object value) {
+        return value instanceof JSONObject || value instanceof JSONArray;
+    }
+
+    private static Object parseJsonValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        String candidate = value.trim();
+        if (!(candidate.startsWith("{") && candidate.endsWith("}"))
+                && !(candidate.startsWith("[") && candidate.endsWith("]"))) {
+            return null;
+        }
+        try {
+            return JSON.parse(candidate);
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private static boolean isSecretField(String key) {
+        return switch (key) {
+            case "password", "mid.password", "oldpassword", "newpassword", "apipassword",
+                    "mid.apipassword", "authorization", "accesstoken", "refreshtoken", "token",
+                    "opaquetoken", "tokenhash", "threedsreturntoken", "threedsreturntokenhash",
+                    "apitoken", "authenticationtoken", "apikey", "secret", "apisecret", "secretkey",
+                    "privatekey", "publickey", "merchantkey", "merchantsecret", "encryptedkey",
+                    "ciphertext", "nonce", "iv" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isReferenceField(String key) {
+        return "ipaddress".equals(key) || "payerip".equals(key)
+                || "ingressclientip".equals(key) || "cardbin".equals(key);
+    }
+
+    private static boolean isSecurityCodeField(String key) {
+        return switch (key) {
+            case "securitycode", "cvv", "cvc", "cavv", "threedssessiondata",
+                    "threedsmethoddata", "pareq", "pares", "cres", "md" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isIdField(String key) {
+        return switch (key) {
+            case "idcard", "idnumber", "identitynumber", "nationalid", "passportno", "documentnumber" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isPersonalField(String key) {
+        return switch (key) {
+            case "firstname", "lastname", "cardholdername", "nameoncard", "legalperson", "enterprise",
+                    "company", "companyname", "subname", "subcompanyname", "customerid", "devicefingerprint",
+                    "address", "billingaddress", "shippingaddress", "merchantbillingaddress", "street", "substreet" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isMerchantUrlField(String key) {
+        return "merchantwebsite".equals(key) || "callbackurl".equals(key)
+                || "redirecturl".equals(key) || "checkouturl".equals(key);
+    }
+
+    private static boolean isAccountField(String key) {
+        return switch (key) {
+            case "bankaccount", "accountnumber", "receiveraccountno", "iban", "swiftcode", "bic" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isMobileField(String key) {
+        return switch (key) {
+            case "mobile", "phone", "subphone", "payerphone", "customerphone", "billingphone", "cardholderphone" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isEmailField(String key) {
+        return switch (key) {
+            case "email", "subemail", "payeremail", "customeremail", "billingemail", "cardholderemail" -> true;
+            default -> false;
+        };
+    }
+
+    private static String maskAccountValue(String value) {
+        if (value == null || value.length() < 8) {
+            return "***";
+        }
+        return value.substring(0, 4) + "******" + value.substring(value.length() - 4);
     }
 
     /**

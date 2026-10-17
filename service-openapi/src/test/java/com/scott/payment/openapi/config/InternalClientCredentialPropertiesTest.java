@@ -9,14 +9,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class InternalClientCredentialPropertiesTest {
 
     @Test
-    void paymentClientShouldValidateOnlyForRemoteMode() {
+    void paymentClientShouldAlwaysRequireItsOwnEdgeCredential() {
         PaymentClientProperties properties = new PaymentClientProperties();
         assertThatThrownBy(properties::validate).hasMessageContaining("secret is required");
 
-        properties.setRemoteEnabled(false);
-        assertThatCode(properties::validate).doesNotThrowAnyException();
-
-        properties.setRemoteEnabled(true);
         properties.setInternalSecret("unit-test-openapi-payment-secret-at-least-32-bytes");
         assertThatCode(properties::validate).doesNotThrowAnyException();
     }

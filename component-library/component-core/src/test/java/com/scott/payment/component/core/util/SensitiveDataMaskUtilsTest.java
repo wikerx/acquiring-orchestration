@@ -1,5 +1,7 @@
 package com.scott.payment.component.core.util;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -143,6 +145,48 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).contains("MD=***");
         assertThat(masked).contains("orderId=TX202607141000000000001");
         assertThat(masked).doesNotContain("encrypted-session-data", "issuer-payer-authentication-response", "merchant-data");
+    }
+
+    @Test
+    void shouldRecursivelyMaskJsonEncodedInsideStringFields() {
+        String nested = """
+                {"firstName":"Alice","email":"alice@example.com","phone":"+8613812345678",
+                 "address":"1 Secret Street","company":"Secret Trading Ltd","payerIp":"203.0.113.9"}
+                """;
+        JSONObject outer = new JSONObject();
+        outer.put("payerInfoJson", nested);
+
+        String masked = SensitiveDataMaskUtils.maskJson(JSON.toJSONString(outer));
+        JSONObject maskedOuter = JSON.parseObject(masked);
+        JSONObject maskedNested = JSON.parseObject(maskedOuter.getString("payerInfoJson"));
+
+        assertThat(maskedNested.getString("firstName")).isEqualTo("***");
+        assertThat(maskedNested.getString("email")).isEqualTo("a***@example.com");
+        assertThat(maskedNested.getString("phone")).isEqualTo("+86****5678");
+        assertThat(maskedNested.getString("address")).isEqualTo("***");
+        assertThat(maskedNested.getString("company")).isEqualTo("***");
+        assertThat(maskedNested.getString("payerIp")).isEqualTo("***");
+        assertThat(masked).doesNotContain("Alice", "alice@example.com", "+8613812345678",
+                "1 Secret Street", "Secret Trading Ltd", "203.0.113.9");
+    }
+
+    @Test
+    void shouldFailClosedWhenJsonExceedsMaskingDepthLimit() {
+        JSONObject root = new JSONObject();
+        JSONObject cursor = root;
+        for (int index = 0; index < 10; index++) {
+            JSONObject nested = new JSONObject();
+            cursor.put("level" + index, nested);
+            cursor = nested;
+        }
+        cursor.put("cardNo", "4111111111111111");
+        cursor.put("password", "deep-secret");
+
+        String masked = SensitiveDataMaskUtils.maskJson(JSON.toJSONString(root));
+
+        assertThat(masked)
+                .contains("\"***\"")
+                .doesNotContain("4111111111111111", "deep-secret");
     }
 
     @Test

@@ -6,9 +6,7 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.component.core.cache.CacheInvalidationGuard;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.db.auth.entity.MerchantIpWhitelistDO;
-import com.scott.payment.component.db.auth.entity.MerchantOpenApiAccessConfigDO;
 import com.scott.payment.component.db.auth.mapper.MerchantIpWhitelistMapper;
-import com.scott.payment.component.db.auth.mapper.MerchantOpenApiAccessConfigMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.Test;
@@ -44,19 +42,18 @@ class MerchantOpenApiAccessPolicyCacheServiceTests {
     @Test
     void shouldCachePolicyByPositionalMethodArgument() {
         initializeTableMetadata();
-        MerchantOpenApiAccessConfigMapper accessConfigMapper = mock(MerchantOpenApiAccessConfigMapper.class);
         MerchantIpWhitelistMapper whitelistMapper = mock(MerchantIpWhitelistMapper.class);
         CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
-        when(accessConfigMapper.selectOne(any())).thenReturn(null);
+        when(whitelistMapper.selectList(any())).thenReturn(List.of());
 
         try (AnnotationConfigApplicationContext context =
-                     context(accessConfigMapper, whitelistMapper, invalidationGuard)) {
+                     context(whitelistMapper, invalidationGuard)) {
             MerchantOpenApiAccessPolicyCacheService service =
                     context.getBean(MerchantOpenApiAccessPolicyCacheService.class);
             service.findPolicy("200045");
             service.findPolicy("200045");
 
-            verify(accessConfigMapper, times(1)).selectOne(any());
+            verify(whitelistMapper, times(1)).selectList(any());
             Cache cache = context.getBean(CacheManager.class)
                     .getCache(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS);
             assertThat(cache).isNotNull();
@@ -67,27 +64,23 @@ class MerchantOpenApiAccessPolicyCacheServiceTests {
     @Test
     void shouldBypassStalePolicyWhenInvalidationIsPending() {
         initializeTableMetadata();
-        MerchantOpenApiAccessConfigMapper accessConfigMapper = mock(MerchantOpenApiAccessConfigMapper.class);
         MerchantIpWhitelistMapper whitelistMapper = mock(MerchantIpWhitelistMapper.class);
         CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
         when(invalidationGuard.isPending(
                 PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
                 "200045"
         )).thenReturn(true);
-        when(accessConfigMapper.selectOne(any())).thenReturn(enabledConfig());
         when(whitelistMapper.selectList(any())).thenReturn(List.of(whitelist("203.0.113.10")));
 
         try (AnnotationConfigApplicationContext context =
-                     context(accessConfigMapper, whitelistMapper, invalidationGuard)) {
-            policyCache(context).put("200045", disabledPolicy());
+                     context(whitelistMapper, invalidationGuard)) {
+            policyCache(context).put("200045", emptyPolicy());
 
             MerchantOpenApiAccessPolicy policy = context
                     .getBean(MerchantOpenApiAccessPolicyCacheService.class)
                     .findPolicy(" 200045 ");
 
-            assertThat(policy.isWhitelistEnabled()).isTrue();
             assertThat(policy.getAllowedIps()).containsExactly("203.0.113.10");
-            verify(accessConfigMapper).selectOne(any());
             verify(whitelistMapper).selectList(any());
         }
     }
@@ -95,45 +88,41 @@ class MerchantOpenApiAccessPolicyCacheServiceTests {
     @Test
     void shouldBypassStalePolicyWhenGuardCheckFails() {
         initializeTableMetadata();
-        MerchantOpenApiAccessConfigMapper accessConfigMapper = mock(MerchantOpenApiAccessConfigMapper.class);
         MerchantIpWhitelistMapper whitelistMapper = mock(MerchantIpWhitelistMapper.class);
         CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
         doThrow(new IllegalStateException("redis unavailable"))
                 .when(invalidationGuard)
                 .isPending(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS, "200045");
-        when(accessConfigMapper.selectOne(any())).thenReturn(enabledConfig());
         when(whitelistMapper.selectList(any())).thenReturn(List.of(whitelist("203.0.113.10")));
 
         try (AnnotationConfigApplicationContext context =
-                     context(accessConfigMapper, whitelistMapper, invalidationGuard)) {
-            policyCache(context).put("200045", disabledPolicy());
+                     context(whitelistMapper, invalidationGuard)) {
+            policyCache(context).put("200045", emptyPolicy());
 
             MerchantOpenApiAccessPolicy policy = context
                     .getBean(MerchantOpenApiAccessPolicyCacheService.class)
                     .findPolicy("200045");
 
-            assertThat(policy.isWhitelistEnabled()).isTrue();
             assertThat(policy.getAllowedIps()).containsExactly("203.0.113.10");
-            verify(accessConfigMapper).selectOne(any());
+            verify(whitelistMapper).selectList(any());
         }
     }
 
     @Test
     void shouldRejectInsteadOfUsingStalePolicyWhenMasterReadFails() {
         initializeTableMetadata();
-        MerchantOpenApiAccessConfigMapper accessConfigMapper = mock(MerchantOpenApiAccessConfigMapper.class);
         MerchantIpWhitelistMapper whitelistMapper = mock(MerchantIpWhitelistMapper.class);
         CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
         when(invalidationGuard.isPending(
                 PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
                 "200045"
         )).thenReturn(true);
-        when(accessConfigMapper.selectOne(any()))
+        when(whitelistMapper.selectList(any()))
                 .thenThrow(new IllegalStateException("database unavailable"));
 
         try (AnnotationConfigApplicationContext context =
-                     context(accessConfigMapper, whitelistMapper, invalidationGuard)) {
-            policyCache(context).put("200045", disabledPolicy());
+                     context(whitelistMapper, invalidationGuard)) {
+            policyCache(context).put("200045", emptyPolicy());
 
             assertThatThrownBy(() -> context
                     .getBean(MerchantOpenApiAccessPolicyCacheService.class)
@@ -146,25 +135,22 @@ class MerchantOpenApiAccessPolicyCacheServiceTests {
     @Test
     void shouldReloadWhenGateBecomesPendingDuringCacheRead() {
         initializeTableMetadata();
-        MerchantOpenApiAccessConfigMapper accessConfigMapper = mock(MerchantOpenApiAccessConfigMapper.class);
         MerchantIpWhitelistMapper whitelistMapper = mock(MerchantIpWhitelistMapper.class);
         CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
         when(invalidationGuard.isPending(
                 PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
                 "200045"
         )).thenReturn(false, true);
-        when(accessConfigMapper.selectOne(any())).thenReturn(enabledConfig());
         when(whitelistMapper.selectList(any())).thenReturn(List.of(whitelist("203.0.113.10")));
 
         try (AnnotationConfigApplicationContext context =
-                     context(accessConfigMapper, whitelistMapper, invalidationGuard)) {
-            policyCache(context).put("200045", disabledPolicy());
+                     context(whitelistMapper, invalidationGuard)) {
+            policyCache(context).put("200045", emptyPolicy());
 
             MerchantOpenApiAccessPolicy policy = context
                     .getBean(MerchantOpenApiAccessPolicyCacheService.class)
                     .findPolicy("200045");
 
-            assertThat(policy.isWhitelistEnabled()).isTrue();
             assertThat(policy.getAllowedIps()).containsExactly("203.0.113.10");
         }
     }
@@ -176,12 +162,10 @@ class MerchantOpenApiAccessPolicyCacheServiceTests {
     }
 
     private AnnotationConfigApplicationContext context(
-            MerchantOpenApiAccessConfigMapper accessConfigMapper,
             MerchantIpWhitelistMapper whitelistMapper,
             CacheInvalidationGuard invalidationGuard) {
         AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
         context.register(CachingConfiguration.class);
-        context.registerBean(MerchantOpenApiAccessConfigMapper.class, () -> accessConfigMapper);
         context.registerBean(MerchantIpWhitelistMapper.class, () -> whitelistMapper);
         context.registerBean(CacheInvalidationGuard.class, () -> invalidationGuard);
         context.registerBean(MerchantOpenApiAccessPolicyCacheReader.class);
@@ -191,7 +175,6 @@ class MerchantOpenApiAccessPolicyCacheServiceTests {
     }
 
     private void initializeTableMetadata() {
-        initializeTableMetadata(MerchantOpenApiAccessConfigDO.class);
         initializeTableMetadata(MerchantIpWhitelistDO.class);
     }
 
@@ -199,13 +182,6 @@ class MerchantOpenApiAccessPolicyCacheServiceTests {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
         assistant.setCurrentNamespace(getClass().getName());
         TableInfoHelper.initTableInfo(assistant, entityType);
-    }
-
-    private MerchantOpenApiAccessConfigDO enabledConfig() {
-        MerchantOpenApiAccessConfigDO config = new MerchantOpenApiAccessConfigDO();
-        config.setMerchantId("200045");
-        config.setIpWhitelistEnabled(1);
-        return config;
     }
 
     private MerchantIpWhitelistDO whitelist(String ip) {
@@ -216,10 +192,8 @@ class MerchantOpenApiAccessPolicyCacheServiceTests {
         return whitelist;
     }
 
-    private MerchantOpenApiAccessPolicy disabledPolicy() {
-        MerchantOpenApiAccessPolicy policy = new MerchantOpenApiAccessPolicy();
-        policy.setWhitelistEnabled(false);
-        return policy;
+    private MerchantOpenApiAccessPolicy emptyPolicy() {
+        return new MerchantOpenApiAccessPolicy();
     }
 
     private Cache policyCache(AnnotationConfigApplicationContext context) {

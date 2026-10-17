@@ -47,21 +47,33 @@ class JdbcAdminRiskTimelineQueryServiceTests {
                 "HIT", "BLOCK", "CardNo：411111******1234 触发卡号黑名单，拦截", 40);
         Map<String, Object> passed = detailRow(2L, "AML", "邮箱AML",
                 "MISS", "ALLOW", "Email：b***@example.test 不在邮箱AML中，放行", 30);
+        Map<String, Object> skipped = detailRow(3L, "BLACK_WHITE", "卡BIN黑名单",
+                "SKIPPED", "NONE", "商户未配置卡BIN黑名单，跳过", 20);
+        skipped.put("decision_result", "SKIP");
+        skipped.put("reason_code", "NOT_CONFIGURED");
         when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class)))
-                .thenReturn(List.of(passed, blocked));
+                .thenReturn(List.of(skipped, passed, blocked));
         JdbcAdminRiskTimelineQueryService service = new JdbcAdminRiskTimelineQueryService(jdbcTemplate);
 
         List<Map<String, Object>> events = service.findRiskEvents("202607281055370000179");
 
-        assertThat(events).hasSize(2);
+        assertThat(events).hasSize(3);
         assertThat(events.get(0))
+                .containsEntry("eventType", "RISK_RULE_EVALUATED")
+                .containsEntry("eventStage", "RISK")
+                .containsEntry("eventStatus", "SKIPPED")
+                .containsEntry("matchResult", "SKIPPED")
+                .containsEntry("decisionResult", "SKIP")
+                .containsEntry("reasonCode", "NOT_CONFIGURED")
+                .containsEntry("timelineSequence", 220);
+        assertThat(events.get(1))
                 .containsEntry("eventType", "RISK_RULE_EVALUATED")
                 .containsEntry("eventStage", "RISK")
                 .containsEntry("eventStatus", "SUCCESS")
                 .containsEntry("matchResult", "MISS")
                 .containsEntry("timelineSequence", 230)
                 .containsEntry("finalDecision", "REJECT");
-        assertThat(events.get(1))
+        assertThat(events.get(2))
                 .containsEntry("eventName", "卡号黑名单")
                 .containsEntry("eventStatus", "FAILED")
                 .containsEntry("timelineSequence", 240)

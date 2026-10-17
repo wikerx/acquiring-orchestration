@@ -82,6 +82,16 @@ public class TransactionOperationDO implements Serializable {
     private String requestSource;
 
     /**
+     * 网关认证并规范化的接入客户端 IP，用于受控安全审计；最长 45 字符，支持 IPv4 和 IPv6。
+     */
+    private String ingressClientIp;
+
+    /**
+     * 接入客户端 IP 的 SHA-256 摘要，用于不暴露原值的关联检索。
+     */
+    private String ingressClientIpHash;
+
+    /**
      * 退款范围，FULL 表示相对原始本金全额退款，PARTIAL 表示部分退款，VOID 表示撤销。
      */
     private String refundScope;

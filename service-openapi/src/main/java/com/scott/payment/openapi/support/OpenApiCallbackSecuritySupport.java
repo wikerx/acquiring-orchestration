@@ -1,9 +1,14 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationRequest;
+import com.scott.payment.channel.payment.api.PaymentChannelCallbackProtocol;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackAcknowledgement;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationContext;
+import com.scott.payment.channel.payment.dto.callback.RawChannelCallbackRequest;
+import com.scott.payment.channel.payment.dto.callback.VerifiedChannelEvent;
+import com.scott.payment.channel.payment.enums.ChannelCallbackScene;
 import com.scott.payment.channel.payment.exception.ChannelCallbackVerificationException;
-import com.scott.payment.channel.payment.registry.PaymentChannelCallbackVerifierRegistry;
-import com.scott.payment.channel.payment.security.HmacPaymentChannelCallbackVerifier;
+import com.scott.payment.channel.payment.exception.ChannelRequestException;
+import com.scott.payment.channel.payment.registry.PaymentChannelCallbackProtocolRegistry;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
@@ -17,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
@@ -43,7 +50,7 @@ public class OpenApiCallbackSecuritySupport {
      * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
      * </p>
      */
-    private static final int MAX_VERIFICATION_HEADER_COUNT = 32;
+    private static final int MAX_VERIFICATION_HEADER_COUNT = 128;
     /**
      * {@code MAX_VERIFICATION_HEADER_NAME_LENGTH}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
      * <p>
@@ -64,22 +71,22 @@ public class OpenApiCallbackSecuritySupport {
     /**
      * 渠道回调时间戳请求头。
      */
-    public static final String CHANNEL_TIMESTAMP_HEADER = HmacPaymentChannelCallbackVerifier.TIMESTAMP_HEADER;
+    public static final String CHANNEL_TIMESTAMP_HEADER = "X-Callback-Timestamp";
 
     /**
      * 渠道回调随机串请求头。
      */
-    public static final String CHANNEL_NONCE_HEADER = HmacPaymentChannelCallbackVerifier.NONCE_HEADER;
+    public static final String CHANNEL_NONCE_HEADER = "X-Callback-Nonce";
 
     /**
      * 渠道回调签名请求头。
      */
-    public static final String CHANNEL_SIGNATURE_HEADER = HmacPaymentChannelCallbackVerifier.SIGNATURE_HEADER;
+    public static final String CHANNEL_SIGNATURE_HEADER = "X-Callback-Signature";
 
     /**
      * 渠道事件签名请求头，格式为 keyId/SHA256/signature。
      */
-    public static final String CHANNEL_EVENT_SIGNATURE_HEADER = HmacPaymentChannelCallbackVerifier.EVENT_SIGNATURE_HEADER;
+    public static final String CHANNEL_EVENT_SIGNATURE_HEADER = "Event-Signature";
 
     /**
      * 商户通知重试维护密钥请求头。
@@ -97,7 +104,7 @@ public class OpenApiCallbackSecuritySupport {
     private final SecurityInterceptEventRecorder securityInterceptEventRecorder;
 
     /** 按渠道编码定位 provider 验签实现。 */
-    private final PaymentChannelCallbackVerifierRegistry callbackVerifierRegistry;
+    private final PaymentChannelCallbackProtocolRegistry callbackProtocolRegistry;
 
     /** MID 级回调密钥解析器，优先于环境级渠道兜底配置。 */
     private final ChannelCallbackSecretResolver channelCallbackSecretResolver;
@@ -111,28 +118,12 @@ public class OpenApiCallbackSecuritySupport {
     @Autowired
     public OpenApiCallbackSecuritySupport(OpenApiCallbackProperties callbackProperties,
                                           SecurityInterceptEventRecorder securityInterceptEventRecorder,
-                                          PaymentChannelCallbackVerifierRegistry callbackVerifierRegistry,
+                                          PaymentChannelCallbackProtocolRegistry callbackProtocolRegistry,
                                           ChannelCallbackSecretResolver channelCallbackSecretResolver) {
         this.callbackProperties = callbackProperties;
         this.securityInterceptEventRecorder = securityInterceptEventRecorder;
-        this.callbackVerifierRegistry = callbackVerifierRegistry;
+        this.callbackProtocolRegistry = callbackProtocolRegistry;
         this.channelCallbackSecretResolver = channelCallbackSecretResolver;
-    }
-
-    /** 兼容测试和历史装配，仅使用环境级回调密钥兜底。 */
-    public OpenApiCallbackSecuritySupport(OpenApiCallbackProperties callbackProperties,
-                                          SecurityInterceptEventRecorder securityInterceptEventRecorder,
-                                          PaymentChannelCallbackVerifierRegistry callbackVerifierRegistry) {
-        this(callbackProperties, securityInterceptEventRecorder, callbackVerifierRegistry,
-                (channelCode, merchantId) -> null);
-    }
-
-    /** 兼容不启动 Spring 容器的安全单元测试，生产环境使用三参数构造器注入 Registry。 */
-    public OpenApiCallbackSecuritySupport(OpenApiCallbackProperties callbackProperties,
-                                          SecurityInterceptEventRecorder securityInterceptEventRecorder) {
-        this(callbackProperties, securityInterceptEventRecorder,
-                new PaymentChannelCallbackVerifierRegistry(List.of(new HmacPaymentChannelCallbackVerifier())),
-                (channelCode, merchantId) -> null);
     }
 
     /**
@@ -163,85 +154,97 @@ public class OpenApiCallbackSecuritySupport {
      * @param request     HTTP 请求
      * @param rawBody     渠道回调原始 body，按 UTF-8 计算 SHA-256 摘要
      */
-    public CallbackSecurityResult verifyChannelCallback(String channelCode, HttpServletRequest request, String rawBody) {
+    public CallbackSecurityResult verifyChannelCallback(String channelCode,
+                                                        ChannelCallbackScene scene,
+                                                        HttpServletRequest request,
+                                                        byte[] rawBody) {
         boolean ipAllowed = verifyChannelIp(channelCode, request);
-        if (!callbackProperties.isChannelSignatureRequired()) {
-            return new CallbackSecurityResult(true, ipAllowed);
-        }
-        Map<String, String> headers = verificationHeaders(request);
         try {
-            callbackVerifierRegistry.verify(new ChannelCallbackVerificationRequest(
+            RawChannelCallbackRequest callbackRequest = new RawChannelCallbackRequest(
                     channelCode,
+                    scene,
                     request.getMethod(),
                     request.getRequestURI(),
-                    headers,
+                    request.getQueryString(),
+                    verificationHeaders(request),
                     rawBody,
-                    resolveChannelSecret(channelCode, headerValue(headers, "X-Merchant-Id")),
+                    resolveClientIp(request));
+            PaymentChannelCallbackProtocol protocol = callbackProtocolRegistry.validateAndGet(callbackRequest);
+            String credentialHint = protocol.credentialHint(callbackRequest);
+            VerifiedChannelEvent event = protocol.verifyAndParse(
+                    callbackRequest,
+                    new ChannelCallbackVerificationContext(
+                    resolveChannelSecret(channelCode, credentialHint),
                     channelEventSecrets(channelCode),
                     callbackProperties.getAllowedClockSkewMillis(),
                     InternalServiceSignature.currentTimeMillis()));
+            ChannelCallbackAcknowledgement acknowledgement =
+                    protocol.successAcknowledgement(callbackRequest, event);
+            return new CallbackSecurityResult(true, ipAllowed, callbackRequest, event, acknowledgement);
         } catch (ChannelCallbackVerificationException exception) {
             throw mapVerificationException(request, exception,
                     StringUtils.hasText(request.getHeader(CHANNEL_EVENT_SIGNATURE_HEADER)));
+        } catch (ChannelRequestException exception) {
+            throw recordAndReturnChannelException(request,
+                    "CHANNEL_CALLBACK_PROTOCOL_REJECTED",
+                    SecurityInterceptEventRecorder.RISK_HIGH,
+                    "CHANNEL_CALLBACK_PROTOCOL",
+                    "channel callback does not match the provider protocol",
+                    ApiResultEnum.PARAM_INVALID);
         } catch (com.scott.payment.channel.payment.exception.ChannelException exception) {
             throw recordAndReturnChannelException(request,
-                    "CHANNEL_CALLBACK_VERIFIER_MISSING",
+                    "CHANNEL_CALLBACK_PROTOCOL_MISSING",
                     SecurityInterceptEventRecorder.RISK_CRITICAL,
-                    "CHANNEL_CALLBACK_SIGNATURE",
-                    "channel callback verifier is not configured");
+                    "CHANNEL_CALLBACK_PROTOCOL",
+                    "channel callback protocol is not configured");
+        } catch (RuntimeException exception) {
+            throw recordAndReturnChannelException(request,
+                    "CHANNEL_CALLBACK_PROTOCOL_INTERNAL_ERROR",
+                    SecurityInterceptEventRecorder.RISK_CRITICAL,
+                    "CHANNEL_CALLBACK_PROTOCOL",
+                    "channel callback protocol processing failed",
+                    ApiResultEnum.INTERNAL_SERVER_ERROR);
         }
-        return new CallbackSecurityResult(true, ipAllowed);
     }
 
-    /**
-     * 判断渠道回调入口是否需要按渠道协议返回纯文本 SUCCESS。
-     *
-     * @param channelCode 渠道编码
-     * @return true 表示回调成功确认必须为纯文本 SUCCESS
-     */
-    public boolean requiresPlainTextSuccessAcknowledgement(String channelCode) {
-        return callbackVerifierRegistry.requiresPlainTextSuccessAcknowledgement(channelCode);
-    }
-
-    /** MID 元数据优先，环境配置仅作为历史渠道兼容兜底。 */
+    /** MID-scoped callbacks never fall back to an environment-wide secret. */
     private String resolveChannelSecret(String channelCode, String merchantId) {
-        String metadataSecret = channelCallbackSecretResolver.resolve(channelCode, merchantId);
-        return StringUtils.hasText(metadataSecret) ? metadataSecret : channelSecret(channelCode);
-    }
-
-    private String headerValue(Map<String, String> headers, String name) {
-        if (headers == null) {
-            return null;
-        }
-        return headers.entrySet().stream()
-                .filter(entry -> name.equalsIgnoreCase(entry.getKey()))
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElse(null);
+        return StringUtils.hasText(merchantId)
+                ? channelCallbackSecretResolver.resolve(channelCode, merchantId)
+                : channelSecret(channelCode);
     }
 
     /**
      * Collect a bounded HTTP header context for provider-specific callback verification.
      * Header values are never logged here; persistence uses the controller's masked summary.
      */
-    private Map<String, String> verificationHeaders(HttpServletRequest request) {
+    private Map<String, List<String>> verificationHeaders(HttpServletRequest request) {
         Enumeration<String> names = request.getHeaderNames();
         if (names == null) {
             return Collections.emptyMap();
         }
-        Map<String, String> headers = new LinkedHashMap<>();
-        while (names.hasMoreElements() && headers.size() < MAX_VERIFICATION_HEADER_COUNT) {
+        Map<String, List<String>> headers = new LinkedHashMap<>();
+        while (names.hasMoreElements()) {
+            if (headers.size() >= MAX_VERIFICATION_HEADER_COUNT) {
+                throw new ChannelRequestException("channel callback contains too many headers");
+            }
             String name = names.nextElement();
             if (!StringUtils.hasText(name) || name.length() > MAX_VERIFICATION_HEADER_NAME_LENGTH) {
-                continue;
+                throw new ChannelRequestException("channel callback contains an invalid header name");
             }
-            String value = request.getHeader(name);
-            if (value != null) {
-                headers.put(name, value.length() <= MAX_VERIFICATION_HEADER_VALUE_LENGTH
-                        ? value : value.substring(0, MAX_VERIFICATION_HEADER_VALUE_LENGTH));
+            Enumeration<String> values = request.getHeaders(name);
+            List<String> collected = new ArrayList<>();
+            while (values != null && values.hasMoreElements()) {
+                String value = values.nextElement();
+                if (value != null && value.getBytes(StandardCharsets.UTF_8).length
+                        > MAX_VERIFICATION_HEADER_VALUE_LENGTH) {
+                    throw new ChannelRequestException("channel callback contains an oversized header value");
+                }
+                collected.add(value);
             }
+            headers.put(name, List.copyOf(collected));
         }
-        return headers;
+        return Collections.unmodifiableMap(headers);
     }
 
     /**
@@ -507,7 +510,11 @@ public class OpenApiCallbackSecuritySupport {
      * @param signatureValid 签名校验是否通过
      * @param ipAllowed IP 白名单是否通过；当前配置尚未启用独立 IP 规则时按通过记录
      */
-    public record CallbackSecurityResult(boolean signatureValid, boolean ipAllowed) {
+    public record CallbackSecurityResult(boolean signatureValid,
+                                         boolean ipAllowed,
+                                         RawChannelCallbackRequest request,
+                                         VerifiedChannelEvent event,
+                                         ChannelCallbackAcknowledgement acknowledgement) {
     }
 
 }

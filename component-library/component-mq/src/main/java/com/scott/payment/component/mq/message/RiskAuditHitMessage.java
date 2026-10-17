@@ -43,6 +43,9 @@ public class RiskAuditHitMessage implements Serializable {
     /** 规则配置的决策动作。 */
     private String decisionAction;
 
+    /** 当前明细的稳定原因码，用于区分未开通、未配置、未命中和实际命中。 */
+    private String reasonCode;
+
     /** 可用于内部审计的命中原因摘要。 */
     private String decisionReason;
 

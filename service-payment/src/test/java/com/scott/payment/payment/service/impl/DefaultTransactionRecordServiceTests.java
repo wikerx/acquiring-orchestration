@@ -190,6 +190,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(operationCapture.value.getApprovedAmount()).isEqualByComparingTo("12.34");
         assertThat(operationCapture.value.getMerchantOperationNo()).isEqualTo("M202607140001");
         assertThat(operationCapture.value.getRequestSource()).isEqualTo("HOSTED_CHECKOUT");
+        assertThat(operationCapture.value.getIngressClientIp()).isEqualTo("198.51.100.11");
+        assertThat(operationCapture.value.getIngressClientIpHash()).hasSize(64).doesNotContain("198.51.100.11");
         assertThat(locatorCapture.value.getTransactionId()).isEqualTo("TX260714180001");
         assertThat(locatorCapture.value.getRootTransactionId()).isEqualTo("TX260714180001");
         assertThat(locatorCapture.value.getMerchantId()).isEqualTo("200001");
@@ -439,7 +441,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(channelEvent.getEventStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(channelEvent.getEventContent()).contains("渠道交易状态：FAILED");
         assertThat(channelEvent.getErrorMessage()).contains("Unexpected parameter");
-        assertThat(statusEvent.getEventStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(statusEvent.getEventStatus()).isEqualTo("SUCCESS");
+        assertThat(statusEvent.getCurrentStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(statusEvent.getEventName()).isEqualTo("交易失败");
         assertThat(statusEvent.getEventContent())
                 .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode() + "：" + ApiResultEnum.PAYMENT_REJECTED.getMessage());
@@ -447,6 +450,35 @@ class DefaultTransactionRecordServiceTests {
         assertThat(statusEvent.getErrorCode()).isNotEqualTo(resultDTO.getFailReasonCode());
         assertThat(orderCapture.value.getMerchantVisibleMessage())
                 .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+    }
+
+    @Test
+    void shouldKeepChannelFlowEventProcessingWhenTimeoutOutcomeIsUncertain() {
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                mock(TransactionOrderMapper.class),
+                mock(TransactionOperationMapper.class),
+                mock(TransactionStatusHistoryMapper.class),
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+        PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
+        invokeResultDTO.setRequestStatus("TIMEOUT");
+        invokeResultDTO.setExceptionType("ChannelTimeoutException");
+        invokeResultDTO.setExceptionMessage("channel result is unknown");
+        invokeResultDTO.setOutcomeUncertain(true);
+        PaymentCreateResultDTO resultDTO = resultDTO();
+        resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+
+        String eventStatus = ReflectionTestUtils.invokeMethod(
+                recordService, "resolveChannelFlowEventStatus", invokeResultDTO, resultDTO);
+
+        assertThat(eventStatus).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
     }
 
     /**
@@ -921,6 +953,7 @@ class DefaultTransactionRecordServiceTests {
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
         TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        ArgumentCaptor<TransactionFlowEventDO> flowEventCaptor = ArgumentCaptor.forClass(TransactionFlowEventDO.class);
         when(operationMapper.completeStatus(any(), any(LocalDateTime.class), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString()))
                 .thenReturn(1);
         when(orderMapper.markInitialSuccess(anyString(), any(LocalDateTime.class), anyString(), any(BigDecimal.class), any(), anyString()))
@@ -974,7 +1007,9 @@ class DefaultTransactionRecordServiceTests {
                 0,
                 "MATCHED");
         verify(historyMapper, times(2)).insertLogical(any(TransactionStatusHistoryDO.class));
-        verify(flowEventMapper).insertLogical(any());
+        verify(flowEventMapper).insertLogical(flowEventCaptor.capture());
+        assertThat(flowEventCaptor.getValue().getEventType()).isEqualTo("CHANNEL_CALLBACK_PROCESSED");
+        assertThat(flowEventCaptor.getValue().getEventStage()).isEqualTo("CHANNEL");
         verify(notificationMapper).activateByTransactionId(
                 anyString(), any(LocalDateTime.class), any(), anyString(), anyString(),
                 any(LocalDateTime.class), any(LocalDateTime.class));
@@ -1828,6 +1863,7 @@ class DefaultTransactionRecordServiceTests {
         commandDTO.setCurrency("USD");
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 1, 0, 30));
         commandDTO.setRequestSource("HOSTED_CHECKOUT");
+        commandDTO.setIngressClientIp("198.51.100.11");
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
         transactionInfoDTO.setCardBrand("MASTERCARD");
         transactionInfoDTO.setIssuerCountry("AE");

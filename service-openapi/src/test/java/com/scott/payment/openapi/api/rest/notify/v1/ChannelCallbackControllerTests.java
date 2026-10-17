@@ -1,29 +1,36 @@
 package com.scott.payment.openapi.api.rest.notify.v1;
 
-import com.scott.payment.component.web.internal.InternalServiceSignature;
+import com.scott.payment.channel.payment.api.PaymentChannelCallbackProtocol;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackAcknowledgement;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackProtocolDescriptor;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationContext;
+import com.scott.payment.channel.payment.dto.callback.RawChannelCallbackRequest;
+import com.scott.payment.channel.payment.dto.callback.VerifiedChannelEvent;
+import com.scott.payment.channel.payment.enums.ChannelCallbackAuthentication;
+import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
+import com.scott.payment.channel.payment.enums.ChannelCallbackScene;
+import com.scott.payment.channel.payment.exception.ChannelCallbackVerificationException;
+import com.scott.payment.channel.payment.registry.PaymentChannelCallbackProtocolRegistry;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
-import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionCallbackInboxAcceptClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.OpenApiCallbackProperties;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
-import java.util.UUID;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_NONCE_HEADER;
-import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_SIGNATURE_HEADER;
-import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_TIMESTAMP_HEADER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -42,33 +49,37 @@ class ChannelCallbackControllerTests {
     /** 用于构造签名范围和回调路由的测试渠道编码。 */
     private static final String CHANNEL_CODE = "EVENT_PROVIDER";
 
-    /** 仅用于单元测试签名计算的渠道共享密钥，禁止用于任何运行环境。 */
-    private static final String SECRET = "test-channel-callback-secret";
-
     /**
      * 3DS callback must use a provider-neutral callback type and stay under channel callback security.
      */
     @Test
     void shouldReceiveThreeDsCallbackThroughDedicatedEndpoint() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
+        FixedProtocol protocol = new FixedProtocol(false, ChannelCallbackAcknowledgement.plainText("ACK"));
         ChannelCallbackController controller = new ChannelCallbackController(
-                new OpenApiCallbackSecuritySupport(properties(), mock(SecurityInterceptEventRecorder.class)),
+                securitySupport(protocol),
                 paymentInternalClient);
         String rawBody = "threeDSServerTransID=7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8"
                 + "&threeDSSessionData=encrypted-session-data"
                 + "&orderId=TX202607141000000000001";
-        MockHttpServletRequest request = signedRequest(rawBody, "/channel/v1/callbacks/EVENT_PROVIDER/3ds");
+        MockHttpServletRequest request = request("/channel/v1/callbacks/EVENT_PROVIDER/3ds");
 
-        controller.receiveThreeDs(CHANNEL_CODE, request, rawBody);
+        ResponseEntity<?> response = controller.receiveThreeDs(
+                CHANNEL_CODE, request, rawBody.getBytes(StandardCharsets.UTF_8));
 
         TransactionChannelCallbackClientRequestDTO captured = paymentInternalClient.callbackRequestDTO;
         assertThat(captured.getChannelCode()).isEqualTo(CHANNEL_CODE);
         assertThat(captured.getCallbackType()).isEqualTo("THREE_DS_AUTHENTICATION_CALLBACK");
         assertThat(captured.getChannelEventType()).isEqualTo("THREE_DS_CALLBACK");
         assertThat(captured.getRequestUri()).isEqualTo("/channel/v1/callbacks/EVENT_PROVIDER/3ds");
-        assertThat(captured.getRequestBody()).isEqualTo(rawBody);
+        assertThat(captured.getRequestBodyLength()).isEqualTo(rawBody.getBytes(StandardCharsets.UTF_8).length);
+        assertThat(captured.getRequestBodySha256()).hasSize(64);
+        assertThat(captured.getCallbackEventId()).isEqualTo("event-3ds-001");
+        assertThat(captured.getCallbackKind()).isEqualTo(ChannelCallbackKind.THREE_DS_AUTHENTICATION.name());
+        assertThat(captured.getChannelOrderNo()).isEqualTo("TX202607141000000000001");
         assertThat(captured.getSignatureValid()).isTrue();
         assertThat(captured.getIpAllowed()).isTrue();
+        assertThat(response.getBody()).isEqualTo("ACK");
     }
 
     /** 验签失败时不得把回调转发到支付核心，避免伪造通知推进交易状态。 */
@@ -76,48 +87,96 @@ class ChannelCallbackControllerTests {
     void shouldNotCallPaymentCoreWhenSignatureVerificationFails() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         ChannelCallbackController controller = new ChannelCallbackController(
-                new OpenApiCallbackSecuritySupport(properties(), mock(SecurityInterceptEventRecorder.class)),
+                securitySupport(new FixedProtocol(true, ChannelCallbackAcknowledgement.plainText("ACK"))),
                 paymentInternalClient);
-        MockHttpServletRequest request = new MockHttpServletRequest(
-                "POST", "/channel/v1/callbacks/EVENT_PROVIDER");
+        MockHttpServletRequest request = request("/channel/v1/callbacks/EVENT_PROVIDER");
 
-        assertThatThrownBy(() -> controller.receive(CHANNEL_CODE, request, "{}"))
+        assertThatThrownBy(() -> controller.receive(
+                CHANNEL_CODE, request, "{}".getBytes(StandardCharsets.UTF_8)))
                 .isInstanceOf(com.scott.payment.component.core.exception.ApiException.class);
         assertThat(paymentInternalClient.callbackRequestDTO).isNull();
     }
 
-    private OpenApiCallbackProperties properties() {
-        OpenApiCallbackProperties properties = new OpenApiCallbackProperties();
-        properties.setChannelSignatureRequired(true);
-        properties.getChannelSecrets().put(CHANNEL_CODE, SECRET);
-        return properties;
+    /** Inbox 持久化未确认时控制器必须抛错，不得提前生成渠道成功 ACK。 */
+    @Test
+    void shouldNotAcknowledgeWhenInboxAcceptanceFails() {
+        CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
+        paymentInternalClient.failAcceptance = true;
+        ChannelCallbackController controller = new ChannelCallbackController(
+                securitySupport(new FixedProtocol(false, ChannelCallbackAcknowledgement.plainText("ACK"))),
+                paymentInternalClient);
+        MockHttpServletRequest request = request("/channel/v1/callbacks/EVENT_PROVIDER");
+
+        assertThatThrownBy(() -> controller.receive(
+                CHANNEL_CODE, request, "{}".getBytes(StandardCharsets.UTF_8)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("inbox unavailable");
     }
 
-    private MockHttpServletRequest signedRequest(String rawBody, String requestUri) {
+    private OpenApiCallbackSecuritySupport securitySupport(PaymentChannelCallbackProtocol protocol) {
+        OpenApiCallbackProperties properties = new OpenApiCallbackProperties();
+        properties.getChannelSecrets().put(CHANNEL_CODE, "test-secret");
+        return new OpenApiCallbackSecuritySupport(
+                properties,
+                mock(SecurityInterceptEventRecorder.class),
+                new PaymentChannelCallbackProtocolRegistry(List.of(protocol)),
+                (channelCode, merchantId) -> null);
+    }
+
+    private MockHttpServletRequest request(String requestUri) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", requestUri);
-        long timestamp = InternalServiceSignature.currentTimeMillis();
-        String nonce = UUID.randomUUID().toString();
-        String signature = InternalServiceSignature.sign(
-                request.getMethod(),
-                request.getRequestURI(),
-                timestamp,
-                nonce,
-                CHANNEL_CODE.toLowerCase(),
-                sha256Hex(rawBody),
-                SECRET
-        );
-        request.addHeader(CHANNEL_TIMESTAMP_HEADER, String.valueOf(timestamp));
-        request.addHeader(CHANNEL_NONCE_HEADER, nonce);
-        request.addHeader(CHANNEL_SIGNATURE_HEADER, signature);
+        request.setContentType("application/x-www-form-urlencoded");
+        request.setRemoteAddr("127.0.0.1");
         return request;
     }
 
-    private String sha256Hex(String rawBody) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest((rawBody == null ? "" : rawBody).getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(exception);
+    private static class FixedProtocol implements PaymentChannelCallbackProtocol {
+
+        private final boolean failVerification;
+        private final ChannelCallbackAcknowledgement acknowledgement;
+
+        private FixedProtocol(boolean failVerification, ChannelCallbackAcknowledgement acknowledgement) {
+            this.failVerification = failVerification;
+            this.acknowledgement = acknowledgement;
+        }
+
+        @Override
+        public Set<String> channelCodes() {
+            return Set.of(CHANNEL_CODE);
+        }
+
+        @Override
+        public ChannelCallbackProtocolDescriptor descriptor() {
+            return new ChannelCallbackProtocolDescriptor(
+                    Set.of("POST"),
+                    Set.of("application/x-www-form-urlencoded"),
+                    Set.of(ChannelCallbackScene.STANDARD, ChannelCallbackScene.THREE_DS),
+                    4096,
+                    ChannelCallbackAuthentication.REQUIRED);
+        }
+
+        @Override
+        public VerifiedChannelEvent verifyAndParse(RawChannelCallbackRequest request,
+                                                   ChannelCallbackVerificationContext context) {
+            if (failVerification) {
+                throw new ChannelCallbackVerificationException(
+                        ChannelCallbackVerificationException.Reason.SIGNATURE_INVALID,
+                        "invalid provider signature");
+            }
+            return new VerifiedChannelEvent(
+                    CHANNEL_CODE, null, "event-3ds-001",
+                    request.scene() == ChannelCallbackScene.THREE_DS
+                            ? ChannelCallbackKind.THREE_DS_AUTHENTICATION
+                            : ChannelCallbackKind.FINANCIAL_TRANSACTION,
+                    "TX202607141000000000001", "channel-transaction-001",
+                    "3DS_METHOD_COMPLETED", "PENDING", null, "USD",
+                    "3DS_METHOD_COMPLETED", "received", Map.of());
+        }
+
+        @Override
+        public ChannelCallbackAcknowledgement successAcknowledgement(RawChannelCallbackRequest request,
+                                                                      VerifiedChannelEvent event) {
+            return acknowledgement;
         }
     }
 
@@ -125,6 +184,9 @@ class ChannelCallbackControllerTests {
 
         /** 最近一次转发到支付核心的回调请求，用于断言回调分类、安全结论和原文。 */
         private TransactionChannelCallbackClientRequestDTO callbackRequestDTO;
+
+        /** 模拟 Inbox 数据库受理失败，验证控制器不会提前返回渠道 ACK。 */
+        private boolean failAcceptance;
 
         /** 本回调测试不允许进入授权交易路径，意外调用立即失败。 */
         @Override
@@ -182,12 +244,16 @@ class ChannelCallbackControllerTests {
 
         /** 捕获控制器转发的回调请求，并返回尚待状态映射的固定受理结果。 */
         @Override
-        public TransactionChannelCallbackClientResponseDTO recordChannelCallback(
+        public TransactionCallbackInboxAcceptClientResponseDTO acceptChannelCallback(
                 TransactionChannelCallbackClientRequestDTO requestDTO) {
+            if (failAcceptance) {
+                throw new IllegalStateException("inbox unavailable");
+            }
             this.callbackRequestDTO = requestDTO;
-            TransactionChannelCallbackClientResponseDTO responseDTO = new TransactionChannelCallbackClientResponseDTO();
-            responseDTO.setCallbackStatus("RECEIVED");
-            responseDTO.setProcessResult("PENDING_STATE_MAPPING");
+            TransactionCallbackInboxAcceptClientResponseDTO responseDTO =
+                    new TransactionCallbackInboxAcceptClientResponseDTO();
+            responseDTO.setInboxStatus("RECEIVED");
+            responseDTO.setAcceptResult("ACCEPTED");
             return responseDTO;
         }
 

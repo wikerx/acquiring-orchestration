@@ -1,11 +1,8 @@
 package com.scott.payment.payment.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
 import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
-import com.scott.payment.channel.payment.executor.PaymentChannelCallbackExecutor;
-import com.scott.payment.channel.payment.exception.ChannelException;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -15,6 +12,7 @@ import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
@@ -39,17 +37,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * @author : scott
@@ -57,7 +50,7 @@ import java.util.Optional;
  * @classname : DefaultTransactionCallbackService
  * @date : 2026-07-14 22:42
  * @email : scott_x@163.com
- * @description : 交易渠道回调服务默认实现，位于 service-payment 服务实现层，通过渠道回调 SPI 解析渠道事件，再完成脱敏原文、幂等记录落库和状态推进。
+ * @description : 交易渠道回调服务默认实现，位于 service-payment 服务实现层，只接收已认证标准事件，完成业务幂等落库、状态机 CAS 和事务 Outbox 编排。
  * @status : create
  */
 @Service
@@ -188,8 +181,6 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
 
     private final TransactionShardingKeyParser transactionShardingKeyParser;
 
-    private final Optional<PaymentChannelCallbackExecutor> callbackExecutor;
-
     /**
      * 渠道状态解析服务，用于让渠道回调和查询勾兑共享平台状态映射。
      */
@@ -203,21 +194,18 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      * @param transactionRecordService 交易事实记录服务
      * @param transactionEventOutboxService 交易本地事件服务
      * @param transactionShardingKeyParser 交易分表键解析器
-     * @param callbackExecutor 渠道回调执行器，可为空以兼容尚未接入回调 SPI 的测试场景
      */
     @Autowired
     public DefaultTransactionCallbackService(TransactionChannelCallbackLogMapper callbackLogMapper,
                                              TransactionChannelCallbackMapper callbackMapper,
                                              TransactionRecordService transactionRecordService,
                                              TransactionEventOutboxService transactionEventOutboxService,
-                                             TransactionShardingKeyParser transactionShardingKeyParser,
-                                             Optional<PaymentChannelCallbackExecutor> callbackExecutor) {
+                                             TransactionShardingKeyParser transactionShardingKeyParser) {
         this(callbackLogMapper,
                 callbackMapper,
                 transactionRecordService,
                 transactionEventOutboxService,
                 transactionShardingKeyParser,
-                callbackExecutor,
                 new DefaultChannelTransactionStatusResolver());
     }
 
@@ -229,7 +217,6 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      * @param transactionRecordService 交易事实记录服务
      * @param transactionEventOutboxService 交易本地事件服务
      * @param transactionShardingKeyParser 交易分表键解析器
-     * @param callbackExecutor 渠道回调执行器，可为空以兼容尚未接入回调 SPI 的测试场景
      * @param channelStatusResolver 渠道状态解析服务
      */
     public DefaultTransactionCallbackService(TransactionChannelCallbackLogMapper callbackLogMapper,
@@ -237,14 +224,12 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                              TransactionRecordService transactionRecordService,
                                              TransactionEventOutboxService transactionEventOutboxService,
                                              TransactionShardingKeyParser transactionShardingKeyParser,
-                                             Optional<PaymentChannelCallbackExecutor> callbackExecutor,
                                              ChannelTransactionStatusResolver channelStatusResolver) {
         this.callbackLogMapper = callbackLogMapper;
         this.callbackMapper = callbackMapper;
         this.transactionRecordService = transactionRecordService;
         this.transactionEventOutboxService = transactionEventOutboxService;
         this.transactionShardingKeyParser = transactionShardingKeyParser;
-        this.callbackExecutor = callbackExecutor == null ? Optional.empty() : callbackExecutor;
         this.channelStatusResolver = channelStatusResolver == null
                 ? new DefaultChannelTransactionStatusResolver()
                 : channelStatusResolver;
@@ -262,20 +247,21 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     public TransactionChannelCallbackResultDTO recordChannelCallback(TransactionChannelCallbackCommandDTO commandDTO) {
         validate(commandDTO);
         long startNanos = System.nanoTime();
-        CallbackBodyLogMetadata bodyLogMetadata = callbackBodyLogMetadata(commandDTO.getRequestBody());
-        log.info("event: PAYMENT_CHANNEL_CALLBACK_START stage=CALLBACK traceId: {} channelCode: {} callbackType: {} requestUri: {} sourceIp: {} signatureValid: {} ipAllowed: {} bodyLength: {} bodySha256: {}",
+        CallbackBodyLogMetadata bodyLogMetadata = callbackBodyLogMetadata(commandDTO);
+        log.info("event: PAYMENT_CHANNEL_CALLBACK_START stage=CALLBACK traceId: {} channelCode: {} callbackType: {} requestUri: {} sourceIpHash: {} signatureValid: {} ipAllowed: {} bodyLength: {} bodySha256: {}",
                 TraceContext.getTraceId(),
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 resolveCallbackType(commandDTO),
                 commandDTO.getRequestUri(),
-                commandDTO.getSourceIp(),
+                StringUtils.hasText(commandDTO.getSourceIp())
+                        ? RedisKeyDigest.sha256(commandDTO.getSourceIp().trim()) : null,
                 commandDTO.getSignatureValid(),
                 commandDTO.getIpAllowed(),
                 bodyLogMetadata.length(),
                 bodyLogMetadata.sha256());
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of(DEFAULT_TIME_ZONE));
         LocalDateTime receivedTime = commandDTO.getReceivedTime() == null ? now : commandDTO.getReceivedTime();
-        ChannelCallbackResult channelCallbackResult = parseByChannelHandler(commandDTO);
+        ChannelCallbackResult channelCallbackResult = verifiedChannelResult(commandDTO);
         CallbackContext context = resolveContext(commandDTO, channelCallbackResult);
         String callbackLogId = PaymentOrderNoGenerator.nextOrderNo(CALLBACK_LOG_PREFIX, context.transactionDateTime());
         String callbackId = PaymentOrderNoGenerator.nextOrderNo(CALLBACK_PREFIX, context.transactionDateTime());
@@ -380,7 +366,9 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         logDO.setHttpMethod(commandDTO.getHttpMethod());
         logDO.setSourceIp(commandDTO.getSourceIp());
         logDO.setRequestHeaderJsonMasked(maskedJson(commandDTO.getRequestHeaders()));
-        logDO.setRequestBodyJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(commandDTO.getRequestBody()));
+        logDO.setRequestBodyJsonMasked(JsonUtils.toJsonString(Map.of(
+                "length", commandDTO.getRequestBodyLength(),
+                "sha256", commandDTO.getRequestBodySha256())));
         logDO.setSignatureValid(Boolean.TRUE.equals(commandDTO.getSignatureValid()) ? 1 : 0);
         logDO.setIpAllowed(Boolean.TRUE.equals(commandDTO.getIpAllowed()) ? 1 : 0);
         logDO.setPlatformResponseCode("ACCEPTED");
@@ -797,7 +785,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
             }
         }
         if (transactionDateTime == null) {
-            transactionDateTime = LocalDateTime.now();
+            transactionDateTime = LocalDateTime.now(ZoneId.of(DEFAULT_TIME_ZONE));
         }
         return new CallbackContext(
                 firstText(transactionId, commandDTO.getChannelOrderNo(), payload.channelOrderNo(), UNKNOWN_TRANSACTION_ID),
@@ -878,32 +866,32 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 resolution.getChannelResponseMessage());
     }
 
-    /**
-     * 调用渠道回调处理器解析原文。
-     * <p>
-     * 渠道处理器异常时仍保留原始回调日志，后续可人工排查；生产验签和 IP 白名单结果来自 OpenAPI 回调入口，
-     * 这里不补做外部安全判断。
-     *
-     * @param commandDTO 回调内部命令
-     * @return 渠道解析结果，解析失败时为空
-     */
-    private ChannelCallbackResult parseByChannelHandler(TransactionChannelCallbackCommandDTO commandDTO) {
-        if (callbackExecutor.isEmpty()) {
-            return null;
-        }
-        try {
-            ChannelCallbackRequest request = new ChannelCallbackRequest();
-            request.setChannelCode(commandDTO.getChannelCode());
-            request.setRequestUri(commandDTO.getRequestUri());
-            request.setClientIp(commandDTO.getSourceIp());
-            if (commandDTO.getRequestHeaders() != null) {
-                request.setHeaders(commandDTO.getRequestHeaders());
+    /** 将 service-openapi 已认证并标准化的不可变事件重建为支付核心既有渠道结果模型。 */
+    private ChannelCallbackResult verifiedChannelResult(TransactionChannelCallbackCommandDTO commandDTO) {
+        ChannelCallbackResult result = new ChannelCallbackResult();
+        result.setChannelCode(normalizeChannelCode(commandDTO.getChannelCode()));
+        result.setCallbackEventId(commandDTO.getCallbackEventId());
+        if (StringUtils.hasText(commandDTO.getCallbackKind())) {
+            try {
+                result.setCallbackKind(ChannelCallbackKind.valueOf(
+                        commandDTO.getCallbackKind().trim().toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException exception) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID);
             }
-            request.setBody(commandDTO.getRequestBody());
-            return callbackExecutor.get().execute(request);
-        } catch (ChannelException exception) {
-            return null;
         }
+        result.setChannelOrderNo(commandDTO.getChannelOrderNo());
+        result.setChannelTransactionId(commandDTO.getChannelTransactionId());
+        result.setRawChannelStatus(commandDTO.getRawChannelStatus());
+        result.setChannelTradeStatus(commandDTO.getChannelTradeStatus());
+        result.setAmount(commandDTO.getAmount());
+        result.setCurrency(commandDTO.getCurrency());
+        result.setSignatureValid(Boolean.TRUE.equals(commandDTO.getSignatureValid()));
+        result.setChannelResponseCode(commandDTO.getChannelResponseCode());
+        result.setChannelResponseMessage(commandDTO.getChannelResponseMessage());
+        if (commandDTO.getExtension() != null) {
+            result.setExtension(new java.util.LinkedHashMap<>(commandDTO.getExtension()));
+        }
+        return result;
     }
 
     /**
@@ -1042,18 +1030,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
-    /** 将不可信渠道回调正文转换为 UTF-8 字节长度和不可逆 SHA-256 日志元数据。 */
-    private CallbackBodyLogMetadata callbackBodyLogMetadata(String requestBody) {
-        byte[] bodyBytes = requestBody == null
-                ? new byte[0]
-                : requestBody.getBytes(StandardCharsets.UTF_8);
-        try {
-            String sha256 = HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(bodyBytes));
-            return new CallbackBodyLogMetadata(bodyBytes.length, sha256);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 algorithm is unavailable", exception);
-        }
+    /** 读取入口按原始字节计算的长度与摘要；支付核心不再持有可逆回调正文。 */
+    private CallbackBodyLogMetadata callbackBodyLogMetadata(TransactionChannelCallbackCommandDTO commandDTO) {
+        return new CallbackBodyLogMetadata(
+                commandDTO.getRequestBodyLength() == null ? 0 : commandDTO.getRequestBodyLength(),
+                commandDTO.getRequestBodySha256());
     }
 
     private String firstText(String... values) {
@@ -1073,7 +1054,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     private void validate(TransactionChannelCallbackCommandDTO commandDTO) {
-        if (commandDTO == null || !StringUtils.hasText(commandDTO.getChannelCode())) {
+        if (commandDTO == null
+                || !StringUtils.hasText(commandDTO.getChannelCode())
+                || !StringUtils.hasText(commandDTO.getCallbackEventId())
+                || !Boolean.TRUE.equals(commandDTO.getSignatureValid())
+                || !Boolean.TRUE.equals(commandDTO.getIpAllowed())
+                || commandDTO.getRequestBodyLength() == null
+                || commandDTO.getRequestBodyLength() < 0
+                || !StringUtils.hasText(commandDTO.getRequestBodySha256())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }

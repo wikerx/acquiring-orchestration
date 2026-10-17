@@ -6,11 +6,14 @@ import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientReques
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientResponseDTO;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * @author : scott
@@ -28,6 +31,8 @@ class RiskPaymentRiskInvokeServiceTests {
         CapturingRiskInternalClient riskInternalClient = new CapturingRiskInternalClient(PaymentRiskDecisionEnum.PASS.getCode());
         RiskPaymentRiskInvokeService service = new RiskPaymentRiskInvokeService(riskInternalClient);
         PaymentCreateCommandDTO commandDTO = baseCommand();
+        commandDTO.setIngressClientIp("198.51.100.10");
+        commandDTO.setPayerIp("203.0.113.10");
         PaymentCreateCommandDTO.CardInfoDTO cardInfoDTO = new PaymentCreateCommandDTO.CardInfoDTO();
         cardInfoDTO.setCardNo("4111-1111 1111-1234");
         cardInfoDTO.setSecurityCode("123");
@@ -109,6 +114,8 @@ class RiskPaymentRiskInvokeServiceTests {
         assertThat(riskInternalClient.requestDTO.getShippingZip()).isEqualTo("SW1A 1AA");
         assertThat(riskInternalClient.requestDTO.getShippingCountry()).isEqualTo("GBR");
         assertThat(riskInternalClient.requestDTO.getShippingEmail()).isEqualTo("receiver@example.test");
+        assertThat(riskInternalClient.requestDTO.getIngressClientIp()).isEqualTo("198.51.100.10");
+        assertThat(riskInternalClient.requestDTO.getPayerIp()).isEqualTo("203.0.113.10");
         assertThat(RiskPaymentEvaluateClientRequestDTO.class.getDeclaredFields())
                 .extracting("name")
                 .doesNotContain("securityCode", "cvv");
@@ -133,16 +140,12 @@ class RiskPaymentRiskInvokeServiceTests {
         PaymentCreateCommandDTO commandDTO = baseCommand();
         commandDTO.setTransactionId("TX202607290001");
 
-        PaymentRiskDecisionDTO decisionDTO = service.checkPreRoute(commandDTO);
-
-        assertThat(decisionDTO.isPassed()).isFalse();
-        assertThat(decisionDTO.getDecision()).isEqualTo(PaymentRiskDecisionEnum.UNKNOWN.getCode());
-        assertThat(decisionDTO.getRiskCode()).isEqualTo("RISK_SERVICE_UNAVAILABLE");
-        assertThat(decisionDTO.getRiskMessage())
-                .isEqualTo("risk service is unavailable")
-                .doesNotContain("match_value_hash", "risk_black_region");
-        assertThat(commandDTO.getRiskCode()).isEqualTo("RISK_SERVICE_UNAVAILABLE");
-        assertThat(commandDTO.getRiskMessage()).isEqualTo("risk service is unavailable");
+        assertThatThrownBy(() -> service.checkPreRoute(commandDTO))
+                .isInstanceOf(ServiceException.class)
+                .extracting("code", "message")
+                .containsExactly(ApiResultEnum.NETWORK_BUSY.getCode(), "risk service is unavailable");
+        assertThat(commandDTO.getRiskCode()).isNull();
+        assertThat(commandDTO.getRiskMessage()).isNull();
     }
 
     private PaymentCreateCommandDTO baseCommand() {

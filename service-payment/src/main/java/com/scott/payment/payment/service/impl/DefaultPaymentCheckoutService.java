@@ -1330,8 +1330,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         createCommand.setChannelIdentity(toCoreChannelIdentity(attemptDO, threeDsResult));
         createCommand.setTransactionInfo(toCoreTransactionInfo(sessionDO, attemptDO));
         createCommand.setCallbackUrl(sessionDO == null ? null : sessionDO.getMerchantNotifyUrl());
-        createCommand.setPayerIp(payerInfo == null
-                ? commandDTO.getPayerIp() : firstText(payerInfo.getIpAddress(), commandDTO.getPayerIp()));
+        // Hosted Checkout 的浏览器 IP 来自已验签的网关头；商户创建会话时声明的 IP 只保留在会话快照中。
+        createCommand.setIngressClientIp(commandDTO.getPayerIp());
+        createCommand.setPayerIp(firstText(commandDTO.getPayerIp(),
+                payerInfo == null ? null : payerInfo.getIpAddress()));
         createCommand.setUserAgent(payerInfo == null ? null : payerInfo.getUserAgent());
         return createCommand;
     }

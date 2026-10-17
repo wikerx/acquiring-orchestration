@@ -19,7 +19,6 @@ openapi:
     retry-topic: merchant-notify-retry
   payment-client:
     # dev 联调默认走 service-payment 微服务，调用链路为 service-gateway -> service-openapi -> service-payment。
-    remote-enabled: true
     # 参数说明：支付内部协议的固定调用方标识，必须保持 service-openapi。
     internal-caller: service-openapi
     # 参数说明：OpenAPI 到 Payment 调用边的当前 HMAC 密钥引用。
@@ -45,7 +44,7 @@ payment:
       # 是否启用第二层商户限流；true 时同一 merchantId 的全部 OpenAPI 接口共享额度。
       enabled: ${OPENAPI_MERCHANT_RATE_LIMIT_ENABLED:true}
       # 单个商户在滚动窗口内允许通过的请求数，必须为正整数；dev 当前按每分钟 200 次配置。
-      max-requests: ${OPENAPI_MERCHANT_RATE_LIMIT_MAX_REQUESTS:200}
+      max-requests: ${OPENAPI_MERCHANT_RATE_LIMIT_MAX_REQUESTS:2000}
       # 精确滑动窗口长度，支持 1m、60s、PT1M 等 Spring Duration 格式，必须大于 0。
       window: ${OPENAPI_MERCHANT_RATE_LIMIT_WINDOW:1m}
       # Redis 故障时单个 OpenAPI 实例最多保留的商户数；达到上限后拒绝新身份，防止 JVM 内存无界增长。

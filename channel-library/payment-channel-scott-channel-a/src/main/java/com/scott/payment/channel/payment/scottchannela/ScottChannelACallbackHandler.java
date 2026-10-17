@@ -1,6 +1,5 @@
 package com.scott.payment.channel.payment.scottchannela;
 
-import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
 import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
@@ -22,16 +21,14 @@ import java.util.Map;
  * @status : create
  */
 @SuppressWarnings("unchecked")
-public class ScottChannelACallbackHandler implements PaymentChannelCallbackHandler {
+public class ScottChannelACallbackHandler {
 
     /** 返回回调注册器使用的 ScottChannelA 渠道编码。 */
-    @Override
     public String channelCode() {
         return ScottChannelACode.CODE;
     }
 
     /** 解析并校验 Header 与回调正文中的事件标识一致性。 */
-    @Override
     public ChannelCallbackResult handle(ChannelCallbackRequest request) {
         if (request == null || !StringUtils.hasText(request.getBody())) {
             throw new ChannelRequestException("ScottChannelA callback body is required");

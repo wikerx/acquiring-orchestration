@@ -1,6 +1,8 @@
 package com.scott.payment.channel.payment.scottchannela;
 
-import com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationRequest;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackVerificationContext;
+import com.scott.payment.channel.payment.dto.callback.RawChannelCallbackRequest;
+import com.scott.payment.channel.payment.enums.ChannelCallbackScene;
 import com.scott.payment.channel.payment.exception.ChannelCallbackVerificationException;
 import org.junit.jupiter.api.Test;
 
@@ -8,6 +10,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -33,19 +36,18 @@ class ScottChannelACallbackVerifierTests {
     @Test
     void shouldVerifyRawBodyHmacSignature() throws Exception {
         String signature = hmac(BODY, SECRET).toUpperCase();
-        ChannelCallbackVerificationRequest request = request(BODY, signature, SECRET);
+        RawChannelCallbackRequest request = request(BODY, signature);
 
-        assertThatCode(() -> verifier.verify(request)).doesNotThrowAnyException();
-        org.assertj.core.api.Assertions.assertThat(verifier.requiresPlainTextSuccessAcknowledgement()).isTrue();
+        assertThatCode(() -> verifier.verify(request, context(SECRET))).doesNotThrowAnyException();
     }
 
     /** 验证 body 内容被修改后不能复用原签名通过验签。 */
     @Test
     void shouldRejectChangedRawBody() throws Exception {
         String signature = hmac(BODY, SECRET);
-        ChannelCallbackVerificationRequest request = request(BODY + " ", signature, SECRET);
+        RawChannelCallbackRequest request = request(BODY + " ", signature);
 
-        assertThatThrownBy(() -> verifier.verify(request))
+        assertThatThrownBy(() -> verifier.verify(request, context(SECRET)))
                 .isInstanceOfSatisfying(ChannelCallbackVerificationException.class,
                         exception -> org.assertj.core.api.Assertions.assertThat(exception.getReason())
                                 .isEqualTo(ChannelCallbackVerificationException.Reason.SIGNATURE_INVALID));
@@ -54,25 +56,32 @@ class ScottChannelACallbackVerifierTests {
     /** 验证渠道要求的 MID、事件 ID 和签名 Header 缺失时安全失败。 */
     @Test
     void shouldRejectMissingRequiredHeader() {
-        ChannelCallbackVerificationRequest request = new ChannelCallbackVerificationRequest(
-                ScottChannelACode.CODE, "POST", "/channel/v1/callbacks/SCOTT_CHANNEL_A",
-                Map.of(ScottChannelACallbackVerifier.MERCHANT_ID_HEADER, "MID-TEST"), BODY,
-                SECRET, Map.of(), 300_000L, System.currentTimeMillis());
+        RawChannelCallbackRequest request = new RawChannelCallbackRequest(
+                ScottChannelACode.CODE, ChannelCallbackScene.STANDARD, "POST",
+                "/channel/v1/callbacks/SCOTT_CHANNEL_A", null,
+                Map.of(ScottChannelACallbackVerifier.MERCHANT_ID_HEADER, List.of("MID-TEST")),
+                BODY.getBytes(StandardCharsets.UTF_8), "127.0.0.1");
 
-        assertThatThrownBy(() -> verifier.verify(request))
+        assertThatThrownBy(() -> verifier.verify(request, context(SECRET)))
                 .isInstanceOfSatisfying(ChannelCallbackVerificationException.class,
                         exception -> org.assertj.core.api.Assertions.assertThat(exception.getReason())
                                 .isEqualTo(ChannelCallbackVerificationException.Reason.HEADER_MISSING));
     }
 
-    private ChannelCallbackVerificationRequest request(String body, String signature, String secret) {
-        return new ChannelCallbackVerificationRequest(
-                ScottChannelACode.CODE, "POST", "/channel/v1/callbacks/SCOTT_CHANNEL_A",
+    private RawChannelCallbackRequest request(String body, String signature) {
+        return new RawChannelCallbackRequest(
+                ScottChannelACode.CODE, ChannelCallbackScene.STANDARD, "POST",
+                "/channel/v1/callbacks/SCOTT_CHANNEL_A", null,
                 Map.of(
-                        ScottChannelACallbackVerifier.MERCHANT_ID_HEADER, "MID-TEST",
-                        ScottChannelACallbackVerifier.EVENT_ID_HEADER, "EVENT-001",
-                        ScottChannelACallbackVerifier.SIGNATURE_HEADER, signature),
-                body, secret, Map.of(), 300_000L, System.currentTimeMillis());
+                        ScottChannelACallbackVerifier.MERCHANT_ID_HEADER, List.of("MID-TEST"),
+                        ScottChannelACallbackVerifier.EVENT_ID_HEADER, List.of("EVENT-001"),
+                        ScottChannelACallbackVerifier.SIGNATURE_HEADER, List.of(signature)),
+                body.getBytes(StandardCharsets.UTF_8), "127.0.0.1");
+    }
+
+    private ChannelCallbackVerificationContext context(String secret) {
+        return new ChannelCallbackVerificationContext(
+                secret, Map.of(), 300_000L, System.currentTimeMillis());
     }
 
     private String hmac(String body, String secret) throws Exception {

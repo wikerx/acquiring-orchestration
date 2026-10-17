@@ -48,6 +48,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -234,6 +235,9 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 redisProperties,
                 metricsProvider.getIfAvailable(RedisBusinessMetrics::noop)
         );
+        if (riskRuntimeMapper == null) {
+            throw new IllegalStateException("RiskRuntimeMapper is required for production risk evaluation");
+        }
     }
 
     /**
@@ -356,7 +360,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     public Optional<RiskListMatch> findListMatch(RiskListFunction function,
                                                  String merchantId,
                                                  RiskRuntimeLookupValue lookupValue) {
-        if (!properties.isRuntimeEnabled() || function == null || lookupValue == null || riskRuntimeMapper == null) {
+        if (function == null || lookupValue == null || riskRuntimeMapper == null) {
             return Optional.empty();
         }
         RiskListFunction.requireKnownTable(function.getTableName());
@@ -408,12 +412,16 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public boolean hasActiveListRule(RiskListFunction function, String merchantId) {
-        if (!properties.isRuntimeEnabled() || function == null || riskRuntimeMapper == null) {
+        if (function == null || riskRuntimeMapper == null) {
             return false;
         }
         RiskListFunction.requireKnownTable(function.getTableName());
         Supplier<Boolean> legacyLoader =
-                () -> riskRuntimeMapper.countActiveListRules(function.getTableName(), trim(merchantId)) > 0;
+                () -> riskRuntimeMapper.countActiveListRules(
+                        function.getTableName(),
+                        trim(merchantId),
+                        function.getModuleType().getCode(),
+                        function.getFunctionCode()) > 0;
         if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
             return ruleBooleanCache(
                     legacyLoader,
@@ -444,6 +452,43 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
+     * 从主库读取商户功能开通状态；平台全局规则不依赖该状态。
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public boolean isMerchantFunctionEnabled(RiskListFunction function, String merchantId) {
+        if (function == null || !StringUtils.hasText(merchantId)
+                || riskRuntimeMapper == null) {
+            return false;
+        }
+        return riskRuntimeMapper.countEnabledMerchantFunction(
+                trim(merchantId),
+                function.getModuleType().getCode(),
+                function.getFunctionCode()) > 0;
+    }
+
+    /**
+     * 通过单次主库查询返回商户已开通名单功能，避免同一交易按多个输入维度重复查询。
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    public Set<RiskListFunction> findEnabledMerchantFunctions(String merchantId) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+            return Set.of();
+        }
+        Set<String> enabledKeys = Set.copyOf(
+                riskRuntimeMapper.selectEnabledMerchantFunctionKeys(trim(merchantId)));
+        EnumSet<RiskListFunction> enabledFunctions = EnumSet.noneOf(RiskListFunction.class);
+        for (RiskListFunction function : RiskListFunction.values()) {
+            String key = function.getModuleType().getCode() + ":" + function.getFunctionCode();
+            if (enabledKeys.contains(key)) {
+                enabledFunctions.add(function);
+            }
+        }
+        return Set.copyOf(enabledFunctions);
+    }
+
+    /**
      * 查询当前商户可用的来源主机白名单规则，命中时返回受控放行结论。
      * <p>
      * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
@@ -455,7 +500,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findSourceUrlRule(String merchantId, RiskRuntimeLookupValue lookupValue) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId)
+        if (!StringUtils.hasText(merchantId)
                 || lookupValue == null || !StringUtils.hasText(lookupValue.getSourceHost()) || riskRuntimeMapper == null) {
             return Optional.empty();
         }
@@ -521,7 +566,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findSourceUrlRestrictionMiss(String merchantId, RiskRuntimeLookupValue lookupValue) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return Optional.empty();
         }
         String normalizedMerchantId = merchantId.trim();
@@ -599,7 +644,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     /**
      * 查询当前请求 IP 是否命中已启用的商户 IP 白名单。
      *
-     * <p>仅在白名单开关开启或存在有效记录时执行命中判断；缓存 Key 使用 IP 摘要，
+     * <p>只匹配审核通过、已启用且未删除的 IP；缓存 Key 使用 IP 摘要，
      * 返回明细中的 IP 仅供受控风控审计使用，不得扩散到普通业务日志。</p>
      *
      * @param merchantId 当前商户号
@@ -609,7 +654,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findMerchantIpWhitelistHit(String merchantId, RiskRuntimeLookupValue lookupValue) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return Optional.empty();
         }
         String normalizedMerchantId = merchantId.trim();
@@ -618,9 +663,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             return Optional.empty();
         }
         return ruleCache(() -> {
-            if (!merchantIpWhitelistConfigured(normalizedMerchantId)) {
-                return Optional.empty();
-            }
             if (riskRuntimeMapper.countMerchantIpWhitelistHit(normalizedMerchantId, ipValue) <= 0) {
                 return Optional.empty();
             }
@@ -638,43 +680,44 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
-     * 检查已启用商户 IP 白名单但当前 IP 未命中的拒绝场景。
+     * 对商户业务 API 的 IP 白名单准入执行纵深校验。
      *
-     * @return 白名单启用且 IP 为空或未命中时的拒绝明细，否则返回空
+     * <p>有效名单为空、可信 IP 缺失或未命中均失败关闭；
+     * Hosted Checkout 在上层依据可信内部来源跳过本方法。</p>
+     *
+     * @return IP 准入未通过时的拒绝明细，命中有效白名单时返回空
      */
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findMerchantIpWhitelistMiss(String merchantId, RiskRuntimeLookupValue lookupValue) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return Optional.empty();
         }
         String normalizedMerchantId = merchantId.trim();
         String ipValue = lookupValue == null ? null : lookupValue.getRawValue();
         return ruleCache(() -> {
-            if (!merchantIpWhitelistConfigured(normalizedMerchantId)) {
-                return Optional.empty();
-            }
             if (StringUtils.hasText(ipValue)
                     && riskRuntimeMapper.countMerchantIpWhitelistHit(normalizedMerchantId, ipValue) > 0) {
                 return Optional.empty();
             }
-            return Optional.of(RiskListMatch.system(
-                    "merchantIpWhitelist",
-                    "商户IP白名单",
-                    "ip",
-                    StringUtils.hasText(ipValue) ? ipValue : "EMPTY",
-                    "HIGH",
-                    "REJECT",
-                    "merchant ip whitelist missed"
-            ));
+            String reason = StringUtils.hasText(ipValue)
+                    ? "merchant ip whitelist missed"
+                    : "merchant request ip missing";
+            return Optional.of(merchantIpWhitelistMiss(ipValue, reason));
         }, "merchant-ip-whitelist", "miss", normalizedMerchantId,
                 RedisKeyDigest.sha256(safeKey(ipValue)));
     }
 
-    private boolean merchantIpWhitelistConfigured(String merchantId) {
-        Integer enabled = riskRuntimeMapper.selectMerchantIpWhitelistEnabled(merchantId);
-        return (enabled != null && enabled == 1)
-                || riskRuntimeMapper.countActiveMerchantIpWhitelist(merchantId) > 0;
+    private RiskListMatch merchantIpWhitelistMiss(String ipValue, String reason) {
+        return RiskListMatch.system(
+                "merchantIpWhitelist",
+                "商户IP白名单",
+                "ip",
+                StringUtils.hasText(ipValue) ? ipValue : "EMPTY",
+                "HIGH",
+                "REJECT",
+                reason
+        );
     }
 
     /**
@@ -685,7 +728,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<RiskListMatch> findMerchantLimitRule(String merchantId, BigDecimal amount, String currency) {
-        if (!properties.isRuntimeEnabled() || amount == null || !StringUtils.hasText(currency) || riskRuntimeMapper == null) {
+        if (amount == null || !StringUtils.hasText(currency) || riskRuntimeMapper == null) {
             return Optional.empty();
         }
         String normalizedCurrency = currency.trim().toUpperCase();
@@ -753,7 +796,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @DS(DataSourceName.MASTER)
     public MerchantLimitEvaluation reserveCumulativeMerchantLimits(RiskPaymentEvaluateRequestDTO requestDTO,
                                                                    String riskRecordNo) {
-        if (!properties.isRuntimeEnabled() || requestDTO == null || riskRuntimeMapper == null
+        if (requestDTO == null || riskRuntimeMapper == null
                 || !StringUtils.hasText(requestDTO.getMerchantId())
                 || !StringUtils.hasText(requestDTO.getCurrency())) {
             return MerchantLimitEvaluation.empty();
@@ -936,7 +979,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public boolean hasActiveMerchantLimitRule(String merchantId, String currency) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(currency) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(currency) || riskRuntimeMapper == null) {
             return false;
         }
         String normalizedCurrency = currency.trim().toUpperCase();
@@ -1020,7 +1063,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                                                       RiskRuntimeLookupValue phoneLookup,
                                                       RiskRuntimeLookupValue customerIdLookup,
                                                       RiskRuntimeLookupValue deviceFingerprintLookup) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return List.of();
         }
         List<RiskListMatch> rules = activeFrequencyRules(merchantId.trim());
@@ -1056,7 +1099,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public boolean hasActiveFrequencyRule(String merchantId) {
-        if (!properties.isRuntimeEnabled() || !StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
+        if (!StringUtils.hasText(merchantId) || riskRuntimeMapper == null) {
             return false;
         }
         return !activeFrequencyRules(merchantId.trim()).isEmpty();
@@ -1073,7 +1116,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     @Override
     @DS(DataSourceName.MASTER)
     public Optional<String> findIssuerCountryByCardBin(RiskRuntimeLookupValue cardBinLookup) {
-        if (!properties.isRuntimeEnabled() || cardBinLookup == null || cardBinLookup.getNumericValue() == null
+        if (cardBinLookup == null || cardBinLookup.getNumericValue() == null
                 || riskRuntimeMapper == null) {
             return Optional.empty();
         }
@@ -1105,8 +1148,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                                                    BigDecimal amount,
                                                    String currency,
                                                    String currentRiskLevel) {
-        if (!properties.isRuntimeEnabled()
-                || !StringUtils.hasText(channelCode)
+        if (!StringUtils.hasText(channelCode)
                 || amount == null
                 || !StringUtils.hasText(currency)
                 || riskRuntimeMapper == null) {
@@ -1517,7 +1559,12 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     normalizedMerchantId,
                     queryLimit
             );
-            case REGION -> riskRuntimeMapper.selectActiveRegionSnapshotRows(normalizedMerchantId, queryLimit);
+            case REGION -> riskRuntimeMapper.selectActiveRegionSnapshotRows(
+                    function.getModuleType().getCode(),
+                    function.getFunctionCode(),
+                    normalizedMerchantId,
+                    queryLimit
+            );
             case SOURCE_HOST -> riskRuntimeMapper.selectActiveAmlSourceHostSnapshotRows(queryLimit);
         };
     }

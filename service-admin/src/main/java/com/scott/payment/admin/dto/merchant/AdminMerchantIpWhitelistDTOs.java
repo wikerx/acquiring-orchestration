@@ -18,7 +18,7 @@ import java.util.List;
  * @classname : AdminMerchantIpWhitelistDTOs
  * @date : 2026-07-18 00:00
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 白名单管理 DTO 集合，位于 service-admin 接口传输层，仅承载后台精确 IP 配置和商户开关配置。
+ * @description : 商户 OpenAPI IP 白名单管理 DTO 集合，位于 service-admin 接口传输层，仅承载精确 IP 配置和审核状态。
  * @status : create
  */
 public final class AdminMerchantIpWhitelistDTOs {
@@ -60,10 +60,6 @@ public final class AdminMerchantIpWhitelistDTOs {
          * 提交来源，ADMIN 或 MERCHANT。
          */
         private String submitSource;
-        /**
-         * 商户维度白名单开关，1 启用，0 关闭。
-         */
-        private Integer ipWhitelistEnabled;
     }
 
     /**
@@ -158,27 +154,6 @@ public final class AdminMerchantIpWhitelistDTOs {
     }
 
     /**
-     * 商户维度 IP 白名单开关请求。
-     */
-    @Data
-    public static class MerchantIpWhitelistConfigRequest {
-        /**
-         * 商户号，对应 base_merchant_info.merchant_id。
-         */
-        @NotBlank(message = "merchantId is required")
-        private String merchantId;
-        /**
-         * 是否启用 OpenAPI 请求 IP 白名单校验，1 启用，0 关闭。
-         */
-        @NotNull(message = "ipWhitelistEnabled is required")
-        private Integer ipWhitelistEnabled;
-        /**
-         * 配置备注。
-         */
-        private String remark;
-    }
-
-    /**
      * 商户 IP 白名单列表响应。
      */
     @Data
@@ -233,17 +208,9 @@ public final class AdminMerchantIpWhitelistDTOs {
          */
         private LocalDateTime reviewTime;
         /**
-         * 商户维度白名单开关，1 启用，0 关闭。
-         */
-        private Integer ipWhitelistEnabled;
-        /**
          * IP 记录备注。
          */
         private String remark;
-        /**
-         * 商户开关备注。
-         */
-        private String configRemark;
         /**
          * 创建人。
          */

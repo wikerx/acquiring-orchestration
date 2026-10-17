@@ -71,4 +71,12 @@ public class MpgsChannelAutoConfiguration {
     MpgsCallbackVerifier mpgsCallbackVerifier() {
         return new MpgsCallbackVerifier();
     }
+
+    @Bean
+    @ConditionalOnMissingBean
+    MpgsPaymentChannelCallbackProtocol mpgsPaymentChannelCallbackProtocol(
+            MpgsCallbackVerifier verifier,
+            MpgsPaymentChannelCallbackHandler parser) {
+        return new MpgsPaymentChannelCallbackProtocol(verifier, parser);
+    }
 }

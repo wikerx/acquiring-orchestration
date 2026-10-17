@@ -43,4 +43,12 @@ public class ScottChannelAAutoConfiguration {
     ScottChannelACallbackHandler scottChannelACallbackHandler() {
         return new ScottChannelACallbackHandler();
     }
+
+    @Bean
+    @ConditionalOnMissingBean
+    ScottChannelAPaymentChannelCallbackProtocol scottChannelAPaymentChannelCallbackProtocol(
+            ScottChannelACallbackVerifier verifier,
+            ScottChannelACallbackHandler parser) {
+        return new ScottChannelAPaymentChannelCallbackProtocol(verifier, parser);
+    }
 }

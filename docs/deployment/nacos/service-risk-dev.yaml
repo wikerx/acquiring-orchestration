@@ -1,9 +1,6 @@
 # service-risk 配置源模板：内部 HMAC 身份和路径由应用基线固定，发布时与 payment-risk 密钥合并为加密服务 DataId。
 risk:
   evaluation:
-    # 是否启用运行时名单库和规则库。运行时查询优先走 Redis 缓存，缓存未命中再查从库。
-    # 环境说明：环境变量：RISK_RUNTIME_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
-    runtime-enabled: ${RISK_RUNTIME_ENABLED:true}
     # 并发执行 AML、黑白名单和单笔限额三个无副作用只读规则组；累计限额、频控和 3DS 始终留在请求线程。
     # 环境说明：环境变量：RISK_READ_ONLY_PARALLEL_ENABLED，dev 默认值为 "true"；其他环境启用前需完成线程池、数据库连接池和 Redis 容量压测。
     read-only-parallel-enabled: ${RISK_READ_ONLY_PARALLEL_ENABLED:true}
@@ -82,10 +79,6 @@ risk:
     # MQ 审计消费幂等 TTL，单位秒。
     # 环境说明：环境变量：RISK_AUDIT_CONSUME_IDEMPOTENT_TTL_SECONDS，dev 配置默认值为 "604800"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     audit-consume-idempotent-ttl-seconds: ${RISK_AUDIT_CONSUME_IDEMPOTENT_TTL_SECONDS:604800}
-    # 无运行时规则命中时保留本地骨架规则兜底，避免 dev 环境空库导致风险完全放行。
-    # 环境说明：环境变量：RISK_SKELETON_FALLBACK_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
-    skeleton-fallback-enabled: ${RISK_SKELETON_FALLBACK_ENABLED:true}
-
 internal-service:
   auth:
     # enabled 安全门禁固定在本地，实时风控只接受 service-payment 调用。

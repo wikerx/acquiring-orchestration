@@ -14,6 +14,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionA
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
@@ -181,6 +182,16 @@ public class AdminTransactionApplicationService {
      */
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
         return transactionQueryService.pageOrders(query);
+    }
+
+    /**
+     * 分页查询交易生命周期主单，并返回相同条件下的全量统计。
+     *
+     * @param query 查询条件
+     * @return 主单分页和全量统计
+     */
+    public TransactionOrderSearchResponse searchOrders(TransactionPageQuery query) {
+        return transactionQueryService.searchOrders(query);
     }
 
     /**

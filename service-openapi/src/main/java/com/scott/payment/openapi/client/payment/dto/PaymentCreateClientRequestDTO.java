@@ -59,6 +59,12 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     /** 支付核心内部使用的来源标识，不改变商户 OpenAPI 报文。 */
     private String requestSource;
 
+    /**
+     * 网关认证并规范化的接入客户端 IP，仅用于商户接入白名单和安全审计。
+     * 该字段属于内部服务契约，不接受商户请求体赋值。
+     */
+    private String ingressClientIp;
+
     /** OpenAPI 申请主体稳定标识，当前使用已认证商户号。 */
     private String applicantId;
 
@@ -156,7 +162,8 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     private String sourceUrl;
 
     /**
-     * 付款人 IP，来自网关转发头或请求远端地址，用于风控识别。
+     * 付款人 IP；直连 OpenAPI 优先使用商户上送值，Hosted Checkout 使用真实浏览器 IP。
+     * 该字段用于付款人名单、频控和 3DS，不得用于商户接入白名单。
      */
     private String payerIp;
 

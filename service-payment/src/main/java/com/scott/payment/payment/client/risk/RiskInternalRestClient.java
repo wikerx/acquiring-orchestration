@@ -16,7 +16,6 @@ import com.scott.payment.payment.client.risk.dto.RiskThreeDsPolicyClientRequestD
 import com.scott.payment.payment.client.risk.dto.RiskThreeDsPolicyClientResponseDTO;
 import com.scott.payment.payment.config.RiskClientProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -43,7 +42,6 @@ import lombok.extern.slf4j.Slf4j;
  * @status : create
  */
 @Service
-@ConditionalOnProperty(prefix = "payment.risk-client", name = "remote-enabled", havingValue = "true")
 @Slf4j
 public class RiskInternalRestClient implements RiskInternalClient {
 

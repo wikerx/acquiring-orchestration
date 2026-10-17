@@ -15,10 +15,9 @@ import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDT
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
-import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionCallbackInboxAcceptClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
-import com.scott.payment.openapi.config.PaymentClientProperties;
 import com.scott.payment.openapi.converter.OpenApiRequestConverter;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
@@ -94,6 +93,7 @@ class PaymentServiceImplTests {
                 .isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
         assertThat(captured.getCallbackUrl()).isEqualTo("https://merchant.example/callback");
         assertThat(captured.getSourceUrl()).isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
+        assertThat(captured.getIngressClientIp()).isEqualTo("198.51.100.10");
         assertThat(captured.getPayerIp()).isEqualTo("203.0.113.10");
         assertThat(captured.getUserAgent()).isEqualTo("Mozilla/5.0");
         assertThat(captured.getRiskContext().getCustomerId()).isEqualTo("CUSTOMER-001");
@@ -420,12 +420,9 @@ class PaymentServiceImplTests {
 
     private PaymentServiceImpl newPaymentService(CapturingPaymentInternalClient paymentInternalClient,
                                                  IsoDictionaryService isoDictionaryService) {
-        PaymentClientProperties properties = new PaymentClientProperties();
-        properties.setRemoteEnabled(true);
         return new PaymentServiceImpl(
                 Mappers.getMapper(OpenApiRequestConverter.class),
                 paymentInternalClient,
-                properties,
                 new OpenApiKeyMaterialFactory(),
                 new OpenApiRequestContext(),
                 isoDictionaryService,
@@ -450,6 +447,7 @@ class PaymentServiceImplTests {
         request.addHeader("User-Agent", "JUnit");
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setMerchantId("200001");
+        headerDTO.setClientIp("198.51.100.10");
         request.setAttribute(OpenApiRequestAttributes.REQUEST_HEADER, headerDTO);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     }
@@ -731,13 +729,13 @@ class PaymentServiceImplTests {
 
         /** 返回固定的渠道回调受理结果，供非回调测试满足客户端契约。 */
         @Override
-        public TransactionChannelCallbackClientResponseDTO recordChannelCallback(TransactionChannelCallbackClientRequestDTO requestDTO) {
-            TransactionChannelCallbackClientResponseDTO responseDTO = new TransactionChannelCallbackClientResponseDTO();
-            responseDTO.setCallbackLogId("CCL202607140001");
-            responseDTO.setCallbackId("CCB202607140001");
-            responseDTO.setTransactionId(requestDTO.getTransactionId());
-            responseDTO.setCallbackStatus("RECEIVED");
-            responseDTO.setProcessResult("PENDING_STATE_MAPPING");
+        public TransactionCallbackInboxAcceptClientResponseDTO acceptChannelCallback(
+                TransactionChannelCallbackClientRequestDTO requestDTO) {
+            TransactionCallbackInboxAcceptClientResponseDTO responseDTO =
+                    new TransactionCallbackInboxAcceptClientResponseDTO();
+            responseDTO.setInboxId("CBI202607140001");
+            responseDTO.setInboxStatus("RECEIVED");
+            responseDTO.setAcceptResult("ACCEPTED");
             return responseDTO;
         }
 

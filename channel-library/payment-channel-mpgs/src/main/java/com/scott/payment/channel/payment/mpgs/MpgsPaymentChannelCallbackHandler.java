@@ -1,6 +1,5 @@
 package com.scott.payment.channel.payment.mpgs;
 
-import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
 import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
@@ -26,7 +25,7 @@ import java.util.Set;
  * @description : MPGS 渠道回调处理器，位于 payment-channel-mpgs 渠道实现层，负责解析 MPGS 回调中的 order.id、transaction.id、result 和收单响应码。
  * @status : create
  */
-public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallbackHandler {
+public class MpgsPaymentChannelCallbackHandler {
 
     /**
      * MPGS 3DS Method 和付款人认证回调路径标识。
@@ -82,7 +81,6 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
      *
      * @return MPGS 平台渠道编码
      */
-    @Override
     public String channelCode() {
         return MpgsChannelCode.MPGS;
     }
@@ -93,7 +91,6 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
      * @param request 渠道回调请求
      * @return 渠道回调解析结果
      */
-    @Override
     public ChannelCallbackResult handle(ChannelCallbackRequest request) {
         if (request == null || !StringUtils.hasText(request.getBody())) {
             throw new ChannelRequestException("MPGS callback body can not be empty");
@@ -175,8 +172,13 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         ChannelCallbackResult result = new ChannelCallbackResult();
         result.setChannelCode(MpgsChannelCode.MPGS);
         result.setCallbackKind(ChannelCallbackKind.THREE_DS_AUTHENTICATION);
-        result.setCallbackEventId(firstText(header(request, MpgsCallbackVerifier.NOTIFICATION_ID_HEADER),
-                threeDsServerTransactionId, transactionId, orderId));
+        String fallbackEventReference = firstText(threeDsServerTransactionId, transactionId, orderId);
+        String fallbackEventState = methodCompletion
+                ? THREE_DS_METHOD_COMPLETED
+                : firstText(gatewayRecommendation, resultValue, THREE_DS_PAYER_AUTHENTICATION);
+        result.setCallbackEventId(firstText(
+                header(request, MpgsCallbackVerifier.NOTIFICATION_ID_HEADER),
+                eventKey(fallbackEventReference, fallbackEventState)));
         result.setChannelOrderNo(orderId);
         result.setChannelTransactionId(transactionId);
         result.setRawChannelStatus(methodCompletion ? THREE_DS_METHOD_COMPLETED : firstText(gatewayRecommendation, resultValue, THREE_DS_PAYER_AUTHENTICATION));
@@ -317,12 +319,25 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
     }
 
     /**
-     * 提取 MPGS 回调幂等事件号，优先使用 transaction.id，缺失时退到 order.id。
+     * 提取 MPGS 回调幂等事件号；缺少官方通知 ID 时组合交易引用和原始状态，
+     * 防止同一渠道交易的后续状态事件被前一状态吞掉。
      */
     private String callbackEventId(MpgsResponsePayload payload) {
         String orderId = payload.getOrder() == null ? null : payload.getOrder().getId();
         String transactionId = payload.getTransaction() == null ? null : payload.getTransaction().getId();
-        return firstText(transactionId, orderId);
+        String rawStatus = firstText(
+                payload.getOrder() == null ? null : payload.getOrder().getStatus(),
+                payload.getResult(),
+                payload.getTransaction() == null ? null : payload.getTransaction().getType());
+        return eventKey(firstText(transactionId, orderId), rawStatus);
+    }
+
+    /** 使用稳定渠道引用和事件状态构造无官方通知号时的回退事件键。 */
+    private String eventKey(String reference, String state) {
+        if (!StringUtils.hasText(reference)) {
+            return null;
+        }
+        return reference.trim() + ":" + firstText(state, "-").trim().toUpperCase(Locale.ROOT);
     }
 
     /**

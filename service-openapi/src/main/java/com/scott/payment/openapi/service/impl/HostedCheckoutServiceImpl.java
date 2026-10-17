@@ -7,8 +7,10 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
+import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.HostedCheckoutProperties;
@@ -62,16 +64,6 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      * 当前 Hosted Checkout 支持的银行卡支付方式编码。
      */
     private static final String PAYMENT_METHOD_BANK_CARD = "BANK_CARD";
-
-    /**
-     * 代理链客户端 IP 请求头。
-     */
-    private static final String HEADER_X_FORWARDED_FOR = "X-Forwarded-For";
-
-    /**
-     * 反向代理真实客户端 IP 请求头。
-     */
-    private static final String HEADER_X_REAL_IP = "X-Real-IP";
 
     /**
      * 浏览器请求来源头。
@@ -936,21 +928,19 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     }
 
     /**
-     * 解析客户端 IP，优先取网关透传头，调用方会立即转换为 hash。
+     * 解析客户端 IP。只有网关入口验签成功后才信任签名覆盖的客户端 IP 头；
+     * 非网关测试或内部调用仅使用连接对端地址，绝不信任可由调用方伪造的转发头。
      */
     private String resolveClientIp(HttpServletRequest request) {
         if (request == null) {
             return null;
         }
-        String forwardedFor = request.getHeader(HEADER_X_FORWARDED_FOR);
-        if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor.split(",")[0].trim();
+        if (GatewayIngressAuthFilter.isGatewayAuthenticated(request)) {
+            String gatewayClientIp = request.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP);
+            return StringUtils.hasText(gatewayClientIp) ? gatewayClientIp.trim() : null;
         }
-        String realIp = request.getHeader(HEADER_X_REAL_IP);
-        if (StringUtils.hasText(realIp)) {
-            return realIp.trim();
-        }
-        return request.getRemoteAddr();
+        String remoteAddr = request.getRemoteAddr();
+        return StringUtils.hasText(remoteAddr) ? remoteAddr.trim() : null;
     }
 
     /**

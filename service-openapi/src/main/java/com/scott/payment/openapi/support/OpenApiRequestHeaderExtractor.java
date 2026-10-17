@@ -9,6 +9,7 @@ import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
+import com.scott.payment.openapi.security.MerchantIpWhitelistAccessDeniedException;
 import com.scott.payment.openapi.security.MerchantKeyProvider;
 import com.scott.payment.openapi.security.OpenApiMerchantRateLimitService;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
@@ -117,20 +118,6 @@ public class OpenApiRequestHeaderExtractor {
      * @return 标准化请求头信息
      */
     public OpenApiRequestHeaderDTO extract(HttpServletRequest request, String[] requiredHeaders) {
-        return extract(request, requiredHeaders, false);
-    }
-
-    /**
-     * 提取请求头并完成商户 JWT 验签。
-     *
-     * @param request HTTP 请求
-     * @param requiredHeaders 接口要求存在的请求头
-     * @param deferIpWhitelistToRisk 是否把 IP 白名单判定延后到交易内风控
-     * @return 标准化请求头信息
-     */
-    public OpenApiRequestHeaderDTO extract(HttpServletRequest request,
-                                           String[] requiredHeaders,
-                                           boolean deferIpWhitelistToRisk) {
         try {
             validateRequiredHeaders(request, requiredHeaders);
         } catch (RuntimeException exception) {
@@ -159,16 +146,12 @@ public class OpenApiRequestHeaderExtractor {
             throw exception;
         }
         String clientIp;
-        if (deferIpWhitelistToRisk) {
-            clientIp = ipWhitelistAccessService.resolveClientIp(request);
-        } else {
-            try {
-                clientIp = ipWhitelistAccessService.checkAccess(claims.getMerchantId(), request);
-            } catch (RuntimeException exception) {
-                recordBlocked(request, "OPENAPI_IP_DENIED", SecurityInterceptEventRecorder.RISK_HIGH,
-                        claims.getMerchantId(), "OPENAPI_IP_WHITELIST", exception);
-                throw exception;
-            }
+        try {
+            clientIp = ipWhitelistAccessService.checkAccess(claims.getMerchantId(), request);
+        } catch (RuntimeException exception) {
+            recordBlocked(request, "OPENAPI_IP_DENIED", SecurityInterceptEventRecorder.RISK_HIGH,
+                    claims.getMerchantId(), ipWhitelistRuleCode(exception), exception);
+            throw exception;
         }
         // 白名单已经确认客户端来源；限流拒绝发生在防重放写入前，避免消耗一次性 jti。
         try {
@@ -191,19 +174,25 @@ public class OpenApiRequestHeaderExtractor {
         headerDTO.setIssuedAt(claims.getIssuedAt());
         headerDTO.setExpiresAt(claims.getExpiresAt());
         headerDTO.setClientIp(clientIp);
-        log.debug("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipWhitelistDeferred: {} clientIpDigest: {} jwtSummary: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {}",
+        log.debug("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} clientIpDigest: {} jwtSummary: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {}",
                 TraceContext.getTraceId(),
                 claims.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 digest8(claims.getJwtId()),
-                deferIpWhitelistToRisk,
                 digest8(clientIp),
                 diagnosticLogSupport.jwtSummary(headerDTO),
                 diagnosticLogSupport.headerSummary(request),
                 request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
                 request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE));
         return headerDTO;
+    }
+
+    private String ipWhitelistRuleCode(RuntimeException exception) {
+        if (exception instanceof MerchantIpWhitelistAccessDeniedException deniedException) {
+            return "OPENAPI_IP_WHITELIST_" + deniedException.getReason().name();
+        }
+        return "OPENAPI_IP_WHITELIST_UNAVAILABLE";
     }
 
     /**
@@ -239,11 +228,12 @@ public class OpenApiRequestHeaderExtractor {
                 securityInterceptEventRecorder.reasonCode(exception),
                 securityInterceptEventRecorder.reasonMessage(exception)
         );
-        log.warn("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false hitRuleCode: {} reasonCode: {} exceptionType: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {}",
+        log.warn("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false requestIp: {} hitRuleCode: {} reasonCode: {} exceptionType: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {}",
                 TraceContext.getTraceId(),
                 merchantId,
                 request == null ? null : request.getRequestURI(),
                 request == null ? null : request.getAttribute(OpenApiRequestAttributes.API_VERSION),
+                deniedRequestIp(exception),
                 hitRuleCode,
                 securityInterceptEventRecorder.reasonCode(exception),
                 exception.getClass().getSimpleName(),
@@ -251,6 +241,15 @@ public class OpenApiRequestHeaderExtractor {
                 request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
                 request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE),
                 request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_SUMMARY_ATTRIBUTE));
+    }
+
+    private String deniedRequestIp(RuntimeException exception) {
+        if (exception instanceof MerchantIpWhitelistAccessDeniedException deniedException) {
+            return StringUtils.hasText(deniedException.getRequestIp())
+                    ? deniedException.getRequestIp()
+                    : "unknown";
+        }
+        return null;
     }
 
     /**

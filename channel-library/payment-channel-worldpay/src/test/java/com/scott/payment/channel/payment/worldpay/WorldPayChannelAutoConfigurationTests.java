@@ -1,7 +1,6 @@
 package com.scott.payment.channel.payment.worldpay;
 
-import com.scott.payment.channel.payment.api.PaymentChannelCallbackVerifier;
-import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
+import com.scott.payment.channel.payment.api.PaymentChannelCallbackProtocol;
 import com.scott.payment.channel.payment.api.PaymentChannelClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -28,10 +27,9 @@ class WorldPayChannelAutoConfigurationTests {
         contextRunner.run(context -> {
             assertThat(context).hasSingleBean(WorldPayJsonPaymentChannelClient.class);
             assertThat(context).hasSingleBean(WorldPayXmlPaymentChannelClient.class);
-            assertThat(context).hasSingleBean(WorldPayCallbackVerifier.class);
             assertThat(context.getBeansOfType(PaymentChannelClient.class)).hasSize(2);
-            assertThat(context.getBeansOfType(PaymentChannelCallbackHandler.class)).hasSize(2);
-            assertThat(context.getBeansOfType(PaymentChannelCallbackVerifier.class)).hasSize(1);
+            assertThat(context).hasSingleBean(WorldPayPaymentChannelCallbackProtocol.class);
+            assertThat(context.getBeansOfType(PaymentChannelCallbackProtocol.class)).hasSize(1);
         });
     }
 

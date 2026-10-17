@@ -7,8 +7,10 @@ import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
 
 import java.math.BigDecimal;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * @author : scott
@@ -43,6 +45,37 @@ public interface RiskListRuntimeRepository {
     boolean hasActiveListRule(RiskListFunction function, String merchantId);
 
     /**
+     * 判断商户是否显式开通指定可选风控功能。
+     *
+     * <p>平台全局规则不依赖该开关，仓储查询必须始终保留全局规则。</p>
+     *
+     * @param function 名单功能
+     * @param merchantId 当前商户号
+     * @return 商户已开通时返回 {@code true}
+     */
+    default boolean isMerchantFunctionEnabled(RiskListFunction function, String merchantId) {
+        return false;
+    }
+
+    /**
+     * 一次性读取商户已开通的可选名单功能，避免按交易输入维度重复访问数据库。
+     *
+     * <p>默认实现用于兼容隔离测试仓储；生产仓储必须覆盖为单次批量查询。</p>
+     *
+     * @param merchantId 当前商户号
+     * @return 已开通功能的不可变集合
+     */
+    default Set<RiskListFunction> findEnabledMerchantFunctions(String merchantId) {
+        EnumSet<RiskListFunction> enabledFunctions = EnumSet.noneOf(RiskListFunction.class);
+        for (RiskListFunction function : RiskListFunction.values()) {
+            if (isMerchantFunctionEnabled(function, merchantId)) {
+                enabledFunctions.add(function);
+            }
+        }
+        return Set.copyOf(enabledFunctions);
+    }
+
+    /**
      * 查询当前商户可用的来源主机白名单规则，命中时返回受控放行结论。
      * <p>
      * 只读操作；实现必须沿用 风控服务 既有权限、数据范围和空结果约定。
@@ -74,11 +107,11 @@ public interface RiskListRuntimeRepository {
     Optional<RiskListMatch> findMerchantIpWhitelistHit(String merchantId, RiskRuntimeLookupValue lookupValue);
 
     /**
-     * 检查商户 IP 白名单是否启用但当前请求 IP 未命中。
+     * 检查商户业务 API 的 IP 白名单准入是否通过。
      *
      * @param merchantId 当前商户号
      * @param lookupValue 已解析为 IP 版本和数值的查询值
-     * @return 白名单已启用且未命中时返回拒绝明细
+     * @return 有效名单为空、请求 IP 缺失或未命中时返回拒绝明细
      */
     Optional<RiskListMatch> findMerchantIpWhitelistMiss(String merchantId, RiskRuntimeLookupValue lookupValue);
 

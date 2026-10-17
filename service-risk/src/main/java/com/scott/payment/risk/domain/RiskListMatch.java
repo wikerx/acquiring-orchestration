@@ -65,6 +65,11 @@ public class RiskListMatch implements Serializable {
     private String decisionReason;
 
     /**
+     * 稳定审计原因码，例如 NOT_ENABLED、NOT_CONFIGURED、NO_MATCH 或 INPUT_MISSING。
+     */
+    private String reasonCode;
+
+    /**
      * 频率规则时间窗口，单位秒；非频率规则允许为空。
      */
     private Integer timeWindowSeconds;

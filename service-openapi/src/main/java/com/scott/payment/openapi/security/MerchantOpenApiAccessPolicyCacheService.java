@@ -45,7 +45,7 @@ public class MerchantOpenApiAccessPolicyCacheService {
     }
 
     /**
-     * 读取商户 IP 访问策略，缓存未启用状态可防止配置表穿透。
+     * 读取商户 IP 访问策略，缓存空白名单策略可防止配置表穿透。
      *
      * @param merchantId 商户号
      * @return 商户访问策略

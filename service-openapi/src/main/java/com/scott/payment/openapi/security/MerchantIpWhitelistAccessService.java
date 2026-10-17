@@ -1,7 +1,5 @@
 package com.scott.payment.openapi.security;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
-import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer.NormalizedIp;
@@ -41,32 +39,37 @@ public class MerchantIpWhitelistAccessService {
     /**
      * 校验网关注入的可信客户端 IP 是否满足商户当前白名单策略。
      *
-     * <p>未启用白名单时仅返回规范化前的可信请求头；启用后，请求头缺失、
-     * IP 格式非法或未命中精确地址集合均统一拒绝，避免泄露具体失败原因。</p>
+     * <p>商户业务 API 采用默认拒绝：有效白名单为空、请求 IP 缺失或未命中时均拒绝。
+     * 拒绝消息返回平台识别到的规范化请求 IP，方便商户核对其实际出口地址。</p>
      *
      * @param merchantId 商户号，用于读取对应的 OpenAPI 访问策略
      * @param request 当前 OpenAPI HTTP 请求，只信任网关注入的客户端 IP 请求头
-     * @return 校验通过的客户端 IP；未启用白名单且请求头缺失时返回 null
+     * @return 校验通过且规范化后的客户端 IP
      */
     public String checkAccess(String merchantId, HttpServletRequest request) {
-        MerchantOpenApiAccessPolicy policy = policyCacheService.findPolicy(merchantId);
-        if (!policy.isWhitelistEnabled()) {
-            return resolveClientIp(request);
-        }
         String rawClientIp = resolveClientIp(request);
         if (!StringUtils.hasText(rawClientIp)) {
-            throw new ApiException(ApiResultEnum.FORBIDDEN, "merchant ip not allowed");
+            throw denied(MerchantIpWhitelistDenyReason.CLIENT_IP_MISSING, null);
         }
         NormalizedIp clientIp;
         try {
             clientIp = IpAddressNormalizer.normalizeExact(rawClientIp);
         } catch (IllegalArgumentException ex) {
-            throw new ApiException(ApiResultEnum.FORBIDDEN, "merchant ip not allowed");
+            throw denied(MerchantIpWhitelistDenyReason.CLIENT_IP_INVALID, null);
+        }
+        MerchantOpenApiAccessPolicy policy = policyCacheService.findPolicy(merchantId);
+        if (policy.getAllowedIps() == null || policy.getAllowedIps().isEmpty()) {
+            throw denied(MerchantIpWhitelistDenyReason.WHITELIST_EMPTY, clientIp.ipValue());
         }
         if (!policy.getAllowedIps().contains(clientIp.ipValue())) {
-            throw new ApiException(ApiResultEnum.FORBIDDEN, "merchant ip not allowed");
+            throw denied(MerchantIpWhitelistDenyReason.IP_NOT_ALLOWED, clientIp.ipValue());
         }
         return clientIp.ipValue();
+    }
+
+    private MerchantIpWhitelistAccessDeniedException denied(MerchantIpWhitelistDenyReason reason,
+                                                             String requestIp) {
+        return new MerchantIpWhitelistAccessDeniedException(reason, requestIp);
     }
 
     /**

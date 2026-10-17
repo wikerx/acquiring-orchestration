@@ -56,6 +56,11 @@ public class RiskPaymentEvaluateClientRequestDTO implements Serializable {
     private String requestSource;
 
     /**
+     * 网关认证的接入客户端 IP，仅用于直连商户接入白名单。
+     */
+    private String ingressClientIp;
+
+    /**
      * 交易金额，主币种单位。
      */
     private BigDecimal amount;
@@ -81,7 +86,7 @@ public class RiskPaymentEvaluateClientRequestDTO implements Serializable {
     private String sourceUrl;
 
     /**
-     * 付款人 IP。
+     * 付款人 IP，用于付款人名单、频控和 3DS 风险判断。
      */
     private String payerIp;
 

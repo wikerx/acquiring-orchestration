@@ -55,8 +55,7 @@ class RiskCacheInvalidationEntryPointContractTests {
                 "public List<MerchantIpWhitelistResponse> createWhitelists(",
                 "public MerchantIpWhitelistResponse updateWhitelist(",
                 "public MerchantIpWhitelistResponse updateWhitelistStatus(",
-                "public void deleteWhitelist(",
-                "public MerchantIpWhitelistResponse updateConfig("
+                "public void deleteWhitelist("
         ).forEach(signature -> assertPreparesInvalidation(source, signature));
     }
 

@@ -22,6 +22,55 @@ import java.util.List;
  */
 public interface RiskRuntimeMapper {
 
+    /** 全局规则始终适用，商户级规则仅在商户显式开通对应功能时适用。 */
+    String MERCHANT_LIST_SCOPE_PREDICATE = """
+                    merchant_scope = 'GLOBAL'
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1
+                            FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = #{moduleType}
+                              AND config.function_code = #{functionCode}
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
+            """;
+
+    /**
+     * 查询商户是否显式开通指定可选风控功能。
+     */
+    @Select("""
+            SELECT COUNT(1)
+            FROM risk_merchant_function_config
+            WHERE merchant_id = #{merchantId}
+              AND module_type = #{moduleType}
+              AND function_code = #{functionCode}
+              AND enabled = 1
+              AND deleted = 0
+            """)
+    long countEnabledMerchantFunction(@Param("merchantId") String merchantId,
+                                      @Param("moduleType") String moduleType,
+                                      @Param("functionCode") String functionCode);
+
+    /**
+     * 批量读取商户已开通功能的模块和功能组合键。
+     *
+     * @param merchantId 当前商户号
+     * @return {@code moduleType:functionCode} 组合键
+     */
+    @Select("""
+            SELECT CONCAT(module_type, ':', function_code)
+            FROM risk_merchant_function_config
+            WHERE merchant_id = #{merchantId}
+              AND enabled = 1
+              AND deleted = 0
+            """)
+    List<String> selectEnabledMerchantFunctionKeys(@Param("merchantId") String merchantId);
+
     /**
      * 统计受控名单表中当前商户可用的启用规则。
      *
@@ -39,12 +88,26 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1
+                            FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = #{moduleType}
+                              AND config.function_code = #{functionCode}
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
             </script>
             """)
     long countActiveListRules(@Param("tableName") String tableName,
-                              @Param("merchantId") String merchantId);
+                              @Param("merchantId") String merchantId,
+                              @Param("moduleType") String moduleType,
+                              @Param("functionCode") String functionCode);
 
     /**
      * 加载精确哈希名单的完整有效快照。
@@ -78,8 +141,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      update_time DESC,
@@ -123,8 +185,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      update_time DESC,
@@ -167,8 +228,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      update_time DESC,
@@ -210,8 +270,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      update_time DESC,
@@ -256,8 +315,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      CASE region_match_level WHEN 'CITY' THEN 0 WHEN 'STATE' THEN 1 ELSE 2 END,
@@ -266,6 +324,8 @@ public interface RiskRuntimeMapper {
             LIMIT #{maxRows}
             """)
     List<RiskRuleSnapshotRow> selectActiveRegionSnapshotRows(
+            @Param("moduleType") String moduleType,
+            @Param("functionCode") String functionCode,
             @Param("merchantId") String merchantId,
             @Param("maxRows") int maxRows);
 
@@ -330,8 +390,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
               AND match_value_hash = #{matchValueHash}
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END, update_time DESC, id DESC
@@ -378,8 +437,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
               AND ip_version = #{ipVersion}
               AND match_value_start_number &lt;= #{numericValue}
@@ -428,8 +486,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
               AND match_value_start_number &lt;= #{numericValue}
               AND match_value_end_number &gt;= #{numericValue}
@@ -467,8 +524,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time &lt;= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
               AND country_alpha3 = #{countryAlpha3}
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END, update_time DESC, id DESC
@@ -507,8 +563,7 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND (
-                    merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+            """ + MERCHANT_LIST_SCOPE_PREDICATE + """
                   )
               AND country_alpha3 = #{countryAlpha3}
               AND (
@@ -600,6 +655,14 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
+              AND EXISTS (
+                    SELECT 1 FROM risk_merchant_function_config config
+                    WHERE config.merchant_id = #{merchantId}
+                      AND config.module_type = 'RULE'
+                      AND config.function_code = 'sourceUrl'
+                      AND config.enabled = 1
+                      AND config.deleted = 0
+                  )
               AND source_host = #{sourceHost}
             ORDER BY update_time DESC, id DESC
             LIMIT 1
@@ -636,6 +699,14 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
+              AND EXISTS (
+                    SELECT 1 FROM risk_merchant_function_config config
+                    WHERE config.merchant_id = #{merchantId}
+                      AND config.module_type = 'RULE'
+                      AND config.function_code = 'sourceUrl'
+                      AND config.enabled = 1
+                      AND config.deleted = 0
+                  )
             ORDER BY update_time DESC, id DESC
             LIMIT #{maxRows}
             """)
@@ -656,6 +727,14 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
+              AND EXISTS (
+                    SELECT 1 FROM risk_merchant_function_config config
+                    WHERE config.merchant_id = #{merchantId}
+                      AND config.module_type = 'RULE'
+                      AND config.function_code = 'sourceUrl'
+                      AND config.enabled = 1
+                      AND config.deleted = 0
+                  )
             """)
     long countActiveSourceUrlRules(@Param("merchantId") String merchantId);
 
@@ -674,42 +753,18 @@ public interface RiskRuntimeMapper {
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
+              AND EXISTS (
+                    SELECT 1 FROM risk_merchant_function_config config
+                    WHERE config.merchant_id = #{merchantId}
+                      AND config.module_type = 'RULE'
+                      AND config.function_code = 'sourceUrl'
+                      AND config.enabled = 1
+                      AND config.deleted = 0
+                  )
               AND source_host = #{sourceHost}
             """)
     long countActiveSourceUrlHit(@Param("merchantId") String merchantId,
                                  @Param("sourceHost") String sourceHost);
-
-    /**
-     * 读取商户 OpenAPI 访问配置中的 IP 白名单开关。
-     *
-     * @param merchantId 当前商户号
-     * @return 数据库开关值；尚未配置时返回 {@code null}
-     */
-    @Select("""
-            SELECT ip_whitelist_enabled
-            FROM merchant_openapi_access_config
-            WHERE deleted = 0
-              AND merchant_id = #{merchantId}
-            ORDER BY gmt_modified DESC, id DESC
-            LIMIT 1
-            """)
-    Integer selectMerchantIpWhitelistEnabled(@Param("merchantId") String merchantId);
-
-    /**
-     * 统计商户当前启用的精确 IP 白名单记录。
-     *
-     * @param merchantId 当前商户号
-     * @return 启用记录数量
-     */
-    @Select("""
-            SELECT COUNT(1)
-            FROM merchant_ip_whitelist
-            WHERE deleted = 0
-              AND approval_status = 1
-              AND status = 1
-              AND merchant_id = #{merchantId}
-            """)
-    long countActiveMerchantIpWhitelist(@Param("merchantId") String merchantId);
 
     /**
      * 统计{@code countMerchantIpWhitelistHit}，返回分页、扫描或报表汇总所需的数量结果。
@@ -755,7 +810,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'merchantLimit'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
               AND currency = #{currency}
               AND (
@@ -809,7 +875,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'merchantLimit'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
               AND currency = #{currency}
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
@@ -841,7 +918,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'merchantLimit'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
               AND currency = #{currency}
             </script>
@@ -876,7 +964,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'merchantLimit'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
               AND currency = #{currency}
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
@@ -990,7 +1089,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'frequency'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      threshold_count ASC,
@@ -1032,7 +1142,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'frequency'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      threshold_count ASC,
@@ -1105,7 +1226,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'threeDs'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
               AND (channel_code = 'ALL' OR channel_code = #{channelCode})
               AND (payment_method = 'ALL' OR payment_method = #{paymentMethod})
@@ -1180,7 +1312,18 @@ public interface RiskRuntimeMapper {
               AND (expire_time IS NULL OR expire_time &gt; CURRENT_TIMESTAMP(3))
               AND (
                     merchant_scope = 'GLOBAL'
-                    OR (merchant_scope = 'MERCHANT' AND merchant_id = #{merchantId})
+                    OR (
+                        merchant_scope = 'MERCHANT'
+                        AND merchant_id = #{merchantId}
+                        AND EXISTS (
+                            SELECT 1 FROM risk_merchant_function_config config
+                            WHERE config.merchant_id = #{merchantId}
+                              AND config.module_type = 'RULE'
+                              AND config.function_code = 'threeDs'
+                              AND config.enabled = 1
+                              AND config.deleted = 0
+                        )
+                    )
                   )
             ORDER BY CASE WHEN merchant_scope = 'MERCHANT' THEN 0 ELSE 1 END,
                      priority ASC,

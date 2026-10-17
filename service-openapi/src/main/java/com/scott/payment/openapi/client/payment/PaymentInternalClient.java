@@ -4,7 +4,7 @@ import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDT
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
-import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionCallbackInboxAcceptClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 
@@ -92,12 +92,13 @@ public interface PaymentInternalClient {
     PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO);
 
     /**
-     * 调用 service-payment 记录渠道回调。
+     * 调用 service-payment 可靠受理渠道回调 Inbox。
      *
      * @param requestDTO 渠道回调内部请求
-     * @return 渠道回调记录响应
+     * @return Inbox 持久化受理响应
      */
-    TransactionChannelCallbackClientResponseDTO recordChannelCallback(TransactionChannelCallbackClientRequestDTO requestDTO);
+    TransactionCallbackInboxAcceptClientResponseDTO acceptChannelCallback(
+            TransactionChannelCallbackClientRequestDTO requestDTO);
 
     /**
      * 回写商户 OpenAPI 响应加密后的密文摘要。

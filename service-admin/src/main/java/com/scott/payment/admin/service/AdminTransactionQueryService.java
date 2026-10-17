@@ -6,6 +6,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNoti
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSearchResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.component.core.model.PageResult;
@@ -33,6 +34,14 @@ public interface AdminTransactionQueryService {
      * @return 查询得到的业务对象、分页结果或空结果
      */
     PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query);
+
+    /**
+     * 查询交易生命周期主单分页及相同条件下的全量统计。
+     *
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 主单分页和全量统计
+     */
+    TransactionOrderSearchResponse searchOrders(TransactionPageQuery query);
 
     /**
      * 查询交易动作；筛选条件、分页上限和数据范围由方法参数共同限定。

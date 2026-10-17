@@ -2,6 +2,7 @@ package com.scott.payment.merchant.service.impl;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
@@ -404,17 +405,17 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     private List<SummaryRow> selectAmountSummary(String table, String paymentTable, TransactionPageQuery query) {
         return jdbcTemplate.query("""
                 SELECT o.transaction_status AS transaction_status,
-                       COALESCE(o.transaction_currency, 'UNKNOWN') AS currency,
-                       o.currency_exponent AS currency_exponent,
+                       COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN') AS currency,
                        COUNT(1) AS count,
-                       COALESCE(SUM(COALESCE(o.transaction_amount, 0)), 0) AS amount
+                       COALESCE(SUM(COALESCE(o.label_amount, 0)), 0) AS amount
                 FROM %s o
                 WHERE o.deleted = 0
                   AND o.merchant_id = :merchantId
                   AND o.transaction_date_time >= :beginTime
                   AND o.transaction_date_time < :endTime
                 %s
-                GROUP BY o.transaction_status, COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent
+                GROUP BY o.transaction_status, COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN')
+                ORDER BY currency ASC
                 """.formatted(table, operationWhereSql(query, paymentTable)), operationParams(query), summaryRowMapper());
     }
 
@@ -422,10 +423,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return jdbcTemplate.query("""
                 SELECT COALESCE(p.payment_method, 'UNKNOWN') AS payment_method,
                        p.payment_brand AS payment_brand,
-                       COALESCE(o.transaction_currency, 'UNKNOWN') AS currency,
-                       o.currency_exponent AS currency_exponent,
+                       COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN') AS currency,
                        COUNT(1) AS count,
-                       COALESCE(SUM(COALESCE(o.transaction_amount, 0)), 0) AS amount
+                       COALESCE(SUM(COALESCE(o.label_amount, 0)), 0) AS amount
                 FROM %s o
                 LEFT JOIN %s p ON p.transaction_id = o.transaction_id AND p.transaction_date_time = o.transaction_date_time
                 WHERE o.deleted = 0
@@ -433,7 +433,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                   AND o.transaction_date_time >= :beginTime
                   AND o.transaction_date_time < :endTime
                 %s
-                GROUP BY COALESCE(p.payment_method, 'UNKNOWN'), p.payment_brand, COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent
+                GROUP BY COALESCE(p.payment_method, 'UNKNOWN'), p.payment_brand,
+                         COALESCE(NULLIF(TRIM(o.label_currency), ''), 'UNKNOWN')
+                ORDER BY payment_method ASC, payment_brand ASC, currency ASC
                 """.formatted(table, paymentTable, operationWhereSql(query, paymentTable)), operationParams(query), paymentSummaryRowMapper());
     }
 
@@ -1177,7 +1179,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 null,
                 null,
                 rs.getString("currency"),
-                nullableInt(rs, "currency_exponent"),
+                resolveLabelCurrencyExponent(rs.getString("currency")),
                 rs.getLong("count"),
                 rs.getBigDecimal("amount"));
     }
@@ -1188,9 +1190,17 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 rs.getString("payment_method"),
                 rs.getString("payment_brand"),
                 rs.getString("currency"),
-                nullableInt(rs, "currency_exponent"),
+                resolveLabelCurrencyExponent(rs.getString("currency")),
                 rs.getLong("count"),
                 rs.getBigDecimal("amount"));
+    }
+
+    /** ISO 4217 辅币位属于标签币种，无法识别时保留为空，禁止静默按两位小数展示。 */
+    private static Integer resolveLabelCurrencyExponent(String currency) {
+        return IsoCurrencyResolver.resolve(currency)
+                .map(info -> info.defaultFractionDigits())
+                .filter(exponent -> exponent >= 0)
+                .orElse(null);
     }
 
     private RowMapper<PaymentInfoRow> paymentInfoMapper() {
@@ -1410,64 +1420,19 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     private static class SummaryAccumulator {
-        /**
-         * 合计计数，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+        /** 当前筛选条件命中的交易操作单数量。 */
         private long totalCount;
-        /**
-         * 成功计数，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+        /** 当前筛选条件中成功的交易操作单数量。 */
         private long successCount;
-        /**
-         * 失败计数，表示当前统计、分页、扫描或重试场景中的数量。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+        /** 当前筛选条件中失败的交易操作单数量。 */
         private long failedCount;
-        /**
-         * 按币种拆分的金额汇总集合，禁止直接跨币种相加。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
+        /** 按标签币种归集的全部标签金额，禁止跨币种相加。 */
         private final Map<String, TransactionAmountSummaryResponse> amountSummaries = new LinkedHashMap<>();
-        /**
-         * 按币种拆分的成功金额汇总集合，禁止直接跨币种相加。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
+        /** 按标签币种归集的成功交易标签金额。 */
         private final Map<String, TransactionAmountSummaryResponse> successAmountSummaries = new LinkedHashMap<>();
-        /**
-         * 按币种拆分的失败金额汇总集合，禁止直接跨币种相加。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
+        /** 按标签币种归集的失败交易标签金额。 */
         private final Map<String, TransactionAmountSummaryResponse> failedAmountSummaries = new LinkedHashMap<>();
-        /**
-         * {@code paymentMethodSummaries}，表示支付方式、通知方式或调用方式。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+        /** 按支付方式和支付品牌分组，并在每组内按标签币种归集金额。 */
         private final Map<String, TransactionPaymentMethodSummaryResponse> paymentMethodSummaries = new LinkedHashMap<>();
 
         void addAmount(SummaryRow row) {

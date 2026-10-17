@@ -78,6 +78,12 @@ public class PaymentCreateCommandDTO implements Serializable {
     private String requestSource;
 
     /**
+     * 网关认证并规范化的接入客户端 IP，仅用于商户接入白名单和安全审计。
+     * 该字段不属于商户外部协议，不得由付款人信息覆盖。
+     */
+    private String ingressClientIp;
+
+    /**
      * 申请主体稳定标识；OpenAPI 使用商户号，后台使用认证账号 ID。
      */
     private String applicantId;
@@ -263,7 +269,7 @@ public class PaymentCreateCommandDTO implements Serializable {
     private String sourceUrl;
 
     /**
-     * 付款人 IP，来自网关转发头或请求远端地址，用于风控识别。
+     * 付款人 IP，用于付款人名单、频控和 3DS；不得用于商户接入白名单。
      */
     private String payerIp;
 

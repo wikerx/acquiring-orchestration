@@ -17,6 +17,8 @@ import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.cache.transaction.TransactionAwareCacheDecorator;
 import org.springframework.core.env.EnumerablePropertySource;
@@ -41,6 +43,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -439,6 +443,23 @@ class PaymentRedisCacheAutoConfigurationTests {
                 .doesNotThrowAnyException();
     }
 
+    /** 缓存 GET/反序列化失败必须经过实际代理错误处理器并执行数据库回源方法。 */
+    @Test
+    void shouldFallbackThroughCacheProxyWhenCacheGetFails() {
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(PaymentRedisCacheAutoConfiguration.class))
+                .withBean(CacheManager.class, FailingGetCacheManager::new)
+                .withBean(CacheMissMarkerStore.class, () -> mock(CacheMissMarkerStore.class))
+                .withBean(CacheReadFallbackProbe.class)
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    CacheReadFallbackProbe probe = context.getBean(CacheReadFallbackProbe.class);
+
+                    assertThat(probe.find("200045")).isEqualTo("database:200045");
+                    assertThat(probe.getLoadCount()).isEqualTo(1);
+                });
+    }
+
     private Path redisDevConfigPath() {
         Path repositoryPath = Path.of("docs", "deployment", "nacos", "redis-dev.yaml");
         if (Files.isRegularFile(repositoryPath)) {
@@ -493,5 +514,40 @@ class PaymentRedisCacheAutoConfigurationTests {
                 JsonTypeInfo.As.PROPERTY
         );
         return new GenericJackson2JsonRedisSerializer(objectMapper);
+    }
+
+    static class CacheReadFallbackProbe {
+
+        private int loadCount;
+
+        @Cacheable(cacheNames = PaymentCacheNames.MERCHANT_OPENAPI_ACCESS, key = "#p0")
+        public String find(String key) {
+            loadCount++;
+            return "database:" + key;
+        }
+
+        int getLoadCount() {
+            return loadCount;
+        }
+    }
+
+    static class FailingGetCacheManager implements CacheManager {
+
+        private final Cache cache = new ConcurrentMapCache(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS) {
+            @Override
+            protected Object lookup(Object key) {
+                throw new SerializationException("historical cache value cannot be deserialized");
+            }
+        };
+
+        @Override
+        public Cache getCache(String name) {
+            return PaymentCacheNames.MERCHANT_OPENAPI_ACCESS.equals(name) ? cache : null;
+        }
+
+        @Override
+        public Collection<String> getCacheNames() {
+            return Collections.singleton(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS);
+        }
     }
 }

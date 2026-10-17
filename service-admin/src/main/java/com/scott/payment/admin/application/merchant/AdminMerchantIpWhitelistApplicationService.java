@@ -1,6 +1,5 @@
 package com.scott.payment.admin.application.merchant;
 
-import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistConfigRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistApprovalRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistCreateRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistItem;
@@ -171,26 +170,14 @@ public class AdminMerchantIpWhitelistApplicationService {
         whitelistService.deleteWhitelist(id);
     }
 
-    /**
-     * 更新商户维度白名单校验开关。
-     *
-     * @param request 开关请求
-     * @return 当前配置视图
-     */
-    public MerchantIpWhitelistResponse updateConfig(MerchantIpWhitelistConfigRequest request) {
-        return whitelistService.updateConfig(request);
-    }
-
     private MerchantIpWhitelistExportRow toExportRow(MerchantIpWhitelistResponse source, Locale locale) {
         MerchantIpWhitelistExportRow row = new MerchantIpWhitelistExportRow();
         row.setMerchantId(source.getMerchantId());
         row.setMerchantName(blankToPlaceholder(source.getMerchantName()));
         row.setMerchantShortName(blankToPlaceholder(source.getMerchantShortName()));
-        row.setAccessControl(resolveStatusText(source.getIpWhitelistEnabled(), locale));
         row.setIpWhitelists(formatIpWhitelists(source.getIpWhitelists(), locale));
         row.setUpdateBy(blankToPlaceholder(source.getUpdateBy()));
         row.setUpdateTime(source.getGmtModified());
-        row.setConfigRemark(blankToPlaceholder(source.getConfigRemark()));
         return row;
     }
 
@@ -210,7 +197,6 @@ public class AdminMerchantIpWhitelistApplicationService {
         addCondition(builder, "excel.merchantIpWhitelist.ipType", condition.getIpType(), locale);
         addCondition(builder, "excel.merchantIpWhitelist.ipValue", condition.getIpValue(), locale);
         addCondition(builder, "excel.merchantIpWhitelist.status", resolveNullableStatusText(condition.getStatus(), locale), locale);
-        addCondition(builder, "excel.merchantIpWhitelist.accessControl", resolveNullableStatusText(condition.getIpWhitelistEnabled(), locale), locale);
         return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
     }
 

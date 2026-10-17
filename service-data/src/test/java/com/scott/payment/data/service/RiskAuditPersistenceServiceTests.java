@@ -34,7 +34,7 @@ class RiskAuditPersistenceServiceTests {
         log.info("测试风控审计数据库最终幂等，关键输入: risk_record_no 唯一键冲突");
         DataRiskAuditMapper mapper = mock(DataRiskAuditMapper.class);
         when(mapper.insertEvaluationRecord(
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenThrow(new DuplicateKeyException("duplicate risk record"));
         RiskAuditPersistenceService service = new RiskAuditPersistenceService(mapper);
 
@@ -55,7 +55,7 @@ class RiskAuditPersistenceServiceTests {
         service.persist(message);
 
         verify(mapper).insertEvaluationRecord(
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
         verify(mapper).insertEvaluationHit(
                 org.mockito.ArgumentMatchers.eq("RK202608010001"),
                 org.mockito.ArgumentMatchers.eq(message.getHits().get(0)),
@@ -68,10 +68,12 @@ class RiskAuditPersistenceServiceTests {
         RiskAuditHitMessage hit = new RiskAuditHitMessage();
         hit.setModuleType("BLACK");
         hit.setFunctionCode("cardBin");
+        hit.setReasonCode("NO_MATCH");
         hit.setHitValueMasked("411111******1111");
         RiskEvaluationAuditMessage message = new RiskEvaluationAuditMessage();
         message.setRiskRecordNo("RK202608010001");
         message.setDecisionResult("BLOCK");
+        message.setDecisionReasonCode("BLACKLIST_HIT");
         message.setHits(List.of(hit, new RiskAuditHitMessage()));
         return message;
     }

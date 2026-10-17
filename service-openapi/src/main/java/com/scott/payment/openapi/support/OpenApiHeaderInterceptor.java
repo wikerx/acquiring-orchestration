@@ -78,8 +78,7 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         request.setAttribute(OpenApiRequestAttributes.INTERFACE_TYPE, interfaceType(request.getRequestURI()));
         OpenApiRequestHeaderDTO headerDTO = headerExtractor.extract(
                 request,
-                annotation.requiredHeaders(),
-                annotation.deferIpWhitelistToRisk()
+                annotation.requiredHeaders()
         );
         request.setAttribute(OpenApiRequestAttributes.REQUEST_HEADER, headerDTO);
         return true;

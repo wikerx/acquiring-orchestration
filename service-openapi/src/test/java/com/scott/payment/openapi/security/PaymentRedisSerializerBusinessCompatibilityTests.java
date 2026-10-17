@@ -3,6 +3,7 @@ package com.scott.payment.openapi.security;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.redis.config.PaymentRedisSerializerFactory;
@@ -47,16 +48,39 @@ class PaymentRedisSerializerBusinessCompatibilityTests {
     @Test
     void shouldKeepMerchantOpenApiAccessPolicyCompatibleWithHistoricalValues() {
         MerchantOpenApiAccessPolicy source = new MerchantOpenApiAccessPolicy();
-        source.setWhitelistEnabled(true);
         source.setAllowedIps(new LinkedHashSet<>(Set.of("192.0.2.10", "198.51.100.20")));
 
         assertBidirectionalCompatibility(source);
     }
 
     @Test
+    void shouldAcceptOnlyKnownLegacyFieldsInMerchantOpenApiAccessPolicy() throws Exception {
+        RedisSerializer<Object> serializer = PaymentRedisSerializerFactory.create();
+        MerchantOpenApiAccessPolicy source = new MerchantOpenApiAccessPolicy();
+        source.setAllowedIps(new LinkedHashSet<>(Set.of("192.0.2.10", "198.51.100.20")));
+        ObjectMapper jsonMapper = new ObjectMapper();
+        ObjectNode historicalValue = (ObjectNode) jsonMapper.readTree(serializer.serialize(source));
+        historicalValue.put("configured", true);
+        historicalValue.put("whitelistEnabled", true);
+
+        Object restored = serializer.deserialize(jsonMapper.writeValueAsBytes(historicalValue));
+
+        assertThat(restored).isInstanceOf(MerchantOpenApiAccessPolicy.class);
+        assertThat(((MerchantOpenApiAccessPolicy) restored).getAllowedIps())
+                .containsExactlyInAnyOrder("192.0.2.10", "198.51.100.20");
+        ObjectNode currentValue = (ObjectNode) jsonMapper.readTree(serializer.serialize(restored));
+        assertThat(currentValue.has("configured")).isFalse();
+        assertThat(currentValue.has("whitelistEnabled")).isFalse();
+
+        ObjectNode unknownValue = historicalValue.deepCopy();
+        unknownValue.put("unexpectedSecuritySwitch", true);
+        assertThatThrownBy(() -> serializer.deserialize(jsonMapper.writeValueAsBytes(unknownValue)))
+                .isInstanceOf(SerializationException.class);
+    }
+
+    @Test
     void shouldRejectUnregisteredNestedTypeInMerchantPolicy() {
         MerchantOpenApiAccessPolicy source = new MerchantOpenApiAccessPolicy();
-        source.setWhitelistEnabled(true);
         source.setAllowedIps(new TreeSet<>(Set.of("192.0.2.10")));
 
         assertThatThrownBy(() -> PaymentRedisSerializerFactory.create().serialize(source))

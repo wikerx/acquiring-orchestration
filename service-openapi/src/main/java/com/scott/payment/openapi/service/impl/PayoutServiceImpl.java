@@ -1,11 +1,9 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.client.payout.PayoutInternalClient;
 import com.scott.payment.openapi.client.payout.dto.PayoutCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payout.dto.PayoutCreateClientResponseDTO;
-import com.scott.payment.openapi.config.PayoutClientProperties;
 import com.scott.payment.openapi.dto.body.PayoutCreateRequestDTO;
 import com.scott.payment.openapi.service.PayoutService;
 import com.scott.payment.openapi.support.OpenApiRequestContext;
@@ -27,19 +25,9 @@ import java.time.LocalDateTime;
 public class PayoutServiceImpl implements PayoutService {
 
     /**
-     * 平台代付订单号前缀，用于本地降级模式生成模拟单号。
-     */
-    private static final String PAYOUT_ORDER_PREFIX = "PO";
-
-    /**
      * service-payout 内部调用客户端。
      */
     private final PayoutInternalClient payoutInternalClient;
-
-    /**
-     * 代付内部调用配置。
-     */
-    private final PayoutClientProperties payoutClientProperties;
 
     /**
      * OpenAPI 密钥材料工具。
@@ -55,16 +43,13 @@ public class PayoutServiceImpl implements PayoutService {
      * 创建开放接口代付服务实现。
      *
      * @param payoutInternalClient    service-payout 内部调用客户端
-     * @param payoutClientProperties 代付内部调用配置
      * @param keyMaterialFactory      OpenAPI 密钥材料工具
      * @param requestContext          OpenAPI 请求上下文访问器
      */
     public PayoutServiceImpl(PayoutInternalClient payoutInternalClient,
-                             PayoutClientProperties payoutClientProperties,
                              OpenApiKeyMaterialFactory keyMaterialFactory,
                              OpenApiRequestContext requestContext) {
         this.payoutInternalClient = payoutInternalClient;
-        this.payoutClientProperties = payoutClientProperties;
         this.keyMaterialFactory = keyMaterialFactory;
         this.requestContext = requestContext;
     }
@@ -78,9 +63,6 @@ public class PayoutServiceImpl implements PayoutService {
      */
     @Override
     public String createPayout(String encryptedData, PayoutCreateRequestDTO requestDTO) {
-        if (!payoutClientProperties.isRemoteEnabled()) {
-            return PaymentOrderNoGenerator.nextOrderNo(PAYOUT_ORDER_PREFIX);
-        }
         PayoutCreateClientRequestDTO clientRequestDTO = toPayoutClientRequest(encryptedData, requestDTO);
         PayoutCreateClientResponseDTO clientResponseDTO = payoutInternalClient.createPayout(clientRequestDTO);
         return clientResponseDTO.getPayoutOrderNo();

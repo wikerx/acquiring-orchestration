@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 )
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
-class IsoDictionaryServiceTests {
+class IsoDictionaryServiceTests extends OpenApiIsolatedMysqlIntegrationTest {
 
     /**
      * ISO 字典公共服务，后续各微服务可直接注入该服务查询国家和币种。

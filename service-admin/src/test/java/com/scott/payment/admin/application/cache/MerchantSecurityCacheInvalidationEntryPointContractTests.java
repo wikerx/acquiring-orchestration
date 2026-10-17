@@ -110,7 +110,7 @@ class MerchantSecurityCacheInvalidationEntryPointContractTests {
     /** OpenAPI IP 策略写入口必须登记聚合策略缓存失效。 */
     @Test
     void shouldPrepareInvalidationForEveryOpenApiAccessMutation() throws IOException {
-        log.info("测试 OpenAPI IP 策略失效入口，关键输入: 新增、修改、启停、删除和总开关变更");
+        log.info("测试 OpenAPI IP 策略失效入口，关键输入: 新增、修改、启停和删除");
         String source = Files.readString(modulePath(
                 "src/main/java/com/scott/payment/admin/service/impl/"
                         + "AdminMerchantIpWhitelistServiceImpl.java"
@@ -120,14 +120,13 @@ class MerchantSecurityCacheInvalidationEntryPointContractTests {
                 "public List<MerchantIpWhitelistResponse> createWhitelists(",
                 "public MerchantIpWhitelistResponse updateWhitelist(",
                 "public MerchantIpWhitelistResponse updateWhitelistStatus(",
-                "public void deleteWhitelist(",
-                "public MerchantIpWhitelistResponse updateConfig("
+                "public void deleteWhitelist("
         ).forEach(signature -> assertPreparesInvalidation(
                 source,
                 signature,
                 "securityCacheInvalidationCoordinator.prepare("
         ));
-        log.info("OpenAPI IP 策略失效入口验证完成，结果: 五类变更均登记可靠失效");
+        log.info("OpenAPI IP 策略失效入口验证完成，结果: 四类变更均登记可靠失效");
     }
 
     /** 从指定方法正文中验证可靠失效调用存在。 */

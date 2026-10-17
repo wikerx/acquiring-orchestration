@@ -18,6 +18,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.context.annotation.Bean;
@@ -196,6 +197,23 @@ public class PaymentRedisCacheAutoConfiguration {
     public CacheErrorHandler paymentCacheErrorHandler(
             ObjectProvider<RedisBusinessMetrics> metricsProvider) {
         return paymentCacheErrorHandler(metricsProvider.getIfAvailable(RedisBusinessMetrics::noop));
+    }
+
+    /**
+     * 将缓存错误处理器接入 Spring Cache AOP；仅声明处理器 Bean 不会改变代理的默认抛错行为。
+     *
+     * @param cacheErrorHandler 缓存错误处理器
+     * @return Spring Cache 基础设施配置器
+     */
+    @Bean
+    @ConditionalOnMissingBean(CachingConfigurer.class)
+    public CachingConfigurer paymentCachingConfigurer(CacheErrorHandler cacheErrorHandler) {
+        return new CachingConfigurer() {
+            @Override
+            public CacheErrorHandler errorHandler() {
+                return cacheErrorHandler;
+            }
+        };
     }
 
     /**

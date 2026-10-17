@@ -1,7 +1,6 @@
 package com.scott.payment.channel.payment.mpgs;
 
-import com.scott.payment.channel.payment.api.PaymentChannelCallbackVerifier;
-import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
+import com.scott.payment.channel.payment.api.PaymentChannelCallbackProtocol;
 import com.scott.payment.channel.payment.api.PaymentChannelClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -29,9 +28,9 @@ class MpgsChannelAutoConfigurationTests {
             assertThat(context).hasSingleBean(MpgsPaymentChannelClient.class);
             assertThat(context).hasSingleBean(MpgsPaymentChannelCallbackHandler.class);
             assertThat(context).hasSingleBean(MpgsCallbackVerifier.class);
+            assertThat(context).hasSingleBean(MpgsPaymentChannelCallbackProtocol.class);
             assertThat(context.getBeansOfType(PaymentChannelClient.class)).hasSize(1);
-            assertThat(context.getBeansOfType(PaymentChannelCallbackHandler.class)).hasSize(1);
-            assertThat(context.getBeansOfType(PaymentChannelCallbackVerifier.class)).hasSize(1);
+            assertThat(context.getBeansOfType(PaymentChannelCallbackProtocol.class)).hasSize(1);
         });
     }
 

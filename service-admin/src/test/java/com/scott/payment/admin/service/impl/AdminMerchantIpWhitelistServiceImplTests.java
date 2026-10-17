@@ -12,7 +12,6 @@ import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.MerchantIpWhitelistDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.MerchantIpWhitelistMapper;
-import com.scott.payment.component.db.auth.mapper.MerchantOpenApiAccessConfigMapper;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
@@ -57,13 +56,11 @@ class AdminMerchantIpWhitelistServiceImplTests {
     @Test
     void shouldApprovePendingIpWithAllowedTransactionByDefault() {
         MerchantIpWhitelistMapper whitelistMapper = mock(MerchantIpWhitelistMapper.class);
-        MerchantOpenApiAccessConfigMapper configMapper = mock(MerchantOpenApiAccessConfigMapper.class);
         BaseMerchantInfoMapper merchantMapper = mock(BaseMerchantInfoMapper.class);
         MerchantAccessApprovalNotificationService notificationService =
                 mock(MerchantAccessApprovalNotificationService.class);
         AdminMerchantIpWhitelistServiceImpl service = new AdminMerchantIpWhitelistServiceImpl(
                 whitelistMapper,
-                configMapper,
                 merchantMapper,
                 mock(RiskRuleCacheInvalidationCoordinator.class),
                 mock(ManagedCacheInvalidationCoordinator.class),
@@ -102,7 +99,6 @@ class AdminMerchantIpWhitelistServiceImplTests {
         MerchantIpWhitelistMapper whitelistMapper = mock(MerchantIpWhitelistMapper.class);
         AdminMerchantIpWhitelistServiceImpl service = new AdminMerchantIpWhitelistServiceImpl(
                 whitelistMapper,
-                mock(MerchantOpenApiAccessConfigMapper.class),
                 mock(BaseMerchantInfoMapper.class),
                 mock(RiskRuleCacheInvalidationCoordinator.class),
                 mock(ManagedCacheInvalidationCoordinator.class),

@@ -66,7 +66,6 @@ class OpenApiReferenceDataControllerContractTest {
         assertThat(verification.dataReceiver()).isEqualTo(requestType);
         assertThat(verification.requiredHeader()).isTrue();
         assertThat(verification.validator()).isTrue();
-        assertThat(verification.deferIpWhitelistToRisk()).isFalse();
         assertThat(constructors).hasSize(1);
         assertThat(constructors[0].getParameterTypes())
                 .containsExactly(OpenApiReferenceDataApplicationService.class);

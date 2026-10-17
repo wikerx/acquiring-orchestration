@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.jdbc.Sql;
@@ -55,7 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
-class MerchantOpenApiIsoDictionaryTests {
+class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationTest {
 
     /**
      * 测试专用商户号，避免污染 SDK live 联调商户 200045。
@@ -93,21 +94,29 @@ class MerchantOpenApiIsoDictionaryTests {
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
     /**
+     * JDBC 模板仅用于准备隔离测试商户的 Direct API 白名单。
+     */
+    private final JdbcTemplate jdbcTemplate;
+
+    /**
      * 创建商户 ISO 字典 OpenAPI 测试。
      *
      * @param mockMvc                 MockMvc
      * @param merchantSecurityService 商户安全材料服务
      * @param payloadCrypto           OpenAPI 报文加解密工具
      * @param keyMaterialFactory      OpenAPI 密钥材料工具
+     * @param jdbcTemplate            JDBC 模板，仅用于隔离测试数据准备
      */
     MerchantOpenApiIsoDictionaryTests(MockMvc mockMvc,
                                       MerchantSecurityService merchantSecurityService,
                                       OpenApiPayloadCrypto payloadCrypto,
-                                      OpenApiKeyMaterialFactory keyMaterialFactory) {
+                                      OpenApiKeyMaterialFactory keyMaterialFactory,
+                                      JdbcTemplate jdbcTemplate) {
         this.mockMvc = mockMvc;
         this.merchantSecurityService = merchantSecurityService;
         this.payloadCrypto = payloadCrypto;
         this.keyMaterialFactory = keyMaterialFactory;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     /**
@@ -263,6 +272,7 @@ class MerchantOpenApiIsoDictionaryTests {
         MerchantSecurityMaterialDTO merchantMaterial = merchantSecurityService.provisionMerchantSecurityMaterial(
                 MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID)
         );
+        MerchantOpenApiTestSupport.configureMerchantIpWhitelist(jdbcTemplate, MERCHANT_ID);
         log.info("测试商户安全材料准备完成，merchantId: {}，merchantKey指纹: {}，平台公钥指纹: {}，商户响应私钥指纹: {}",
                 merchantMaterial.getMerchantId(),
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantKey()),

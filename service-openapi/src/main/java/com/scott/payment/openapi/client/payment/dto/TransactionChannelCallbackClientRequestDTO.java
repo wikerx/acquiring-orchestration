@@ -3,7 +3,9 @@ package com.scott.payment.openapi.client.payment.dto;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -12,7 +14,7 @@ import java.util.Map;
  * @classname : TransactionChannelCallbackClientRequestDTO
  * @date : 2026-07-14 22:56
  * @email : scott_x@163.com
- * @description : service-openapi 转发渠道回调到 service-payment 的内部请求 DTO，保存安全校验结果和脱敏前原文，由支付核心统一脱敏落库。
+ * @description : service-openapi 向 service-payment Inbox 提交已验证标准事件的内部请求 DTO；只携带报文长度和不可逆摘要，不跨服务传递回调原文。
  * @status : create
  */
 @Data
@@ -77,6 +79,32 @@ public class TransactionChannelCallbackClientRequestDTO implements Serializable 
      */
     private String channelEventType;
 
+    /** 验签所使用的渠道凭据标识，例如渠道 MID；不得保存密钥。 */
+    private String channelCredentialHint;
+
+    /** 渠道稳定事件号，是 Inbox 数据库幂等键的必要组成部分。 */
+    private String callbackEventId;
+
+    /** 渠道协议归一化后的回调业务类型。 */
+    private String callbackKind;
+
+    /** Provider raw status captured before platform state resolution. */
+    private String rawChannelStatus;
+
+    /** Provider-normalized channel trade status. */
+    private String channelTradeStatus;
+
+    private BigDecimal amount;
+
+    private String currency;
+
+    private String channelResponseCode;
+
+    private String channelResponseMessage;
+
+    /** 渠道协议解析出的非敏感扩展字段。 */
+    private Map<String, String> extension = new LinkedHashMap<>();
+
     /**
      * {@code requestUri}字段，保存 {@code TransactionChannelCallbackClientRequestDTO} 当前处理所需的业务取值。
      * <p>
@@ -113,14 +141,11 @@ public class TransactionChannelCallbackClientRequestDTO implements Serializable 
      */
     private Map<String, String> requestHeaders;
 
-    /**
-     * 请求报文体，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
-     */
-    private String requestBody;
+    /** 回调原始报文的精确字节数；支付核心不接收或保存可逆原文。 */
+    private Integer requestBodyLength;
+
+    /** 回调原始报文的 SHA-256 十六进制摘要。 */
+    private String requestBodySha256;
 
     /**
      * {@code signatureValid}，用于定位 {@code TransactionChannelCallbackClientRequestDTO} 关联的上游配置、渠道、账号、角色或业务记录。

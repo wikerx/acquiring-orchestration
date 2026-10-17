@@ -37,6 +37,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -59,6 +60,54 @@ import static org.mockito.Mockito.when;
  */
 @Slf4j
 class DefaultRiskListRuntimeRepositoryTests {
+
+    @Test
+    void shouldRequireRiskRuntimeMapperInProductionConstructor() {
+        RiskEvaluationProperties properties = new RiskEvaluationProperties();
+        PaymentRedisProperties redisProperties = new PaymentRedisProperties();
+
+        assertThatThrownBy(() -> new DefaultRiskListRuntimeRepository(
+                provider(null),
+                provider(null),
+                provider(null),
+                provider(null),
+                provider(null),
+                provider(null),
+                provider(null),
+                properties,
+                redisProperties,
+                provider(null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("RiskRuntimeMapper is required for production risk evaluation");
+    }
+
+    @Test
+    void shouldMapEnabledMerchantFunctionKeysWithSingleDatabaseQuery() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        when(mapper.selectEnabledMerchantFunctionKeys("200045"))
+                .thenReturn(List.of("BLACK:cardBin", "WHITE:email", "UNKNOWN:ignored"));
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper,
+                mock(RedisStringService.class));
+
+        assertThat(repository.findEnabledMerchantFunctions(" 200045 "))
+                .containsExactlyInAnyOrder(
+                        RiskListFunction.BLACK_CARD_BIN,
+                        RiskListFunction.WHITE_EMAIL);
+        verify(mapper).selectEnabledMerchantFunctionKeys("200045");
+    }
+
+    @Test
+    void shouldReadMerchantRiskFunctionEnablementFromDatabase() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        when(mapper.countEnabledMerchantFunction("200045", "BLACK", "cardBin")).thenReturn(1L);
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper,
+                mock(RedisStringService.class));
+
+        assertThat(repository.isMerchantFunctionEnabled(RiskListFunction.BLACK_CARD_BIN, "200045"))
+                .isTrue();
+    }
 
     @Test
     void shouldUseDedicatedHierarchicalRegionQueryInsteadOfHashColumns() {
@@ -95,6 +144,28 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void shouldPassRegionFunctionScopeWhenLoadingSnapshotRows() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        when(redis.get(anyString())).thenReturn(null);
+        RiskRuleSnapshotRow row = new RiskRuleSnapshotRow();
+        row.setRuleId(5L);
+        row.setCountryAlpha3("BRB");
+        row.setRegionMatchLevel("COUNTRY");
+        when(mapper.selectActiveRegionSnapshotRows("BLACK", "region", "200045", 5_001))
+                .thenReturn(List.of(row));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+        RiskRuntimeLookupValue lookupValue = new RiskRuntimeLookupValue();
+        lookupValue.setCountryAlpha3("BRB");
+        lookupValue.setMatchValueHash("region-digest");
+
+        assertThat(repository.findListMatch(RiskListFunction.BLACK_REGION, "200045", lookupValue))
+                .containsSame(row);
+
+        verify(mapper).selectActiveRegionSnapshotRows("BLACK", "region", "200045", 5_001);
     }
 
     @Test
@@ -243,7 +314,11 @@ class DefaultRiskListRuntimeRepositoryTests {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         RedisStringService redis = mock(RedisStringService.class);
         when(redis.get(anyString())).thenReturn(null);
-        when(mapper.countActiveListRules("risk_black_card_fingerprint", "M202607290001")).thenReturn(1L);
+        when(mapper.countActiveListRules(
+                "risk_black_card_fingerprint",
+                "M202607290001",
+                "BLACK",
+                "cardFingerprint")).thenReturn(1L);
         RiskListMatch frequencyRule = new RiskListMatch();
         frequencyRule.setRuleId(92L);
         when(mapper.selectActiveFrequencyRules("M202607290001")).thenReturn(List.of(frequencyRule));
@@ -376,12 +451,10 @@ class DefaultRiskListRuntimeRepositoryTests {
     }
 
     @Test
-    void shouldEnforceConfiguredMerchantIpWhitelistEvenWhenLegacySwitchIsOff() {
+    void shouldFailClosedWhenMerchantHasNoEffectiveIpWhitelist() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         RedisStringService redis = mock(RedisStringService.class);
         when(redis.get(anyString())).thenReturn(null);
-        when(mapper.selectMerchantIpWhitelistEnabled("M202607290001")).thenReturn(0);
-        when(mapper.countActiveMerchantIpWhitelist("M202607290001")).thenReturn(1L);
         when(mapper.countMerchantIpWhitelistHit("M202607290001", "198.51.100.24")).thenReturn(0L);
         DefaultRiskListRuntimeRepository repository = repository(mapper, redis);
         RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
@@ -393,6 +466,44 @@ class DefaultRiskListRuntimeRepositoryTests {
                     assertThat(match.getDecisionAction()).isEqualTo("REJECT");
                     assertThat(match.getFunctionCode()).isEqualTo("merchantIpWhitelist");
                 });
+        verify(mapper)
+                .countMerchantIpWhitelistHit("M202607290001", "198.51.100.24");
+    }
+
+    @Test
+    void shouldFailClosedWhenMerchantRequestIpIsMissing() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        when(redis.get(anyString())).thenReturn(null);
+        DefaultRiskListRuntimeRepository repository = repository(mapper, redis);
+
+        assertThat(repository.findMerchantIpWhitelistMiss("M202607290001", null))
+                .get()
+                .satisfies(match -> {
+                    assertThat(match.getDecisionAction()).isEqualTo("REJECT");
+                    assertThat(match.getDecisionReason()).isEqualTo("merchant request ip missing");
+                });
+        verify(mapper, org.mockito.Mockito.never())
+                .countMerchantIpWhitelistHit(anyString(), anyString());
+    }
+
+    @Test
+    void shouldPassWhenMerchantRequestIpMatchesEffectiveWhitelist() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        when(redis.get(anyString())).thenReturn(null);
+        when(mapper.countMerchantIpWhitelistHit("M202607290001", "198.51.100.24")).thenReturn(1L);
+        DefaultRiskListRuntimeRepository repository = repository(mapper, redis);
+        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
+        ipLookup.setRawValue("198.51.100.24");
+
+        assertThat(repository.findMerchantIpWhitelistHit("M202607290001", ipLookup))
+                .get()
+                .satisfies(match -> {
+                    assertThat(match.getDecisionAction()).isEqualTo("PASS");
+                    assertThat(match.getFunctionCode()).isEqualTo("merchantIpWhitelist");
+                });
+        assertThat(repository.findMerchantIpWhitelistMiss("M202607290001", ipLookup)).isEmpty();
     }
 
     @Test
@@ -1224,7 +1335,6 @@ class DefaultRiskListRuntimeRepositoryTests {
     private DefaultRiskListRuntimeRepository snapshotRepository(RiskRuntimeMapper mapper,
                                                                 RedisStringService redis) {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
-        properties.setRuntimeEnabled(true);
         properties.setRuleCacheMode(RiskRuleCacheMode.SNAPSHOT);
         PaymentRedisProperties redisProperties = new PaymentRedisProperties();
         redisProperties.setKeyPrefix("acquiring:test");
@@ -1300,7 +1410,6 @@ class DefaultRiskListRuntimeRepositoryTests {
             MerchantLimitReservationStateService stateService,
             FrequencySuccessReservationService frequencySuccessReservationService) {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
-        properties.setRuntimeEnabled(true);
         properties.setCacheHitTtlSeconds(300);
         properties.setCacheMissTtlSeconds(60);
         PaymentRedisProperties redisProperties = new PaymentRedisProperties();
@@ -1341,7 +1450,6 @@ class DefaultRiskListRuntimeRepositoryTests {
      */
     private RiskEvaluationProperties cumulativeProperties(RiskBaselineMode baselineMode) {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
-        properties.setRuntimeEnabled(true);
         properties.setBaselineMode(baselineMode);
         properties.setBaselineCutoverConfirmed(baselineMode == RiskBaselineMode.LIFECYCLE);
         return properties;

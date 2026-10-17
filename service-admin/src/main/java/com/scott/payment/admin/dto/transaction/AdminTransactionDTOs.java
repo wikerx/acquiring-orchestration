@@ -581,6 +581,11 @@ public final class AdminTransactionDTOs {
         private String merchantOrderId;
 
         /**
+         * 商户在首次交易请求中上送的网站地址，仅作为来源审计值，不作为可信身份依据。
+         */
+        private String merchantWebsite;
+
+        /**
          * 支付方式，表示支付方式、通知方式或调用方式。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -1124,6 +1129,11 @@ public final class AdminTransactionDTOs {
         private String accessType;
 
         /**
+         * 网关认证并规范化后的交易接入客户端 IP，仅用于受控安全审计。
+         */
+        private String ingressClientIp;
+
+        /**
          * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
          * <p>
          * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -1264,6 +1274,57 @@ public final class AdminTransactionDTOs {
          * </p>
          */
         private LocalDateTime operationTime;
+    }
+
+    /**
+     * 管理后台交易生命周期主单分页及统计响应。
+     */
+    @Data
+    public static class TransactionOrderSearchResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /** 当前页生命周期主单；统计信息按完整查询条件计算。 */
+        private PageResult<TransactionOrderResponse> page;
+
+        /** 当前查询条件命中的全部生命周期主单统计。 */
+        private TransactionOrderSummaryResponse summary;
+    }
+
+    /**
+     * 管理后台交易生命周期主单查询统计。
+     */
+    @Data
+    public static class TransactionOrderSummaryResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /** 当前查询条件命中的生命周期主单总数。 */
+        private long totalCount;
+
+        /** 当前权威状态为成功的生命周期主单数。 */
+        private long successCount;
+
+        /** 当前权威状态为失败的生命周期主单数。 */
+        private long failedCount;
+
+        /** 当前权威状态为待处理或处理中的生命周期主单数。 */
+        private long processingCount;
+
+        /** 累计请款成功金额大于零的生命周期主单数。 */
+        private long capturedCount;
+
+        /** 全部命中生命周期主单按交易币种汇总的交易金额。 */
+        private List<TransactionAmountSummaryResponse> amountSummaries = Collections.emptyList();
+
+        /** 成功生命周期主单按交易币种汇总的交易金额。 */
+        private List<TransactionAmountSummaryResponse> successAmountSummaries = Collections.emptyList();
+
+        /** 累计请款金额大于零的生命周期主单按交易币种汇总的实际请款金额。 */
+        private List<TransactionAmountSummaryResponse> capturedAmountSummaries = Collections.emptyList();
+
+        /** 失败生命周期主单按交易币种汇总的交易金额。 */
+        private List<TransactionAmountSummaryResponse> failedAmountSummaries = Collections.emptyList();
     }
 
     /**

@@ -94,6 +94,17 @@ payment:
       # 商户终态回调固定自动投递 5 次：首次 5 秒，失败后依次等待 1、5、10、30 分钟。
       # 环境说明：环境变量 PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT；当前协议只允许 5。
       max-retry-count: ${PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT:5}
+    callback-inbox:
+      # 执行 transaction_callback_inbox 迁移并完成回滚评审前必须保持 false。
+      worker-enabled: ${PAYMENT_TRANSACTION_CALLBACK_INBOX_WORKER_ENABLED:false}
+      # 单次到期扫描和超时恢复的记录上限，服务端强制限制为 1 至 500。
+      batch-size: ${PAYMENT_TRANSACTION_CALLBACK_INBOX_BATCH_SIZE:100}
+      # PROCESSING 租约必须覆盖单条支付回调事务的最长正常耗时。
+      processing-timeout-seconds: ${PAYMENT_TRANSACTION_CALLBACK_INBOX_PROCESSING_TIMEOUT_SECONDS:120}
+      # 应用启动后首次扫描前的等待时间，单位毫秒。
+      initial-delay-ms: ${PAYMENT_TRANSACTION_CALLBACK_INBOX_INITIAL_DELAY_MS:10000}
+      # 每批处理完成后的固定等待时间，单位毫秒。
+      fixed-delay-ms: ${PAYMENT_TRANSACTION_CALLBACK_INBOX_FIXED_DELAY_MS:1000}
     outbox:
       # 持续投递 transaction_event_outbox；风险预占终态依赖该事件链路。
       # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_RELAY_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
@@ -142,12 +153,6 @@ payment:
       # 发布锁租约，使用 Spring Duration 且必须大于 0；每页 SLAVE 数据处理完成后续租，默认 PT5M 即五分钟。
       publication-lease: ${PAYMENT_CARD_BIN_CACHE_PUBLICATION_LEASE:PT5M}
   risk-client:
-    # 参数说明：控制是否调用真实远程服务；UAT/生产必须开启并保证服务发现和鉴权可用。
-    # 环境说明：环境变量：PAYMENT_RISK_CLIENT_REMOTE_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
-    remote-enabled: ${PAYMENT_RISK_CLIENT_REMOTE_ENABLED:true}
-    # 参数说明：控制 Noop 降级实现；仅本地隔离测试允许开启，UAT/生产必须为 false。
-    # 环境说明：环境变量：PAYMENT_RISK_CLIENT_NOOP_ENABLED，dev 配置默认值为 "false"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
-    noop-enabled: ${PAYMENT_RISK_CLIENT_NOOP_ENABLED:false}
     # 参数说明：实时风控内部协议的固定调用方标识，必须保持 service-payment。
     internal-caller: service-payment
     # 参数说明：Payment 到 Risk 调用边的当前 HMAC 密钥引用；生产禁止配置共享全局密钥。
@@ -189,8 +194,8 @@ internal-service:
           - /internal/payment/void
           # 路径说明：商户 OpenAPI 交易查询内部入口。
           - /internal/payment/query
-          # 路径说明：渠道异步回调进入支付核心的内部入口。
-          - /internal/payment/channel-callback
+          # 路径说明：渠道异步回调可靠写入 Inbox 的内部入口。
+          - /internal/payment/channel-callback/inbox
           # 路径说明：回写商户 API 交互响应快照的内部入口。
           - /internal/payment/transactions/merchant-api-logs/response
           # 路径说明：Hosted Checkout 会话和交易受理内部入口集合。

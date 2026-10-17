@@ -60,17 +60,4 @@ public class PaymentRiskDecisionDTO implements Serializable {
         return dto;
     }
 
-    /**
-     * 默认跳过决策，用于本地骨架或远程风控未开启场景。
-     *
-     * @return 风控跳过结果
-     */
-    public static PaymentRiskDecisionDTO skip() {
-        PaymentRiskDecisionDTO dto = new PaymentRiskDecisionDTO();
-        dto.setPassed(true);
-        dto.setDecision("SKIP");
-        dto.setRiskCode("RISK_SERVICE_BYPASSED");
-        dto.setRiskMessage("risk service is bypassed by local skeleton configuration");
-        return dto;
-    }
 }

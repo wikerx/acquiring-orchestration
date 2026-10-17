@@ -50,8 +50,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class DefaultRiskEvaluationServiceTests {
 
-    private final DefaultRiskEvaluationService service = new DefaultRiskEvaluationService();
-
     @Test
     void shouldExecuteIndependentReadOnlyRiskGroupsConcurrently() {
         ExecutorService executor = Executors.newFixedThreadPool(3);
@@ -67,7 +65,7 @@ class DefaultRiskEvaluationServiceTests {
 
             RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(fullyPopulatedRequest());
 
-            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
             assertThat(repository.concurrentGroupsReached()).isTrue();
         } finally {
             executor.shutdownNow();
@@ -181,7 +179,7 @@ class DefaultRiskEvaluationServiceTests {
 
             RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(fullyPopulatedRequest());
 
-            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
             assertThat(repository.readOnlyThreadNames)
                     .isNotEmpty()
                     .allMatch(name -> name.startsWith("risk-read-only-test"));
@@ -217,43 +215,121 @@ class DefaultRiskEvaluationServiceTests {
     }
 
     @Test
-    void shouldPassNormalPaymentRiskEvaluation() {
-        RiskPaymentEvaluateResultDTO resultDTO = service.evaluatePayment(baseRequest(new BigDecimal("12.34")));
+    void shouldSkipWhenNoMerchantRiskFunctionIsEnabled() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository();
+        RiskEvaluationProperties properties = runtimeProperties();
+        DefaultRiskEvaluationService runtimeService = new DefaultRiskEvaluationService(
+                repository,
+                new RecordingRiskAuditRecordPublisher(),
+                properties);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
-        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NONE.getCode());
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(
+                baseRequest(new BigDecimal("12.34")));
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo("NOT_ENABLED");
+    }
+
+    @Test
+    void shouldSkipWhenConfiguredBlacklistDoesNotMatch() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withActiveListRule(RiskListFunction.BLACK_CARD_BIN);
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                repository,
+                new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setCardBin("411111");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo("NO_MATCH");
+    }
+
+    @Test
+    void shouldSkipWhenMerchantRiskFunctionIsNotEnabled() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository();
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                repository,
+                new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setCardBin("411111");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo("NOT_ENABLED");
+    }
+
+    @Test
+    void shouldSkipWhenMerchantRiskFunctionIsEnabledButNotConfigured() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withEnabledMerchantFunction(RiskListFunction.BLACK_CARD_BIN);
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                repository,
+                new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setCardBin("411111");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo("NOT_CONFIGURED");
+    }
+
+    @Test
+    void shouldSkipNormalPaymentWhenNoRiskFunctionIsConfigured() {
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                new FakeRiskListRuntimeRepository(),
+                new RecordingRiskAuditRecordPublisher());
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(baseRequest(new BigDecimal("12.34")));
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NOT_ENABLED.getCode());
         assertThat(resultDTO.getRiskRecordNo()).startsWith("RK");
     }
 
     @Test
-    void shouldRejectBlockedSource() {
+    void shouldNotUseSourceKeywordAsHardcodedBlockRule() {
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                new FakeRiskListRuntimeRepository(),
+                new RecordingRiskAuditRecordPublisher());
         RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
         requestDTO.setSourceUrl("https://blocked.example.test/pay");
 
-        RiskPaymentEvaluateResultDTO resultDTO = service.evaluatePayment(requestDTO);
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
-        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.BLOCKED_SOURCE.getCode());
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NOT_ENABLED.getCode());
     }
 
     @Test
-    void shouldRequireThreeDsForLargePaymentWithoutThreeDsProof() {
-        RiskPaymentEvaluateResultDTO resultDTO = service.evaluatePayment(baseRequest(new BigDecimal("1000.00")));
+    void shouldNotApplyHardcodedThreeDsAmountThreshold() {
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                new FakeRiskListRuntimeRepository(),
+                new RecordingRiskAuditRecordPublisher());
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REQUIRE_3DS.getCode());
-        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.THREE_DS_REQUIRED.getCode());
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(baseRequest(new BigDecimal("1000.00")));
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NOT_ENABLED.getCode());
     }
 
     @Test
-    void shouldReviewVeryLargePayment() {
-        RiskPaymentEvaluateResultDTO resultDTO = service.evaluatePayment(baseRequest(new BigDecimal("5000.00")));
+    void shouldNotApplyHardcodedManualReviewAmountThreshold() {
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                new FakeRiskListRuntimeRepository(),
+                new RecordingRiskAuditRecordPublisher());
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REVIEW.getCode());
-        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.MANUAL_REVIEW_REQUIRED.getCode());
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(baseRequest(new BigDecimal("5000.00")));
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NOT_ENABLED.getCode());
     }
 
     @Test
-    void shouldPassWhenWhitelistMerchantHitBeforeSkeletonAmountRejection() {
+    void shouldPassWhenWhitelistMerchantMatchesForLargeAmount() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
                 .withListHit(RiskListFunction.WHITE_MERCHANT, match("WHITE", "merchant", "CRITICAL", "PASS"));
         RecordingRiskAuditRecordPublisher publisher = new RecordingRiskAuditRecordPublisher();
@@ -286,25 +362,37 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.BLACKLIST_HIT.getCode());
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getDecisionResult()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
+        assertThat(publisher.messages.get(0).getDecisionReasonCode())
+                .isEqualTo(RiskReasonCodeEnum.BLACKLIST_HIT.getCode());
         assertThat(publisher.messages.get(0).getRiskLevel()).isEqualTo("HIGH");
+        assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(hit -> "BLACK".equals(hit.getModuleType())
+                        && "email".equals(hit.getFunctionCode())
+                        && "HIT".equals(hit.getMatchResult()))
+                .singleElement()
+                .extracting(RiskAuditHitMessage::getReasonCode)
+                .isEqualTo(RiskReasonCodeEnum.BLACKLIST_HIT.getCode());
     }
 
     @Test
-    void shouldRejectWhenMerchantIpWhitelistEnabledButRequestIpMissed() {
+    void shouldRejectWhenMerchantHasActiveIpWhitelistButRequestIpMissed() {
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
                 .withMerchantIpWhitelistMiss(match("SYSTEM", "merchantIpWhitelist", "HIGH", "REJECT"));
         RecordingRiskAuditRecordPublisher publisher = new RecordingRiskAuditRecordPublisher();
         DefaultRiskEvaluationService runtimeService = runtimeService(repository, publisher);
         RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setIngressClientIp("198.51.100.24");
         requestDTO.setPayerIp("203.0.113.9");
 
         RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.IP_WHITELIST_MISSED.getCode());
+        assertThat(repository.merchantIpWhitelistLookup.getRawValue()).isEqualTo("198.51.100.24");
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> !"NONE".equals(detail.getDecisionEffect()))
                 .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple(
                         "MERCHANT_IP_WHITELIST", "MISS", "BLOCK"));
@@ -346,8 +434,8 @@ class DefaultRiskEvaluationServiceTests {
 
         RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
-        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NONE.getCode());
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NOT_ENABLED.getCode());
     }
 
     @Test
@@ -367,6 +455,27 @@ class DefaultRiskEvaluationServiceTests {
 
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.AML_HIT.getCode());
+    }
+
+    @Test
+    void shouldBypassMerchantWhitelistButStillRejectPayerIpBlacklistForHostedCheckout() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withMerchantIpWhitelistMiss(match("SYSTEM", "merchantIpWhitelist", "HIGH", "REJECT"))
+                .withListHit(RiskListFunction.BLACK_IP, match("BLACK", "ip", "HIGH", "REJECT"));
+        DefaultRiskEvaluationService runtimeService = runtimeService(
+                repository, new RecordingRiskAuditRecordPublisher());
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setRequestSource("HOSTED_CHECKOUT");
+        requestDTO.setIngressClientIp("198.51.100.11");
+        requestDTO.setPayerIp("203.0.113.9");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.BLACKLIST_HIT.getCode());
+        assertThat(repository.merchantIpWhitelistLookupCount).isZero();
+        assertThat(repository.lookups.get(RiskListFunction.BLACK_IP).getRawValue())
+                .isEqualTo("203.0.113.9");
     }
 
     @Test
@@ -424,6 +533,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> !"NONE".equals(detail.getDecisionEffect()))
                 .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("MERCHANT_IP_WHITELIST", "HIT", "ALLOW"),
@@ -448,6 +558,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NONE.getCode());
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> !"NONE".equals(detail.getDecisionEffect()))
                 .extracting(RiskAuditHitMessage::getModuleType, RiskAuditHitMessage::getFunctionCode, RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("WHITE", "cardNo", "ALLOW"),
@@ -615,6 +726,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "MERCHANT_LIMIT".equals(detail.getStageCode()))
                 .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionAction)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("MERCHANT_LIMIT", "PASS", "PASS"));
     }
@@ -650,6 +762,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "FREQUENCY_LIMIT".equals(detail.getStageCode()))
                 .extracting(RiskAuditHitMessage::getRuleId,
                         RiskAuditHitMessage::getStageOrder,
                         RiskAuditHitMessage::getMatchResult,
@@ -684,7 +797,8 @@ class DefaultRiskEvaluationServiceTests {
 
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(publisher.messages.get(0).getHits())
-                .filteredOn(detail -> "BLACK_WHITE_ARBITRATION".equals(detail.getStageCode()))
+                .filteredOn(detail -> "BLACK_WHITE_ARBITRATION".equals(detail.getStageCode())
+                        && "HIT".equals(detail.getMatchResult()))
                 .extracting(RiskAuditHitMessage::getModuleType,
                         RiskAuditHitMessage::getRiskLevel,
                         RiskAuditHitMessage::getStageOrder)
@@ -715,6 +829,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(repository.merchantLimitRollbackCount).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "MERCHANT_LIMIT".equals(detail.getStageCode()))
                 .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getHitElement, RiskAuditHitMessage::getMatchResult)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("MERCHANT_LIMIT", "DAILY", "PASS"),
@@ -756,6 +871,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "MERCHANT_LIMIT".equals(detail.getStageCode()))
                 .extracting(RiskAuditHitMessage::getStageCode,
                         RiskAuditHitMessage::getMatchResult,
                         RiskAuditHitMessage::getDecisionEffect)
@@ -793,6 +909,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "FREQUENCY_LIMIT".equals(detail.getStageCode()))
                 .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionAction)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("FREQUENCY_LIMIT", "PASS", "PASS"));
     }
@@ -810,18 +927,19 @@ class DefaultRiskEvaluationServiceTests {
 
         RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "MISS".equals(detail.getMatchResult()))
                 .extracting(RiskAuditHitMessage::getModuleType,
                         RiskAuditHitMessage::getFunctionCode,
                         RiskAuditHitMessage::getMatchResult,
                         RiskAuditHitMessage::getDecisionAction)
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("AML", "card", "MISS", "PASS"),
-                        org.assertj.core.groups.Tuple.tuple("WHITE", "cardNo", "MISS", "PASS"),
-                        org.assertj.core.groups.Tuple.tuple("BLACK", "cardNo", "MISS", "PASS")
+                        org.assertj.core.groups.Tuple.tuple("AML", "card", "MISS", "SKIP"),
+                        org.assertj.core.groups.Tuple.tuple("WHITE", "cardNo", "MISS", "SKIP"),
+                        org.assertj.core.groups.Tuple.tuple("BLACK", "cardNo", "MISS", "SKIP")
                 );
     }
 
@@ -869,15 +987,23 @@ class DefaultRiskEvaluationServiceTests {
 
         RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
         assertThat(publisher.messages).singleElement().satisfies(message -> {
-            int expectedEvaluationDimensions = RiskListFunction.values().length + 5;
             assertThat(message.getHitCount()).isZero();
-            assertThat(message.getHits()).hasSize(expectedEvaluationDimensions);
             assertThat(message.getHits().stream()
                     .map(detail -> detail.getModuleType() + ":" + detail.getFunctionCode() + ":" + detail.getHitElement())
                     .distinct()
-                    .count()).isEqualTo(expectedEvaluationDimensions);
+                    .count()).isEqualTo(message.getHits().size());
+            assertThat(EnumSet.allOf(RiskListFunction.class)).allSatisfy(function ->
+                    assertThat(message.getHits()).anySatisfy(detail -> {
+                        assertThat(detail.getModuleType()).isEqualTo(function.getModuleType().getCode());
+                        assertThat(detail.getFunctionCode()).isEqualTo(function.getFunctionCode());
+                    }));
+            assertThat(message.getHits())
+                    .filteredOn(detail -> "MISS".equals(detail.getMatchResult())
+                            || "SKIPPED".equals(detail.getMatchResult()))
+                    .allSatisfy(detail -> assertThat(detail.getDecisionAction())
+                            .isEqualTo(RiskDecisionEnum.SKIP.getCode()));
         });
     }
 
@@ -898,6 +1024,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
+                .filteredOn(detail -> "HIT".equals(detail.getMatchResult()))
                 .extracting(RiskAuditHitMessage::getHitElement, RiskAuditHitMessage::getHitValueMasked)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("issuerCountry", "CAN"),
@@ -932,7 +1059,7 @@ class DefaultRiskEvaluationServiceTests {
 
         RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
 
-        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.SKIP.getCode());
         assertThat(publisher.messages).singleElement().satisfies(message ->
                 assertThat(message.getHits())
                         .extracting(RiskAuditHitMessage::getHitElement)
@@ -984,8 +1111,6 @@ class DefaultRiskEvaluationServiceTests {
 
     private RiskEvaluationProperties runtimeProperties() {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
-        properties.setSkeletonFallbackEnabled(true);
-        properties.setRuntimeEnabled(true);
         properties.setAuditMqEnabled(true);
         properties.setReadOnlyParallelEnabled(false);
         return properties;
@@ -1029,11 +1154,20 @@ class DefaultRiskEvaluationServiceTests {
         /** 在测试场景中声明已启用的名单节点。 */
         private final EnumSet<RiskListFunction> activeListRules = EnumSet.noneOf(RiskListFunction.class);
 
+        /** 在测试场景中声明商户已开通但可以尚未配置规则的名单功能。 */
+        private final EnumSet<RiskListFunction> enabledMerchantFunctions = EnumSet.noneOf(RiskListFunction.class);
+
         /** 预置的商户 IP 白名单命中结果。 */
         private RiskListMatch merchantIpWhitelistHit;
 
         /** 预置的商户 IP 白名单未命中结果。 */
         private RiskListMatch merchantIpWhitelistMiss;
+
+        /** 记录商户接入白名单实际使用的查询值。 */
+        private RiskRuntimeLookupValue merchantIpWhitelistLookup;
+
+        /** 记录商户接入白名单查询次数，Hosted Checkout 必须保持为零。 */
+        private int merchantIpWhitelistLookupCount;
 
         /** 预置的来源网址限制未命中结果。 */
         private RiskListMatch sourceUrlMiss;
@@ -1099,6 +1233,11 @@ class DefaultRiskEvaluationServiceTests {
 
         private FakeRiskListRuntimeRepository withAllActiveListRules() {
             activeListRules.addAll(EnumSet.allOf(RiskListFunction.class));
+            return this;
+        }
+
+        private FakeRiskListRuntimeRepository withEnabledMerchantFunction(RiskListFunction function) {
+            enabledMerchantFunctions.add(function);
             return this;
         }
 
@@ -1186,6 +1325,16 @@ class DefaultRiskEvaluationServiceTests {
             return activeListRules.contains(function);
         }
 
+        @Override
+        public boolean isMerchantFunctionEnabled(RiskListFunction function, String merchantId) {
+            return enabledMerchantFunctions.contains(function);
+        }
+
+        @Override
+        public java.util.Set<RiskListFunction> findEnabledMerchantFunctions(String merchantId) {
+            return java.util.Set.copyOf(enabledMerchantFunctions);
+        }
+
         /**
          * 返回预置的来源网址允许规则。
          */
@@ -1207,6 +1356,8 @@ class DefaultRiskEvaluationServiceTests {
          */
         @Override
         public Optional<RiskListMatch> findMerchantIpWhitelistHit(String merchantId, RiskRuntimeLookupValue lookupValue) {
+            merchantIpWhitelistLookup = lookupValue;
+            merchantIpWhitelistLookupCount++;
             return Optional.ofNullable(merchantIpWhitelistHit);
         }
 
@@ -1215,6 +1366,8 @@ class DefaultRiskEvaluationServiceTests {
          */
         @Override
         public Optional<RiskListMatch> findMerchantIpWhitelistMiss(String merchantId, RiskRuntimeLookupValue lookupValue) {
+            merchantIpWhitelistLookup = lookupValue;
+            merchantIpWhitelistLookupCount++;
             return Optional.ofNullable(merchantIpWhitelistMiss);
         }
 

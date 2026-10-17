@@ -1,7 +1,6 @@
 package com.scott.payment.channel.payment.worldpay;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
 import com.scott.payment.channel.payment.exception.ChannelRequestException;
@@ -28,7 +27,7 @@ import java.util.regex.Pattern;
  * @description : WorldPay 回调处理器抽象基类，位于 payment-channel-worldpay 渠道实现层，仅负责解析 WPGXML/WPGJSON 通知基础字段并输出渠道统一回调结果；平台终态推进、幂等和商户通知必须留在 service-payment。
  * @status : create
  */
-public abstract class AbstractWorldPayCallbackHandler implements PaymentChannelCallbackHandler {
+public abstract class AbstractWorldPayCallbackHandler {
 
     /**
      * 回调解析前剥离 DTD 声明，兼容 Worldpay 官方 DOCTYPE，同时阻断外部实体解析。
@@ -46,7 +45,6 @@ public abstract class AbstractWorldPayCallbackHandler implements PaymentChannelC
      * @param request 渠道回调请求
      * @return 渠道回调解析结果
      */
-    @Override
     public ChannelCallbackResult handle(ChannelCallbackRequest request) {
         if (request == null || !StringUtils.hasText(request.getBody())) {
             throw new ChannelRequestException(channelCode() + " callback body can not be empty");
@@ -54,6 +52,8 @@ public abstract class AbstractWorldPayCallbackHandler implements PaymentChannelC
         String body = request.getBody().trim();
         return body.startsWith("<") ? parseXml(body) : parseJson(body);
     }
+
+    public abstract String channelCode();
 
     /**
      * 解析 WorldPay XML 通知基础字段。
