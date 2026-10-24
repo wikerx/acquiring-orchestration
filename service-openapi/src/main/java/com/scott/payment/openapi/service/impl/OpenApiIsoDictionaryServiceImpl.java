@@ -78,6 +78,8 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
                 && requestDTO.getAlpha3() == null && requestDTO.getNumeric() == null)) {
             return isoDictionaryService.listCountries();
         }
+        // 筛选查询走固定代码 Hash；多个非空代码按 AND 校验，
+        // 避免扫描全量快照，也防止不同 ISO 代码指向不同国家时返回歧义结果。
         return isoDictionaryService.listCountriesByCodes(
                 requestDTO.getAlpha2(), requestDTO.getAlpha3(), requestDTO.getNumeric());
     }

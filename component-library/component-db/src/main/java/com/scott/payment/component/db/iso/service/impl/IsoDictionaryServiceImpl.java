@@ -152,11 +152,19 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     /**
      * 查询全部启用国家地区。
      *
+     * <p>优先读取不设置物理 TTL 的全量常驻快照；已缓存的空数组同样视为权威命中。
+     * 缓存缺失或 Redis 不可用时，从 {@code SLAVE} 数据源查询数据库权威数据。回源成功后，
+     * 分别在对应失效门禁允许且 Redis 可用时，尝试写入全量快照并使用同一份数据重建国家代码
+     * Hash，避免两个读模型来源不一致。数据库读取失败时不使用内置国家数据兜底。</p>
+     *
      * @return 启用国家地区列表
+     * @throws ServiceException 数据库读取失败且没有可用缓存快照时抛出
      */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<IsoCountryInfo> listCountries() {
+        // 全量查询复用常驻快照；回源成功后以同一份数据维护列表快照和代码索引，
+        // 两类写入分别受可靠失效门禁保护，避免在主从复制期间固化旧数据。
         return loadFromCache(
                 PaymentCacheNames.ISO_COUNTRY,
                 newCacheKey(COUNTRY_CACHE_BUSINESS),
@@ -766,15 +774,18 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     /**
      * 从常驻缓存读取列表，缓存缺失时从数据库加载权威数据。
      *
-     * <p>缓存读取区分 Key 缺失、Redis 不可用和已缓存空数组。数据库成功返回的启用列表
-     * 无论是否为空都属于权威结果并写入永久快照；数据库不可用时不得用内置字典冒充业务数据。</p>
+     * <p>缓存读取明确区分 Key 缺失、Redis 不可用和已缓存空数组。数据库成功返回的列表
+     * 无论是否为空都属于权威结果；仅在失效门禁允许且 Redis 可用时尝试写入永久快照。
+     * 数据库不可用时不得使用非权威内置字典冒充业务数据。</p>
      *
-     * @param cacheName      受管缓存名称
-     * @param cacheKey       常驻缓存 Key；未配置统一解析器时允许为空
-     * @param typeReference  缓存 JSON 反序列化类型
-     * @param databaseLoader DB 加载器
-     * @param <T>            字典数据类型
+     * @param cacheName        受管缓存名称
+     * @param cacheKey         常驻缓存 Key；未配置统一解析器时允许为空
+     * @param cacheBusinessKey 失效门禁使用的稳定业务键
+     * @param typeReference    缓存 JSON 反序列化类型
+     * @param databaseLoader   DB 加载器
+     * @param <T>              字典数据类型
      * @return 字典列表
+     * @throws ServiceException 数据库读取失败时抛出
      */
     private <T> List<T> loadFromCache(String cacheName,
                                       String cacheKey,
@@ -795,6 +806,11 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     /**
      * 从常驻缓存读取列表，并在数据库回源成功后用同一份快照构建关联缓存。
      *
+     * <p>读取顺序固定为缓存优先、数据库兜底。缓存命中时立即返回，包括已缓存的空数组；
+     * Key 缺失、缓存载荷损坏或 Redis 不可用时回源数据库。失效门禁处于 pending 或状态未知时，
+     * 本次数据库结果仍返回调用方，但跳过全量快照回写，避免将从库复制期间的旧值固化为永久缓存。
+     * 需要构建关联缓存时，写入器接收本次完整数据库结果，并负责校验对应缓存的失效门禁。</p>
+     *
      * @param cacheName              受管缓存名称
      * @param cacheKey               当前列表缓存物理 Key
      * @param cacheBusinessKey       当前列表缓存业务键
@@ -803,6 +819,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      * @param databaseCacheWriter    使用同一份数据库结果构建关联缓存的写入器
      * @param <T>                    字典数据类型
      * @return 字典列表
+     * @throws ServiceException 数据库读取失败时抛出
      */
     private <T> List<T> loadFromCache(String cacheName,
                                       String cacheKey,
@@ -821,7 +838,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             if (databaseValues == null) {
                 throw new IllegalStateException("ISO dictionary database loader returned null");
             }
-            // 从库尚未确认业务事务可见时不得重建永久缓存，防止固化旧数据。
+            // 回源前检查到失效门禁 pending 或状态未知时，跳过本次永久快照回写。
             if (cacheWriteAllowed) {
                 writeCache(cacheKey, databaseValues);
             }
@@ -891,8 +908,12 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     /**
      * 构造新命名规则的 ISO 字典 Key。
      *
-     * @param business 国家或币种业务用途
-     * @return acquiring:{environment}:iso:{business}:all；解析器未配置时返回 null
+     * <p>未提供业务片段时默认使用 {@code all}，生成全量快照 Key；提供 {@code codes} 等片段时，
+     * 按传入顺序生成对应的派生缓存 Key。所有 Key 均包含系统和环境前缀，避免跨环境冲突。</p>
+     *
+     * @param business         国家或币种业务用途
+     * @param businessSegments 可选业务片段；为空时默认使用 {@code all}
+     * @return {@code acquiring:{environment}:iso:{business}:{segments}}；解析器未配置时返回 {@code null}
      */
     private String newCacheKey(String business, String... businessSegments) {
         return keyResolver == null
@@ -907,9 +928,13 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     }
 
     /**
-     * 判断永久 ISO 快照是否允许回写。
+     * 判断受管 ISO 缓存是否允许回写。
      *
-     * @param cacheName 受管缓存名称
+     * <p>门禁明确处于空闲状态时才允许写入。未启用失效门禁组件时保持独立组件的降级能力；
+     * 门禁状态读取失败时按禁止写入处理，避免在状态未知时固化可能过期的数据。</p>
+     *
+     * @param cacheName   受管缓存名称
+     * @param businessKey 失效门禁使用的稳定业务键
      * @return 门禁明确空闲时返回 {@code true}
      */
     private boolean isCacheWriteAllowed(String cacheName, String businessKey) {
@@ -946,8 +971,12 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     /**
      * 在管理端事务中登记可靠失效；独立组件环境没有协调器时执行直接删除。
      *
-     * @param cacheName 受管缓存名称
-     * @param cacheKey Redis 物理键
+     * <p>存在事务失效协调器时，仅登记包含缓存名称和业务键的可靠失效意图，由协调器在从库确认
+     * 业务事务可见后执行精确删除；未装配协调器时直接删除给定物理 Key。</p>
+     *
+     * @param cacheName   受管缓存名称
+     * @param businessKey 失效事件使用的稳定业务键
+     * @param cacheKey    Redis 物理键
      */
     private void invalidate(String cacheName, String businessKey, String cacheKey) {
         if (invalidationCoordinator != null) {
