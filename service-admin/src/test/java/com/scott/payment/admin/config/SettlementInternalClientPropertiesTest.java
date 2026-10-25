@@ -75,5 +75,11 @@ class SettlementInternalClientPropertiesTest {
         timeout.setReadTimeoutMillis(0);
         assertThatThrownBy(timeout::validate).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("timeouts");
+
+        SettlementInternalClientProperties overLimit = new SettlementInternalClientProperties();
+        overLimit.setInternalSecret("unit-test-settlement-internal-secret-32-bytes");
+        overLimit.setReadTimeoutMillis(60_001);
+        assertThatThrownBy(overLimit::validate).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("60000ms");
     }
 }

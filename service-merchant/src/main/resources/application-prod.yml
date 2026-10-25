@@ -63,3 +63,19 @@ spring:
 logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml
+
+acquiring:
+  gateway-ingress:
+    # UAT/生产门户必须经过 Gateway HMAC；缺失或弱密钥时入口失败关闭。
+    secret: ${CHECKOUT_GATEWAY_INGRESS_SECRET:}
+    protect-portal-paths: true
+    replay-protection-required: true
+    accept-legacy-signature: false
+
+payment:
+  mfa:
+    # 生产缺少独立强密钥时启动失败；密钥必须由 Secret 管理系统注入。
+    secret: ${PAYMENT_MFA_SECRET:}
+    # 轮换窗口只用于解密存量密文，逗号分隔，最多保留两个，轮换完成后及时清空。
+    previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}
+    allow-ephemeral-test-secret: false

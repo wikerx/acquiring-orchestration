@@ -184,7 +184,10 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
     }
 
     /**
-     * 渠道回调或主动查询只可把非终态首次交易幂等记录推进到终态，不能覆盖既有 SUCCESS/FAILED。
+     * 渠道回调或主动查询只可把非终态交易幂等记录推进到终态，不能覆盖既有 SUCCESS/FAILED。
+     *
+     * <p>TRANSACTION_OPERATION 覆盖首次支付和全部后续动作；MERCHANT_ORDER_FLOW 只会由首次交易创建。
+     * 不能按交易类型过滤前者，否则 Capture、Refund、Void 等异步终态仍会返回旧 PROCESSING 快照。</p>
      */
     @Override
     public int synchronizeInitialTransactionStatus(String transactionId, String transactionStatus) {
@@ -200,7 +203,6 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                 .eq(TransactionIdempotencyDO::getTransactionId, transactionId)
                 .in(TransactionIdempotencyDO::getIdempotencyScope,
                         TRANSACTION_OPERATION_SCOPE, MERCHANT_ORDER_FLOW_SCOPE)
-                .in(TransactionIdempotencyDO::getTransactionType, PAYMENT, AUTHORIZATION, PRE_AUTHORIZATION)
                 .notIn(TransactionIdempotencyDO::getTransactionStatus,
                         PaymentTransactionStatusEnum.SUCCESS.getCode(), PaymentTransactionStatusEnum.FAILED.getCode())
                 .eq(TransactionIdempotencyDO::getDeleted, NOT_DELETED));

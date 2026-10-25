@@ -52,10 +52,12 @@ class DefaultPaymentChannelResultTransactionServiceTests {
         result.setStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
         PaymentChannelInvokeResultDTO invokeResult = new PaymentChannelInvokeResultDTO();
 
-        service.recordInitialChannelResult(
+        boolean firstChanged = service.recordInitialChannelResult(
                 command, null, invokeResult, result, PaymentRiskDecisionEnum.PASS, 2);
-        service.recordInitialChannelResult(
+        boolean secondChanged = service.recordInitialChannelResult(
                 command, null, invokeResult, result, PaymentRiskDecisionEnum.PASS, 2);
+        assertThat(firstChanged).isTrue();
+        assertThat(secondChanged).isFalse();
         verify(eventService, times(1)).saveStatusChanged(
                 "TX1001",
                 "OP1001",

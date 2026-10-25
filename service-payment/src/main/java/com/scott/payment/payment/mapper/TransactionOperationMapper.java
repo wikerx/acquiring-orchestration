@@ -178,6 +178,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             UPDATE transaction_operation
             SET transaction_status = #{transactionStatus},
                 process_stage = #{processStage},
+                pending_reason_code = NULL,
                 fail_reason_code = #{failReasonCode},
                 fail_reason_message = #{failReasonMessage},
                 channel_status = #{channelStatus},

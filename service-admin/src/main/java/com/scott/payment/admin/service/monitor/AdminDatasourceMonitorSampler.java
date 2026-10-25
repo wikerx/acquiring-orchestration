@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -88,6 +89,8 @@ public class AdminDatasourceMonitorSampler {
     private final DataSourcePoolInspector poolInspector;
     /** 慢 SQL 指纹脱敏和长度限制组件。 */
     private final MonitorSensitiveTextSanitizer textSanitizer;
+    /** 是否执行启动及后台定时采样；关闭后管理页面仍可按需触发一次有节流的采样。 */
+    private final boolean scheduledSamplingEnabled;
     /** Hikari 连接池进程内历史，元素按采样时间升序保存。 */
     private final Deque<TimeBucket> poolSamples = new ArrayDeque<>(MAX_SAMPLES);
     /** MySQL 延迟进程内历史，元素按采样时间升序保存。 */
@@ -111,27 +114,39 @@ public class AdminDatasourceMonitorSampler {
      * @param dataSourceProperties 动态数据源静态配置
      * @param poolInspector 标准 JDBC Wrapper 连接池解析器
      * @param textSanitizer 监控文本脱敏器
+     * @param scheduledSamplingEnabled 是否执行启动及后台定时采样；不影响管理页面按需查询
      */
     public AdminDatasourceMonitorSampler(
             ObjectProvider<DynamicRoutingDataSource> dynamicRoutingDataSourceProvider,
             MonitorDynamicDataSourceProperties dataSourceProperties,
             DataSourcePoolInspector poolInspector,
-            MonitorSensitiveTextSanitizer textSanitizer) {
+            MonitorSensitiveTextSanitizer textSanitizer,
+            @Value("${admin.monitor.datasource-sampling.scheduled-enabled:true}")
+            boolean scheduledSamplingEnabled) {
         this.dynamicRoutingDataSource = dynamicRoutingDataSourceProvider.getIfAvailable();
         this.dataSourceProperties = dataSourceProperties;
         this.poolInspector = poolInspector;
         this.textSanitizer = textSanitizer;
+        this.scheduledSamplingEnabled = scheduledSamplingEnabled;
     }
 
-    /** 在 Spring Bean 初始化完成后尝试采集首个数据点。 */
+    /** 在 Spring Bean 初始化完成后按后台采样开关决定是否采集首个数据点。 */
     @PostConstruct
     public void initialize() {
-        sample();
+        scheduledSample();
     }
 
-    /** 每分钟采集一次连接池和 SQL 指标；一分钟内的重复调用直接复用现有历史。 */
-    @Scheduled(fixedRate = 60_000L)
-    public synchronized void sample() {
+    /** 按配置周期执行后台采样；关闭时不访问连接池或 performance_schema。 */
+    @Scheduled(fixedRateString = "${admin.monitor.datasource-sampling.fixed-rate-ms:60000}")
+    public synchronized void scheduledSample() {
+        if (!scheduledSamplingEnabled) {
+            return;
+        }
+        sampleIfDue();
+    }
+
+    /** 页面按需采样和后台采样共享同一节流边界，避免刷新页面放大数据库查询。 */
+    private void sampleIfDue() {
         long nowNanos = System.nanoTime();
         if (lastSampleAttemptNanos != Long.MIN_VALUE
                 && nowNanos - lastSampleAttemptNanos < MIN_SAMPLE_INTERVAL_NANOS) {
@@ -150,7 +165,7 @@ public class AdminDatasourceMonitorSampler {
      * @return 当前 Admin 进程内的数据源监控指标
      */
     public synchronized DataSourceMetricsResponse metrics() {
-        sample();
+        sampleIfDue();
         DataSourceMetricsResponse response = new DataSourceMetricsResponse();
         response.setPoolTrend(new ArrayList<>(poolSamples));
         response.setLatencyTrend(new ArrayList<>(latencySamples));

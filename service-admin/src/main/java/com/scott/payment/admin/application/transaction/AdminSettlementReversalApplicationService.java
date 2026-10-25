@@ -185,9 +185,7 @@ public class AdminSettlementReversalApplicationService {
     /** 解析可信网关转发链首地址或直连地址，并限制审计字段长度。 */
     private String clientIp(HttpServletRequest request) {
         if (request == null) throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
-        String forwarded = request.getHeader("X-Forwarded-For");
-        String value = StringUtils.hasText(forwarded)
-                ? forwarded.split(",")[0].trim() : request.getRemoteAddr();
+        String value = com.scott.payment.admin.application.auth.AdminClientIpResolver.resolve(request);
         if (!validText(value, 64)) throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
         return value;
     }

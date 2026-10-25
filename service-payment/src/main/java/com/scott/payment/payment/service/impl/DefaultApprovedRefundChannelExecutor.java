@@ -114,7 +114,15 @@ public class DefaultApprovedRefundChannelExecutor implements ApprovedRefundChann
         preparation.setResultDTO(result);
         preparation.setCurrencyExponent(operationDO.getCurrencyExponent() == null
                 ? 0 : operationDO.getCurrencyExponent());
-        channelResultTransactionService.recordRefundChannelResult(preparation, invokeResult);
+        boolean statusChanged = channelResultTransactionService.recordRefundChannelResult(preparation, invokeResult);
+        if (!statusChanged) {
+            TransactionOperationDO persistedOperation = transactionRecordService.findSourceOperationByTransactionIdPrimary(
+                    operationDO.getTransactionId(), operationDO.getTransactionDateTime());
+            TransactionOrderDO persistedOrder = transactionRecordService.findOrderPrimary(
+                    message.getRootTransactionDateTime(), operationDO.getOperationId());
+            PaymentPersistedResultSupport.overwriteAuthoritativeFields(
+                    result, persistedOperation, persistedOrder);
+        }
         idempotencyService.complete(
                 TRANSACTION_OPERATION_SCOPE,
                 preparation.getIdempotencyKey(),

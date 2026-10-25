@@ -7,10 +7,8 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
-import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
-import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.HostedCheckoutProperties;
@@ -867,7 +865,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private String normalizedClientIp(HttpServletRequest request) {
         String clientIp = resolveClientIp(request);
         if (!StringUtils.hasText(clientIp)) {
-            return null;
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "payer IP address is invalid");
         }
         try {
             return IpAddressNormalizer.normalizeExact(clientIp).ipValue();
@@ -932,15 +930,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
      * 非网关测试或内部调用仅使用连接对端地址，绝不信任可由调用方伪造的转发头。
      */
     private String resolveClientIp(HttpServletRequest request) {
-        if (request == null) {
-            return null;
-        }
-        if (GatewayIngressAuthFilter.isGatewayAuthenticated(request)) {
-            String gatewayClientIp = request.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP);
-            return StringUtils.hasText(gatewayClientIp) ? gatewayClientIp.trim() : null;
-        }
-        String remoteAddr = request.getRemoteAddr();
-        return StringUtils.hasText(remoteAddr) ? remoteAddr.trim() : null;
+        return com.scott.payment.component.web.gateway.TrustedClientIpResolver.resolve(request);
     }
 
     /**

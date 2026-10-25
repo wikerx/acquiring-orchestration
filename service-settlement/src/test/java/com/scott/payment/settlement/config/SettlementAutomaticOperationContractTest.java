@@ -49,17 +49,24 @@ class SettlementAutomaticOperationContractTest {
                 "settlement.enabled", "shadow-mode", "allowlist", "rollout-percentage");
     }
 
-    /** 启动类必须直接启用调度，准备和处理入口都使用代码级固定周期。 */
+    /** 启动类必须直接启用调度；周期允许调优，但不得引入可静默关闭资金流程的业务开关。 */
     @Test
     void applicationShouldAutomaticallySchedulePreparationAndProcessing() throws NoSuchMethodException {
         assertThat(SettlementApplication.class.getAnnotation(EnableScheduling.class)).isNotNull();
-        assertThat(SettlementAutomaticScheduler.class.getDeclaredMethod("prepareBatches")
-                .getAnnotation(Scheduled.class)).isNotNull();
-        assertThat(SettlementAutomaticScheduler.class.getDeclaredMethod("processBatches")
-                .getAnnotation(Scheduled.class)).isNotNull();
-        assertThat(SettlementAutomaticScheduler.class.getDeclaredMethod("projectTransactions")
-                .getAnnotation(Scheduled.class)).isNotNull();
-        assertThat(SettlementAutomaticScheduler.class.getDeclaredMethod("publishEvents")
-                .getAnnotation(Scheduled.class)).isNotNull();
+        Scheduled preparation = SettlementAutomaticScheduler.class.getDeclaredMethod("prepareBatches")
+                .getAnnotation(Scheduled.class);
+        assertThat(preparation).isNotNull();
+        assertThat(preparation.fixedDelayString())
+                .isEqualTo("${settlement.automatic-scheduler.prepare-fixed-delay-ms:30000}");
+
+        for (String methodName : List.of(
+                "processBatches", "processManualReviews", "processReviewDecisions",
+                "projectTransactions", "publishEvents")) {
+            Scheduled worker = SettlementAutomaticScheduler.class.getDeclaredMethod(methodName)
+                    .getAnnotation(Scheduled.class);
+            assertThat(worker).isNotNull();
+            assertThat(worker.fixedDelayString())
+                    .isEqualTo("${settlement.automatic-scheduler.worker-fixed-delay-ms:1000}");
+        }
     }
 }

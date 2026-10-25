@@ -51,6 +51,10 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
     public static final String GATEWAY_AUTHENTICATED_ATTRIBUTE =
             GatewayIngressAuthFilter.class.getName() + ".AUTHENTICATED";
 
+    /** v2 入口验签成功后写入，表示客户端 IP 已包含在 HMAC 规范文本中。 */
+    public static final String GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE =
+            GatewayIngressAuthFilter.class.getName() + ".CLIENT_IP_AUTHENTICATED";
+
     /**
      * 创建生产环境入口验签过滤器。
      *
@@ -145,6 +149,9 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
             }
         }
         request.setAttribute(GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
+        if (StringUtils.hasText(bodySha256Header)) {
+            request.setAttribute(GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
+        }
         filterChain.doFilter(request, response);
     }
 
@@ -153,10 +160,18 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
         return request != null && Boolean.TRUE.equals(request.getAttribute(GATEWAY_AUTHENTICATED_ATTRIBUTE));
     }
 
+    /** 判断客户端 IP 是否已经由 Gateway v2 HMAC 绑定，旧签名通过时仍返回 false。 */
+    public static boolean isGatewayClientIpAuthenticated(HttpServletRequest request) {
+        return request != null
+                && Boolean.TRUE.equals(request.getAttribute(GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE));
+    }
+
     /** 仅对各服务显式配置的收银台入口执行验签。 */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !GatewayIngressSignature.isProtectedCheckoutPath(request.getRequestURI());
+        String path = request.getRequestURI();
+        return !GatewayIngressSignature.isProtectedCheckoutPath(path)
+                && !(properties.isProtectPortalPaths() && GatewayIngressSignature.isProtectedPortalPath(path));
     }
 
     private boolean verifySignature(HttpServletRequest request,

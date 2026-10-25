@@ -26,6 +26,8 @@ public class GatewayIngressAuthProperties {
     private boolean replayProtectionRequired = true;
     /** 受保护外部请求正文最大字节数。 */
     private int maxRequestBodyBytes = 1024 * 1024;
+    /** Admin/Merchant 门户是否强制经过 Gateway HMAC；默认开启，dev/test 可显式关闭直连联调。 */
+    private boolean protectPortalPaths = true;
 
     /** @return 外部注入的 HMAC 共享密钥 */
     public String getSecret() {
@@ -69,6 +71,14 @@ public class GatewayIngressAuthProperties {
 
     public void setMaxRequestBodyBytes(int maxRequestBodyBytes) {
         this.maxRequestBodyBytes = maxRequestBodyBytes;
+    }
+
+    public boolean isProtectPortalPaths() {
+        return protectPortalPaths;
+    }
+
+    public void setProtectPortalPaths(boolean protectPortalPaths) {
+        this.protectPortalPaths = protectPortalPaths;
     }
 
 }

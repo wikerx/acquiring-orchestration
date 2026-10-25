@@ -5,6 +5,7 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.IncrementalAuthorizationChannelResultTransactionService;
 import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
@@ -57,21 +58,23 @@ public class DefaultIncrementalAuthorizationChannelResultTransactionService impl
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void recordIncrementalAuthorizationChannelResult(
+    public boolean recordIncrementalAuthorizationChannelResult(
             IncrementalAuthorizationPreparationResultDTO preparationResultDTO,
             PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (preparationResultDTO == null || preparationResultDTO.getResultDTO() == null) {
-            return;
+            return false;
         }
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
-        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(
+        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), preparationResultDTO.getCommandDTO().getTransactionDateTime());
-        if (operationDO == null) {
-            return;
+        TransactionOrderDO sourceOrderDO = transactionRecordService.findOrderPrimary(
+                resultDTO.getRootTransactionDateTime(), resultDTO.getOperationId());
+        if (operationDO == null || sourceOrderDO == null) {
+            return false;
         }
         boolean statusChanged = transactionRecordService.completeIncrementalAuthorizationChannelResult(
                 operationDO,
-                preparationResultDTO.getSourceOrderDO(),
+                sourceOrderDO,
                 preparationResultDTO.getCommandDTO(),
                 preparationResultDTO.getRouteResultDTO(),
                 invokeResultDTO,
@@ -80,6 +83,7 @@ public class DefaultIncrementalAuthorizationChannelResultTransactionService impl
         if (statusChanged && isTerminal(resultDTO)) {
             saveStatusChanged(preparationResultDTO, resultDTO);
         }
+        return statusChanged;
     }
 
     /** 终态 CAS 成功后，在当前事务内写入可恢复分片时间的状态变更事件。 */

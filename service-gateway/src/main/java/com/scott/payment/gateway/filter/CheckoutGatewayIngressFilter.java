@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpRequestDecorator;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -74,9 +75,10 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
                     headers.remove(GatewayIngressSignature.HEADER_NONCE);
                     headers.remove(GatewayIngressSignature.HEADER_SIGNATURE);
                     headers.remove(GatewayIngressSignature.HEADER_BODY_SHA256);
+                    headers.remove(GatewayIngressSignature.HEADER_CLIENT_IP);
                 });
         String rawPath = exchange.getRequest().getURI().getRawPath();
-        if (!GatewayIngressSignature.isProtectedCheckoutPath(rawPath)) {
+        if (!GatewayIngressSignature.isProtectedGatewayPath(rawPath)) {
             return chain.filter(exchange.mutate().request(requestBuilder.build()).build());
         }
         if (!GatewayIngressSignature.isConfiguredSecret(properties.getSecret())) {
@@ -115,7 +117,8 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
         String requestTarget = GatewayIngressSignature.requestTarget(
                 rawPath, exchange.getRequest().getURI().getRawQuery());
         String bodySha256 = GatewayIngressSignature.payloadSha256(body);
-        String clientIp = exchange.getRequest().getHeaders().getFirst(GatewayIngressSignature.HEADER_CLIENT_IP);
+        Object trustedClientIp = exchange.getAttribute(GatewayClientIpHeaderFilter.GATEWAY_CLIENT_IP_ATTRIBUTE);
+        String clientIp = trustedClientIp instanceof String value ? value : null;
         String signature = GatewayIngressSignature.sign(
                 exchange.getRequest().getMethod().name(), requestTarget, timestamp, nonce,
                 bodySha256, clientIp, properties.getSecret());
@@ -124,6 +127,9 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
             headers.set(GatewayIngressSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
             headers.set(GatewayIngressSignature.HEADER_NONCE, nonce);
             headers.set(GatewayIngressSignature.HEADER_BODY_SHA256, bodySha256);
+            if (StringUtils.hasText(clientIp)) {
+                headers.set(GatewayIngressSignature.HEADER_CLIENT_IP, clientIp);
+            }
             headers.set(GatewayIngressSignature.HEADER_SIGNATURE, signature);
         });
         ServerHttpRequest signedRequest = replayableRequest(exchange, requestBuilder.build(), body);

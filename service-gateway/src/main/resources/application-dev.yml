@@ -49,6 +49,14 @@ spring:
         refresh-enabled: true
         # 参数说明：配置 Nacos 拉取配置失败后的重试次数，必须为非负整数。
         config-retry-time: 3
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            # Gateway 到下游微服务的 TCP 建连预算；环境变量可收紧，超过 60 秒会阻止启动。
+            connect-timeout: ${GATEWAY_HTTP_CONNECT_TIMEOUT_MILLIS:3000}
+            # Gateway 到下游微服务的完整响应预算；覆盖渠道调用并预留入口处理时间。
+            response-timeout: ${GATEWAY_HTTP_RESPONSE_TIMEOUT:40s}
 
 logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。

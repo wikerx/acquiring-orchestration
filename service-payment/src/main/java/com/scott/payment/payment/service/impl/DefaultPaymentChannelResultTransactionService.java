@@ -60,12 +60,12 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void recordInitialChannelResult(PaymentCreateCommandDTO commandDTO,
-                                           PaymentRouteResultDTO routeResultDTO,
-                                           PaymentChannelInvokeResultDTO invokeResultDTO,
-                                           PaymentCreateResultDTO resultDTO,
-                                           PaymentRiskDecisionEnum riskDecisionEnum,
-                                           int currencyExponent) {
+    public boolean recordInitialChannelResult(PaymentCreateCommandDTO commandDTO,
+                                              PaymentRouteResultDTO routeResultDTO,
+                                              PaymentChannelInvokeResultDTO invokeResultDTO,
+                                              PaymentCreateResultDTO resultDTO,
+                                              PaymentRiskDecisionEnum riskDecisionEnum,
+                                              int currencyExponent) {
         boolean statusChanged = transactionRecordService.completeInitialChannelResultAndReport(
                 commandDTO,
                 routeResultDTO,
@@ -85,6 +85,7 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
                     resultDTO.getStatus(),
                     commandDTO.getTransactionDateTime());
         }
+        return statusChanged;
     }
 
     /** 在独立事务中抢占 INIT 渠道请求。 */

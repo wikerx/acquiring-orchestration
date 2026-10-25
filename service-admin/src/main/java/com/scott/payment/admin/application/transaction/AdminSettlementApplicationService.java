@@ -581,9 +581,7 @@ public class AdminSettlementApplicationService {
         if (request == null) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
         }
-        String forwarded = request.getHeader("X-Forwarded-For");
-        String value = StringUtils.hasText(forwarded)
-                ? forwarded.split(",")[0].trim() : request.getRemoteAddr();
+        String value = com.scott.payment.admin.application.auth.AdminClientIpResolver.resolve(request);
         if (!validText(value, 64)) throw new ServiceException(ApiResultEnum.UNAUTHORIZED);
         return value;
     }

@@ -1,6 +1,7 @@
 package com.scott.payment.openapi.service.impl;
 
 import com.alibaba.fastjson2.TypeReference;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
@@ -257,11 +258,11 @@ class PaymentServiceImplTests {
     }
 
     @Test
-    void shouldReturnChannelDeclineMessageWhenPaymentFailureIsMerchantVisible() {
+    void shouldReturnStablePlatformMessageWhenPaymentFailureContainsChannelDetails() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         paymentInternalClient.nextPaymentStatus = "FAILED";
         paymentInternalClient.nextMerchantResponseCode = "F210";
-        paymentInternalClient.nextMerchantResponseMessage = "05: Declined";
+        paymentInternalClient.nextMerchantResponseMessage = ApiResultEnum.PAYMENT_REJECTED.getMessage();
         paymentInternalClient.nextFailReasonCode = "CHANNEL_DECLINED";
         paymentInternalClient.nextFailReasonMessage = "MPGS declined by issuer";
         PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);
@@ -270,9 +271,10 @@ class PaymentServiceImplTests {
         String responseJson = JsonUtils.toJsonString(paymentService.createPayment("encrypted-body", buildRequest()));
 
         assertThat(responseJson).contains("\"code\":\"F210\"");
-        assertThat(responseJson).contains("\"message\":\"05: Declined\"");
+        assertThat(responseJson).contains("\"message\":\"The transaction was declined; please contact your card issuer or try again.\"");
         assertThat(responseJson).doesNotContain("MPGS declined by issuer");
         assertThat(responseJson).doesNotContain("CHANNEL_DECLINED");
+        assertThat(responseJson).doesNotContain("05: Declined");
     }
 
     @Test
@@ -426,8 +428,17 @@ class PaymentServiceImplTests {
                 new OpenApiKeyMaterialFactory(),
                 new OpenApiRequestContext(),
                 isoDictionaryService,
-                merchantRuntimeProfileCacheService()
+                merchantRuntimeProfileCacheService(),
+                testUrlPolicy()
         );
+    }
+
+    /** 测试夹具显式声明 test 环境，避免依赖未知环境的生产级失败关闭默认值。 */
+    private com.scott.payment.openapi.support.HostedCheckoutUrlPolicy testUrlPolicy() {
+        org.springframework.mock.env.MockEnvironment environment =
+                new org.springframework.mock.env.MockEnvironment();
+        environment.setActiveProfiles("test");
+        return new com.scott.payment.openapi.support.HostedCheckoutUrlPolicy(environment);
     }
 
     private MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService() {

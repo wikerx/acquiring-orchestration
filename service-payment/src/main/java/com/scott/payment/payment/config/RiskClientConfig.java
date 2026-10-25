@@ -1,11 +1,17 @@
 package com.scott.payment.payment.config;
 
 import com.scott.payment.component.web.trace.TraceIdRestTemplateCustomizer;
+import com.scott.payment.component.web.trace.TraceIdRestTemplateInterceptor;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
+
+import java.net.Proxy;
+import java.time.Duration;
 
 /**
  * @author : scott
@@ -29,7 +35,11 @@ public class RiskClientConfig {
     public RestTemplate riskRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer,
                                          RiskClientProperties properties) {
         properties.validate();
-        return traceIdRestTemplateCustomizer.customize(new RestTemplate());
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setProxy(Proxy.NO_PROXY);
+        requestFactory.setConnectTimeout(properties.getConnectTimeoutMillis());
+        requestFactory.setReadTimeout(properties.getReadTimeoutMillis());
+        return traceIdRestTemplateCustomizer.customize(new RestTemplate(requestFactory));
     }
 
     /**
@@ -39,7 +49,14 @@ public class RiskClientConfig {
      */
     @Bean("riskLoadBalancedRestTemplate")
     @LoadBalanced
-    public RestTemplate riskLoadBalancedRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
-        return traceIdRestTemplateCustomizer.customize(new RestTemplate());
+    public RestTemplate riskLoadBalancedRestTemplate(RestTemplateBuilder builder,
+                                                     TraceIdRestTemplateInterceptor traceInterceptor,
+                                                     RiskClientProperties properties) {
+        properties.validate();
+        return builder
+                .setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
+                .setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
+                .additionalInterceptors(traceInterceptor)
+                .build();
     }
 }

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** 验证 Gateway 只接受可信直接上游提供的转发链，并从右向左剥离可信代理。 */
 class GatewayClientIpHeaderFilterTests {
@@ -43,12 +44,36 @@ class GatewayClientIpHeaderFilterTests {
     }
 
     @Test
+    void shouldFallBackToTcpPeerWhenForwardedHeaderIsRepeated() {
+        GatewayClientIpProperties properties = properties(true, List.of("10.0.0.0/8"));
+        MockServerWebExchange request = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/rest/iso/v1/countries/query")
+                        .remoteAddress(new InetSocketAddress("10.0.0.2", 443))
+                        .header("X-Forwarded-For", "198.51.100.7")
+                        .header("X-Forwarded-For", "203.0.113.9")
+                        .header(GatewayClientIpHeaderFilter.HEADER_GATEWAY_CLIENT_IP, "forged")
+                        .build());
+
+        assertThat(clientIp(apply(properties, request))).isEqualTo("10.0.0.2");
+    }
+
+    @Test
     void shouldNormalizeIpv6TrustedProxyAndClient() {
         GatewayClientIpProperties properties = properties(true, List.of("2001:db8:1::/48"));
         ServerWebExchange forwarded = apply(properties,
                 request("2001:db8:1::2", "2001:db8:2::7, 2001:db8:1::3"));
 
         assertThat(clientIp(forwarded)).isEqualTo("2001:db8:2:0:0:0:0:7");
+    }
+
+    @Test
+    void shouldRejectCatchAllTrustedProxyCidrsAtStartup() {
+        assertThatThrownBy(() -> new GatewayClientIpHeaderFilter(properties(true, List.of("0.0.0.0/0"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("prefix");
+        assertThatThrownBy(() -> new GatewayClientIpHeaderFilter(properties(true, List.of("::/0"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("prefix");
     }
 
     private GatewayClientIpProperties properties(boolean trustForwarded, List<String> cidrs) {
@@ -76,6 +101,10 @@ class GatewayClientIpHeaderFilterTests {
     }
 
     private String clientIp(ServerWebExchange exchange) {
+        String attributeClientIp = exchange.getAttribute(GatewayClientIpHeaderFilter.GATEWAY_CLIENT_IP_ATTRIBUTE);
+        assertThat(attributeClientIp)
+                .isEqualTo(exchange.getRequest().getHeaders()
+                        .getFirst(GatewayClientIpHeaderFilter.HEADER_GATEWAY_CLIENT_IP));
         return exchange.getRequest().getHeaders()
                 .getFirst(GatewayClientIpHeaderFilter.HEADER_GATEWAY_CLIENT_IP);
     }

@@ -367,14 +367,7 @@ public class OperationLogAspect {
      * @return 客户端 IP
      */
     private String clientIp(HttpServletRequest request) {
-        if (request == null) {
-            return null;
-        }
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
+        return com.scott.payment.component.web.gateway.TrustedClientIpResolver.resolve(request);
     }
 
     /**

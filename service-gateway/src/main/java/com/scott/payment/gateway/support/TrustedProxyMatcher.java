@@ -53,7 +53,7 @@ public class TrustedProxyMatcher {
         } catch (NumberFormatException exception) {
             throw new IllegalArgumentException("Trusted proxy CIDR prefix is invalid", exception);
         }
-        if (prefix < 0 || prefix > network.length * 8) {
+        if (prefix <= 0 || prefix > network.length * 8) {
             throw new IllegalArgumentException("Trusted proxy CIDR prefix is out of range");
         }
         return new CidrBlock(network, prefix);

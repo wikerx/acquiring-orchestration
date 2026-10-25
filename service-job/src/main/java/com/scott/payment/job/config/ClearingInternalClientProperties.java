@@ -1,6 +1,7 @@
 package com.scott.payment.job.config;
 
 import com.scott.payment.component.web.internal.InternalServiceClientCredentialValidator;
+import com.scott.payment.component.web.internal.InternalHttpTimeoutPolicy;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
@@ -30,9 +31,9 @@ public class ClearingInternalClientProperties {
     /** service-clearing 的 HTTP(S) 服务根地址，不允许携带凭据、查询或片段。 */
     private String baseUrl = "http://service-clearing";
     /** 建连超时，单位毫秒，必须大于零。 */
-    private int connectTimeoutMillis = 3_000;
+    private int connectTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_CONNECT_TIMEOUT_MILLIS;
     /** 单页补偿扫描读取超时，单位毫秒，必须大于零。 */
-    private int readTimeoutMillis = 120_000;
+    private int readTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_READ_TIMEOUT_MILLIS;
     /** 内部调用身份，固定为 service-job。 */
     private String internalCaller = "service-job";
     /** HMAC 密钥，敏感字段，不允许为空或使用开发默认值。 */
@@ -43,9 +44,8 @@ public class ClearingInternalClientProperties {
         validateBaseUrl();
         InternalServiceClientCredentialValidator.validate(
                 "job clearing-client", REQUIRED_CALLER, internalCaller, internalSecret);
-        if (connectTimeoutMillis < 1 || readTimeoutMillis < 1) {
-            throw new IllegalStateException("job clearing-client timeouts must be positive");
-        }
+        InternalHttpTimeoutPolicy.validate(
+                "job clearing-client", connectTimeoutMillis, readTimeoutMillis);
     }
 
     /** 只允许无凭据、无查询和无片段的 HTTP(S) 服务根地址。 */

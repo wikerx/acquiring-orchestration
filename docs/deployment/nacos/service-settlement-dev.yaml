@@ -7,6 +7,14 @@ acquiring:
       # 后续如引入 ReliableMqPublisher，必须先恢复为 true 并完成失败补偿和积压告警验证。
       service-relay-enabled: false
 
+settlement:
+  automatic-scheduler:
+    # 参数说明：候选激活和成熟日批准备完成后，到下一轮准备开始前的等待时间，单位毫秒；不控制自动结算启停。
+    prepare-fixed-delay-ms: ${SETTLEMENT_PREPARE_FIXED_DELAY_MS:30000}
+    # 参数说明：批次、预审、审批、投影和专用 FIFO Outbox 每轮完成后的等待时间，单位毫秒。
+    # dev 默认 5 秒以降低空队列查询；生产应根据结算恢复 SLA、数据库容量和 MQ 积压指标压测后配置。
+    worker-fixed-delay-ms: ${SETTLEMENT_WORKER_FIXED_DELAY_MS:5000}
+
 internal-service:
   auth:
     callers:

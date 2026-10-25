@@ -372,6 +372,12 @@ Authorization: Bearer {jwt}
 
 支付请求的 `transactionInfo.callbackUrl` 和 Hosted Checkout 的 `checkoutInfo.notifyUrl` 是可选通知地址。首次支付、授权和预授权进入终态后，平台按第 7.13 节的 JWT、密文、ACK、自动重试和人工重发协议通知该地址。商户必须同时实现回调事件幂等和交易查询兜底，不能仅依赖浏览器跳转或单次通知结果确认最终交易状态。
 
+- `dev/test` 仅为本地或测试联调，可使用结构合法的 HTTP/HTTPS、私网或回环地址，不得承载生产凭据或真实持卡人数据。
+- `UAT/Production` 以及无法识别的部署环境只接受 HTTPS，主机当前解析出的全部地址都必须是公网单播地址；任一解析结果属于私网、回环、链路本地、组播、文档网段、保留网段或云元数据可达范围时均拒绝。
+- 所有环境都拒绝缺少主机、携带用户名/密码、携带 URL Fragment、端口非法或协议不是 HTTP/HTTPS 的地址。
+- 平台在请求受理时校验目标，并在实际 HTTP 建连所用的同一次 DNS 解析上再次执行地址策略。DNS 无法解析、解析结果发生变化或任一建连候选地址变为非公网目标时，通知投递会永久拒绝，不按网络故障盲目重试。
+- 不符合策略时返回 `F402004 / Merchant callback URL is not allowed. Use an HTTPS URL that resolves only to public network addresses.`。商户应修正原请求或商户配置中的地址；该结果不是瞬时网络错误，不能对同一非法地址自动重试。
+
 ### 4.6 HTTP 状态和客户端超时
 
 - 商户必须同时处理非 2xx HTTP 状态、连接失败、读取超时和合法 JSON 业务响应。
@@ -1992,6 +1998,7 @@ merchantId + merchantOrderNo
 | `F402001` | `Invalid request parameter` | 参数值或格式非法 |
 | `F402002` | `Required request parameter is missing` | 必填参数缺失 |
 | `F402003` | `Encrypted request data is invalid` | `data` 缺失、五段格式错误、密钥错误或 GCM 校验失败 |
+| `F402004` | `Merchant callback URL is not allowed. Use an HTTPS URL that resolves only to public network addresses.` | 回调地址结构非法，或当前环境要求 HTTPS、公网目标而地址未满足安全策略 |
 | `F403` | `Forbidden` | 已认证商户无权访问资源或来源不允许 |
 | `F404` | `Not found` | API 路径不存在 |
 | `F405` | `Method Not Allowed` | HTTP Method 不支持 |
@@ -2055,6 +2062,7 @@ HTTP/网络结果
 | --- | --- | --- |
 | JWT 或参数校验明确失败 | 修正后可发 | 生成新 `jti`；业务幂等标识按原业务语义保持 |
 | `F402003` 加密失败 | 否 | 修复算法、密钥或报文格式后再发送 |
+| `F402004` 回调地址被拒绝 | 否 | 修正为当前环境允许的 HTTPS 公网地址；不要对原地址自动重试 |
 | `F429` 限流 | 不应立即重发 | 按平台退避要求等待，使用新 `jti`，保持原业务幂等标识 |
 | `F500/F502/F503` | 否 | 支付先查询；确认不存在后才按平台指引重试 |
 | 连接失败或读取超时 | 否 | 结果未知；支付先查询，不得换 `orderId` 重复扣款 |

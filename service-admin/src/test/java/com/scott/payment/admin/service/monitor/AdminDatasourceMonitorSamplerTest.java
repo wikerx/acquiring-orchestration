@@ -5,6 +5,7 @@ import com.scott.payment.admin.config.MonitorDynamicDataSourceProperties;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.TimeBucket;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import javax.sql.DataSource;
 import java.math.BigDecimal;
@@ -79,15 +80,63 @@ class AdminDatasourceMonitorSamplerTest {
         verify(primary, times(1)).getConnection();
     }
 
+    @Test
+    void shouldSkipStartupAndScheduledQueriesWhenBackgroundSamplingIsDisabled() throws Exception {
+        DynamicRoutingDataSource routing = mock(DynamicRoutingDataSource.class);
+        DataSource primary = mock(DataSource.class);
+        when(routing.getDataSources()).thenReturn(Map.of("master", primary));
+        when(primary.getConnection()).thenThrow(new SQLException("offline"));
+        DataSourcePoolInspector inspector = mock(DataSourcePoolInspector.class);
+        AdminDatasourceMonitorSampler sampler = sampler(routing, inspector, false);
+
+        sampler.initialize();
+        sampler.scheduledSample();
+
+        verify(routing, times(0)).getDataSources();
+        verify(primary, times(0)).getConnection();
+    }
+
+    @Test
+    void shouldKeepOnDemandSamplingWhenBackgroundSamplingIsDisabled() throws Exception {
+        DynamicRoutingDataSource routing = mock(DynamicRoutingDataSource.class);
+        DataSource primary = mock(DataSource.class);
+        when(routing.getDataSources()).thenReturn(Map.of("master", primary));
+        when(primary.getConnection()).thenThrow(new SQLException("offline"));
+        DataSourcePoolInspector inspector = mock(DataSourcePoolInspector.class);
+        when(inspector.unwrapHikari(primary)).thenReturn(null);
+        AdminDatasourceMonitorSampler sampler = sampler(routing, inspector, false);
+
+        sampler.metrics();
+
+        verify(routing, times(1)).getDataSources();
+        verify(primary, times(1)).getConnection();
+    }
+
+    @Test
+    void scheduledSamplingCadenceShouldRemainEnvironmentConfigurable() throws Exception {
+        Scheduled scheduled = AdminDatasourceMonitorSampler.class.getDeclaredMethod("scheduledSample")
+                .getAnnotation(Scheduled.class);
+
+        assertThat(scheduled).isNotNull();
+        assertThat(scheduled.fixedRateString())
+                .isEqualTo("${admin.monitor.datasource-sampling.fixed-rate-ms:60000}");
+    }
+
     private AdminDatasourceMonitorSampler sampler(DynamicRoutingDataSource routing,
                                                   DataSourcePoolInspector inspector) {
+        return sampler(routing, inspector, true);
+    }
+
+    private AdminDatasourceMonitorSampler sampler(DynamicRoutingDataSource routing,
+                                                  DataSourcePoolInspector inspector,
+                                                  boolean scheduledSamplingEnabled) {
         @SuppressWarnings("unchecked")
         ObjectProvider<DynamicRoutingDataSource> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(routing);
         MonitorDynamicDataSourceProperties properties = new MonitorDynamicDataSourceProperties();
         properties.setPrimary("master");
         return new AdminDatasourceMonitorSampler(
-                provider, properties, inspector, new MonitorSensitiveTextSanitizer());
+                provider, properties, inspector, new MonitorSensitiveTextSanitizer(), scheduledSamplingEnabled);
     }
 
     private TimeBucket bucket(LocalDateTime timestamp, String key, long value) {

@@ -81,5 +81,12 @@ class ClearingInternalClientPropertiesTest {
         assertThatThrownBy(invalidTimeout::validate)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("timeouts");
+
+        ClearingInternalClientProperties overLimit = new ClearingInternalClientProperties();
+        overLimit.setInternalSecret("unit-test-clearing-internal-secret-32-bytes");
+        overLimit.setReadTimeoutMillis(60_001);
+        assertThatThrownBy(overLimit::validate)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("60000ms");
     }
 }

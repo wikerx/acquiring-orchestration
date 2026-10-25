@@ -63,3 +63,15 @@ spring:
 logging:
   # 参数说明：指定日志配置文件或 Spring 配置资源路径，必须存在于应用 classpath。
   config: classpath:log-config/logback-spring.xml
+
+acquiring:
+  gateway-ingress:
+    # dev/test 允许直连联调；专用客户端 IP 头不会被信任，审计只使用 TCP 对端地址。
+    protect-portal-paths: false
+
+payment:
+  mfa:
+    secret: ${PAYMENT_MFA_SECRET:}
+    previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}
+    # 隔离测试可使用每次启动随机生成的临时密钥；涉及持久化兼容性时必须显式注入稳定密钥。
+    allow-ephemeral-test-secret: true

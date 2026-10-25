@@ -1,5 +1,6 @@
 package com.scott.payment.data.service.impl;
 
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.entity.DataMerchantNotificationLogDO;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
@@ -19,6 +20,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -554,6 +556,50 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         verify(fixture.outboxMapper(), never()).insert(any());
     }
 
+    /** 安全策略拒绝属于永久配置错误，必须立即关闭任务且不得发起 HTTP 或安排重试。 */
+    @Test
+    void shouldClosePermanentlyRejectedCallbackTargetWithoutHttpOrRetry() {
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
+        DataMerchantNotificationTaskDO task = fixture.task();
+        org.mockito.Mockito.doThrow(new MerchantCallbackTargetRejectedException())
+                .when(fixture.targetValidator()).validate(task.getCallbackUrl());
+        when(fixture.notificationMapper().markFailed(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), eq("CLOSED"),
+                eq(null), eq(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getMessage()), any()))
+                .thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(task.getTransactionDateTime(), 10)).isZero();
+
+        assertThat(fixture.restTemplate().postCount).isZero();
+        verify(fixture.notificationMapper()).markFailed(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), eq("CLOSED"),
+                eq(null), eq(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getMessage()), any());
+        verify(fixture.outboxMapper(), never()).insert(any());
+        verifyNoInteractions(fixture.requestFactory());
+    }
+
+    /** 实际建连阶段的 DNS 策略拒绝即使被 RestTemplate 包装，也必须永久关闭且不得安排重试。 */
+    @Test
+    void shouldCloseWrappedDnsTargetRejectionWithoutRetry() {
+        ResourceAccessException wrapped = new ResourceAccessException(
+                "I/O error",
+                new IOException("DNS policy rejected", new MerchantCallbackTargetRejectedException()));
+        Fixture fixture = fixture(wrapped);
+        DataMerchantNotificationTaskDO task = fixture.task();
+        when(fixture.notificationMapper().markFailed(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), eq("CLOSED"),
+                eq(null), eq(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getMessage()), any()))
+                .thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(task.getTransactionDateTime(), 10)).isZero();
+
+        assertThat(fixture.restTemplate().postCount).isEqualTo(1);
+        verify(fixture.notificationMapper()).markFailed(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), eq("CLOSED"),
+                eq(null), eq(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getMessage()), any());
+        verify(fixture.outboxMapper(), never()).insert(any());
+    }
+
     /** 通知日志 ID 必须由业务尝试身份稳定生成，避免进程重启后本地序列与历史记录碰撞。 */
     @Test
     void shouldGenerateStableCollisionResistantNotificationLogId() {
@@ -614,7 +660,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 targetValidator,
                 new MerchantNotificationAttemptCommitService(
                         notificationMapper, logMapper, outboxMapper));
-        return new Fixture(service, notificationMapper, logMapper, outboxMapper, task, restTemplate, requestFactory);
+        return new Fixture(
+                service, notificationMapper, logMapper, outboxMapper,
+                task, restTemplate, requestFactory, targetValidator);
     }
 
     /** 构造不含卡数据和密钥的通知任务。 */
@@ -656,7 +704,8 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                            DataMerchantNotificationRetryOutboxMapper outboxMapper,
                            DataMerchantNotificationTaskDO task,
                            StubRestTemplate restTemplate,
-                           MerchantCallbackRequestFactory requestFactory) {
+                           MerchantCallbackRequestFactory requestFactory,
+                           MerchantCallbackTargetValidator targetValidator) {
     }
 
     /** 返回预设 HTTP 状态和响应体，并校验实际回调地址没有被脱敏值替换。 */

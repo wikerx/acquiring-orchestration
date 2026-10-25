@@ -94,7 +94,10 @@ public interface TransactionIdempotencyService {
     }
 
     /**
-     * 将渠道异步确认的首次交易终态同步到请求幂等记录和商户订单流守卫。
+     * 将渠道异步确认的交易终态同步到请求幂等记录。
+     *
+     * <p>方法名为兼容既有调用保留；实现必须覆盖全部交易动作的 {@code TRANSACTION_OPERATION}
+     * 记录，首次交易还应同步 {@code MERCHANT_ORDER_FLOW} 守卫。只允许非终态推进到终态。</p>
      *
      * @param transactionId     平台交易 ID
      * @param transactionStatus SUCCESS 或 FAILED

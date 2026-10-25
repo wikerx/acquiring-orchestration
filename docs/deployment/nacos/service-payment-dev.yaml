@@ -153,6 +153,9 @@ payment:
       # 发布锁租约，使用 Spring Duration 且必须大于 0；每页 SLAVE 数据处理完成后续租，默认 PT5M 即五分钟。
       publication-lease: ${PAYMENT_CARD_BIN_CACHE_PUBLICATION_LEASE:PT5M}
   risk-client:
+    # 实时风控同步调用默认 3 秒建连、30 秒读取，配置超过 60 秒时 Payment 拒绝启动。
+    connect-timeout-millis: ${PAYMENT_RISK_CONNECT_TIMEOUT_MILLIS:3000}
+    read-timeout-millis: ${PAYMENT_RISK_READ_TIMEOUT_MILLIS:30000}
     # 参数说明：实时风控内部协议的固定调用方标识，必须保持 service-payment。
     internal-caller: service-payment
     # 参数说明：Payment 到 Risk 调用边的当前 HMAC 密钥引用；生产禁止配置共享全局密钥。

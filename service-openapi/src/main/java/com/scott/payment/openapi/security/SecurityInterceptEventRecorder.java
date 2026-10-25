@@ -4,6 +4,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
+import com.scott.payment.component.web.gateway.TrustedClientIpResolver;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.SecurityInterceptAuditMessage;
@@ -199,11 +200,7 @@ public class SecurityInterceptEventRecorder {
 
     /** 优先读取网关写入的可信客户端 IP，未提供时回退到连接地址。 */
     private String resolveClientIp(HttpServletRequest request) {
-        if (request == null) {
-            return null;
-        }
-        String gatewayClientIp = request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP);
-        return StringUtils.hasText(gatewayClientIp) ? gatewayClientIp.trim() : request.getRemoteAddr();
+        return TrustedClientIpResolver.resolve(request);
     }
 
     /** 返回不含查询参数的请求路径。 */

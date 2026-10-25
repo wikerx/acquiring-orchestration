@@ -19,7 +19,8 @@ public interface VoidChannelResultTransactionService {
      *
      * @param preparationResultDTO 已提交的 Void 准备结果
      * @param invokeResultDTO 渠道调用结果
+     * @return true 表示同步结果推进状态；false 表示回调或其他并发流程已先完成
      */
-    void recordVoidChannelResult(VoidPreparationResultDTO preparationResultDTO,
-                                 PaymentChannelInvokeResultDTO invokeResultDTO);
+    boolean recordVoidChannelResult(VoidPreparationResultDTO preparationResultDTO,
+                                    PaymentChannelInvokeResultDTO invokeResultDTO);
 }

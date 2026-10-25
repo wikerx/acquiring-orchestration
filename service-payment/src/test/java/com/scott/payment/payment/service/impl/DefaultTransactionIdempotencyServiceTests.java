@@ -72,9 +72,9 @@ class DefaultTransactionIdempotencyServiceTests {
         assertThat(wrapper.getSqlSegment()).contains("idempotency_scope", "idempotency_key", "transaction_status", "version");
     }
 
-    /** 渠道终态同步只能更新两个首次交易 scope 中尚未终态的记录。 */
+    /** 渠道终态同步必须覆盖后续动作，不能再按首次交易类型过滤 TRANSACTION_OPERATION。 */
     @Test
-    void shouldSynchronizeOnlyNonTerminalInitialTransactionRecords() {
+    void shouldSynchronizeNonTerminalTransactionRecordsWithoutInitialTypeFilter() {
         when(idempotencyMapper.update(isNull(), any())).thenReturn(2);
         DefaultTransactionIdempotencyService service = new DefaultTransactionIdempotencyService(idempotencyMapper);
 
@@ -85,7 +85,8 @@ class DefaultTransactionIdempotencyServiceTests {
         LambdaUpdateWrapper<TransactionIdempotencyDO> wrapper = capturedUpdateWrapper();
         assertThat(wrapper.getSqlSet()).contains("version = version + 1");
         assertThat(wrapper.getSqlSegment()).contains(
-                "transaction_id", "idempotency_scope", "transaction_type", "transaction_status", "deleted");
+                "transaction_id", "idempotency_scope", "transaction_status", "deleted");
+        assertThat(wrapper.getSqlSegment()).doesNotContain("transaction_type");
     }
 
     /** 非终态目标不得通过异步同步接口覆盖幂等事实。 */

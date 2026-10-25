@@ -26,15 +26,15 @@ import static org.mockito.Mockito.verify;
 class TierPeriodReplaySchedulerTest {
 
     @Test
-    void schedulerShouldUseFixedBuiltInCadenceWithoutConfigurationSwitch() throws Exception {
+    void schedulerShouldUseTunableCadenceWithoutConfigurationSwitch() throws Exception {
         Scheduled scheduled = TierPeriodReplayScheduler.class.getDeclaredMethod("run")
                 .getAnnotation(Scheduled.class);
 
         assertThat(scheduled).isNotNull();
-        assertThat(scheduled.initialDelay()).isEqualTo(5000L);
-        assertThat(scheduled.fixedDelay()).isEqualTo(5000L);
-        assertThat(scheduled.initialDelayString()).isEmpty();
-        assertThat(scheduled.fixedDelayString()).isEmpty();
+        assertThat(scheduled.initialDelayString())
+                .isEqualTo("${clearing.tier-period-replay.initial-delay-ms:5000}");
+        assertThat(scheduled.fixedDelayString())
+                .isEqualTo("${clearing.tier-period-replay.fixed-delay-ms:5000}");
     }
 
     @Test

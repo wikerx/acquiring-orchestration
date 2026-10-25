@@ -5,6 +5,7 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.VoidChannelResultTransactionService;
@@ -57,20 +58,22 @@ public class DefaultVoidChannelResultTransactionService implements VoidChannelRe
     @Override
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void recordVoidChannelResult(VoidPreparationResultDTO preparationResultDTO,
-                                        PaymentChannelInvokeResultDTO invokeResultDTO) {
+    public boolean recordVoidChannelResult(VoidPreparationResultDTO preparationResultDTO,
+                                           PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (preparationResultDTO == null || preparationResultDTO.getResultDTO() == null) {
-            return;
+            return false;
         }
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
-        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(
+        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), preparationResultDTO.getCommandDTO().getTransactionDateTime());
-        if (operationDO == null) {
-            return;
+        TransactionOrderDO sourceOrderDO = transactionRecordService.findOrderPrimary(
+                resultDTO.getRootTransactionDateTime(), resultDTO.getOperationId());
+        if (operationDO == null || sourceOrderDO == null) {
+            return false;
         }
         boolean statusChanged = transactionRecordService.completeVoidChannelResult(
                 operationDO,
-                preparationResultDTO.getSourceOrderDO(),
+                sourceOrderDO,
                 preparationResultDTO.getCommandDTO(),
                 preparationResultDTO.getRouteResultDTO(),
                 invokeResultDTO,
@@ -79,6 +82,7 @@ public class DefaultVoidChannelResultTransactionService implements VoidChannelRe
         if (statusChanged && isTerminal(resultDTO)) {
             saveStatusChanged(preparationResultDTO, resultDTO);
         }
+        return statusChanged;
     }
 
     /** 终态 CAS 成功后，在当前事务内写入可恢复分片时间的状态变更事件。 */

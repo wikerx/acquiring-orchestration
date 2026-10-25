@@ -155,6 +155,144 @@ class PaymentTransactionConsistencyBaselineTests {
                 .isEqualTo(1);
     }
 
+    /** 回调先提交终态时，同步渠道响应不得覆盖或返回与数据库相反的状态。 */
+    @Test
+    void shouldReturnPersistedTerminalStateWhenCallbackWinsSyncResultCas() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        recordService.enableCurrentOperationLookup = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.FAILED));
+        CapturingPaymentChannelResultTransactionService resultService =
+                new CapturingPaymentChannelResultTransactionService(recordService);
+        resultService.concurrentPersistedStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                resultService);
+
+        PaymentCreateResultDTO result = service.createPayment(baseCommand());
+        TransactionIdempotencyDO idempotency = idempotencyService.find(
+                        "TRANSACTION_OPERATION", MERCHANT_ID + ":" + MERCHANT_ORDER_ID + ":PAYMENT")
+                .orElseThrow();
+
+        assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(result.getTotalCapturedAmount()).isEqualByComparingTo("12.34");
+        assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"SUCCESS\"");
+        assertThat(recordService.primaryOperationReadCount)
+                .as("CAS conflict reconciliation must bypass a potentially stale read replica")
+                .isEqualTo(1);
+        assertThat(recordService.primaryOrderReadCount).isEqualTo(1);
+    }
+
+    /** 同步渠道返回成功但回调已先提交失败时，响应和幂等快照必须以失败事实为准。 */
+    @Test
+    void shouldReturnPersistedFailureWhenCallbackBeatsSuccessfulSyncResult() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        recordService.enableCurrentOperationLookup = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        CapturingPaymentChannelResultTransactionService resultService =
+                new CapturingPaymentChannelResultTransactionService(recordService);
+        resultService.concurrentPersistedStatus = PaymentTransactionStatusEnum.FAILED.getCode();
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                resultService);
+
+        PaymentCreateResultDTO result = service.createPayment(baseCommand());
+        TransactionIdempotencyDO idempotency = idempotencyService.find(
+                        "TRANSACTION_OPERATION", MERCHANT_ID + ":" + MERCHANT_ORDER_ID + ":PAYMENT")
+                .orElseThrow();
+
+        assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        assertThat(result.getTotalCapturedAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"FAILED\"");
+        assertThat(recordService.primaryOperationReadCount).isEqualTo(1);
+        assertThat(recordService.primaryOrderReadCount).isEqualTo(1);
+    }
+
+    /** CAS 已失败但主库暂时读不到权威动作时必须失败关闭，禁止把同步旧结果写入幂等快照。 */
+    @Test
+    void shouldFailClosedWhenAuthoritativeOperationIsUnavailableAfterCasConflict() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.enableCurrentOperationLookup = true;
+        recordService.primaryOperationUnavailable = true;
+        CapturingPaymentChannelResultTransactionService resultService =
+                new CapturingPaymentChannelResultTransactionService(recordService);
+        resultService.concurrentPersistedStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                new InspectingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.FAILED)),
+                preparationService(idempotencyService, recordService,
+                        new CapturingTransactionEventOutboxService(), () -> {
+                        }),
+                resultService);
+
+        assertThatThrownBy(() -> service.createPayment(baseCommand()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage(ApiResultEnum.NETWORK_BUSY.getMessage())
+                .extracting(exception -> ((ServiceException) exception).getCode())
+                .isEqualTo(ApiResultEnum.NETWORK_BUSY.getCode());
+        assertThat(recordService.primaryOperationReadCount).isEqualTo(1);
+        assertThat(recordService.primaryOrderReadCount).isZero();
+        assertThat(idempotencyService.find(
+                        "TRANSACTION_OPERATION", MERCHANT_ID + ":" + MERCHANT_ORDER_ID + ":PAYMENT")
+                .orElseThrow().getResultSnapshot()).doesNotContain("\"status\":\"FAILED\"");
+    }
+
+    /** 生产实现以 F511 表示主库未命中时，也必须转换为可重试错误并保留原因为审计证据。 */
+    @Test
+    void shouldMapPrimaryOrderNotFoundToRetryableErrorAfterCasConflict() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.enableCurrentOperationLookup = true;
+        recordService.primaryOperationNotFound = true;
+        CapturingPaymentChannelResultTransactionService resultService =
+                new CapturingPaymentChannelResultTransactionService(recordService);
+        resultService.concurrentPersistedStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                new InspectingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.FAILED)),
+                preparationService(idempotencyService, recordService,
+                        new CapturingTransactionEventOutboxService(), () -> {
+                        }),
+                resultService);
+
+        assertThatThrownBy(() -> service.createPayment(baseCommand()))
+                .isInstanceOfSatisfying(ServiceException.class, exception -> {
+                    assertThat(exception.getCode()).isEqualTo(ApiResultEnum.NETWORK_BUSY.getCode());
+                    assertThat(exception.getMessage()).isEqualTo(ApiResultEnum.NETWORK_BUSY.getMessage());
+                    assertThat(exception.getCause()).isInstanceOfSatisfying(ServiceException.class, cause ->
+                            assertThat(cause.getCode()).isEqualTo(ApiResultEnum.ORDER_NOT_FOUND.getCode()));
+                });
+        assertThat(recordService.primaryOperationReadCount).isEqualTo(1);
+        assertThat(recordService.primaryOrderReadCount).isZero();
+        assertThat(idempotencyService.find(
+                        "TRANSACTION_OPERATION", MERCHANT_ID + ":" + MERCHANT_ORDER_ID + ":PAYMENT")
+                .orElseThrow().getResultSnapshot()).doesNotContain("\"status\":\"FAILED\"");
+    }
+
     /**
      * T-P0-03B：同一商户订单上一笔明确失败后，新的 orderInfo.orderId 可以创建新的支付尝试。
      */
@@ -944,6 +1082,32 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
+    /** Capture 同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。 */
+    @Test
+    void shouldReturnAsynchronousCaptureTerminalStatusForDuplicateAfterTimeout() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        channelService.timeoutOnFirstPayment = true;
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, new CapturingTransactionEventOutboxService(), channelService);
+
+        PaymentCreateResultDTO first = service.capture(followUpCommand("CAPTURE-ASYNC", new BigDecimal("5.00")));
+        assertThat(idempotencyService.synchronizeInitialTransactionStatus(
+                first.getTransactionId(), PaymentTransactionStatusEnum.SUCCESS.getCode())).isEqualTo(1);
+        PaymentCreateResultDTO duplicate = service.capture(
+                followUpCommand("CAPTURE-ASYNC", new BigDecimal("5.00")));
+
+        assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(duplicate.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
     /**
      * 05C-CAP-04：Capture 同步成功后重复同动作号必须返回终态快照，不得停留在准备阶段 PROCESSING。
      */
@@ -996,6 +1160,49 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(duplicate.getTransactionId()).isEqualTo(first.getTransactionId());
         assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /** Capture 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。 */
+    @Test
+    void shouldReturnPersistedCaptureTerminalStateWhenCallbackWinsSyncResultCas() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        recordService.enableCurrentOperationLookup = true;
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CapturingCaptureChannelResultTransactionService captureResultService =
+                new CapturingCaptureChannelResultTransactionService(recordService);
+        captureResultService.concurrentPersistedStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                new InspectingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.FAILED)),
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                captureResultService,
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService));
+
+        PaymentCreateResultDTO result = service.capture(
+                followUpCommand("CAPTURE-CAS", new BigDecimal("5.00")));
+        TransactionIdempotencyDO idempotency = idempotencyService.find(
+                        "TRANSACTION_OPERATION", MERCHANT_ID + ":TX202607230001:CAPTURE-CAS:CAPTURE")
+                .orElseThrow();
+
+        assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(result.getTotalCapturedAmount()).isEqualByComparingTo("5.00");
+        assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"SUCCESS\"");
+        assertThat(recordService.primaryOperationReadCount).isEqualTo(1);
+        assertThat(recordService.primaryOrderReadCount).isEqualTo(1);
     }
 
     /**
@@ -1189,6 +1396,32 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
+    /** Refund 同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。 */
+    @Test
+    void shouldReturnAsynchronousRefundTerminalStatusForDuplicateAfterTimeout() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        channelService.timeoutOnFirstPayment = true;
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, new CapturingTransactionEventOutboxService(), channelService);
+
+        PaymentCreateResultDTO first = service.refund(followUpCommand("REFUND-ASYNC", new BigDecimal("5.00")));
+        assertThat(idempotencyService.synchronizeInitialTransactionStatus(
+                first.getTransactionId(), PaymentTransactionStatusEnum.SUCCESS.getCode())).isEqualTo(1);
+        PaymentCreateResultDTO duplicate = service.refund(
+                followUpCommand("REFUND-ASYNC", new BigDecimal("5.00")));
+
+        assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(duplicate.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
     /**
      * 05D-REF-04：相同 Refund 动作号不同金额必须拒绝，且不得再次调用渠道。
      */
@@ -1213,6 +1446,47 @@ class PaymentTransactionConsistencyBaselineTests {
                 .isInstanceOf(RuntimeException.class);
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
         assertThat(recordService.followUpRecordCount).isEqualTo(1);
+    }
+
+    /** Refund 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。 */
+    @Test
+    void shouldReturnPersistedRefundTerminalStateWhenCallbackWinsSyncResultCas() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        recordService.enableCurrentOperationLookup = true;
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CapturingRefundChannelResultTransactionService refundResultService =
+                new CapturingRefundChannelResultTransactionService(recordService);
+        refundResultService.concurrentPersistedStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                new InspectingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.FAILED)),
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                refundResultService);
+
+        PaymentCreateResultDTO result = service.refund(
+                followUpCommand("REFUND-CAS", new BigDecimal("5.00")));
+        TransactionIdempotencyDO idempotency = idempotencyService.find(
+                        "TRANSACTION_OPERATION", MERCHANT_ID + ":TX202607230001:REFUND-CAS:REFUND")
+                .orElseThrow();
+
+        assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"SUCCESS\"");
+        assertThat(recordService.primaryOperationReadCount).isEqualTo(1);
     }
 
     /**
@@ -1424,6 +1698,31 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
+    /** Void 同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。 */
+    @Test
+    void shouldReturnAsynchronousVoidTerminalStatusForDuplicateAfterTimeout() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        channelService.timeoutOnFirstPayment = true;
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, new CapturingTransactionEventOutboxService(), channelService);
+
+        PaymentCreateResultDTO first = service.voidPayment(voidCommand("VOID-ASYNC"));
+        assertThat(idempotencyService.synchronizeInitialTransactionStatus(
+                first.getTransactionId(), PaymentTransactionStatusEnum.SUCCESS.getCode())).isEqualTo(1);
+        PaymentCreateResultDTO duplicate = service.voidPayment(voidCommand("VOID-ASYNC"));
+
+        assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(duplicate.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
     /**
      * 05E-VOID-04：相同 Void 动作号不同源交易必须拒绝，且不得再次调用渠道。
      */
@@ -1450,6 +1749,49 @@ class PaymentTransactionConsistencyBaselineTests {
                 .isInstanceOf(RuntimeException.class);
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
         assertThat(recordService.followUpRecordCount).isEqualTo(1);
+    }
+
+    /** Void 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。 */
+    @Test
+    void shouldReturnPersistedVoidTerminalStateWhenCallbackWinsSyncResultCas() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.enableCurrentOperationLookup = true;
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CapturingVoidChannelResultTransactionService voidResultService =
+                new CapturingVoidChannelResultTransactionService(recordService);
+        voidResultService.concurrentPersistedStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                new InspectingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.FAILED)),
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService),
+                voidPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                voidResultService);
+
+        PaymentCreateResultDTO result = service.voidPayment(
+                followUpCommand("VOID-CAS", new BigDecimal("5.00")));
+        TransactionIdempotencyDO idempotency = idempotencyService.find(
+                        "TRANSACTION_OPERATION", MERCHANT_ID + ":TX202607230001:VOID-CAS:VOID")
+                .orElseThrow();
+
+        assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"SUCCESS\"");
+        assertThat(recordService.primaryOperationReadCount).isEqualTo(1);
     }
 
     /**
@@ -1712,6 +2054,33 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
+    /** 增量授权同步超时后由回调确认成功，重复请求必须返回最新终态且不得重发渠道。 */
+    @Test
+    void shouldReturnAsynchronousIncrementalAuthorizationTerminalStatusForDuplicateAfterTimeout() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        channelService.timeoutOnFirstPayment = true;
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, new CapturingTransactionEventOutboxService(), channelService);
+
+        PaymentCreateResultDTO first = service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-ASYNC", new BigDecimal("3.00")));
+        assertThat(idempotencyService.synchronizeInitialTransactionStatus(
+                first.getTransactionId(), PaymentTransactionStatusEnum.SUCCESS.getCode())).isEqualTo(1);
+        PaymentCreateResultDTO duplicate = service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-ASYNC", new BigDecimal("3.00")));
+
+        assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(duplicate.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
     /**
      * 05F-INC-AUTH-04：相同 Incremental Authorization 动作号相同参数返回原动作，不创建第二笔且不调用渠道。
      */
@@ -1765,6 +2134,54 @@ class PaymentTransactionConsistencyBaselineTests {
                 .isInstanceOf(RuntimeException.class);
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
         assertThat(recordService.followUpRecordCount).isEqualTo(1);
+    }
+
+    /** Incremental Authorization 同步失败与成功回调并发时，响应和幂等快照必须采用已提交的成功终态。 */
+    @Test
+    void shouldReturnPersistedIncrementalAuthorizationTerminalStateWhenCallbackWinsSyncResultCas() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        recordService.enableCurrentOperationLookup = true;
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CapturingIncrementalAuthorizationChannelResultTransactionService incrementalResultService =
+                new CapturingIncrementalAuthorizationChannelResultTransactionService(recordService);
+        incrementalResultService.concurrentPersistedStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                new InspectingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.FAILED)),
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService),
+                voidPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingVoidChannelResultTransactionService(recordService),
+                incrementalAuthorizationPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                incrementalResultService);
+
+        PaymentCreateResultDTO result = service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-CAS", new BigDecimal("3.00")));
+        TransactionIdempotencyDO idempotency = idempotencyService.find(
+                        "TRANSACTION_OPERATION",
+                        MERCHANT_ID + ":TX202607230001:INC-AUTH-CAS:INCREMENTAL_AUTHORIZATION")
+                .orElseThrow();
+
+        assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"SUCCESS\"");
+        assertThat(recordService.primaryOperationReadCount).isEqualTo(1);
     }
 
     /**
@@ -2068,12 +2485,29 @@ class PaymentTransactionConsistencyBaselineTests {
                 riskInvokeService,
                 routeService(),
                 channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService),
+                voidPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingVoidChannelResultTransactionService(recordService),
+                incrementalAuthorizationPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingIncrementalAuthorizationChannelResultTransactionService(recordService),
                 exchangeRateService(),
                 idempotencyService,
                 outboxService,
                 recordService,
                 new DefaultTransactionStateMachineService(),
-                new AlwaysAvailableDistributedLockService());
+                new DefaultChannelTransactionStatusResolver(),
+                new AlwaysAvailableDistributedLockService(),
+                new PaymentRedisProperties());
     }
 
     private PaymentTransactionServiceImpl newService(InMemoryTransactionIdempotencyService idempotencyService,
@@ -2687,6 +3121,20 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private TransactionOperationDO lastFollowUpOperation;
 
+        /** 仅供 CAS 冲突用例开启当前动作回读，其他历史基线维持原替身边界。 */
+        private boolean enableCurrentOperationLookup;
+
+        /** 模拟 CAS 冲突后主库路由或提交可见性异常。 */
+        private boolean primaryOperationUnavailable;
+
+        private boolean primaryOperationNotFound;
+
+        /** CAS 冲突后执行主库强一致回读的次数。 */
+        private int primaryOperationReadCount;
+
+        /** CAS 冲突后执行生命周期主单强一致回读的次数。 */
+        private int primaryOrderReadCount;
+
         /**
          * 将初始交易转换为内存动作单并累计落库次数，可按用例配置在写入后注入失败。
          */
@@ -2750,6 +3198,51 @@ class PaymentTransactionConsistencyBaselineTests {
         @Override
         public TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId) {
             return null;
+        }
+
+        @Override
+        public TransactionOrderDO findOrderPrimary(LocalDateTime transactionDateTime, String operationId) {
+            primaryOrderReadCount++;
+            TransactionOperationDO operation = lastFollowUpOperation != null
+                    ? lastFollowUpOperation : lastInitialOperation;
+            if (operation == null || !Objects.equals(operationId, operation.getOperationId())) {
+                return null;
+            }
+            TransactionOrderDO order = new TransactionOrderDO();
+            order.setOperationId(operationId);
+            order.setTransactionType(lastFollowUpOperation == null
+                    ? operation.getTransactionType() : sourceTransactionType);
+            order.setTransactionAmount(lastFollowUpOperation == null
+                    ? operation.getTransactionAmount() : new BigDecimal("12.34"));
+            order.setAuthorizedAmount(BigDecimal.ZERO);
+            order.setAuthorizedCancelAmount(BigDecimal.ZERO);
+            order.setCapturedAmount(BigDecimal.ZERO);
+            order.setRefundedAmount(BigDecimal.ZERO);
+            order.setChargebackAmount(BigDecimal.ZERO);
+            if (!PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operation.getTransactionStatus())) {
+                return order;
+            }
+            if (lastFollowUpOperation == null) {
+                if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(operation.getTransactionType())) {
+                    order.setAuthorizedAmount(operation.getTransactionAmount());
+                    order.setCapturedAmount(operation.getTransactionAmount());
+                } else {
+                    order.setAuthorizedAmount(operation.getTransactionAmount());
+                }
+                return order;
+            }
+            order.setAuthorizedAmount(new BigDecimal("12.34"));
+            if (PaymentTransactionTypeEnum.CAPTURE.getCode().equals(operation.getTransactionType())
+                    || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(operation.getTransactionType())) {
+                order.setCapturedAmount(operation.getTransactionAmount());
+            } else if (PaymentTransactionTypeEnum.REFUND.getCode().equals(operation.getTransactionType())) {
+                order.setRefundedAmount(operation.getTransactionAmount());
+            } else if (PaymentTransactionTypeEnum.VOID.getCode().equals(operation.getTransactionType())) {
+                order.setAuthorizedCancelAmount(new BigDecimal("12.34"));
+            } else if (PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode().equals(operation.getTransactionType())) {
+                order.setAuthorizedAmount(new BigDecimal("12.34").add(operation.getTransactionAmount()));
+            }
+            return order;
         }
 
         /**
@@ -2821,6 +3314,34 @@ class PaymentTransactionConsistencyBaselineTests {
             operationDO.setChannelTransactionId("CH-" + sourceTransactionId);
             operationDO.setTransactionDateTime(TRANSACTION_TIME);
             return operationDO;
+        }
+
+        @Override
+        public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId,
+                                                                          LocalDateTime sourceTransactionDateTime) {
+            if (enableCurrentOperationLookup && lastInitialOperation != null
+                    && sourceTransactionId.equals(lastInitialOperation.getTransactionId())) {
+                return lastInitialOperation;
+            }
+            if (enableCurrentOperationLookup && lastFollowUpOperation != null
+                    && sourceTransactionId.equals(lastFollowUpOperation.getTransactionId())) {
+                return lastFollowUpOperation;
+            }
+            return findSourceOperationByTransactionId(sourceTransactionId);
+        }
+
+        @Override
+        public TransactionOperationDO findSourceOperationByTransactionIdPrimary(
+                String sourceTransactionId,
+                LocalDateTime sourceTransactionDateTime) {
+            primaryOperationReadCount++;
+            if (primaryOperationNotFound) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            if (primaryOperationUnavailable) {
+                return null;
+            }
+            return findSourceOperationByTransactionId(sourceTransactionId, sourceTransactionDateTime);
         }
 
         /**
@@ -3208,6 +3729,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean failResultRecord;
 
+        /** 非空时模拟渠道回调在同步结果前已经提交的数据库终态。 */
+        private String concurrentPersistedStatus;
+
         private CapturingPaymentChannelResultTransactionService(TransactionRecordService recordService) {
             this.recordService = recordService;
         }
@@ -3216,15 +3740,22 @@ class PaymentTransactionConsistencyBaselineTests {
          * 统计初始渠道结果事务，并可注入事务失败；成功时委托记录替身补写渠道结果。
          */
         @Override
-        public void recordInitialChannelResult(PaymentCreateCommandDTO commandDTO,
-                                               PaymentRouteResultDTO routeResultDTO,
-                                               PaymentChannelInvokeResultDTO invokeResultDTO,
-                                               PaymentCreateResultDTO resultDTO,
-                                               PaymentRiskDecisionEnum riskDecisionEnum,
-                                               int currencyExponent) {
+        public boolean recordInitialChannelResult(PaymentCreateCommandDTO commandDTO,
+                                                  PaymentRouteResultDTO routeResultDTO,
+                                                  PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                  PaymentCreateResultDTO resultDTO,
+                                                  PaymentRiskDecisionEnum riskDecisionEnum,
+                                                  int currencyExponent) {
             recordCount++;
             if (failResultRecord) {
                 throw new IllegalStateException("simulated channel result transaction failure");
+            }
+            if (concurrentPersistedStatus != null) {
+                CapturingTransactionRecordService capturingRecordService =
+                        (CapturingTransactionRecordService) recordService;
+                capturingRecordService.lastInitialOperation.setTransactionStatus(concurrentPersistedStatus);
+                capturingRecordService.lastInitialOperation.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+                return false;
             }
             recordService.completeInitialChannelResult(
                     commandDTO,
@@ -3233,6 +3764,7 @@ class PaymentTransactionConsistencyBaselineTests {
                     resultDTO,
                     riskDecisionEnum,
                     currencyExponent);
+            return true;
         }
 
         @Override
@@ -3268,6 +3800,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean failResultRecord;
 
+        /** 非空时模拟渠道回调在同步结果前已经提交的数据库终态。 */
+        private String concurrentPersistedStatus;
+
         private CapturingCaptureChannelResultTransactionService(TransactionRecordService recordService) {
             this.recordService = recordService;
         }
@@ -3276,13 +3811,20 @@ class PaymentTransactionConsistencyBaselineTests {
          * 统计请款结果事务并可注入失败；成功时把准备快照交给记录替身完成状态更新。
          */
         @Override
-        public void recordCaptureChannelResult(CapturePreparationResultDTO preparationResultDTO,
-                                               PaymentChannelInvokeResultDTO invokeResultDTO) {
+        public boolean recordCaptureChannelResult(CapturePreparationResultDTO preparationResultDTO,
+                                                  PaymentChannelInvokeResultDTO invokeResultDTO) {
             recordCount++;
             if (failResultRecord) {
                 throw new IllegalStateException("simulated capture result transaction failure");
             }
-            recordService.completeCaptureChannelResult(
+            if (concurrentPersistedStatus != null) {
+                CapturingTransactionRecordService capturingRecordService =
+                        (CapturingTransactionRecordService) recordService;
+                capturingRecordService.lastFollowUpOperation.setTransactionStatus(concurrentPersistedStatus);
+                capturingRecordService.lastFollowUpOperation.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+                return false;
+            }
+            return recordService.completeCaptureChannelResult(
                     preparationResultDTO.getResultDTO() == null
                             ? null
                             : ((CapturingTransactionRecordService) recordService).lastFollowUpOperation,
@@ -3303,6 +3845,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean failResultRecord;
 
+        /** 非空时模拟渠道回调在同步结果前已经提交的数据库终态。 */
+        private String concurrentPersistedStatus;
+
         private CapturingRefundChannelResultTransactionService(TransactionRecordService recordService) {
             this.recordService = recordService;
         }
@@ -3311,13 +3856,20 @@ class PaymentTransactionConsistencyBaselineTests {
          * 统计退款结果事务并可注入失败；成功时委托记录替身写回退款渠道结果。
          */
         @Override
-        public void recordRefundChannelResult(RefundPreparationResultDTO preparationResultDTO,
-                                              PaymentChannelInvokeResultDTO invokeResultDTO) {
+        public boolean recordRefundChannelResult(RefundPreparationResultDTO preparationResultDTO,
+                                                 PaymentChannelInvokeResultDTO invokeResultDTO) {
             recordCount++;
             if (failResultRecord) {
                 throw new IllegalStateException("simulated refund result transaction failure");
             }
-            recordService.completeRefundChannelResult(
+            if (concurrentPersistedStatus != null) {
+                CapturingTransactionRecordService capturingRecordService =
+                        (CapturingTransactionRecordService) recordService;
+                capturingRecordService.lastFollowUpOperation.setTransactionStatus(concurrentPersistedStatus);
+                capturingRecordService.lastFollowUpOperation.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+                return false;
+            }
+            return recordService.completeRefundChannelResult(
                     preparationResultDTO.getResultDTO() == null
                             ? null
                             : ((CapturingTransactionRecordService) recordService).lastFollowUpOperation,
@@ -3338,6 +3890,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean failResultRecord;
 
+        /** 非空时模拟渠道回调在同步结果前已经提交的数据库终态。 */
+        private String concurrentPersistedStatus;
+
         private CapturingVoidChannelResultTransactionService(TransactionRecordService recordService) {
             this.recordService = recordService;
         }
@@ -3346,13 +3901,20 @@ class PaymentTransactionConsistencyBaselineTests {
          * 统计撤销结果事务并可注入失败；成功时委托记录替身写回撤销渠道结果。
          */
         @Override
-        public void recordVoidChannelResult(VoidPreparationResultDTO preparationResultDTO,
-                                            PaymentChannelInvokeResultDTO invokeResultDTO) {
+        public boolean recordVoidChannelResult(VoidPreparationResultDTO preparationResultDTO,
+                                               PaymentChannelInvokeResultDTO invokeResultDTO) {
             recordCount++;
             if (failResultRecord) {
                 throw new IllegalStateException("simulated void result transaction failure");
             }
-            recordService.completeVoidChannelResult(
+            if (concurrentPersistedStatus != null) {
+                CapturingTransactionRecordService capturingRecordService =
+                        (CapturingTransactionRecordService) recordService;
+                capturingRecordService.lastFollowUpOperation.setTransactionStatus(concurrentPersistedStatus);
+                capturingRecordService.lastFollowUpOperation.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+                return false;
+            }
+            return recordService.completeVoidChannelResult(
                     preparationResultDTO.getResultDTO() == null
                             ? null
                             : ((CapturingTransactionRecordService) recordService).lastFollowUpOperation,
@@ -3374,19 +3936,29 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean failResultRecord;
 
+        /** 非空时模拟渠道回调在同步结果前已经提交的数据库终态。 */
+        private String concurrentPersistedStatus;
+
         private CapturingIncrementalAuthorizationChannelResultTransactionService(TransactionRecordService recordService) {
             this.recordService = recordService;
         }
 
         @Override
-        public void recordIncrementalAuthorizationChannelResult(
+        public boolean recordIncrementalAuthorizationChannelResult(
                 IncrementalAuthorizationPreparationResultDTO preparationResultDTO,
                 PaymentChannelInvokeResultDTO invokeResultDTO) {
             recordCount++;
             if (failResultRecord) {
                 throw new IllegalStateException("simulated incremental authorization result transaction failure");
             }
-            recordService.completeIncrementalAuthorizationChannelResult(
+            if (concurrentPersistedStatus != null) {
+                CapturingTransactionRecordService capturingRecordService =
+                        (CapturingTransactionRecordService) recordService;
+                capturingRecordService.lastFollowUpOperation.setTransactionStatus(concurrentPersistedStatus);
+                capturingRecordService.lastFollowUpOperation.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+                return false;
+            }
+            return recordService.completeIncrementalAuthorizationChannelResult(
                     preparationResultDTO.getResultDTO() == null
                             ? null
                             : ((CapturingTransactionRecordService) recordService).lastFollowUpOperation,

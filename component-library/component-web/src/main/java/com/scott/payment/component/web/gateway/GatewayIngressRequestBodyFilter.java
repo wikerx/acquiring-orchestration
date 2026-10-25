@@ -51,7 +51,9 @@ public class GatewayIngressRequestBodyFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !GatewayIngressSignature.isProtectedCheckoutPath(request.getRequestURI());
+        String path = request.getRequestURI();
+        return !GatewayIngressSignature.isProtectedCheckoutPath(path)
+                && !(properties.isProtectPortalPaths() && GatewayIngressSignature.isProtectedPortalPath(path));
     }
 
     private static final class ReplayRequestWrapper extends HttpServletRequestWrapper {

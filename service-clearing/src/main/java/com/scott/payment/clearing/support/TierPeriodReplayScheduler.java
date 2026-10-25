@@ -43,8 +43,10 @@ public class TierPeriodReplayScheduler {
         this.clock = clock;
     }
 
-    /** 固定节奏推进到期重放；业务失败已落控制表，扫描级异常等待下个周期恢复。 */
-    @Scheduled(initialDelay = 5000L, fixedDelay = 5000L)
+    /** 按配置节奏推进到期重放；周期参数只控制扫描压力，业务失败仍由控制表和下个周期恢复。 */
+    @Scheduled(
+            initialDelayString = "${clearing.tier-period-replay.initial-delay-ms:5000}",
+            fixedDelayString = "${clearing.tier-period-replay.fixed-delay-ms:5000}")
     public void run() {
         try {
             replayService.runDue(SCAN_LIMIT, clock.instant());

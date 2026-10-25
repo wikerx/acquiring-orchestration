@@ -2,7 +2,10 @@ package com.scott.payment.openapi.support;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import org.junit.jupiter.api.Test;
+
+import java.net.InetAddress;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -20,7 +23,7 @@ class HostedCheckoutUrlPolicyTests {
 
     @Test
     void shouldAllowHttpAndHttpsForPublicPrivateAndLoopbackHosts() {
-        HostedCheckoutUrlPolicy policy = new HostedCheckoutUrlPolicy();
+        HostedCheckoutUrlPolicy policy = developmentPolicy();
 
         assertThat(policy.validateMerchantUrl(
                 "https://merchant.example/result", "transactionInfo.redirectUrl"))
@@ -36,11 +39,51 @@ class HostedCheckoutUrlPolicyTests {
 
     @Test
     void shouldRejectUnsafePlatformConfigurationAsInternalError() {
-        HostedCheckoutUrlPolicy policy = new HostedCheckoutUrlPolicy();
+        HostedCheckoutUrlPolicy policy = developmentPolicy();
 
         assertThatThrownBy(() -> policy.normalizePlatformBaseUrl("https://user:secret@pay.example.com/"))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
                 .isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode());
+    }
+
+    @Test
+    void shouldRejectPrivateCallbackWithStableExternalCodeInStrictMode() throws Exception {
+        HostedCheckoutUrlPolicy policy = new HostedCheckoutUrlPolicy(new OutboundHttpUrlPolicy(
+                OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY,
+                host -> new InetAddress[]{InetAddress.getByName("127.0.0.1")}));
+
+        assertThatThrownBy(() -> policy.validateMerchantUrl(
+                "https://merchant.example/callback", "transactionInfo.callbackUrl"))
+                .isInstanceOf(ApiException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getCode());
+    }
+
+    @Test
+    void shouldAcceptPublicHttpsCallbackInStrictMode() throws Exception {
+        HostedCheckoutUrlPolicy policy = new HostedCheckoutUrlPolicy(new OutboundHttpUrlPolicy(
+                OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY,
+                host -> new InetAddress[]{InetAddress.getByName("8.8.8.8")}));
+
+        assertThat(policy.validateMerchantUrl(
+                "https://merchant.example/callback", "transactionInfo.callbackUrl"))
+                .isEqualTo("https://merchant.example/callback");
+    }
+
+    @Test
+    void shouldFailClosedForPrivateCallbackWhenConstructedWithoutEnvironment() {
+        HostedCheckoutUrlPolicy policy = new HostedCheckoutUrlPolicy();
+
+        assertThatThrownBy(() -> policy.validateMerchantUrl(
+                "https://127.0.0.1/callback", "transactionInfo.callbackUrl"))
+                .isInstanceOf(ApiException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getCode());
+    }
+
+    private HostedCheckoutUrlPolicy developmentPolicy() {
+        return new HostedCheckoutUrlPolicy(
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.DEVELOPMENT));
     }
 }

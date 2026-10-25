@@ -42,6 +42,7 @@ class MerchantIpWhitelistAccessServiceTests {
         request.setRemoteAddr("127.0.0.1");
         request.addHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP, "203.0.113.10");
         request.setAttribute(GatewayIngressAuthFilter.GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
 
         assertThat(service.checkAccess(MERCHANT_ID, request)).isEqualTo("203.0.113.10");
     }
@@ -52,6 +53,7 @@ class MerchantIpWhitelistAccessServiceTests {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("127.0.0.1");
         request.setAttribute(GatewayIngressAuthFilter.GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
 
         assertDenied(service, request, MerchantIpWhitelistDenyReason.CLIENT_IP_MISSING,
                 "Forbidden:merchant ip not allowed, requestIp: unknown");

@@ -131,6 +131,7 @@ class SystemAuthServiceImplTest {
      */
     @BeforeEach
     void setUp() {
+        MfaSecretCrypto.configure("component-db-system-auth-test-secret-32-bytes");
         sysAppMapper = mock(SysAppMapper.class);
         sysUserMapper = mock(SysUserMapper.class);
         sysAccountMapper = mock(SysAccountMapper.class);

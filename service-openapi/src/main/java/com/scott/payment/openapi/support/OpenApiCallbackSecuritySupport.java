@@ -13,9 +13,8 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
-import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
+import com.scott.payment.component.web.gateway.TrustedClientIpResolver;
 import com.scott.payment.openapi.config.OpenApiCallbackProperties;
-import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -411,12 +410,7 @@ public class OpenApiCallbackSecuritySupport {
      * @return 客户端 IP
      */
     public String resolveClientIp(HttpServletRequest request) {
-        if (GatewayIngressAuthFilter.isGatewayAuthenticated(request)) {
-            String gatewayClientIp = request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP);
-            return StringUtils.hasText(gatewayClientIp) ? gatewayClientIp.trim() : null;
-        }
-        String remoteAddr = request.getRemoteAddr();
-        return StringUtils.hasText(remoteAddr) ? remoteAddr.trim() : null;
+        return TrustedClientIpResolver.resolve(request);
     }
 
     /**

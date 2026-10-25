@@ -112,6 +112,7 @@ class OpenApiCallbackSecuritySupportTests {
         MockHttpServletRequest request = request();
         request.addHeader("X-Gateway-Client-Ip", "192.0.2.10");
         request.setAttribute(GatewayIngressAuthFilter.GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
 
         assertThat(support.verifyChannelCallback(
                 CHANNEL_CODE, ChannelCallbackScene.STANDARD, request, RAW_BODY).ipAllowed()).isTrue();
@@ -132,6 +133,23 @@ class OpenApiCallbackSecuritySupportTests {
                 CHANNEL_CODE, ChannelCallbackScene.STANDARD, request, RAW_BODY))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("source ip is not allowed");
+    }
+
+    @Test
+    void shouldIgnoreGatewayClientIpHeaderAuthenticatedOnlyByLegacySignature() {
+        OpenApiCallbackProperties properties = properties();
+        properties.getChannelAllowedIps().put(CHANNEL_CODE, List.of("198.51.100.20"));
+        OpenApiCallbackSecuritySupport support = support(
+                properties, new CapturingProtocol(ChannelCallbackAuthentication.REQUIRED, false),
+                (channel, hint) -> "secret");
+        MockHttpServletRequest request = request();
+        request.setRemoteAddr("198.51.100.20");
+        request.addHeader("X-Gateway-Client-Ip", "192.0.2.10");
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
+
+        assertThat(support.verifyChannelCallback(
+                CHANNEL_CODE, ChannelCallbackScene.STANDARD, request, RAW_BODY).ipAllowed()).isTrue();
+        assertThat(support.resolveClientIp(request)).isEqualTo("198.51.100.20");
     }
 
     @Test

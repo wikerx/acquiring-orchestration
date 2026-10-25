@@ -425,7 +425,9 @@ settlementAmount = round(grossSettlementAmount - settlementFeeAmount, settlement
 
 首次支付、授权、预授权或 Hosted Checkout 创建请求中的 `transactionInfo.callbackUrl` 是可选通知地址。平台保存该地址作为交易生命周期属性；首次交易及其增量授权、预授权完成、请款、退款、撤销等后续动作进入终态后，均按第 7.11 节的 JWT、密文、ACK、自动重试和人工重发协议通知该地址。商户必须同时实现回调事件幂等和交易查询兜底，不能仅依赖浏览器跳转或单次通知结果确认最终交易状态。
 
-平台不全局要求 `callbackUrl` 必须预登记。开发和测试环境允许使用可访问的 HTTP 或 HTTPS 地址；生产环境强烈建议使用 HTTPS，平台可基于商户安全配置启用域名白名单、禁止内网地址、回环地址和云元数据地址。无论环境如何，回调地址都不得包含用户名、密码或 URL Fragment。
+平台不全局要求 `callbackUrl` 必须预登记。开发和测试环境仅为联调，可使用结构合法的 HTTP/HTTPS、私网或回环地址，但不得承载生产凭据或真实持卡人数据。UAT、Production 以及无法识别的部署环境强制使用 HTTPS，且主机当前解析出的全部地址都必须是公网单播地址；只要任一解析结果属于私网、回环、链路本地、组播、文档网段、保留网段或云元数据可达范围，平台即拒绝该地址。
+
+所有环境都拒绝缺少主机、携带用户名/密码、携带 URL Fragment、端口非法或协议不是 HTTP/HTTPS 的地址。平台在请求受理时校验目标，并在实际 HTTP 建连所用的同一次 DNS 解析上再次执行地址策略；DNS 无法解析、解析结果发生变化或任一建连候选地址变为不安全目标时，通知会被永久拒绝，不按瞬时网络故障重试。平台返回 `F402004 / Merchant callback URL is not allowed. Use an HTTPS URL that resolves only to public network addresses.` 时，商户必须修正原请求或商户配置中的地址，不得对同一非法地址自动重试。
 
 ### 4.6 HTTP 状态和客户端超时
 
@@ -6374,6 +6376,7 @@ public class CallbackApplicationService {
 | `F402001` | `Invalid request parameter` | 参数值或格式非法 |
 | `F402002` | `Required request parameter is missing` | 必填参数缺失 |
 | `F402003` | `Encrypted request data is invalid` | `data` 缺失、五段格式错误、密钥错误或 GCM 校验失败 |
+| `F402004` | `Merchant callback URL is not allowed. Use an HTTPS URL that resolves only to public network addresses.` | 回调地址结构非法，或当前环境要求 HTTPS、公网目标而地址未满足安全策略 |
 | `F403` | `Forbidden` | 已认证商户无权访问资源或来源不允许 |
 | `F404` | `Not found` | API 路径不存在 |
 | `F405` | `Method Not Allowed` | HTTP Method 不支持 |
@@ -6439,6 +6442,7 @@ HTTP/网络结果
 | --- | --- | --- |
 | JWT 或参数校验明确失败 | 修正后可发 | 生成新 `jti`；业务幂等标识按原业务语义保持 |
 | `F402003` 加密失败 | 否 | 修复算法、密钥或报文格式后再发送 |
+| `F402004` 回调地址被拒绝 | 否 | 修正为当前环境允许的 HTTPS 公网地址；不要对原地址自动重试 |
 | `F429` 限流 | 不应立即重发 | 按平台退避要求等待，使用新 `jti`，保持原业务幂等标识 |
 | `F500/F502/F503` | 否 | 支付先查询；确认不存在后才按平台指引重试 |
 | 连接失败或读取超时 | 否 | 结果未知；支付先查询，不得换 `orderId` 重复扣款 |
@@ -6498,14 +6502,22 @@ HTTP/网络结果
 - 不要重新序列化第一段受保护头；直接使用密文第一段作为 AAD。
 - 检查密文是否在日志、数据库或消息传递过程中被截断或转义。
 
-#### 10.4.6 IP 或来源网址被拒绝
+#### 10.4.6 `F402004` 回调地址被拒绝
+
+1. UAT 和 Production 必须使用有效证书覆盖的 HTTPS 地址，不能使用 HTTP。
+2. 检查域名的全部 A/AAAA 记录，任一记录指向私网、回环、链路本地、保留地址或云元数据网络都会被拒绝。
+3. 地址不得包含 `user:password@host`、URL Fragment 或非法端口。
+4. 确认商户 DNS 没有分视图或短 TTL 配置把同一域名切换到内网地址。
+5. 修正地址后再提交；不要把该错误当作超时或临时网络错误自动重试。
+
+#### 10.4.7 IP 或来源网址被拒绝
 
 - 核对实际公网出口 IP，而不是容器或内网 IP。
 - 多出口、NAT、代理和容灾节点都需要提前登记。
 - 不要自行设置 `X-Gateway-Client-Ip`。
 - 启用来源网址规则时，在首次交易请求中稳定上送 `transactionInfo.merchantWebsite`；不要接受终端用户输入覆盖该字段。
 
-#### 10.4.7 金额或币种被拒绝
+#### 10.4.8 金额或币种被拒绝
 
 - 币种必须为三位大写代码。
 - 支付金额使用主币种单位，代付金额使用最小单位整数。
@@ -6513,11 +6525,11 @@ HTTP/网络结果
 - 后续动作币种必须与源交易一致。
 - 请款、退款和预授权完成金额不能超过对应剩余可用金额。
 
-#### 10.4.8 HTTP 200 但交易没有成功
+#### 10.4.9 HTTP 200 但交易没有成功
 
 HTTP 200 和外层 `T200` 只表示 OpenAPI 已返回业务数据。解密 `data` 后继续检查 `transactionInfo.code` 和 `transactionInfo.transactionStatus`。`T202/T203` 或 `PROCESSING/PENDING` 需要查询；只有持久化状态为 `SUCCESS` 才能按成功更新商户订单。
 
-#### 10.4.9 Hosted Checkout 页面跳转后状态不一致
+#### 10.4.10 Hosted Checkout 页面跳转后状态不一致
 
 `transactionInfo.redirectUrl` 只负责结果页通过浏览器表单 POST 返回商户网站。付款人可以修改或重复提交表单，也可能关闭页面、重复刷新或因网络中断完全不返回；商户服务端必须通过交易查询或已开通的终态回调确认最终结果。
 

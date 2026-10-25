@@ -308,8 +308,10 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
 
         int effectiveMaxRetry = safeMaxRetry(task);
         boolean exhausted = attemptNo >= effectiveMaxRetry;
-        String nextStatus = manualRetry || exhausted ? STATUS_CLOSED : STATUS_FAILED;
-        LocalDateTime nextRetryTime = manualRetry || exhausted ? null : nextRetryTime(finishedTime, attemptNo);
+        boolean permanentlyRejected = !result.retryable();
+        String nextStatus = manualRetry || exhausted || permanentlyRejected ? STATUS_CLOSED : STATUS_FAILED;
+        LocalDateTime nextRetryTime = manualRetry || exhausted || permanentlyRejected
+                ? null : nextRetryTime(finishedTime, attemptNo);
         attemptCommitService.recordFailure(
                 task,
                 processingVersion,
@@ -335,7 +337,8 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
                                                    LocalDateTime beginTime) {
         String targetUrl = resolveTargetUrl(task);
         if (!StringUtils.hasText(targetUrl)) {
-            return new NotifyAttemptResult(false, null, null, "merchant callback url is empty", null, null);
+            return new NotifyAttemptResult(false, false, null, null,
+                    "merchant callback url is empty", null, null);
         }
         MerchantCallbackHttpRequest request = null;
         try {
@@ -351,6 +354,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
                     && "succeed".equals(response.getBody() == null ? null : response.getBody().trim());
             return new NotifyAttemptResult(
                     success,
+                    !success,
                     response.getStatusCode().value(),
                     safeMaskedResponse(response.getBody()),
                     callbackFailureReason(response, success),
@@ -359,27 +363,61 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         } catch (HttpStatusCodeException exception) {
             return new NotifyAttemptResult(
                     false,
+                    true,
                     exception.getStatusCode().value(),
                     safeMaskedResponse(exception.getResponseBodyAsString()),
                     "merchant callback http status " + exception.getStatusCode().value(),
                     eventId(request),
                     auditBody(request));
         } catch (RestClientException exception) {
+            MerchantCallbackTargetRejectedException targetRejected = findTargetRejection(exception);
+            if (targetRejected != null) {
+                return targetRejectedResult(task, targetRejected);
+            }
             log.warn("event: DATA_MERCHANT_NOTIFY_HTTP_FAILED traceId: {} notifyId: {} transactionId: {} merchantId: {} targetUrlHash: {} exceptionType: {} durationMs: {}",
                     TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
                     task.getTargetUrlHash(), exception.getClass().getSimpleName(),
                     durationMillis(beginTime, LocalDateTime.now()));
-            return new NotifyAttemptResult(false, null, null,
+            return new NotifyAttemptResult(false, true, null, null,
                     "merchant callback transport error: " + exception.getClass().getSimpleName(),
                     eventId(request),
                     auditBody(request));
+        } catch (MerchantCallbackTargetRejectedException exception) {
+            return targetRejectedResult(task, exception);
         } catch (RuntimeException exception) {
             log.warn("event: DATA_MERCHANT_NOTIFY_PROTOCOL_FAILED traceId: {} notifyId: {} transactionId: {} merchantId: {} exceptionType: {} durationMs: {}",
                     TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
                     exception.getClass().getSimpleName(), durationMillis(beginTime, LocalDateTime.now()));
-            return new NotifyAttemptResult(false, null, null,
+            return new NotifyAttemptResult(false, true, null, null,
                     "merchant callback protocol error: " + exception.getClass().getSimpleName(), null, null);
         }
+    }
+
+    /**
+     * 沿 HTTP 客户端异常链识别实际建连阶段的目标策略拒绝，避免 DNS 重绑定被误判为可重试网络故障。
+     */
+    private MerchantCallbackTargetRejectedException findTargetRejection(Throwable exception) {
+        Throwable current = exception;
+        for (int depth = 0; current != null && depth < 16; depth++) {
+            if (current instanceof MerchantCallbackTargetRejectedException rejectedException) {
+                return rejectedException;
+            }
+            if (current.getCause() == current) {
+                break;
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    /** 将目标策略拒绝转换为不重试、不泄露目标网络细节的投递结果。 */
+    private NotifyAttemptResult targetRejectedResult(DataMerchantNotificationTaskDO task,
+                                                      MerchantCallbackTargetRejectedException exception) {
+        log.warn("event: DATA_MERCHANT_NOTIFY_TARGET_REJECTED traceId: {} notifyId: {} transactionId: {} merchantId: {} targetUrlHash: {} code: {}",
+                TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
+                task.getTargetUrlHash(), exception.getCode());
+        return new NotifyAttemptResult(false, false, null, null,
+                ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getMessage(), null, null);
     }
 
     /** 返回已构造请求的事件号；协议构造前失败时不伪造审计标识。 */
@@ -612,6 +650,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
 
     /** 单次商户 HTTP 回调的安全结果摘要。 */
     private record NotifyAttemptResult(boolean success,
+                                       boolean retryable,
                                        Integer httpStatus,
                                        String responseBody,
                                        String errorMessage,

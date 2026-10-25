@@ -47,6 +47,7 @@ class CheckoutGatewayIngressFilterTests {
                 .header(GatewayIngressSignature.HEADER_SIGNATURE, "forged")
                 .header(GatewayIngressSignature.HEADER_CLIENT_IP, "203.0.113.10")
                 .build());
+        exchange.getAttributes().put(GatewayClientIpHeaderFilter.GATEWAY_CLIENT_IP_ATTRIBUTE, "198.51.100.20");
         AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
 
         filter.filter(exchange, current -> {
@@ -65,7 +66,9 @@ class CheckoutGatewayIngressFilterTests {
         assertEquals("nonce-from-gateway", nonce);
         assertEquals(GatewayIngressSignature.sign(
                 "POST", target, NOW, nonce, GatewayIngressSignature.EMPTY_BODY_SHA256,
-                "203.0.113.10", SECRET), signature);
+                "198.51.100.20", SECRET), signature);
+        assertEquals("198.51.100.20",
+                forwarded.get().getRequest().getHeaders().getFirst(GatewayIngressSignature.HEADER_CLIENT_IP));
         assertEquals(GatewayIngressSignature.EMPTY_BODY_SHA256,
                 forwarded.get().getRequest().getHeaders().getFirst(GatewayIngressSignature.HEADER_BODY_SHA256));
         assertNotEquals("forged", signature);
@@ -79,6 +82,7 @@ class CheckoutGatewayIngressFilterTests {
                 .post("/api/rest/payment/v1/payment")
                 .header(GatewayIngressSignature.HEADER_CLIENT_IP, "203.0.113.10")
                 .body(new String(body, StandardCharsets.UTF_8)));
+        exchange.getAttributes().put(GatewayClientIpHeaderFilter.GATEWAY_CLIENT_IP_ATTRIBUTE, "198.51.100.21");
         AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
 
         filter.filter(exchange, current -> {
@@ -99,7 +103,7 @@ class CheckoutGatewayIngressFilterTests {
                 .getFirst(GatewayIngressSignature.HEADER_BODY_SHA256));
         assertEquals(GatewayIngressSignature.sign(
                 "POST", "/api/rest/payment/v1/payment", NOW, "nonce-from-gateway", digest,
-                "203.0.113.10", SECRET), signature);
+                "198.51.100.21", SECRET), signature);
     }
 
     /** 空正文也必须替换为可安全转发的 Publisher，避免下游再次订阅已消费的 Servlet 请求流。 */
@@ -155,7 +159,7 @@ class CheckoutGatewayIngressFilterTests {
     void shouldStripSpoofedHeadersOutsideCheckoutRoutes() {
         CheckoutGatewayIngressFilter filter = filter(SECRET);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
-                .get("/admin/auth/login")
+                .get("/actuator/health")
                 .header(GatewayIngressSignature.HEADER_SIGNATURE, "forged")
                 .build());
         AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
@@ -167,6 +171,28 @@ class CheckoutGatewayIngressFilterTests {
 
         assertNull(forwarded.get().getRequest().getHeaders().getFirst(GatewayIngressSignature.HEADER_SIGNATURE));
         assertNull(forwarded.get().getRequest().getHeaders().getFirst(GatewayIngressSignature.HEADER_CALLER));
+    }
+
+    /** 管理端和商户端路由也必须由 Gateway 覆盖内部头并签名。 */
+    @Test
+    void shouldSignPortalRouteWithServerResolvedClientIp() {
+        CheckoutGatewayIngressFilter filter = filter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .post("/admin/auth/login")
+                .header(GatewayIngressSignature.HEADER_CLIENT_IP, "203.0.113.66")
+                .build());
+        exchange.getAttributes().put(GatewayClientIpHeaderFilter.GATEWAY_CLIENT_IP_ATTRIBUTE, "192.0.2.44");
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(exchange, current -> {
+            forwarded.set(current);
+            return Mono.empty();
+        }).block();
+
+        assertEquals("192.0.2.44",
+                forwarded.get().getRequest().getHeaders().getFirst(GatewayIngressSignature.HEADER_CLIENT_IP));
+        assertEquals(GatewayIngressSignature.CALLER_SERVICE_GATEWAY,
+                forwarded.get().getRequest().getHeaders().getFirst(GatewayIngressSignature.HEADER_CALLER));
     }
 
     /** 收银台入口未配置强密钥时必须由 Gateway 失败关闭。 */

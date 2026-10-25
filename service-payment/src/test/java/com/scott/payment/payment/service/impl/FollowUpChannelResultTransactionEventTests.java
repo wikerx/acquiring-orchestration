@@ -4,6 +4,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.CapturePreparationResultDTO;
@@ -52,6 +53,7 @@ class FollowUpChannelResultTransactionEventTests {
         service.recordCaptureChannelResult(preparation, new PaymentChannelInvokeResultDTO());
         service.recordCaptureChannelResult(preparation, new PaymentChannelInvokeResultDTO());
 
+        verifyPrimaryReads(recordService);
         verifyTerminalEvent(eventService, "CAPTURE");
         log.info("Capture 终态事件测试完成，结果: 仅写入一次状态变更事件");
     }
@@ -72,6 +74,7 @@ class FollowUpChannelResultTransactionEventTests {
         service.recordRefundChannelResult(preparation, new PaymentChannelInvokeResultDTO());
         service.recordRefundChannelResult(preparation, new PaymentChannelInvokeResultDTO());
 
+        verifyPrimaryReads(recordService);
         verifyTerminalEvent(eventService, "REFUND");
         log.info("Refund 终态事件测试完成，结果: 仅写入一次状态变更事件");
     }
@@ -92,6 +95,7 @@ class FollowUpChannelResultTransactionEventTests {
         service.recordVoidChannelResult(preparation, new PaymentChannelInvokeResultDTO());
         service.recordVoidChannelResult(preparation, new PaymentChannelInvokeResultDTO());
 
+        verifyPrimaryReads(recordService);
         verifyTerminalEvent(eventService, "VOID");
         log.info("Void 终态事件测试完成，结果: 仅写入一次状态变更事件");
     }
@@ -116,6 +120,7 @@ class FollowUpChannelResultTransactionEventTests {
         service.recordIncrementalAuthorizationChannelResult(
                 preparation, new PaymentChannelInvokeResultDTO());
 
+        verifyPrimaryReads(recordService);
         verifyTerminalEvent(eventService, "INCREMENTAL_AUTHORIZATION");
         log.info("增额授权终态事件测试完成，结果: 仅写入一次状态变更事件");
     }
@@ -125,8 +130,13 @@ class FollowUpChannelResultTransactionEventTests {
         TransactionRecordService recordService = mock(TransactionRecordService.class);
         TransactionOperationDO operationDO = new TransactionOperationDO();
         operationDO.setTransactionId("TX1001");
-        when(recordService.findSourceOperationByTransactionId("TX1001", transactionDateTime()))
+        TransactionOrderDO orderDO = new TransactionOrderDO();
+        orderDO.setOperationId("OP1001");
+        orderDO.setTransactionDateTime(transactionDateTime());
+        when(recordService.findSourceOperationByTransactionIdPrimary("TX1001", transactionDateTime()))
                 .thenReturn(operationDO);
+        when(recordService.findOrderPrimary(transactionDateTime(), "OP1001"))
+                .thenReturn(orderDO);
         return recordService;
     }
 
@@ -141,6 +151,7 @@ class FollowUpChannelResultTransactionEventTests {
         result.setOperationId("OP1001");
         result.setTransactionType(transactionType);
         result.setStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        result.setRootTransactionDateTime(transactionDateTime());
         if (preparation instanceof CapturePreparationResultDTO target) {
             target.setCommandDTO(command);
             target.setResultDTO(result);
@@ -154,6 +165,15 @@ class FollowUpChannelResultTransactionEventTests {
             target.setCommandDTO(command);
             target.setResultDTO(result);
         }
+    }
+
+    /** 验证结果事务只使用主库权威事实发起 CAS，不能依赖延迟副本或准备阶段旧快照。 */
+    private void verifyPrimaryReads(TransactionRecordService recordService) {
+        verify(recordService, times(2))
+                .findSourceOperationByTransactionIdPrimary("TX1001", transactionDateTime());
+        verify(recordService, times(2)).findOrderPrimary(transactionDateTime(), "OP1001");
+        verify(recordService, never()).findSourceOperationByTransactionId("TX1001", transactionDateTime());
+        verify(recordService, never()).findOrder(transactionDateTime(), "OP1001");
     }
 
     /** 验证同一终态只产生一次可精确路由的事件。 */

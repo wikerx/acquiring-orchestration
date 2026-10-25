@@ -11,6 +11,7 @@ import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.core.security.GatewayIngressSignature;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,8 @@ class AdminAuthApplicationServiceTest {
         AuthVerifyCodeSendRequest request = new AuthVerifyCodeSendRequest();
         AuthVerifyCodeSendResponse expected = new AuthVerifyCodeSendResponse();
         when(servletRequest.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn("1.1.1.1");
+        when(servletRequest.getAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE))
+                .thenReturn(Boolean.TRUE);
         when(systemAuthService.sendLoginVerifyCode(AuthConstants.APP_ADMIN, request, "1.1.1.1"))
                 .thenReturn(expected);
 
@@ -78,7 +81,6 @@ class AdminAuthApplicationServiceTest {
     void shouldUseRemoteAddressAndUserAgentWhenLoggingIn() {
         AuthLoginRequest request = new AuthLoginRequest();
         AuthLoginResponse expected = new AuthLoginResponse();
-        when(servletRequest.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn(null);
         when(servletRequest.getRemoteAddr()).thenReturn("127.0.0.1");
         when(servletRequest.getHeader("User-Agent")).thenReturn("admin-browser");
         when(systemAuthService.login(AuthConstants.APP_ADMIN, request, "127.0.0.1", "admin-browser"))

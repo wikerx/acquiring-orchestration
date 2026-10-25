@@ -1,6 +1,7 @@
 package com.scott.payment.openapi.config;
 
 import com.scott.payment.component.web.internal.InternalServiceClientCredentialValidator;
+import com.scott.payment.component.web.internal.InternalHttpTimeoutPolicy;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -17,6 +18,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "openapi.payment-client")
 public class PaymentClientProperties {
 
+    /** 建立 service-payment 连接的超时，单位毫秒。 */
+    private int connectTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_CONNECT_TIMEOUT_MILLIS;
+
+    /** 等待 service-payment 同步响应的超时，单位毫秒。 */
+    private int readTimeoutMillis = InternalHttpTimeoutPolicy.DEFAULT_READ_TIMEOUT_MILLIS;
+
     /**
      * 内部服务调用方标识，用于 service-payment 审计调用来源。
      */
@@ -31,5 +38,7 @@ public class PaymentClientProperties {
     public void validate() {
         InternalServiceClientCredentialValidator.validate(
                 "openapi payment-client", "service-openapi", internalCaller, internalSecret);
+        InternalHttpTimeoutPolicy.validate(
+                "openapi payment-client", connectTimeoutMillis, readTimeoutMillis);
     }
 }

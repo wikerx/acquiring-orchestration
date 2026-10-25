@@ -28,13 +28,14 @@ public interface PaymentChannelResultTransactionService {
      * @param resultDTO 平台映射后的同步结果
      * @param riskDecisionEnum 本地准备阶段风控决策
      * @param currencyExponent 交易币种默认辅币位
+     * @return true 表示本次同步结果通过 CAS 推进了数据库状态；false 表示应以已持久化状态为准
      */
-    void recordInitialChannelResult(PaymentCreateCommandDTO commandDTO,
-                                    PaymentRouteResultDTO routeResultDTO,
-                                    PaymentChannelInvokeResultDTO invokeResultDTO,
-                                    PaymentCreateResultDTO resultDTO,
-                                    PaymentRiskDecisionEnum riskDecisionEnum,
-                                    int currencyExponent);
+    boolean recordInitialChannelResult(PaymentCreateCommandDTO commandDTO,
+                                       PaymentRouteResultDTO routeResultDTO,
+                                       PaymentChannelInvokeResultDTO invokeResultDTO,
+                                       PaymentCreateResultDTO resultDTO,
+                                       PaymentRiskDecisionEnum riskDecisionEnum,
+                                       int currencyExponent);
 
     /**
      * 原子抢占已经提交的 INIT 渠道请求。只有抢占成功的调用方可以请求外部 PSP。

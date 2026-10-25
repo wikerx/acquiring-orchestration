@@ -2,9 +2,11 @@ package com.scott.payment.gateway.config;
 
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.rate.ReactiveRedisSlidingWindowRateLimiter;
+import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cloud.gateway.config.HttpClientProperties;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
@@ -23,6 +25,19 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 @EnableConfigurationProperties({GatewayClientIpProperties.class, GatewayIngressProperties.class,
         GatewayRateLimitProperties.class})
 public class GatewayRouteConfig {
+
+    /**
+     * 在路由接收流量前校验 Gateway 到下游微服务的连接和响应超时边界。
+     *
+     * @param httpClientProperties Spring Cloud Gateway 实际使用的 HTTP 客户端配置
+     * @return 应用单例初始化阶段执行的失败关闭门禁
+     */
+    @Bean
+    public SmartInitializingSingleton gatewayHttpClientTimeoutGuard(HttpClientProperties httpClientProperties) {
+        return () -> GatewayHttpClientTimeoutPolicy.validate(
+                httpClientProperties.getConnectTimeout(),
+                httpClientProperties.getResponseTimeout());
+    }
 
     /**
      * 创建 WebFlux 专用的分布式滑动窗口限流器；本地降级身份容量与 Gateway 配置保持一致。

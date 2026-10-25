@@ -11,6 +11,8 @@ import com.scott.payment.admin.service.AdminSettlementQueryService;
 import com.scott.payment.admin.service.AdminSettlementReversalQueryService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.security.GatewayIngressSignature;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -116,7 +118,9 @@ class AdminSettlementReversalApplicationServiceTest {
 
     private HttpServletRequest servletRequest() {
         HttpServletRequest request = mock(HttpServletRequest.class);
-        when(request.getHeader("X-Forwarded-For")).thenReturn("203.0.113.10, 10.0.0.1");
+        when(request.getHeader(GatewayIngressSignature.HEADER_CLIENT_IP)).thenReturn("203.0.113.10");
+        when(request.getAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE))
+                .thenReturn(Boolean.TRUE);
         when(request.getHeader("User-Agent")).thenReturn("Admin-Test");
         return request;
     }

@@ -16,4 +16,13 @@ class RiskClientPropertiesTest {
         properties.setInternalSecret("unit-test-payment-risk-secret-at-least-32-bytes");
         assertThatCode(properties::validate).doesNotThrowAnyException();
     }
+
+    @Test
+    void shouldRejectUnboundedOrOverSixtySecondTimeouts() {
+        RiskClientProperties properties = new RiskClientProperties();
+        properties.setInternalSecret("unit-test-payment-risk-secret-at-least-32-bytes");
+        properties.setReadTimeoutMillis(60_001);
+
+        assertThatThrownBy(properties::validate).hasMessageContaining("60000ms");
+    }
 }

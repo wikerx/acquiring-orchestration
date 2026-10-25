@@ -4,6 +4,7 @@ import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer.NormalizedIp;
 import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
+import com.scott.payment.component.web.gateway.TrustedClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -49,7 +50,10 @@ public class MerchantIpWhitelistAccessService {
     public String checkAccess(String merchantId, HttpServletRequest request) {
         String rawClientIp = resolveClientIp(request);
         if (!StringUtils.hasText(rawClientIp)) {
-            throw denied(MerchantIpWhitelistDenyReason.CLIENT_IP_MISSING, null);
+            MerchantIpWhitelistDenyReason reason = hasClientIpCandidate(request)
+                    ? MerchantIpWhitelistDenyReason.CLIENT_IP_INVALID
+                    : MerchantIpWhitelistDenyReason.CLIENT_IP_MISSING;
+            throw denied(reason, null);
         }
         NormalizedIp clientIp;
         try {
@@ -79,11 +83,17 @@ public class MerchantIpWhitelistAccessService {
      * @return 网关注入的规范客户端 IP；请求头缺失时返回 null
      */
     public String resolveClientIp(HttpServletRequest request) {
-        if (GatewayIngressAuthFilter.isGatewayAuthenticated(request)) {
-            String value = request.getHeader(HEADER_GATEWAY_CLIENT_IP);
-            return StringUtils.hasText(value) ? value.trim() : null;
+        return TrustedClientIpResolver.resolve(request);
+    }
+
+    /** 判断当前可信来源是否提供了 IP 候选值，仅用于区分缺失和非法的内部拒绝原因。 */
+    private boolean hasClientIpCandidate(HttpServletRequest request) {
+        if (request == null) {
+            return false;
         }
-        String remoteAddr = request.getRemoteAddr();
-        return StringUtils.hasText(remoteAddr) ? remoteAddr.trim() : null;
+        String candidate = GatewayIngressAuthFilter.isGatewayClientIpAuthenticated(request)
+                ? request.getHeader(HEADER_GATEWAY_CLIENT_IP)
+                : request.getRemoteAddr();
+        return StringUtils.hasText(candidate);
     }
 }

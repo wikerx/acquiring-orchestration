@@ -48,6 +48,7 @@ import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.support.ProcessorNodeIdentity;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.baomidou.dynamic.datasource.annotation.DS;
@@ -632,9 +633,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (channelInvokeResultDTO == null || channelInvokeResultDTO.getChannelRequest() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        TransactionOperationDO operationDO = findSourceOperationByTransactionId(
+        TransactionOperationDO operationDO = findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), commandDTO.getTransactionDateTime());
-        TransactionOrderDO orderDO = findOrder(commandDTO.getTransactionDateTime(), resultDTO.getOperationId());
+        TransactionOrderDO orderDO = findOrderPrimary(
+                commandDTO.getTransactionDateTime(), resultDTO.getOperationId());
         if (operationDO == null || orderDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -664,12 +666,13 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resultDTO.getStatus(),
                 resultDTO.getFailReasonCode(),
                 resultDTO.getFailReasonMessage(),
-                true,
+                isTerminal(resultDTO),
                 now);
         if (isTerminal(resultDTO)) {
             activateMerchantNotification(operationDO, resultDTO.getStatus(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage(), now);
         }
         updateMerchantApiFinalResult(commandDTO, resultDTO, now);
+        synchronizeTerminalIdempotencyStatus(resultDTO.getTransactionId(), resultDTO.getStatus());
         return true;
     }
 
@@ -728,6 +731,23 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time and operation_id are required");
         }
         return transactionOrderMapper.selectByOperationId(operationId, transactionDateTime);
+    }
+
+    /** 在主库路由作用域内读取状态推进前或 CAS 冲突后的生命周期资金汇总。 */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionOrderDO findOrderPrimary(LocalDateTime transactionDateTime, String operationId) {
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            if (transactionDateTime == null || !StringUtils.hasText(operationId)) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            TransactionOrderDO orderDO = transactionOrderMapper.selectByOperationId(
+                    operationId, transactionDateTime);
+            if (orderDO == null) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            return orderDO;
+        }
     }
 
     /** {@inheritDoc} */
@@ -884,6 +904,27 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         return sourceOperationDO;
+    }
+
+    /**
+     * 在主库路由作用域内读取状态推进前或 CAS 冲突后的当前动作事实，作用域关闭时必须清理线程 Hint。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionOperationDO findSourceOperationByTransactionIdPrimary(
+            String sourceTransactionId,
+            LocalDateTime sourceTransactionDateTime) {
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            if (sourceTransactionDateTime == null) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            TransactionOperationDO operationDO = transactionOperationMapper.selectByTransactionId(
+                    sourceTransactionId, sourceTransactionDateTime);
+            if (operationDO == null) {
+                throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            return operationDO;
+        }
     }
 
     /**
@@ -1102,6 +1143,20 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     @Override
     @DS(DataSourceName.TRANSACTION)
     public TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
+        return findOriginalChannelRequest(operationDO);
+    }
+
+    /** 在主库路由作用域内恢复已准备交易使用的原渠道请求。 */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public TransactionChannelRequestDO findOriginalChannelRequestForQueryPrimary(
+            TransactionOperationDO operationDO) {
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            return findOriginalChannelRequest(operationDO);
+        }
+    }
+
+    private TransactionChannelRequestDO findOriginalChannelRequest(TransactionOperationDO operationDO) {
         if (operationDO == null || operationDO.getTransactionDateTime() == null) {
             return null;
         }
@@ -1439,6 +1494,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(targetTransactionStatus);
         boolean orderUpdated = updateOrderByCallback(orderDO, operationDO, success,
                 targetTransactionStatus, failReasonCode, failReasonMessage);
+        boolean followUpOperation = StringUtils.hasText(operationDO.getSourceTransactionId());
+        if (!followUpOperation && !orderUpdated) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "order state has changed");
+        }
         log.info("event: PAYMENT_CALLBACK_DB_UPDATE stage=CALLBACK_RESULT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} channelCode: {} channelTransactionId: {} platformStatus: {} channelResultCode: {} logicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
                 TraceContext.getTraceId(),
                 operationDO.getMerchantId(),
@@ -1462,13 +1521,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         insertCallbackStateAndFlow(operationDO, orderDO, callbackId, targetTransactionStatus,
                 failReasonCode, failReasonMessage, orderUpdated, now);
-        if (orderUpdated) {
-            activateMerchantNotification(operationDO, targetTransactionStatus, failReasonCode, failReasonMessage, now);
-        }
-        if (transactionIdempotencyService != null) {
-            transactionIdempotencyService.synchronizeInitialTransactionStatus(
-                    operationDO.getTransactionId(), targetTransactionStatus);
-        }
+        activateMerchantNotification(operationDO, targetTransactionStatus, failReasonCode, failReasonMessage, now);
+        synchronizeTerminalIdempotencyStatus(operationDO.getTransactionId(), targetTransactionStatus);
         return true;
     }
 
@@ -2114,9 +2168,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             updateSourceOrderAmount(orderDO, resultDTO);
             return true;
         }
-        if (StringUtils.hasText(operationDO.getSourceTransactionId())
-                && PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode().equals(operationDO.getTransactionType())) {
-            return true;
+        if (StringUtils.hasText(operationDO.getSourceTransactionId())) {
+            return false;
         }
         int updated = transactionOrderMapper.completeStatus(
                 orderDO.getOperationId(),
@@ -2491,7 +2544,22 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus()),
                 now);
         activateMerchantNotification(operationDO, resultDTO.getStatus(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage(), now);
+        synchronizeTerminalIdempotencyStatus(resultDTO.getTransactionId(), resultDTO.getStatus());
         return true;
+    }
+
+    /**
+     * 在交易终态事实所在事务内同步幂等状态，避免进程在事务提交后、响应快照补写前退出时遗留 PROCESSING。
+     *
+     * <p>这里只推进稳定终态；完整响应快照仍由外层请求编排补写。重复请求会以幂等表终态覆盖旧快照状态。</p>
+     */
+    private void synchronizeTerminalIdempotencyStatus(String transactionId, String transactionStatus) {
+        if (transactionIdempotencyService == null
+                || (!PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)
+                && !PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus))) {
+            return;
+        }
+        transactionIdempotencyService.synchronizeInitialTransactionStatus(transactionId, transactionStatus);
     }
 
     /**
@@ -2610,7 +2678,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param targetTransactionStatus 目标交易状态
      * @param failReasonCode 失败原因码
      * @param failReasonMessage 失败原因描述
-     * @param orderUpdated 主单是否更新成功
+     * @param orderUpdated 生命周期主单是否实际完成了状态或金额更新
      * @param now 当前处理时间
      */
     private void insertCallbackStateAndFlow(TransactionOperationDO operationDO,
@@ -2621,13 +2689,24 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                             String failReasonMessage,
                                             boolean orderUpdated,
                                             LocalDateTime now) {
+        boolean followUpOperation = StringUtils.hasText(operationDO.getSourceTransactionId());
+        boolean terminal = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(targetTransactionStatus)
+                || PaymentTransactionStatusEnum.FAILED.getCode().equals(targetTransactionStatus);
+        boolean orderChangeRequired = followUpOperation
+                ? PaymentTransactionStatusEnum.SUCCESS.getCode().equals(targetTransactionStatus)
+                : terminal;
+        String orderTransitionReason = orderUpdated
+                ? null
+                : orderChangeRequired
+                        ? "order state has changed"
+                        : "lifecycle order change is not required for this operation result";
         TransactionStatusHistoryDO operationHistory = buildCallbackStatusHistory(
                 operationDO, STATUS_OBJECT_OPERATION, callbackId, targetTransactionStatus,
                 TRANSITION_SUCCESS, null, now);
         TransactionStatusHistoryDO orderHistory = buildCallbackStatusHistory(
                 operationDO, STATUS_OBJECT_ORDER, callbackId, targetTransactionStatus,
                 orderUpdated ? TRANSITION_SUCCESS : TRANSITION_IGNORED,
-                orderUpdated ? null : "order state has changed", now);
+                orderTransitionReason, now);
         transactionStatusHistoryMapper.insertLogical(operationHistory);
         transactionStatusHistoryMapper.insertLogical(orderHistory);
         TransactionFlowEventDO eventDO = new TransactionFlowEventDO();
@@ -2636,7 +2715,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         eventDO.setOperationId(operationDO.getOperationId());
         eventDO.setEventType("CHANNEL_CALLBACK_PROCESSED");
         eventDO.setEventStage("CHANNEL");
-        eventDO.setEventStatus(orderUpdated ? "SUCCESS" : "SKIPPED");
+        eventDO.setEventStatus("SUCCESS");
         eventDO.setEventName("渠道回调处理");
         eventDO.setEventContent(safeLength("回调状态：" + targetTransactionStatus, 1024));
         eventDO.setPreviousStatus(operationDO.getTransactionStatus());

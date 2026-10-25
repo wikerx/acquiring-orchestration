@@ -19,11 +19,17 @@ openapi:
     retry-topic: merchant-notify-retry
   payment-client:
     # dev 联调默认走 service-payment 微服务，调用链路为 service-gateway -> service-openapi -> service-payment。
+    # 同步内部调用统一采用 3 秒建连、30 秒读取默认值，任何环境均不得超过 60 秒上限。
+    connect-timeout-millis: ${OPENAPI_PAYMENT_CONNECT_TIMEOUT_MILLIS:3000}
+    read-timeout-millis: ${OPENAPI_PAYMENT_READ_TIMEOUT_MILLIS:30000}
     # 参数说明：支付内部协议的固定调用方标识，必须保持 service-openapi。
     internal-caller: service-openapi
     # 参数说明：OpenAPI 到 Payment 调用边的当前 HMAC 密钥引用。
     internal-secret: ${acquiring.internal-auth.edges.openapi-payment.active-secret}
   payout-client:
+    # 代付同步内部调用必须快速失败，超时结果由业务状态查询或补偿链路收敛。
+    connect-timeout-millis: ${OPENAPI_PAYOUT_CONNECT_TIMEOUT_MILLIS:3000}
+    read-timeout-millis: ${OPENAPI_PAYOUT_READ_TIMEOUT_MILLIS:30000}
     # 参数说明：代付内部协议的固定调用方标识，必须保持 service-openapi。
     internal-caller: service-openapi
     # 参数说明：OpenAPI 到 Payout 调用边的当前 HMAC 密钥引用。

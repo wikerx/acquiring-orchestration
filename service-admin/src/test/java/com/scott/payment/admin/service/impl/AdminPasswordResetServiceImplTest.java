@@ -91,6 +91,7 @@ class AdminPasswordResetServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        MfaSecretCrypto.configure("service-admin-password-reset-test-secret-32-bytes");
         service = new AdminPasswordResetServiceImpl(
                 systemAuthService,
                 appMapper,

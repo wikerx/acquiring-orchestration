@@ -808,13 +808,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
         fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
         enrichResult(preparationResultDTO.getCommandDTO(), preparationResultDTO.getRouteResultDTO(), channelResponse, resultDTO);
-        paymentChannelResultTransactionService.recordInitialChannelResult(
+        boolean statusChanged = paymentChannelResultTransactionService.recordInitialChannelResult(
                 preparationResultDTO.getCommandDTO(),
                 preparationResultDTO.getRouteResultDTO(),
                 invokeResultDTO,
                 resultDTO,
                 preparationResultDTO.getRiskDecisionEnum(),
                 preparationResultDTO.getCurrencyExponent());
+        resultDTO = reconcilePersistedResultAfterCasConflict(
+                resultDTO, preparationResultDTO.getCommandDTO(), statusChanged);
         completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
         return resultDTO;
     }
@@ -889,15 +891,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
 
     /** 从动作单、主单和原渠道请求恢复浏览器回跳后的提交上下文。 */
     private PaymentInitialPreparationResultDTO restorePreparedTransaction(PaymentCreateCommandDTO commandDTO) {
-        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(
+        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
                 commandDTO.getTransactionId(), commandDTO.getTransactionDateTime());
         if (operationDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        TransactionOrderDO orderDO = transactionRecordService.findOrder(
+        TransactionOrderDO orderDO = transactionRecordService.findOrderPrimary(
                 operationDO.getTransactionDateTime(), operationDO.getOperationId());
         com.scott.payment.payment.entity.TransactionChannelRequestDO requestDO =
-                transactionRecordService.findOriginalChannelRequestForQuery(operationDO);
+                transactionRecordService.findOriginalChannelRequestForQueryPrimary(operationDO);
         if (orderDO == null || requestDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND.getCode(), "prepared transaction can not be restored");
         }
@@ -974,13 +976,70 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         result.setTransactionTimeZone(orderDO.getTransactionTimeZone());
         result.setPaymentMethod(orderDO.getPaymentMethod());
         result.setPaymentBrand(orderDO.getPaymentBrand());
-        enrichMerchantResponse(result, null);
+        enrichMerchantResponse(result);
         return result;
     }
 
     /** 渠道请求已被其他线程抢占时返回数据库中的最新状态。 */
     private PaymentCreateResultDTO latestPreparedResult(PaymentInitialPreparationResultDTO preparation) {
         return restorePreparedTransaction(preparation.getCommandDTO()).getResultDTO();
+    }
+
+    /**
+     * 同步结果 CAS 失败表示回调或其他恢复流程已先提交，此时响应和幂等快照必须改用数据库事实。
+     */
+    private PaymentCreateResultDTO reconcilePersistedResultAfterCasConflict(PaymentCreateResultDTO resultDTO,
+                                                                             PaymentCreateCommandDTO commandDTO,
+                                                                             boolean statusChanged) {
+        if (statusChanged) {
+            return resultDTO;
+        }
+        TransactionOperationDO persistedOperation = readAuthoritativeOperationAfterCasConflict(
+                resultDTO.getTransactionId(), commandDTO.getTransactionDateTime());
+        if (persistedOperation == null) {
+            throw authoritativeResultUnavailable(null);
+        }
+        TransactionOrderDO persistedOrder = readAuthoritativeOrderAfterCasConflict(
+                resultDTO.getRootTransactionDateTime(), persistedOperation.getOperationId());
+        if (persistedOrder == null) {
+            throw authoritativeResultUnavailable(null);
+        }
+        return PaymentPersistedResultSupport.overwriteAuthoritativeFields(
+                resultDTO, persistedOperation, persistedOrder);
+    }
+
+    /** 将 CAS 冲突后的“主库暂未读到”统一收口为可重试错误，避免误报订单不存在。 */
+    private TransactionOperationDO readAuthoritativeOperationAfterCasConflict(
+            String transactionId,
+            LocalDateTime transactionDateTime) {
+        try {
+            return transactionRecordService.findSourceOperationByTransactionIdPrimary(
+                    transactionId, transactionDateTime);
+        } catch (ServiceException exception) {
+            if (ApiResultEnum.ORDER_NOT_FOUND.getCode().equals(exception.getCode())) {
+                throw authoritativeResultUnavailable(exception);
+            }
+            throw exception;
+        }
+    }
+
+    /** 将 CAS 冲突后的“主库暂未读到”统一收口为可重试错误，避免误报订单不存在。 */
+    private TransactionOrderDO readAuthoritativeOrderAfterCasConflict(
+            LocalDateTime transactionDateTime,
+            String operationId) {
+        try {
+            return transactionRecordService.findOrderPrimary(transactionDateTime, operationId);
+        } catch (ServiceException exception) {
+            if (ApiResultEnum.ORDER_NOT_FOUND.getCode().equals(exception.getCode())) {
+                throw authoritativeResultUnavailable(exception);
+            }
+            throw exception;
+        }
+    }
+
+    /** CAS 已确认输给并发提交方后禁止回退同步旧结果；调用方可按原幂等键安全重试。 */
+    private ServiceException authoritativeResultUnavailable(Throwable cause) {
+        return new ServiceException(ApiResultEnum.NETWORK_BUSY, cause);
     }
 
     /** 构造 3DS 等资金请求前失败的本地结果上下文，不包含伪造的渠道响应。 */
@@ -1096,7 +1155,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 preparationResultDTO.getRouteResultDTO(),
                 channelResponse,
                 resultDTO);
-        captureChannelResultTransactionService.recordCaptureChannelResult(preparationResultDTO, invokeResultDTO);
+        boolean statusChanged = captureChannelResultTransactionService.recordCaptureChannelResult(
+                preparationResultDTO, invokeResultDTO);
+        resultDTO = reconcilePersistedResultAfterCasConflict(
+                resultDTO, preparationResultDTO.getCommandDTO(), statusChanged);
         completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
         logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
         return resultDTO;
@@ -1162,7 +1224,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 preparationResultDTO.getRouteResultDTO(),
                 channelResponse,
                 resultDTO);
-        refundChannelResultTransactionService.recordRefundChannelResult(preparationResultDTO, invokeResultDTO);
+        boolean statusChanged = refundChannelResultTransactionService.recordRefundChannelResult(
+                preparationResultDTO, invokeResultDTO);
+        resultDTO = reconcilePersistedResultAfterCasConflict(
+                resultDTO, preparationResultDTO.getCommandDTO(), statusChanged);
         completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
         logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
         return resultDTO;
@@ -1228,7 +1293,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 preparationResultDTO.getRouteResultDTO(),
                 channelResponse,
                 resultDTO);
-        voidChannelResultTransactionService.recordVoidChannelResult(preparationResultDTO, invokeResultDTO);
+        boolean statusChanged = voidChannelResultTransactionService.recordVoidChannelResult(
+                preparationResultDTO, invokeResultDTO);
+        resultDTO = reconcilePersistedResultAfterCasConflict(
+                resultDTO, preparationResultDTO.getCommandDTO(), statusChanged);
         completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
         logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
         return resultDTO;
@@ -1295,8 +1363,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 preparationResultDTO.getRouteResultDTO(),
                 channelResponse,
                 resultDTO);
-        incrementalAuthorizationChannelResultTransactionService.recordIncrementalAuthorizationChannelResult(
+        boolean statusChanged = incrementalAuthorizationChannelResultTransactionService.recordIncrementalAuthorizationChannelResult(
                 preparationResultDTO, invokeResultDTO);
+        resultDTO = reconcilePersistedResultAfterCasConflict(
+                resultDTO, preparationResultDTO.getCommandDTO(), statusChanged);
         completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
         logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
         return resultDTO;
@@ -2278,7 +2348,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             resultDTO.setAuthCode(channelResponse.getAuthCode());
             resultDTO.setAcquirerReferenceNo(channelResponse.getAcquirerReferenceNo());
         }
-        enrichMerchantResponse(resultDTO, channelResponse);
+        enrichMerchantResponse(resultDTO);
         if (PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {
             resultDTO.setFailReasonMessage(merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));
         }
@@ -2462,9 +2532,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return current;
     }
 
-    private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO, ChannelPaymentResponse channelResponse) {
+    private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO) {
         resultDTO.setMerchantResponseCode(resolveMerchantResponseCode(resultDTO.getStatus()));
-        resultDTO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO, channelResponse));
+        resultDTO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO));
     }
 
     private String resolvePaymentBrand(PaymentCreateCommandDTO commandDTO) {
@@ -2600,15 +2670,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 解析同步响应给商户的失败文案。
+     * 解析同步响应给商户的稳定平台文案。
      * <p>
-     * MPGS result=ERROR 多为参数、格式或技术类错误，对商户统一模糊展示；非 ERROR 的渠道拒绝可展示渠道响应码和响应描述，
-     * 方便商户排查发卡行拒绝、支付细节需更换等付款侧问题。
+     * 渠道原始码和描述只进入内部审计事实；除受控风控提示外，失败响应统一映射平台错误文案，
+     * 避免 PSP 文案漂移或上游技术细节通过 OpenAPI 泄露。
      *
      * @param resultDTO 当前交易结果
      * @return 商户可见响应文案
      */
-    private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO, ChannelPaymentResponse response) {
+    private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO) {
         if (resultDTO == null) {
             return resolveMerchantResponseMessage((String) null);
         }
@@ -2618,11 +2688,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         if (PaymentRiskDecisionSupport.isRiskRejected(resultDTO.getFailReasonCode())) {
             return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
         }
-        if (response == null || "ERROR".equalsIgnoreCase(response.getRawChannelStatus())) {
-            return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-        }
-        return firstText(joinCodeAndMessage(response.getChannelResponseCode(), response.getChannelResponseMessage()),
-                ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        return ApiResultEnum.PAYMENT_REJECTED.getMessage();
     }
 
     /**
@@ -2641,18 +2707,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         if (PaymentRiskDecisionSupport.isRiskRejected(operationDO.getFailReasonCode())) {
             return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
         }
-        if ("ERROR".equalsIgnoreCase(operationDO.getChannelStatus())) {
-            return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-        }
-        return firstText(joinCodeAndMessage(operationDO.getChannelResponseCode(), operationDO.getChannelResponseMessage()),
-                ApiResultEnum.PAYMENT_REJECTED.getMessage());
-    }
-
-    private String joinCodeAndMessage(String code, String message) {
-        if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
-            return code + ": " + message;
-        }
-        return firstText(code, message);
+        return ApiResultEnum.PAYMENT_REJECTED.getMessage();
     }
 
     /**
@@ -3000,19 +3055,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
 
     /** 以幂等记录的最新状态覆盖渠道异步确认前保存的历史响应快照。 */
     private void applyLatestIdempotencyStatus(PaymentCreateResultDTO resultDTO, String transactionStatus) {
-        if (!StringUtils.hasText(transactionStatus)) {
-            return;
-        }
-        resultDTO.setStatus(transactionStatus);
-        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
-            resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
-            resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_SUCCESS.getCode());
-            resultDTO.setMerchantResponseMessage(ApiResultEnum.PAYMENT_SUCCESS.getMessage());
-        } else if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
-            resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
-            resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_REJECTED.getCode());
-            resultDTO.setMerchantResponseMessage(ApiResultEnum.PAYMENT_REJECTED.getMessage());
-        }
+        PaymentPersistedResultSupport.overwriteLatestIdempotencyStatus(resultDTO, transactionStatus);
     }
 
     /** 判断当前动作是否为共用商户订单流守卫的首次交易类型。 */

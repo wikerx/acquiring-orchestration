@@ -645,7 +645,8 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
             if (resultDTO != null) {
-                return resultDTO;
+                return PaymentPersistedResultSupport.overwriteLatestIdempotencyStatus(
+                        resultDTO, record.getTransactionStatus());
             }
         }
         PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
@@ -692,7 +693,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         resultDTO.setPaymentMethod(sourceOrderDO.getPaymentMethod());
         resultDTO.setPaymentBrand(sourceOrderDO.getPaymentBrand());
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
-        enrichMerchantResponse(resultDTO, channelResponse);
+        enrichMerchantResponse(resultDTO);
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(sourceOrderDO));
         resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(sourceOrderDO.getCapturedAmount());
@@ -732,10 +733,9 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         return null;
     }
 
-    private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO,
-                                        com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse channelResponse) {
+    private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO) {
         resultDTO.setMerchantResponseCode(resolveMerchantResponseCode(resultDTO.getStatus()));
-        resultDTO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO, channelResponse));
+        resultDTO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO));
     }
 
     private String resolveMerchantResponseCode(String transactionStatus) {
@@ -748,8 +748,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         return ApiResultEnum.PROCESSING.getCode();
     }
 
-    private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO,
-                                                  com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse response) {
+    private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO) {
         if (resultDTO == null) {
             return ApiResultEnum.PROCESSING.getMessage();
         }
@@ -758,18 +757,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                     ? ApiResultEnum.PAYMENT_SUCCESS.getMessage()
                     : ApiResultEnum.PROCESSING.getMessage();
         }
-        if (response == null || "ERROR".equalsIgnoreCase(response.getRawChannelStatus())) {
-            return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-        }
-        return firstText(joinCodeAndMessage(response.getChannelResponseCode(), response.getChannelResponseMessage()),
-                ApiResultEnum.PAYMENT_REJECTED.getMessage());
-    }
-
-    private String joinCodeAndMessage(String code, String message) {
-        if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
-            return code + ": " + message;
-        }
-        return firstText(code, message);
+        return ApiResultEnum.PAYMENT_REJECTED.getMessage();
     }
 
     private String firstText(String... values) {

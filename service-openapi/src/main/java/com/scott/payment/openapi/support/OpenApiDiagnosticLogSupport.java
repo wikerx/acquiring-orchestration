@@ -6,7 +6,7 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.openapi.dto.body.OpenApiEncryptedRequestDTO;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
-import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
+import com.scott.payment.component.web.gateway.TrustedClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -66,11 +66,8 @@ public class OpenApiDiagnosticLogSupport {
         putIfPresent(summary, "traceId", TraceContext.getTraceId());
         putIfPresent(summary, "xTraceId", request.getHeader(TraceContext.TRACE_ID_HEADER));
         putIfPresent(summary, "xRequestId", request.getHeader("X-Request-Id"));
-        putIfPresent(summary, "gatewayClientIpDigest",
-                identifierDigest(request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP)));
-        putIfPresent(summary, "xForwardedForDigest",
-                identifierDigest(firstForwardedFor(request.getHeader("X-Forwarded-For"))));
-        putIfPresent(summary, "xRealIpDigest", identifierDigest(request.getHeader("X-Real-IP")));
+        putIfPresent(summary, "trustedClientIpDigest",
+                identifierDigest(TrustedClientIpResolver.resolve(request)));
         putIfPresent(summary, "origin", request.getHeader("Origin"));
         putIfPresent(summary, "referer", request.getHeader("Referer"));
         putIfPresent(summary, "userAgent", limit(request.getHeader("User-Agent"), MAX_HEADER_VALUE_LENGTH));
@@ -301,21 +298,6 @@ public class OpenApiDiagnosticLogSupport {
         } catch (RuntimeException exception) {
             return null;
         }
-    }
-
-    /**
-     * 提取代理链中的首个来源地址。
-     * <p>
-     * 仅用于日志诊断，不替代网关或安全组件的可信代理校验。
-     * </p>
-     * @param forwardedFor X-Forwarded-For 请求头值
-     * @return 首个来源地址，不存在时返回 null
-     */
-    private String firstForwardedFor(String forwardedFor) {
-        if (!StringUtils.hasText(forwardedFor)) {
-            return null;
-        }
-        return forwardedFor.split(",")[0].trim();
     }
 
     /**

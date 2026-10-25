@@ -139,6 +139,13 @@ public enum ApiResultEnum implements IResult {
     ENCRYPTED_DATA_INVALID("F402003", "Encrypted request data is invalid"),
 
     /**
+     * 商户回调地址不满足当前环境的协议、主机或网络目标安全策略。
+     */
+    CALLBACK_URL_NOT_ALLOWED(
+            "F402004",
+            "Merchant callback URL is not allowed. Use an HTTPS URL that resolves only to public network addresses."),
+
+    /**
      * 登录账号无权访问当前资源。
      */
     FORBIDDEN("F403", "Forbidden"),

@@ -806,7 +806,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 ? null : commandDTO.getTransactionInfo().getRedirectUrl());
         resultDTO.setLanguage(commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getLanguage());
-        enrichMerchantResponse(resultDTO, channelResponse);
+        enrichMerchantResponse(resultDTO);
         if (PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {
             resultDTO.setFailReasonMessage(merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));
         }
@@ -885,7 +885,8 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
             if (resultDTO != null) {
-                applyLatestIdempotencyStatus(resultDTO, record.getTransactionStatus());
+                PaymentPersistedResultSupport.overwriteLatestIdempotencyStatus(
+                        resultDTO, record.getTransactionStatus());
                 return resultDTO;
             }
         }
@@ -903,27 +904,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return resultDTO;
     }
 
-    /** 以幂等事实中的最新终态覆盖可能仍为 PROCESSING 的历史响应快照。 */
-    private void applyLatestIdempotencyStatus(PaymentCreateResultDTO resultDTO, String transactionStatus) {
-        if (!StringUtils.hasText(transactionStatus)) {
-            return;
-        }
-        resultDTO.setStatus(transactionStatus);
-        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
-            resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
-            resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_SUCCESS.getCode());
-            resultDTO.setMerchantResponseMessage(ApiResultEnum.PAYMENT_SUCCESS.getMessage());
-        } else if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
-            resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
-            resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_REJECTED.getCode());
-            resultDTO.setMerchantResponseMessage(ApiResultEnum.PAYMENT_REJECTED.getMessage());
-        }
-    }
-
-    private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO,
-                                        com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse response) {
+    private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO) {
         resultDTO.setMerchantResponseCode(resolveMerchantResponseCode(resultDTO.getStatus()));
-        resultDTO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO, response));
+        resultDTO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO));
     }
 
     private String resolveMerchantResponseCode(String transactionStatus) {
@@ -939,8 +922,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return ApiResultEnum.PROCESSING.getCode();
     }
 
-    private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO,
-                                                  com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse response) {
+    private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO) {
         if (resultDTO == null) {
             return resolveMerchantResponseMessage((String) null);
         }
@@ -950,11 +932,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         if (PaymentRiskDecisionSupport.isRiskRejected(resultDTO.getFailReasonCode())) {
             return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
         }
-        if (response == null || "ERROR".equalsIgnoreCase(response.getRawChannelStatus())) {
-            return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-        }
-        return firstText(joinCodeAndMessage(response.getChannelResponseCode(), response.getChannelResponseMessage()),
-                ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        return ApiResultEnum.PAYMENT_REJECTED.getMessage();
     }
 
     private String resolveMerchantResponseMessage(String transactionStatus) {
@@ -1132,10 +1110,4 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         return null;
     }
 
-    private String joinCodeAndMessage(String code, String message) {
-        if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
-            return code + ": " + message;
-        }
-        return firstText(code, message);
-    }
 }

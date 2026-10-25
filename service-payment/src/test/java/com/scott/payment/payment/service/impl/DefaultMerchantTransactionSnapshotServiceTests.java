@@ -16,6 +16,9 @@ import com.scott.payment.payment.mapper.TransactionShippingInfoMapper;
 import com.scott.payment.payment.service.MerchantFeeVersionSnapshotService;
 import com.scott.payment.payment.service.dto.FrozenMerchantFeeVersionSnapshotDTO;
 import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeVersionSnapshot;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeRuleConfigurationSnapshot;
+import com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReservePolicySnapshot;
+import com.scott.payment.finance.fee.model.FeeCalculationModels.FeeRuleSnapshot;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -23,6 +26,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+
+import static com.scott.payment.finance.fee.model.FeeCalculationModels.FeeMode.STANDARD;
+import static com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.CURRENT_SCHEMA_VERSION;
+import static com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.FeeCurrencyPolicy.LABEL_PERCENTAGE_USD_FIXED_LIMITS;
+import static com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.PercentageBasis.LABEL_AMOUNT;
+import static com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.RefundFeeReturnPolicy.NONE;
+import static com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveRefundPolicy.PROPORTIONAL_RETURN;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -159,12 +169,30 @@ class DefaultMerchantTransactionSnapshotServiceTests {
     private MerchantFeeVersionSnapshotService feeSnapshotService() {
         MerchantFeeVersionSnapshotService service = mock(MerchantFeeVersionSnapshotService.class);
         when(service.freezeActiveVersion(anyString(), any(LocalDateTime.class))).thenAnswer(invocation -> {
-            FeeVersionSnapshot snapshot = mock(FeeVersionSnapshot.class);
-            when(snapshot.feePlanId()).thenReturn(1001L);
-            when(snapshot.feePlanVersionId()).thenReturn(1008L);
-            when(snapshot.feePlanVersionNo()).thenReturn(8);
-            when(snapshot.snapshotHash()).thenReturn("a".repeat(64));
-            when(snapshot.pricingLockTime()).thenReturn(invocation.getArgument(1));
+            LocalDateTime pricingLockTime = invocation.getArgument(1);
+            FeeRuleSnapshot feeRule = new FeeRuleSnapshot(
+                    9001L, STANDARD, BigDecimal.ZERO, null, null, null, null);
+            FeeRuleConfigurationSnapshot configuredRule = new FeeRuleConfigurationSnapshot(
+                    9001L, "PROCESSING", "PAYMENT", "CARD", "VISA", "NONE",
+                    "NOT_APPLICABLE", feeRule, List.of());
+            FeeVersionSnapshot snapshot = new FeeVersionSnapshot(
+                    CURRENT_SCHEMA_VERSION,
+                    "200045",
+                    1001L,
+                    1008L,
+                    8,
+                    pricingLockTime,
+                    "USD",
+                    LABEL_AMOUNT,
+                    LABEL_PERCENTAGE_USD_FIXED_LIMITS,
+                    java.math.RoundingMode.HALF_UP,
+                    new ReservePolicySnapshot(
+                            BigDecimal.ZERO,
+                            com.scott.payment.finance.fee.model.FeeConfigurationSnapshotModels.ReserveBasis.LABEL_AMOUNT,
+                            "D", 1, PROPORTIONAL_RETURN),
+                    NONE,
+                    List.of(configuredRule),
+                    "a".repeat(64));
             return new FrozenMerchantFeeVersionSnapshotDTO(snapshot,
                     "{\"feePlanVersionId\":1008,\"snapshotHash\":\"" + "a".repeat(64) + "\"}");
         });

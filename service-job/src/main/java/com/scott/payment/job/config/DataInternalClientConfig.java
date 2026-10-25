@@ -35,7 +35,7 @@ public class DataInternalClientConfig {
     @Bean("jobDataInternalRestTemplate")
     public RestTemplate jobDataInternalRestTemplate(TraceIdRestTemplateCustomizer traceCustomizer,
                                                     DataInternalClientProperties properties) {
-        validateTimeouts(properties);
+        properties.validate();
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setProxy(Proxy.NO_PROXY);
         requestFactory.setConnectTimeout(properties.getConnectTimeoutMillis());
@@ -55,7 +55,7 @@ public class DataInternalClientConfig {
     public RestTemplate jobDataInternalLoadBalancedRestTemplate(RestTemplateBuilder restTemplateBuilder,
                                                                 TraceIdRestTemplateInterceptor traceInterceptor,
                                                                 DataInternalClientProperties properties) {
-        validateTimeouts(properties);
+        properties.validate();
         return restTemplateBuilder
                 .setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
                 .setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
@@ -63,11 +63,4 @@ public class DataInternalClientConfig {
                 .build();
     }
 
-    /** 拒绝无界或立即超时的内部客户端配置。 */
-    private void validateTimeouts(DataInternalClientProperties properties) {
-        properties.validate();
-        if (properties.getConnectTimeoutMillis() <= 0 || properties.getReadTimeoutMillis() <= 0) {
-            throw new IllegalArgumentException("job data-client timeouts must be greater than zero");
-        }
-    }
 }

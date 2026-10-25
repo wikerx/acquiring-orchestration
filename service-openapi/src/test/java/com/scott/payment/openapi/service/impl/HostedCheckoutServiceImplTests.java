@@ -36,6 +36,7 @@ import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -318,10 +319,12 @@ class HostedCheckoutServiceImplTests {
         properties.setTokenPepper(TOKEN_PEPPER);
         properties.setDefaultExpireMinutes(30);
         properties.setMaxExpireMinutes(120);
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("test");
         return new HostedCheckoutServiceImpl(
                 paymentInternalClient,
                 properties,
-                new HostedCheckoutUrlPolicy(),
+                new HostedCheckoutUrlPolicy(environment),
                 new StubSystemConfigService(checkoutFrontendBaseUrl),
                 new OpenApiRequestContext(),
                 new OpenApiKeyMaterialFactory(),
@@ -350,6 +353,7 @@ class HostedCheckoutServiceImplTests {
         request.setAttribute(OpenApiRequestAttributes.API_VERSION, "v1");
         request.setAttribute(OpenApiRequestAttributes.INTERFACE_TYPE, "checkout");
         request.setAttribute(GatewayIngressAuthFilter.GATEWAY_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
     }
 

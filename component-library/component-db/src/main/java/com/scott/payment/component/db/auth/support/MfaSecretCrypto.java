@@ -10,7 +10,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 
 /**
  * @author : scott
@@ -49,16 +51,42 @@ public final class MfaSecretCrypto {
     private static final String VERSION = "v1";
 
     /**
-     * 本地开发兜底主密钥，生产环境必须通过 PAYMENT_MFA_SECRET 或 payment.mfa.secret 显式配置。
-     */
-    private static final String LOCAL_FALLBACK_SECRET = "local-mfa-secret-change-me";
-
-    /**
      * 安全随机数生成器。
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * 启动门禁注入的 AES 主密钥；未初始化时所有加解密均失败关闭。
+     */
+    private static volatile Keyring configuredKeyring;
+
     private MfaSecretCrypto() {
+    }
+
+    /**
+     * 使用启动阶段已校验的主密钥初始化 MFA 加密组件。
+     *
+     * @param masterSecret 至少 32 字节的环境专属主密钥
+     */
+    public static synchronized void configure(String masterSecret) {
+        configure(masterSecret, List.of());
+    }
+
+    /**
+     * 初始化带轮换窗口的 MFA 密钥环。新密文只使用当前密钥，历史密钥仅用于解密存量密文。
+     *
+     * @param masterSecret 当前环境专属主密钥
+     * @param previousSecrets 历史解密密钥，按最近到最旧排序，最多两个
+     */
+    public static synchronized void configure(String masterSecret, List<String> previousSecrets) {
+        MfaSecretKeyPolicy.requireStrongSecret(masterSecret);
+        List<String> validatedPreviousSecrets = MfaSecretKeyPolicy.resolvePreviousSecrets(
+                previousSecrets == null ? null : previousSecrets.toArray(String[]::new), masterSecret);
+        SecretKeySpec encryptionKey = toKey(masterSecret);
+        List<SecretKeySpec> decryptionKeys = new ArrayList<>(validatedPreviousSecrets.size() + 1);
+        decryptionKeys.add(encryptionKey);
+        validatedPreviousSecrets.stream().map(MfaSecretCrypto::toKey).forEach(decryptionKeys::add);
+        configuredKeyring = new Keyring(encryptionKey, List.copyOf(decryptionKeys));
     }
 
     /**
@@ -75,7 +103,7 @@ public final class MfaSecretCrypto {
             byte[] iv = new byte[IV_BYTES];
             SECURE_RANDOM.nextBytes(iv);
             Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
-            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(masterKey(), KEY_ALGORITHM), new GCMParameterSpec(TAG_BITS, iv));
+            cipher.init(Cipher.ENCRYPT_MODE, keyring().encryptionKey(), new GCMParameterSpec(TAG_BITS, iv));
             byte[] ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
             Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
             return VERSION + ":" + encoder.encodeToString(iv) + ":" + encoder.encodeToString(ciphertext);
@@ -102,32 +130,51 @@ public final class MfaSecretCrypto {
             Base64.Decoder decoder = Base64.getUrlDecoder();
             byte[] iv = decoder.decode(parts[1]);
             byte[] ciphertext = decoder.decode(parts[2]);
-            Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
-            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(masterKey(), KEY_ALGORITHM), new GCMParameterSpec(TAG_BITS, iv));
-            return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
+            if (iv.length != IV_BYTES || ciphertext.length < TAG_BITS / Byte.SIZE) {
+                throw new IllegalArgumentException("invalid mfa cipher structure");
+            }
+            for (SecretKeySpec decryptionKey : keyring().decryptionKeys()) {
+                try {
+                    Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
+                    cipher.init(Cipher.DECRYPT_MODE, decryptionKey, new GCMParameterSpec(TAG_BITS, iv));
+                    return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
+                } catch (GeneralSecurityException ignored) {
+                    // A v1 ciphertext has no key identifier, so the bounded rotation window is tried in order.
+                }
+            }
+            throw new GeneralSecurityException("no configured mfa key can decrypt the cipher");
         } catch (IllegalArgumentException | GeneralSecurityException exception) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "mfa secret cipher is invalid");
         }
     }
 
-    private static byte[] masterKey() {
+    private static Keyring keyring() {
+        Keyring keyring = configuredKeyring;
+        if (keyring == null) {
+            throw new ServiceException(
+                    ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "mfa secret crypto is not initialized");
+        }
+        return keyring;
+    }
+
+    private static SecretKeySpec toKey(String masterSecret) {
+        return new SecretKeySpec(deriveKey(masterSecret), KEY_ALGORITHM);
+    }
+
+    private static byte[] deriveKey(String masterSecret) {
         try {
             return MessageDigest.getInstance("SHA-256")
-                    .digest(resolveMasterSecret().getBytes(StandardCharsets.UTF_8));
+                    .digest(masterSecret.getBytes(StandardCharsets.UTF_8));
         } catch (GeneralSecurityException exception) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "mfa master key can not be derived");
         }
     }
 
-    private static String resolveMasterSecret() {
-        String property = System.getProperty("payment.mfa.secret");
-        if (property != null && !property.isBlank()) {
-            return property;
-        }
-        String env = System.getenv("PAYMENT_MFA_SECRET");
-        if (env != null && !env.isBlank()) {
-            return env;
-        }
-        return LOCAL_FALLBACK_SECRET;
+    static synchronized void resetForTests() {
+        configuredKeyring = null;
+    }
+
+    private record Keyring(SecretKeySpec encryptionKey, List<SecretKeySpec> decryptionKeys) {
     }
 }

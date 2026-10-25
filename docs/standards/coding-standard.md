@@ -105,6 +105,15 @@ return success();                       // 无业务 data，仅表示操作成�
 4. 禁止把有返回数据的接口统一改成 `success()`。这会丢失响应 `data`，并破坏 OpenAPI 响应加密、前端渲染和服务间调用。
 5. 失败响应由统一异常处理或 `CommonResult.error(...)` 构造，业务代码不要返回成功码表达失败。
 
+## 错误码治理
+
+1. 对外 OpenAPI 的稳定业务码统一定义在 `component-core` 的 `ApiResultEnum`。Controller、ApplicationService 和安全拦截器不得直接拼接新的 `F/T/Z` 字符串，也不得以 HTTP 状态码或异常类名替代业务码。
+2. 服务间内部接口统一使用 `ServiceException` 表达失败，并由 `IResult`、`ApiResultEnum` 和 `CommonResult` 传递结构化 `code/message/data`。调用方只能按 `code` 分支，禁止按 `message` 文案等值判断。
+3. Admin 和 Merchant 当前为兼容既有前端及内部调用协议，继续复用 `ApiResultEnum`，尚未维护独立的完整错误码枚举。未经接口版本设计评审，不得在这两个服务中复制或重新编号同义错误码。
+4. `T2xx` 表示成功、受理或处理中；`F4xx/F4xxxxx` 表示请求、鉴权、权限或明确业务拒绝；`F5xx` 表示平台或上游异常；`Zxxx` 保留给报文解析类错误。新增编码必须先检查全仓唯一性和既有语义。
+5. 新增或调整对外错误码必须同时更新 `ApiResultEnum`、OpenAPI 错误码表、商户处理建议和回归测试。已发布编码不得改变含义、复用于其他场景或仅修改 message 掩盖语义变化。
+6. 对外 message 只提供稳定、非敏感的概要描述，不得包含内网地址、DNS 结果、密钥、SQL、异常栈或渠道原文；详细定位信息仅进入脱敏审计日志。
+
 ## REST 路由
 
 1. 对外 OpenAPI 路径保留当前版本结构：`/api/rest/{domain}/{version}/{resource}`，例如 `/api/rest/iso/v1/currencies/query`。

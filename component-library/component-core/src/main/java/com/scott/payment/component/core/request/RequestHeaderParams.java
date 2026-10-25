@@ -111,18 +111,7 @@ public class RequestHeaderParams {
      * @return 客户端 IP
      */
     private static String getClientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-
-        String realIp = request.getHeader("X-Real-IP");
-
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
-        }
-
+        // component-core 无法验证 Gateway HMAC，因此只能记录 TCP 对端地址。
         return request.getRemoteAddr();
     }
 

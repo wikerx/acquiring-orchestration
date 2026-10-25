@@ -1,6 +1,7 @@
 package com.scott.payment.admin.config;
 
 import com.scott.payment.component.web.internal.InternalServiceClientCredentialValidator;
+import com.scott.payment.component.web.internal.InternalHttpTimeoutPolicy;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
@@ -48,8 +49,7 @@ public class SettlementInternalClientProperties {
         }
         InternalServiceClientCredentialValidator.validate(
                 "admin settlement-client", "service-admin", internalCaller, internalSecret);
-        if (connectTimeoutMillis < 1 || readTimeoutMillis < 1) {
-            throw new IllegalStateException("admin settlement-client timeouts must be positive");
-        }
+        InternalHttpTimeoutPolicy.validate(
+                "admin settlement-client", connectTimeoutMillis, readTimeoutMillis);
     }
 }

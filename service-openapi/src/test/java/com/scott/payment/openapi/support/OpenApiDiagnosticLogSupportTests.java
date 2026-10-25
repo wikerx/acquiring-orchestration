@@ -1,5 +1,7 @@
 package com.scott.payment.openapi.support;
 
+import com.scott.payment.component.core.security.GatewayIngressSignature;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import com.scott.payment.openapi.dto.body.PayoutCreateRequestDTO;
 import com.scott.payment.openapi.dto.body.reference.IpLookupRequestDTO;
 import com.scott.payment.openapi.dto.body.reference.CardBinLookupRequestDTO;
@@ -23,16 +25,18 @@ class OpenApiDiagnosticLogSupportTests {
     @Test
     void shouldDigestIpHeadersInHeaderSummary() {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.addHeader("X-Gateway-Client-Ip", "203.0.113.8");
+        request.addHeader(GatewayIngressSignature.HEADER_CLIENT_IP, "203.0.113.8");
         request.addHeader("X-Forwarded-For", "198.51.100.7, 10.0.0.2");
         request.addHeader("X-Real-IP", "192.0.2.9");
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
 
         String summary = new OpenApiDiagnosticLogSupport().headerSummary(request);
 
         assertThat(summary)
-                .contains("gatewayClientIpDigest")
-                .contains("xForwardedForDigest")
-                .contains("xRealIpDigest")
+                .contains("trustedClientIpDigest")
+                .doesNotContain("gatewayClientIpDigest")
+                .doesNotContain("xForwardedForDigest")
+                .doesNotContain("xRealIpDigest")
                 .doesNotContain("203.0.113.8")
                 .doesNotContain("198.51.100.7")
                 .doesNotContain("10.0.0.2")

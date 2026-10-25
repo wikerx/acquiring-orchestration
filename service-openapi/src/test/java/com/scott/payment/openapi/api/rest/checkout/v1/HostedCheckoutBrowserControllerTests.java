@@ -5,6 +5,7 @@ import com.scott.payment.openapi.service.OpenApiSystemConfigService;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.openapi.support.HostedCheckoutUrlPolicy;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -96,9 +97,11 @@ class HostedCheckoutBrowserControllerTests {
     }
 
     private HostedCheckoutBrowserController controller(OpenApiSystemConfigService systemConfigService) {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("test");
         return new HostedCheckoutBrowserController(
                 mock(OpenApiHostedCheckoutApplicationService.class),
                 systemConfigService,
-                new HostedCheckoutUrlPolicy());
+                new HostedCheckoutUrlPolicy(environment));
     }
 }

@@ -120,6 +120,20 @@ public interface TransactionRecordService {
      */
     TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId);
 
+    /**
+     * 从交易主库强一致读取生命周期主单。
+     * <p>
+     * 用于状态推进前及 CAS 冲突后的权威读取，确保累计授权、请款、退款等资金汇总与已提交终态一致。
+     * </p>
+     *
+     * @param transactionDateTime 生命周期根主单分片时间
+     * @param operationId 平台内部生命周期关联标识
+     * @return 主库中的生命周期主单
+     */
+    default TransactionOrderDO findOrderPrimary(LocalDateTime transactionDateTime, String operationId) {
+        return findOrder(transactionDateTime, operationId);
+    }
+
     /** 按动作分片键读取可向商户返回的支付工具脱敏摘要。 */
     default TransactionPaymentMethodInfoDO findPaymentMethodInfo(
             String transactionId,
@@ -194,6 +208,22 @@ public interface TransactionRecordService {
             String sourceTransactionId,
             LocalDateTime sourceTransactionDateTime) {
         return findSourceOperationByTransactionId(sourceTransactionId);
+    }
+
+    /**
+     * 从交易主库强一致读取当前动作事实。
+     * <p>
+     * 用于状态推进前及 CAS 冲突后的权威读取，避免读写分离副本延迟导致同步响应与已提交终态不一致。
+     * </p>
+     *
+     * @param sourceTransactionId 平台交易 ID
+     * @param sourceTransactionDateTime 原始交易分片时间
+     * @return 主库中的当前动作事实
+     */
+    default TransactionOperationDO findSourceOperationByTransactionIdPrimary(
+            String sourceTransactionId,
+            LocalDateTime sourceTransactionDateTime) {
+        return findSourceOperationByTransactionId(sourceTransactionId, sourceTransactionDateTime);
     }
 
     /**
@@ -336,6 +366,21 @@ public interface TransactionRecordService {
      */
     default TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
         return null;
+    }
+
+    /**
+     * 从交易主库强一致读取恢复已准备交易所需的原资金渠道请求。
+     * <p>
+     * 用于数据库渠道提交抢占冲突和 3DS 恢复路径，避免读写分离副本延迟导致刚写入的请求不可见，
+     * 或用旧请求状态构造与已提交事实不一致的同步响应。
+     * </p>
+     *
+     * @param operationDO 已从主库读取的交易动作单
+     * @return 主库中的原资金动作渠道请求，不存在时返回 null
+     */
+    default TransactionChannelRequestDO findOriginalChannelRequestForQueryPrimary(
+            TransactionOperationDO operationDO) {
+        return findOriginalChannelRequestForQuery(operationDO);
     }
 
     /**

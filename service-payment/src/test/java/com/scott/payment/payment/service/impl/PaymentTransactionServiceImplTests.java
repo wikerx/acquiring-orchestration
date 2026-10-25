@@ -261,6 +261,32 @@ class PaymentTransactionServiceImplTests {
     }
 
     @Test
+    void shouldReturnAuthoritativeTerminalResultWhenAnotherRequestAlreadyCompletedTheChannelCall() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        transactionRecordService.submissionClaimAllowed = false;
+        transactionRecordService.authoritativeTransactionStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        CapturingPaymentChannelInvokeService channelInvokeService =
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+        PaymentInitialPreparationResultDTO preparation = service.preparePayment(baseCommand());
+
+        PaymentCreateResultDTO resultDTO = service.submitPreparedTransaction(preparation);
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(transactionRecordService.primaryOperationLookups).isEqualTo(1);
+        assertThat(transactionRecordService.primaryOrderLookups).isEqualTo(1);
+        assertThat(transactionRecordService.primaryChannelRequestLookups).isEqualTo(1);
+        assertThat(channelInvokeService.commandDTO).isNull();
+    }
+
+    @Test
     void shouldResumeThreeDsPaymentWithSamePreparedTransactionAndChannelRequest() {
         CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
         CapturingPaymentChannelInvokeService channelInvokeService =
@@ -1227,7 +1253,8 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
         assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
-        assertThat(resultDTO.getMerchantResponseMessage()).isEqualTo("05: Declined");
+        assertThat(resultDTO.getMerchantResponseMessage()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        assertThat(resultDTO.getMerchantResponseMessage()).doesNotContain("05", "Declined");
     }
 
     /**
@@ -1559,6 +1586,14 @@ class PaymentTransactionServiceImplTests {
         private boolean submissionClaimAllowed = true;
         /** 渠道提交抢占次数。 */
         private int submissionClaimCount;
+        /** 主库已提交的权威状态；为空时保持普通测试事实。 */
+        private String authoritativeTransactionStatus;
+        /** 恢复路径从主库读取动作单的次数。 */
+        private int primaryOperationLookups;
+        /** 恢复路径从主库读取主单的次数。 */
+        private int primaryOrderLookups;
+        /** 恢复路径从主库读取原渠道请求的次数。 */
+        private int primaryChannelRequestLookups;
 
         private PaymentRiskDecisionEnum riskDecisionEnum;
 
@@ -1619,6 +1654,25 @@ class PaymentTransactionServiceImplTests {
             this.resultDTO = resultDTO;
             this.riskDecisionEnum = riskDecisionEnum;
             this.currencyExponent = currencyExponent;
+        }
+
+        /** 模拟首次交易渠道结果 CAS 成功，并保留结果供后续断言。 */
+        @Override
+        public boolean completeInitialChannelResultAndReport(PaymentCreateCommandDTO commandDTO,
+                                                             PaymentRouteResultDTO routeResultDTO,
+                                                             PaymentChannelInvokeResultDTO channelInvokeResultDTO,
+                                                             PaymentCreateResultDTO resultDTO,
+                                                             PaymentRiskDecisionEnum riskDecisionEnum,
+                                                             int currencyExponent) {
+            completeInitialChannelResult(commandDTO, routeResultDTO, channelInvokeResultDTO,
+                    resultDTO, riskDecisionEnum, currencyExponent);
+            return true;
+        }
+
+        /** 模拟渠道提交前本地失败对 INIT 请求的 CAS 抢占成功。 */
+        @Override
+        public boolean claimInitialPreChannelFailure(String requestId, LocalDateTime transactionDateTime) {
+            return StringUtils.hasText(requestId) && transactionDateTime != null;
         }
 
         /**
@@ -1688,6 +1742,17 @@ class PaymentTransactionServiceImplTests {
             orderDO.setChannelMidConfigId(1001L);
             orderDO.setChannelMerchantId("TESTDEVMER031");
             orderDO.setVersion(0);
+            return orderDO;
+        }
+
+        @Override
+        public TransactionOrderDO findOrderPrimary(LocalDateTime transactionDateTime, String operationId) {
+            primaryOrderLookups++;
+            TransactionOrderDO orderDO = findOrder(transactionDateTime, operationId);
+            if (orderDO != null && StringUtils.hasText(authoritativeTransactionStatus)) {
+                orderDO.setTransactionStatus(authoritativeTransactionStatus);
+                orderDO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+            }
             return orderDO;
         }
 
@@ -1782,6 +1847,19 @@ class PaymentTransactionServiceImplTests {
         }
 
         @Override
+        public TransactionOperationDO findSourceOperationByTransactionIdPrimary(
+                String sourceTransactionId,
+                LocalDateTime sourceTransactionDateTime) {
+            primaryOperationLookups++;
+            TransactionOperationDO operationDO = findSourceOperationByTransactionId(sourceTransactionId);
+            if (operationDO != null && StringUtils.hasText(authoritativeTransactionStatus)) {
+                operationDO.setTransactionStatus(authoritativeTransactionStatus);
+                operationDO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+            }
+            return operationDO;
+        }
+
+        @Override
         public TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
             originalChannelRequestLookups++;
             if (operationDO == null || resultDTO == null
@@ -1802,6 +1880,13 @@ class PaymentTransactionServiceImplTests {
             requestDO.setTransactionDateTime(operationDO.getTransactionDateTime());
             requestDO.setRequestStatus("INIT");
             return requestDO;
+        }
+
+        @Override
+        public TransactionChannelRequestDO findOriginalChannelRequestForQueryPrimary(
+                TransactionOperationDO operationDO) {
+            primaryChannelRequestLookups++;
+            return findOriginalChannelRequestForQuery(operationDO);
         }
 
         private boolean isRecordedInitialOperation(LocalDateTime transactionDateTime, String operationId) {
@@ -1885,6 +1970,61 @@ class PaymentTransactionServiceImplTests {
         @Override
         public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
             this.followUpRecordDTO = recordDTO;
+            this.commandDTO = recordDTO.getCommandDTO();
+            this.routeResultDTO = recordDTO.getRouteResultDTO();
+            this.resultDTO = recordDTO.getResultDTO();
+        }
+
+        /** 模拟 Capture 动作 CAS 成功。 */
+        @Override
+        public boolean completeCaptureChannelResult(TransactionOperationDO operationDO,
+                                                    TransactionOrderDO sourceOrderDO,
+                                                    PaymentCreateCommandDTO commandDTO,
+                                                    PaymentRouteResultDTO routeResultDTO,
+                                                    PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                    PaymentCreateResultDTO resultDTO,
+                                                    int currencyExponent) {
+            this.resultDTO = resultDTO;
+            return true;
+        }
+
+        /** 模拟 Refund 动作 CAS 成功。 */
+        @Override
+        public boolean completeRefundChannelResult(TransactionOperationDO operationDO,
+                                                   TransactionOrderDO sourceOrderDO,
+                                                   PaymentCreateCommandDTO commandDTO,
+                                                   PaymentRouteResultDTO routeResultDTO,
+                                                   PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                   PaymentCreateResultDTO resultDTO,
+                                                   int currencyExponent) {
+            this.resultDTO = resultDTO;
+            return true;
+        }
+
+        /** 模拟 Void 动作 CAS 成功。 */
+        @Override
+        public boolean completeVoidChannelResult(TransactionOperationDO operationDO,
+                                                 TransactionOrderDO sourceOrderDO,
+                                                 PaymentCreateCommandDTO commandDTO,
+                                                 PaymentRouteResultDTO routeResultDTO,
+                                                 PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                 PaymentCreateResultDTO resultDTO,
+                                                 int currencyExponent) {
+            this.resultDTO = resultDTO;
+            return true;
+        }
+
+        /** 模拟 Incremental Authorization 动作 CAS 成功。 */
+        @Override
+        public boolean completeIncrementalAuthorizationChannelResult(TransactionOperationDO operationDO,
+                                                                     TransactionOrderDO sourceOrderDO,
+                                                                     PaymentCreateCommandDTO commandDTO,
+                                                                     PaymentRouteResultDTO routeResultDTO,
+                                                                     PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                                     PaymentCreateResultDTO resultDTO,
+                                                                     int currencyExponent) {
+            this.resultDTO = resultDTO;
+            return true;
         }
 
         /**

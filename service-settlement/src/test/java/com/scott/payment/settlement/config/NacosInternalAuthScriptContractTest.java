@@ -182,6 +182,42 @@ class NacosInternalAuthScriptContractTest {
         assertThat(processOutput).contains("least-privilege edge validation failed");
     }
 
+    /** 服务模板同步必须保留 Admin/Merchant 已配置的稳定 MFA 密钥，避免发布后再次触发启动门禁。 */
+    @Test
+    void scriptShouldPreserveRuntimeMfaSecretsDuringServiceConfigSync() throws Exception {
+        Path script = repositoryPath("scripts/manage-nacos-internal-auth.sh");
+        Path current = tempDir.resolve("current-mfa.yaml");
+        Path template = tempDir.resolve("template-mfa.yaml");
+        Path output = tempDir.resolve("output-mfa.yaml");
+        Files.writeString(current, "payment:\n"
+                + "  mfa:\n"
+                + "    secret: \"" + OLD_SECRET + "\"\n"
+                + "    previous-secrets: " + NEW_SECRET + "\n", StandardCharsets.UTF_8);
+        Files.writeString(template, "payment:\n"
+                + "  mfa:\n"
+                + "    secret: ${PAYMENT_MFA_SECRET:}\n"
+                + "    previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}\n"
+                + "    allow-ephemeral-test-secret: false\n", StandardCharsets.UTF_8);
+
+        String command = "source \"$1\"\n"
+                + "work_dir=\"$2\"\n"
+                + "preserve_service_runtime_secrets service-admin \"$3\" \"$4\" \"$5\"\n";
+        Process process = new ProcessBuilder(
+                "bash", "-c", command, "bash",
+                script.toString(), tempDir.toString(), current.toString(), template.toString(), output.toString())
+                .redirectErrorStream(true)
+                .start();
+        String processOutput = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exitCode = process.waitFor();
+
+        assertThat(exitCode).as(processOutput).isZero();
+        assertThat(Files.readString(output))
+                .contains("    secret: " + OLD_SECRET)
+                .contains("    previous-secrets: " + NEW_SECRET)
+                .contains("    allow-ephemeral-test-secret: false")
+                .doesNotContain("${PAYMENT_MFA_SECRET:}", "${PAYMENT_MFA_PREVIOUS_SECRETS:}");
+    }
+
     private String legacyConfiguration() {
         return "acquiring:\n"
                 + "  mq:\n"

@@ -182,6 +182,19 @@ public final class GatewayIngressSignature {
                 || path.equals("/checkout/health"));
     }
 
+    /** 判断请求路径是否属于管理后台或商户后台公网入口。 */
+    public static boolean isProtectedPortalPath(String path) {
+        return path != null && (path.equals("/admin")
+                || path.startsWith("/admin/")
+                || path.equals("/merchant")
+                || path.startsWith("/merchant/"));
+    }
+
+    /** 判断 Gateway 是否必须清理外部签名头并为下游重新签名。 */
+    public static boolean isProtectedGatewayPath(String path) {
+        return isProtectedCheckoutPath(path) || isProtectedPortalPath(path);
+    }
+
     private static String hmacSha256(String content, String secret) {
         try {
             Mac mac = Mac.getInstance(HMAC_SHA256);

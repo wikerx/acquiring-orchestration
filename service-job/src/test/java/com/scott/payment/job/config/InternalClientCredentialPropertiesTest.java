@@ -28,4 +28,13 @@ class InternalClientCredentialPropertiesTest {
 
         assertThatCode(properties::validate).doesNotThrowAnyException();
     }
+
+    @Test
+    void dataClientShouldRejectTimeoutsAboveThePlatformLimit() {
+        DataInternalClientProperties properties = new DataInternalClientProperties();
+        properties.setInternalSecret("unit-test-job-data-secret-at-least-32-bytes");
+        properties.setReadTimeoutMillis(60_001);
+
+        assertThatThrownBy(properties::validate).hasMessageContaining("60000ms");
+    }
 }

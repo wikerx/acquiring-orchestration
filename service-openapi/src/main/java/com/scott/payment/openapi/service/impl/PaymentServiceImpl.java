@@ -19,6 +19,7 @@ import com.scott.payment.openapi.enums.OpenApiPaymentOperationEnum;
 import com.scott.payment.openapi.service.PaymentService;
 import com.scott.payment.openapi.support.OpenApiRequestContext;
 import com.scott.payment.openapi.support.OpenApiRequestAttributes;
+import com.scott.payment.openapi.support.HostedCheckoutUrlPolicy;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
 import jakarta.servlet.http.HttpServletRequest;
@@ -150,6 +151,9 @@ public class PaymentServiceImpl implements PaymentService {
      */
     private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
 
+    /** 商户回调地址环境安全策略。 */
+    private final HostedCheckoutUrlPolicy urlPolicy;
+
     /**
      * 创建开放接口收单支付服务实现。
      *
@@ -159,19 +163,22 @@ public class PaymentServiceImpl implements PaymentService {
      * @param requestContext          OpenAPI 请求上下文访问器
      * @param isoDictionaryService    ISO 币种字典服务
      * @param merchantRuntimeProfileCacheService 商户运行时资料缓存服务
+     * @param urlPolicy 商户回调地址环境安全策略
      */
     public PaymentServiceImpl(OpenApiRequestConverter converter,
                               PaymentInternalClient paymentInternalClient,
                               OpenApiKeyMaterialFactory keyMaterialFactory,
                               OpenApiRequestContext requestContext,
                               IsoDictionaryService isoDictionaryService,
-                              MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService) {
+                              MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
+                              HostedCheckoutUrlPolicy urlPolicy) {
         this.converter = converter;
         this.paymentInternalClient = paymentInternalClient;
         this.keyMaterialFactory = keyMaterialFactory;
         this.requestContext = requestContext;
         this.isoDictionaryService = isoDictionaryService;
         this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
+        this.urlPolicy = urlPolicy;
     }
 
     /**
@@ -430,7 +437,8 @@ public class PaymentServiceImpl implements PaymentService {
         clientRequestDTO.setRequestSource("OPENAPI");
         clientRequestDTO.setApplicantId(requestContext.getRequiredMerchantId());
         if (requestDTO.getTransactionInfo() != null) {
-            clientRequestDTO.setCallbackUrl(requestDTO.getTransactionInfo().getCallbackUrl());
+            clientRequestDTO.setCallbackUrl(urlPolicy.validateMerchantUrl(
+                    requestDTO.getTransactionInfo().getCallbackUrl(), "transactionInfo.callbackUrl"));
             clientRequestDTO.setRequestReason(requestDTO.getTransactionInfo().getDescription());
         }
         clientRequestDTO.setRequestFingerprint(keyMaterialFactory.fingerprint(encryptedData));

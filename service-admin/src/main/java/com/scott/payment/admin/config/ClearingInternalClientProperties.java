@@ -1,6 +1,7 @@
 package com.scott.payment.admin.config;
 
 import com.scott.payment.component.web.internal.InternalServiceClientCredentialValidator;
+import com.scott.payment.component.web.internal.InternalHttpTimeoutPolicy;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
@@ -43,9 +44,8 @@ public class ClearingInternalClientProperties {
         validateBaseUrl();
         InternalServiceClientCredentialValidator.validate(
                 "admin clearing-client", REQUIRED_CALLER, internalCaller, internalSecret);
-        if (connectTimeoutMillis < 1 || readTimeoutMillis < 1) {
-            throw new IllegalStateException("admin clearing-client timeouts must be positive");
-        }
+        InternalHttpTimeoutPolicy.validate(
+                "admin clearing-client", connectTimeoutMillis, readTimeoutMillis);
     }
 
     /** 只允许无凭据、无查询和无片段的 HTTP(S) 服务根地址。 */

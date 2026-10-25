@@ -24,6 +24,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
                 "acquiring.gateway-ingress.secret=0123456789abcdef0123456789abcdef",
                 "spring.cloud.nacos.config.enabled=false",
                 "spring.cloud.nacos.discovery.enabled=false",
+                "spring.cloud.gateway.server.webflux.httpclient.connect-timeout=3000",
+                "spring.cloud.gateway.server.webflux.httpclient.response-timeout=40s",
                 "management.health.redis.enabled=false"
         })
 class GatewayHealthEndpointTests {

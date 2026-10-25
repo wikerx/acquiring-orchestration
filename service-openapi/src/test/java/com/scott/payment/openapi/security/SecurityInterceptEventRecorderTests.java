@@ -5,6 +5,7 @@ import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.SecurityInterceptAuditMessage;
 import com.scott.payment.component.mq.publisher.IndependentReliableMqPublisher;
 import com.scott.payment.component.mq.properties.SecurityAuditMqProperties;
+import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -42,6 +43,7 @@ class SecurityInterceptEventRecorderTests {
         request.addHeader("X-Request-Id", "REQ-SEC-001");
         request.addHeader("User-Agent", "sdk-test/1.0");
         request.addHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP, "203.0.113.10");
+        request.setAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
 
         recorder.recordBlocked(request, SecurityInterceptEventRecorder.SOURCE_OPENAPI,
                 "OPENAPI_IP_DENIED", SecurityInterceptEventRecorder.RISK_HIGH,
