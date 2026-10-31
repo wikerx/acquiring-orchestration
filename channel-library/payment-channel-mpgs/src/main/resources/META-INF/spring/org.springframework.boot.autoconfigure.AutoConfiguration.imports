@@ -1,1 +1,1 @@
-com.scott.payment.channel.payment.mpgs.MpgsChannelAutoConfiguration
+com.scott.payment.channel.payment.mpgs.config.ChannelAutoConfiguration

@@ -1,1 +1,1 @@
-com.scott.payment.channel.payment.worldpay.WorldPayChannelAutoConfiguration
+com.scott.payment.channel.payment.worldpay.config.ChannelAutoConfiguration
