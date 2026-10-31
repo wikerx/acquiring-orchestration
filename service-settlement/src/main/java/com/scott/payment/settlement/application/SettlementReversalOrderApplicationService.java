@@ -24,6 +24,8 @@ import com.scott.payment.settlement.mapper.SettlementResultMapper;
 import com.scott.payment.settlement.mapper.SettlementReversalDailySequenceMapper;
 import com.scott.payment.settlement.mapper.SettlementReversalOrderMapper;
 import com.scott.payment.settlement.support.SettlementReversalNumberFormatter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,24 +43,18 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementReversalOrderApplicationService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 编排结算冲正申请和异人复核；以请求键、版本 CAS 和冻结资金指纹保护终态，批准后委托批次命令创建独立反向流水。
- * @status : create
+ * 结算冲正申请与异人复核编排。
+ *
+ * <p>提交时冻结原批次资金指纹，批准前重新锁读并复验；Maker 与 Checker 必须为不同账号。
+ * 批准后委托批次命令创建独立反向资金事实，禁止改写原入账记录。</p>
  */
 @Service
 public class SettlementReversalOrderApplicationService {
 
-    /**
-     * {@code MAX_DAILY_SEQUENCE}常量，统一 {@code SettlementReversalOrderApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            SettlementReversalOrderApplicationService.class);
+
+    /** 每个业务日允许生成的最大冲正序号。 */
     private static final int MAX_DAILY_SEQUENCE = 99_999_999;
 
     private final SettlementReversalDailySequenceMapper sequenceMapper;
@@ -129,6 +125,9 @@ public class SettlementReversalOrderApplicationService {
         SettlementReversalOrderDO existing = orderMapper.selectByCreateRequestKeyForUpdate(command.requestKey());
         if (existing != null) {
             verifyCreateReplay(existing, command);
+            LOGGER.info("结算冲正申请幂等返回, event: SETTLEMENT_REVERSAL_SUBMIT_REPLAY, reversalOrderNo: {}, originalBatchNo: {}, reversalStatus: {}",
+                    existing.getReversalOrderNo(), existing.getOriginalBatchNo(),
+                    existing.getReversalStatus());
             return result(existing);
         }
 
@@ -172,6 +171,9 @@ public class SettlementReversalOrderApplicationService {
         if (orderMapper.insertIdempotent(order) != 1) {
             throw new IllegalStateException("settlement reversal order insert failed");
         }
+        LOGGER.info("结算冲正申请事务写入完成, event: SETTLEMENT_REVERSAL_SUBMIT_WRITE_END, reversalOrderNo: {}, originalBatchNo: {}, merchantId: {}, currency: {}",
+                order.getReversalOrderNo(), order.getOriginalBatchNo(),
+                order.getMerchantId(), order.getTargetCurrency());
         return result(order);
     }
 
@@ -195,6 +197,8 @@ public class SettlementReversalOrderApplicationService {
         SettlementReversalOrderDO replay = orderMapper.selectByDecisionRequestKeyForUpdate(command.requestKey());
         if (replay != null) {
             verifyDecisionReplay(replay, reversalOrderNo.trim(), command);
+            LOGGER.info("结算冲正复核幂等返回, event: SETTLEMENT_REVERSAL_DECISION_REPLAY, reversalOrderNo: {}, decisionAction: {}, reversalStatus: {}",
+                    replay.getReversalOrderNo(), replay.getDecisionAction(), replay.getReversalStatus());
             return result(replay);
         }
         SettlementReversalOrderDO order = orderMapper.selectByReversalOrderNoForUpdate(reversalOrderNo.trim());
@@ -212,6 +216,8 @@ public class SettlementReversalOrderApplicationService {
             }
             order.setReversalStatus(SettlementReversalStatus.REJECTED.name());
             order.setVersion(order.getVersion() + 1);
+            LOGGER.info("结算冲正申请已拒绝, event: SETTLEMENT_REVERSAL_REJECT_WRITE_END, reversalOrderNo: {}, originalBatchNo: {}, expectedVersion: {}",
+                    order.getReversalOrderNo(), order.getOriginalBatchNo(), command.expectedVersion());
             return result(order);
         }
 
@@ -234,6 +240,8 @@ public class SettlementReversalOrderApplicationService {
         }
         order.setReversalStatus(SettlementReversalStatus.APPROVED.name());
         order.setVersion(order.getVersion() + 1);
+        LOGGER.info("结算冲正申请已批准, event: SETTLEMENT_REVERSAL_APPROVE_WRITE_END, reversalOrderNo: {}, originalBatchNo: {}, reversalBatchNo: {}",
+                order.getReversalOrderNo(), order.getOriginalBatchNo(), reversalBatchNo);
         return result(order);
     }
 

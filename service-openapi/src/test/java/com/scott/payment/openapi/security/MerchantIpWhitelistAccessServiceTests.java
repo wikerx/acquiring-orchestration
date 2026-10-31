@@ -1,6 +1,7 @@
 package com.scott.payment.openapi.security;
 
 import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
@@ -22,7 +23,7 @@ class MerchantIpWhitelistAccessServiceTests {
         MockHttpServletRequest request = requestFrom("203.0.113.10");
 
         assertDenied(service(policy), request, MerchantIpWhitelistDenyReason.WHITELIST_EMPTY,
-                "Forbidden:merchant ip not allowed, requestIp: 203.0.113.10");
+                OpenApiResultCode.SOURCE_NOT_ALLOWED.getMessage());
     }
 
     @Test
@@ -56,7 +57,7 @@ class MerchantIpWhitelistAccessServiceTests {
         request.setAttribute(GatewayIngressAuthFilter.GATEWAY_CLIENT_IP_AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
 
         assertDenied(service, request, MerchantIpWhitelistDenyReason.CLIENT_IP_MISSING,
-                "Forbidden:merchant ip not allowed, requestIp: unknown");
+                OpenApiResultCode.SOURCE_NOT_ALLOWED.getMessage());
     }
 
     @Test
@@ -67,7 +68,7 @@ class MerchantIpWhitelistAccessServiceTests {
 
         assertThatThrownBy(() -> service.checkAccess(MERCHANT_ID, request))
                 .isInstanceOf(MerchantIpWhitelistAccessDeniedException.class)
-                .hasMessage("Forbidden:merchant ip not allowed, requestIp: 203.0.113.10")
+                .hasMessage(OpenApiResultCode.SOURCE_NOT_ALLOWED.getMessage())
                 .extracting(exception -> ((MerchantIpWhitelistAccessDeniedException) exception).getReason())
                 .isEqualTo(MerchantIpWhitelistDenyReason.IP_NOT_ALLOWED);
     }
@@ -78,7 +79,7 @@ class MerchantIpWhitelistAccessServiceTests {
         MockHttpServletRequest request = requestFrom("invalid-ip");
 
         assertDenied(service, request, MerchantIpWhitelistDenyReason.CLIENT_IP_INVALID,
-                "Forbidden:merchant ip not allowed, requestIp: unknown");
+                OpenApiResultCode.SOURCE_NOT_ALLOWED.getMessage());
     }
 
     @Test

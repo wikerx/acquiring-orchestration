@@ -19,7 +19,7 @@ import java.time.Duration;
  * @classname : PayoutClientConfig
  * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : Payout Client Config 配置类，位于 商户开放接口服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
+ * @description : 配置 service-openapi 调用 service-payout 的直连与服务发现客户端，统一校验超时边界并传播 traceId。
  * @status : create
  */
 @Configuration
@@ -27,9 +27,11 @@ import java.time.Duration;
 public class PayoutClientConfig {
 
     /**
-     * 注册直连 RestTemplate。
+     * 注册使用显式主机地址的直连 RestTemplate，并绕过系统代理。
      *
-     * @return RestTemplate
+     * @param traceIdRestTemplateCustomizer traceId 传播定制器
+     * @param properties 代付内部客户端地址与超时配置
+     * @return 供本地直连或显式 URL 调用使用的客户端
      */
     @Bean("payoutRestTemplate")
     public RestTemplate payoutRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer,
@@ -43,9 +45,12 @@ public class PayoutClientConfig {
     }
 
     /**
-     * 注册带负载均衡能力的 RestTemplate。
+     * 注册带服务发现能力的 RestTemplate，并将连接、读取超时同时应用到实际请求工厂。
      *
-     * @return RestTemplate
+     * @param builder Spring Boot 客户端构建器
+     * @param traceInterceptor traceId 传播拦截器
+     * @param properties 代付内部客户端地址与超时配置
+     * @return 供 Nacos 服务名调用使用的负载均衡客户端
      */
     @Bean("payoutLoadBalancedRestTemplate")
     @LoadBalanced
@@ -54,8 +59,8 @@ public class PayoutClientConfig {
                                                        PayoutClientProperties properties) {
         properties.validate();
         return builder
-                .setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
-                .setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
+                .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
+                .readTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
                 .additionalInterceptors(traceInterceptor)
                 .build();
     }

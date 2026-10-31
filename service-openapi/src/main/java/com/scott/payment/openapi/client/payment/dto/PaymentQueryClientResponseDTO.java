@@ -318,6 +318,18 @@ public class PaymentQueryClientResponseDTO implements Serializable {
         /** 当前动作交易状态。 */
         private String transactionStatus;
 
+        /** 当前动作内部处理阶段，仅用于 OpenAPI 结果投影。 */
+        private String processStage;
+
+        /** 支付核心受控失败原因码，不包含渠道原始码。 */
+        private String failReasonCode;
+
+        /** 支付核心内部失败摘要；商户响应不得直接透传。 */
+        private String failReasonMessage;
+
+        /** 支付核心受控等待原因码，用于识别渠道结果未确认。 */
+        private String pendingReasonCode;
+
         /**
          * 交易受理时刻，按交易业务时区解释并保留毫秒精度。
          * <p>

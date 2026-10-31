@@ -16,13 +16,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantTransactionResultDetailService
- * @date : 2026-08-14 13:45
- * @email : scott_x@163.com
- * @description : 从认证和财务逻辑表读取商户可见结果，严格排除 CAVV、认证原文和未形成的结算数据。
- * @status : create
+ * 商户交易结果的认证与财务详情投影服务。
+ *
+ * <p>该服务只读取已持久化事实并生成商户受众允许看到的字段。CAVV、渠道认证原文、内部风控信息
+ * 和尚未形成的结算数据不得进入投影；管理端更详细的排障信息应由独立受众模型提供。</p>
  */
 @Service
 public class DefaultMerchantTransactionResultDetailService implements MerchantTransactionResultDetailService {
@@ -59,6 +56,7 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         }
         MerchantTransactionResultDetailDTO.ThreeDsInfoDTO threeDs =
                 new MerchantTransactionResultDetailDTO.ThreeDsInfoDTO();
+        // 仅投影协议允许的认证摘要，禁止复制 CAVV 或渠道原始认证报文。
         threeDs.setEci(source.getEci());
         threeDs.setDsTransactionId(source.getDsTransactionId());
         threeDs.setThreeDsVersion(source.getThreeDsVersion());
@@ -83,6 +81,7 @@ public class DefaultMerchantTransactionResultDetailService implements MerchantTr
         if (source == null) {
             return;
         }
+        // 财务字段来自已形成的交易财务状态，不根据当前汇率或费率重新计算历史结果。
         target.setSettlementRate(source.getSettlementRate());
         target.setSettlementAmount(source.getSettlementAmount());
         target.setSettlementCurrency(source.getSettlementCurrency());

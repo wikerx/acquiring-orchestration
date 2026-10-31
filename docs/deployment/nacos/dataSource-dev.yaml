@@ -80,13 +80,13 @@ mybatis-plus:
 
 logging:
   level:
-    # MyBatis/Plus SQL 与绑定参数日志级别。dev 默认 DEBUG；设为 OFF 可统一关闭。
-    # DEBUG 会输出绑定值，排查结束后应关闭，UAT/生产禁止长期启用。
-    sql.mybatis: ${SQL_LOG_LEVEL:DEBUG}
+    # MyBatis/Plus DEBUG 会输出绑定参数，其中可能包含渠道凭据、持卡人资料和交易报文。
+    # dev 默认关闭；仅允许在无真实凭据和个人信息的隔离数据集上短时显式开启，排查结束后立即恢复 OFF。
+    sql.mybatis: ${SQL_LOG_LEVEL:OFF}
     # JdbcTemplate 和 NamedParameterJdbcTemplate 最终均由 JdbcTemplate 执行，DEBUG 输出 SQL 模板但不输出绑定值。
-    org.springframework.jdbc.core.JdbcTemplate: ${SQL_LOG_LEVEL:DEBUG}
+    org.springframework.jdbc.core.JdbcTemplate: ${SQL_LOG_LEVEL:OFF}
     # 直接使用 JDBC PreparedStatement 的少量固定监控 SQL 使用该专用 Logger。
-    sql.jdbc.direct: ${SQL_LOG_LEVEL:DEBUG}
+    sql.jdbc.direct: ${SQL_LOG_LEVEL:OFF}
     # Spring JDBC 绑定参数由 StatementCreatorUtils 在 TRACE 输出，默认关闭以避免记录卡号和商户敏感字段。
     # 仅在隔离开发环境短时排查参数绑定问题时设置 SQL_PARAMETER_LOG_LEVEL=TRACE。
     org.springframework.jdbc.core.StatementCreatorUtils: ${SQL_PARAMETER_LOG_LEVEL:OFF}

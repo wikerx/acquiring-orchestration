@@ -16,13 +16,11 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentChannelResultTransactionService
- * @date : 2026-07-23 00:00
- * @email : scott_x@163.com
- * @description : 渠道同步结果事务默认实现，位于 service-payment 服务实现层，使用 REQUIRES_NEW 保证渠道结果持久化不依赖调用方事务。
- * @status : create
+ * 首次支付渠道结果的独立事务服务。
+ *
+ * <p>渠道 HTTP 调用必须在数据库事务之外执行；取得结果后，本服务使用独立事务持久化渠道证据、
+ * CAS 推进平台状态，并在终态 CAS 获胜时同事务写入生命周期 Outbox。重复或晚到结果只允许补充
+ * 渠道事实，不能覆盖已提交终态。</p>
  */
 @Service
 public class DefaultPaymentChannelResultTransactionService implements PaymentChannelResultTransactionService {
@@ -66,6 +64,7 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
                                               PaymentCreateResultDTO resultDTO,
                                               PaymentRiskDecisionEnum riskDecisionEnum,
                                               int currencyExponent) {
+        // 返回值表示平台状态 CAS 是否获胜，不等同于“渠道调用是否成功”。
         boolean statusChanged = transactionRecordService.completeInitialChannelResultAndReport(
                 commandDTO,
                 routeResultDTO,
@@ -76,6 +75,7 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
         if (statusChanged
                 && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus()))) {
+            // 事件与终态在当前独立事务内共同提交，避免先发消息后回滚状态。
             lifecycleEventService.saveStatusChanged(
                     resultDTO.getTransactionId(),
                     resultDTO.getOperationId(),
@@ -93,6 +93,7 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
     @DS(DataSourceName.TRANSACTION)
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public boolean claimInitialChannelSubmission(String requestId, java.time.LocalDateTime transactionDateTime) {
+        // 只有 INIT 请求可以被抢占，防止重放请求对同一渠道动作发起第二次资金调用。
         return transactionRecordService.claimInitialChannelSubmission(requestId, transactionDateTime);
     }
 
@@ -108,6 +109,7 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
                                                   PaymentCreateResultDTO resultDTO,
                                                   PaymentRiskDecisionEnum riskDecisionEnum,
                                                   int currencyExponent) {
+        // 前置失败没有真实 PSP 响应，先抢占准备记录，再以平台失败原因收敛，禁止伪造渠道交互。
         if (!transactionRecordService.claimInitialPreChannelFailure(
                 invokeResultDTO.getRequestId(), commandDTO.getTransactionDateTime())) {
             return false;

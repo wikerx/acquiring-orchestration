@@ -1,6 +1,7 @@
 package com.scott.payment.openapi.service.impl;
 
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantKeyMetadataCacheService;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
@@ -63,7 +64,8 @@ class MerchantSecurityServiceSharedCacheTests {
 
         assertThatThrownBy(() -> fixture.service().getActiveMerchant("200045"))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining("Merchant config not found");
+                .hasFieldOrPropertyWithValue(
+                        "code", OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE.getCode());
         verifyNoInteractions(fixture.merchantInfoMapper());
     }
 

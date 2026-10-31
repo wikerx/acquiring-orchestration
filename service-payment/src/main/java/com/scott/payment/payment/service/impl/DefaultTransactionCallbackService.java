@@ -527,6 +527,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     "callback status is non-terminal and waits channel query match",
                     now);
         }
+        applyCallbackReferences(context.operationDO(), channelCallbackResult);
         boolean changed = transactionRecordService.completeByChannelCallback(
                 context.operationDO(),
                 context.orderDO(),
@@ -800,16 +801,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 解析回调动作，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param channelCallbackResult 已完成渠道验签和协议解析的回调结果，不包含可直接记录的敏感原文
-     * @param transactionId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @param channelOrderNo 渠道订单号，用于回调关联、渠道查询和对账
-     * @param channelTransactionId 业务记录主键或主键集合，用于精确定位当前操作对象
-     * @return 构造、转换或解析后的业务值
+     * 按回调类型和渠道身份解析目标动作单。
+     *
+     * <p>普通回调优先使用渠道订单号与渠道交易号精确定位，定位失败时再按平台交易号降级；
+     * 3DS 回调直接关联平台交易号，避免把认证回调误匹配为资金动作。</p>
      */
     private TransactionOperationDO resolveCallbackOperation(TransactionChannelCallbackCommandDTO commandDTO,
                                                             ChannelCallbackResult channelCallbackResult,
@@ -821,7 +816,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         }
         if (StringUtils.hasText(channelOrderNo) && StringUtils.hasText(channelTransactionId)) {
             try {
-                return transactionRecordService.findOperationByChannelTransaction(channelOrderNo, channelTransactionId);
+                TransactionOperationDO operationDO = transactionRecordService.findOperationByChannelTransaction(
+                        channelOrderNo, channelTransactionId);
+                if (operationDO != null) {
+                    return operationDO;
+                }
             } catch (ServiceException exception) {
                 // 渠道部分回调可能只携带 order.id，继续按平台交易号降级定位原交易。
             }
@@ -831,10 +830,39 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
 
     private CallbackPayload parsePayload(TransactionChannelCallbackCommandDTO commandDTO,
                                          ChannelCallbackResult channelCallbackResult) {
+        Map<String, String> extension = channelCallbackResult == null
+                || channelCallbackResult.getExtension() == null
+                ? Map.of()
+                : channelCallbackResult.getExtension();
         return new CallbackPayload(
-                firstText(commandDTO.getTransactionId(), channelCallbackResult == null ? null : channelCallbackResult.getChannelOrderNo()),
+                firstText(
+                        commandDTO.getTransactionId(),
+                        extension.get("merchantOrderNo"),
+                        channelCallbackResult == null ? null : channelCallbackResult.getChannelOrderNo()),
                 firstText(commandDTO.getChannelOrderNo(), channelCallbackResult == null ? null : channelCallbackResult.getChannelOrderNo()),
                 firstText(commandDTO.getChannelTransactionId(), channelCallbackResult == null ? null : channelCallbackResult.getChannelTransactionId()));
+    }
+
+    /** 将卡授权回调中的真实渠道身份、授权码和 ARN 合并到终态 CAS 输入。 */
+    private void applyCallbackReferences(TransactionOperationDO operationDO,
+                                         ChannelCallbackResult channelCallbackResult) {
+        if (operationDO == null || channelCallbackResult == null) {
+            return;
+        }
+        Map<String, String> extension = channelCallbackResult.getExtension() == null
+                ? Map.of()
+                : channelCallbackResult.getExtension();
+        operationDO.setChannelOrderNo(firstText(
+                extension.get("authorizationId"),
+                channelCallbackResult.getChannelOrderNo(),
+                operationDO.getChannelOrderNo()));
+        operationDO.setChannelTransactionId(firstText(
+                channelCallbackResult.getChannelTransactionId(),
+                operationDO.getChannelTransactionId()));
+        operationDO.setAuthCode(firstText(extension.get("authorizationCode"), operationDO.getAuthCode()));
+        operationDO.setAcquirerReferenceNo(firstText(
+                extension.get("acquirerReferenceNumber"),
+                operationDO.getAcquirerReferenceNo()));
     }
 
     /**

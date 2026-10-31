@@ -88,7 +88,7 @@ class OpenApiCallbackSecuritySupportTests {
         assertThatThrownBy(() -> support.verifyChannelCallback(
                 CHANNEL_CODE, ChannelCallbackScene.STANDARD, request(), RAW_BODY))
                 .isInstanceOfSatisfying(ApiException.class,
-                        exception -> assertThat(exception.getCode()).isEqualTo("F500"));
+                        exception -> assertThat(exception.getCode()).isEqualTo("F2000"));
     }
 
     @Test

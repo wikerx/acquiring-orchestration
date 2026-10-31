@@ -23,6 +23,6 @@ public class AuthorizationAspect {
      * 该方法保留给后续 AOP 编排扩展，避免在控制器中重复认证逻辑。
      */
     public void verifyMerchantRequest() {
-        log.debug("开始开放接口商户请求认证预处理");
+        log.debug("OpenAPI商户请求认证预处理开始, event: OPENAPI_AUTH_PRE_PROCESS_START");
     }
 }

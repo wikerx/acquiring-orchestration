@@ -1,12 +1,12 @@
 package com.scott.payment.openapi;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.service.MerchantSecurityService;
 import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
 import com.scott.payment.openapi.vo.iso.IsoCountryVO;
@@ -213,7 +213,7 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                 JsonUtils.toJsonString(Map.of("englishName", "Dollar")),
                 merchantMaterial,
                 MerchantOpenApiTestSupport.uniqueJwtId("iso-currency-old-field"),
-                ApiResultEnum.PARAM_INVALID
+                OpenApiResultCode.PARAM_INVALID
         );
     }
 
@@ -232,7 +232,7 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                 plainRequestJson,
                 merchantMaterial,
                 MerchantOpenApiTestSupport.uniqueJwtId("iso-country-invalid-alpha2"),
-                ApiResultEnum.PARAM_INVALID
+                OpenApiResultCode.PARAM_INVALID
         );
 
         log.info("商户国家地区查询异常响应验证完成，错误响应：{}",
@@ -254,7 +254,7 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                 plainRequestJson,
                 merchantMaterial,
                 MerchantOpenApiTestSupport.uniqueJwtId("iso-currency-invalid-code"),
-                ApiResultEnum.PARAM_INVALID
+                OpenApiResultCode.PARAM_INVALID
         );
 
         log.info("商户币种查询异常响应验证完成，错误响应：{}",
@@ -322,7 +322,8 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                         result.getResponse().getStatus(),
                         MerchantOpenApiTestSupport.safeSecretSummary(result.getResponse().getContentAsString(), keyMaterialFactory)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ApiResultEnum.SUCCESS.getCode()))
+                // A0000 只表示请求已形成约定响应；ISO 数据是否命中由解密后的 data 断言。
+                .andExpect(jsonPath("$.code").value(OpenApiResultCode.REQUEST_SUCCESS.getCode()))
                 .andExpect(jsonPath("$.data").isString())
                 .andReturn();
     }
@@ -334,7 +335,7 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
      * @param plainRequestJson 明文业务 JSON
      * @param merchantMaterial 商户侧安全材料
      * @param jwtId            JWT 唯一标识
-     * @param expectedError    预期错误枚举
+     * @param expectedError    V1.3 对外错误码
      * @return MockMvc 调用结果
      * @throws Exception MockMvc 调用异常
      */
@@ -342,7 +343,7 @@ class MerchantOpenApiIsoDictionaryTests extends OpenApiIsolatedMysqlIntegrationT
                                                        String plainRequestJson,
                                                        MerchantSecurityMaterialDTO merchantMaterial,
                                                        String jwtId,
-                                                       ApiResultEnum expectedError) throws Exception {
+                                                       OpenApiResultCode expectedError) throws Exception {
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
                 payloadCrypto.readPublicKey(merchantMaterial.getPlatformPublicKeyX509Base64())

@@ -33,13 +33,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantRouteProfileCacheReader
- * @date : 2026-08-01 15:35
- * @email : scott_x@163.com
- * @description : 使用六次有界批量主库查询构建 merchant:route 永久快照，禁止把渠道敏感元数据写入 Redis
- * @status : create
+ * 商户路由永久快照的主库构建器。
+ *
+ * <p>通过有界批量查询聚合商户绑定、MID、渠道、支付能力、币种和卡品牌，并只缓存路由决策所需
+ * 的非敏感字段。MID 密码、API Key、证书、私钥和 metadataValueJson 永不进入该 Redis 快照；
+ * 缓存重建固定读取主库，避免复制延迟重新写入旧配置。</p>
  */
 @Service
 public class MerchantRouteProfileCacheReader {
@@ -132,6 +130,7 @@ public class MerchantRouteProfileCacheReader {
             return profile;
         }
 
+        // 后续查询只使用上一层得到的有限 ID 集合，避免按商户触发全表或 N+1 查询。
         Set<Long> midIds = ids(bindings.stream().map(MerchantChannelMidBindingDO::getMidConfigId).toList());
         if (midIds.isEmpty()) {
             return profile;
@@ -213,6 +212,7 @@ public class MerchantRouteProfileCacheReader {
             }
             for (ChannelPaymentCapabilityDO capability
                     : capabilitiesByChannel.getOrDefault(channel.getId(), List.of())) {
+                // 可路由币种必须同时被渠道能力与 MID 范围允许，交集为空的候选直接排除。
                 List<String> supportedCurrencies = intersectCurrencies(
                         currenciesByCapability.getOrDefault(capability.getId(), List.of()),
                         mid.getCurrencyScope()
@@ -240,6 +240,7 @@ public class MerchantRouteProfileCacheReader {
                                  ChannelPaymentCapabilityDO capability,
                                  List<String> supportedCurrencies,
                                  List<String> supportedCardBrands) {
+        // 只复制路由选择需要的公开运行参数，禁止调用或复制 mid.getMetadataValueJson()。
         RouteOption option = new RouteOption();
         option.setBindingId(binding.getId());
         option.setBindingStatus(binding.getBindingStatus());

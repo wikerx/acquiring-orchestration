@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -60,11 +60,12 @@ public class OpenApiRequestArgumentResolver implements HandlerMethodArgumentReso
                                   NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
         HttpServletRequest request = webRequest.getNativeRequest(HttpServletRequest.class);
         if (request == null) {
-            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "http request can not be resolved");
+            throw new ServiceException(OpenApiResultCode.SYSTEM_ERROR.getCode(), "http request can not be resolved");
         }
         Object data = request.getAttribute(OpenApiRequestAttributes.DECRYPTED_DATA);
         if (data == null) {
-            throw new ServiceException(ApiResultEnum.ENCRYPTED_DATA_INVALID.getCode(), "open api request body is not decrypted");
+            throw new ServiceException(OpenApiResultCode.SYSTEM_ERROR.getCode(),
+                    "open api request body was not decrypted before argument resolution");
         }
         return data;
     }

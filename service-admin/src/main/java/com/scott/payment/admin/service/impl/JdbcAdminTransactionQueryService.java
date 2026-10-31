@@ -24,6 +24,12 @@ import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageLocale;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.component.core.openapi.result.OpenApiResultMessageCatalog;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionProjection;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionResultProjector;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -56,13 +62,10 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcAdminTransactionQueryService
- * @date : 2026-07-21 00:00
- * @email : scott_x@163.com
- * @description : 管理后台交易只读查询实现，通过 ShardingSphere 逻辑表统一执行跨季度路由、强一致详情和查询预算。
- * @status : create
+ * 管理后台交易只读查询服务。
+ *
+ * <p>服务通过 ShardingSphere 逻辑表执行跨季度查询、详情强一致读取和结果行数控制；
+ * 管理端展示可包含经过过滤的渠道诊断摘要，但不得返回敏感报文或改变支付核心交易事实。</p>
  */
 @Service
 public class JdbcAdminTransactionQueryService implements AdminTransactionQueryService {
@@ -95,7 +98,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     private static final String ORDER_QUERY_COLUMNS = """
             operation_id, root_transaction_id, latest_transaction_id, merchant_id,
             merchant_order_no, merchant_order_id, merchant_website, payment_method, payment_brand,
-            transaction_type, transaction_status, process_stage,
+            transaction_type, transaction_status, process_stage, pending_reason_code, fail_reason_code,
             label_currency, label_amount, transaction_currency, transaction_amount,
             currency_exponent, transaction_rate, dcc_enabled, edc_enabled,
             authorized_amount, captured_amount, refunded_amount,
@@ -109,7 +112,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     private static final String OPERATION_QUERY_COLUMNS = """
             o.operation_id, o.transaction_id, o.source_transaction_id, o.merchant_id,
             o.merchant_order_no, o.merchant_order_id, o.operation_sequence,
-            o.transaction_type, o.transaction_status, o.process_stage,
+            o.transaction_type, o.transaction_status, o.process_stage, o.pending_reason_code, o.fail_reason_code,
             o.label_currency, o.label_amount, o.transaction_currency, o.transaction_amount,
             o.currency_exponent, o.transaction_rate, o.dcc_enabled, o.edc_enabled,
             o.channel_code, o.channel_order_no, o.channel_transaction_id,
@@ -1470,18 +1473,22 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             return null;
         }
         String safeCode = code.trim();
-        if (ApiResultEnum.PAYMENT_SUCCESS.getCode().equalsIgnoreCase(safeCode)
+        if (OpenApiResultCode.TRANSACTION_SUCCESS.getCode().equalsIgnoreCase(safeCode)
+                || ApiResultEnum.PAYMENT_SUCCESS.getCode().equalsIgnoreCase(safeCode)
                 || ApiResultEnum.SUCCESS.getCode().equalsIgnoreCase(safeCode)) {
             return "SUCCESS";
         }
-        if (ApiResultEnum.PAYMENT_REJECTED.getCode().equalsIgnoreCase(safeCode)
+        if (OpenApiResultCode.TRANSACTION_FAILED.getCode().equalsIgnoreCase(safeCode)
+                || ApiResultEnum.PAYMENT_REJECTED.getCode().equalsIgnoreCase(safeCode)
                 || ApiResultEnum.PAYMENT_REJECTED_BY_ISSUER.getCode().equalsIgnoreCase(safeCode)) {
             return "FAILED";
         }
-        if (ApiResultEnum.PENDING.getCode().equalsIgnoreCase(safeCode)) {
+        if (OpenApiResultCode.TRANSACTION_PENDING.getCode().equalsIgnoreCase(safeCode)
+                || ApiResultEnum.PENDING.getCode().equalsIgnoreCase(safeCode)) {
             return "PENDING";
         }
-        if (ApiResultEnum.PROCESSING.getCode().equalsIgnoreCase(safeCode)) {
+        if (OpenApiResultCode.TRANSACTION_PROCESSING.getCode().equalsIgnoreCase(safeCode)
+                || ApiResultEnum.PROCESSING.getCode().equalsIgnoreCase(safeCode)) {
             return "PROCESSING";
         }
         return null;
@@ -1515,8 +1522,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
-            row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
-            row.setMerchantResponseMessage(resolveMerchantResponseMessage(row.getTransactionStatus()));
+            applyAudienceProjection(row, projectResult(rs, row.getTransactionStatus()), Map.of());
             row.setAuthorizedAmount(rs.getBigDecimal("authorized_amount"));
             row.setCapturedAmount(rs.getBigDecimal("captured_amount"));
             row.setRefundedAmount(rs.getBigDecimal("refunded_amount"));
@@ -1564,8 +1570,8 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
-            row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
-            row.setMerchantResponseMessage(resolveMerchantResponseMessage(row.getTransactionStatus()));
+            OpenApiTransactionProjection projection = projectResult(rs, row.getTransactionStatus());
+            applyAudienceProjection(row, projection, internalDiagnosticParameters(rs));
             row.setPaymentMethod(joinedPaymentInfo ? rs.getString("joined_payment_method") : null);
             row.setPaymentBrand(joinedPaymentInfo ? rs.getString("joined_payment_brand") : null);
             row.setCardBin(joinedPaymentInfo ? rs.getString("joined_card_bin") : null);
@@ -1864,32 +1870,81 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return rate == null ? new BigDecimal("1.00000000") : rate;
     }
 
-    private String resolveMerchantResponseCode(String status) {
-        if ("SUCCESS".equals(status)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getCode();
-        }
-        if ("FAILED".equals(status)) {
-            return ApiResultEnum.PAYMENT_REJECTED.getCode();
-        }
-        if ("PENDING".equals(status)) {
-            return ApiResultEnum.PENDING.getCode();
-        }
-        return ApiResultEnum.PROCESSING.getCode();
+    /**
+     * 从持久化状态和受控原因生成统一 V1.3 投影，渠道原始文案不参与公开码判断。
+     *
+     * @param resultSet 当前交易查询结果
+     * @param transactionStatus 支付核心持久化状态
+     * @return 统一公开码和标准化失败原因
+     */
+    private OpenApiTransactionProjection projectResult(ResultSet resultSet, String transactionStatus) {
+        return OpenApiTransactionResultProjector.project(
+                transactionStatus,
+                getStringIfExists(resultSet, "process_stage"),
+                getStringIfExists(resultSet, "fail_reason_code"),
+                getStringIfExists(resultSet, "pending_reason_code"),
+                null);
     }
 
-    private String resolveMerchantResponseMessage(String status) {
-        if ("SUCCESS".equals(status)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getMessage();
-        }
-        if ("FAILED".equals(status)) {
-            return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-        }
-        if ("PENDING".equals(status)) {
-            return ApiResultEnum.PENDING.getMessage();
-        }
-        return ApiResultEnum.PROCESSING.getMessage();
+    /**
+     * 为管理端主单生成内部、商户和付款人三类展示，三者共用同一个标准码但遵循不同信息边界。
+     */
+    private void applyAudienceProjection(TransactionOrderResponse row,
+                                         OpenApiTransactionProjection projection,
+                                         Map<String, String> internalParameters) {
+        row.setMerchantResponseCode(projection.resultCode().getCode());
+        row.setOpenApiResultCode(projection.resultCode().getCode());
+        row.setMerchantResponseMessage(projection.message(
+                OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        row.setPayerResultMessage(projection.message(
+                OpenApiMessageAudience.PAYER, OpenApiMessageLocale.EN_US));
+        row.setInternalResultMessage(OpenApiResultMessageCatalog.message(
+                projection.resultCode(), OpenApiMessageAudience.INTERNAL,
+                OpenApiMessageLocale.EN_US, internalParameters));
     }
 
+    /**
+     * 为管理端动作单生成内部、商户和付款人三类展示，渠道诊断参数只允许进入内部模板。
+     */
+    private void applyAudienceProjection(TransactionOperationResponse row,
+                                         OpenApiTransactionProjection projection,
+                                         Map<String, String> internalParameters) {
+        row.setMerchantResponseCode(projection.resultCode().getCode());
+        row.setOpenApiResultCode(projection.resultCode().getCode());
+        row.setMerchantResponseMessage(projection.message(
+                OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        row.setPayerResultMessage(projection.message(
+                OpenApiMessageAudience.PAYER, OpenApiMessageLocale.EN_US));
+        row.setInternalResultMessage(OpenApiResultMessageCatalog.message(
+                projection.resultCode(), OpenApiMessageAudience.INTERNAL,
+                OpenApiMessageLocale.EN_US, internalParameters));
+    }
+
+    /**
+     * 收集文案目录白名单允许的渠道摘要；最终敏感内容过滤仍由消息目录统一执行。
+     *
+     * @param resultSet 动作单查询结果
+     * @return 仅包含非空候选摘要的模板参数
+     */
+    private Map<String, String> internalDiagnosticParameters(ResultSet resultSet) {
+        Map<String, String> parameters = new LinkedHashMap<>();
+        putIfText(parameters, "channelName", getStringIfExists(resultSet, "channel_code"));
+        putIfText(parameters, "channelResponseCode", getStringIfExists(resultSet, "channel_response_code"));
+        putIfText(parameters, "channelResponseMessage", getStringIfExists(resultSet, "channel_response_message"));
+        putIfText(parameters, "channelReference", getStringIfExists(resultSet, "channel_order_no"));
+        return parameters;
+    }
+
+    /** 将非空白候选值规范化后加入内部模板参数，空值不会覆盖已有参数。 */
+    private void putIfText(Map<String, String> target, String key, String value) {
+        if (StringUtils.hasText(value)) {
+            target.put(key, value.trim());
+        }
+    }
+
+    /**
+     * 兼容主单与动作单不同列集合；可选列不存在时返回 {@code null}，不影响主体查询。
+     */
     private String getStringIfExists(ResultSet rs, String column) {
         try {
             return rs.getString(column);

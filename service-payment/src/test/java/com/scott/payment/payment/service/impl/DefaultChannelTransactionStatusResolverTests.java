@@ -1,6 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
+import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentPendingReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
@@ -20,6 +21,23 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @status : create
  */
 class DefaultChannelTransactionStatusResolverTests {
+
+    /** 渠道统一 FAILED 是明确的渠道拒绝证据，不能与平台调用异常共用原因码。 */
+    @Test
+    void shouldRecordConfirmedChannelDeclineReason() {
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelCode("PROVIDER_D");
+        response.setChannelTradeStatus("FAILED");
+        response.setRawChannelStatus("DECLINED");
+        response.setChannelResponseMessage("provider detail must stay internal");
+
+        ChannelTransactionStatusResolution resolution = new DefaultChannelTransactionStatusResolver()
+                .resolveSync("PROVIDER_D", PaymentTransactionTypeEnum.PAYMENT.getCode(), response);
+
+        assertThat(resolution.getTargetStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(resolution.getFailReasonCode())
+                .isEqualTo(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
+    }
 
     /** 一步支付只有统一 AUTHORIZED 时仍需等待资金捕获结果。 */
     @Test

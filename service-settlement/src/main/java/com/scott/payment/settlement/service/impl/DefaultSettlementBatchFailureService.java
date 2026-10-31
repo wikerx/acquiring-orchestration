@@ -9,6 +9,8 @@ import com.scott.payment.settlement.mapper.SettlementBatchCandidateMapper;
 import com.scott.payment.settlement.mapper.SettlementBatchMapper;
 import com.scott.payment.settlement.mapper.SettlementCandidateMapper;
 import com.scott.payment.settlement.service.SettlementBatchFailureService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,32 +23,20 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementBatchFailureService
- * @date : 2026-08-26 23:40
- * @email : scott_x@163.com
- * @description : 依据稳定错误属性和数据库异常分类执行有界退避，耗尽或事实冲突时原子迁移批次及候选到人工复核。
- * @status : create
+ * 结算批次失败分类与补偿服务。
+ *
+ * <p>受控失败按稳定阶段和错误码执行有界退避；不可重试或重试耗尽时，批次及其候选原子转入人工复核。
+ * 失败记录自身异常不会被吞掉，避免批次长期停留在持有租约的中间态。</p>
  */
 @Service
 public class DefaultSettlementBatchFailureService implements SettlementBatchFailureService {
 
-    /**
-     * {@code MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            DefaultSettlementBatchFailureService.class);
+
+    /** 自动重试上限，耗尽后必须转人工复核。 */
     private static final int MAX_RETRY_COUNT = 8;
-    /**
-     * {@code MAX_FAILURE_MESSAGE_LENGTH}常量，统一 {@code DefaultSettlementBatchFailureService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 数据库失败摘要最大长度，防止异常正文无限写入。 */
     private static final int MAX_FAILURE_MESSAGE_LENGTH = 512;
     private static final List<Duration> RETRY_DELAYS = List.of(
             Duration.ofMinutes(1), Duration.ofMinutes(5), Duration.ofMinutes(15),
@@ -98,6 +88,9 @@ public class DefaultSettlementBatchFailureService implements SettlementBatchFail
                     descriptor.message(), now, nextRetryTime) != 1) {
                 throw new IllegalStateException("settlement retryable failure state CAS failed");
             }
+            LOGGER.warn("结算批次失败已进入重试退避, event: SETTLEMENT_BATCH_RETRY_SCHEDULED, settlementBatchNo: {}, failureStage: {}, failureCode: {}, retryCount: {}, nextRetryTime: {}",
+                    batch.getSettlementBatchNo(), descriptor.stage(), descriptor.code(),
+                    retryCount + 1, nextRetryTime);
             return;
         }
 
@@ -111,6 +104,8 @@ public class DefaultSettlementBatchFailureService implements SettlementBatchFail
                 || relationMapper.markBatchManualReview(batch.getSettlementBatchNo(), now) != expected) {
             throw new IllegalStateException("settlement manual review candidate transition count is inconsistent");
         }
+        LOGGER.error("结算批次已转入人工复核, event: SETTLEMENT_BATCH_MANUAL_REVIEW, settlementBatchNo: {}, failureStage: {}, failureCode: {}, retryCount: {}, candidateCount: {}",
+                batch.getSettlementBatchNo(), descriptor.stage(), code, retryCount, expected);
     }
 
     /** 将领域异常或瞬时 SQL 异常映射为稳定阶段、失败码、可重试性和脱敏摘要。 */

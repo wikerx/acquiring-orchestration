@@ -8,6 +8,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
@@ -16,6 +17,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
 import com.scott.payment.payment.domain.state.DefaultTransactionStateMachineService;
+import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
@@ -182,7 +184,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 .orElseThrow();
 
         assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(result.getTotalCapturedAmount()).isEqualByComparingTo("12.34");
         assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"SUCCESS\"");
@@ -219,7 +221,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 .orElseThrow();
 
         assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_FAILED.getCode());
         assertThat(result.getTotalCapturedAmount()).isEqualByComparingTo(BigDecimal.ZERO);
         assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"FAILED\"");
@@ -535,7 +537,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         assertThatThrownBy(() -> service.createPayment(changed))
                 .as("T-P0-04 same merchantOrderNo with different amount must be rejected before MPGS")
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode());
         assertThat(channelService.paymentInvokeCount())
                 .as("T-P0-04 conflicting duplicate must not call MPGS Payment again")
                 .isEqualTo(1);
@@ -607,7 +611,8 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     /**
-     * T-P0-08：Payment 超时后主动查询若返回失败，应恢复为合法失败，且不覆盖已有成功终态。
+     * T-P0-08：Payment 超时后复用原渠道请求查询到明确失败时，应以 CHANNEL_DECLINED 恢复合法失败，
+     * 初始超时的不确定性由后续渠道终态证据解除，且不得覆盖已有成功终态。
      */
     @Test
     void shouldRecoverTimeoutPaymentAsFailedByQueryingOriginalChannelRequest() {
@@ -630,7 +635,8 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(resultDTO.getScannedCount()).isEqualTo(1);
         assertThat(resultDTO.getMatchedCount()).isEqualTo(1);
         assertThat(recordService.completedStatus).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
-        assertThat(recordService.completedFailReason).isEqualTo("CHANNEL_REQUEST_FAILED");
+        assertThat(recordService.completedFailReason)
+                .isEqualTo(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
         assertThat(channelService.invokeCount.get()).isEqualTo(1);
     }
 
@@ -787,7 +793,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         assertThatThrownBy(() -> service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("6.00"))))
                 .as("S4-05 same capture action no with different amount must be rejected")
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode());
         assertThat(recordService.followUpRecordCount).isEqualTo(1);
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
@@ -1000,8 +1008,10 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(rejected.isCallChannel()).isFalse();
         assertThat(rejected.getResultDTO().getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(rejected.getResultDTO().getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
-        assertThat(rejected.getResultDTO().getMerchantResponseCode()).isEqualTo("F414");
-        assertThat(rejected.getResultDTO().getMerchantResponseMessage()).isEqualTo("Original transaction rejected.");
+        assertThat(rejected.getResultDTO().getMerchantResponseCode())
+                .isEqualTo(OpenApiResultCode.ORIGINAL_ACTION_NOT_ALLOWED.getCode());
+        assertThat(rejected.getResultDTO().getMerchantResponseMessage())
+                .isEqualTo(OpenApiResultCode.ORIGINAL_ACTION_NOT_ALLOWED.getMessage());
         assertThat(recordService.followUpRecordCount).isEqualTo(1);
         assertThat(recordService.channelRequestCount).isZero();
         assertThat(idempotencyService.completedCount).isEqualTo(1);
@@ -1104,7 +1114,7 @@ class PaymentTransactionConsistencyBaselineTests {
 
         assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(duplicate.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
-        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
@@ -1197,7 +1207,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 .orElseThrow();
 
         assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(result.getTotalCapturedAmount()).isEqualByComparingTo("5.00");
         assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"SUCCESS\"");
@@ -1418,7 +1428,7 @@ class PaymentTransactionConsistencyBaselineTests {
 
         assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(duplicate.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
-        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
@@ -1483,7 +1493,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 .orElseThrow();
 
         assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"SUCCESS\"");
         assertThat(recordService.primaryOperationReadCount).isEqualTo(1);
@@ -1719,7 +1729,7 @@ class PaymentTransactionConsistencyBaselineTests {
 
         assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(duplicate.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
-        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
@@ -1788,7 +1798,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 .orElseThrow();
 
         assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"SUCCESS\"");
         assertThat(recordService.primaryOperationReadCount).isEqualTo(1);
@@ -1840,7 +1850,9 @@ class PaymentTransactionConsistencyBaselineTests {
 
         assertThatThrownBy(() -> service.voidPayment(voidCommand("VOID-0002")))
                 .as("05E pending capture must block authorization cancel before channel call")
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS.getCode());
         assertThat(channelService.paymentInvokeCount()).isZero();
         assertThat(recordService.followUpRecordCount).isZero();
     }
@@ -2077,7 +2089,7 @@ class PaymentTransactionConsistencyBaselineTests {
 
         assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(duplicate.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
-        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(duplicate.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
@@ -2178,7 +2190,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 .orElseThrow();
 
         assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(idempotency.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(idempotency.getResultSnapshot()).contains("\"status\":\"SUCCESS\"");
         assertThat(recordService.primaryOperationReadCount).isEqualTo(1);
@@ -2269,13 +2281,19 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThatThrownBy(() -> service.createIncrementalAuthorization(
                 followUpCommand("INC-AUTH-0002", new BigDecimal("3.00"))))
                 .as("05F pending incremental authorization must block later incremental authorization")
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS.getCode());
         assertThatThrownBy(() -> service.capture(followUpCommand("CAPTURE-INC-AUTH-CONFLICT", new BigDecimal("5.00"))))
                 .as("05F pending incremental authorization must block capture before channel call")
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS.getCode());
         assertThatThrownBy(() -> service.voidPayment(voidCommand("VOID-INC-AUTH-CONFLICT")))
                 .as("05F pending incremental authorization must block authorization cancel before channel call")
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.TRANSACTION_ACTION_IN_PROGRESS.getCode());
         assertThat(channelService.paymentInvokeCount()).isZero();
         assertThat(recordService.followUpRecordCount).isZero();
     }

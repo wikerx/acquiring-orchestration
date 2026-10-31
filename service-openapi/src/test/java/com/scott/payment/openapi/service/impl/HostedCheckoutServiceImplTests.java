@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
@@ -106,7 +106,13 @@ class HostedCheckoutServiceImplTests {
         assertThat(captured.getCheckoutDomain()).isEqualTo("https://pay.example.com");
         assertThat(captured.getRetryAllowed()).isEqualTo(1);
         assertThat(captured.getMerchantDisplayName()).isEqualTo("Demo Sub Merchant");
-        assertThat(captured.getAllowedPaymentMethods()).isEmpty();
+        assertThat(captured.getAllowedPaymentMethods()).singleElement()
+                .satisfies(method -> {
+                    assertThat(method.getPaymentMethod()).isEqualTo("BANK_CARD");
+                    assertThat(method.getChannelCode()).isNull();
+                    assertThat(method.getBrands()).isEmpty();
+                    assertThat(method.getThreeDsMode()).isNull();
+                });
         assertThat(captured.getSubMerchantInfoJson()).contains("Demo Sub Merchant");
         assertThat(captured.getPayerInfoJson()).contains("203.0.113.9");
         assertThat(captured.getBillingInfoJson()).contains("billing@example.com");
@@ -120,14 +126,19 @@ class HostedCheckoutServiceImplTests {
     }
 
     @Test
-    void shouldLeavePaymentMethodSelectionToPlatformConfiguration() {
+    void shouldLimitHostedCheckoutV1ToBankCardWithoutPinningAChannel() {
         CapturingCheckoutClient paymentInternalClient = new CapturingCheckoutClient();
         HostedCheckoutServiceImpl checkoutService = newCheckoutService(paymentInternalClient);
         bindRequestContext("200001");
 
         checkoutService.createSession("encrypted-request-body", buildCreateRequest("200001"));
 
-        assertThat(paymentInternalClient.sessionCreateRequest.getAllowedPaymentMethods()).isEmpty();
+        assertThat(paymentInternalClient.sessionCreateRequest.getAllowedPaymentMethods()).singleElement()
+                .satisfies(method -> {
+                    assertThat(method.getPaymentMethod()).isEqualTo("BANK_CARD");
+                    assertThat(method.getChannelCode()).isNull();
+                    assertThat(method.getBrands()).isEmpty();
+                });
         assertThat(paymentInternalClient.sessionCreateRequest.getCheckoutDomain()).isEqualTo("https://pay.example.com");
         assertThat(paymentInternalClient.sessionCreateRequest.getRetryAllowed()).isEqualTo(1);
     }
@@ -141,7 +152,7 @@ class HostedCheckoutServiceImplTests {
         assertThatThrownBy(() -> checkoutService.createSession("encrypted-request-body", buildCreateRequest("200002")))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.MERCHANT_INVALID.getCode());
+                .isEqualTo(OpenApiResultCode.MERCHANT_INVALID.getCode());
         assertThat(paymentInternalClient.sessionCreateRequest).isNull();
     }
 
@@ -156,7 +167,7 @@ class HostedCheckoutServiceImplTests {
         assertThatThrownBy(() -> checkoutService.createSession("encrypted-request-body", requestDTO))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+                .isEqualTo(OpenApiResultCode.PARAM_INVALID.getCode());
         assertThat(paymentInternalClient.sessionCreateRequest).isNull();
     }
 

@@ -11,6 +11,7 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -51,6 +52,21 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class JdbcAdminTransactionQueryServiceTest {
+
+    /** F 类描述故障来源而非交易终态，后台筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。 */
+    @Test
+    void merchantResponseCodeFilterShouldNotInferStatusFromFailureOriginCode() {
+        JdbcAdminTransactionQueryService service = buildService(mock(NamedParameterJdbcTemplate.class));
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F1000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F2000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F3000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "T0003")).isEqualTo("FAILED");
+    }
 
     @Test
     void historicalPaymentShouldShowAuthorizationAndCaptureWithoutDuplicatingPersistedLog() {
@@ -803,6 +819,41 @@ class JdbcAdminTransactionQueryServiceTest {
         TransactionOperationResponse row = mapper.mapRow(resultSet, 0);
 
         assertThat(row.getAccessType()).isEqualTo("HOSTED_CHECKOUT");
+    }
+
+    /** 管理端可查看受控渠道摘要，但商户与付款人预览必须使用各自的安全文案。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationMapperShouldSeparateInternalMerchantAndPayerMessages() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("transaction_status")).thenReturn("FAILED");
+        when(resultSet.getString("process_stage")).thenReturn("FINISHED");
+        when(resultSet.getString("fail_reason_code")).thenReturn("CHANNEL_DECLINED");
+        when(resultSet.getString("channel_code")).thenReturn("MPGS");
+        when(resultSet.getString("channel_response_code")).thenReturn("DECLINED");
+        when(resultSet.getString("channel_response_message")).thenReturn("Transaction failed");
+        when(resultSet.getString("channel_order_no")).thenReturn("REF-1");
+        RowMapper<TransactionOperationResponse> mapper =
+                (RowMapper<TransactionOperationResponse>) ReflectionTestUtils.invokeMethod(
+                        service, "operationMapper", false);
+
+        TransactionOperationResponse row = mapper.mapRow(resultSet, 0);
+
+        assertThat(row.getOpenApiResultCode())
+                .isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode())
+                .isEqualTo(row.getMerchantResponseCode());
+        assertThat(row.getInternalResultMessage()).isEqualTo(
+                "Channel processing failed (code: DECLINED, message: Transaction failed). "
+                        + "Please check the original order or contact platform support.");
+        assertThat(row.getMerchantResponseMessage())
+                .isEqualTo("The transaction was declined by the issuer bank. Check the original order, "
+                        + "then ask the payer to contact their bank or use another payment method when applicable.")
+                .doesNotContain("MPGS", "DECLINED", "Transaction failed", "REF-1");
+        assertThat(row.getPayerResultMessage())
+                .isEqualTo("The transaction was declined. Please contact your card issuer or try a different payment method.")
+                .doesNotContain("MPGS", "DECLINED", "Transaction failed", "REF-1");
     }
 
     /**

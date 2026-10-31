@@ -5,6 +5,11 @@ import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageLocale;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionProjection;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionResultProjector;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -44,13 +49,10 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : JdbcMerchantTransactionQueryService
- * @date : 2026-07-20 00:00
- * @email : scott_x@163.com
- * @description : 商户后台交易只读查询实现，仅访问 ShardingSphere 交易逻辑表，并在主查询和富化查询中强制 merchant_id 与分片时间。
- * @status : create
+ * 商户后台交易只读查询服务。
+ *
+ * <p>服务只访问 ShardingSphere 交易逻辑表，并在主体查询和富化查询中强制商户隔离与分片时间范围；
+ * 对外结果只能使用商户级安全文案，禁止暴露渠道原始响应或管理端诊断摘要。</p>
  */
 @Service
 public class JdbcMerchantTransactionQueryService implements MerchantTransactionQueryService {
@@ -86,7 +88,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     private static final String ORDER_QUERY_COLUMNS = """
             operation_id, root_transaction_id, latest_transaction_id, merchant_id,
             merchant_order_no, merchant_order_id, payment_method, payment_brand,
-            transaction_type, transaction_status, process_stage,
+            transaction_type, transaction_status, process_stage, pending_reason_code, fail_reason_code,
             label_currency, label_amount, transaction_currency, transaction_amount,
             currency_exponent, transaction_rate, dcc_enabled, edc_enabled,
             merchant_visible_message, authorized_amount, captured_amount, refunded_amount,
@@ -100,7 +102,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     private static final String OPERATION_QUERY_COLUMNS = """
             operation_id, transaction_id, source_transaction_id, merchant_id,
             merchant_order_no, merchant_order_id, operation_sequence,
-            transaction_type, transaction_status, process_stage,
+            transaction_type, transaction_status, process_stage, pending_reason_code, fail_reason_code,
             label_currency, label_amount, transaction_currency, transaction_amount,
             currency_exponent, transaction_rate, dcc_enabled, edc_enabled,
             channel_code, channel_order_no, channel_transaction_id, auth_code,
@@ -597,9 +599,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 row.setRefundedAmount(order.getRefundedAmount());
                 row.setAvailableCaptureAmount(order.getAvailableCaptureAmount());
                 row.setAvailableRefundAmount(order.getAvailableRefundAmount());
-                row.setMerchantResponseMessage(resolveMerchantResponseMessage(
-                        row.getTransactionStatus(),
-                        order.getMerchantResponseMessage()));
             }
         }
         enrichAccessTypes(rows);
@@ -1094,10 +1093,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
-            row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
-            row.setMerchantResponseMessage(resolveMerchantResponseMessage(
-                    row.getTransactionStatus(),
-                    rs.getString("merchant_visible_message")));
+            OpenApiTransactionProjection projection = projectResult(rs, row.getTransactionStatus());
+            row.setMerchantResponseCode(projection.resultCode().getCode());
+            row.setMerchantResponseMessage(projection.message(
+                    OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
             row.setAuthorizedAmount(rs.getBigDecimal("authorized_amount"));
             row.setCapturedAmount(rs.getBigDecimal("captured_amount"));
             row.setRefundedAmount(rs.getBigDecimal("refunded_amount"));
@@ -1144,8 +1143,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setThreeDsEnabled(0);
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
-            row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
-            row.setMerchantResponseMessage(resolveMerchantResponseMessage(row.getTransactionStatus()));
+            OpenApiTransactionProjection projection = projectResult(rs, row.getTransactionStatus());
+            row.setMerchantResponseCode(projection.resultCode().getCode());
+            row.setMerchantResponseMessage(projection.message(
+                    OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
             row.setChannelCode(rs.getString("channel_code"));
             row.setChannelOrderNo(rs.getString("channel_order_no"));
             row.setChannelTransactionId(rs.getString("channel_transaction_id"));
@@ -1306,61 +1307,59 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return value == null ? new BigDecimal("1.00000000") : value;
     }
 
-    private String resolveMerchantResponseCode(String transactionStatus) {
-        if ("SUCCESS".equals(transactionStatus)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getCode();
-        }
-        if ("FAILED".equals(transactionStatus)) {
-            return ApiResultEnum.PAYMENT_REJECTED.getCode();
-        }
-        if ("PENDING".equals(transactionStatus)) {
-            return ApiResultEnum.PENDING.getCode();
-        }
-        return ApiResultEnum.PROCESSING.getCode();
-    }
-
-    private String resolveMerchantResponseMessage(String transactionStatus) {
-        return resolveMerchantResponseMessage(transactionStatus, null);
-    }
-
+    /**
+     * 为兼容既有查询测试生成商户安全文案；持久化历史文案不参与输出，避免旧渠道原文重新泄漏。
+     *
+     * @param transactionStatus 支付核心持久化状态
+     * @param persistedMessage 历史持久化文案，保留兼容签名但不参与投影
+     * @return 英文商户级安全文案
+     */
     static String resolveMerchantResponseMessage(String transactionStatus, String persistedMessage) {
-        if ("FAILED".equals(transactionStatus)
-                && StringUtils.hasText(persistedMessage)
-                && !isInternalFailureToken(persistedMessage)) {
-            return persistedMessage.trim();
-        }
-        if ("SUCCESS".equals(transactionStatus)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getMessage();
-        }
-        if ("FAILED".equals(transactionStatus)) {
-            return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-        }
-        if ("PENDING".equals(transactionStatus)) {
-            return ApiResultEnum.PENDING.getMessage();
-        }
-        return ApiResultEnum.PROCESSING.getMessage();
+        return OpenApiTransactionResultProjector.project(
+                transactionStatus, null, null, null, null).message(
+                OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US);
     }
 
-    private static boolean isInternalFailureToken(String message) {
-        return message != null && message.trim().matches("[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+");
-    }
-
+    /**
+     * 将查询条件中的新旧商户结果码归一为持久化交易状态；未知码返回 {@code null} 表示不追加状态条件。
+     */
     private String resolveStatusByMerchantResponseCode(String merchantResponseCode) {
         String code = merchantResponseCode == null ? "" : merchantResponseCode.trim();
-        if (ApiResultEnum.PAYMENT_SUCCESS.getCode().equalsIgnoreCase(code) || ApiResultEnum.SUCCESS.getCode().equalsIgnoreCase(code)) {
+        if (OpenApiResultCode.TRANSACTION_SUCCESS.getCode().equalsIgnoreCase(code)
+                || ApiResultEnum.PAYMENT_SUCCESS.getCode().equalsIgnoreCase(code)
+                || ApiResultEnum.SUCCESS.getCode().equalsIgnoreCase(code)) {
             return "SUCCESS";
         }
-        if (ApiResultEnum.PAYMENT_REJECTED.getCode().equalsIgnoreCase(code)
+        if (OpenApiResultCode.TRANSACTION_FAILED.getCode().equalsIgnoreCase(code)
+                || ApiResultEnum.PAYMENT_REJECTED.getCode().equalsIgnoreCase(code)
                 || ApiResultEnum.PAYMENT_REJECTED_BY_ISSUER.getCode().equalsIgnoreCase(code)) {
             return "FAILED";
         }
-        if (ApiResultEnum.PENDING.getCode().equalsIgnoreCase(code)) {
+        if (OpenApiResultCode.TRANSACTION_PENDING.getCode().equalsIgnoreCase(code)
+                || ApiResultEnum.PENDING.getCode().equalsIgnoreCase(code)) {
             return "PENDING";
         }
-        if (ApiResultEnum.PROCESSING.getCode().equalsIgnoreCase(code)) {
+        if (OpenApiResultCode.TRANSACTION_PROCESSING.getCode().equalsIgnoreCase(code)
+                || ApiResultEnum.PROCESSING.getCode().equalsIgnoreCase(code)) {
             return "PROCESSING";
         }
         return null;
+    }
+
+    /**
+     * 从查询结果中的受控状态和原因生成商户侧 V1.3 投影，禁止拼接渠道响应原文。
+     *
+     * @param resultSet 当前交易查询结果
+     * @param transactionStatus 支付核心持久化状态
+     * @return 商户可见的统一结果投影
+     */
+    private OpenApiTransactionProjection projectResult(ResultSet resultSet, String transactionStatus) {
+        return OpenApiTransactionResultProjector.project(
+                transactionStatus,
+                getStringIfExists(resultSet, "process_stage"),
+                getStringIfExists(resultSet, "fail_reason_code"),
+                getStringIfExists(resultSet, "pending_reason_code"),
+                null);
     }
 
     private String normalizeCardNumberMasked(String cardBin, String cardLast4, String masked) {

@@ -440,6 +440,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 firstEntity = entity;
             }
         }
+        synchronizeMidTransactionTypeScopes(channel.getId(), request.getBusinessType());
         return toCapabilityResponse(firstEntity, channel);
     }
 
@@ -454,6 +455,8 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @Transactional(rollbackFor = Exception.class)
     public CapabilityResponse updateCapability(Long id, CapabilitySaveRequest request) {
         ChannelPaymentCapabilityDO entity = findCapability(id);
+        Long previousChannelId = entity.getChannelId();
+        String previousBusinessType = entity.getBusinessType();
         ChannelInfoDO channel = validateCapabilityRequest(request, id);
         prepareRouteInvalidationByChannel(entity.getChannelId());
         if (!Objects.equals(entity.getChannelId(), channel.getId())) {
@@ -463,6 +466,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         capabilityMapper.updateById(entity);
         replaceCapabilityCurrencies(entity, request.getCurrencyCodes());
         replaceCapabilityCardBrands(entity, request.getCardBrands());
+        synchronizeMidTransactionTypeScopes(previousChannelId, previousBusinessType);
+        if (!Objects.equals(previousChannelId, entity.getChannelId())
+                || !Objects.equals(previousBusinessType, entity.getBusinessType())) {
+            synchronizeMidTransactionTypeScopes(entity.getChannelId(), entity.getBusinessType());
+        }
         return toCapabilityResponse(entity, channel);
     }
 
@@ -486,6 +494,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setCapabilityStatus(status);
         entity.setUpdateTime(LocalDateTime.now());
         capabilityMapper.updateById(entity);
+        synchronizeMidTransactionTypeScopes(entity.getChannelId(), entity.getBusinessType());
         return toCapabilityResponse(entity, findChannel(entity.getChannelId()));
     }
 
@@ -537,6 +546,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setUpdateTime(LocalDateTime.now());
         capabilityMapper.updateById(entity);
         softDeleteCapabilityChildren(id);
+        synchronizeMidTransactionTypeScopes(entity.getChannelId(), entity.getBusinessType());
     }
 
     /**
@@ -1950,16 +1960,70 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .orderByAsc(ChannelPaymentCapabilityDO::getId));
     }
 
-    private String resolveMidTransactionTypeScope(Long channelId, String businessType, String paymentMethodScope) {
-        List<ChannelPaymentCapabilityDO> capabilities = filterMidCapabilities(channelId, businessType, paymentMethodScope);
+    /**
+     * 按渠道当前启用的支付能力，重新计算已有 MID 的交易类型派生范围。
+     *
+     * <p>MID 的支付方式范围仍由运营人员独立维护；这里只同步这些支付方式对应的交易类型并集，
+     * 不扩大 MID 的支付方式、卡品牌、币种或国家范围。能力全部停用时写入 {@code NONE}，
+     * 使路由明确拒绝该 MID，而不是继续使用历史能力。</p>
+     *
+     * @param channelId 渠道主键
+     * @param businessType 业务类型
+     **/
+    private void synchronizeMidTransactionTypeScopes(Long channelId, String businessType) {
+        List<ChannelMidConfigDO> mids = midConfigMapper.selectList(Wrappers.<ChannelMidConfigDO>lambdaQuery()
+                .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED)
+                .eq(ChannelMidConfigDO::getChannelId, channelId)
+                .eq(ChannelMidConfigDO::getBusinessType, businessType));
+        if (mids.isEmpty()) {
+            return;
+        }
+        List<ChannelPaymentCapabilityDO> capabilities = listEnabledCapabilities(channelId, businessType);
+        LocalDateTime now = LocalDateTime.now();
+        String operatorName = currentOperatorName();
+        for (ChannelMidConfigDO mid : mids) {
+            List<ChannelPaymentCapabilityDO> selectedCapabilities = selectMidCapabilities(
+                    capabilities, mid.getPaymentMethodScope());
+            String transactionTypeScope = deriveTransactionTypeScope(businessType, selectedCapabilities);
+            if (Objects.equals(transactionTypeScope, mid.getTransactionTypeScope())) {
+                continue;
+            }
+            ChannelMidConfigDO update = new ChannelMidConfigDO();
+            update.setId(mid.getId());
+            update.setTransactionTypeScope(transactionTypeScope);
+            update.setUpdateBy(operatorName);
+            update.setUpdateTime(now);
+            midConfigMapper.updateById(update);
+        }
+    }
+
+    private List<ChannelPaymentCapabilityDO> selectMidCapabilities(
+            List<ChannelPaymentCapabilityDO> capabilities, String paymentMethodScope) {
+        if (ALL.equalsIgnoreCase(trim(paymentMethodScope))) {
+            return capabilities;
+        }
+        Set<String> paymentMethods = new LinkedHashSet<>(splitScope(paymentMethodScope));
+        return capabilities.stream()
+                .filter(capability -> paymentMethods.contains(normalizeCode(capability.getPaymentMethod())))
+                .toList();
+    }
+
+    private String deriveTransactionTypeScope(
+            String businessType, List<ChannelPaymentCapabilityDO> capabilities) {
         List<String> transactionTypes = capabilities.stream()
                 .flatMap(capability -> splitTransactionTypes(businessType, capability.getTransactionType()).stream())
                 .distinct()
                 .toList();
-        if (transactionTypes.isEmpty()) {
+        return transactionTypes.isEmpty() ? NONE : joinTransactionTypes(transactionTypes);
+    }
+
+    private String resolveMidTransactionTypeScope(Long channelId, String businessType, String paymentMethodScope) {
+        List<ChannelPaymentCapabilityDO> capabilities = filterMidCapabilities(channelId, businessType, paymentMethodScope);
+        String transactionTypeScope = deriveTransactionTypeScope(businessType, capabilities);
+        if (NONE.equals(transactionTypeScope)) {
             throw badRequest("所选支付方式未配置启用的交易类型能力");
         }
-        return joinTransactionTypes(transactionTypes);
+        return transactionTypeScope;
     }
 
     private String resolveMidCardBrandScope(Long channelId, String businessType, String paymentMethodScope, String cardBrandScope) {

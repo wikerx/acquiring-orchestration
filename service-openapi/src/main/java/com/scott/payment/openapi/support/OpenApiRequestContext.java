@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -31,7 +31,7 @@ public class OpenApiRequestContext {
         HttpServletRequest request = currentRequest();
         OpenApiRequestHeaderDTO headerDTO = (OpenApiRequestHeaderDTO) request.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
         if (headerDTO == null) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED, "openapi request header context missing");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "openapi request header context missing");
         }
         return headerDTO;
     }
@@ -44,7 +44,7 @@ public class OpenApiRequestContext {
     public String getRequiredMerchantId() {
         String merchantId = getRequiredHeader().getMerchantId();
         if (merchantId == null || merchantId.isBlank()) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED, "openapi merchantId missing");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "openapi merchantId missing");
         }
         return merchantId;
     }

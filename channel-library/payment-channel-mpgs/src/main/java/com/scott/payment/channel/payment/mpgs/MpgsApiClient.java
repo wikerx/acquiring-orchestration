@@ -337,7 +337,7 @@ public class MpgsApiClient {
         String url = null;
         try {
             url = buildAuthenticationUrl(request);
-            log.info("MPGS 3DS查询上下文，context: {}", JsonUtils.toJsonString(new ThreeDsRequestLogContext(
+            log.info("MPGS 3DS查询上下文, event: MPGS_3DS_QUERY_CONTEXT, context: {}", JsonUtils.toJsonString(new ThreeDsRequestLogContext(
                     HTTP_METHOD_GET, MpgsApiOperation.RETRIEVE, request.getOperationId(), request.getTransactionId(),
                     request.getChannelOrderNo(), request.getAuthenticationTransactionId(), request.getMerchantOrderNo()
             )));
@@ -370,7 +370,7 @@ public class MpgsApiClient {
             url = buildAuthenticationUrl(request);
             MpgsRequestPayload payload = requestMapper.toMpgsThreeDsRequest(request, apiOperation);
             requestBody = JsonUtils.toJsonString(payload);
-            log.info("MPGS 3DS请求上下文，context: {}", JsonUtils.toJsonString(new ThreeDsRequestLogContext(
+            log.info("MPGS 3DS请求上下文, event: MPGS_3DS_REQUEST_CONTEXT, context: {}", JsonUtils.toJsonString(new ThreeDsRequestLogContext(
                     HTTP_METHOD_PUT, apiOperation, request.getOperationId(), request.getTransactionId(),
                     request.getChannelOrderNo(), request.getAuthenticationTransactionId(), request.getMerchantOrderNo()
             )));
@@ -408,7 +408,7 @@ public class MpgsApiClient {
                                                   String requestUrl,
                                                   long startNanos) {
         String body = response.body();
-        log.info("MPGS渠道响应上下文，context: {}", JsonUtils.toJsonString(new ResponseLogContext(
+        log.info("MPGS渠道响应上下文, event: MPGS_CHANNEL_RESPONSE_CONTEXT, context: {}", JsonUtils.toJsonString(new ResponseLogContext(
                 httpMethod, operation, request.getOperationId(), request.getTransactionId(),
                 request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
                 response.statusCode(), elapsedMillis(startNanos)
@@ -682,7 +682,7 @@ public class MpgsApiClient {
                                                                           String requestUrl,
                                                                           long startNanos) {
         String body = response.body();
-        log.info("MPGS 3DS响应上下文，context: {}", JsonUtils.toJsonString(new ThreeDsResponseLogContext(
+        log.info("MPGS 3DS响应上下文, event: MPGS_3DS_RESPONSE_CONTEXT, context: {}", JsonUtils.toJsonString(new ThreeDsResponseLogContext(
                 httpMethod, apiOperation, request.getOperationId(), request.getTransactionId(),
                 request.getChannelOrderNo(), request.getAuthenticationTransactionId(), response.statusCode(),
                 elapsedMillis(startNanos)
@@ -806,7 +806,7 @@ public class MpgsApiClient {
                             String operation,
                             String url,
                             MpgsRequestPayload payload) {
-        log.info("MPGS渠道请求上下文，context: {}", JsonUtils.toJsonString(new RequestLogContext(
+        log.info("MPGS渠道请求上下文, event: MPGS_CHANNEL_REQUEST_CONTEXT, context: {}", JsonUtils.toJsonString(new RequestLogContext(
                 httpMethod, operation, host(url), path(url), request.getOperationId(), request.getTransactionId(),
                 request.getChannelOrderNo(), request.getChannelTransactionId(),
                 request.getMerchantId(), request.getMerchantOrderNo(), request.getMerchantOrderId(), request.getTransactionType(),
@@ -831,7 +831,7 @@ public class MpgsApiClient {
                                      String url,
                                      long startNanos,
                                      Exception exception) {
-        log.warn("event: CHANNEL_REQUEST_FAILED traceId: {} channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} durationMs: {} exceptionType: {}",
+        log.warn("MPGS渠道请求失败, event: CHANNEL_REQUEST_FAILED, traceId: {}, channelCode: {}, apiOperation: {}, endpointHost: {}, endpointPath: {}, httpMethod: {}, midSummary: {}, transactionId: {}, operationId: {}, channelRequestId: {}, channelTransactionId: {}, durationMs: {}, exceptionType: {}",
                 TraceContext.getTraceId(),
                 request == null ? null : request.getChannelCode(),
                 operation,
@@ -865,7 +865,7 @@ public class MpgsApiClient {
                                            String url,
                                            MpgsRequestPayload payload) {
         PayloadLogMetadata metadata = payloadLogMetadata(payload);
-        log.info("event: CHANNEL_REQUEST_START traceId: {} channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} payloadLength: {} payloadDigest: {}",
+        log.info("MPGS渠道请求开始, event: CHANNEL_REQUEST_START, traceId: {}, channelCode: {}, apiOperation: {}, endpointHost: {}, endpointPath: {}, httpMethod: {}, midSummary: {}, transactionId: {}, operationId: {}, channelRequestId: {}, channelTransactionId: {}, payloadLength: {}, payloadDigest: {}",
                 TraceContext.getTraceId(),
                 request.getChannelCode(),
                 operation,
@@ -905,7 +905,7 @@ public class MpgsApiClient {
                                           String body,
                                           long startNanos) {
         PayloadLogMetadata metadata = payloadLogMetadata(body);
-        log.info("event: CHANNEL_RESPONSE_END traceId: {} channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} httpStatus: {} payloadLength: {} payloadDigest: {} channelResult: {} acquirerCode: {} responseCode: {} stan: {} channelTransactionId: {} durationMs: {}",
+        log.info("MPGS渠道响应完成, event: CHANNEL_RESPONSE_END, traceId: {}, channelCode: {}, apiOperation: {}, endpointHost: {}, endpointPath: {}, httpMethod: {}, midSummary: {}, transactionId: {}, operationId: {}, channelRequestId: {}, httpStatus: {}, payloadLength: {}, payloadDigest: {}, channelResult: {}, acquirerCode: {}, responseCode: {}, stan: {}, channelTransactionId: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 request.getChannelCode(),
                 operation,
@@ -935,7 +935,7 @@ public class MpgsApiClient {
      */
     private void logPayloadMetadata(String eventName, Object payload) {
         PayloadLogMetadata metadata = payloadLogMetadata(payload);
-        log.info("{}，payloadLength: {}, payloadDigest: {}", eventName, metadata.length(), metadata.digest());
+        log.info("{}, payloadLength: {}, payloadDigest: {}", eventName, metadata.length(), metadata.digest());
     }
 
     /**
@@ -1158,7 +1158,7 @@ public class MpgsApiClient {
                                      String url,
                                      long startNanos,
                                      Exception exception) {
-        log.warn("event: CHANNEL_3DS_REQUEST_FAILED traceId: {} channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} transactionId: {} operationId: {} channelOrderNo: {} authenticationTransactionId: {} merchantOrderNo: {} durationMs: {} exceptionType: {}",
+        log.warn("MPGS 3DS请求失败, event: CHANNEL_3DS_REQUEST_FAILED, traceId: {}, channelCode: {}, apiOperation: {}, endpointHost: {}, endpointPath: {}, httpMethod: {}, transactionId: {}, operationId: {}, channelOrderNo: {}, authenticationTransactionId: {}, merchantOrderNo: {}, durationMs: {}, exceptionType: {}",
                 TraceContext.getTraceId(),
                 request == null ? null : request.getChannelCode(),
                 operation,

@@ -57,10 +57,10 @@ class MpgsApiClientMaskingTests {
                 + "\"cardholderName\":\"Jane Doe\",\"nameOnCard\":\"Jane Doe MPGS\","
                 + "\"ipAddress\":\"203.0.113.9\",\"billingAddress\":\"1 Main Street\","
                 + "\"apiPassword\":\"secret-value\"}";
-        log.info("MPGS脱敏测试开始，case=卡号、安全码、认证令牌、渠道密码");
+        log.info("MPGS脱敏测试开始, case: 卡号、安全码、认证令牌、渠道密码");
 
         String masked = MpgsApiClient.maskMpgsJson(json);
-        log.info("MPGS脱敏测试输出，masked: {}", masked);
+        log.info("MPGS脱敏测试输出, masked: {}", masked);
 
         assertThat(masked).contains("\"number\":\"512345******0008\"");
         assertThat(masked).contains("\"securityCode\":\"***\"");
@@ -81,7 +81,7 @@ class MpgsApiClientMaskingTests {
      */
     @Test
     void shouldKeepBlankPayloadSafeForQueryLog() {
-        log.info("MPGS脱敏测试开始，case=查询空请求体");
+        log.info("MPGS脱敏测试开始, case: 查询空请求体");
 
         String masked = MpgsApiClient.maskMpgsJson(null);
 

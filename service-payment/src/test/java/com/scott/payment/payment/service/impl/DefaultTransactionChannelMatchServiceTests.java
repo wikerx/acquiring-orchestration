@@ -83,6 +83,21 @@ class DefaultTransactionChannelMatchServiceTests {
     }
 
     @Test
+    void shouldCarryOriginalTransactionTypeIntoChannelQuery() {
+        TransactionOperationDO operationDO = pendingOperation();
+        operationDO.setTransactionType(PaymentTransactionTypeEnum.CAPTURE.getCode());
+        InMemoryRecordService recordService = new InMemoryRecordService(operationDO);
+        QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
+        CapturingMatchResultTransactionService resultTransactionService =
+                new CapturingMatchResultTransactionService(recordService);
+
+        matchService(recordService, invokeService, resultTransactionService).matchDue(matchCommand());
+
+        assertThat(invokeService.lastRequest.getExtension())
+                .containsEntry("originalTransactionType", PaymentTransactionTypeEnum.CAPTURE.getCode());
+    }
+
+    @Test
     void shouldUseFrozenRouteSnapshotWhenCurrentMidWouldResolveDifferently() {
         TransactionOperationDO operationDO = pendingOperation();
         PaymentRouteResultDTO frozenRoute = PaymentRouteResultDTO.routed("MPGS");
@@ -773,6 +788,7 @@ class DefaultTransactionChannelMatchServiceTests {
             request.setTransactionType(commandDTO.getTransactionType());
             request.setAmount(commandDTO.getTransactionAmount());
             request.setCurrency(commandDTO.getTransactionCurrency());
+            request.getExtension().putAll(preparedChannelRequest.getExtension());
             lastRequest = request;
             ChannelPaymentResponse response = new ChannelPaymentResponse();
             response.setChannelCode(routeResult.getChannelCode());

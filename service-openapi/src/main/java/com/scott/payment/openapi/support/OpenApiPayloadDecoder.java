@@ -1,7 +1,8 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.openapi.dto.body.OpenApiEncryptedRequestDTO;
@@ -72,13 +73,14 @@ public class OpenApiPayloadDecoder {
      */
     public Object decode(String requestBody, Class<?> dataReceiver, OpenApiRequestHeaderDTO headerDTO) {
         if (!StringUtils.hasText(requestBody)) {
-            throw new ApiException(ApiResultEnum.PARAM_MISSING, "data");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_MISSING, "data", "encrypted data is required");
         }
         String cipherText = extractCipherText(requestBody);
         String plainText = decrypt(cipherText, headerDTO);
         Object data = parsePlainText(plainText, dataReceiver);
         if (data == null) {
-            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID);
+            throw new ApiException(OpenApiResultCode.ENCRYPTED_DATA_INVALID);
         }
         return data;
     }
@@ -126,22 +128,30 @@ public class OpenApiPayloadDecoder {
             return JsonUtils.parseObject(plainText, dataReceiver);
         } catch (RuntimeException exception) {
             if (IsoCountryQueryRequestDTO.class.equals(dataReceiver)) {
-                throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                        "country query only supports alpha2, alpha3 and numeric as ISO code strings");
+                throw OpenApiContextualException.parameter(
+                        OpenApiResultCode.PARAM_INVALID,
+                        "data",
+                        "country query fields or value types are invalid");
             }
             if (IsoCurrencyQueryRequestDTO.class.equals(dataReceiver)) {
-                throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                        "currency query only supports alphabeticCode and numericCode as ISO code strings");
+                throw OpenApiContextualException.parameter(
+                        OpenApiResultCode.PARAM_INVALID,
+                        "data",
+                        "currency query fields or value types are invalid");
             }
             if (IpLookupRequestDTO.class.equals(dataReceiver)) {
-                throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                        "IP query only supports ipAddress as a string");
+                throw OpenApiContextualException.parameter(
+                        OpenApiResultCode.PARAM_INVALID,
+                        "ipAddress",
+                        "IP address must be a string");
             }
             if (CardBinLookupRequestDTO.class.equals(dataReceiver)) {
-                throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                        "Card BIN query only supports cardBin as a string");
+                throw OpenApiContextualException.parameter(
+                        OpenApiResultCode.PARAM_INVALID,
+                        "cardBin",
+                        "card BIN must be a string");
             }
-            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID);
+            throw new ApiException(OpenApiResultCode.ENCRYPTED_DATA_INVALID);
         }
     }
 
@@ -218,7 +228,8 @@ public class OpenApiPayloadDecoder {
      */
     private String decrypt(String encryptedData, OpenApiRequestHeaderDTO headerDTO) {
         if (headerDTO == null || !StringUtils.hasText(headerDTO.getMerchantId())) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED);
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR,
+                    "verified merchant context is missing before payload decryption");
         }
         return payloadCrypto.decrypt(encryptedData.trim(), payloadKeyProvider.getPlatformPrivateKey(headerDTO.getMerchantId()));
     }

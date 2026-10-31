@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.client.payout;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
@@ -109,7 +109,7 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
             );
             return unwrapResult(result);
         } catch (RestClientException exception) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payout call failed");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payout call failed");
         }
     }
 
@@ -123,7 +123,7 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
         URI uri = URI.create(createUrl);
         String host = uri.getHost();
         if (host == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payout url host is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payout url host is empty");
         }
         if (LOCALHOST.equalsIgnoreCase(host) || IPV6_LOOPBACK.equals(host)
                 || IPV4_HOST_PATTERN.matcher(host).matches() || host.contains(DOMAIN_SEPARATOR)) {
@@ -170,13 +170,13 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
      */
     private PayoutCreateClientResponseDTO unwrapResult(CommonResult<PayoutCreateClientResponseDTO> result) {
         if (result == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payout response is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payout response is empty");
         }
         if (!CommonResult.isSuccess(result)) {
             throw new ApiException(result.getCode(), result.getMessage());
         }
         if (result.getData() == null) {
-            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payout response data is empty");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "service-payout response data is empty");
         }
         return result.getData();
     }

@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.security;
 
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.SecurityInterceptAuditMessage;
@@ -47,7 +48,8 @@ class SecurityInterceptEventRecorderTests {
 
         recorder.recordBlocked(request, SecurityInterceptEventRecorder.SOURCE_OPENAPI,
                 "OPENAPI_IP_DENIED", SecurityInterceptEventRecorder.RISK_HIGH,
-                "200045", "OPENAPI_IP_POLICY", "F403", "client ip denied");
+                "200045", "OPENAPI_IP_POLICY", OpenApiResultCode.SOURCE_NOT_ALLOWED.getCode(),
+                "client ip denied");
 
         ArgumentCaptor<SecurityInterceptAuditMessage> captor =
                 ArgumentCaptor.forClass(SecurityInterceptAuditMessage.class);
@@ -60,6 +62,7 @@ class SecurityInterceptEventRecorderTests {
         assertThat(message.getMerchantId()).isEqualTo("200045");
         assertThat(message.getClientIp()).isEqualTo("203.0.113.10");
         assertThat(message.getRequestPath()).isEqualTo("/api/rest/payment/v1/create");
+        assertThat(message.getReasonCode()).isEqualTo(OpenApiResultCode.SOURCE_NOT_ALLOWED.getCode());
         assertThat(message.getHeaderSummary())
                 .contains("authorizationPresent")
                 .doesNotContain("must-not-enter-message");

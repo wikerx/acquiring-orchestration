@@ -89,7 +89,7 @@ public class PaymentCreateResultDTO implements Serializable {
     private String status;
 
     /**
-     * 当前动作商户响应码，例如 T200、T202、T203、F210。
+     * 当前动作商户响应码，例如 T0000、T0001、T0002、F1000、F2000 或 F3000。
      */
     private String merchantResponseCode;
 

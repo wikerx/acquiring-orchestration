@@ -97,6 +97,22 @@ public class PaymentQueryVO implements Serializable {
         /** 当前动作交易状态。 */
         private String transactionStatus;
 
+        /** 内部处理阶段仅用于结果投影和 Java 兼容读取，不输出给商户。 */
+        @JSONField(serialize = false)
+        private String processStage;
+
+        /** OpenAPI 投影使用的受控失败原因码，不属于商户查询响应契约。 */
+        @JSONField(serialize = false)
+        private String failReasonCode;
+
+        /** OpenAPI 投影使用的安全失败说明，不属于商户查询响应契约。 */
+        @JSONField(serialize = false)
+        private String failReasonMessage;
+
+        /** 内部等待原因码，仅用于选择现有 code/message，不直接返回商户。 */
+        @JSONField(serialize = false)
+        private String pendingReasonCode;
+
         /**
          * 交易发生时间，按交易业务时区展示。
          */

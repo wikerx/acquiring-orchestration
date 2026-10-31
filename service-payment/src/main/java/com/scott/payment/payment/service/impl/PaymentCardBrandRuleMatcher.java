@@ -3,13 +3,10 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.component.db.reference.model.CardBrandRuleMatcher;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCardBrandRuleMatcher
- * @date : 2026-08-11 15:10
- * @email : scott_x@163.com
- * @description : 保留支付侧原调用点，委托支付与 OpenAPI 共用的公开 IIN 卡品牌兜底规则。
- * @status : create
+ * 支付侧卡品牌规则兼容入口。
+ *
+ * <p>实际规则委托给支付与 OpenAPI 共用的公开 IIN 匹配器，避免两端维护不同品牌范围；
+ * 该兜底结果不能替代权威卡 BIN 数据服务。</p>
  */
 final class PaymentCardBrandRuleMatcher {
 

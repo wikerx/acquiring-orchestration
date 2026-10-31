@@ -1,6 +1,5 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
@@ -11,7 +10,7 @@ import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
-import com.scott.payment.openapi.service.MerchantSecurityService;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.MethodParameter;
@@ -30,6 +29,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HexFormat;
@@ -57,11 +57,6 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
     private final OpenApiPayloadCrypto payloadCrypto;
 
     /**
-     * 商户安全材料服务，用于根据 merchantId 查询商户响应公钥。
-     */
-    private final MerchantSecurityService merchantSecurityService;
-
-    /**
      * service-payment 内部客户端，用于回写商户响应加密后的日志摘要。
      */
     private final PaymentInternalClient paymentInternalClient;
@@ -75,16 +70,13 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
      * 创建 OpenAPI 响应加密处理器。
      *
      * @param payloadCrypto           OpenAPI 报文混合加密工具
-     * @param merchantSecurityService 商户安全材料服务
      * @param paymentInternalClient   service-payment 内部客户端
      * @param diagnosticLogSupport    OpenAPI 诊断日志摘要组件
      */
     public OpenApiResponseBodyAdvice(OpenApiPayloadCrypto payloadCrypto,
-                                     MerchantSecurityService merchantSecurityService,
                                      PaymentInternalClient paymentInternalClient,
                                      OpenApiDiagnosticLogSupport diagnosticLogSupport) {
         this.payloadCrypto = payloadCrypto;
-        this.merchantSecurityService = merchantSecurityService;
         this.paymentInternalClient = paymentInternalClient;
         this.diagnosticLogSupport = diagnosticLogSupport;
     }
@@ -129,7 +121,7 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
                 httpRequest.setAttribute(OpenApiRequestAttributes.BUSINESS_CODE, commonResult.getCode());
                 String responseSummary = diagnosticLogSupport.responseEnvelopeSummary(commonResult);
                 httpRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY, responseSummary);
-                log.debug("event: OPENAPI_RESPONSE_PLAIN_END stage=RESPONSE traceId: {} merchantId: {} path: {} platformCode: {} encryptRequired=false responseSummary: {}",
+                log.debug("OpenAPI明文响应已完成, event: OPENAPI_RESPONSE_PLAIN_END, stage: RESPONSE, traceId: {}, merchantId: {}, path: {}, platformCode: {}, encryptRequired: false, responseSummary: {}",
                         TraceContext.getTraceId(),
                         merchantIdSafely(httpRequest),
                         request.getURI().getPath(),
@@ -147,13 +139,13 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         String plainDataJson = JsonUtils.toJsonString(result.getData());
         String encryptedData = payloadCrypto.encrypt(
                 plainDataJson,
-                merchantSecurityService.getMerchantResponsePublicKey(merchantId)
+                responsePublicKey(httpServletRequest)
         );
         String plainSummary = diagnosticLogSupport.plainResponseSummary(result.getData());
         String cipherSummary = diagnosticLogSupport.cipherResponseSummary(encryptedData);
         httpServletRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY, plainSummary);
         httpServletRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_CIPHER_SUMMARY, cipherSummary);
-        log.debug("event: OPENAPI_RESPONSE_ENCRYPT_END stage=ENCRYPT traceId: {} merchantId: {} path: {} platformCode: {} encryptSuccess=true plainLength: {} cipherLength: {} plainResponseSummary: {} cipherResponseSummary: {}",
+        log.debug("OpenAPI响应加密完成, event: OPENAPI_RESPONSE_ENCRYPT_END, stage: ENCRYPT, traceId: {}, merchantId: {}, path: {}, platformCode: {}, encryptSuccess: true, plainLength: {}, cipherLength: {}, plainResponseSummary: {}, cipherResponseSummary: {}",
                 TraceContext.getTraceId(),
                 merchantId,
                 request.getURI().getPath(),
@@ -169,6 +161,21 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         encryptedResult.setMessage(result.getMessage());
         encryptedResult.setData(encryptedData);
         return encryptedResult;
+    }
+
+    /**
+     * 读取拦截器预检并绑定的响应公钥。
+     *
+     * @param request 当前 Servlet 请求
+     * @return 已预检的商户响应公钥
+     * @throws ApiException 缺少上下文时按平台不变量破坏返回 F2000
+     */
+    private PublicKey responsePublicKey(HttpServletRequest request) {
+        Object value = request.getAttribute(OpenApiRequestAttributes.RESPONSE_PUBLIC_KEY);
+        if (value instanceof PublicKey publicKey) {
+            return publicKey;
+        }
+        throw new ApiException(OpenApiResultCode.SYSTEM_ERROR);
     }
 
     /**
@@ -204,7 +211,7 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         try {
             paymentInternalClient.updateMerchantApiResponseLog(requestDTO);
         } catch (RuntimeException exception) {
-            log.warn("event: OPENAPI_RESPONSE_LOG_UPDATE_FAILED stage=RESPONSE_LOG traceId: {} transactionId: {} exceptionType: {}",
+            log.warn("OpenAPI响应审计日志回写失败, event: OPENAPI_RESPONSE_LOG_UPDATE_FAILED, stage: RESPONSE_LOG, traceId: {}, transactionId: {}, exceptionType: {}",
                     TraceContext.getTraceId(),
                     transactionInfo.getTransactionId(),
                     exception.getClass().getSimpleName());
@@ -256,7 +263,7 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException exception) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR);
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR);
         }
     }
 
@@ -268,12 +275,14 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
      */
     private OpenApiRequestHeaderDTO getHeaderContext(ServerHttpRequest request) {
         if (!(request instanceof ServletServerHttpRequest servletRequest)) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED);
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR,
+                    "servlet response request context is unavailable");
         }
         HttpServletRequest httpServletRequest = servletRequest.getServletRequest();
         Object value = httpServletRequest.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
         if (!(value instanceof OpenApiRequestHeaderDTO headerDTO)) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED);
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR,
+                    "verified request header context is unavailable");
         }
         return headerDTO;
     }
@@ -286,7 +295,8 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
      */
     private HttpServletRequest servletRequest(ServerHttpRequest request) {
         if (!(request instanceof ServletServerHttpRequest servletRequest)) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED);
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR,
+                    "servlet response request context is unavailable");
         }
         return servletRequest.getServletRequest();
     }

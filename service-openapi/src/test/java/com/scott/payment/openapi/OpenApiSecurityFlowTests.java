@@ -1,8 +1,8 @@
 package com.scott.payment.openapi;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
@@ -105,7 +105,10 @@ class OpenApiSecurityFlowTests {
 
         String responseDataJson = JsonUtils.toJsonString(java.util.Map.of(
                 "orderInfo", java.util.Map.of("orderNo", TRADE_NO, "amount", 12389.45, "currency", "USD"),
-                "transactionInfo", java.util.Map.of("code", "T200", "message", "Success", "transactionId", "202607160954270000001")
+                "transactionInfo", java.util.Map.of(
+                        "code", OpenApiResultCode.TRANSACTION_SUCCESS.getCode(),
+                        "message", OpenApiResultCode.TRANSACTION_SUCCESS.getMessage(),
+                        "transactionId", "202607160954270000001")
         ));
         String encryptedResponseData = payloadCrypto.encrypt(
                 responseDataJson,
@@ -142,8 +145,9 @@ class OpenApiSecurityFlowTests {
 
         assertThatThrownBy(() -> jwtVerifier.verify(authorization, "wrong-merchant-key"))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getMessage());
-        log.info("异常分支-错误JWT共享密钥验签失败，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getCode());
+                .satisfies(error -> assertThat(((ApiException) error).getCode()).isEqualTo("F401007"));
+        log.info("异常分支-错误JWT共享密钥验签失败，内部兼容错误码：F401007，对外投影：{}",
+                OpenApiResultCode.AUTHENTICATION_FAILED.getCode());
 
         String expiredJwt = MerchantOpenApiTestSupport.createMerchantJwt(
                 MERCHANT_ID,
@@ -153,15 +157,17 @@ class OpenApiSecurityFlowTests {
         );
         assertThatThrownBy(() -> jwtVerifier.verify(expiredJwt, merchantJwtKey.merchantKey(), EXPIRED_ISSUED_AT + 181L))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiResultEnum.AUTHORIZATION_JWT_EXPIRED.getMessage());
-        log.info("异常分支-JWT过期被拒绝，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_EXPIRED.getCode());
+                .satisfies(error -> assertThat(((ApiException) error).getCode()).isEqualTo("F401003"));
+        log.info("异常分支-JWT过期被拒绝，内部兼容错误码：F401003，对外投影：{}",
+                OpenApiResultCode.AUTHORIZATION_TIME_INVALID.getCode());
 
         String tamperedData = MerchantOpenApiTestSupport.tamperCiphertextSegment(encryptedRequestData);
         assertThatThrownBy(() -> payloadCrypto.decrypt(
                 tamperedData,
                 payloadCrypto.readPrivateKey(platformPayloadKey.privateKeyPkcs8Base64())
         )).isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiResultEnum.ENCRYPTED_DATA_INVALID.getMessage());
-        log.info("异常分支-data密文被篡改，AES-GCM认证失败，预期错误码：{}", ApiResultEnum.ENCRYPTED_DATA_INVALID.getCode());
+                .satisfies(error -> assertThat(((ApiException) error).getCode()).isEqualTo("F402003"));
+        log.info("异常分支-data密文被篡改，内部兼容错误码：F402003，对外投影：{}",
+                OpenApiResultCode.ENCRYPTED_DATA_INVALID.getCode());
     }
 }

@@ -1,7 +1,8 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
@@ -363,16 +364,16 @@ public class PaymentServiceImpl implements PaymentService {
             return;
         }
         if (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 2) {
-            throw new ServiceException(
-                    ApiResultEnum.PARAM_INVALID.getCode(),
-                    field + " fraction digits exceed supported precision"
-            );
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    field,
+                    "amount fraction digits exceed supported precision");
         }
         if (StringUtils.hasText(currency) && !isoDictionaryService.isCurrencyFractionValid(amount, currency)) {
-            throw new ServiceException(
-                    ApiResultEnum.PARAM_INVALID.getCode(),
-                    field + " fraction digits exceed currency minor unit"
-            );
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    field,
+                    "amount fraction digits exceed currency minor unit");
         }
     }
 
@@ -389,7 +390,7 @@ public class PaymentServiceImpl implements PaymentService {
         PaymentCreateClientRequestDTO clientRequestDTO = toPaymentClientRequest(encryptedData, requestDTO, OpenApiPaymentOperationEnum.QUERY);
         logOpenApiPaymentSubmitStart(encryptedData, requestDTO, OpenApiPaymentOperationEnum.QUERY, clientRequestDTO);
         PaymentQueryVO responseVO = converter.toPaymentQueryVO(requestDTO, paymentInternalClient.query(clientRequestDTO));
-        log.info("event: OPENAPI_PAYMENT_SUBMIT_END stage=OPENAPI_SERVICE traceId: {} operation: {} merchantId: {} merchantOrderNo: {} sourceTransactionId: {} transactionType: {} responseSummary: {} durationMs: {}",
+        log.info("OpenAPI交易查询提交完成, event: OPENAPI_PAYMENT_SUBMIT_END, stage: OPENAPI_SERVICE, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, sourceTransactionId: {}, transactionType: {}, responseSummary: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 OpenApiPaymentOperationEnum.QUERY.getTransactionType(),
                 requestContext.getRequiredMerchantId(),
@@ -497,7 +498,7 @@ public class PaymentServiceImpl implements PaymentService {
                                               PaymentCreateClientRequestDTO clientRequestDTO) {
         String targetUrl = paymentTargetUrl(operation);
         URI targetUri = targetUrl == null ? null : URI.create(targetUrl);
-        log.info("event: OPENAPI_PAYMENT_SUBMIT_START stage=OPENAPI_SERVICE traceId: {} operation: {} merchantId: {} merchantOrderNo: {} merchantOrderId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} targetService: {} targetPath: {} requestFingerprint: {} cipherMasked: {} openApiPath: {} apiVersion: {} interfaceType: {} requestSource: {} cipherRequestSummary: {} plainRequestSummary: {}",
+        log.info("OpenAPI交易提交开始, event: OPENAPI_PAYMENT_SUBMIT_START, stage: OPENAPI_SERVICE, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, merchantOrderId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, targetService: {}, targetPath: {}, requestFingerprint: {}, cipherMasked: {}, openApiPath: {}, apiVersion: {}, interfaceType: {}, requestSource: {}, cipherRequestSummary: {}, plainRequestSummary: {}",
                 TraceContext.getTraceId(),
                 operation.getTransactionType(),
                 requestContext.getRequiredMerchantId(),
@@ -532,7 +533,7 @@ public class PaymentServiceImpl implements PaymentService {
                                             PaymentCreateVO responseVO,
                                             long startNanos) {
         PaymentCreateVO.TransactionInfoVO transactionInfo = responseVO == null ? null : responseVO.getTransactionInfo();
-        log.info("event: OPENAPI_PAYMENT_SUBMIT_END stage=OPENAPI_SERVICE traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionId: {} sourceTransactionId: {} transactionType: {} platformStatus: {} responseSummary: {} durationMs: {}",
+        log.info("OpenAPI交易提交完成, event: OPENAPI_PAYMENT_SUBMIT_END, stage: OPENAPI_SERVICE, traceId: {}, operation: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, sourceTransactionId: {}, transactionType: {}, platformStatus: {}, responseSummary: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 operation.getTransactionType(),
                 requestContext.getRequiredMerchantId(),
@@ -712,7 +713,7 @@ public class PaymentServiceImpl implements PaymentService {
         if (OpenApiPaymentOperationEnum.VOID == operation) {
             return paymentInternalClient.voidPayment(clientRequestDTO);
         }
-        throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+        throw new ServiceException(OpenApiResultCode.TRANSACTION_TYPE_NOT_SUPPORTED);
     }
 
     /**

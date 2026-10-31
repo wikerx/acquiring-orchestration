@@ -146,6 +146,12 @@ public class SettlementManualReviewTransactionService {
         this.clock = Objects.requireNonNull(clock, "settlement manual review clock is required");
     }
 
+    /**
+     * 创建冻结候选上界的预审快照；请求键重放必须与原筛选条件完全一致。
+     *
+     * @param command 预审范围、结算档案、筛选条件和可信操作人快照
+     * @return 预审任务及当前进度
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TaskResult preview(PreviewCommand command) {
@@ -165,6 +171,7 @@ public class SettlementManualReviewTransactionService {
         }
 
         Window window = maturedWindow(profile, clock.instant());
+        // 最大候选主键形成不可变上界，后续新进入 READY 的交易不得混入本次人工预审。
         Long snapshotMaxCandidateId = taskMapper.selectSnapshotMaxCandidateId(
                 command.merchantId(), command.settlementProfileId(), profile.getTargetCurrency(),
                 window.businessDate(), window.cutoffEndUtc(), command.reviewType(),
@@ -206,6 +213,14 @@ public class SettlementManualReviewTransactionService {
         return result(stored);
     }
 
+    /**
+     * 按期望版本启动预审任务，防止页面旧快照覆盖已推进状态。
+     *
+     * @param taskNo 预审任务号
+     * @param command 启动请求幂等键和期望版本
+     * @param expectedReviewType 调用入口允许的预审类型
+     * @return 启动后任务状态
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TaskResult start(String taskNo, StartCommand command, String expectedReviewType) {
@@ -240,6 +255,7 @@ public class SettlementManualReviewTransactionService {
         return result(task);
     }
 
+    /** 查询预审任务并校验调用入口对应的预审类型。 */
     @DS(DataSourceName.TRANSACTION)
     public TaskResult get(String taskNo, String expectedReviewType) {
         requireTaskNo(taskNo);
@@ -249,6 +265,7 @@ public class SettlementManualReviewTransactionService {
         return result(task);
     }
 
+    /** 以数据库租约领取一条到期任务；未命中任务时返回空。 */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public Optional<SettlementManualReviewTaskDO> claimNext(String owner,
@@ -274,6 +291,9 @@ public class SettlementManualReviewTransactionService {
         return Optional.of(task);
     }
 
+    /**
+     * 在固定分段内锁定候选并冻结预审事实；每次提交只推进一个任务版本。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void processClaimed(String taskNo, String owner, int chunkSize, LocalDateTime now) {
@@ -339,6 +359,7 @@ public class SettlementManualReviewTransactionService {
         }
     }
 
+    /** 对取消中的任务分段释放候选锁，全部释放后再进入终态。 */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void compensateClaimed(String taskNo, String owner, LocalDateTime now) {
@@ -368,6 +389,7 @@ public class SettlementManualReviewTransactionService {
         }
     }
 
+    /** 将处理异常分类为可重试退避或终态补偿，禁止无限重试。 */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void recordFailure(String taskNo,

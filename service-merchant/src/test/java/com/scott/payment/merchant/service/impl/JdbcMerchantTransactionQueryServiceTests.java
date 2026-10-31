@@ -1,8 +1,8 @@
 package com.scott.payment.merchant.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationResponse;
@@ -45,6 +45,22 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class JdbcMerchantTransactionQueryServiceTests {
+
+    /** F 类描述故障来源而非交易终态，商户筛选不得据此将 PROCESSING/PENDING 误判为 FAILED。 */
+    @Test
+    void merchantResponseCodeFilterShouldNotInferStatusFromFailureOriginCode() {
+        JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(
+                mock(NamedParameterJdbcTemplate.class));
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F1000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F2000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "F3000")).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                service, "resolveStatusByMerchantResponseCode", "T0003")).isEqualTo("FAILED");
+    }
 
     /** 商户端支付方式汇总必须使用标签金额，并按标签币种解析 ISO 4217 辅币位。 */
     @Test
@@ -345,6 +361,32 @@ class JdbcMerchantTransactionQueryServiceTests {
         assertThat(row.getAccessType()).isEqualTo("HOSTED_CHECKOUT");
     }
 
+    /** 商户查询只返回商户安全文案，不得暴露管理端可见的渠道码、渠道名或参考号。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationMapperShouldExposeOnlyMerchantAudienceMessage() throws Exception {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcMerchantTransactionQueryService service = new JdbcMerchantTransactionQueryService(jdbcTemplate);
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("transaction_status")).thenReturn("FAILED");
+        when(resultSet.getString("process_stage")).thenReturn("FINISHED");
+        when(resultSet.getString("fail_reason_code")).thenReturn("CHANNEL_DECLINED");
+        when(resultSet.getString("channel_code")).thenReturn("MPGS");
+        when(resultSet.getString("channel_order_no")).thenReturn("REF-1");
+        RowMapper<TransactionOperationResponse> mapper =
+                (RowMapper<TransactionOperationResponse>) ReflectionTestUtils.invokeMethod(
+                        service, "operationMapper");
+
+        TransactionOperationResponse row = mapper.mapRow(resultSet, 0);
+
+        assertThat(row.getMerchantResponseCode())
+                .isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode());
+        assertThat(row.getMerchantResponseMessage())
+                .isEqualTo("The transaction was declined by the issuer bank. Check the original order, "
+                        + "then ask the payer to contact their bank or use another payment method when applicable.")
+                .doesNotContain("MPGS", "05", "REF-1");
+    }
+
     @Test
     @SuppressWarnings("unchecked")
     void orderEnrichmentShouldScopeEveryAuxiliaryQueryByMerchantAndShardingTime() {
@@ -407,16 +449,18 @@ class JdbcMerchantTransactionQueryServiceTests {
         assertThat(amount).isEqualByComparingTo("28.50");
     }
 
+    /** 商户失败详情必须使用英文安全兜底，不能暴露平台持久化的内部风控原因。 */
     @Test
-    void shouldExposePersistedRiskBlockedMessageToMerchant() {
+    void shouldNotExposePersistedRiskMessageToMerchant() {
         String message = JdbcMerchantTransactionQueryService.resolveMerchantResponseMessage(
                 "FAILED",
                 "Risk blocked"
         );
 
-        assertThat(message).isEqualTo("Risk blocked");
+        assertThat(message).isEqualTo("The transaction did not complete. Check the details or contact support.");
     }
 
+    /** 渠道执行 token 只用于平台诊断，商户查询必须替换为英文安全兜底。 */
     @Test
     void shouldReplaceInternalChannelFailureTokenWithCanonicalDeclineMessage() {
         String message = JdbcMerchantTransactionQueryService.resolveMerchantResponseMessage(
@@ -424,7 +468,7 @@ class JdbcMerchantTransactionQueryServiceTests {
                 "CHANNEL_REQUEST_FAILED"
         );
 
-        assertThat(message).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        assertThat(message).isEqualTo("The transaction did not complete. Check the details or contact support.");
     }
 
     private TransactionOperationResponse operation(String operationId,

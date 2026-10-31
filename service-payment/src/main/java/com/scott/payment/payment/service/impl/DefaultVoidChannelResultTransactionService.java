@@ -16,13 +16,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultVoidChannelResultTransactionService
- * @date : 2026-07-24 00:00
- * @email : scott_x@163.com
- * @description : Void 渠道结果默认事务实现，使用 REQUIRES_NEW 保存同步结果并通过 CAS 推进撤销动作。
- * @status : create
+ * 撤销渠道结果的独立事务服务。
+ *
+ * <p>撤销结果只推进本地已准备动作，并通过当前持久化状态 CAS 防止重复或晚到结果覆盖终态。
+ * 终态变化与生命周期 Outbox 在同一事务提交。</p>
  */
 @Service
 public class DefaultVoidChannelResultTransactionService implements VoidChannelResultTransactionService {
@@ -64,6 +61,7 @@ public class DefaultVoidChannelResultTransactionService implements VoidChannelRe
             return false;
         }
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+        // 重新读取主库动作与原交易主单，避免准备阶段快照在并发回调后失效。
         TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), preparationResultDTO.getCommandDTO().getTransactionDateTime());
         TransactionOrderDO sourceOrderDO = transactionRecordService.findOrderPrimary(
@@ -71,6 +69,7 @@ public class DefaultVoidChannelResultTransactionService implements VoidChannelRe
         if (operationDO == null || sourceOrderDO == null) {
             return false;
         }
+        // CAS 返回 false 表示其他路径已经收敛该动作，本次结果不得再次推进状态。
         boolean statusChanged = transactionRecordService.completeVoidChannelResult(
                 operationDO,
                 sourceOrderDO,

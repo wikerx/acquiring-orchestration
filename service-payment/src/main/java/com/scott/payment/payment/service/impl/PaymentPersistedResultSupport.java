@@ -1,6 +1,9 @@
 package com.scott.payment.payment.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageLocale;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionProjection;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionResultProjector;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
@@ -9,13 +12,10 @@ import com.scott.payment.payment.entity.TransactionOrderDO;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentPersistedResultSupport
- * @date : 2026-10-25 00:00
- * @email : scott_x@163.com
- * @description : 支付同步响应的数据库事实覆盖器；仅在渠道结果 CAS 失败时使用，避免迟到同步响应覆盖并发回调终态。
- * @status : create
+ * 使用最新数据库事实修正支付同步响应。
+ *
+ * <p>该支持类只用于同步结果 CAS 失败或幂等快照滞后的场景。并发回调、主动查询或恢复任务一旦先提交，
+ * 当前线程内的渠道响应就不再具有权威性，必须以主库动作单和生命周期主单为准。</p>
  */
 final class PaymentPersistedResultSupport {
 
@@ -36,15 +36,21 @@ final class PaymentPersistedResultSupport {
         if (result == null || operation == null || order == null) {
             throw new IllegalStateException("persisted payment operation and order are required after CAS conflict");
         }
+        // 动作单拥有当前动作状态、阶段和失败证据；禁止继续使用 CAS 失败线程中的旧渠道判断。
         result.setStatus(operation.getTransactionStatus());
         result.setProcessStage(operation.getProcessStage());
         result.setPendingReasonCode(operation.getPendingReasonCode());
         result.setFailReasonCode(operation.getFailReasonCode());
-        result.setFailReasonMessage(merchantVisibleFailureMessage(operation));
+        // 对外码和文案必须由受控事实重新投影，渠道原始 message 只能留在内部审计字段。
+        OpenApiTransactionProjection projection = project(operation);
+        result.setFailReasonMessage(projection.failureReasonCode() == null ? null
+                : projection.message(OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
         result.setAuthCode(operation.getAuthCode());
         result.setAcquirerReferenceNo(operation.getAcquirerReferenceNo());
-        result.setMerchantResponseCode(merchantResponseCode(operation.getTransactionStatus()));
-        result.setMerchantResponseMessage(merchantResponseMessage(operation));
+        result.setMerchantResponseCode(projection.resultCode().getCode());
+        result.setMerchantResponseMessage(projection.message(
+                OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        // 生命周期累计金额属于主单事实，和动作单状态一起覆盖才能返回一致的闭环快照。
         result.setTotalAuthorizedAmount(order.getAuthorizedAmount());
         result.setTotalAuthorizedCancelAmount(order.getAuthorizedCancelAmount());
         result.setTotalCapturedAmount(order.getCapturedAmount());
@@ -69,67 +75,42 @@ final class PaymentPersistedResultSupport {
             return result;
         }
         result.setStatus(transactionStatus);
-        result.setMerchantResponseCode(merchantResponseCode(transactionStatus));
+        // 幂等表只在已确认终态时清理历史 pending/failure 原因，处理中快照仍保留原阶段证据。
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
             result.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
             result.setPendingReasonCode(null);
             result.setFailReasonCode(null);
             result.setFailReasonMessage(null);
-            result.setMerchantResponseMessage(ApiResultEnum.PAYMENT_SUCCESS.getMessage());
         } else if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
             result.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
             result.setPendingReasonCode(null);
             result.setFailReasonCode(null);
-            result.setFailReasonMessage(
-                    "Payment failed. Please use the transaction ID to query details or contact support.");
-            result.setMerchantResponseMessage(ApiResultEnum.PAYMENT_REJECTED.getMessage());
-        } else if (PaymentTransactionStatusEnum.PENDING.getCode().equals(transactionStatus)) {
-            result.setMerchantResponseMessage(ApiResultEnum.PENDING.getMessage());
-        } else {
-            result.setMerchantResponseMessage(ApiResultEnum.PROCESSING.getMessage());
+            result.setFailReasonMessage(null);
+        }
+        // 状态变化后重新生成商户投影，避免重放旧响应时出现状态与公开码不一致。
+        OpenApiTransactionProjection projection = project(result);
+        result.setMerchantResponseCode(projection.resultCode().getCode());
+        result.setMerchantResponseMessage(projection.message(
+                OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        if (projection.failureReasonCode() != null) {
+            result.setFailReasonMessage(projection.message(
+                    OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
         }
         return result;
     }
 
-    private static String merchantResponseCode(String status) {
-        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(status)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getCode();
-        }
-        if (PaymentTransactionStatusEnum.FAILED.getCode().equals(status)) {
-            return ApiResultEnum.PAYMENT_REJECTED.getCode();
-        }
-        if (PaymentTransactionStatusEnum.PENDING.getCode().equals(status)) {
-            return ApiResultEnum.PENDING.getCode();
-        }
-        return ApiResultEnum.PROCESSING.getCode();
+    /** 按权威动作事实生成商户安全投影，不使用渠道原始文案。 */
+    private static OpenApiTransactionProjection project(TransactionOperationDO operation) {
+        return OpenApiTransactionResultProjector.project(
+                operation.getTransactionStatus(), operation.getProcessStage(), operation.getFailReasonCode(),
+                operation.getPendingReasonCode(), null);
     }
 
-    private static String merchantResponseMessage(TransactionOperationDO operation) {
-        String status = operation.getTransactionStatus();
-        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(status)) {
-            return ApiResultEnum.PAYMENT_SUCCESS.getMessage();
-        }
-        if (PaymentTransactionStatusEnum.PENDING.getCode().equals(status)) {
-            return ApiResultEnum.PENDING.getMessage();
-        }
-        if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(status)) {
-            return ApiResultEnum.PROCESSING.getMessage();
-        }
-        if (PaymentRiskDecisionSupport.isRiskRejected(operation.getFailReasonCode())) {
-            return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
-        }
-        return ApiResultEnum.PAYMENT_REJECTED.getMessage();
-    }
-
-    private static String merchantVisibleFailureMessage(TransactionOperationDO operation) {
-        if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(operation.getTransactionStatus())
-                || !StringUtils.hasText(operation.getFailReasonCode())) {
-            return null;
-        }
-        if (PaymentRiskDecisionSupport.isRiskRejected(operation.getFailReasonCode())) {
-            return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
-        }
-        return "Payment failed. Please use the transaction ID to query details or contact support.";
+    /** 按幂等响应快照生成商户安全投影。 */
+    private static OpenApiTransactionProjection project(PaymentCreateResultDTO result) {
+        return OpenApiTransactionResultProjector.project(
+                result.getStatus(), result.getProcessStage(), result.getFailReasonCode(),
+                result.getPendingReasonCode(), result.getMerchantResponseCode());
     }
 
 }

@@ -7,7 +7,10 @@ import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDT
 import com.scott.payment.openapi.dto.body.PaymentCreateRequestDTO;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageLocale;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionProjection;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionResultProjector;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.springframework.util.StringUtils;
@@ -80,8 +83,6 @@ public interface OpenApiRequestConverter {
         vo.setOrderInfo(orderInfoVO);
 
         PaymentCreateVO.TransactionInfoVO transactionInfoVO = new PaymentCreateVO.TransactionInfoVO();
-        transactionInfoVO.setCode(responseDTO.getMerchantResponseCode());
-        transactionInfoVO.setMessage(responseDTO.getMerchantResponseMessage());
         transactionInfoVO.setTransactionId(responseDTO.getTransactionId());
         transactionInfoVO.setSourceTransactionId(responseDTO.getSourceTransactionId());
         transactionInfoVO.setSourceTransactionDateTime(toOffsetDateTime(
@@ -102,9 +103,13 @@ public interface OpenApiRequestConverter {
         transactionInfoVO.setMerchantWebsite(responseDTO.getMerchantWebsite());
         transactionInfoVO.setRedirectUrl(responseDTO.getRedirectUrl());
         transactionInfoVO.setLanguage(responseDTO.getLanguage());
-        transactionInfoVO.setFailReasonCode(responseDTO.getFailReasonCode());
-        transactionInfoVO.setFailReasonMessage(responseDTO.getFailReasonMessage());
         transactionInfoVO.setPendingReasonCode(responseDTO.getPendingReasonCode());
+        applyTransactionProjection(transactionInfoVO,
+                responseDTO.getStatus(),
+                responseDTO.getProcessStage(),
+                responseDTO.getFailReasonCode(),
+                responseDTO.getPendingReasonCode(),
+                responseDTO.getMerchantResponseCode());
         vo.setTransactionInfo(transactionInfoVO);
 
         vo.setCurrency(responseDTO.getCurrency());
@@ -152,7 +157,6 @@ public interface OpenApiRequestConverter {
             transactionInfoVO.setCallbackUrl(requestDTO.getTransactionInfo().getCallbackUrl());
             vo.setTransactionInfo(transactionInfoVO);
         }
-        normalizeMerchantFailureMessage(vo, responseDTO);
         overrideSettlementCurrency(vo, merchantSettlementCurrency);
         return vo;
     }
@@ -505,35 +509,6 @@ public interface OpenApiRequestConverter {
     }
 
     /**
-     * 解析商户失败说明，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param vo 待组装或返回的接口视图对象，只允许写入调用方有权查看的字段
-     * @param responseDTO response DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     */
-    private void normalizeMerchantFailureMessage(PaymentCreateVO vo, PaymentCreateClientResponseDTO responseDTO) {
-        if (vo == null || vo.getTransactionInfo() == null || responseDTO == null) {
-            return;
-        }
-        if (isInitialCreateAction(responseDTO.getTransactionType())
-                && "FAILED".equals(responseDTO.getStatus())
-                && shouldUseDefaultRejectedMessage(responseDTO.getMerchantResponseMessage())) {
-            vo.getTransactionInfo().setMessage(ApiResultEnum.PAYMENT_REJECTED.getMessage());
-        }
-    }
-
-    /**
-     * 判断渠道或内部失败说明是否缺失或仍为通用 Rejected，以决定是否回退统一商户文案。
-     * @param merchantResponseMessage 候选商户可见响应说明，内部错误和渠道敏感细节不得直接透传
-     * @return 当前业务条件成立时返回 true，否则返回 false
-     */
-    private boolean shouldUseDefaultRejectedMessage(String merchantResponseMessage) {
-        return !StringUtils.hasText(merchantResponseMessage)
-                || "Rejected".equalsIgnoreCase(merchantResponseMessage.trim());
-    }
-
-    /**
      * 判断交易类型是否属于支付、授权或预授权等初始创建动作。
      * <p>
      * 纯判断操作，不修改业务状态。
@@ -684,10 +659,16 @@ public interface OpenApiRequestConverter {
         target.setTransactionId(source.getTransactionId());
         target.setSourceTransactionId(source.getSourceTransactionId());
         target.setSourceTransactionDateTime(toOffsetDateTime(source.getSourceTransactionDateTime(), timeZone));
-        target.setCode(source.getCode());
-        target.setMessage(source.getMessage());
         target.setTransactionType(source.getTransactionType());
         target.setTransactionStatus(source.getTransactionStatus());
+        target.setProcessStage(source.getProcessStage());
+        target.setPendingReasonCode(source.getPendingReasonCode());
+        applyTransactionProjection(target,
+                source.getTransactionStatus(),
+                source.getProcessStage(),
+                source.getFailReasonCode(),
+                source.getPendingReasonCode(),
+                source.getCode());
         target.setTransactionDateTime(toOffsetDateTime(source.getTransactionDateTime(), timeZone));
         target.setRootTransactionDateTime(toOffsetDateTime(source.getRootTransactionDateTime(), timeZone));
         target.setPaymentMethod(source.getPaymentMethod());
@@ -701,6 +682,45 @@ public interface OpenApiRequestConverter {
         target.setRedirectUrl(source.getRedirectUrl());
         target.setLanguage(source.getLanguage());
         return target;
+    }
+
+    /**
+     * 将支付核心事实投影到创建类交易响应，公开原因始终使用平台固定模板。
+     *
+     * @param target 商户创建类交易信息
+     * @param status 支付核心状态
+     * @param processStage 支付核心处理阶段
+     * @param failureReasonCode 支付核心受控失败原因码
+     * @param pendingReasonCode 支付核心受控等待原因码
+     * @param legacyMerchantCode 历史内部响应码，仅用于兼容输入
+     */
+    private void applyTransactionProjection(PaymentCreateVO.TransactionInfoVO target,
+                                            String status,
+                                            String processStage,
+                                            String failureReasonCode,
+                                            String pendingReasonCode,
+                                            String legacyMerchantCode) {
+        OpenApiTransactionProjection projection = OpenApiTransactionResultProjector.project(
+                status, processStage, failureReasonCode, pendingReasonCode, legacyMerchantCode);
+        target.setCode(projection.resultCode().getCode());
+        target.setMessage(projection.message(OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        target.setFailReasonCode(projection.failureReasonCode());
+        target.setFailReasonMessage(projection.failureReasonMessage());
+    }
+
+    /** 查询响应与创建响应共享同一投影规则，避免相同交易事实产生不同公开结果。 */
+    private void applyTransactionProjection(PaymentQueryVO.TransactionInfoVO target,
+                                            String status,
+                                            String processStage,
+                                            String failureReasonCode,
+                                            String pendingReasonCode,
+                                            String legacyMerchantCode) {
+        OpenApiTransactionProjection projection = OpenApiTransactionResultProjector.project(
+                status, processStage, failureReasonCode, pendingReasonCode, legacyMerchantCode);
+        target.setCode(projection.resultCode().getCode());
+        target.setMessage(projection.message(OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
+        target.setFailReasonCode(projection.failureReasonCode());
+        target.setFailReasonMessage(projection.failureReasonMessage());
     }
 
     /**

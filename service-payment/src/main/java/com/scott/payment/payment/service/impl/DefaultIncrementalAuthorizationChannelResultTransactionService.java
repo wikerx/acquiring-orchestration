@@ -16,13 +16,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultIncrementalAuthorizationChannelResultTransactionService
- * @date : 2026-07-24 00:00
- * @email : scott_x@163.com
- * @description : Incremental Authorization 渠道结果默认事务实现，使用 REQUIRES_NEW 保存同步结果并通过 CAS 推进增量授权动作。
- * @status : create
+ * 增额授权渠道结果的独立事务服务。
+ *
+ * <p>服务重新读取主库动作与原交易主单后执行状态 CAS。只有 CAS 获胜的成功动作才能增加累计
+ * 授权金额，并与终态 Outbox 共同提交；重复或晚到结果不得重复增加授权额度。</p>
  */
 @Service
 public class DefaultIncrementalAuthorizationChannelResultTransactionService implements IncrementalAuthorizationChannelResultTransactionService {
@@ -65,6 +62,7 @@ public class DefaultIncrementalAuthorizationChannelResultTransactionService impl
             return false;
         }
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+        // 结果落库以当前主库事实为准，不能继续信任渠道调用前的准备快照。
         TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), preparationResultDTO.getCommandDTO().getTransactionDateTime());
         TransactionOrderDO sourceOrderDO = transactionRecordService.findOrderPrimary(
@@ -72,6 +70,7 @@ public class DefaultIncrementalAuthorizationChannelResultTransactionService impl
         if (operationDO == null || sourceOrderDO == null) {
             return false;
         }
+        // 累计授权金额的变化封装在状态 CAS 内，确保并发结果至多生效一次。
         boolean statusChanged = transactionRecordService.completeIncrementalAuthorizationChannelResult(
                 operationDO,
                 sourceOrderDO,

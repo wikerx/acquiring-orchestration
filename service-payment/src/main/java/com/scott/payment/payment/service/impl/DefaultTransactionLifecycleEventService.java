@@ -18,13 +18,11 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionLifecycleEventService
- * @date : 2026-08-02 20:00
- * @email : scott_x@163.com
- * @description : 交易终态生命周期事件实现，在状态 CAS 和通知激活事务内持久化携带真实分片时间的状态变更 Outbox
- * @status : create
+ * 支付交易终态生命周期事件服务。
+ *
+ * <p>调用方必须在交易状态 CAS 成功后的同一数据库事务内保存事件，保证“状态已提交”与
+ * “事件可投递”共同成立。事件按 operationId 顺序投递并采用至少一次语义，下游必须按
+ * messageId 幂等；非终态不允许伪装成生命周期完成事件。</p>
  */
 @Service
 public class DefaultTransactionLifecycleEventService implements TransactionLifecycleEventService {
@@ -81,6 +79,7 @@ public class DefaultTransactionLifecycleEventService implements TransactionLifec
             throw new IllegalArgumentException("transaction status is not terminal");
         }
         LocalDateTime now = LocalDateTime.now();
+        // eventNo 同时作为消息号和 Outbox messageKey，形成跨数据库与 MQ 的稳定幂等身份。
         String eventNo = PaymentOrderNoGenerator.nextOrderNo(
                 EVENT_NO_PREFIX,
                 transactionDateTime);
@@ -97,6 +96,7 @@ public class DefaultTransactionLifecycleEventService implements TransactionLifec
         message.setTransactionDateTime(transactionDateTime);
         message.setTraceId(TraceContext.getOrCreateTraceId());
 
+        // Outbox 保存完整路由事实和冻结 JSON，Relay 不再根据当前交易状态重建消息。
         TransactionEventOutboxDO eventDO = new TransactionEventOutboxDO();
         eventDO.setEventNo(eventNo);
         eventDO.setAggregateType(PAYMENT_TRANSACTION_AGGREGATE);

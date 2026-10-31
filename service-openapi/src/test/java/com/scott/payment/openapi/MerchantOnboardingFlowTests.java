@@ -1,11 +1,12 @@
 package com.scott.payment.openapi;
 
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
-import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.dto.security.MerchantInfoDTO;
 import com.scott.payment.openapi.dto.security.MerchantKeyRevisionDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
 import com.scott.payment.openapi.dto.security.ServerSecurityMaterialDTO;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.openapi.service.MerchantSecurityService;
 import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 /**
  * @author : scott
@@ -177,11 +179,13 @@ class MerchantOnboardingFlowTests extends OpenApiIsolatedMysqlIntegrationTest {
      */
     @Test
     void shouldRejectProvisionForSdkLiveMerchant() {
-        assertThatThrownBy(() -> merchantSecurityService.provisionMerchantSecurityMaterial(
+        OpenApiContextualException exception = catchThrowableOfType(
+                () -> merchantSecurityService.provisionMerchantSecurityMaterial(
                 MerchantOpenApiTestSupport.buildMerchantSeed(MerchantOpenApiTestSupport.SDK_LIVE_MERCHANT_ID)
-        ))
-                .isInstanceOf(ApiException.class)
-                .hasMessageContaining("reserved for SDK live tests");
+                ), OpenApiContextualException.class);
+
+        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.PARAM_INVALID.getCode());
+        assertThat(exception.getErrorContext().fieldPath()).isEqualTo("merchantId");
     }
 
     /**

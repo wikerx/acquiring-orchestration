@@ -178,7 +178,7 @@ public class PaymentQueryResultDTO implements Serializable {
         private LocalDateTime sourceTransactionDateTime;
 
         /**
-         * 当前动作商户响应码，例如 T200、T202、T203、F210。
+         * 当前动作商户响应码，例如 T0000、T0001、T0002、F1000、F2000 或 F3000。
          */
         private String code;
 
@@ -194,6 +194,18 @@ public class PaymentQueryResultDTO implements Serializable {
 
         /** 当前动作交易状态。 */
         private String transactionStatus;
+
+        /** 当前动作内部处理阶段，用于 OpenAPI 按交易事实投影公开结果。 */
+        private String processStage;
+
+        /** 支付核心受控失败原因码，不包含渠道原始码。 */
+        private String failReasonCode;
+
+        /** 支付核心内部失败摘要；OpenAPI 不得直接透传。 */
+        private String failReasonMessage;
+
+        /** 支付核心受控等待原因码，用于区分普通等待和渠道结果未确认。 */
+        private String pendingReasonCode;
 
         /**
          * 交易发生时间。

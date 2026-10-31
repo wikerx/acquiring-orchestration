@@ -1,11 +1,11 @@
 package com.scott.payment.openapi;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.service.MerchantSecurityService;
 import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -162,8 +162,8 @@ class MerchantOpenApiEndToEndTests extends OpenApiIsolatedMysqlIntegrationTest {
                         result.getResponse().getStatus(),
                         MerchantOpenApiTestSupport.safeSecretSummary(result.getResponse().getContentAsString(), keyMaterialFactory)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ApiResultEnum.COMMON_FAILED.getCode()))
-                .andExpect(jsonPath("$.message").value(ApiResultEnum.COMMON_FAILED.getMessage()))
+                .andExpect(jsonPath("$.code").value(OpenApiResultCode.SYSTEM_ERROR.getCode()))
+                .andExpect(jsonPath("$.message").value(OpenApiResultCode.SYSTEM_ERROR.getMessage()))
                 .andExpect(jsonPath("$.data").value(nullValue()));
     }
 
@@ -191,21 +191,21 @@ class MerchantOpenApiEndToEndTests extends OpenApiIsolatedMysqlIntegrationTest {
         assertOpenApiError("缺少authorization请求头",
                 null,
                 validBody,
-                ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
+                OpenApiResultCode.AUTHORIZATION_MISSING);
         assertOpenApiError("错误merchantKey导致JWT签名失败",
                 MerchantOpenApiTestSupport.createMerchantJwt(MERCHANT_ID, "wrong-merchant-key", System.currentTimeMillis() / 1000L,
                         MerchantOpenApiTestSupport.uniqueJwtId("bad-key")),
                 validBody,
-                ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID);
+                OpenApiResultCode.AUTHENTICATION_FAILED);
         assertOpenApiError("JWT已过期",
                 MerchantOpenApiTestSupport.createMerchantJwt(MERCHANT_ID, clientMaterial.getMerchantKey(), EXPIRED_ISSUED_AT,
                         MerchantOpenApiTestSupport.uniqueJwtId("expired-jwt")),
                 validBody,
-                ApiResultEnum.AUTHORIZATION_JWT_EXPIRED);
+                OpenApiResultCode.AUTHORIZATION_TIME_INVALID);
         assertOpenApiError("请求体data被篡改",
                 validAuthorization,
                 MerchantOpenApiTestSupport.wrapEncryptedData(MerchantOpenApiTestSupport.tamperCiphertextSegment(encryptedData)),
-                ApiResultEnum.ENCRYPTED_DATA_INVALID);
+                OpenApiResultCode.ENCRYPTED_DATA_INVALID);
     }
 
     /**
@@ -227,13 +227,13 @@ class MerchantOpenApiEndToEndTests extends OpenApiIsolatedMysqlIntegrationTest {
      * @param caseName      当前异常分支名称
      * @param authorization authorization 请求头；为空表示不传
      * @param body          HTTP 请求体
-     * @param expectedEnum  预期错误枚举
+     * @param expectedCode  V1.3 对外错误码；不得使用内部 ApiResultEnum 断言商户响应
      * @throws Exception MockMvc 调用异常
      */
     private void assertOpenApiError(String caseName,
                                     String authorization,
                                     String body,
-                                    ApiResultEnum expectedEnum) throws Exception {
+                                    OpenApiResultCode expectedCode) throws Exception {
         var requestBuilder = post(MerchantOpenApiTestSupport.AUTHORIZATION_PATH)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body);
@@ -246,7 +246,7 @@ class MerchantOpenApiEndToEndTests extends OpenApiIsolatedMysqlIntegrationTest {
                         result.getResponse().getStatus(),
                         result.getResponse().getContentAsString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(expectedEnum.getCode()));
+                .andExpect(jsonPath("$.code").value(expectedCode.getCode()));
     }
 
 }

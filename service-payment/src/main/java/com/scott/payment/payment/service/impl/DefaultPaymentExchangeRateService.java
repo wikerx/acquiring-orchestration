@@ -13,13 +13,11 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentExchangeRateService
- * @date : 2026-07-15 00:00
- * @email : scott_x@163.com
- * @description : 支付核心交易汇率默认实现，位于 service-payment 服务实现层，只读 exchange_business_rate 当前有效 TRANSACTION_RATE。
- * @status : create
+ * 支付核心使用的交易汇率只读服务。
+ *
+ * <p>汇率方向固定为 baseCurrency 到 quoteCurrency，并按交易发生时点选择最近生效且未过期的
+ * TRANSACTION_RATE。缺失汇率返回空结果，由调用方 Fail Closed；本服务不提供默认汇率、反向推导
+ * 或结算汇率替代。</p>
  */
 @Service
 public class DefaultPaymentExchangeRateService implements PaymentExchangeRateService {
@@ -67,6 +65,7 @@ public class DefaultPaymentExchangeRateService implements PaymentExchangeRateSer
             return Optional.empty();
         }
         LocalDateTime queryTime = atTime == null ? LocalDateTime.now() : atTime;
+        // 同一币对可能存在多条历史版本，按生效时间和主键倒序锁定交易时点唯一版本。
         ExchangeBusinessRateDO rateDO = exchangeBusinessRateMapper.selectOne(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
                 .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)
                 .eq(ExchangeBusinessRateDO::getRateType, TRANSACTION_RATE)
@@ -84,6 +83,7 @@ public class DefaultPaymentExchangeRateService implements PaymentExchangeRateSer
             return Optional.empty();
         }
         PaymentExchangeRateDTO dto = new PaymentExchangeRateDTO();
+        // 原样返回数据库 BigDecimal 汇率，不在查询层提前换算金额或舍入。
         dto.setRateId(rateDO.getId());
         dto.setSourceCode(rateDO.getSourceCode());
         dto.setBaseCurrency(rateDO.getBaseCurrency());

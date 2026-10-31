@@ -1,7 +1,8 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.openapi.converter.OpenApiReferenceDataConverter;
 import com.scott.payment.openapi.dto.body.reference.CardBinLookupRequestDTO;
 import com.scott.payment.openapi.dto.body.reference.IpLookupRequestDTO;
@@ -51,7 +52,10 @@ public class OpenApiReferenceDataServiceImpl implements OpenApiReferenceDataServ
         try {
             return converter.toIpLookupVO(cacheReader.lookupIp(requestDTO.getIpAddress()));
         } catch (IllegalArgumentException exception) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "ipAddress must be a valid IPv4 or IPv6 literal");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    "ipAddress",
+                    "IP address must be a valid IPv4 or IPv6 literal");
         }
     }
 
@@ -66,7 +70,10 @@ public class OpenApiReferenceDataServiceImpl implements OpenApiReferenceDataServ
         try {
             return converter.toCardBinLookupVO(cacheReader.lookupCardBin(requestDTO.getCardBin()));
         } catch (IllegalArgumentException exception) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "cardBin must contain at least 6 digits");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    "cardBin",
+                    "card BIN must contain at least 6 digits");
         }
     }
 }

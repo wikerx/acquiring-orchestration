@@ -31,13 +31,11 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionCallbackInboxService
- * @date : 2026-10-17 12:00
- * @email : scott_x@163.com
- * @description : 渠道回调 Inbox 默认实现，位于 service-payment 服务实现层，使用数据库唯一键原子受理并用版本号 CAS 保护多实例异步消费。
- * @status : create
+ * 渠道回调 Inbox 的持久化与状态服务。
+ *
+ * <p>回调按渠道、凭据提示和渠道事件号生成幂等键，并由数据库唯一约束完成最终去重。
+ * Worker 后续通过状态与版本 CAS 抢占、完成或重试，防止多实例及超时重领后的旧 Worker
+ * 重复推进交易。Inbox 只保存标准化载荷、脱敏请求头和报文摘要。</p>
  */
 @Service
 public class DefaultTransactionCallbackInboxService implements TransactionCallbackInboxService {
@@ -88,8 +86,10 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
 
         TransactionCallbackInboxDO inbox = buildInbox(
                 commandDTO, channelCode, idempotencyKey, inboxId, now);
+        // upsert 与唯一索引共同完成并发受理；应用层预查不能替代数据库最终幂等。
         inboxMapper.upsertInbox(inbox);
 
+        // 始终回读唯一记录，使重复回调返回首次 Inbox 身份而不是新生成的临时编号。
         TransactionCallbackInboxDO persisted = inboxMapper.selectByIdempotency(channelCode, idempotencyKey);
         if (persisted == null) {
             throw new IllegalStateException("callback inbox upsert did not return a persisted record");
@@ -160,6 +160,7 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
         int maxRetryCount = Math.max(
                 inbox.getMaxRetryCount() == null ? DEFAULT_MAX_RETRY_COUNT : inbox.getMaxRetryCount(), 1);
         boolean closed = retryCount + 1 >= maxRetryCount;
+        // 退避从 5 秒指数增长并封顶一小时，达到最大次数后关闭，避免永久热循环。
         long delaySeconds = Math.min(MAX_RETRY_DELAY_SECONDS, 5L << Math.min(retryCount, 9));
         String nextStatus = closed
                 ? TransactionCallbackInboxStatusEnum.CLOSED.name()
@@ -223,6 +224,7 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
     }
 
     private String safePayload(TransactionChannelCallbackCommandDTO source) {
+        // 请求头单独脱敏保存，标准化业务载荷中移除请求头，避免敏感凭据被重复持久化。
         TransactionChannelCallbackCommandDTO copy = JsonUtils.parseObject(
                 JsonUtils.toJsonString(source), TransactionChannelCallbackCommandDTO.class);
         copy.setRequestHeaders(null);
@@ -235,6 +237,7 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
     }
 
     private String buildIdempotencyKey(TransactionChannelCallbackCommandDTO commandDTO) {
+        // 凭据提示参与隔离同渠道多账户，但仅保存组合值摘要，不暴露原始凭据线索。
         return sha256(String.join("\n",
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 StringUtils.hasText(commandDTO.getChannelCredentialHint())
@@ -253,6 +256,7 @@ public class DefaultTransactionCallbackInboxService implements TransactionCallba
     }
 
     private void validate(TransactionChannelCallbackCommandDTO commandDTO) {
+        // 只有网关层已完成验签与 IP 校验的回调才允许入箱，Worker 不重新信任原始请求头。
         if (commandDTO == null
                 || !StringUtils.hasText(commandDTO.getChannelCode())
                 || !StringUtils.hasText(commandDTO.getCallbackEventId())

@@ -35,19 +35,18 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultClearingPreparationService
- * @date : 2026-08-26 11:20
- * @email : scott_x@163.com
- * @description : 清分事务外准备实现，使用 locator 恢复精确分片时间并校验源动作，远程缓存或主从降级均在阶段 B 事务外完成。
- * @status : create
+ * 清分事务外准备服务。
+ *
+ * <p>根据非分片 locator 恢复交易及根交易的真实分片时间，加载支付方式、风险服务、原交易和冻结费用版本，
+ * 最终组装 Stage B 所需的完整命令。缓存访问和主从降级必须在资金事务外完成，避免扩大数据库锁持有时间。</p>
  */
 @Service
 public class DefaultClearingPreparationService implements ClearingPreparationService {
 
+    /** 这些状态不代表 3DS 已实际执行，不能据此收取 3DS 风险服务费。 */
     private static final Set<String> NON_EXECUTED_THREE_DS_INDICATORS =
             Set.of("N", "NO", "NONE", "NOT_REQUIRED", "SKIPPED", "FAILED", "REQUIRED");
+    /** 只有形成正向资金事实的交易类型可以创建保证金扣留。 */
     private static final Set<String> RESERVE_HOLD_TRANSACTION_TYPES =
             Set.of("PAYMENT", "CAPTURE", "PRE_AUTH_COMPLETION");
 
@@ -69,6 +68,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
      * @param operationMapper 交易动作精确读取 Mapper
      * @param financeStateMapper 动作清分状态 Mapper
      * @param snapshotService 确切费用版本加载服务
+     * @param eligibilityService 最早可结算日计算服务
      */
     @Autowired
     public DefaultClearingPreparationService(ClearingTransactionContextMapper contextMapper,
@@ -92,7 +92,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
                 (merchantId, transactionDate, snapshot) -> transactionDate);
     }
 
-    /** {@inheritDoc} */
+    /** 加载当前动作的冻结配置和业务上下文，构造首次清分命令。 */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public CompletionCommand prepare(PaymentTransactionEventMessage message,
@@ -105,7 +105,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return prepareWithSnapshot(message, claim, processingOwner, currentSnapshot);
     }
 
-    /** {@inheritDoc} */
+    /** 使用人工指定的不可变费用版本构造重算命令，不改变原动作和分片身份。 */
     @Override
     @DS(DataSourceName.TRANSACTION)
     public CompletionCommand prepareForRecalculation(PaymentTransactionEventMessage message,
@@ -129,6 +129,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
                                                   String processingOwner,
                                                   FeeVersionSnapshot currentSnapshot) {
         ClearingOperationFacts operation = validateRequest(message, claim, processingOwner);
+        // locator 是分片路由的权威来源，消息中的交易时间只用于与持久化身份交叉校验。
         ClearingTransactionLocatorDO locatorRow = contextMapper.selectLocator(
                 operation.merchantId(), operation.transactionId());
         LocatorFacts currentLocator = validateLocator(locatorRow, operation);
@@ -145,6 +146,7 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         }
 
         SourceContext source = loadSource(operation);
+        // 资格日期来自冻结周期策略；准备阶段不选择结算汇率，也不执行账户入账。
         LocalDate settlementEligibleDate = eligibilityService.calculate(
                 operation.merchantId(), operation.transactionDateTime().toLocalDate(), currentSnapshot);
         LocalDate expectedReserveReleaseDate = reserveReleaseDate(operation, currentSnapshot.reserve());
@@ -304,12 +306,14 @@ public class DefaultClearingPreparationService implements ClearingPreparationSer
         return result;
     }
 
+    /** 将持久化 locator 转为不可变命令事实。 */
     private LocatorFacts toLocatorFacts(ClearingTransactionLocatorDO row) {
         return new LocatorFacts(row.getTransactionId(), row.getOperationId(), row.getRootTransactionId(),
                 row.getMerchantId(), row.getMerchantOrderNo(), row.getTransactionType(),
                 row.getTransactionDateTime(), row.getRootTransactionDateTime());
     }
 
+    /** 使用稳定失败码构造可由应用层受控记录的准备异常。 */
     private ClearingProcessingException failure(ClearingFailureCodeEnum code, String message) {
         return new ClearingProcessingException(code, message);
     }

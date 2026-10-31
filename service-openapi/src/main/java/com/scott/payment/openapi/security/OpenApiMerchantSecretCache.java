@@ -2,8 +2,9 @@ package com.scott.payment.openapi.security;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.component.db.auth.model.MerchantKeyMetadata;
 import com.scott.payment.component.db.auth.service.MerchantKeyMetadataCacheService;
 import com.scott.payment.component.db.constant.DataSourceName;
@@ -126,7 +127,7 @@ public class OpenApiMerchantSecretCache {
     public String getMerchantKey(String merchantId) {
         String secret = material(merchantId).merchantKey();
         if (!StringUtils.hasText(secret)) {
-            throw new ApiException(ApiResultEnum.MERCHANT_SIGNING_KEY_NOT_CONFIGURED);
+            throw new ApiException(OpenApiResultCode.MERCHANT_SIGNING_MATERIAL_MISSING);
         }
         return secret;
     }
@@ -141,7 +142,7 @@ public class OpenApiMerchantSecretCache {
     public PrivateKey getPlatformPrivateKey(String merchantId) {
         PrivateKey privateKey = material(merchantId).platformPrivateKey();
         if (privateKey == null) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "platformPayloadKey");
+            throw new ApiException(OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE, "platformPayloadKey");
         }
         return privateKey;
     }
@@ -156,7 +157,7 @@ public class OpenApiMerchantSecretCache {
     public PublicKey getPlatformPublicKey(String merchantId) {
         PublicKey publicKey = material(merchantId).platformPublicKey();
         if (publicKey == null) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "platformPayloadKey");
+            throw new ApiException(OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE, "platformPayloadKey");
         }
         return publicKey;
     }
@@ -171,7 +172,7 @@ public class OpenApiMerchantSecretCache {
     public PublicKey getMerchantResponsePublicKey(String merchantId) {
         PublicKey publicKey = material(merchantId).merchantResponsePublicKey();
         if (publicKey == null) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "merchantResponseKey");
+            throw new ApiException(OpenApiResultCode.MERCHANT_RESPONSE_KEY_MISSING, "merchantResponseKey");
         }
         return publicKey;
     }
@@ -200,12 +201,13 @@ public class OpenApiMerchantSecretCache {
      */
     private SecretMaterial material(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
-            throw new ApiException(ApiResultEnum.PARAM_MISSING, "merchantId");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_MISSING, "merchantId", "merchant ID is required");
         }
         String normalizedMerchantId = merchantId.trim();
         MerchantKeyMetadata metadata = metadataCacheService.findKeyMetadata(normalizedMerchantId);
         if (metadata == null || !StringUtils.hasText(metadata.getRevision())) {
-            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "keyMetadata");
+            throw new ApiException(OpenApiResultCode.MERCHANT_CONFIG_UNAVAILABLE, "keyMetadata");
         }
         CacheKey cacheKey = new CacheKey(normalizedMerchantId, metadata.getRevision());
         long now = nanoTime.getAsLong();

@@ -8,10 +8,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * @author : scott
@@ -29,6 +28,23 @@ final class MpgsLiveTestConfig {
     private static final Pattern CONFIG_LINE_PATTERN = Pattern.compile("^\\s*([A-Za-z][A-Za-z0-9_-]*)\\s*[:：]\\s*(.*?)\\s*$");
 
     private static final String DEFAULT_CARD_NO = "5123450000000008";
+
+    /** Mastercard Gateway 官方 Test and Go Live 文档。 */
+    private static final String OFFICIAL_TEST_CARD_DOCUMENTATION =
+            "https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/"
+                    + "supportedFeatures/testAndGoLive.html?locale=zh_CN";
+
+    /** MPGS live 测试只允许使用官方文档发布的标准测试卡。 */
+    private static final Set<String> OFFICIAL_TEST_CARD_NUMBERS = Set.of(
+            "5123450000000008",
+            "2223000000000007",
+            "5111111111111118",
+            "2223000000000023",
+            "4508750015741019",
+            "4012000033330026",
+            "3528000000000007",
+            "3528111100000001"
+    );
 
     private static final String DEFAULT_EXPIRY_MONTH = "01";
 
@@ -68,10 +84,10 @@ final class MpgsLiveTestConfig {
         this.merchantId = required("MPGS_MERCHANT_ID", fileConfig.get("merchantId"));
         this.username = username(fileConfig);
         this.password = required("MPGS_PASSWORD", fileConfig.get("password"));
-        this.cardNo = value("MPGS_TEST_CARD_NO", DEFAULT_CARD_NO);
-        this.expiryMonth = value("MPGS_TEST_EXPIRY_MONTH", DEFAULT_EXPIRY_MONTH);
-        this.expiryYear = value("MPGS_TEST_EXPIRY_YEAR", DEFAULT_EXPIRY_YEAR);
-        this.csc = value("MPGS_TEST_CSC", DEFAULT_CSC);
+        this.cardNo = requireOfficialCard(DEFAULT_CARD_NO);
+        this.expiryMonth = DEFAULT_EXPIRY_MONTH;
+        this.expiryYear = DEFAULT_EXPIRY_YEAR;
+        this.csc = DEFAULT_CSC;
         this.amount = value("MPGS_TEST_AMOUNT", DEFAULT_AMOUNT);
         this.currency = value("MPGS_TEST_CURRENCY", DEFAULT_CURRENCY);
     }
@@ -84,6 +100,21 @@ final class MpgsLiveTestConfig {
     static MpgsLiveTestConfig load() {
         Map<String, String> fileConfig = readFileConfig();
         return new MpgsLiveTestConfig(fileConfig);
+    }
+
+    /**
+     * 校验 MPGS live 请求使用的 PAN 来自 Mastercard Gateway 官方测试卡目录。
+     *
+     * @param cardNo 待用于 MPGS 沙箱的卡号
+     * @return 审核通过的官方测试卡号
+     */
+    static String requireOfficialCard(String cardNo) {
+        if (!OFFICIAL_TEST_CARD_NUMBERS.contains(cardNo)) {
+            throw new IllegalArgumentException(
+                    "MPGS live tests only accept cards published in the official test-card catalog; see "
+                            + OFFICIAL_TEST_CARD_DOCUMENTATION);
+        }
+        return cardNo;
     }
 
     /**
@@ -198,9 +229,11 @@ final class MpgsLiveTestConfig {
      * @return 配置值
      */
     private static String required(String envName, String fallback) {
-        String value = value(envName, fallback);
-        assertThat(value).as(envName).isNotBlank();
-        return value;
+        String configuredValue = value(envName, fallback);
+        if (!StringUtils.hasText(configuredValue)) {
+            throw new IllegalStateException("missing required MPGS live-test configuration: " + envName);
+        }
+        return configuredValue;
     }
 
     /**

@@ -154,6 +154,9 @@ public class SettlementReviewDecisionTransactionService {
         this.clock = Objects.requireNonNull(clock, "settlement review decision clock is required");
     }
 
+    /**
+     * 创建异步复核决策任务；Maker-Checker、预审版本和分段完备性在写入前校验。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TaskResult submit(String reviewOrderNo, SettlementReviewDecisionCommand command) {
@@ -180,11 +183,13 @@ public class SettlementReviewDecisionTransactionService {
         return result(stored);
     }
 
+    /** 查询异步复核决策任务的稳定进度快照。 */
     @DS(DataSourceName.TRANSACTION)
     public TaskResult get(String taskNo) {
         return result(requireTask(taskMapper.selectByTaskNo(requireTaskNo(taskNo))));
     }
 
+    /** 仅允许恢复白名单失败码对应的任务，并冻结恢复操作审计。 */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public TaskResult resume(String taskNo, long expectedVersion, SettlementCommandAudit audit) {
@@ -224,6 +229,7 @@ public class SettlementReviewDecisionTransactionService {
         return result(task);
     }
 
+    /** 以数据库租约领取下一条到期决策任务。 */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public Optional<SettlementReviewDecisionTaskDO> claimNext(String owner,
@@ -249,6 +255,9 @@ public class SettlementReviewDecisionTransactionService {
         return Optional.of(task);
     }
 
+    /**
+     * 每次只批准或释放一个冻结分段；全部分段处理后再原子收口预审单与任务终态。
+     */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void processClaimed(String taskNo, String owner, LocalDateTime now) {
@@ -277,6 +286,7 @@ public class SettlementReviewDecisionTransactionService {
         }
     }
 
+    /** 将决策异常分类为有限退避或不可恢复终态。 */
     @DS(DataSourceName.TRANSACTION)
     @Transactional(rollbackFor = Exception.class)
     public void recordFailure(String taskNo,
@@ -332,6 +342,7 @@ public class SettlementReviewDecisionTransactionService {
             throw failure("SETTLEMENT_REVIEW_DECISION_RATE_CHANGED", false,
                     "settlement review locked rate matrix changed after submission");
         }
+        // 批准前重算并复验来源、汇率和结果指纹，防止预审后底层金融事实被替换。
         SettlementCalculationPreview preview = calculationService.preview(previewBatch(chunkOrder), facts,
                 toLockedRates(rates), now);
         BigDecimal signed = "DEBIT".equals(preview.netDirection())

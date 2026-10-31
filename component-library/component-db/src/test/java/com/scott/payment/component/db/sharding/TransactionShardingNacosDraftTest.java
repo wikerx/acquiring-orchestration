@@ -26,7 +26,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class TransactionShardingNacosDraftTest {
 
-    /** 当前 dev 已发布基线必须保持正式 28 表、清分直连权限和精确 checksum。 */
+    /**
+     * 当前 dev 已发布基线必须保持正式 28 表、清分直连权限和精确 checksum。
+     * SQL 展示默认关闭，避免绑定参数中的渠道凭据、持卡人资料和交易报文进入服务日志。
+     */
     @Test
     void shouldValidateVersionedDevNacosDraft() throws Exception {
         TransactionShardingProperties properties = bind(
@@ -38,7 +41,7 @@ class TransactionShardingNacosDraftTest {
                 .containsExactlyElementsOf(TransactionShardingProperties.defaultLogicTables());
         assertThat(properties.getPhysicalNodes()).containsExactly("202603", "202604");
         assertThat(properties.getDirectAccessServices()).contains("service-clearing", "service-settlement");
-        assertThat(properties.isSqlShow()).isTrue();
+        assertThat(properties.isSqlShow()).isFalse();
         assertThat(properties.getRuleChecksum())
                 .isEqualTo(TransactionShardingRuleChecksum.calculate(properties));
     }

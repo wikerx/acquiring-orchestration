@@ -40,6 +40,16 @@ public enum PaymentFailureReasonEnum {
     CHANNEL_REQUEST_FAILED("CHANNEL_REQUEST_FAILED"),
 
     /**
+     * 渠道明确返回失败或拒绝，具备可审计的渠道响应证据。
+     */
+    CHANNEL_DECLINED("CHANNEL_DECLINED"),
+
+    /**
+     * 本地配置或序列化等发送前故障，已确认请求没有到达渠道。
+     */
+    CHANNEL_REQUEST_NOT_SENT("CHANNEL_REQUEST_NOT_SENT"),
+
+    /**
      * 渠道响应解析失败。
      */
     CHANNEL_RESPONSE_INVALID("CHANNEL_RESPONSE_INVALID"),

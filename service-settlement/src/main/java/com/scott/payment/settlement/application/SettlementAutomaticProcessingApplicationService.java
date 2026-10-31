@@ -13,6 +13,8 @@ import com.scott.payment.settlement.service.SettlementClearingFactService;
 import com.scott.payment.settlement.service.SettlementResultCalculationService;
 import com.scott.payment.settlement.service.SettlementLedgerPostingService;
 import com.scott.payment.settlement.support.SettlementWorkerIdentity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -25,42 +27,22 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementAutomaticProcessingApplicationService
- * @date : 2026-08-26 23:50
- * @email : scott_x@163.com
- * @description : 自动激活、建批、租约、事实读取、汇率锁定和结果计算的应用编排；明确不调用余额或资金流水服务。
- * @status : create
+ * 自动结算批次处理编排。
+ *
+ * <p>候选激活、建批和批次处理均依赖数据库状态与租约实现多实例排他；本类只决定处理阶段，
+ * 金额计算、汇率锁定和资金入账分别由对应领域服务保证事务与幂等。</p>
  */
 @Service
 public class SettlementAutomaticProcessingApplicationService {
 
-    /**
-     * {@code ACTIVATION_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            SettlementAutomaticProcessingApplicationService.class);
+
+    /** 单页激活上限，与数据库批量更新规模保持一致。 */
     private static final int ACTIVATION_PAGE_SIZE = 200;
-    /**
-     * {@code MAX_ACTIVATION_PAGES_PER_RUN}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+    /** 单轮激活页数上限，防止一次调度长期占用工作线程。 */
     private static final int MAX_ACTIVATION_PAGES_PER_RUN = 10;
-    /**
-     * {@code PROCESSING_LEASE}常量，统一 {@code SettlementAutomaticProcessingApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 批次处理租约，超时后允许其他实例重新领取。 */
     private static final Duration PROCESSING_LEASE = Duration.ofMinutes(5);
 
     private final SettlementCandidateActivationService activationService;
@@ -130,6 +112,8 @@ public class SettlementAutomaticProcessingApplicationService {
             }
         }
         int batches = automaticBatchService.createAndClaimMaturedBatches(now);
+        LOGGER.info("自动结算准备完成, event: SETTLEMENT_AUTOMATIC_PREPARE_END, activatedCandidateCount: {}, claimedBatchCount: {}",
+                activated, batches);
         return new PreparationResult(activated, batches);
     }
 
@@ -152,14 +136,23 @@ public class SettlementAutomaticProcessingApplicationService {
             SettlementBatchStatus status = SettlementBatchStatus.valueOf(batch.getBatchStatus());
             boolean postingRetry = status == SettlementBatchStatus.FAILED_RETRYABLE
                     && "LEDGER_POSTING".equals(batch.getLastFailureStage());
+            int processedCount;
+            String processingStage;
             if (status == SettlementBatchStatus.CALCULATED || postingRetry) {
-                postingService.post(batch, facts, owner, nowUtc());
+                processedCount = postingService.post(batch, facts, owner, nowUtc());
+                processingStage = "LEDGER_POSTING";
             } else {
                 SettlementLockedRateMatrix rates = rateLockService.lockOrLoad(
                         batch, facts, owner, nowUtc());
-                resultService.calculateAndPersist(batch, facts, rates, owner, nowUtc());
+                processedCount = resultService.calculateAndPersist(batch, facts, rates, owner, nowUtc());
+                processingStage = "RESULT_CALCULATION";
             }
+            LOGGER.info("自动结算批次处理完成, event: SETTLEMENT_AUTOMATIC_BATCH_END, settlementBatchNo: {}, processingStage: {}, processedCount: {}",
+                    batch.getSettlementBatchNo(), processingStage, processedCount);
         } catch (RuntimeException failure) {
+            LOGGER.warn("自动结算批次处理失败，准备记录补偿状态, event: SETTLEMENT_AUTOMATIC_BATCH_FAILED, settlementBatchNo: {}, batchStatus: {}, exceptionType: {}",
+                    batch.getSettlementBatchNo(), batch.getBatchStatus(),
+                    failure.getClass().getSimpleName());
             failureService.recordFailure(batch.getSettlementBatchNo(), owner, failure, nowUtc());
         }
         return true;

@@ -12,6 +12,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.entity.TransactionLocatorDO;
 import com.scott.payment.payment.mapper.TransactionLocatorMapper;
 import com.scott.payment.payment.service.TransactionLocatorService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
@@ -19,15 +20,14 @@ import org.springframework.util.StringUtils;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionLocatorService
- * @date : 2026-08-14 12:35
- * @email : scott_x@163.com
- * @description : 交易定位服务默认实现，通过 merchant_id 约束的固定表查询恢复分片路由，不向调用方暴露其他商户交易是否存在。
- * @status : create
+ * 分片交易的固定表定位服务。
+ *
+ * <p>后续资金动作和查询先按 merchantId 访问固定定位表，再恢复源交易与根交易分片时间。
+ * 商户不匹配和记录不存在统一映射为订单不存在，避免通过交易号枚举其他商户数据。Redis 仅缓存
+ * 非敏感定位字段，异常时直接回源固定表。</p>
  */
 @Service
+@Slf4j
 public class DefaultTransactionLocatorService implements TransactionLocatorService {
 
     private final TransactionLocatorMapper transactionLocatorMapper;
@@ -72,6 +72,7 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfo = commandDTO.getTransactionInfo();
+        // 定位查询始终携带 merchantId，不能仅凭全局交易号跨商户查找。
         TransactionLocatorDO locator = findByTransactionId(
                 commandDTO.getMerchantId(), transactionInfo.getSourceTransactionId());
         validateMerchantOrder(commandDTO, locator);
@@ -156,6 +157,8 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
             }
             return JsonUtils.parseObject(json, TransactionLocatorDO.class);
         } catch (RuntimeException exception) {
+            log.warn("交易定位缓存读取降级, event: TRANSACTION_LOCATOR_CACHE_READ_FALLBACK, exceptionType: {}",
+                    exception.getClass().getSimpleName());
             return null;
         }
     }
@@ -170,8 +173,10 @@ public class DefaultTransactionLocatorService implements TransactionLocatorServi
                     key,
                     JsonUtils.toJsonString(locator),
                     DefaultTransactionQueryCacheService.jitteredTransactionTtl());
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException exception) {
             // Locator Redis 只用于减压，数据库固定表始终是事实源。
+            log.warn("交易定位缓存写入降级, event: TRANSACTION_LOCATOR_CACHE_WRITE_FALLBACK, exceptionType: {}",
+                    exception.getClass().getSimpleName());
         }
     }
 

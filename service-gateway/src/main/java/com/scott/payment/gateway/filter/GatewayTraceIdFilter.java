@@ -1,6 +1,7 @@
 package com.scott.payment.gateway.filter;
 
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.gateway.support.GatewayRequestIdSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -47,6 +48,7 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         long startNanos = System.nanoTime();
         String traceId = TraceContext.resolveOrCreate(exchange.getRequest().getHeaders().getFirst(TraceContext.TRACE_ID_HEADER));
+        String requestId = GatewayRequestIdSupport.resolveForLogging(exchange.getRequest().getHeaders());
         TraceContext.setTraceId(traceId);
         ServerHttpRequest request = exchange.getRequest().mutate()
                 .headers(headers -> headers.set(TraceContext.TRACE_ID_HEADER, traceId))
@@ -55,11 +57,11 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
         return chain.filter(exchange.mutate().request(request).build())
                 .doOnSuccess(ignored -> {
                     TraceContext.setTraceId(traceId);
-                    logFinish(exchange, startNanos, null);
+                    logFinish(exchange, traceId, requestId, startNanos, null);
                 })
                 .doOnError(error -> {
                     TraceContext.setTraceId(traceId);
-                    logFinish(exchange, startNanos, error);
+                    logFinish(exchange, traceId, requestId, startNanos, error);
                 })
                 .doFinally(signalType -> TraceContext.clear());
     }
@@ -77,35 +79,41 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
     /**
      * 记录一次请求最终成功或失败的审计事件。
      * <p>
-     * 日志只包含路由、状态、耗时和异常类型，不记录请求体、鉴权凭据或其他敏感报文。
+     * 日志只包含已校验链路号、请求号、路由、状态、耗时和异常类型，不记录请求体、鉴权凭据或其他敏感报文。
      * </p>
      *
      * @param exchange   当前 WebFlux 请求交换对象
+     * @param traceId    已校验并透传的跨服务链路号
+     * @param requestId  已校验的 SDK 单次请求号，非法或缺失时为 unknown
      * @param startNanos 请求进入网关时的单调时钟值
      * @param error      路由异常；正常完成时为 {@code null}
      */
-    private void logFinish(ServerWebExchange exchange, long startNanos, Throwable error) {
+    private void logFinish(ServerWebExchange exchange,
+                           String traceId,
+                           String requestId,
+                           long startNanos,
+                           Throwable error) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
         String routeId = routeId(exchange);
         Integer statusCode = exchange.getResponse().getStatusCode() == null
                 ? null
                 : exchange.getResponse().getStatusCode().value();
         String targetService = targetService(exchange);
-        String traceId = TraceContext.getTraceId();
+        String path = exchange.getRequest().getURI().getRawPath();
         if (error == null) {
-            log.debug("event: GATEWAY_REQUEST_END traceId: {} routeId: {} targetService: {} status: {} durationMs: {}",
-                    traceId, routeId, targetService, statusCode, durationMs);
+            log.info("event: GATEWAY_REQUEST_END traceId: {} requestId: {} path: {} routeId: {} targetService: {} status: {} durationMs: {}",
+                    traceId, requestId, path, routeId, targetService, statusCode, durationMs);
             return;
         }
-        log.warn("event: GATEWAY_REQUEST_ERROR traceId: {} routeId: {} targetService: {} status: {} durationMs: {} errorType: {} message: {}",
+        log.warn("event: GATEWAY_REQUEST_ERROR traceId: {} requestId: {} path: {} routeId: {} targetService: {} status: {} durationMs: {} errorType: {}",
                 traceId,
+                requestId,
+                path,
                 routeId,
                 targetService,
                 statusCode,
                 durationMs,
-                error.getClass().getSimpleName(),
-                error.getMessage(),
-                error);
+                error.getClass().getSimpleName());
     }
 
     /**

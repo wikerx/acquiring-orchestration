@@ -17,6 +17,12 @@ public final class OpenApiRequestAttributes {
     public static final String REQUEST_HEADER = OpenApiRequestAttributes.class.getName() + ".REQUEST_HEADER";
 
     /**
+     * JWT 验签后预检通过的商户响应公钥，值类型为 {@link java.security.PublicKey}。
+     * 响应加密必须复用该对象，禁止在业务完成后再次查库造成不可加密响应。
+     */
+    public static final String RESPONSE_PUBLIC_KEY = OpenApiRequestAttributes.class.getName() + ".RESPONSE_PUBLIC_KEY";
+
+    /**
      * 请求上下文中的解密后业务 DTO key，供方法参数解析器注入控制器参数。
      */
     public static final String DECRYPTED_DATA = OpenApiRequestAttributes.class.getName() + ".DECRYPTED_DATA";

@@ -25,6 +25,8 @@ import com.scott.payment.settlement.mapper.SettlementProjectionMapper;
 import com.scott.payment.settlement.mapper.SettlementReserveMapper;
 import com.scott.payment.settlement.mapper.SettlementResultMapper;
 import com.scott.payment.settlement.service.SettlementBatchCreationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,16 +41,16 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementBatchCommandApplicationService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 编排正式结算批次的受控取消与冲正；入账前通过状态和版本 CAS 释放候选，入账后只创建独立反向批次、资金流水和真实交易投影任务。
- * @status : create
+ * 正式结算批次管理命令编排。
+ *
+ * <p>入账前取消通过状态和版本 CAS 释放候选；入账后不得覆盖原资金事实，只能创建独立反向批次、
+ * 资金流水、保证金动作和交易投影任务。所有人工命令均冻结可信操作审计并支持数据库幂等回放。</p>
  */
 @Service
 public class SettlementBatchCommandApplicationService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            SettlementBatchCommandApplicationService.class);
 
     private final SettlementBatchMapper batchMapper;
     private final SettlementCandidateMapper candidateMapper;
@@ -100,20 +102,28 @@ public class SettlementBatchCommandApplicationService {
         SettlementBatchCancellationAuditDO requestReplay =
                 batchMapper.selectCancellationAuditByRequestKey(audit.requestKey());
         if (requestReplay != null) {
-            return replayResult(batchNo, requestReplay);
+            int releasedCount = replayResult(batchNo, requestReplay);
+            LOGGER.info("结算批次取消请求幂等返回, event: SETTLEMENT_BATCH_CANCEL_REPLAY, settlementBatchNo: {}, releasedCandidateCount: {}",
+                    batchNo, releasedCount);
+            return releasedCount;
         }
 
         SettlementBatchDO batch = requireBatch(batchNo);
         SettlementBatchCancellationAuditDO batchReplay =
                 batchMapper.selectCancellationAuditByBatchNo(batchNo);
         if (batchReplay != null) {
-            return replayResult(batchNo, audit.requestKey(), batchReplay);
+            int releasedCount = replayResult(batchNo, audit.requestKey(), batchReplay);
+            LOGGER.info("结算批次取消结果幂等返回, event: SETTLEMENT_BATCH_CANCEL_REPLAY, settlementBatchNo: {}, releasedCandidateCount: {}",
+                    batchNo, releasedCount);
+            return releasedCount;
         }
         if (batch.getVersion() != expectedVersion) {
             throw new IllegalStateException("settlement batch command uses a stale version");
         }
         // Pre-migration CANCELLED rows cannot be retroactively attributed to a new trusted operator.
         if (SettlementBatchStatus.CANCELLED.name().equals(batch.getBatchStatus())) {
+            LOGGER.warn("历史结算批次已取消但缺少当前请求审计, event: SETTLEMENT_BATCH_CANCEL_LEGACY_REPLAY, settlementBatchNo: {}",
+                    batchNo);
             return 0;
         }
         if (batch.getProcessingDeadline() != null && batch.getProcessingDeadline().isAfter(now)) {
@@ -133,6 +143,8 @@ public class SettlementBatchCommandApplicationService {
         if (batchMapper.insertCancellationAudit(row) != 1) {
             throw new IllegalStateException("settlement cancellation audit insert failed");
         }
+        LOGGER.info("结算批次取消事务写入完成, event: SETTLEMENT_BATCH_CANCEL_WRITE_END, settlementBatchNo: {}, releasedCandidateCount: {}, expectedVersion: {}",
+                batchNo, candidates, expectedVersion);
         return candidates;
     }
 
@@ -198,14 +210,20 @@ public class SettlementBatchCommandApplicationService {
         SettlementBatchRecoveryAuditDO requestReplay =
                 batchMapper.selectRecoveryAuditByRequestKey(audit.requestKey());
         if (requestReplay != null) {
-            return recoveryReplayResult(batchNo, audit.requestKey(), requestReplay);
+            int restoredCount = recoveryReplayResult(batchNo, audit.requestKey(), requestReplay);
+            LOGGER.info("结算批次汇率重试恢复请求幂等返回, event: SETTLEMENT_RATE_RECOVERY_REPLAY, settlementBatchNo: {}, restoredCandidateCount: {}",
+                    batchNo, restoredCount);
+            return restoredCount;
         }
 
         SettlementBatchDO batch = requireBatch(batchNo);
         SettlementBatchRecoveryAuditDO concurrentReplay =
                 batchMapper.selectRecoveryAuditByRequestKeyForUpdate(audit.requestKey());
         if (concurrentReplay != null) {
-            return recoveryReplayResult(batchNo, audit.requestKey(), concurrentReplay);
+            int restoredCount = recoveryReplayResult(batchNo, audit.requestKey(), concurrentReplay);
+            LOGGER.info("结算批次汇率重试恢复并发幂等返回, event: SETTLEMENT_RATE_RECOVERY_REPLAY, settlementBatchNo: {}, restoredCandidateCount: {}",
+                    batchNo, restoredCount);
+            return restoredCount;
         }
         if (batch.getVersion() != expectedVersion) {
             throw new IllegalStateException("settlement batch command uses a stale version");
@@ -234,6 +252,8 @@ public class SettlementBatchCommandApplicationService {
                 batch, expectedVersion, candidates, audit, now)) != 1) {
             throw new IllegalStateException("settlement recovery audit insert failed");
         }
+        LOGGER.info("结算批次汇率重试恢复事务写入完成, event: SETTLEMENT_RATE_RECOVERY_WRITE_END, settlementBatchNo: {}, restoredCandidateCount: {}, expectedVersion: {}",
+                batchNo, candidates, expectedVersion);
         return candidates;
     }
 
@@ -314,6 +334,8 @@ public class SettlementBatchCommandApplicationService {
         if (existing != null) {
             if (SettlementBatchStatus.POSTED.name().equals(existing.getBatchStatus())
                     && SettlementBatchStatus.REVERSED.name().equals(original.getBatchStatus())) {
+                LOGGER.info("结算批次冲正幂等返回, event: SETTLEMENT_BATCH_REVERSAL_REPLAY, originalBatchNo: {}, reversalBatchNo: {}",
+                        original.getSettlementBatchNo(), existing.getSettlementBatchNo());
                 return existing.getSettlementBatchNo();
             }
             throw new IllegalStateException("settlement batch already has an incomplete reversal");
@@ -366,6 +388,9 @@ public class SettlementBatchCommandApplicationService {
                 || batchMapper.markReversed(original.getSettlementBatchNo(), original.getVersion(), now) != 1) {
             throw new IllegalStateException("settlement reversal completion state CAS failed");
         }
+        LOGGER.info("结算批次冲正事务写入完成, event: SETTLEMENT_BATCH_REVERSAL_WRITE_END, originalBatchNo: {}, reversalBatchNo: {}, candidateCount: {}, projectionTaskCount: {}",
+                original.getSettlementBatchNo(), reversal.getSettlementBatchNo(),
+                original.getCandidateCount(), reversalTasks.size());
         return reversal.getSettlementBatchNo();
     }
 

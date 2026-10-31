@@ -3,6 +3,8 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.component.mq.message.RefundExecutionMessage;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
+import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
+import com.scott.payment.payment.domain.state.PaymentPendingReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
@@ -84,6 +86,7 @@ class DefaultApprovedRefundChannelExecutorTests {
         PaymentChannelInvokeResultDTO timeout = new PaymentChannelInvokeResultDTO();
         timeout.setRequestStatus("TIMEOUT");
         timeout.setExceptionType("SocketTimeoutException");
+        timeout.setFailureReasonCode(PaymentFailureReasonEnum.CHANNEL_TIMEOUT.getCode());
         timeout.setOutcomeUncertain(true);
         when(fixture.channelInvokeService.invoke(any(), same(fixture.route), eq("OP-1"), eq("RF-1"), any(PaymentPreparedChannelRequestDTO.class)))
                 .thenReturn(timeout);
@@ -93,12 +96,36 @@ class DefaultApprovedRefundChannelExecutorTests {
         RefundPreparationResultDTO preparation = fixture.capturedPreparation();
         assertThat(preparation.getResultDTO().getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
         assertThat(preparation.getResultDTO().getProcessStage()).isEqualTo(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
-        assertThat(preparation.getResultDTO().getPendingReasonCode()).isEqualTo("CHANNEL_RESULT_UNKNOWN");
+        assertThat(preparation.getResultDTO().getPendingReasonCode())
+                .isEqualTo(PaymentPendingReasonEnum.CHANNEL_RESULT_UNKNOWN.getCode());
         assertThat(preparation.getResultDTO().getFailReasonCode()).isNull();
         verify(fixture.statusResolver, never()).resolveSync(any(), any(), any());
         verify(fixture.idempotencyService).complete(
                 eq("TRANSACTION_OPERATION"), eq("IDEMPOTENCY-KEY"), eq("OP-1"), eq("RF-1"),
                 eq(PaymentTransactionStatusEnum.PROCESSING.getCode()), eq(new BigDecimal("2.50")), eq("USD"), any());
+    }
+
+    /** 渠道响应已明确拒绝退款时可以形成失败终态，但必须保留渠道拒绝来源。 */
+    @Test
+    void shouldPersistConfirmedChannelDeclineAsFailed() {
+        Fixture fixture = new Fixture();
+        PaymentChannelInvokeResultDTO decline = new PaymentChannelInvokeResultDTO();
+        decline.setRequestStatus("FAILED");
+        decline.setExceptionType("ChannelResponseException");
+        decline.setFailureReasonCode(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
+        decline.setOutcomeUncertain(false);
+        when(fixture.channelInvokeService.invoke(
+                any(), same(fixture.route), eq("OP-1"), eq("RF-1"), any(PaymentPreparedChannelRequestDTO.class)))
+                .thenReturn(decline);
+
+        fixture.executor.execute(fixture.operation, fixture.request, fixture.message);
+
+        RefundPreparationResultDTO preparation = fixture.capturedPreparation();
+        assertThat(preparation.getResultDTO().getStatus())
+                .isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(preparation.getResultDTO().getFailReasonCode())
+                .isEqualTo(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
+        assertThat(preparation.getResultDTO().getPendingReasonCode()).isNull();
     }
 
     /** 并发回调先完成退款时，审批执行器必须从主库回读并以持久化终态完成幂等快照。 */

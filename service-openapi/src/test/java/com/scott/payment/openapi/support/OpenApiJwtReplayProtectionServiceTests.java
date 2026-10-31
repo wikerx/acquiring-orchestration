@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.support.RedisKeyDigest;
 import org.junit.jupiter.api.Test;
@@ -74,13 +74,13 @@ class OpenApiJwtReplayProtectionServiceTests {
                 "jwt-id",
                 Instant.now().plusSeconds(300).getEpochSecond()))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(ApiResultEnum.AUTHORIZATION_JWT_INVALID.getCode()));
+                        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.AUTHENTICATION_FAILED.getCode()));
         assertThatThrownBy(() -> service.checkAndMark(
                 "M202607290001",
                 null,
                 Instant.now().plusSeconds(300).getEpochSecond()))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(ApiResultEnum.AUTHORIZATION_JWT_INVALID.getCode()));
+                        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.AUTHENTICATION_FAILED.getCode()));
     }
 
     @Test
@@ -140,7 +140,7 @@ class OpenApiJwtReplayProtectionServiceTests {
                 "duplicated-jti",
                 Instant.now().plusSeconds(300).getEpochSecond()))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(ApiResultEnum.AUTHORIZATION_JWT_INVALID.getCode()));
+                        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.SECURITY_REPLAY_REJECTED.getCode()));
     }
 
     @Test
@@ -165,7 +165,7 @@ class OpenApiJwtReplayProtectionServiceTests {
                 "connection-failure-jti",
                 Instant.now().plusSeconds(300).getEpochSecond()))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode()));
+                        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR.getCode()));
     }
 
     @Test
@@ -190,7 +190,7 @@ class OpenApiJwtReplayProtectionServiceTests {
                 "unknown-write-result-jti",
                 Instant.now().plusSeconds(300).getEpochSecond()))
                 .isInstanceOfSatisfying(ApiException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode()));
+                        assertThat(exception.getCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR.getCode()));
     }
 
     @Test

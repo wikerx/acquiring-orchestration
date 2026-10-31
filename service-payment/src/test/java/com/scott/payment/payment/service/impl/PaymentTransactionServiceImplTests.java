@@ -3,14 +3,18 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.redis.lock.DistributedLockBusyException;
 import com.scott.payment.component.redis.lock.DistributedLockExecution;
 import com.scott.payment.component.redis.lock.DistributedLockService;
+import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
+import com.scott.payment.channel.payment.exception.ChannelResponseException;
+import com.scott.payment.channel.payment.executor.PaymentChannelExecutor;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
@@ -58,6 +62,9 @@ import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * @author : scott
@@ -482,11 +489,11 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
-        assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
-        assertThat(resultDTO.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.CHANNEL_REQUEST_NOT_SENT.getCode());
+        assertThat(resultDTO.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR.getCode());
         assertThat(transactionRecordService.resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("INIT");
-        log.info("发送前渠道失败状态验证完成：status=FAILED，processStage=FINISHED，failReasonCode=CHANNEL_REQUEST_FAILED");
+        log.info("发送前渠道失败状态验证完成：status=FAILED，processStage=FINISHED，failReasonCode=CHANNEL_REQUEST_NOT_SENT");
     }
 
     /**
@@ -509,9 +516,39 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
         assertThat(resultDTO.getFailReasonCode()).isNull();
-        assertThat(resultDTO.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PROCESSING.getCode());
+        assertThat(resultDTO.getPendingReasonCode())
+                .isEqualTo(PaymentPendingReasonEnum.CHANNEL_RESULT_UNKNOWN.getCode());
+        assertThat(resultDTO.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.CHANNEL_CALL_UNCONFIRMED.getCode());
         assertThat(transactionRecordService.resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
         log.info("渠道结果不确定状态验证完成：status=PROCESSING，processStage=CHANNEL_PROCESSING");
+    }
+
+    /**
+     * 渠道响应已明确拒绝时，异常边界必须把可验证的渠道事实传入核心状态机。
+     * 该场景与超时或无法解析响应不同，可以形成 FAILED 终态并对外投影为 F1000。
+     */
+    @Test
+    void shouldPersistConfirmedChannelResponseExceptionAsDeclinedFailure() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        when(executor.execute(any(ChannelPaymentRequest.class)))
+                .thenThrow(new ChannelResponseException("declined", null, false));
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                new DefaultPaymentChannelInvokeService(executor));
+
+        PaymentCreateResultDTO resultDTO = service.createAuthorization(baseCommand());
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
+        assertThat(resultDTO.getPendingReasonCode()).isNull();
+        assertThat(transactionRecordService.resultChannelInvokeResultDTO.getFailureReasonCode())
+                .isEqualTo(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
     }
 
     /**
@@ -563,7 +600,7 @@ class PaymentTransactionServiceImplTests {
     }
 
     /**
-     * 同一商户订单号已存在有效支付流时，不允许再发起授权流，避免一笔商户订单同时存在两笔支付语义。
+     * 同一商户订单号已绑定不同指纹的有效支付流时，不允许再发起授权流，并返回精确的幂等冲突码。
      */
     @Test
     void shouldRejectAuthorizationWhenMerchantOrderAlreadyHasPaymentFlow() {
@@ -584,12 +621,12 @@ class PaymentTransactionServiceImplTests {
         assertThatThrownBy(() -> service.createAuthorization(baseCommand()))
                 .isInstanceOf(ServiceException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode());
+                .isEqualTo(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode());
         assertThat(channelInvokeService.commandDTO).isNull();
     }
 
     /**
-     * 同一商户订单号已存在有效授权流时，不允许再发起一步支付流。
+     * 同一商户订单号已绑定不同指纹的有效授权流时，不允许再发起一步支付流，并返回精确的幂等冲突码。
      */
     @Test
     void shouldRejectPaymentWhenMerchantOrderAlreadyHasAuthorizationFlow() {
@@ -610,12 +647,12 @@ class PaymentTransactionServiceImplTests {
         assertThatThrownBy(() -> service.createPayment(baseCommand()))
                 .isInstanceOf(ServiceException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode());
+                .isEqualTo(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode());
         assertThat(channelInvokeService.commandDTO).isNull();
     }
 
     /**
-     * 同一商户订单号已存在有效授权起点时，不允许再次发起新的授权起点；请款、撤销和退款必须作为后续动作进入原生命周期。
+     * 同一商户订单号已绑定不同指纹的授权起点时，不允许再次发起授权，并返回精确的幂等冲突码。
      */
     @Test
     void shouldRejectDuplicateAuthorizationWhenMerchantOrderAlreadyHasAuthorizationFlow() {
@@ -636,7 +673,7 @@ class PaymentTransactionServiceImplTests {
         assertThatThrownBy(() -> service.createAuthorization(baseCommand()))
                 .isInstanceOf(ServiceException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode());
+                .isEqualTo(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode());
         assertThat(channelInvokeService.commandDTO).isNull();
     }
 
@@ -927,7 +964,8 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getMerchantOrderNo()).isEqualTo("M202607120001");
         assertThat(resultDTO.getTransactionInfo()).hasSize(1);
         assertThat(resultDTO.getTransactionInfo().get(0).getTransactionId()).isEqualTo(SOURCE_TRANSACTION_ID);
-        assertThat(resultDTO.getTransactionInfo().get(0).getCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(resultDTO.getTransactionInfo().get(0).getCode())
+                .isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(resultDTO.getTransactionInfo().get(0).getMerchantWebsite())
                 .isEqualTo("https://merchant.example.com/checkout");
         assertThat(resultDTO.getTransactionInfo().get(0).getRootTransactionDateTime())
@@ -1252,13 +1290,17 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
-        assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
-        assertThat(resultDTO.getMerchantResponseMessage()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
+        assertThat(resultDTO.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode());
+        assertThat(resultDTO.getMerchantResponseMessage())
+                .isEqualTo("The transaction was declined by the issuer bank. "
+                        + "Check the original order, then ask the payer to contact their bank "
+                        + "or use another payment method when applicable.");
         assertThat(resultDTO.getMerchantResponseMessage()).doesNotContain("05", "Declined");
     }
 
     /**
-     * MPGS result=ERROR 类失败不应把渠道技术或参数错误直接返回给商户，应统一返回模糊拒绝提示。
+     * MPGS result=ERROR 已形成确定失败时，对外仅返回受控的渠道失败说明，不透传渠道技术或参数原文。
      */
     @Test
     void shouldReturnGenericMerchantMessageWhenMpgsResultError() {
@@ -1276,8 +1318,11 @@ class PaymentTransactionServiceImplTests {
         PaymentCreateResultDTO resultDTO = service.createPayment(baseCommand());
 
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(resultDTO.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode());
         assertThat(resultDTO.getMerchantResponseMessage())
-                .isEqualTo("The transaction was declined; please contact your card issuer or try again.");
+                .isEqualTo("The transaction was declined by the issuer bank. "
+                        + "Check the original order, then ask the payer to contact their bank "
+                        + "or use another payment method when applicable.");
         assertThat(resultDTO.getMerchantResponseMessage()).doesNotContain("Unexpected parameter");
     }
 

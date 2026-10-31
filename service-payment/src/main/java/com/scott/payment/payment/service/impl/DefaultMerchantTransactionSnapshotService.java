@@ -38,64 +38,26 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantTransactionSnapshotService
- * @date : 2026-08-14 12:45
- * @email : scott_x@163.com
- * @description : 商户交易快照默认实现，首次交易保存商户可见请求，所有资金动作冻结自身费用版本，并以交易分片键读取。
- * @status : create
+ * 商户请求与动作费用配置的交易快照服务。
+ *
+ * <p>首次交易保存账单、付款人、收货、商品和子商户等业务事实；每个资金动作都冻结当时生效的
+ * 费用版本，保证后续退款、清分与审计可复现。卡号、CVV、CAVV 和渠道认证原文不进入这些表，
+ * 读取必须携带根交易分片时间。</p>
  */
 @Service
 public class DefaultMerchantTransactionSnapshotService implements MerchantTransactionSnapshotService {
 
-    /**
-     * 时间时区常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 无时区交易时间的业务解释时区。 */
     private static final String TIME_ZONE = "Asia/Shanghai";
-    /**
-     * 账单前缀常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 账单快照业务号前缀。 */
     private static final String BILLING_PREFIX = "TBI";
-    /**
-     * 商户前缀常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 商户与费用配置快照业务号前缀。 */
     private static final String MERCHANT_PREFIX = "TMS";
-    /**
-     * {@code PAYER_PREFIX}常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 付款人快照业务号前缀。 */
     private static final String PAYER_PREFIX = "TPI";
-    /**
-     * {@code SHIPPING_PREFIX}常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 收货信息快照业务号前缀。 */
     private static final String SHIPPING_PREFIX = "TSI";
-    /**
-     * {@code PRODUCT_PREFIX}常量，统一 {@code DefaultMerchantTransactionSnapshotService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 商品明细快照业务号前缀。 */
     private static final String PRODUCT_PREFIX = "TGI";
 
     private final TransactionBillingInfoMapper billingInfoMapper;
@@ -139,6 +101,7 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
                 || commandDTO.getTransactionDateTime() == null) {
             return;
         }
+        // 所有快照由调用方交易准备事务统一提交，任一必需写入失败都应回滚交易事实。
         recordMerchant(commandDTO, resultDTO, now);
         recordBilling(commandDTO, resultDTO, now);
         recordPayer(commandDTO, resultDTO, now);
@@ -229,6 +192,7 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
     private void recordMerchant(PaymentCreateCommandDTO commandDTO,
                                 PaymentCreateResultDTO resultDTO,
                                 LocalDateTime now) {
+        // 每个动作按自身发生时间冻结费用版本，不能复用根交易当前配置或事后重新查询 ACTIVE。
         FrozenMerchantFeeVersionSnapshotDTO frozenFeeVersion =
                 feeVersionSnapshotService.freezeActiveVersion(commandDTO.getMerchantId(), now);
         TransactionMerchantSnapshotDO target = new TransactionMerchantSnapshotDO();
@@ -301,6 +265,7 @@ public class DefaultMerchantTransactionSnapshotService implements MerchantTransa
         target.setBrowserInfoJson(source.getBrowserInfo() == null
                 ? null : JsonUtils.toJsonString(source.getBrowserInfo()));
         target.setUserAgent(source.getUserAgent());
+        // 摘要仅用于风险关联和检索，原始业务字段是否保留由该交易事实表的数据治理策略控制。
         target.setPayerEmailHash(sha256(source.getEmail()));
         target.setPayerPhoneHash(sha256(source.getPhone()));
         target.setIpAddressHash(sha256(source.getIpAddress()));

@@ -2,10 +2,12 @@ package com.scott.payment.openapi.api.rest.checkout.v1;
 
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
 import com.scott.payment.openapi.application.checkout.OpenApiHostedCheckoutApplicationService;
 import com.scott.payment.openapi.dto.body.HostedCheckoutBrowserRequestDTOs;
 import com.scott.payment.openapi.service.OpenApiSystemConfigService;
 import com.scott.payment.openapi.support.HostedCheckoutUrlPolicy;
+import com.scott.payment.openapi.result.OpenApiResponseFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutPaymentResultVO;
 import com.scott.payment.openapi.vo.checkout.HostedCheckoutSessionVO;
@@ -25,8 +27,6 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
  * @author : scott
@@ -78,7 +78,7 @@ public class HostedCheckoutBrowserController {
     @PostMapping("/session/query")
     public CommonResult<HostedCheckoutSessionVO> querySession(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.SessionQueryRequest requestDTO) {
-        return success(hostedCheckoutApplicationService.querySession(requestDTO));
+        return payerSuccess(hostedCheckoutApplicationService.querySession(requestDTO));
     }
 
     /**
@@ -92,7 +92,7 @@ public class HostedCheckoutBrowserController {
     @PostMapping("/payment/submit")
     public CommonResult<HostedCheckoutPaymentResultVO> submitPayment(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.PaymentSubmitRequest requestDTO) {
-        return success(hostedCheckoutApplicationService.submitPayment(requestDTO));
+        return payerSuccess(hostedCheckoutApplicationService.submitPayment(requestDTO));
     }
 
     /**
@@ -104,14 +104,14 @@ public class HostedCheckoutBrowserController {
     @PostMapping("/payment/status")
     public CommonResult<HostedCheckoutPaymentResultVO> queryPaymentStatus(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.PaymentStatusRequest requestDTO) {
-        return success(hostedCheckoutApplicationService.queryPaymentStatus(requestDTO));
+        return payerSuccess(hostedCheckoutApplicationService.queryPaymentStatus(requestDTO));
     }
 
     /** 卡号输入完成后按 BIN 识别品牌并校验商户 MID 支持状态。 */
     @PostMapping("/card-bin/resolve")
     public CommonResult<HostedCheckoutCardBinVO> resolveCardBin(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.CardBinRequest requestDTO) {
-        return success(hostedCheckoutApplicationService.resolveCardBin(requestDTO));
+        return payerSuccess(hostedCheckoutApplicationService.resolveCardBin(requestDTO));
     }
 
     /**
@@ -125,7 +125,12 @@ public class HostedCheckoutBrowserController {
     @PostMapping("/3ds/return")
     public CommonResult<HostedCheckoutPaymentResultVO> handleThreeDsReturn(
             @Valid @RequestBody HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest requestDTO) {
-        return success(hostedCheckoutApplicationService.handleThreeDsReturn(requestDTO));
+        return payerSuccess(hostedCheckoutApplicationService.handleThreeDsReturn(requestDTO));
+    }
+
+    /** 浏览器 JSON 入口固定选择付款人安全英文文案，客户端不能通过请求参数提升展示权限。 */
+    private <T> CommonResult<T> payerSuccess(T data) {
+        return OpenApiResponseFactory.success(data, OpenApiMessageAudience.PAYER);
     }
 
     /**

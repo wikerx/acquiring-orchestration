@@ -82,6 +82,14 @@ public class PaymentChannelInvokeResultDTO implements Serializable {
     private String exceptionMessage;
 
     /**
+     * 受控渠道调用失败原因，只记录平台枚举值，不保存异常原文。
+     * <p>
+     * 该字段与 outcomeUncertain 共同表达来源证据：前者说明失败发生在哪一类边界，后者决定资金动作能否进入失败终态。
+     * </p>
+     */
+    private String failureReasonCode;
+
+    /**
      * 渠道结果是否不确定。仅当请求可能已经到达渠道但平台无法取得可信结果时为 true，
      * 此时资金动作必须保留为处理中并等待查询或回调勾兑；发送前校验、配置等确定性失败保持 false。
      */

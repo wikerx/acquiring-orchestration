@@ -22,12 +22,14 @@ import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -50,6 +52,69 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class DefaultTransactionCallbackServiceTests {
+
+    @Test
+    void shouldApplyCardAuthorizationReferencesBeforeCompletingCallback() {
+        TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any())).thenReturn(1);
+        TransactionOperationDO operationDO = operation();
+        when(recordService.findOperationByChannelTransaction("CMA-001", "CMT-CHANNEL-001"))
+                .thenReturn(null);
+        when(recordService.findSourceOperationByTransactionId("202607141000000000001"))
+                .thenReturn(operationDO);
+        when(recordService.findOrder(any(LocalDateTime.class), eq("OP202607141000000000001")))
+                .thenReturn(order());
+        when(recordService.completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("succeeded"), eq("SUCCESS"), eq("Captured"))).thenReturn(true);
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                callbackLogMapper,
+                callbackMapper,
+                recordService,
+                new CapturingEventOutboxService(),
+                new TransactionShardingKeyParser(),
+                new DefaultChannelTransactionStatusResolver());
+        TransactionChannelCallbackCommandDTO commandDTO = callbackCommand();
+        commandDTO.setChannelCode("SCOTT_CHANNEL_A");
+        commandDTO.setCallbackEventId("CMT-CHANNEL-001:SUCCESS");
+        commandDTO.setChannelOrderNo("CMA-001");
+        commandDTO.setChannelTransactionId("CMT-CHANNEL-001");
+        commandDTO.setRawChannelStatus("succeeded");
+        commandDTO.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
+        commandDTO.setChannelResponseCode("SUCCESS");
+        commandDTO.setChannelResponseMessage("Captured");
+        commandDTO.setExtension(Map.of(
+                "merchantOrderNo", "202607141000000000001",
+                "authorizationId", "CMA-001",
+                "operationType", "CAPTURE",
+                "authorizationCode", "000101",
+                "acquirerReferenceNumber", "20261031000000000000101"));
+        ArgumentCaptor<TransactionOperationDO> operationCaptor =
+                ArgumentCaptor.forClass(TransactionOperationDO.class);
+
+        callbackService.recordChannelCallback(commandDTO);
+
+        verify(recordService).completeByChannelCallback(
+                operationCaptor.capture(),
+                any(TransactionOrderDO.class),
+                anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
+                any(),
+                any(),
+                eq("succeeded"),
+                eq("SUCCESS"),
+                eq("Captured"));
+        assertThat(operationCaptor.getValue().getChannelOrderNo()).isEqualTo("CMA-001");
+        assertThat(operationCaptor.getValue().getChannelTransactionId()).isEqualTo("CMT-CHANNEL-001");
+        assertThat(operationCaptor.getValue().getAuthCode()).isEqualTo("000101");
+        assertThat(operationCaptor.getValue().getAcquirerReferenceNo())
+                .isEqualTo("20261031000000000000101");
+    }
 
     /** 渠道回调正文属于不可信敏感数据，日志只允许记录长度和不可逆摘要。 */
     @Test

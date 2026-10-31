@@ -24,13 +24,10 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : TransactionTerminalClearingConsumer
- * @date : 2026-08-26 16:40
- * @email : scott_x@163.com
- * @description : 顺序消费支付交易终态事件并委托清分应用层；只有受控失败完成数据库提交后才正常ACK，技术异常原样抛出。
- * @status : create
+ * 交易终态清分消费者。
+ *
+ * <p>同一操作使用顺序消费，消息仅作为触发信号，数据库中的动作状态和消费幂等才是财务权威事实。
+ * 受控业务失败完成落库后可以 ACK；未知技术异常继续抛给 RocketMQ 重试。</p>
  */
 @Slf4j
 @Component
@@ -79,7 +76,7 @@ public class TransactionTerminalClearingConsumer
         try {
             ClearingProcessingResult result = applicationService.process(
                     message, processingOwner(), LocalDateTime.now(Clock.systemUTC()));
-            log.info("event: TRANSACTION_CLEARING_TERMINAL_CONSUMED traceId: {} messageId: {} transactionId: {} operationId: {} result: {}",
+            log.info("交易终态清分消息处理完成, event: TRANSACTION_CLEARING_TERMINAL_CONSUMED, traceId: {}, messageId: {}, transactionId: {}, operationId: {}, result: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getTransactionId(),
                     message.getOperationId(), result);
         } finally {

@@ -1,8 +1,8 @@
 package com.scott.payment.openapi;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
@@ -67,8 +67,8 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
                         "amount", 12389.45,
                         "currency", "USD"),
                 "transactionInfo", Map.of(
-                        "code", ApiResultEnum.SUCCESS.getCode(),
-                        "message", ApiResultEnum.SUCCESS.getMessage(),
+                        "code", OpenApiResultCode.TRANSACTION_SUCCESS.getCode(),
+                        "message", OpenApiResultCode.TRANSACTION_SUCCESS.getMessage(),
                         "transactionId", "202607160954270000001",
                         "transactionType", "AUTHORIZATION"),
                 "billingInfo", Map.of(
@@ -88,8 +88,8 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseData, keyMaterialFactory));
 
         String encryptedHttpResponse = JsonUtils.toJsonString(Map.of(
-                "code", ApiResultEnum.SUCCESS.getCode(),
-                "message", ApiResultEnum.SUCCESS.getMessage(),
+                "code", OpenApiResultCode.REQUEST_SUCCESS.getCode(),
+                "message", OpenApiResultCode.REQUEST_SUCCESS.getMessage(),
                 "data", encryptedResponseData
         ));
         log.info("平台响应封装完成，响应摘要：{}",
@@ -108,7 +108,7 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
         );
         log.info("商户响应data解密完成，明文data：{}", decryptedData);
 
-        assertThat(responseMap.get("code")).isEqualTo(ApiResultEnum.SUCCESS.getCode());
+        assertThat(responseMap.get("code")).isEqualTo(OpenApiResultCode.REQUEST_SUCCESS.getCode());
         assertThat(MerchantOpenApiTestSupport.compactPartCount(encryptedResponseData)).isEqualTo(5);
         assertThat(decryptedData).isEqualTo(plainResponseData);
         assertThat(decryptedData).doesNotContain("operationId", "dccEnabled", "edcEnabled");

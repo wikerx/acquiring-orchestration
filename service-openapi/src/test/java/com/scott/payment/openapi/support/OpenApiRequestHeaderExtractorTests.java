@@ -5,9 +5,9 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.exception.RateLimitExceededException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessDeniedException;
@@ -83,7 +83,7 @@ class OpenApiRequestHeaderExtractorTests {
         ))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.PARAM_MISSING.getCode());
+                .isEqualTo(OpenApiResultCode.PARAM_MISSING.getCode());
     }
 
     @Test
@@ -100,7 +100,7 @@ class OpenApiRequestHeaderExtractorTests {
         ))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+                .isEqualTo(OpenApiResultCode.CONTENT_TYPE_NOT_SUPPORTED.getCode());
     }
 
     @Test

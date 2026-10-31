@@ -348,7 +348,8 @@ public class PaymentCreateVO implements Serializable {
         private OffsetDateTime sourceTransactionDateTime;
 
         /**
-         * 当前动作商户响应码，例如 T200、T202、T203、F210。
+         * 当前动作 OpenAPI V1.3 交易结果码，例如 T0000、T0001、T0002、T0003 或 F3000。
+         * 外层 A0000 只表示 API 请求处理完成，不能替代本字段判断当前交易动作结果。
          */
         private String code;
 
@@ -428,21 +429,16 @@ public class PaymentCreateVO implements Serializable {
         /** Hosted Checkout 创建会话语言。 */
         private String language;
 
-        /**
-         * 内部失败原因码，仅用于后台和测试链路兼容，不返回商户。
-         */
+        /** OpenAPI 投影使用的受控失败原因码，仅保留 Java 兼容读取，不属于商户响应契约。 */
         @JSONField(serialize = false)
         private String failReasonCode;
 
-        /**
-         * 内部失败原因描述，仅用于后台和测试链路兼容，不返回商户。
-         */
+        /** OpenAPI 投影使用的安全失败说明，仅保留 Java 兼容读取，不属于商户响应契约。 */
         @JSONField(serialize = false)
         private String failReasonMessage;
 
-        /**
-         * 挂起原因码，PENDING 状态时返回。
-         */
+        /** 内部挂起原因码，仅用于选择现有 code/message，不直接返回商户。 */
+        @JSONField(serialize = false)
         private String pendingReasonCode;
     }
 

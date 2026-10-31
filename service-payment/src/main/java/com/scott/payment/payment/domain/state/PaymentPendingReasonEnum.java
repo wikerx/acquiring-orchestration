@@ -30,6 +30,11 @@ public enum PaymentPendingReasonEnum {
     WAITING_CHANNEL_CALLBACK("WAITING_CHANNEL_CALLBACK"),
 
     /**
+     * 渠道请求可能已经送达，但同步响应未提供可验证结果，必须等待查询或回调勾兑。
+     */
+    CHANNEL_RESULT_UNKNOWN("CHANNEL_RESULT_UNKNOWN"),
+
+    /**
      * 拒付或调单争议处理中。
      */
     DISPUTE_IN_PROGRESS("DISPUTE_IN_PROGRESS");

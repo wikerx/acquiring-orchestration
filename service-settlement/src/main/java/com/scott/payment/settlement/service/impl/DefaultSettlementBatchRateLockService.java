@@ -18,6 +18,8 @@ import com.scott.payment.settlement.mapper.SettlementBatchMapper;
 import com.scott.payment.settlement.mapper.SettlementBatchRateMapper;
 import com.scott.payment.settlement.service.SettlementBatchRateLockService;
 import com.scott.payment.settlement.service.SettlementRateResolutionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,33 +35,20 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementBatchRateLockService
- * @date : 2026-08-26 23:20
- * @email : scott_x@163.com
- * @description : 在批次行锁事务内完整写入或复用汇率矩阵，逐项回读后才以租约和 version CAS 标记 RATE_LOCKED。
- * @status : create
+ * 结算批次汇率锁定服务。
+ *
+ * <p>一个批次只能使用一套完整汇率矩阵。只要已经存在任意汇率行，就禁止补充新报价，
+ * 避免同一批次混用不同估值时点；完整性校验通过后才允许批次进入 RATE_LOCKED。</p>
  */
 @Service
 public class DefaultSettlementBatchRateLockService implements SettlementBatchRateLockService {
 
-    /**
-     * 汇率类型，用于区分 {@code DefaultSettlementBatchRateLockService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            DefaultSettlementBatchRateLockService.class);
+
+    /** 持久化汇率矩阵的业务类型。 */
     private static final String RATE_TYPE = "SETTLEMENT";
-    /**
-     * 汇率状态，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
+    /** 汇率行经过完整性校验后的冻结状态。 */
     private static final String RATE_STATUS = "LOCKED";
 
     private final SettlementBatchMapper batchMapper;
@@ -122,6 +111,9 @@ public class DefaultSettlementBatchRateLockService implements SettlementBatchRat
                     "settlement batch status does not allow rate reuse");
         }
         copyMutableState(batch, leasedBatch);
+        LOGGER.info("结算批次汇率矩阵事务写入完成, event: SETTLEMENT_RATE_LOCK_WRITE_END, settlementBatchNo: {}, targetCurrency: {}, sourceCurrencyCount: {}, rateRowCount: {}",
+                batch.getSettlementBatchNo(), batch.getTargetCurrency(),
+                facts.currencies().size(), stored.size());
         return locked;
     }
 

@@ -115,6 +115,85 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         assertThat(result.isEdcRequired()).isFalse();
     }
 
+    /** 原币直连必须优先于排序值更小的 EDC 候选，避免不必要的动态换汇。 */
+    @Test
+    void shouldPreferDirectCurrencyCandidateOverEdcCandidate() {
+        PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
+        PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);
+        MerchantRouteProfileCacheService profileCache = mock(MerchantRouteProfileCacheService.class);
+        PaymentChannelMidMetadataCache metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        LocalDateTime modifiedTime = LocalDateTime.of(2026, 8, 1, 15, 40);
+        MerchantRouteProfile profile = profile(modifiedTime);
+        RouteOption direct = profile.getRouteOptions().get(0);
+        direct.setCurrencyScope("JPY");
+        direct.setSupportedCurrencies(new ArrayList<>(List.of("JPY")));
+        direct.setDefaultTransactionCurrency("JPY");
+        direct.setCapabilitySortOrder(20);
+        RouteOption edc = routeOption(modifiedTime, 11L, 21L, 31L, "SCOTT_CHANNEL_A", 1);
+        edc.setCurrencyScope("ALL");
+        edc.setSupportedCurrencies(new ArrayList<>(List.of("USD")));
+        edc.setDefaultTransactionCurrency("USD");
+        profile.setRouteOptions(new ArrayList<>(List.of(edc, direct)));
+        when(profileCache.findRouteProfile("200045")).thenReturn(profile);
+        when(metadataCache.getMetadataJson(10L, modifiedTime)).thenReturn("{}");
+        PaymentCreateCommandDTO command = command();
+        command.setCurrency("JPY");
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                midMapper, channelMapper, profileCache, metadataCache);
+
+        PaymentRouteResultDTO result = service.route(command);
+
+        assertThat(result.getChannelCode()).isEqualTo("MPGS");
+        assertThat(result.getRoutedCurrency()).isEqualTo("JPY");
+        assertThat(result.isEdcRequired()).isFalse();
+    }
+
+    /** 两个原币候选同时可用时，能力配置中更小的排序值必须稳定胜出。 */
+    @Test
+    void shouldPreferLowerCapabilitySortOrderForDirectCandidates() {
+        PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
+        PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);
+        MerchantRouteProfileCacheService profileCache = mock(MerchantRouteProfileCacheService.class);
+        PaymentChannelMidMetadataCache metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        LocalDateTime modifiedTime = LocalDateTime.of(2026, 8, 1, 15, 40);
+        MerchantRouteProfile profile = profile(modifiedTime);
+        RouteOption lowerPriority = profile.getRouteOptions().get(0);
+        lowerPriority.setCapabilitySortOrder(20);
+        RouteOption preferred = routeOption(modifiedTime, 11L, 21L, 31L, "WORLDPAY", 10);
+        profile.setRouteOptions(new ArrayList<>(List.of(lowerPriority, preferred)));
+        when(profileCache.findRouteProfile("200045")).thenReturn(profile);
+        when(metadataCache.getMetadataJson(11L, modifiedTime)).thenReturn("{}");
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                midMapper, channelMapper, profileCache, metadataCache);
+
+        PaymentRouteResultDTO result = service.route(command());
+
+        assertThat(result.getChannelCode()).isEqualTo("WORLDPAY");
+        assertThat(result.getMidConfigId()).isEqualTo(11L);
+    }
+
+    /** 最高优先级完全相同仍必须拒绝，禁止按缓存列表先后随机选资金通道。 */
+    @Test
+    void shouldRejectCandidatesWithSameHighestPriority() {
+        PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
+        PaymentChannelInfoMapper channelMapper = mock(PaymentChannelInfoMapper.class);
+        MerchantRouteProfileCacheService profileCache = mock(MerchantRouteProfileCacheService.class);
+        PaymentChannelMidMetadataCache metadataCache = mock(PaymentChannelMidMetadataCache.class);
+        LocalDateTime modifiedTime = LocalDateTime.of(2026, 8, 1, 15, 40);
+        MerchantRouteProfile profile = profile(modifiedTime);
+        RouteOption first = profile.getRouteOptions().get(0);
+        RouteOption second = routeOption(modifiedTime, 11L, 21L, 31L, "WORLDPAY", 1);
+        profile.setRouteOptions(new ArrayList<>(List.of(first, second)));
+        when(profileCache.findRouteProfile("200045")).thenReturn(profile);
+        DefaultPaymentChannelRouteService service = new DefaultPaymentChannelRouteService(
+                midMapper, channelMapper, profileCache, metadataCache);
+
+        assertThatThrownBy(() -> service.route(command()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("Invalid request parameter");
+        verifyNoInteractions(metadataCache, midMapper, channelMapper);
+    }
+
     @Test
     void shouldRejectEdcRouteWhenDefaultCurrencyIsOutsideMidIntersection() {
         PaymentChannelMidConfigMapper midMapper = mock(PaymentChannelMidConfigMapper.class);
@@ -250,10 +329,22 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         MerchantRouteProfile profile = new MerchantRouteProfile();
         profile.setMerchantId("200045");
         profile.setBindingCount(1);
+        RouteOption option = routeOption(modifiedTime, 10L, 20L, 30L, "MPGS", 1);
+        profile.setRouteOptions(new ArrayList<>(List.of(option)));
+        return profile;
+    }
+
+    /** 构造指定身份和排序值的非敏感路由候选。 */
+    private RouteOption routeOption(LocalDateTime modifiedTime,
+                                    Long midConfigId,
+                                    Long channelId,
+                                    Long capabilityId,
+                                    String channelCode,
+                                    int sortOrder) {
         RouteOption option = new RouteOption();
         option.setBindingId(1L);
         option.setBindingStatus(1);
-        option.setMidConfigId(10L);
+        option.setMidConfigId(midConfigId);
         option.setChannelMid("MERCHANT-001");
         option.setBusinessType("ACQUIRING");
         option.setPaymentMethodScope("ALL");
@@ -263,24 +354,23 @@ class DefaultPaymentChannelRouteServiceCacheTests {
         option.setAllowedCountryScope("ALL");
         option.setMidStatus(1);
         option.setMidModifiedTime(modifiedTime);
-        option.setChannelId(20L);
-        option.setChannelCode("MPGS");
+        option.setChannelId(channelId);
+        option.setChannelCode(channelCode);
         option.setChannelStatus(1);
         option.setSupportAcquiring(1);
         option.setRequestUrl("https://example.test/api");
         option.setConnectTimeoutSeconds(3);
         option.setReadTimeoutSeconds(10);
-        option.setCapabilityId(30L);
+        option.setCapabilityId(capabilityId);
         option.setCapabilityBusinessType("ACQUIRING");
         option.setCapabilityPaymentMethod("BANK_CARD");
         option.setCapabilityTransactionType("PAYMENT");
         option.setCapabilitySupportedCardBrands(new ArrayList<>(List.of("VISA", "MASTERCARD")));
         option.setCapabilitySupport3ds(1);
         option.setCapabilityStatus(1);
-        option.setCapabilitySortOrder(1);
+        option.setCapabilitySortOrder(sortOrder);
         option.setDefaultTransactionCurrency("USD");
         option.setSupportedCurrencies(new ArrayList<>(List.of("USD")));
-        profile.setRouteOptions(new ArrayList<>(List.of(option)));
-        return profile;
+        return option;
     }
 }

@@ -16,13 +16,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultCaptureChannelResultTransactionService
- * @date : 2026-07-24 00:00
- * @email : scott_x@163.com
- * @description : Capture 渠道结果默认事务实现，使用 REQUIRES_NEW 保存同步结果并通过 CAS 推进 Capture 动作。
- * @status : create
+ * 请款渠道结果的独立事务服务。
+ *
+ * <p>只对本地已准备的请款动作执行状态 CAS。CAS 成功后才允许更新累计请款事实并同事务写入
+ * 终态 Outbox；动作缺失、重复响应或晚到响应均不得根据瞬时渠道结果补造交易。</p>
  */
 @Service
 public class DefaultCaptureChannelResultTransactionService implements CaptureChannelResultTransactionService {
@@ -64,6 +61,7 @@ public class DefaultCaptureChannelResultTransactionService implements CaptureCha
             return false;
         }
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+        // 重新读取主库动作与原交易主单，后续 CAS 必须基于当前持久化状态而不是准备阶段快照。
         TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), preparationResultDTO.getCommandDTO().getTransactionDateTime());
         TransactionOrderDO sourceOrderDO = transactionRecordService.findOrderPrimary(
@@ -71,6 +69,7 @@ public class DefaultCaptureChannelResultTransactionService implements CaptureCha
         if (operationDO == null || sourceOrderDO == null) {
             return false;
         }
+        // 累计请款金额由持久化成功动作计算，只有该状态更新获胜时才会改变。
         boolean statusChanged = transactionRecordService.completeCaptureChannelResult(
                 operationDO,
                 sourceOrderDO,

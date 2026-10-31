@@ -1,95 +1,87 @@
-# 分支与发布管理规范
+# Git 分支与发布管理规范
 
-## 分支模型
+## 1. 适用范围
 
-| 分支 | 用途 | 保护要求 |
-| --- | --- | --- |
-| `master` | 主分支、日常集成基线 | 禁止直接提交，所有变更通过 PR 合并 |
-| `prod` | 生产发布基线 | 禁止直接提交，只允许由 release/hotfix 合并 |
-| `feature/*` | 需求开发 | 从 `master` 拉出，完成后合并回 `master` |
-| `bugfix/*` | 非生产缺陷修复 | 从 `master` 拉出，完成后合并回 `master` |
-| `release/*` | 发布准备 | 从 `master` 拉出，验证通过后合并到 `prod` 和 `master` |
-| `hotfix/*` | 生产紧急修复 | 从 `prod` 拉出，修复后合并到 `prod` 和 `master` |
+本规范适用于当前三个独立仓库。默认分支以远程 `HEAD` 为最终依据，当前基线为：
 
-## 命名规范
+| 仓库 | 默认分支 |
+| --- | --- |
+| `acquiring-orchestration` | `master` |
+| `acquiring-frontend` | `main` |
+| `acquiring-openapi-java-sdk` | `master` |
 
-- 需求分支：`feature/{issue-id}-{short-desc}`
-- 缺陷分支：`bugfix/{issue-id}-{short-desc}`
-- 发布分支：`release/{yyyyMMdd|version}`
-- 紧急修复：`hotfix/{issue-id}-{short-desc}`
+`dev`、测试环境或部署环境分支不是天然的业务权威来源。只有在仓库保护规则和发布流水线已经明确采用时，环境分支才进入发布流程。禁止仅靠文档创建一套与实际仓库不一致的 `codeReview -> dev -> test -> uat -> prod` 长链路。
 
-示例：`feature/ACQ-102-channel-routing`
+## 2. 分支模型
 
-## 提交规范
+- 默认分支：可发布代码的集成基线，禁止直接提交。
+- `feat/<issue>-<short-desc>`：功能开发，从默认分支创建。
+- `fix/<issue>-<short-desc>`：普通缺陷修复，从默认分支创建。
+- `hotfix/<issue>-<short-desc>`：生产紧急修复，从生产对应的不可变标签或已确认提交创建。
+- `release/<version>`：确有独立发布稳定期时使用；不作为永久环境分支。
 
-提交信息使用：
+已有历史分支名称不要求批量重命名。新分支采用上述规则。跨仓库变更使用相同 issue/任务编号，分别提交和评审，不使用无法独立构建的跨仓库混合提交。
+
+## 3. 提交规范
+
+提交信息：
 
 ```text
 <type>(<scope>): <subject>
 ```
 
-常用 `type`：
+常用 `type`：`feat`、`fix`、`docs`、`refactor`、`test`、`chore`、`build`。
 
-- `feat`：新功能
-- `fix`：缺陷修复
-- `docs`：文档
-- `style`：格式调整
-- `refactor`：重构
-- `test`：测试
-- `chore`：工程配置
+要求：
 
-示例：
+- 一个提交表达一个可解释的意图；
+- 不提交密钥、证书、真实卡号、真实账户、生产报文或生产日志；
+- 不混入无关格式化、生成文件或本地 IDE 状态；
+- 生成物只有在仓库明确跟踪并有可重复生成方式时才提交。
 
-```text
-feat(route): add channel routing rule priority
-```
+## 4. Pull Request
 
-## 合并要求
+PR 必须说明：
 
-1. PR 必须关联需求、缺陷或任务编号。
-2. PR 必须通过编译、单元测试、静态扫描和必要的集成测试。
-3. 至少 1 名 Reviewer 批准后才可合并；支付、资金、安全相关变更至少 2 名 Reviewer。
-4. 禁止将密钥、证书、真实卡号、真实账户、生产日志提交到仓库。
-5. 合并到 `prod` 必须产生可追溯的版本标签和发布记录。
+1. 背景、目标和非目标；
+2. 核心改动及影响模块；
+3. P0/P1/P2 和 R0-R3；
+4. 接口、数据库、消息、配置、资金和安全影响；
+5. 测试命令及结果；
+6. 兼容、灰度、回滚或止损方式；
+7. 跨仓库关联 PR。
 
-## 发布标签
+至少一名 Reviewer 批准后合并。R3 以及支付、资金、公开 OpenAPI、安全协议、生产 SQL 变更至少需要两人评审，且业务/测试/发布批准不能由同一角色的自证完全替代。
 
-每次生产发布必须在 `prod` 分支对应提交上创建发布标签：
+所有 P0/blocker 和 P1/major 意见必须解决，或经过有负责人、原因、补偿措施和复审条件的例外审批。
 
-```text
-prod-yyyy-mm-dd
-```
+## 5. 合并与发布
 
-示例：
+- PR 必须基于最新目标分支并通过仓库已有的编译、测试、类型或静态检查。
+- 禁止为了通过检查而降低安全、删除测试、跳过失败用例或修改业务断言。
+- 生产发布使用不可变版本号和 Git Tag；同一 Tag 不得移动或复用。
+- SDK 版本必须同步 `pom.xml`、User-Agent/常量、README、CHANGELOG 和 Tag。
+- 发布记录必须能追溯到提交、PR、测试证据、配置/SQL 变更和批准人。
+- dirty worktree 不得用于 SDK 或生产制品发布。
 
-```text
-prod-2026-05-16
-```
-
-同一天多次发布时，在日期后追加序号：
+推荐标签使用语义化或产品已批准的版本，例如：
 
 ```text
-prod-2026-05-16-2
+v1.3.0
+backend-v1.3.0
+frontend-v1.3.0
+sdk-v1.3.0
 ```
 
-推荐命令：
+具体前缀由发布流程统一确定，不再使用仅包含日期且无法表达组件和版本含义的临时规则。
 
-```bash
-git checkout prod
-git tag -a prod-2026-05-16 -m "release: prod 2026-05-16"
-git push origin prod-2026-05-16
-```
+## 6. Hotfix
 
-## 远程同步建议
+Hotfix 从生产实际运行的 Tag/提交创建，范围只包含止损所需改动。发布后必须合回默认分支，并补齐：
 
-首次初始化建议在本地执行：
+- 根因和受影响版本；
+- 回归测试；
+- 数据修复或对账结论；
+- 长期修复和防复发措施。
 
-```bash
-git init -b master
-git remote add origin https://github.com/wikerx/acquiring-orchestration.git
-git add .
-git commit -m "docs: initialize repository governance"
-git push -u origin master
-git checkout -b prod
-git push -u origin prod
-```
+不得从不确定的 `dev`、个人功能分支或本地 dirty worktree直接制作生产 Hotfix。

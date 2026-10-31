@@ -3,7 +3,6 @@ package com.scott.payment.openapi;
 import cn.hutool.jwt.JWTHeader;
 import cn.hutool.jwt.JWTUtil;
 import cn.hutool.jwt.RegisteredPayload;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
@@ -15,6 +14,7 @@ import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecuritySeedDTO;
 import com.scott.payment.openapi.enums.MerchantRiskLevelEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.service.MerchantSecurityService;
 import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -182,8 +182,8 @@ class MerchantSecurityDatabaseFlowTests extends OpenApiIsolatedMysqlIntegrationT
                         result.getResponse().getStatus(),
                         keyMaterialFactory.fingerprint(result.getResponse().getContentAsString())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ApiResultEnum.COMMON_FAILED.getCode()))
-                .andExpect(jsonPath("$.message").value(ApiResultEnum.COMMON_FAILED.getMessage()))
+                .andExpect(jsonPath("$.code").value(OpenApiResultCode.SYSTEM_ERROR.getCode()))
+                .andExpect(jsonPath("$.message").value(OpenApiResultCode.SYSTEM_ERROR.getMessage()))
                 .andExpect(jsonPath("$.data").value(nullValue()));
     }
 
@@ -283,8 +283,9 @@ class MerchantSecurityDatabaseFlowTests extends OpenApiIsolatedMysqlIntegrationT
 
         assertThatThrownBy(() -> merchantJwtVerifier.verify(authorization, "wrong-merchant-key"))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getMessage());
-        log.info("反向用例校验通过-错误JWT共享密钥会被拒绝，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getCode());
+                .satisfies(error -> assertThat(((ApiException) error).getCode()).isEqualTo("F401007"));
+        log.info("反向用例校验通过-错误JWT共享密钥会被拒绝，内部兼容错误码：F401007，对外投影：{}",
+                OpenApiResultCode.AUTHENTICATION_FAILED.getCode());
 
         String expiredJwt = createMerchantJwt(
                 merchantMaterial.getMerchantId(),
@@ -296,14 +297,16 @@ class MerchantSecurityDatabaseFlowTests extends OpenApiIsolatedMysqlIntegrationT
                 merchantMaterial.getMerchantKey(),
                 FIXED_EXPIRED_ISSUED_AT + 181L
         )).isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiResultEnum.AUTHORIZATION_JWT_EXPIRED.getMessage());
-        log.info("反向用例校验通过-JWT过期会被拒绝，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_EXPIRED.getCode());
+                .satisfies(error -> assertThat(((ApiException) error).getCode()).isEqualTo("F401003"));
+        log.info("反向用例校验通过-JWT过期会被拒绝，内部兼容错误码：F401003，对外投影：{}",
+                OpenApiResultCode.AUTHORIZATION_TIME_INVALID.getCode());
 
         String tamperedData = tamperCiphertextSegment(encryptedRequestData);
         assertThatThrownBy(() -> payloadCrypto.decrypt(tamperedData, merchantSecurityService.getPlatformPrivateKey(merchantMaterial.getMerchantId())))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiResultEnum.ENCRYPTED_DATA_INVALID.getMessage());
-        log.info("反向用例校验通过-data密文被篡改时，AES-GCM认证失败，服务端拒绝解析");
+                .satisfies(error -> assertThat(((ApiException) error).getCode()).isEqualTo("F402003"));
+        log.info("反向用例校验通过-data密文被篡改时，内部兼容错误码：F402003，对外投影：{}",
+                OpenApiResultCode.ENCRYPTED_DATA_INVALID.getCode());
     }
 
     private String createMerchantJwt(String merchantId, String merchantKey, long issuedAt) {

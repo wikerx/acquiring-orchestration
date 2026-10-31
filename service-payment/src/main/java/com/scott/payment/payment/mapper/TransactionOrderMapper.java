@@ -323,4 +323,21 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                            @Param("amount") BigDecimal amount,
                            @Param("expectedVersion") Integer expectedVersion,
                            @Param("channelMatchStatus") String channelMatchStatus);
+
+    /**
+     * 首次授权在同步响应、回调或查询后补写渠道授权号。
+     * 只允许替换空值或平台根交易号占位值，避免晚到事件覆盖已经确认的渠道身份。
+     */
+    @Update("""
+            UPDATE transaction_order
+            SET channel_order_no = #{channelOrderNo},
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE operation_id = #{operationId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND (channel_order_no IS NULL OR channel_order_no = root_transaction_id)
+              AND deleted = 0
+            """)
+    int updateInitialChannelOrderNoIfUnresolved(@Param("operationId") String operationId,
+                                                @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                                @Param("channelOrderNo") String channelOrderNo);
 }

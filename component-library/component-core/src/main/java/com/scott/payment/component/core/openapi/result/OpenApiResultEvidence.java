@@ -1,0 +1,22 @@
+package com.scott.payment.component.core.openapi.result;
+
+/**
+ * 支撑 OpenAPI V1.3 结果投影的事实证据类型。
+ *
+ * <p>证据类型用于区分已确认终态、非终态和渠道结果未确认等事实，避免仅凭异常文案猜测公开码。</p>
+ */
+public enum OpenApiResultEvidence {
+    REQUEST_COMPLETED,
+    REQUEST_ACCEPTED,
+    PARTIAL_RESULT,
+    VALIDATION_REJECTION,
+    AUTHENTICATION_REJECTION,
+    AUTHORIZATION_REJECTION,
+    CONFIGURATION_REJECTION,
+    CONFIRMED_TRANSACTION_SUCCESS,
+    CONFIRMED_TRANSACTION_FAILURE,
+    NON_TERMINAL_TRANSACTION,
+    CONFIRMED_CHANNEL_RESPONSE,
+    PLATFORM_FAILURE,
+    UNCONFIRMED_CHANNEL_OUTCOME
+}

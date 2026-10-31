@@ -1,8 +1,9 @@
 package com.scott.payment.gateway.filter;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.gateway.config.GatewayIngressProperties;
+import com.scott.payment.gateway.support.GatewayOpenApiErrorWriter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -11,7 +12,6 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferLimitException;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpRequestDecorator;
 import org.springframework.stereotype.Component;
@@ -20,7 +20,6 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -38,6 +37,7 @@ import java.util.function.Supplier;
 public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
 
     private final GatewayIngressProperties properties;
+    private final GatewayOpenApiErrorWriter errorWriter;
     private final LongSupplier currentTimeMillis;
     private final Supplier<String> nonceSupplier;
 
@@ -45,16 +45,21 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
      * 创建生产环境收银台入口签名过滤器。
      *
      * @param properties 外部注入的 Gateway 入口密钥
+     * @param errorWriter OpenAPI V1.3 错误响应写出器
      */
     @Autowired
-    public CheckoutGatewayIngressFilter(GatewayIngressProperties properties) {
-        this(properties, System::currentTimeMillis, () -> UUID.randomUUID().toString().replace("-", ""));
+    public CheckoutGatewayIngressFilter(GatewayIngressProperties properties,
+                                        GatewayOpenApiErrorWriter errorWriter) {
+        this(properties, errorWriter, System::currentTimeMillis,
+                () -> UUID.randomUUID().toString().replace("-", ""));
     }
 
     CheckoutGatewayIngressFilter(GatewayIngressProperties properties,
+                                 GatewayOpenApiErrorWriter errorWriter,
                                  LongSupplier currentTimeMillis,
                                  Supplier<String> nonceSupplier) {
         this.properties = properties;
+        this.errorWriter = errorWriter;
         this.currentTimeMillis = currentTimeMillis;
         this.nonceSupplier = nonceSupplier;
     }
@@ -147,23 +152,11 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
     }
 
     private Mono<Void> writeUnavailable(ServerWebExchange exchange) {
-        byte[] body = ("{\"code\":\"" + ApiResultEnum.NETWORK_BUSY.getCode()
-                + "\",\"message\":\"checkout gateway ingress is unavailable\",\"data\":null}")
-                .getBytes(StandardCharsets.UTF_8);
-        exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
-        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(body);
-        return exchange.getResponse().writeWith(Mono.just(buffer));
+        return errorWriter.write(exchange, HttpStatus.SERVICE_UNAVAILABLE, OpenApiResultCode.SYSTEM_ERROR);
     }
 
     private Mono<Void> writePayloadTooLarge(ServerWebExchange exchange) {
-        byte[] body = ("{\"code\":\"" + ApiResultEnum.PARAM_INVALID.getCode()
-                + "\",\"message\":\"request body is too large\",\"data\":null}")
-                .getBytes(StandardCharsets.UTF_8);
-        exchange.getResponse().setStatusCode(HttpStatus.PAYLOAD_TOO_LARGE);
-        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(body);
-        return exchange.getResponse().writeWith(Mono.just(buffer));
+        return errorWriter.write(exchange, HttpStatus.PAYLOAD_TOO_LARGE, OpenApiResultCode.REQUEST_TOO_LARGE);
     }
 
     private ServerHttpRequest replayableRequest(ServerWebExchange exchange,

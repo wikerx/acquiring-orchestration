@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service.impl;
 
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
@@ -8,13 +9,10 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentRiskReservationCompensation
- * @date : 2026-09-02 08:03
- * @email : scott_x@163.com
- * @description : 支付本地准备事务回滚后的风控预占补偿。
- * @status : create
+ * 支付本地准备事务与远程风控限额预占之间的补偿协调器。
+ *
+ * <p>远程预占先于本地事务提交完成，因此本地事务未提交时必须撤销预占。补偿只绑定事务完成结果，
+ * 不能在业务方法返回时提前判断；远程撤销由 service-risk 按交易号提供最终幂等保护。</p>
  */
 @Slf4j
 public class PaymentRiskReservationCompensation {
@@ -48,6 +46,7 @@ public class PaymentRiskReservationCompensation {
         if (decisionDTO == null || !decisionDTO.isMerchantLimitReserved()) {
             return;
         }
+        // 没有事务同步就无法判断最终提交结果；先撤销远程预占，再阻止支付继续执行。
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             paymentRiskInvokeService.cancelMerchantLimitReservation(
                     commandDTO,
@@ -59,6 +58,7 @@ public class PaymentRiskReservationCompensation {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {
+                // 只有明确提交才保留预占；回滚和未知完成状态都按未提交处理。
                 if (status == TransactionSynchronization.STATUS_COMMITTED) {
                     return;
                 }
@@ -68,7 +68,9 @@ public class PaymentRiskReservationCompensation {
                             decisionDTO,
                             ROLLBACK_REASON);
                 } catch (RuntimeException exception) {
-                    log.error("event: PAYMENT_RISK_RESERVATION_COMPENSATION_FAILED transactionId: {} riskRecordNo: {} exceptionType: {}",
+                    // afterCompletion 已脱离原事务，补偿失败不能改变提交结果，只能告警并依赖幂等重试/人工处置。
+                    log.error("风控限额预占补偿失败, event: PAYMENT_RISK_RESERVATION_COMPENSATION_FAILED, traceId: {}, transactionId: {}, riskRecordNo: {}, exceptionType: {}",
+                            TraceContext.getTraceId(),
                             commandDTO == null ? null : commandDTO.getTransactionId(),
                             decisionDTO.getRiskRecordNo(),
                             exception.getClass().getSimpleName());

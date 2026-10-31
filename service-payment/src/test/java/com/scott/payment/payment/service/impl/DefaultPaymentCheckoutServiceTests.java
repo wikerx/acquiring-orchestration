@@ -4,6 +4,7 @@ import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.channel.payment.enums.ChannelThreeDsPhase;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
@@ -259,7 +260,7 @@ class DefaultPaymentCheckoutServiceTests {
         assertThatThrownBy(() -> service.createSession(createCommand()))
                 .isInstanceOf(ServiceException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode());
+                .isEqualTo(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode());
     }
 
     @Test
@@ -310,7 +311,7 @@ class DefaultPaymentCheckoutServiceTests {
         assertThatThrownBy(() -> service.submitPayment(commandDTO))
                 .isInstanceOf(ServiceException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.CARD_NOT_SUPPORTED.getCode());
+                .isEqualTo(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE.getCode());
         verify(attemptMapper, never()).insert(any(PaymentCheckoutAttemptDO.class));
         verify(paymentTransactionService, never()).createPayment(any());
     }
@@ -332,6 +333,7 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldConvergeTimedOutPreChannelThreeDsProcessingDuringStatusPolling() {
         PaymentCheckoutSessionDO processingSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.PROCESSING);
+        processingSession.setLocale("zh-CN");
         PaymentCheckoutSessionDO retryableSession = sessionWithStatus(
                 PaymentCheckoutSessionStatusEnum.FAILED);
         retryableSession.setProcessStage(PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode());
@@ -364,7 +366,9 @@ class DefaultPaymentCheckoutServiceTests {
         PaymentCheckoutPaymentResultDTO resultDTO = service.queryPaymentStatus(commandDTO);
 
         assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.FAILED_RETRYABLE.getCode());
-        assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo("THREE_DS_AUTHENTICATION_FAILED");
+        assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR.getCode());
+        assertThat(resultDTO.getFailure().getMessage())
+                .isEqualTo("Processing could not be completed. Check the original order or contact the merchant.");
         verify(sessionMapper).markFailedCas(eq(processingSession.getCheckoutSessionId()),
                 eq(PaymentCheckoutSessionStatusEnum.FAILED.getCode()),
                 eq(PaymentCheckoutProcessStageEnum.RESULT_RENDERED.getCode()), any(), any());
@@ -694,6 +698,7 @@ class DefaultPaymentCheckoutServiceTests {
     @Test
     void shouldReturnNineFieldPostActionOnlyForTerminalTransactionWithRedirectUrl() {
         PaymentCheckoutSessionDO succeededSession = sessionWithStatus(PaymentCheckoutSessionStatusEnum.SUCCESS);
+        succeededSession.setLocale("zh-CN");
         succeededSession.setRedirectUrl("https://merchant.example/result");
         PaymentCheckoutAttemptDO succeededAttempt = attemptWithStatus(succeededSession,
                 PaymentCheckoutAttemptStatusEnum.SUCCEEDED,
@@ -728,7 +733,7 @@ class DefaultPaymentCheckoutServiceTests {
                 .containsEntry("transactionId", "2607271200000000000047")
                 .containsEntry("transactionType", "PAYMENT")
                 .containsEntry("transactionStatus", "SUCCESS")
-                .containsEntry("code", "T200")
+                .containsEntry("code", OpenApiResultCode.TRANSACTION_SUCCESS.getCode())
                 .containsEntry("message", "Success");
         assertThat(action.getFormFields().getTransactionDateTime()).isEqualTo(transactionDateTime);
     }
@@ -780,7 +785,7 @@ class DefaultPaymentCheckoutServiceTests {
         PaymentCheckoutPaymentResultDTO resultDTO = service.submitPayment(submitCommand());
 
         assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.FAILED_RETRYABLE.getCode());
-        assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo("ROUTE_FAILED");
+        assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR.getCode());
         verify(attemptMapper).markResultCas(anyString(), eq("FAILED"), eq("RESULT_RENDERED"),
                 isNull(), isNull(), isNull(), eq("ROUTE_FAILED"), isNull(),
                 eq("Payment could not be completed. Please try another card or contact your bank."),
@@ -1055,7 +1060,7 @@ class DefaultPaymentCheckoutServiceTests {
         PaymentCheckoutPaymentResultDTO resultDTO = service.handleThreeDsReturn(commandDTO);
 
         assertThat(resultDTO.getPageState()).isEqualTo(PaymentCheckoutPageStateEnum.FAILED_RETRYABLE.getCode());
-        assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo("THREE_DS_AUTHENTICATION_FAILED");
+        assertThat(resultDTO.getFailure().getReasonCode()).isEqualTo(OpenApiResultCode.SYSTEM_ERROR.getCode());
         verifyNoInteractions(threeDsService);
         verify(paymentTransactionService).markThreeDsIndicator(anyString(), any(), anyString());
         ArgumentCaptor<PaymentCreateCommandDTO> failureCommandCaptor =

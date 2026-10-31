@@ -12,6 +12,8 @@ import com.scott.payment.settlement.entity.SettlementCandidateDO;
 import com.scott.payment.settlement.mapper.SettlementCandidateMapper;
 import com.scott.payment.settlement.service.SettlementBatchCreationService;
 import com.scott.payment.settlement.service.SettlementCandidateBulkClaimService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,16 +22,16 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementAutomaticPostApplicationService
- * @date : 2026-09-02 18:30
- * @email : scott_x@163.com
- * @description : 在 transaction 主库单事务内锁定自动结算锚点，并编排正式批次创建、候选认领与空批次审计。
- * @status : create
+ * 自动结算正式建批事务编排。
+ *
+ * <p>真实候选锚点、批次创建和候选认领在 transaction 主库同一事务内完成；候选版本进入请求键，
+ * 保证取消释放后的合法重建不会复用历史批次。</p>
  */
 @Service
 public class SettlementAutomaticPostApplicationService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            SettlementAutomaticPostApplicationService.class);
 
     /** 结算候选主库 Mapper；用于在正式建批前锁定真实 READY 锚点，字段不含敏感信息。 */
     private final SettlementCandidateMapper candidateMapper;
@@ -107,6 +109,8 @@ public class SettlementAutomaticPostApplicationService {
                 cutoffEndTime));
         int claimedCount = bulkClaimService.claimAndSeal(result.settlementBatchNo(), operationTime);
         if (claimedCount > 0) {
+            LOGGER.info("自动结算建批事务写入完成, event: SETTLEMENT_AUTOMATIC_BATCH_CLAIMED, settlementBatchNo: {}, batchType: {}, targetCurrency: {}, claimedCount: {}",
+                    result.settlementBatchNo(), batchType, group.getTargetCurrency(), claimedCount);
             return true;
         }
         SettlementOperatorSnapshot operator = new SettlementOperatorSnapshot(
@@ -119,6 +123,8 @@ public class SettlementAutomaticPostApplicationService {
                         "automatic batch cancelled because no candidates remained claimable",
                         operator),
                 operationTime);
+        LOGGER.warn("自动结算空批次已取消, event: SETTLEMENT_AUTOMATIC_EMPTY_BATCH_CANCELLED, settlementBatchNo: {}, batchType: {}, targetCurrency: {}",
+                result.settlementBatchNo(), batchType, group.getTargetCurrency());
         return false;
     }
 

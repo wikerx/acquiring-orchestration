@@ -2,7 +2,7 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
@@ -117,6 +117,80 @@ class DefaultTransactionRecordServiceTests {
                 eq("digest-a"),
                 eq("cipher-mask-a"),
                 any(LocalDateTime.class));
+    }
+
+    @Test
+    void shouldPersistAuthorizationReferencesReturnedByChannelQuery() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        when(channelRequestMapper.updateStatusLogical(
+                anyString(), any(LocalDateTime.class), any(), any(List.class), anyString(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(LocalDateTime.class), any()))
+                .thenReturn(1);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                mock(TransactionStatusHistoryMapper.class),
+                channelRequestMapper,
+                mock(TransactionChannelInteractionLogMapper.class),
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 10, 31, 12, 0);
+        TransactionOperationDO operationDO = new TransactionOperationDO();
+        operationDO.setId(11L);
+        operationDO.setOperationId("OP202610311200000000001");
+        operationDO.setTransactionId("TX202610311200000000001");
+        operationDO.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
+        operationDO.setTransactionDateTime(transactionDateTime);
+        operationDO.setVersion(3);
+        TransactionChannelRequestDO originalRequestDO = new TransactionChannelRequestDO();
+        originalRequestDO.setRequestId("CR202610311200000000001");
+        originalRequestDO.setRequestStatus("TIMEOUT");
+        originalRequestDO.setVersion(7);
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelOrderNo("CMA-001");
+        response.setChannelTransactionId("CMT-CHANNEL-001");
+        response.setAuthCode("000101");
+        response.setAcquirerReferenceNo("20261031000000000000101");
+        response.setRawChannelStatus("SUCCESS");
+        PaymentChannelInvokeResultDTO invokeResultDTO = new PaymentChannelInvokeResultDTO();
+        invokeResultDTO.setRequestStatus("SUCCESS");
+        invokeResultDTO.setChannelResponse(response);
+        invokeResultDTO.setResponseTime(transactionDateTime.plusSeconds(1));
+
+        boolean updated = recordService.updateOriginalChannelRequestByQuery(
+                operationDO,
+                originalRequestDO,
+                invokeResultDTO,
+                PaymentTransactionStatusEnum.SUCCESS.getCode(),
+                null);
+
+        assertThat(updated).isTrue();
+        verify(operationMapper).updateChannelReferencesLogical(
+                11L,
+                transactionDateTime,
+                3,
+                "CMA-001",
+                "CMT-CHANNEL-001",
+                "000101",
+                null,
+                "20261031000000000000101");
+        verify(channelRequestMapper).updateChannelIdentityLogical(
+                "CR202610311200000000001",
+                transactionDateTime,
+                8,
+                "CMA-001",
+                "CMT-CHANNEL-001");
+        verify(orderMapper).updateInitialChannelOrderNoIfUnresolved(
+                "OP202610311200000000001",
+                transactionDateTime,
+                "CMA-001");
     }
 
     /**
@@ -425,7 +499,7 @@ class DefaultTransactionRecordServiceTests {
         invokeResultDTO.getChannelResponse().setChannelResponseMessage("Unexpected parameter 'authentication.threeDs.acsEci'");
         PaymentCreateResultDTO resultDTO = resultDTO();
         resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
-        resultDTO.setFailReasonCode("CHANNEL_REQUEST_FAILED");
+        resultDTO.setFailReasonCode(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
         resultDTO.setFailReasonMessage("Channel request failed");
 
         recordService.recordInitialTransaction(baseCommand(), routeResult(), invokeResultDTO, resultDTO,
@@ -446,11 +520,16 @@ class DefaultTransactionRecordServiceTests {
         assertThat(statusEvent.getCurrentStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(statusEvent.getEventName()).isEqualTo("交易失败");
         assertThat(statusEvent.getEventContent())
-                .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode() + "：" + ApiResultEnum.PAYMENT_REJECTED.getMessage());
-        assertThat(statusEvent.getErrorCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
+                .isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode()
+                        + "：The transaction was declined by the issuer bank. "
+                        + "Check the original order, then ask the payer to contact their bank "
+                        + "or use another payment method when applicable.");
+        assertThat(statusEvent.getErrorCode()).isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode());
         assertThat(statusEvent.getErrorCode()).isNotEqualTo(resultDTO.getFailReasonCode());
         assertThat(orderCapture.value.getMerchantVisibleMessage())
-                .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+                .isEqualTo("The transaction was declined by the issuer bank. "
+                        + "Check the original order, then ask the payer to contact their bank "
+                        + "or use another payment method when applicable.");
     }
 
     @Test
@@ -528,7 +607,7 @@ class DefaultTransactionRecordServiceTests {
         resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
         resultDTO.setFailReasonCode(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
         resultDTO.setFailReasonMessage(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
-        resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        resultDTO.setMerchantResponseCode(OpenApiResultCode.PLATFORM_RISK_REJECTED.getCode());
         resultDTO.setMerchantResponseMessage(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
 
         recordService.recordInitialTransaction(commandDTO, null, null, resultDTO, PaymentRiskDecisionEnum.REJECT, 2);
@@ -543,16 +622,19 @@ class DefaultTransactionRecordServiceTests {
                 .orElseThrow();
         assertThat(orderCapture.value.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(orderCapture.value.getFailReasonMessage()).isEqualTo(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
-        assertThat(orderCapture.value.getMerchantVisibleMessage()).isEqualTo(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
+        assertThat(orderCapture.value.getMerchantVisibleMessage())
+                .isEqualTo(OpenApiResultCode.PLATFORM_RISK_REJECTED.getMessage());
         assertThat(orderCapture.value.getInternalRiskRecordNo()).isEqualTo("RK202607280001");
         assertThat(operationCapture.value.getFailReasonMessage()).isEqualTo(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
         assertThat(riskEvent.getEventStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(riskEvent.getEventContent()).contains("REJECT").contains("RK202607280001").contains("AML_HIT");
         assertThat(riskEvent.getErrorCode()).isEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
         assertThat(statusEvent.getEventName()).isEqualTo("交易失败");
-        assertThat(statusEvent.getEventContent()).isEqualTo("F210：Risk blocked");
-        assertThat(statusEvent.getErrorCode()).isEqualTo("F210");
-        assertThat(statusEvent.getErrorMessage()).isEqualTo("Risk blocked");
+        assertThat(statusEvent.getEventContent())
+                .isEqualTo(OpenApiResultCode.PLATFORM_RISK_REJECTED.getCode()
+                        + "：" + OpenApiResultCode.PLATFORM_RISK_REJECTED.getMessage());
+        assertThat(statusEvent.getErrorCode()).isEqualTo(OpenApiResultCode.PLATFORM_RISK_REJECTED.getCode());
+        assertThat(statusEvent.getErrorMessage()).isEqualTo(OpenApiResultCode.PLATFORM_RISK_REJECTED.getMessage());
         assertThat(statusEvent.getErrorCode()).isNotEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
         assertThat(flowEventCapture.values)
                 .noneMatch(event -> "ROUTE_SELECTED".equals(event.getEventType()))
@@ -1248,7 +1330,7 @@ class DefaultTransactionRecordServiceTests {
                 eq("AUTH202607140001"),
                 eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
                 eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
-                eq("T200"),
+                eq(OpenApiResultCode.TRANSACTION_SUCCESS.getCode()),
                 eq("Success"),
                 contains("\"transactionStatus\":\"SUCCESS\""),
                 any(),

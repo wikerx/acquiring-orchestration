@@ -1,5 +1,6 @@
 package com.scott.payment.openapi;
 
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.db.auth.service.MerchantKeyMetadataCacheService;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
@@ -157,11 +158,11 @@ class MerchantKeyCryptoUsageTests extends OpenApiIsolatedMysqlIntegrationTest {
                     "currency": "USD"
                   },
                   "transactionInfo": {
-                    "code": "T200",
+                    "code": "%s",
                     "message": "Success",
                     "transactionId": "202607160954270000001"
                   }
-                }""";
+                }""".formatted(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
 
         String encryptedResponseData = payloadCrypto.encrypt(
                 plainResponseData,

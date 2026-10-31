@@ -24,13 +24,11 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCheckoutCardCapabilityService
- * @date : 2026-08-08 15:05
- * @email : scott_x@163.com
- * @description : 聚合商户 MID 银行卡能力，并按 BIN 基础数据优先、平台规则降级的顺序解析卡品牌
- * @status : create
+ * Checkout 银行卡展示能力与卡品牌识别服务。
+ *
+ * <p>可展示方式必须同时满足商户绑定、MID、渠道能力、币种/品牌范围和有效期。卡品牌优先使用
+ * BIN 基础数据，查询失败时只降级到公开 IIN 规则；BIN 是辅助信息，故障不得阻断支付，也不得
+ * 把卡号或 BIN 写入日志。</p>
  */
 @Slf4j
 @Service
@@ -39,13 +37,7 @@ public class PaymentCheckoutCardCapabilityService {
     private static final List<String> ALL_CARD_BRANDS = List.of(
             "VISA", "MASTERCARD", "AMEX", "JCB", "MAESTRO", "UNIONPAY", "DISCOVER", "DINERS_CLUB",
             "CARTES_BANCAIRES", "EFTPOS_AUSTRALIA", "INTERAC");
-    /**
-     * {@code ISO_ALPHA_3_PATTERN}常量，统一 {@code PaymentCheckoutCardCapabilityService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 开关；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的启停取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 发卡国家进入交易快照前必须是 ISO 3166-1 Alpha-3 大写代码。 */
     private static final Pattern ISO_ALPHA_3_PATTERN = Pattern.compile("[A-Z]{3}");
 
     private final MerchantRouteProfileCacheService routeProfileCacheService;
@@ -81,6 +73,7 @@ public class PaymentCheckoutCardCapabilityService {
         Map<String, LinkedHashSet<String>> brandsByMethod = new LinkedHashMap<>();
         Map<String, Boolean> supports3dsByMethod = new LinkedHashMap<>();
         for (MerchantRouteProfile.RouteOption option : profile.getRouteOptions()) {
+            // 展示能力只来自当前有效的路由候选，过期绑定或停用 MID/渠道不得暴露给付款人。
             if (!active(option, now)) {
                 continue;
             }
@@ -98,6 +91,7 @@ public class PaymentCheckoutCardCapabilityService {
                             .filter(StringUtils::hasText)
                             .forEach(capabilityBrands::add);
                 }
+                // MID 品牌范围与渠道能力取交集，任一侧不支持都不能展示该卡品牌。
                 brands.retainAll(capabilityBrands);
                 if (brands.isEmpty()) {
                     continue;
@@ -192,7 +186,7 @@ public class PaymentCheckoutCardCapabilityService {
         try {
             return cardBinCacheReader.findByPrefix(prefix);
         } catch (DataAccessException | ServiceException exception) {
-            log.warn("BIN 基础数据查询异常，已降级使用平台卡品牌规则，exceptionType={}",
+            log.warn("卡BIN基础数据查询异常，已降级使用平台卡品牌规则, event: CARD_BIN_LOOKUP_FALLBACK, exceptionType: {}",
                     exception.getClass().getSimpleName());
             return null;
         }

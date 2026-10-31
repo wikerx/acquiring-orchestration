@@ -107,7 +107,7 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         String requestBody = String.valueOf(body);
         String cipherSummary = diagnosticLogSupport.cipherRequestSummary(requestBody);
         request.setAttribute(OpenApiRequestAttributes.REQUEST_CIPHER_SUMMARY, cipherSummary);
-        log.debug("event: OPENAPI_REQUEST_CIPHER_RECEIVED stage=DECRYPT traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} cipherSummary: {}",
+        log.debug("OpenAPI请求密文已接收, event: OPENAPI_REQUEST_CIPHER_RECEIVED, stage: DECRYPT, traceId: {}, merchantId: {}, path: {}, apiVersion: {}, interfaceType: {}, cipherSummary: {}",
                 TraceContext.getTraceId(),
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 request.getRequestURI(),
@@ -121,7 +121,7 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
             recordBlocked(request, headerDTO, "OPENAPI_DECRYPT_FAILED", SecurityInterceptEventRecorder.RISK_HIGH,
                     "OPENAPI_PAYLOAD_DECRYPT", exception);
             request.setAttribute(OpenApiRequestAttributes.EXCEPTION_TYPE, exception.getClass().getSimpleName());
-            log.warn("event: OPENAPI_REQUEST_DECRYPT_FAILED stage=DECRYPT traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} reasonCode: {} exceptionType: {} cipherSummary: {}",
+            log.warn("OpenAPI请求解密失败, event: OPENAPI_REQUEST_DECRYPT_FAILED, stage: DECRYPT, traceId: {}, merchantId: {}, path: {}, apiVersion: {}, interfaceType: {}, reasonCode: {}, exceptionType: {}, cipherSummary: {}",
                     TraceContext.getTraceId(),
                     headerDTO == null ? null : headerDTO.getMerchantId(),
                     request.getRequestURI(),
@@ -141,7 +141,7 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
                 recordBlocked(request, headerDTO, "OPENAPI_PARAM_INVALID", SecurityInterceptEventRecorder.RISK_MEDIUM,
                         "OPENAPI_PARAM_VALIDATION", exception);
                 request.setAttribute(OpenApiRequestAttributes.EXCEPTION_TYPE, exception.getClass().getSimpleName());
-                log.warn("event: OPENAPI_REQUEST_VALIDATE_FAILED stage=VALIDATE traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} reasonCode: {} exceptionType: {} plainRequestSummary: {}",
+                log.warn("OpenAPI请求参数校验失败, event: OPENAPI_REQUEST_VALIDATE_FAILED, stage: VALIDATE, traceId: {}, merchantId: {}, path: {}, apiVersion: {}, interfaceType: {}, reasonCode: {}, exceptionType: {}, plainRequestSummary: {}",
                         TraceContext.getTraceId(),
                         headerDTO == null ? null : headerDTO.getMerchantId(),
                         request.getRequestURI(),
@@ -153,7 +153,7 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
                 throw exception;
             }
         }
-        log.debug("event: OPENAPI_REQUEST_DECRYPT_END stage=DECRYPT traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} decryptSuccess=true cipherSummary: {} plainRequestSummary: {}",
+        log.debug("OpenAPI请求解密完成, event: OPENAPI_REQUEST_DECRYPT_END, stage: DECRYPT, traceId: {}, merchantId: {}, path: {}, apiVersion: {}, interfaceType: {}, decryptSuccess: true, cipherSummary: {}, plainRequestSummary: {}",
                 TraceContext.getTraceId(),
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 request.getRequestURI(),

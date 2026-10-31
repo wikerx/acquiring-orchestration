@@ -13,25 +13,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementAutomaticScheduler
- * @date : 2026-08-26 23:50
- * @email : scott_x@163.com
- * @description : 服务启动即生效的结算调度入口；无 yml/Nacos 业务开关，跨实例排他完全由数据库状态和租约保证。
- * @status : create
+ * 结算后台任务调度入口。
+ *
+ * <p>调度器只控制轮询频率和单轮处理上限，跨实例排他由数据库状态、版本和租约保证。</p>
  */
 @Component
 public class SettlementAutomaticScheduler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SettlementAutomaticScheduler.class);
-    /**
-     * {@code MAX_BATCHES_PER_TICK}常量，统一 {@code SettlementAutomaticScheduler} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 单轮最多处理的批次数，避免空闲任务相互饥饿。 */
     private static final int MAX_BATCHES_PER_TICK = 10;
 
     private final SettlementAutomaticProcessingApplicationService applicationService;
@@ -67,7 +57,8 @@ public class SettlementAutomaticScheduler {
         try {
             applicationService.prepare();
         } catch (RuntimeException exception) {
-            LOGGER.error("Automatic settlement batch preparation failed", exception);
+            LOGGER.error("自动结算批次准备失败, event: SETTLEMENT_SCHEDULER_PREPARE_FAILED, exceptionType: {}",
+                    exception.getClass().getSimpleName(), exception);
         }
     }
 
@@ -81,7 +72,8 @@ public class SettlementAutomaticScheduler {
                     return;
                 }
             } catch (RuntimeException exception) {
-                LOGGER.error("Automatic settlement batch processing failed", exception);
+                LOGGER.error("自动结算批次调度失败, event: SETTLEMENT_SCHEDULER_BATCH_FAILED, exceptionType: {}",
+                        exception.getClass().getSimpleName(), exception);
                 return;
             }
         }
@@ -97,7 +89,8 @@ public class SettlementAutomaticScheduler {
                     return;
                 }
             } catch (RuntimeException exception) {
-                LOGGER.error("Manual settlement review task processing failed", exception);
+                LOGGER.error("手动结算预审任务调度失败, event: SETTLEMENT_SCHEDULER_MANUAL_REVIEW_FAILED, exceptionType: {}",
+                        exception.getClass().getSimpleName(), exception);
                 return;
             }
         }
@@ -116,7 +109,8 @@ public class SettlementAutomaticScheduler {
                     return;
                 }
             } catch (RuntimeException exception) {
-                LOGGER.error("Settlement review decision task processing failed", exception);
+                LOGGER.error("结算复核决策任务调度失败, event: SETTLEMENT_SCHEDULER_REVIEW_DECISION_FAILED, exceptionType: {}",
+                        exception.getClass().getSimpleName(), exception);
                 return;
             }
         }
@@ -135,7 +129,8 @@ public class SettlementAutomaticScheduler {
                 recordProjectionFailure(exception);
                 return;
             } catch (RuntimeException exception) {
-                LOGGER.error("Automatic settlement transaction projection failed", exception);
+                LOGGER.error("结算交易投影调度失败, event: SETTLEMENT_SCHEDULER_PROJECTION_FAILED, exceptionType: {}",
+                        exception.getClass().getSimpleName(), exception);
                 return;
             }
         }
@@ -151,7 +146,8 @@ public class SettlementAutomaticScheduler {
                     return;
                 }
             } catch (RuntimeException exception) {
-                LOGGER.error("Automatic settlement event publication failed", exception);
+                LOGGER.error("结算事件发布调度失败, event: SETTLEMENT_SCHEDULER_EVENT_PUBLISH_FAILED, exceptionType: {}",
+                        exception.getClass().getSimpleName(), exception);
                 return;
             }
         }
@@ -162,12 +158,13 @@ public class SettlementAutomaticScheduler {
         try {
             boolean recorded = projectionService.recordFailure(exception, java.time.LocalDateTime.now());
             if (!recorded) {
-                LOGGER.warn("Settlement projection failure state CAS skipped, taskNo={}, failureCode={}",
+                LOGGER.warn("结算投影失败状态更新被并发推进, event: SETTLEMENT_PROJECTION_FAILURE_CAS_SKIPPED, taskNo: {}, failureCode: {}",
                         exception.getTaskNo(), exception.getFailureCode());
             }
         } catch (RuntimeException recordException) {
-            LOGGER.error("Settlement projection failure state persistence failed, taskNo={}",
-                    exception.getTaskNo(), recordException);
+            LOGGER.error("结算投影失败状态持久化失败, event: SETTLEMENT_PROJECTION_FAILURE_PERSIST_FAILED, taskNo: {}, failureCode: {}, exceptionType: {}",
+                    exception.getTaskNo(), exception.getFailureCode(),
+                    recordException.getClass().getSimpleName(), recordException);
         }
     }
 }

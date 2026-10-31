@@ -725,6 +725,15 @@ public final class AdminTransactionDTOs {
          */
         private String merchantResponseMessage;
 
+        /** OpenAPI V1.3 统一交易结果码，与商户和付款人展示使用同一标准定义。 */
+        private String openApiResultCode;
+
+        /** 内部诊断文案；仅由管理端受控接口返回，不得下发到商户或收银台。 */
+        private String internalResultMessage;
+
+        /** 付款人安全文案预览，用于核验收银台展示，不包含渠道原文或内部异常。 */
+        private String payerResultMessage;
+
         /**
          * {@code authorizedAmount}，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
@@ -1056,6 +1065,15 @@ public final class AdminTransactionDTOs {
          * 商户侧可见响应描述，后台悬浮展示，避免列表直接暴露过细渠道失败原因。
          */
         private String merchantResponseMessage;
+
+        /** OpenAPI V1.3 统一交易结果码，与商户和付款人展示使用同一标准定义。 */
+        private String openApiResultCode;
+
+        /** 内部诊断文案；可包含受控渠道摘要，但不得包含完整渠道报文或异常栈。 */
+        private String internalResultMessage;
+
+        /** 付款人安全文案预览，用于核验收银台展示边界。 */
+        private String payerResultMessage;
 
         /**
          * 给商户异步通知任务状态；未配置回调时为空。

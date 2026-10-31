@@ -18,13 +18,11 @@ import java.time.ZoneId;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionCallbackInboxWorker
- * @date : 2026-10-17 12:00
- * @email : scott_x@163.com
- * @description : 渠道回调 Inbox Worker 默认实现，位于 service-payment 服务实现层，以至少一次语义调用现有幂等回调服务并用版本 CAS 记录结果。
- * @status : create
+ * 渠道回调 Inbox 的可靠消费 Worker。
+ *
+ * <p>Worker 通过租约恢复与版本 CAS 在多实例间竞争处理权，并以至少一次语义调用幂等回调服务。
+ * 只有业务处理完成后才将 Inbox 标记为 PROCESSED；任何解析或业务异常都持久化为可重试失败，
+ * 单条失败不会中断同一批次的其他回调。</p>
  */
 @Service
 @Slf4j
@@ -58,10 +56,11 @@ public class DefaultTransactionCallbackInboxWorker implements TransactionCallbac
         LocalDateTime actualNow = now == null
                 ? LocalDateTime.now(ZoneId.of(TransactionShardingProperties.REQUIRED_ZONE_ID))
                 : now;
+        // 先释放超过处理租约的记录，避免实例宕机后回调永久停留在 PROCESSING。
         int recovered = inboxService.recoverStaleProcessing(
                 actualNow.minusSeconds(processingTimeoutSeconds), actualNow, limit);
         if (recovered > 0) {
-            log.warn("event: PAYMENT_CALLBACK_INBOX_PROCESSING_RECOVERED recoveredCount: {}", recovered);
+            log.warn("渠道回调Inbox超时任务已恢复, event: PAYMENT_CALLBACK_INBOX_PROCESSING_RECOVERED, recoveredCount: {}", recovered);
         }
         List<TransactionCallbackInboxDO> due = inboxService.listDue(actualNow, limit);
         int processed = 0;
@@ -71,7 +70,8 @@ public class DefaultTransactionCallbackInboxWorker implements TransactionCallbac
                     processed++;
                 }
             } catch (Exception exception) {
-                log.error("event: PAYMENT_CALLBACK_INBOX_ITEM_ABORTED inboxId: {} channelCode: {} errorType: {}",
+                // 兜底隔离 Inbox 状态服务自身的异常，确保一条记录不能阻断整批扫描。
+                log.error("渠道回调Inbox单条处理异常中止, event: PAYMENT_CALLBACK_INBOX_ITEM_ABORTED, inboxId: {}, channelCode: {}, errorType: {}",
                         inbox == null ? null : inbox.getInboxId(),
                         inbox == null ? null : inbox.getChannelCode(),
                         exception.getClass().getSimpleName());
@@ -81,9 +81,11 @@ public class DefaultTransactionCallbackInboxWorker implements TransactionCallbac
     }
 
     private boolean processOne(TransactionCallbackInboxDO inbox, LocalDateTime now) {
+        // claim 的状态与版本条件是多实例并发下唯一处理权的持久化边界。
         if (!inboxService.claim(inbox, now)) {
             return false;
         }
+        // Worker 线程会复用，必须为当前记录恢复 traceId，并在 finally 中清理，防止串链。
         TraceContext.setTraceId(TraceContext.resolveOrCreate(inbox.getTraceId()));
         try {
             TransactionChannelCallbackCommandDTO command = JsonUtils.parseObject(
@@ -91,19 +93,22 @@ public class DefaultTransactionCallbackInboxWorker implements TransactionCallbac
             if (command == null) {
                 throw new IllegalStateException("callback inbox payload is empty");
             }
+            // 原始请求头不进入异步可信上下文；验签/IP 结论和报文摘要已在入箱时冻结。
             command.setRequestHeaders(null);
             command.setRequestBodyLength(inbox.getRequestBodyLength());
             command.setRequestBodySha256(inbox.getRequestBodySha256());
+            // 回调服务自身必须按渠道事件号幂等，Worker 重试不能重复推进交易状态或重复发事件。
             callbackService.recordChannelCallback(command);
             boolean updated = inboxService.markProcessed(inbox, currentBusinessTime(now));
             if (!updated) {
-                log.warn("event: PAYMENT_CALLBACK_INBOX_MARK_PROCESSED_CAS_FAILED traceId: {} inboxId: {} channelCode: {} expectedVersion: {}",
+                log.warn("渠道回调Inbox完成状态更新竞争失败, event: PAYMENT_CALLBACK_INBOX_MARK_PROCESSED_CAS_FAILED, traceId: {}, inboxId: {}, channelCode: {}, expectedVersion: {}",
                         TraceContext.getTraceId(), inbox.getInboxId(), inbox.getChannelCode(), inbox.getVersion());
             }
             return updated;
         } catch (Exception exception) {
+            // 失败状态和下次重试时间必须持久化；只打印日志不足以支撑可靠重试。
             boolean updated = inboxService.markFailed(inbox, exception, currentBusinessTime(now));
-            log.warn("event: PAYMENT_CALLBACK_INBOX_PROCESS_FAILED traceId: {} inboxId: {} channelCode: {} expectedVersion: {} stateRecorded: {} errorType: {}",
+            log.warn("渠道回调Inbox处理失败, event: PAYMENT_CALLBACK_INBOX_PROCESS_FAILED, traceId: {}, inboxId: {}, channelCode: {}, expectedVersion: {}, stateRecorded: {}, errorType: {}",
                     TraceContext.getTraceId(), inbox.getInboxId(), inbox.getChannelCode(), inbox.getVersion(),
                     updated, exception.getClass().getSimpleName());
             return false;

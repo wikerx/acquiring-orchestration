@@ -1,6 +1,5 @@
 package com.scott.payment.component.core.card;
 
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import java.security.SecureRandom;
@@ -9,476 +8,352 @@ import java.util.List;
 import java.util.random.RandomGenerator;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : CardNoGenerator
- * @date : 2026-06-03 15:48
- * @email : scott_x@163.com
- * @description : 卡编号generator协作组件，位于 公共组件库，封装该业务的本地校验、转换或运行时协作入口。
- * @status : create
+ * 生成满足长度和 Luhn 校验规则的通用测试卡号。
+ *
+ * <p>本工具只保证生成结果的格式和校验位正确，不保证卡号属于真实发卡范围，也不保证任何渠道受理。
+ * 生成结果只能用于隔离的测试环境；渠道规定固定测试卡时，应使用渠道官方提供的测试数据。
+ * MPGS 联调必须使用
+ * <a href="https://test-gateway.mastercard.com/api/documentation/integrationGuidelines/supportedFeatures/testAndGoLive.html?locale=zh_CN">Mastercard Gateway Test and Go Live</a>
+ * 公布的固定测试卡。</p>
  */
 @Slf4j
 public final class CardNoGenerator {
 
-    /**
-     * 支付卡号最小长度。当前工具仅面向通用 PAN 测试场景，低于该长度不生成。
-     */
+    /** ISO/IEC 7812 卡号常用长度边界；生成器不接受边界外的自定义长度。 */
     private static final int MIN_CARD_NUMBER_LENGTH = 12;
-
-    /**
-     * 支付卡号最大长度。ISO/IEC 7812 账号长度常见上限为 19 位。
-     */
     private static final int MAX_CARD_NUMBER_LENGTH = 19;
-
-    /**
-     * Luhn 校验算法模数。
-     */
+    /** Luhn 算法按十进制校验，随机补位也只生成十进制数字。 */
     private static final int LUHN_MODULUS = 10;
-
-    /**
-     * 数字字符的随机上界，`nextInt(10)` 会生成 0-9。
-     */
     private static final int DIGIT_BOUND = 10;
 
-    /**
-     * 日志中用于标识自定义前缀生成的卡品牌。
-     */
+    /** 品牌名称只用于不含卡号的安全日志，不参与卡品牌识别或渠道路由。 */
     private static final String CUSTOM_CARD_BRAND = "CUSTOM";
-
-    /**
-     * Mastercard 卡品牌日志名称。
-     */
     private static final String MASTERCARD_CARD_BRAND = "Mastercard";
-
-    /**
-     * Visa 卡品牌日志名称。
-     */
     private static final String VISA_CARD_BRAND = "Visa";
-
-    /**
-     * American Express 卡品牌日志名称。
-     */
     private static final String AMEX_CARD_BRAND = "American Express";
-
-    /**
-     * Discover 卡品牌日志名称。
-     */
     private static final String DISCOVER_CARD_BRAND = "Discover";
-
-    /**
-     * Diners Club 卡品牌日志名称。
-     */
     private static final String DINERS_CARD_BRAND = "Diners Club";
-
-    /**
-     * JCB 卡品牌日志名称。
-     */
     private static final String JCB_CARD_BRAND = "JCB";
-
-    /**
-     * EnRoute 卡品牌日志名称。
-     */
     private static final String ENROUTE_CARD_BRAND = "EnRoute";
-
-    /**
-     * Voyager 卡品牌日志名称。
-     */
     private static final String VOYAGER_CARD_BRAND = "Voyager";
 
-    /**
-     * 安全随机数生成器，用于生成测试卡号的随机中间位。
-     */
+    /** 测试数据使用安全随机源，避免并发生成时依赖可预测的全局序列。 */
     private static final RandomGenerator RANDOM = new SecureRandom();
 
     /**
-     * Visa 测试卡号前缀列表。
+     * 常见品牌前缀只用于生成外形合理的测试数据，不代表真实 IIN 分配或渠道受理范围。
      */
-    private static final String[] VISA_PREFIX_LIST = {
-            "4539", "4556", "4916", "4532", "4929", "40240071", "4485", "4716", "4"
+    private static final String[] VISA_PREFIXES = {"4"};
+    private static final String[] MASTERCARD_PREFIXES = {
+            "51", "52", "53", "54", "55", "2221", "2230", "2300", "2400", "2500", "2600", "2700", "2720"
     };
-
-    /**
-     * Mastercard 测试卡号前缀列表。
-     */
-    private static final String[] MASTERCARD_PREFIX_LIST = {
-            "51", "52", "53", "54", "55"
+    private static final String[] AMEX_PREFIXES = {"34", "37"};
+    private static final String[] DISCOVER_PREFIXES = {
+            "6011", "65", "644", "645", "646", "647", "648", "649", "622126", "622925"
     };
+    private static final String[] DINERS_PREFIXES = {"300", "301", "302", "303", "304", "305", "36", "38", "39"};
+    private static final String[] JCB_PREFIXES = {"3528", "3530", "3540", "3550", "3560", "3570", "3580", "3589"};
+    private static final String[] ENROUTE_PREFIXES = {"2014", "2149"};
+    private static final String[] VOYAGER_PREFIXES = {"8699"};
 
-    /**
-     * American Express 测试卡号前缀列表。
-     */
-    private static final String[] AMEX_PREFIX_LIST = {
-            "34", "37"
-    };
-
-    /**
-     * Discover 测试卡号前缀列表。
-     */
-    private static final String[] DISCOVER_PREFIX_LIST = {
-            "6011"
-    };
-
-    /**
-     * Diners Club 测试卡号前缀列表。
-     */
-    private static final String[] DINERS_PREFIX_LIST = {
-            "300", "301", "302", "303", "36", "38"
-    };
-
-    /**
-     * EnRoute 测试卡号前缀列表。
-     */
-    private static final String[] ENROUTE_PREFIX_LIST = {
-            "2014", "2149"
-    };
-
-    /**
-     * JCB 测试卡号前缀列表。
-     */
-    private static final String[] JCB_PREFIX_LIST = {
-            "35"
-    };
-
-    /**
-     * Voyager 测试卡号前缀列表。
-     */
-    private static final String[] VOYAGER_PREFIX_LIST = {
-            "8699"
-    };
-
-    /**
-     * 私有构造方法，禁止外部实例化该测试卡号生成类型。
-     */
     private CardNoGenerator() {
         throw new UnsupportedOperationException("Utility class cannot be instantiated");
     }
 
     /**
-     * 生成 Mastercard 测试卡号列表
+     * 生成指定数量的 16 位 Mastercard 测试卡号。
      *
-     * @param count 生成数量
-     * @return 测试卡号列表
+     * @param count 生成数量，不能为负数
+     * @return 生成的测试卡号列表
+     * @throws IllegalArgumentException count 为负数时抛出
      */
     public static List<String> generateMasterCardNumbers(int count) {
-        return generateCardNumbers(MASTERCARD_CARD_BRAND, MASTERCARD_PREFIX_LIST, 16, count);
+        return generateCardNumbers(MASTERCARD_CARD_BRAND, MASTERCARD_PREFIXES, 16, count);
     }
 
     /**
-     * 生成单个 Mastercard 测试卡号
+     * 生成一个 16 位 Mastercard 测试卡号。
      *
-     * @return Mastercard 测试卡号
+     * @return 生成的测试卡号
      */
     public static String generateMasterCardNumber() {
-        return generateCardNumber(MASTERCARD_CARD_BRAND, MASTERCARD_PREFIX_LIST, 16);
+        return generateCardNumber(MASTERCARD_CARD_BRAND, MASTERCARD_PREFIXES, 16);
     }
 
     /**
-     * 生成单个 Visa 测试卡号
+     * 生成一个 16 位 Visa 测试卡号。
      *
-     * @return Visa 测试卡号
+     * @return 生成的测试卡号
      */
     public static String generateVisaCardNumber() {
-        return generateCardNumber(VISA_CARD_BRAND, VISA_PREFIX_LIST, 16);
+        return generateCardNumber(VISA_CARD_BRAND, VISA_PREFIXES, 16);
     }
 
     /**
-     * 生成单个 American Express 测试卡号
+     * 生成一个 15 位 American Express 测试卡号。
      *
-     * <p>注意：Amex 常见长度为 15 位。</p>
-     *
-     * @return American Express 测试卡号
+     * @return 生成的测试卡号
      */
     public static String generateAmexCardNumber() {
-        return generateCardNumber(AMEX_CARD_BRAND, AMEX_PREFIX_LIST, 15);
+        return generateCardNumber(AMEX_CARD_BRAND, AMEX_PREFIXES, 15);
     }
 
     /**
-     * 生成单个 Discover 测试卡号
+     * 生成一个 16 位 Discover 测试卡号。
      *
-     * <p>Discover 常见长度为 16 位。</p>
-     *
-     * @return Discover 测试卡号
+     * @return 生成的测试卡号
      */
     public static String generateDiscoverCardNumber() {
-        return generateCardNumber(DISCOVER_CARD_BRAND, DISCOVER_PREFIX_LIST, 16);
+        return generateCardNumber(DISCOVER_CARD_BRAND, DISCOVER_PREFIXES, 16);
     }
 
     /**
-     * 生成单个 Diners 测试卡号
+     * 生成一个 14 位 Diners Club 测试卡号。
      *
-     * @return Diners 测试卡号
+     * @return 生成的测试卡号
      */
     public static String generateDinersCardNumber() {
-        return generateCardNumber(DINERS_CARD_BRAND, DINERS_PREFIX_LIST, 14);
+        return generateCardNumber(DINERS_CARD_BRAND, DINERS_PREFIXES, 14);
     }
 
     /**
-     * 生成单个 JCB 测试卡号
+     * 生成一个 16 位 JCB 测试卡号。
      *
-     * <p>JCB 常见长度为 16-19 位，这里默认生成 16 位。</p>
-     *
-     * @return JCB 测试卡号
+     * @return 生成的测试卡号
      */
     public static String generateJcbCardNumber() {
-        return generateCardNumber(JCB_CARD_BRAND, JCB_PREFIX_LIST, 16);
+        return generateCardNumber(JCB_CARD_BRAND, JCB_PREFIXES, 16);
     }
 
     /**
-     * 生成单个 EnRoute 测试卡号
+     * 生成一个 15 位 EnRoute 测试卡号。
      *
-     * @return EnRoute 测试卡号
+     * @return 生成的测试卡号
      */
     public static String generateEnrouteCardNumber() {
-        return generateCardNumber(ENROUTE_CARD_BRAND, ENROUTE_PREFIX_LIST, 15);
+        return generateCardNumber(ENROUTE_CARD_BRAND, ENROUTE_PREFIXES, 15);
     }
 
     /**
-     * 生成单个 Voyager 测试卡号
+     * 生成一个 15 位 Voyager 测试卡号。
      *
-     * @return Voyager 测试卡号
+     * @return 生成的测试卡号
      */
     public static String generateVoyagerCardNumber() {
-        return generateCardNumber(VOYAGER_CARD_BRAND, VOYAGER_PREFIX_LIST, 15);
+        return generateCardNumber(VOYAGER_CARD_BRAND, VOYAGER_PREFIXES, 15);
     }
 
     /**
-     * 批量生成测试卡号
+     * 使用自定义前缀批量生成测试卡号。
      *
-     * @param prefixList 卡号前缀列表
-     * @param length     卡号长度
-     * @param count      生成数量
-     * @return 测试卡号列表
+     * @param prefixList ASCII 数字前缀列表；每个前缀必须至少为一位并短于目标长度
+     * @param length     卡号总长度，支持 12 至 19 位
+     * @param count      生成数量，不能为负数
+     * @return 生成的测试卡号列表
+     * @throws IllegalArgumentException 前缀、长度或数量不符合约束时抛出
      */
     public static List<String> generateCardNumbers(String[] prefixList, int length, int count) {
         return generateCardNumbers(CUSTOM_CARD_BRAND, prefixList, length, count);
     }
 
     /**
-     * 批量生成指定卡品牌的测试卡号。
+     * 使用自定义前缀生成一个测试卡号。
      *
-     * @param cardBrand  卡品牌名称，仅用于日志排查
-     * @param prefixList 卡号前缀列表
-     * @param length     卡号长度
-     * @param count      生成数量
-     * @return 测试卡号列表
-     */
-    private static List<String> generateCardNumbers(String cardBrand, String[] prefixList, int length, int count) {
-        if (prefixList == null || prefixList.length == 0) {
-            throw new IllegalArgumentException("prefixList cannot be empty");
-        }
-        validateCardLength(length);
-        if (count < 0) {
-            throw new IllegalArgumentException("count cannot be negative");
-        }
-
-        log.info("批量生成测试卡号开始，cardBrand: {}，length: {}，count: {}，prefixCount: {}",
-                cardBrand, length, count, prefixList.length);
-        List<String> result = new ArrayList<>(count);
-        for (int index = 0; index < count; index++) {
-            result.add(generateCardNumber(cardBrand, prefixList, length, false));
-        }
-        log.info("批量生成测试卡号完成，cardBrand: {}，length: {}，count: {}，firstCard: {}，lastCard: {}",
-                cardBrand,
-                length,
-                result.size(),
-                result.isEmpty() ? "-" : SensitiveDataMaskUtils.maskPan(result.get(0)),
-                result.isEmpty() ? "-" : SensitiveDataMaskUtils.maskPan(result.get(result.size() - 1)));
-        return result;
-    }
-
-    /**
-     * 生成单个测试卡号
-     *
-     * @param prefixList 卡号前缀列表
-     * @param length     卡号长度
-     * @return 测试卡号
+     * @param prefixList ASCII 数字前缀列表；每个前缀必须至少为一位并短于目标长度
+     * @param length     卡号总长度，支持 12 至 19 位
+     * @return 生成的测试卡号
+     * @throws IllegalArgumentException 前缀或长度不符合约束时抛出
      */
     public static String generateCardNumber(String[] prefixList, int length) {
         return generateCardNumber(CUSTOM_CARD_BRAND, prefixList, length);
     }
 
     /**
-     * 生成指定卡品牌的单个测试卡号。
+     * 判断卡号是否处于支持的长度范围并通过 Luhn 校验。
      *
-     * @param cardBrand  卡品牌名称，仅用于日志排查
-     * @param prefixList 卡号前缀列表
-     * @param length     卡号长度
-     * @return 测试卡号
-     */
-    private static String generateCardNumber(String cardBrand, String[] prefixList, int length) {
-        return generateCardNumber(cardBrand, prefixList, length, true);
-    }
-
-    /**
-     * 生成单个测试卡号，并按需打印单条生成日志。
+     * <p>空白字符会在校验前移除，其他分隔符不被接受。本方法不校验卡品牌、IIN 分配或渠道可用性。</p>
      *
-     * @param cardBrand     卡品牌名称，仅用于日志排查
-     * @param prefixList    卡号前缀列表
-     * @param length        卡号长度
-     * @param logCardResult true：打印单条生成日志；false：由批量方法统一打印摘要
-     * @return 测试卡号
-     */
-    private static String generateCardNumber(String cardBrand, String[] prefixList, int length, boolean logCardResult) {
-        if (prefixList == null || prefixList.length == 0) {
-            throw new IllegalArgumentException("prefixList cannot be empty");
-        }
-        validateCardLength(length);
-
-        String prefix = prefixList[RANDOM.nextInt(prefixList.length)];
-        String cardNumber = completeCardNumber(prefix, length);
-        if (logCardResult) {
-            log.info("生成测试卡号成功，cardBrand: {}，prefix: {}，length: {}，maskedCardNo: {}，luhnValid: {}",
-                    cardBrand,
-                    prefix,
-                    length,
-                    SensitiveDataMaskUtils.maskPan(cardNumber),
-                    isValidCreditCardNumber(cardNumber));
-        }
-        return cardNumber;
-    }
-
-    /**
-     * 根据前缀和指定长度补全卡号，并生成 Luhn 校验位
-     *
-     * @param prefix 卡号前缀
-     * @param length 卡号总长度
-     * @return 完整卡号
-     */
-    private static String completeCardNumber(String prefix, int length) {
-        if (prefix == null || prefix.isBlank()) {
-            throw new IllegalArgumentException("prefix cannot be blank");
-        }
-        if (!prefix.chars().allMatch(Character::isDigit)) {
-            throw new IllegalArgumentException("prefix must contain digits only");
-        }
-        if (prefix.length() >= length) {
-            throw new IllegalArgumentException("prefix length must be less than card number length");
-        }
-        validateCardLength(length);
-
-        StringBuilder cardNumber = new StringBuilder(prefix);
-
-        while (cardNumber.length() < length - 1) {
-            cardNumber.append(RANDOM.nextInt(DIGIT_BOUND));
-        }
-
-        int checkDigit = calculateLuhnCheckDigit(cardNumber.toString());
-        cardNumber.append(checkDigit);
-
-        return cardNumber.toString();
-    }
-
-    /**
-     * 计算 Luhn 校验位
-     *
-     * @param numberWithoutCheckDigit 不含校验位的卡号
-     * @return 校验位
-     */
-    private static int calculateLuhnCheckDigit(String numberWithoutCheckDigit) {
-        int sum = 0;
-        boolean doubleDigit = true;
-
-        for (int i = numberWithoutCheckDigit.length() - 1; i >= 0; i--) {
-            int digit = Character.digit(numberWithoutCheckDigit.charAt(i), 10);
-
-            if (doubleDigit) {
-                digit *= 2;
-                if (digit > 9) {
-                    digit -= 9;
-                }
-            }
-
-            sum += digit;
-            doubleDigit = !doubleDigit;
-        }
-
-        return (LUHN_MODULUS - (sum % LUHN_MODULUS)) % LUHN_MODULUS;
-    }
-
-    /**
-     * 判断是否为合法卡号
-     *
-     * @param cardNumber 卡号
-     * @return true：通过 Luhn 校验；false：未通过
+     * @param cardNumber 待校验的卡号
+     * @return 格式和 Luhn 校验均通过时返回 {@code true}
      */
     public static boolean isValidCreditCardNumber(String cardNumber) {
-        if (cardNumber == null || cardNumber.isBlank()) {
-            log.warn("卡号Luhn校验失败，原因=卡号为空");
-            return false;
-        }
-
-        String normalizedCardNumber = cardNumber.replaceAll("\\s+", "");
-
-        if (!normalizedCardNumber.chars().allMatch(Character::isDigit)) {
-            log.warn("卡号Luhn校验失败，原因=存在非数字字符，maskedCardNo: {}",
-                    SensitiveDataMaskUtils.maskPan(normalizedCardNumber));
+        String normalizedCardNumber = normalizeCardNumber(cardNumber);
+        if (normalizedCardNumber == null || normalizedCardNumber.isEmpty()) {
+            log.debug("测试卡号校验未通过, event: test_card_number_validation_rejected, reason: empty");
             return false;
         }
         if (normalizedCardNumber.length() < MIN_CARD_NUMBER_LENGTH
                 || normalizedCardNumber.length() > MAX_CARD_NUMBER_LENGTH) {
-            log.warn("卡号Luhn校验失败，原因=长度不合法，length: {}，maskedCardNo: {}",
-                    normalizedCardNumber.length(),
-                    SensitiveDataMaskUtils.maskPan(normalizedCardNumber));
+            log.debug("测试卡号校验未通过, event: test_card_number_validation_rejected, reason: invalidLength, length: {}",
+                    normalizedCardNumber.length());
+            return false;
+        }
+        if (!isAsciiDigits(normalizedCardNumber)) {
+            log.debug("测试卡号校验未通过, event: test_card_number_validation_rejected, reason: invalidCharacter, length: {}",
+                    normalizedCardNumber.length());
             return false;
         }
 
         int sum = 0;
         boolean doubleDigit = false;
-
-        for (int i = normalizedCardNumber.length() - 1; i >= 0; i--) {
-            int digit = Character.digit(normalizedCardNumber.charAt(i), 10);
-
+        for (int index = normalizedCardNumber.length() - 1; index >= 0; index--) {
+            int digit = normalizedCardNumber.charAt(index) - '0';
             if (doubleDigit) {
                 digit *= 2;
                 if (digit > 9) {
                     digit -= 9;
                 }
             }
-
             sum += digit;
             doubleDigit = !doubleDigit;
         }
 
         boolean valid = sum % LUHN_MODULUS == 0;
-        log.debug("卡号Luhn校验完成，maskedCardNo: {}，length: {}，valid: {}",
-                SensitiveDataMaskUtils.maskPan(normalizedCardNumber),
-                normalizedCardNumber.length(),
-                valid);
+        log.debug("测试卡号校验完成, event: test_card_number_validation_completed, length: {}, valid: {}",
+                normalizedCardNumber.length(), valid);
         return valid;
     }
 
     /**
-     * 校验卡号长度是否处于工具支持范围内。
+     * 在完成一次输入校验后批量生成测试卡号，日志只记录品牌、长度和数量。
      *
-     * @param length 卡号长度
+     * @param cardBrand 安全日志使用的品牌名称
+     * @param prefixList 候选数字前缀
+     * @param length 目标卡号长度
+     * @param count 生成数量
+     * @return 新建的测试卡号列表
      */
+    private static List<String> generateCardNumbers(String cardBrand, String[] prefixList, int length, int count) {
+        String[] validatedPrefixes = validateAndCopyPrefixes(prefixList, length);
+        if (count < 0) {
+            throw new IllegalArgumentException("count cannot be negative");
+        }
+
+        List<String> cardNumbers = new ArrayList<>(count);
+        for (int index = 0; index < count; index++) {
+            cardNumbers.add(generateCardNumberUnchecked(validatedPrefixes, length));
+        }
+        log.info("批量测试卡号生成完成, event: test_card_number_batch_generated, cardBrand: {}, length: {}, count: {}",
+                cardBrand, length, cardNumbers.size());
+        return cardNumbers;
+    }
+
+    /**
+     * 生成单个测试卡号；返回值属于敏感测试数据，方法内部不记录卡号内容。
+     *
+     * @param cardBrand 安全日志使用的品牌名称
+     * @param prefixList 候选数字前缀
+     * @param length 目标卡号长度
+     * @return 通过 Luhn 校验的测试卡号
+     */
+    private static String generateCardNumber(String cardBrand, String[] prefixList, int length) {
+        String[] validatedPrefixes = validateAndCopyPrefixes(prefixList, length);
+        String cardNumber = generateCardNumberUnchecked(validatedPrefixes, length);
+        log.debug("测试卡号生成完成, event: test_card_number_generated, cardBrand: {}, length: {}",
+                cardBrand, length);
+        return cardNumber;
+    }
+
+    /**
+     * 从已校验前缀中随机选择一个，补齐主体数字并计算最后一位 Luhn 校验位。
+     *
+     * @param validatedPrefixes 已通过格式和长度校验的前缀副本
+     * @param length 目标卡号长度
+     * @return 生成的测试卡号
+     */
+    private static String generateCardNumberUnchecked(String[] validatedPrefixes, int length) {
+        String prefix = validatedPrefixes[RANDOM.nextInt(validatedPrefixes.length)];
+        StringBuilder cardNumber = new StringBuilder(length).append(prefix);
+        while (cardNumber.length() < length - 1) {
+            cardNumber.append(RANDOM.nextInt(DIGIT_BOUND));
+        }
+        cardNumber.append(calculateLuhnCheckDigit(cardNumber));
+        return cardNumber.toString();
+    }
+
+    /**
+     * 校验候选前缀并返回防御性副本，避免调用方在生成过程中修改共享数组。
+     *
+     * @param prefixList 调用方提供的候选前缀
+     * @param length 目标卡号长度
+     * @return 可供生成算法安全使用的前缀副本
+     */
+    private static String[] validateAndCopyPrefixes(String[] prefixList, int length) {
+        if (prefixList == null || prefixList.length == 0) {
+            throw new IllegalArgumentException("prefixList cannot be empty");
+        }
+        validateCardLength(length);
+
+        String[] prefixCopy = prefixList.clone();
+        for (String prefix : prefixCopy) {
+            if (prefix == null || prefix.isBlank()) {
+                throw new IllegalArgumentException("prefix cannot be blank");
+            }
+            if (!isAsciiDigits(prefix)) {
+                throw new IllegalArgumentException("prefix must contain ASCII digits only");
+            }
+            if (prefix.length() >= length) {
+                throw new IllegalArgumentException("prefix length must be less than card number length");
+            }
+        }
+        return prefixCopy;
+    }
+
+    /** 校验目标长度是否处于生成器支持的 12 至 19 位范围。 */
     private static void validateCardLength(int length) {
         if (length < MIN_CARD_NUMBER_LENGTH || length > MAX_CARD_NUMBER_LENGTH) {
-            throw new IllegalArgumentException("length must be between 10 and 19");
+            throw new IllegalArgumentException("length must be between 12 and 19");
         }
     }
 
     /**
-     * 本地演示入口，仅输出脱敏后的测试卡号。
+     * 根据不含校验位的数字序列计算 Luhn 校验位。
      *
-     * @param args 命令行参数，当前未使用
+     * @param numberWithoutCheckDigit 已完成 ASCII 数字校验的卡号主体
+     * @return 0 至 9 的校验位
      */
-    public static void main(String[] args) {
-        log.info("Mastercard: {}", SensitiveDataMaskUtils.maskPan(generateMasterCardNumber()));
-        log.info("Visa      : {}", SensitiveDataMaskUtils.maskPan(generateVisaCardNumber()));
-        log.info("Amex      : {}", SensitiveDataMaskUtils.maskPan(generateAmexCardNumber()));
-        log.info("Discover  : {}", SensitiveDataMaskUtils.maskPan(generateDiscoverCardNumber()));
-        log.info("Diners    : {}", SensitiveDataMaskUtils.maskPan(generateDinersCardNumber()));
-        log.info("JCB       : {}", SensitiveDataMaskUtils.maskPan(generateJcbCardNumber()));
-        log.info("EnRoute   : {}", SensitiveDataMaskUtils.maskPan(generateEnrouteCardNumber()));
-        log.info("Voyager   : {}", SensitiveDataMaskUtils.maskPan(generateVoyagerCardNumber()));
-
-        List<String> masterCards = generateMasterCardNumbers(5);
-        for (String cardNumber : masterCards) {
-            log.info("批量生成结果，maskedCardNo: {}，valid: {}",
-                    SensitiveDataMaskUtils.maskPan(cardNumber),
-                    isValidCreditCardNumber(cardNumber)
-            );
+    private static int calculateLuhnCheckDigit(CharSequence numberWithoutCheckDigit) {
+        int sum = 0;
+        boolean doubleDigit = true;
+        for (int index = numberWithoutCheckDigit.length() - 1; index >= 0; index--) {
+            int digit = numberWithoutCheckDigit.charAt(index) - '0';
+            if (doubleDigit) {
+                digit *= 2;
+                if (digit > 9) {
+                    digit -= 9;
+                }
+            }
+            sum += digit;
+            doubleDigit = !doubleDigit;
         }
+        return (LUHN_MODULUS - (sum % LUHN_MODULUS)) % LUHN_MODULUS;
+    }
+
+    /**
+     * 移除输入中的 Unicode 空白，保留其他字符供后续严格 ASCII 数字校验拒绝。
+     */
+    private static String normalizeCardNumber(String cardNumber) {
+        if (cardNumber == null) {
+            return null;
+        }
+        StringBuilder normalized = new StringBuilder(cardNumber.length());
+        for (int index = 0; index < cardNumber.length(); index++) {
+            char current = cardNumber.charAt(index);
+            if (!Character.isWhitespace(current)) {
+                normalized.append(current);
+            }
+        }
+        return normalized.toString();
+    }
+
+    /** 判断字符序列是否只包含 ASCII 数字，拒绝视觉相似的全角或其他 Unicode 数字。 */
+    private static boolean isAsciiDigits(CharSequence value) {
+        for (int index = 0; index < value.length(); index++) {
+            char current = value.charAt(index);
+            if (current < '0' || current > '9') {
+                return false;
+            }
+        }
+        return true;
     }
 }

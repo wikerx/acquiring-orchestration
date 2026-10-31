@@ -23,6 +23,8 @@ import com.scott.payment.settlement.mapper.SettlementProjectionMapper;
 import com.scott.payment.settlement.mapper.SettlementReserveMapper;
 import com.scott.payment.settlement.mapper.SettlementResultMapper;
 import com.scott.payment.settlement.service.SettlementLedgerPostingService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,32 +42,20 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementLedgerPostingService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 原子提交结算净额和保证金动作；固定先锁 NORMAL 资金账户，以流水/动作唯一键及余额、聚合版本 CAS 防重，Redis、MQ 和异步投影不参与余额事务成功判定。
- * @status : create
+ * 结算资金入账服务。
+ *
+ * <p>净额结果、资金流水、账户余额、保证金动作、候选状态和投影任务在 transaction 主库同事务提交。
+ * 固定先锁 NORMAL 账户，并以流水唯一键和余额版本 CAS 防止重试产生重复入账。</p>
  */
 @Service
 public class DefaultSettlementLedgerPostingService implements SettlementLedgerPostingService {
 
-    /**
-     * {@code ZERO}常量，统一 {@code DefaultSettlementLedgerPostingService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            DefaultSettlementLedgerPostingService.class);
+
+    /** 金额聚合零值。 */
     private static final BigDecimal ZERO = BigDecimal.ZERO;
-    /**
-     * {@code SYSTEM_OPERATOR}常量，统一 {@code DefaultSettlementLedgerPostingService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 自动结算资金事实的系统操作主体。 */
     private static final String SYSTEM_OPERATOR = "service-settlement";
 
     private final SettlementBatchMapper batchMapper;
@@ -165,6 +155,9 @@ public class DefaultSettlementLedgerPostingService implements SettlementLedgerPo
         leasedBatch.setProcessingOwner(null);
         leasedBatch.setProcessingDeadline(null);
         leasedBatch.setVersion(batch.getVersion() + 1);
+        LOGGER.info("结算资金入账事务写入完成, event: SETTLEMENT_LEDGER_POSTING_WRITE_END, settlementBatchNo: {}, targetCurrency: {}, netDirection: {}, candidateCount: {}, projectionTaskCount: {}",
+                batch.getSettlementBatchNo(), batch.getTargetCurrency(), net.direction(),
+                batch.getCandidateCount(), tasks.size());
         return batch.getCandidateCount();
     }
 

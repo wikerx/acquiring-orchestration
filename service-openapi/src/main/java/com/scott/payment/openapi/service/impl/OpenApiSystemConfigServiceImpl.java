@@ -1,7 +1,8 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.component.db.systemconfig.service.SystemConfigReadService;
 import com.scott.payment.openapi.service.OpenApiSystemConfigService;
 import org.springframework.stereotype.Service;
@@ -44,11 +45,12 @@ public class OpenApiSystemConfigServiceImpl implements OpenApiSystemConfigServic
     @Override
     public String requiredEnabledValue(String configKey) {
         if (!StringUtils.hasText(configKey)) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "configKey can not be blank");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID, "configKey", "system config key can not be blank");
         }
         return systemConfigReadService.findEnabledValue(configKey)
                 .orElseThrow(() -> new ApiException(
-                        ApiResultEnum.INTERNAL_SERVER_ERROR,
+                        OpenApiResultCode.SYSTEM_ERROR,
                         "system config is not enabled or empty:" + configKey
                 ));
     }

@@ -9,8 +9,8 @@ import com.scott.payment.channel.payment.enums.ChannelCallbackScene;
 import com.scott.payment.channel.payment.exception.ChannelCallbackVerificationException;
 import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.channel.payment.registry.PaymentChannelCallbackProtocolRegistry;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.util.net.IpAddressNormalizer;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.component.web.gateway.TrustedClientIpResolver;
@@ -189,7 +189,7 @@ public class OpenApiCallbackSecuritySupport {
                     SecurityInterceptEventRecorder.RISK_HIGH,
                     "CHANNEL_CALLBACK_PROTOCOL",
                     "channel callback does not match the provider protocol",
-                    ApiResultEnum.PARAM_INVALID);
+                    OpenApiResultCode.PARAM_INVALID);
         } catch (com.scott.payment.channel.payment.exception.ChannelException exception) {
             throw recordAndReturnChannelException(request,
                     "CHANNEL_CALLBACK_PROTOCOL_MISSING",
@@ -202,7 +202,7 @@ public class OpenApiCallbackSecuritySupport {
                     SecurityInterceptEventRecorder.RISK_CRITICAL,
                     "CHANNEL_CALLBACK_PROTOCOL",
                     "channel callback protocol processing failed",
-                    ApiResultEnum.INTERNAL_SERVER_ERROR);
+                    OpenApiResultCode.SYSTEM_ERROR);
         }
     }
 
@@ -295,9 +295,9 @@ public class OpenApiCallbackSecuritySupport {
             }
             default -> throw new IllegalStateException("unsupported callback verification reason: " + exception.getReason());
         }
-        ApiResultEnum result = exception.getReason() == ChannelCallbackVerificationException.Reason.INTERNAL_ERROR
-                ? ApiResultEnum.INTERNAL_SERVER_ERROR
-                : ApiResultEnum.UNAUTHORIZED;
+        OpenApiResultCode result = exception.getReason() == ChannelCallbackVerificationException.Reason.INTERNAL_ERROR
+                ? OpenApiResultCode.SYSTEM_ERROR
+                : OpenApiResultCode.AUTHENTICATION_FAILED;
         return recordAndReturnChannelException(request, eventType, riskLevel, hitRuleCode,
                 exception.getReason().name(), result);
     }
@@ -455,7 +455,7 @@ public class OpenApiCallbackSecuritySupport {
                                                          String riskLevel,
                                                          String hitRuleCode,
                                                          String message) {
-        ApiException exception = new ApiException(ApiResultEnum.UNAUTHORIZED, message);
+        ApiException exception = new ApiException(OpenApiResultCode.AUTHENTICATION_FAILED, message);
         securityInterceptEventRecorder.recordBlocked(
                 request,
                 SecurityInterceptEventRecorder.SOURCE_OPENAPI,
@@ -475,7 +475,7 @@ public class OpenApiCallbackSecuritySupport {
                                                          String hitRuleCode,
                                                          String message) {
         return recordAndReturnChannelException(request, eventType, riskLevel, hitRuleCode,
-                message, ApiResultEnum.UNAUTHORIZED);
+                message, OpenApiResultCode.AUTHENTICATION_FAILED);
     }
 
     private ApiException recordAndReturnChannelException(HttpServletRequest request,
@@ -483,7 +483,7 @@ public class OpenApiCallbackSecuritySupport {
                                                          String riskLevel,
                                                          String hitRuleCode,
                                                          String message,
-                                                         ApiResultEnum result) {
+                                                         OpenApiResultCode result) {
         ApiException exception = new ApiException(result, message);
         securityInterceptEventRecorder.recordBlocked(
                 request,

@@ -10,13 +10,9 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementEventPublisherService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 发布冻结的结算 Outbox JSON；按 operationId 发送顺序消息，失败仅驱动 Outbox 重试，不回滚已经提交的资金事务。
- * @status : create
+ * 结算事件 Outbox 发布服务。
+ *
+ * <p>按 operationId 顺序发送冻结消息；发布失败只推进 Outbox 重试状态，不回滚已经提交的资金事实。</p>
  */
 @Service
 public class SettlementEventPublisherService {
@@ -51,14 +47,16 @@ public class SettlementEventPublisherService {
             if (!persistenceService.markSent(row, LocalDateTime.now())) {
                 throw new IllegalStateException("settlement event outbox sent-state CAS failed");
             }
+            LOGGER.info("结算事件发布完成, event: SETTLEMENT_EVENT_PUBLISH_END, eventNo: {}, settlementBatchNo: {}, retryCount: {}",
+                    row.getEventNo(), row.getSettlementBatchNo(), row.getRetryCount());
         } catch (RuntimeException exception) {
             String code = exception.getClass().getSimpleName();
             if (!persistenceService.markFailed(row, code, LocalDateTime.now())) {
-                LOGGER.error("Settlement event outbox failure-state CAS failed, eventNo={}",
-                        row.getEventNo());
+                LOGGER.error("结算事件失败状态更新被并发推进, event: SETTLEMENT_EVENT_FAILURE_CAS_FAILED, eventNo: {}, settlementBatchNo: {}",
+                        row.getEventNo(), row.getSettlementBatchNo());
             }
-            LOGGER.warn("Settlement event publication failed, eventNo={}, failureType={}",
-                    row.getEventNo(), code);
+            LOGGER.warn("结算事件发布失败，已进入重试, event: SETTLEMENT_EVENT_PUBLISH_FAILED, eventNo: {}, settlementBatchNo: {}, exceptionType: {}",
+                    row.getEventNo(), row.getSettlementBatchNo(), code);
         }
         return true;
     }

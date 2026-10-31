@@ -31,6 +31,8 @@ import com.scott.payment.settlement.mapper.SettlementBatchMapper;
 import com.scott.payment.settlement.mapper.SettlementResultMapper;
 import com.scott.payment.settlement.service.SettlementResultCalculationService;
 import com.scott.payment.settlement.support.SettlementReviewFingerprintService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,67 +57,28 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultSettlementResultCalculationService
- * @date : 2026-08-26 23:30
- * @email : scott_x@163.com
- * @description : 将本金、费用组件、费用组最终值和独立保证金事实转换为不可变结果，汇总后原子进入 CALCULATED 等待入账。
- * @status : create
+ * 结算结果计算与持久化服务。
+ *
+ * <p>本金、费用和保证金使用批次冻结汇率转换，计算过程保留 DECIMAL128 中间精度，
+ * 仅在目标币种边界舍入。结果明细、汇总和 CALCULATED 状态在同一事务提交。</p>
  */
 @Service
 public class DefaultSettlementResultCalculationService implements SettlementResultCalculationService {
 
-    /**
-     * 财务计算统一 MathContext，约束中间计算精度并避免过早舍入。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            DefaultSettlementResultCalculationService.class);
+
+    /** 中间金额统一保留 DECIMAL128 精度，禁止在组件聚合前提前舍入。 */
     private static final MathContext CALCULATION_CONTEXT = MathContext.DECIMAL128;
-    /**
-     * {@code ITEM_INSERT_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+    /** 结果明细单次批量写入上限。 */
     private static final int ITEM_INSERT_PAGE_SIZE = 500;
-    /**
-     * {@code SUMMARY_INSERT_PAGE_SIZE}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+    /** 结果汇总单次批量写入上限。 */
     private static final int SUMMARY_INSERT_PAGE_SIZE = 200;
-    /**
-     * {@code TRACE}常量，统一 {@code DefaultSettlementResultCalculationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与日志 MDC 和 X-Trace-Id 请求头共同串联一次链路。
-     * </p>
-     */
+    /** 保留未舍入转换值的审计结果角色。 */
     private static final String TRACE = "TRACE";
-    /**
-     * {@code FINANCIAL_COMPONENT}常量，统一 {@code DefaultSettlementResultCalculationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 参与最终资金净额汇总的结果角色。 */
     private static final String FINANCIAL_COMPONENT = "FINANCIAL_COMPONENT";
-    /**
-     * {@code NONE}常量，统一 {@code DefaultSettlementResultCalculationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 不适用费用上限时使用的稳定快照值。 */
     private static final String NONE = "NONE";
 
     private final SettlementBatchMapper batchMapper;
@@ -246,6 +209,9 @@ public class DefaultSettlementResultCalculationService implements SettlementResu
         leasedBatch.setProcessingOwner(null);
         leasedBatch.setProcessingDeadline(null);
         leasedBatch.setVersion(batch.getVersion() + 1);
+        LOGGER.info("结算结果计算事务写入完成, event: SETTLEMENT_RESULT_CALCULATION_WRITE_END, settlementBatchNo: {}, targetCurrency: {}, resultItemCount: {}, summaryCount: {}",
+                batch.getSettlementBatchNo(), batch.getTargetCurrency(),
+                expectedItems.size(), expectedSummaries.size());
         return expectedItems.size();
     }
 

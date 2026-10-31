@@ -145,6 +145,9 @@ public class GatewayRouteConfig {
      */
     private static final String GATEWAY_NOT_FOUND_PATH = "/gateway/fallback/not-found";
 
+    /** 商户 OpenAPI 未命中已发布路由时使用的 V1.3 专用兜底路径。 */
+    private static final String OPENAPI_NOT_FOUND_PATH = "/gateway/fallback/openapi-not-found";
+
     /**
      * 网关本地兜底路径匹配表达式，避免兜底路由再次转发自身导致循环。
      */
@@ -182,6 +185,9 @@ public class GatewayRouteConfig {
                 .route("admin-api", route -> route.path(ADMIN_API_PATH).uri(SERVICE_ADMIN_URI))
                 .route("merchant-api", route -> route.path(MERCHANT_API_PATH).uri(SERVICE_MERCHANT_URI))
                 .route("checkout-config", route -> route.path(CHECKOUT_CONFIG_PATH, CHECKOUT_HEALTH_PATH).uri(SERVICE_CHECKOUT_URI))
+                .route("openapi-unmatched-path", route -> route.order(Ordered.LOWEST_PRECEDENCE - 1)
+                        .path("/api/rest/**")
+                        .uri("forward:" + OPENAPI_NOT_FOUND_PATH))
                 .route("gateway-unmatched-path", route -> route.order(Ordered.LOWEST_PRECEDENCE)
                         .path(ANY_PATH)
                         .and()

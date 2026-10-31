@@ -10,12 +10,12 @@ import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
+import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
-import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -31,15 +31,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentChannelInvokeServiceTests
- * @date : 2026-07-14 21:20
- * @email : scott_x@163.com
- * @description : 收单渠道调用服务测试，验证支付核心上下文转换为渠道统一请求时拆清平台交易 ID、内部生命周期 ID 和渠道交易 ID。
- * @status : create
+ * 收单渠道调用服务的请求映射和结果确定性测试。
+ *
+ * <p>重点验证平台交易 ID、内部生命周期 ID 与渠道交易 ID 的边界，以及超时、发送前失败、
+ * 无效响应和明确渠道拒绝对应的受控失败原因。</p>
  */
-@Slf4j
 class DefaultPaymentChannelInvokeServiceTests {
 
     /**
@@ -198,7 +194,6 @@ class DefaultPaymentChannelInvokeServiceTests {
      */
     @Test
     void shouldMarkChannelTimeoutOutcomeUncertain() {
-        log.info("测试渠道超时分类：模拟渠道执行器抛出超时异常，预期保留 TIMEOUT 和结果不确定标志");
         PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
         when(executor.execute(any(ChannelPaymentRequest.class)))
                 .thenThrow(new ChannelTimeoutException("simulated timeout"));
@@ -211,7 +206,8 @@ class DefaultPaymentChannelInvokeServiceTests {
 
         assertThat(exception.getInvokeResult().getRequestStatus()).isEqualTo("TIMEOUT");
         assertThat(exception.getInvokeResult().isOutcomeUncertain()).isTrue();
-        log.info("渠道超时分类验证完成：requestStatus=TIMEOUT，outcomeUncertain=true");
+        assertThat(exception.getInvokeResult().getFailureReasonCode())
+                .isEqualTo(PaymentFailureReasonEnum.CHANNEL_TIMEOUT.getCode());
     }
 
     /** 渠道异常只允许以稳定类型进入交互日志上下文，原始正文可能包含认证或卡数据。 */
@@ -238,7 +234,6 @@ class DefaultPaymentChannelInvokeServiceTests {
      */
     @Test
     void shouldKeepPreDispatchRequestFailureOutcomeCertain() {
-        log.info("测试发送前失败分类：模拟渠道必填配置缺失，预期 requestStatus=FAILED 且结果确定");
         PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
         when(executor.execute(any(ChannelPaymentRequest.class)))
                 .thenThrow(new ChannelRequestException("MPGS baseUrl is required"));
@@ -251,7 +246,8 @@ class DefaultPaymentChannelInvokeServiceTests {
 
         assertThat(exception.getInvokeResult().getRequestStatus()).isEqualTo("FAILED");
         assertThat(exception.getInvokeResult().isOutcomeUncertain()).isFalse();
-        log.info("发送前失败分类验证完成：requestStatus=FAILED，outcomeUncertain=false");
+        assertThat(exception.getInvokeResult().getFailureReasonCode())
+                .isEqualTo(PaymentFailureReasonEnum.CHANNEL_REQUEST_NOT_SENT.getCode());
     }
 
     /**
@@ -259,7 +255,6 @@ class DefaultPaymentChannelInvokeServiceTests {
      */
     @Test
     void shouldMarkInvalidChannelResponseOutcomeUncertain() {
-        log.info("测试渠道响应异常分类：模拟响应体不可解析，预期 requestStatus=FAILED 且结果不确定");
         PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
         when(executor.execute(any(ChannelPaymentRequest.class)))
                 .thenThrow(new ChannelResponseException("MPGS response body is empty"));
@@ -272,7 +267,26 @@ class DefaultPaymentChannelInvokeServiceTests {
 
         assertThat(exception.getInvokeResult().getRequestStatus()).isEqualTo("FAILED");
         assertThat(exception.getInvokeResult().isOutcomeUncertain()).isTrue();
-        log.info("渠道响应异常分类验证完成：requestStatus=FAILED，outcomeUncertain=true");
+        assertThat(exception.getInvokeResult().getFailureReasonCode())
+                .isEqualTo(PaymentFailureReasonEnum.CHANNEL_RESPONSE_INVALID.getCode());
+    }
+
+    /** 渠道已返回明确拒绝时必须记录渠道证据来源，不能归为发送前平台故障。 */
+    @Test
+    void shouldClassifyConfirmedChannelDecline() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        when(executor.execute(any(ChannelPaymentRequest.class)))
+                .thenThrow(new ChannelResponseException("declined", null, false));
+        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
+
+        PaymentChannelInvokeException exception = catchThrowableOfType(
+                PaymentChannelInvokeException.class,
+                () -> invokeService.invoke(followUpCommand(), routeResult(),
+                        "OP260714180001", "TX260714180002", "TX260714180001"));
+
+        assertThat(exception.getInvokeResult().isOutcomeUncertain()).isFalse();
+        assertThat(exception.getInvokeResult().getFailureReasonCode())
+                .isEqualTo(PaymentFailureReasonEnum.CHANNEL_DECLINED.getCode());
     }
 
     private PaymentCreateCommandDTO followUpCommand() {

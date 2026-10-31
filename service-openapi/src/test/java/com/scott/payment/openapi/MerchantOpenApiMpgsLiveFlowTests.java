@@ -3,6 +3,7 @@ package com.scott.payment.openapi;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
@@ -124,30 +125,8 @@ class MerchantOpenApiMpgsLiveFlowTests {
     private static final String SOURCE_ORIGIN = System.getProperty(
             "openapi.live.source-origin", "");
 
-    /**
-     * MPGS 沙箱测试卡号，只进入加密请求体；日志只允许输出脱敏值。
-     */
-    private static final String TEST_CARD_NO = System.getProperty("openapi.live.card-no", "5123450000000008");
-
-    /**
-     * MPGS 沙箱测试卡品牌，用于按官方测试卡表切换不同卡组织并保持管理端展示准确。
-     */
-    private static final String TEST_CARD_BRAND = System.getProperty("openapi.live.card-brand", "MASTERCARD");
-
-    /**
-     * MPGS 沙箱测试卡有效期月份。
-     */
-    private static final String TEST_CARD_EXPIRY_MONTH = System.getProperty("openapi.live.card-expiry-month", "01");
-
-    /**
-     * MPGS 沙箱测试卡有效期年份。
-     */
-    private static final String TEST_CARD_EXPIRY_YEAR = System.getProperty("openapi.live.card-expiry-year", "2039");
-
-    /**
-     * MPGS 沙箱测试卡安全码，严禁日志输出。
-     */
-    private static final String TEST_CARD_CVV = System.getProperty("openapi.live.card-cvv", "100");
+    /** 默认 MPGS 沙箱卡来自审核过的 Mastercard Gateway 官方测试卡目录。 */
+    private static final MpgsOfficialTestCards.TestCard DEFAULT_TEST_CARD = MpgsOfficialTestCards.defaultCard();
 
     /**
      * 单次请求超时时间，避免外部沙箱异常时测试长时间挂起。
@@ -216,12 +195,12 @@ class MerchantOpenApiMpgsLiveFlowTests {
         MerchantLiveSecurityMaterial material = loadMerchantMaterial();
         PublicKey platformPublicKey = payloadCrypto.readPublicKey(material.platformPublicKeyX509Base64());
         String batchPrefix = "C20LIVE" + DateTimeFormatter.ofPattern("yyMMddHHmmss").format(LocalDateTime.now());
-        log.info("OpenAPI真实MPGS验收开始，context: {}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI真实MPGS验收开始, event: OPENAPI_MPGS_LIVE_ACCEPTANCE_START, context: {}", JsonUtils.toJsonString(Map.of(
                 "merchantId", MERCHANT_ID,
                 "batchPrefix", batchPrefix,
                 "baseUrl", OPENAPI_BASE_URL,
-                "card", SensitiveDataMaskUtils.maskPan(TEST_CARD_NO),
-                "cardBrand", TEST_CARD_BRAND,
+                "card", DEFAULT_TEST_CARD.maskedCardNo(),
+                "cardBrand", DEFAULT_TEST_CARD.cardBrand(),
                 "merchantKey", MerchantOpenApiTestSupport.safeSecretSummary(material.merchantKey(), keyMaterialFactory),
                 "platformPublicKey", MerchantOpenApiTestSupport.safeSecretSummary(material.platformPublicKeyX509Base64(), keyMaterialFactory)
         )));
@@ -278,7 +257,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
         assertThat(results.stream().filter(item -> "SUCCESS".equals(item.status())).count()).isGreaterThanOrEqualTo(8);
         assertThat(failedPayment.status()).isEqualTo("FAILED");
         assertThat(failedIncremental.status()).isEqualTo("FAILED");
-        log.info("OpenAPI真实MPGS验收完成，result: {}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI真实MPGS验收完成, event: OPENAPI_MPGS_LIVE_ACCEPTANCE_END, result: {}", JsonUtils.toJsonString(Map.of(
                 "batchPrefix", batchPrefix,
                 "operations", results
         )));
@@ -314,7 +293,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
         String queryPlainResponse = payloadCrypto.decrypt(queryResponse.encryptedData(), merchantResponsePrivateKey);
         assertThat(queryPlainResponse).contains(preAuthorization.transactionId(), completion.transactionId(), batchPrefix + "A1");
 
-        log.info("OpenAPI预授权与查询MPGS验收完成，result: {}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI预授权与查询MPGS验收完成, event: OPENAPI_MPGS_PREAUTH_QUERY_ACCEPTANCE_END, result: {}", JsonUtils.toJsonString(Map.of(
                 "batchPrefix", batchPrefix,
                 "preAuthorization", preAuthorization,
                 "completion", completion,
@@ -358,8 +337,10 @@ class MerchantOpenApiMpgsLiveFlowTests {
             Map<String, Object> transactionInfo = (Map<String, Object>) responsePayload.get("transactionInfo");
 
             assertThat(transactionInfo).as(apiCase.transactionType() + " transactionInfo").isNotNull();
-            assertThat(transactionInfo.get("code")).isEqualTo("F210");
-            assertThat(transactionInfo.get("message")).isEqualTo("Risk blocked");
+            assertThat(transactionInfo.get("code"))
+                    .isEqualTo(OpenApiResultCode.PLATFORM_RISK_REJECTED.getCode());
+            assertThat(transactionInfo.get("message"))
+                    .isEqualTo(OpenApiResultCode.PLATFORM_RISK_REJECTED.getMessage());
             assertThat(transactionInfo.get("transactionType")).isEqualTo(apiCase.transactionType());
 
             LiveOperationResult operation = waitOperation(response.identity());
@@ -369,7 +350,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
             operations.add(operation);
         }
 
-        log.info("OpenAPI内风控拒绝验收完成，result: {}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI内风控拒绝验收完成, event: OPENAPI_INTERNAL_RISK_REJECTION_ACCEPTANCE_END, result: {}", JsonUtils.toJsonString(Map.of(
                 "batchPrefix", batchPrefix,
                 "operations", operations
         )));
@@ -389,19 +370,10 @@ class MerchantOpenApiMpgsLiveFlowTests {
         MerchantLiveSecurityMaterial material = loadMerchantMaterial();
         PublicKey platformPublicKey = payloadCrypto.readPublicKey(material.platformPublicKeyX509Base64());
         String batchPrefix = "C20CARD" + DateTimeFormatter.ofPattern("yyMMddHHmmss").format(LocalDateTime.now());
-        List<OfficialTestCard> cards = List.of(
-                new OfficialTestCard("MASTERCARD", "5123450000000008", "Y"),
-                new OfficialTestCard("MASTERCARD", "2223000000000007", "Y"),
-                new OfficialTestCard("MASTERCARD", "5111111111111118", "N"),
-                new OfficialTestCard("MASTERCARD", "2223000000000023", "N"),
-                new OfficialTestCard("VISA", "4508750015741019", "Y"),
-                new OfficialTestCard("VISA", "4012000033330026", "N"),
-                new OfficialTestCard("JCB", "3528000000000007", "Y"),
-                new OfficialTestCard("JCB", "3528111100000001", "N")
-        );
+        List<MpgsOfficialTestCards.TestCard> cards = MpgsOfficialTestCards.all();
         List<LiveOperationResult> results = new java.util.ArrayList<>();
         int index = 1;
-        for (OfficialTestCard card : cards) {
+        for (MpgsOfficialTestCards.TestCard card : cards) {
             String suffix = card.cardBrand() + index;
             String orderNo = batchPrefix + suffix;
             results.add(submitAndWait("/api/rest/payment/v1/payment",
@@ -416,9 +388,9 @@ class MerchantOpenApiMpgsLiveFlowTests {
                     platformPublicKey));
             index++;
         }
-        log.info("OpenAPI官方测试卡MPGS验收完成，result: {}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI官方测试卡MPGS验收完成, event: OPENAPI_MPGS_OFFICIAL_CARD_ACCEPTANCE_END, result: {}", JsonUtils.toJsonString(Map.of(
                 "batchPrefix", batchPrefix,
-                "cards", cards,
+                "cards", cards.stream().map(MpgsOfficialTestCards.TestCard::safeSummary).toList(),
                 "operations", results
         )));
         assertThat(results).hasSize(cards.size() * 2);
@@ -438,7 +410,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
         MerchantLiveSecurityMaterial material = loadMerchantMaterial();
         PublicKey platformPublicKey = payloadCrypto.readPublicKey(material.platformPublicKeyX509Base64());
         String batchPrefix = "C20CUR" + DateTimeFormatter.ofPattern("yyMMddHHmmss").format(LocalDateTime.now());
-        OfficialTestCard card = new OfficialTestCard("MASTERCARD", "5123450000000008", "Y");
+        MpgsOfficialTestCards.TestCard card = MpgsOfficialTestCards.defaultCard();
         List<CurrencyCase> currencies = List.of(
                 new CurrencyCase("USD", "13.01", "14.01"),
                 new CurrencyCase("EUR", "13.02", "14.02"),
@@ -463,7 +435,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
                     platformPublicKey));
             index++;
         }
-        log.info("OpenAPI多币种MPGS验收完成，result: {}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI多币种MPGS验收完成, event: OPENAPI_MPGS_MULTI_CURRENCY_ACCEPTANCE_END, result: {}", JsonUtils.toJsonString(Map.of(
                 "batchPrefix", batchPrefix,
                 "currencies", currencies,
                 "operations", results
@@ -498,7 +470,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
                     material,
                     platformPublicKey
             );
-            assertThat(response.code()).isEqualTo("T200");
+            assertThat(response.code()).isEqualTo(OpenApiResultCode.REQUEST_SUCCESS.getCode());
             String plainResponse = payloadCrypto.decrypt(response.encryptedData(), merchantResponsePrivateKey);
             Map<String, Object> payload = JsonUtils.parseObject(plainResponse, new TypeReference<>() {
             });
@@ -533,7 +505,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
             outputFile.toFile().setReadable(true, true);
             outputFile.toFile().setWritable(true, true);
         }
-        log.info("Hosted Checkout 3DS边界验收会话已创建，summary: {}", JsonUtils.toJsonString(Map.of(
+        log.info("Hosted Checkout 3DS边界验收会话已创建, event: OPENAPI_HOSTED_CHECKOUT_3DS_ACCEPTANCE_SESSION_CREATED, summary: {}", JsonUtils.toJsonString(Map.of(
                 "amounts", List.of("29.99", "30.00"),
                 "sessionCount", sessions.size(),
                 "outputFileName", outputFile.getFileName().toString()
@@ -587,7 +559,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
                 MerchantOpenApiTestSupport.uniqueJwtId(identity.orderId())
         );
         String requestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
-        log.info("OpenAPI真实请求开始，request: {}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI真实请求开始, event: OPENAPI_LIVE_REQUEST_START, request: {}", JsonUtils.toJsonString(Map.of(
                 "path", path,
                 "merchantId", MERCHANT_ID,
                 "orderNo", identity.orderNo(),
@@ -615,7 +587,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
         );
         CommonResult<String> response = JsonUtils.parseObject(httpResponse.body(), new TypeReference<>() {
         });
-        log.info("OpenAPI真实请求返回，response: {}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI真实请求返回, event: OPENAPI_LIVE_REQUEST_END, response: {}", JsonUtils.toJsonString(Map.of(
                 "path", path,
                 "orderNo", identity.orderNo(),
                 "orderId", identity.orderId(),
@@ -628,6 +600,9 @@ class MerchantOpenApiMpgsLiveFlowTests {
         )));
         assertThat(httpResponse.statusCode()).as(identity.orderId()).isEqualTo(200);
         assertThat(response).as(identity.orderId()).isNotNull();
+        // 已形成加密业务 data 的 V1.3 响应必须使用请求层 A0000，不能回退到旧 T200。
+        assertThat(response.getCode()).as(identity.orderId() + " request result code")
+                .isEqualTo(OpenApiResultCode.REQUEST_SUCCESS.getCode());
         assertThat(response.getData()).as(identity.orderId() + " encrypted response data").isNotBlank();
         return new OpenApiLiveResponse(identity, httpResponse.statusCode(), response.getCode(),
                 response.getMessage(), response.getData());
@@ -646,7 +621,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
             Optional<LiveOperationResult> operation = findOperation(identity);
             if (operation.isPresent()) {
                 LiveOperationResult result = operation.get();
-                log.info("OpenAPI真实交易落库完成，operation: {}", JsonUtils.toJsonString(result));
+                log.info("OpenAPI真实交易落库完成, event: OPENAPI_LIVE_TRANSACTION_PERSISTED, operation: {}", JsonUtils.toJsonString(result));
                 return result;
             }
             Thread.sleep(QUERY_RETRY_INTERVAL_MILLIS);
@@ -793,7 +768,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
                                  String description,
                                  boolean includeInvalidThreeDs) {
         return cardPlainText(orderNo, orderId, amount, "USD", description, includeInvalidThreeDs,
-                new OfficialTestCard(TEST_CARD_BRAND, TEST_CARD_NO, "Y"));
+                DEFAULT_TEST_CARD);
     }
 
     /**
@@ -812,7 +787,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
                                  String amount,
                                  String description,
                                  boolean includeInvalidThreeDs,
-                                 OfficialTestCard card) {
+                                 MpgsOfficialTestCards.TestCard card) {
         return cardPlainText(orderNo, orderId, amount, "USD", description, includeInvalidThreeDs, card);
     }
 
@@ -834,16 +809,16 @@ class MerchantOpenApiMpgsLiveFlowTests {
                                  String currency,
                                  String description,
                                  boolean includeInvalidThreeDs,
-                                 OfficialTestCard card) {
+                                 MpgsOfficialTestCards.TestCard card) {
         Map<String, Object> payload = basePayload(orderNo, orderId, amount, currency, description, null);
         @SuppressWarnings("unchecked")
         Map<String, Object> transactionInfo = (Map<String, Object>) payload.get("transactionInfo");
         transactionInfo.put("merchantWebsite", "https://vexra-gateway.scott.com/checkout");
         Map<String, Object> cardInfo = new LinkedHashMap<>();
         cardInfo.put("cardNo", card.cardNo());
-        cardInfo.put("expirationMonth", TEST_CARD_EXPIRY_MONTH);
-        cardInfo.put("expirationYear", TEST_CARD_EXPIRY_YEAR);
-        cardInfo.put("securityCode", TEST_CARD_CVV);
+        cardInfo.put("expirationMonth", card.expirationMonth());
+        cardInfo.put("expirationYear", card.expirationYear());
+        cardInfo.put("securityCode", card.securityCode());
         payload.put("cardInfo", cardInfo);
         payload.put("billingCardHolderInfo", billingCardHolderInfo());
         if (includeInvalidThreeDs) {
@@ -1075,16 +1050,6 @@ class MerchantOpenApiMpgsLiveFlowTests {
      * @param orderId 商户本次请求唯一标识
      */
     private record RequestIdentity(String orderNo, String orderId) {
-    }
-
-    /**
-     * MPGS 官方基础测试卡。
-     *
-     * @param cardBrand 官方测试卡品牌，响应卡品牌应由平台按卡 BIN 识别后返回
-     * @param cardNo 测试卡号
-     * @param threeDsEnrolled 官方文档中的 3D 验证注册标识
-     */
-    private record OfficialTestCard(String cardBrand, String cardNo, String threeDsEnrolled) {
     }
 
     /**

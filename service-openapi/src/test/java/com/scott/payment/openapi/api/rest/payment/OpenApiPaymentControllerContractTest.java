@@ -2,6 +2,7 @@ package com.scott.payment.openapi.api.rest.payment;
 
 import com.scott.payment.component.web.version.ApiVersion;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiAuthorizationController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiCaptureController;
@@ -112,18 +113,18 @@ class OpenApiPaymentControllerContractTest {
 
     /** 创建类交易已返回业务 data 时，外层表示 OpenAPI 处理成功，业务结果留在密文内层。 */
     @Test
-    void shouldKeepFailedTransactionDataAndExposeT200AtEnvelopeLevel() {
+    void shouldKeepFailedTransactionDataAndExposeA0000AtEnvelopeLevel() {
         PaymentCreateVO response = new PaymentCreateVO();
         PaymentCreateVO.TransactionInfoVO transactionInfo = new PaymentCreateVO.TransactionInfoVO();
-        transactionInfo.setCode("F414");
-        transactionInfo.setMessage("Original transaction rejected.");
-        transactionInfo.setTransactionId("TX-F414-001");
+        transactionInfo.setCode(OpenApiResultCode.ORIGINAL_ACTION_NOT_ALLOWED.getCode());
+        transactionInfo.setMessage(OpenApiResultCode.ORIGINAL_ACTION_NOT_ALLOWED.getMessage());
+        transactionInfo.setTransactionId("TX-T1001-001");
         response.setTransactionInfo(transactionInfo);
 
         CommonResult<PaymentCreateVO> result = OpenApiPaymentResponseFactory.from(response);
 
-        assertThat(result.getCode()).isEqualTo("T200");
-        assertThat(result.getMessage()).isEqualTo("Success");
+        assertThat(result.getCode()).isEqualTo("A0000");
+        assertThat(result.getMessage()).isEqualTo("Request processed successfully.");
         assertThat(result.getData()).isSameAs(response);
     }
 

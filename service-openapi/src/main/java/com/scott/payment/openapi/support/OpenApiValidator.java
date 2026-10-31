@@ -1,7 +1,8 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import org.springframework.stereotype.Component;
 
 import jakarta.validation.ConstraintViolation;
@@ -47,6 +48,9 @@ public class OpenApiValidator {
             return;
         }
         ConstraintViolation<Object> violation = violations.iterator().next();
-        throw new ApiException(ApiResultEnum.PARAM_INVALID, violation.getMessage());
+        throw OpenApiContextualException.parameter(
+                OpenApiResultCode.PARAM_INVALID,
+                violation.getPropertyPath().toString(),
+                violation.getMessage());
     }
 }

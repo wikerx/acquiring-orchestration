@@ -58,11 +58,18 @@ public class SettlementManualReviewApplicationService {
     }
 
     public TaskResult preview(PreviewCommand command) {
-        return transactions.preview(command);
+        TaskResult result = transactions.preview(command);
+        LOGGER.info("手动结算预审任务已创建或幂等返回, event: SETTLEMENT_MANUAL_REVIEW_PREVIEW_END, taskNo: {}, reviewType: {}, taskStatus: {}, merchantId: {}, targetCurrency: {}, expectedCandidateCount: {}",
+                result.taskNo(), result.reviewType(), result.taskStatus(), result.merchantId(),
+                result.targetCurrency(), result.expectedCandidateCount());
+        return result;
     }
 
     public TaskResult start(String taskNo, StartCommand command, String expectedReviewType) {
-        return transactions.start(taskNo, command, expectedReviewType);
+        TaskResult result = transactions.start(taskNo, command, expectedReviewType);
+        LOGGER.info("手动结算预审任务已启动或幂等返回, event: SETTLEMENT_MANUAL_REVIEW_START_END, taskNo: {}, reviewType: {}, taskStatus: {}, expectedCandidateCount: {}",
+                result.taskNo(), result.reviewType(), result.taskStatus(), result.expectedCandidateCount());
+        return result;
     }
 
     public TaskResult get(String taskNo, String expectedReviewType) {
@@ -84,8 +91,11 @@ public class SettlementManualReviewApplicationService {
             } else {
                 transactions.processClaimed(task.getTaskNo(), owner, chunkSize, nowUtc());
             }
+            LOGGER.info("手动结算预审任务分段处理完成, event: SETTLEMENT_MANUAL_REVIEW_CHUNK_END, taskNo: {}, processingAction: {}",
+                    task.getTaskNo(), "CANCELLING".equals(task.getTaskStatus())
+                            ? "COMPENSATE" : "PROCESS");
         } catch (RuntimeException exception) {
-            LOGGER.warn("Manual settlement review task processing failed, taskNo={}, failureType={}",
+            LOGGER.warn("手动结算预审任务处理失败，准备记录补偿状态, event: SETTLEMENT_MANUAL_REVIEW_CHUNK_FAILED, taskNo: {}, exceptionType: {}",
                     task.getTaskNo(), exception.getClass().getSimpleName());
             transactions.recordFailure(task.getTaskNo(), exception, maximumDuration, nowUtc());
         }

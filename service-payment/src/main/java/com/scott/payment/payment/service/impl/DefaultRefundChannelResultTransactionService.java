@@ -16,13 +16,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultRefundChannelResultTransactionService
- * @date : 2026-07-24 00:00
- * @email : scott_x@163.com
- * @description : Refund 渠道结果默认事务实现，使用 REQUIRES_NEW 保存同步结果并通过 CAS 推进退款动作。
- * @status : create
+ * 退款渠道结果的独立事务服务。
+ *
+ * <p>退款结果只落到已准备且可定位的退款动作。累计退款金额仅由状态 CAS 获胜的成功动作更新，
+ * 并与终态 Outbox 在同一事务提交，防止重复响应或并发回调造成重复退款记账。</p>
  */
 @Service
 public class DefaultRefundChannelResultTransactionService implements RefundChannelResultTransactionService {
@@ -64,6 +61,7 @@ public class DefaultRefundChannelResultTransactionService implements RefundChann
             return false;
         }
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+        // 重新读取主库动作与原交易主单，确保累计退款基于最新持久化事实。
         TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionIdPrimary(
                 resultDTO.getTransactionId(), preparationResultDTO.getCommandDTO().getTransactionDateTime());
         TransactionOrderDO sourceOrderDO = transactionRecordService.findOrderPrimary(
@@ -71,6 +69,7 @@ public class DefaultRefundChannelResultTransactionService implements RefundChann
         if (operationDO == null || sourceOrderDO == null) {
             return false;
         }
+        // 状态 CAS 与累计退款更新必须作为一个原子业务动作至多成功一次。
         boolean statusChanged = transactionRecordService.completeRefundChannelResult(
                 operationDO,
                 sourceOrderDO,

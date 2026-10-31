@@ -1,7 +1,6 @@
 package com.scott.payment.openapi.service.impl;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
@@ -187,6 +186,7 @@ class PaymentServiceImplTests {
         assertThat(responseVO.getTransactionInfo().get(0).getTransactionId()).isEqualTo("202607120001000001");
         assertThat(responseVO.getTransactionInfo().get(0).getRootTransactionDateTime()).isNull();
         assertThat(responseVO.getTransactionInfo().get(0).getTransactionStatus()).isEqualTo("PROCESSING");
+        assertThat(responseVO.getTransactionInfo().get(0).getCode()).isEqualTo("T0001");
         assertThat(responseVO.getTransactionInfo().get(0).getMerchantWebsite())
                 .isEqualTo("https://merchant-shop.example/checkout?cart=ABC123");
     }
@@ -235,7 +235,7 @@ class PaymentServiceImplTests {
     }
 
     @Test
-    void shouldReturnUnifiedMessageAndHideInternalReasonForFailedPayment() {
+    void shouldReturnSystemErrorAndHideInternalReasonForLegacyFailedPayment() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         paymentInternalClient.nextPaymentStatus = "FAILED";
         paymentInternalClient.nextMerchantResponseCode = "F210";
@@ -247,12 +247,14 @@ class PaymentServiceImplTests {
 
         String responseJson = JsonUtils.toJsonString(paymentService.createPayment("encrypted-body", buildRequest()));
 
-        assertThat(responseJson).contains("\"code\":\"F210\"");
-        assertThat(responseJson).contains("\"message\":\"The transaction was declined; please contact your card issuer or try again.\"");
+        // FAILED 是终态，不能再投影为仅允许与 PROCESSING/PENDING 并存的 F3000。
+        assertThat(responseJson).contains("\"code\":\"F2000\"");
+        assertThat(responseJson).contains("\"message\":\"Processing could not be completed. Check the original order or contact support.\"");
         assertThat(responseJson).contains("\"totalAuthorizedAmount\":0");
         assertThat(responseJson).contains("\"totalCapturedAmount\":0");
         assertThat(responseJson).doesNotContain("failReasonCode");
         assertThat(responseJson).doesNotContain("failReasonMessage");
+        assertThat(responseJson).doesNotContain("pendingReasonCode");
         assertThat(responseJson).doesNotContain("Unexpected parameter");
         assertThat(responseJson).doesNotContain("CHANNEL_REQUEST_FAILED");
     }
@@ -262,7 +264,9 @@ class PaymentServiceImplTests {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         paymentInternalClient.nextPaymentStatus = "FAILED";
         paymentInternalClient.nextMerchantResponseCode = "F210";
-        paymentInternalClient.nextMerchantResponseMessage = ApiResultEnum.PAYMENT_REJECTED.getMessage();
+        // 支付核心返回的是待兼容内部文案；OpenAPI 响应必须由 V1.3 目录重新投影。
+        paymentInternalClient.nextMerchantResponseMessage =
+                "The transaction was declined; please contact your card issuer or try again.";
         paymentInternalClient.nextFailReasonCode = "CHANNEL_DECLINED";
         paymentInternalClient.nextFailReasonMessage = "MPGS declined by issuer";
         PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);
@@ -270,10 +274,12 @@ class PaymentServiceImplTests {
 
         String responseJson = JsonUtils.toJsonString(paymentService.createPayment("encrypted-body", buildRequest()));
 
-        assertThat(responseJson).contains("\"code\":\"F210\"");
-        assertThat(responseJson).contains("\"message\":\"The transaction was declined; please contact your card issuer or try again.\"");
+        assertThat(responseJson).contains("\"code\":\"F1000\"");
+        assertThat(responseJson).contains("\"message\":\"The transaction was declined by the issuer bank. Check the original order, then ask the payer to contact their bank or use another payment method when applicable.\"");
+        assertThat(responseJson).doesNotContain("failReasonCode");
+        assertThat(responseJson).doesNotContain("failReasonMessage");
+        assertThat(responseJson).doesNotContain("pendingReasonCode");
         assertThat(responseJson).doesNotContain("MPGS declined by issuer");
-        assertThat(responseJson).doesNotContain("CHANNEL_DECLINED");
         assertThat(responseJson).doesNotContain("05: Declined");
     }
 
@@ -300,7 +306,7 @@ class PaymentServiceImplTests {
         assertThat(responseJson).contains("\"totalAuthorizedAmount\":12.34");
         assertThat(responseJson).contains("\"totalCapturedAmount\":0");
         assertThat(responseJson).contains("\"totalRefundAmount\":0");
-        assertThat(responseJson).contains("\"code\":\"T200\"");
+        assertThat(responseJson).contains("\"code\":\"T0000\"");
         assertThat(responseJson).contains("\"message\":\"Success\"");
         assertThat(responseJson).contains("\"transactionType\":\"AUTHORIZATION\"");
         assertThat(responseJson).contains("\"cardBrand\":\"MASTERCARD\"");
@@ -316,7 +322,7 @@ class PaymentServiceImplTests {
     }
 
     @Test
-    void shouldEchoMerchantRequestAndHideInternalReasonForFailedAuthorization() {
+    void shouldEchoMerchantRequestAndHideInternalReasonForLegacyFailedAuthorization() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         paymentInternalClient.nextAuthorizationStatus = "FAILED";
         paymentInternalClient.nextMerchantResponseCode = "F210";
@@ -338,8 +344,9 @@ class PaymentServiceImplTests {
         assertThat(responseJson).contains("\"totalAuthorizedAmount\":0");
         assertThat(responseJson).contains("\"totalCapturedAmount\":0");
         assertThat(responseJson).contains("\"totalRefundAmount\":0");
-        assertThat(responseJson).contains("\"code\":\"F210\"");
-        assertThat(responseJson).contains("\"message\":\"The transaction was declined; please contact your card issuer or try again.\"");
+        // 遗留失败记录即使原因名含 request failed，也不能把终态重新解释成结果待确认。
+        assertThat(responseJson).contains("\"code\":\"F2000\"");
+        assertThat(responseJson).contains("\"message\":\"Processing could not be completed. Check the original order or contact support.\"");
         assertThat(responseJson).contains("\"transactionType\":\"AUTHORIZATION\"");
         assertThat(responseJson).contains("\"cardBrand\":\"MASTERCARD\"");
         assertThat(responseJson).contains("\"description\":\"authorization expected channel failure\"");
@@ -348,6 +355,7 @@ class PaymentServiceImplTests {
         assertThat(responseJson).doesNotContain("\"cardInfo\"");
         assertThat(responseJson).doesNotContain("failReasonCode");
         assertThat(responseJson).doesNotContain("failReasonMessage");
+        assertThat(responseJson).doesNotContain("pendingReasonCode");
         assertThat(responseJson).doesNotContain("Unexpected parameter");
         assertThat(responseJson).doesNotContain("CHANNEL_REQUEST_FAILED");
         assertThat(responseJson).doesNotContain("Channel rejected");
@@ -728,6 +736,10 @@ class PaymentServiceImplTests {
             transactionInfoDTO.setMessage(createResponseDTO.getMerchantResponseMessage());
             transactionInfoDTO.setTransactionType(createResponseDTO.getTransactionType());
             transactionInfoDTO.setTransactionStatus(createResponseDTO.getStatus());
+            transactionInfoDTO.setProcessStage(createResponseDTO.getProcessStage());
+            transactionInfoDTO.setFailReasonCode(createResponseDTO.getFailReasonCode());
+            transactionInfoDTO.setFailReasonMessage(createResponseDTO.getFailReasonMessage());
+            transactionInfoDTO.setPendingReasonCode(createResponseDTO.getPendingReasonCode());
             transactionInfoDTO.setTransactionDateTime(createResponseDTO.getTransactionDateTime());
             transactionInfoDTO.setRootTransactionDateTime(requestDTO.getTransactionInfo().getRootTransactionDateTime());
             transactionInfoDTO.setPaymentMethod(createResponseDTO.getPaymentMethod());

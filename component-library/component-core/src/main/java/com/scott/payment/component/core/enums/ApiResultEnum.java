@@ -171,6 +171,12 @@ public enum ApiResultEnum implements IResult {
     MERCHANT_CONFIG_NOT_FOUND("F409", "Merchant config not found"),
 
     /**
+     * 商户支付配置存在，但当前支付方式、卡品牌或 MID 组合不可用。
+     */
+    MERCHANT_PAYMENT_CONFIG_UNAVAILABLE(
+            "F409001", "Merchant payment configuration is unavailable"),
+
+    /**
      * 卡类型或卡品牌不支持。
      */
     CARD_NOT_SUPPORTED("F410", "Card not support"),
@@ -201,6 +207,12 @@ public enum ApiResultEnum implements IResult {
     INTERNAL_SERVER_ERROR("F500", "The system is busy; please try again later."),
 
     /**
+     * 支付核心必需的状态机或其他平台组件未配置，属于平台故障而非商户请求不支持。
+     */
+    PAYMENT_CORE_CONFIG_UNAVAILABLE(
+            "F500001", "Payment core configuration is unavailable"),
+
+    /**
      * 上游服务不可用或响应异常。
      */
     BAD_GATEWAY("F502", "Bad gateway"),
@@ -214,6 +226,18 @@ public enum ApiResultEnum implements IResult {
      * 商户订单号已存在。
      */
     ORDER_ALREADY_EXISTS("F510", "Order already exist"),
+
+    /**
+     * 同一幂等作用域和标识已绑定不同请求内容。
+     */
+    IDEMPOTENCY_REQUEST_CONFLICT(
+            "F510001", "Idempotency identifier is associated with a different request"),
+
+    /**
+     * 原交易已有互斥动作正在处理，当前动作不能并发推进。
+     */
+    TRANSACTION_ACTION_IN_PROGRESS(
+            "F510002", "A conflicting transaction action is already in progress"),
 
     /**
      * 订单不存在。

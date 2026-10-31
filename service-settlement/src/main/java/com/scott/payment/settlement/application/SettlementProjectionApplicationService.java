@@ -11,6 +11,8 @@ import com.scott.payment.settlement.entity.SettlementOperationIdentityDO;
 import com.scott.payment.settlement.entity.SettlementProjectionTaskDO;
 import com.scott.payment.settlement.exception.SettlementProjectionProcessingException;
 import com.scott.payment.settlement.mapper.SettlementProjectionMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
@@ -19,32 +21,20 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SettlementProjectionApplicationService
- * @date : 2026-09-01 00:00
- * @email : scott_x@163.com
- * @description : 编排结算后交易投影与事件 Outbox；仅真实 CLEARING_REVISION 候选更新交易主单/动作单，状态投影和冻结消息在同一交易库事务提交。
- * @status : create
+ * 结算后交易状态投影与事件 Outbox 编排。
+ *
+ * <p>只有真实 CLEARING_REVISION 候选可以更新交易财务状态；动作单、生命周期主单和冻结消息
+ * 在同一 transaction 主库事务提交，失败状态则在主事务回滚后独立记录。</p>
  */
 @Service
 public class SettlementProjectionApplicationService {
 
-    /**
-     * 处理失败码，用于补偿策略、告警聚合和后台排障，不直接暴露底层异常。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            SettlementProjectionApplicationService.class);
+
+    /** 投影事务失败时写入任务表的稳定失败码。 */
     private static final String FAILURE_CODE = "SETTLEMENT_PROJECTION_EXECUTION_FAILED";
-    /**
-     * {@code MAX_BACKOFF_MINUTES}常量，统一 {@code SettlementProjectionApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 投影失败指数退避的最大分钟数。 */
     private static final int MAX_BACKOFF_MINUTES = 60;
 
     private final SettlementProjectionMapper projectionMapper;
@@ -86,6 +76,9 @@ public class SettlementProjectionApplicationService {
                     || projectionMapper.markCompleted(task.getTaskNo(), task.getVersion(), now) != 1) {
                 throw new IllegalStateException("settlement projection outbox or completion write failed");
             }
+            LOGGER.info("结算交易投影事务写入完成, event: SETTLEMENT_PROJECTION_WRITE_END, taskNo: {}, settlementBatchNo: {}, projectionAction: {}, transactionId: {}",
+                    task.getTaskNo(), task.getSettlementBatchNo(),
+                    task.getProjectionAction(), task.getTransactionId());
             return true;
         } catch (RuntimeException exception) {
             throw new SettlementProjectionProcessingException(
@@ -105,9 +98,14 @@ public class SettlementProjectionApplicationService {
     public boolean recordFailure(SettlementProjectionProcessingException failure, LocalDateTime now) {
         int retryCount = Math.max(0, failure.getExpectedRetryCount());
         long delayMinutes = Math.min(1L << Math.min(retryCount, 6), MAX_BACKOFF_MINUTES);
-        return projectionMapper.recordFailure(
+        boolean recorded = projectionMapper.recordFailure(
                 failure.getTaskNo(), retryCount, failure.getExpectedVersion(),
                 failure.getFailureCode(), now.plusMinutes(delayMinutes), now) == 1;
+        if (recorded) {
+            LOGGER.warn("结算交易投影失败已进入重试退避, event: SETTLEMENT_PROJECTION_RETRY_SCHEDULED, taskNo: {}, failureCode: {}, retryCount: {}, delayMinutes: {}",
+                    failure.getTaskNo(), failure.getFailureCode(), retryCount + 1, delayMinutes);
+        }
+        return recorded;
     }
 
     /** 从冻结任务和最小交易身份构造非敏感结算事件，消息组固定使用 operationId 保序。 */

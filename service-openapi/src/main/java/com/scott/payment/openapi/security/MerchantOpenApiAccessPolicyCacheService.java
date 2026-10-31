@@ -78,7 +78,7 @@ public class MerchantOpenApiAccessPolicyCacheService {
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: SECURITY_CACHE_GUARD_CHECK_FAILED cacheName: {} exceptionType: {}",
+                    "OpenAPI访问策略缓存保护检查失败, event: SECURITY_CACHE_GUARD_CHECK_FAILED, cacheName: {}, exceptionType: {}",
                     PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
                     exception.getClass().getSimpleName()
             );

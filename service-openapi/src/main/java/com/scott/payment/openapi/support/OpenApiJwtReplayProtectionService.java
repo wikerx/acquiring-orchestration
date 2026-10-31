@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.support.RedisKeyDigest;
 import lombok.extern.slf4j.Slf4j;
@@ -77,8 +77,7 @@ public class OpenApiJwtReplayProtectionService {
             throw new IllegalStateException("OpenAPI JWT replay protection requires StringRedisTemplate");
         }
         if (this.stringRedisTemplate == null) {
-            log.warn("event: OPENAPI_REPLAY_PROTECTION_DEGRADED reason: STRING_REDIS_TEMPLATE_MISSING "
-                    + "replayRequired: false");
+            log.warn("OpenAPI JWT防重放保护已降级, event: OPENAPI_REPLAY_PROTECTION_DEGRADED, reason: STRING_REDIS_TEMPLATE_MISSING, replayRequired: false");
         }
     }
 
@@ -94,7 +93,7 @@ public class OpenApiJwtReplayProtectionService {
      */
     public void checkAndMark(String merchantId, String jwtId, long expiresAt) {
         if (!StringUtils.hasText(merchantId) || !StringUtils.hasText(jwtId)) {
-            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
+            throw new ApiException(OpenApiResultCode.AUTHENTICATION_FAILED);
         }
         if (stringRedisTemplate == null) {
             return;
@@ -114,10 +113,10 @@ public class OpenApiJwtReplayProtectionService {
             return;
         }
         if (Boolean.FALSE.equals(firstRequest)) {
-            log.warn("开放接口JWT防重放命中，商户号：{}，jti摘要长度：{}",
+            log.warn("OpenAPI JWT检测到重复请求, event: OPENAPI_REPLAY_REJECTED, merchantId: {}, jtiDigestLength: {}",
                     merchantId,
                     jwtId.length());
-            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
+            throw new ApiException(OpenApiResultCode.SECURITY_REPLAY_REJECTED);
         }
     }
 
@@ -129,10 +128,10 @@ public class OpenApiJwtReplayProtectionService {
      */
     private void handleRedisUnavailable(String merchantId, String failureType) {
         if (replayRequired) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR);
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR);
         }
         if (redisFallbackWarned.compareAndSet(false, true)) {
-            log.warn("开放接口JWT防重放Redis暂不可用，本地降级为仅校验JWT本身，商户号：{}，错误类型：{}",
+            log.warn("OpenAPI JWT防重放Redis不可用并启用本地降级, event: OPENAPI_REPLAY_PROTECTION_FALLBACK, merchantId: {}, exceptionType: {}",
                     merchantId,
                     failureType);
         }

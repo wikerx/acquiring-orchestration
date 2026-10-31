@@ -18,66 +18,28 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionQueryCacheService
- * @date : 2026-08-24 00:00
- * @email : scott_x@163.com
- * @description : 交易查询缓存默认实现，以明文 JSON 保存商户查询返回模型，禁止卡号、CVV 和有效期字段进入 Redis，并在故障时回源数据库。
- * @status : create
+ * 商户交易查询的可降级缓存服务。
+ *
+ * <p>Redis 只承担查询减压，不是交易事实来源；任何缓存异常都回源数据库。订单 generation
+ * 负责失效旧缓存并阻止并发慢查询回填过期结果。缓存内容为明文 JSON，因此写入前必须阻断
+ * 卡号、CVV、有效期等卡认证字段。</p>
  */
 @Slf4j
 @Service
 public class DefaultTransactionQueryCacheService implements TransactionQueryCacheService {
 
-    /**
-     * {@code BASE_TTL_SECONDS}常量，统一 {@code DefaultTransactionQueryCacheService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 查询结果基础 TTL 为三天。 */
     static final long BASE_TTL_SECONDS = Duration.ofDays(3).toSeconds();
-    /**
-     * {@code MAX_JITTER_SECONDS}常量，统一 {@code DefaultTransactionQueryCacheService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 最多增加一天随机抖动，避免同批缓存集中失效。 */
     static final long MAX_JITTER_SECONDS = Duration.ofDays(1).toSeconds();
-    /**
-     * {@code GENERATION_TTL}常量，统一 {@code DefaultTransactionQueryCacheService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** generation 比查询缓存多保留一天，确保旧代际不会在结果过期前重新生效。 */
     static final Duration GENERATION_TTL = Duration.ofDays(5);
 
-    /**
-     * {@code CACHE_SCHEMA_VERSION}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 缓存结构变更时升级版本，避免新旧 JSON 契约共用同一 Key。 */
     private static final String CACHE_SCHEMA_VERSION = "v1";
-    /**
-     * {@code INITIAL_GENERATION}常量，统一 {@code DefaultTransactionQueryCacheService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 尚未发生失效操作的订单使用初始代际。 */
     private static final String INITIAL_GENERATION = "0";
-    /**
-     * {@code ORDER_QUERY_VARIANT}常量，统一 {@code DefaultTransactionQueryCacheService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 未指定平台交易号时，缓存商户订单维度的查询结果。 */
     private static final String ORDER_QUERY_VARIANT = "order";
 
     /** 禁止任何请求嵌套对象把卡认证字段带入明文查询缓存。 */
@@ -108,6 +70,7 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
             return databaseLoader.get();
         }
         RedisStringService redis = redisStringService.get();
+        // 读取前冻结 generation，数据库回源后只有代际未变化才允许回填。
         String generation = currentGeneration(redis, commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
         if (generation == null) {
             return databaseLoader.get();
@@ -135,10 +98,11 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
         try {
             RedisStringService redis = redisStringService.get();
             String key = generationKey(merchantId, merchantOrderNo);
+            // 递增代际使所有旧 Key 立即失效，无需扫描删除不同查询维度的缓存。
             redis.increment(key, 1L);
             return redis.expire(key, GENERATION_TTL);
         } catch (RuntimeException exception) {
-            log.warn("event: TRANSACTION_QUERY_CACHE_INVALIDATION_FALLBACK exceptionType: {}",
+            log.warn("交易查询缓存失效降级, event: TRANSACTION_QUERY_CACHE_INVALIDATION_FALLBACK, exceptionType: {}",
                     exception.getClass().getSimpleName());
             return false;
         }
@@ -152,12 +116,13 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
                 return null;
             }
             if (!(value instanceof String json) || !StringUtils.hasText(json)) {
+                // 非字符串或空内容不符合缓存契约，删除后按未命中回源。
                 redis.delete(cacheKey);
                 return null;
             }
             return JsonUtils.parseObject(json, PaymentQueryResultDTO.class);
         } catch (RuntimeException exception) {
-            log.warn("event: TRANSACTION_QUERY_CACHE_READ_FALLBACK exceptionType: {}",
+            log.warn("交易查询缓存读取降级, event: TRANSACTION_QUERY_CACHE_READ_FALLBACK, exceptionType: {}",
                     exception.getClass().getSimpleName());
             return null;
         }
@@ -175,17 +140,18 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
         try {
             String currentGeneration = currentGeneration(
                     redis, commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
+            // 回源期间若交易状态已推进，丢弃本次旧快照，防止覆盖新代际查询结果。
             if (!expectedGeneration.equals(currentGeneration)) {
                 return;
             }
             String json = JsonUtils.toJsonString(loaded);
             if (FORBIDDEN_CARD_FIELD.matcher(json).find()) {
-                log.error("event: TRANSACTION_QUERY_CACHE_WRITE_REJECTED reason=forbiddenCardField");
+                log.error("交易查询缓存写入被拒绝, event: TRANSACTION_QUERY_CACHE_WRITE_REJECTED, reason: forbiddenCardField");
                 return;
             }
             redis.set(cacheKey, json, jitteredTransactionTtl());
         } catch (RuntimeException exception) {
-            log.warn("event: TRANSACTION_QUERY_CACHE_WRITE_FALLBACK exceptionType: {}",
+            log.warn("交易查询缓存写入降级, event: TRANSACTION_QUERY_CACHE_WRITE_FALLBACK, exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }
@@ -196,7 +162,7 @@ public class DefaultTransactionQueryCacheService implements TransactionQueryCach
             Object value = redis.get(generationKey(merchantId, merchantOrderNo));
             return value == null ? INITIAL_GENERATION : String.valueOf(value);
         } catch (RuntimeException exception) {
-            log.warn("event: TRANSACTION_QUERY_GENERATION_READ_FALLBACK exceptionType: {}",
+            log.warn("交易查询缓存代际读取降级, event: TRANSACTION_QUERY_GENERATION_READ_FALLBACK, exceptionType: {}",
                     exception.getClass().getSimpleName());
             return null;
         }

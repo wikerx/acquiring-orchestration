@@ -1,7 +1,9 @@
 package com.scott.payment.gateway.filter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.gateway.config.GatewayIngressProperties;
+import com.scott.payment.gateway.support.GatewayOpenApiErrorWriter;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -19,7 +21,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
@@ -144,7 +145,10 @@ class CheckoutGatewayIngressFilterTests {
         properties.setSecret(SECRET);
         properties.setMaxRequestBodyBytes(8);
         CheckoutGatewayIngressFilter filter = new CheckoutGatewayIngressFilter(
-                properties, () -> NOW, () -> "nonce-from-gateway");
+                properties,
+                new GatewayOpenApiErrorWriter(new ObjectMapper()),
+                () -> NOW,
+                () -> "nonce-from-gateway");
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .post("/api/rest/payment/v1/payment")
                 .body("123456789"));
@@ -152,6 +156,9 @@ class CheckoutGatewayIngressFilterTests {
         filter.filter(exchange, current -> Mono.error(new AssertionError("oversized request was forwarded"))).block();
 
         assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, exchange.getResponse().getStatusCode());
+        assertEquals(
+                "{\"code\":\"A1008\",\"message\":\"The request content is too large. Reduce its size and submit again.\",\"data\":null}",
+                exchange.getResponse().getBodyAsString().block());
     }
 
     /** 非收银台路由不签名，但仍清除客户端伪造的内部入口头。 */
@@ -210,12 +217,18 @@ class CheckoutGatewayIngressFilterTests {
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exchange.getResponse().getStatusCode());
         assertNull(forwarded.get());
-        assertFalse(exchange.getResponse().getBodyAsString().block().isBlank());
+        assertEquals(
+                "{\"code\":\"F2000\",\"message\":\"Processing could not be completed. Check the original order or contact the merchant.\",\"data\":null}",
+                exchange.getResponse().getBodyAsString().block());
     }
 
     private CheckoutGatewayIngressFilter filter(String secret) {
         GatewayIngressProperties properties = new GatewayIngressProperties();
         properties.setSecret(secret);
-        return new CheckoutGatewayIngressFilter(properties, () -> NOW, () -> "nonce-from-gateway");
+        return new CheckoutGatewayIngressFilter(
+                properties,
+                new GatewayOpenApiErrorWriter(new ObjectMapper()),
+                () -> NOW,
+                () -> "nonce-from-gateway");
     }
 }

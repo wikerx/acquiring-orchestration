@@ -1,6 +1,6 @@
 package com.scott.payment.payment.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
@@ -37,7 +37,7 @@ class PaymentPersistedResultSupportTests {
 
         assertThat(result.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(result.getFailReasonCode()).isNull();
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
         assertThat(result.getAuthCode()).isEqualTo("AUTH-1");
         assertThat(result.getAcquirerReferenceNo()).isEqualTo("ARN-1");
         assertThat(result.getTotalAuthorizedAmount()).isEqualByComparingTo("12.34");
@@ -56,9 +56,9 @@ class PaymentPersistedResultSupportTests {
 
         PaymentPersistedResultSupport.overwriteAuthoritativeFields(result, operation, failedPaymentOrder());
 
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_FAILED.getCode());
         assertThat(result.getFailReasonMessage()).doesNotContain("secret-host");
-        assertThat(result.getMerchantResponseMessage()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        assertThat(result.getMerchantResponseMessage()).isEqualTo(OpenApiResultCode.TRANSACTION_FAILED.getMessage());
     }
 
     @Test
@@ -76,9 +76,14 @@ class PaymentPersistedResultSupportTests {
         PaymentPersistedResultSupport.overwriteAuthoritativeFields(result, operation, failedPaymentOrder());
 
         assertThat(result.getFailReasonMessage())
-                .isEqualTo("Payment failed. Please use the transaction ID to query details or contact support.");
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
-        assertThat(result.getMerchantResponseMessage()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+                .isEqualTo("The transaction was declined by the issuer bank. "
+                        + "Check the original order, then ask the payer to contact their bank "
+                        + "or use another payment method when applicable.");
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.CHANNEL_RETURNED_ERROR.getCode());
+        assertThat(result.getMerchantResponseMessage())
+                .isEqualTo("The transaction was declined by the issuer bank. "
+                        + "Check the original order, then ask the payer to contact their bank "
+                        + "or use another payment method when applicable.");
         assertThat(result.getMerchantResponseMessage())
                 .doesNotContain("DO_NOT_HONOR_05", "issuer raw decline detail");
     }
@@ -100,8 +105,8 @@ class PaymentPersistedResultSupportTests {
         assertThat(result.getPendingReasonCode()).isNull();
         assertThat(result.getFailReasonCode()).isNull();
         assertThat(result.getFailReasonMessage()).isNull();
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
-        assertThat(result.getMerchantResponseMessage()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getMessage());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getCode());
+        assertThat(result.getMerchantResponseMessage()).isEqualTo(OpenApiResultCode.TRANSACTION_SUCCESS.getMessage());
     }
 
     @Test
@@ -121,9 +126,9 @@ class PaymentPersistedResultSupportTests {
         assertThat(result.getPendingReasonCode()).isNull();
         assertThat(result.getFailReasonCode()).isNull();
         assertThat(result.getFailReasonMessage())
-                .isEqualTo("Payment failed. Please use the transaction ID to query details or contact support.");
-        assertThat(result.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
-        assertThat(result.getMerchantResponseMessage()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+                .isEqualTo(OpenApiResultCode.TRANSACTION_FAILED.getMessage());
+        assertThat(result.getMerchantResponseCode()).isEqualTo(OpenApiResultCode.TRANSACTION_FAILED.getCode());
+        assertThat(result.getMerchantResponseMessage()).isEqualTo(OpenApiResultCode.TRANSACTION_FAILED.getMessage());
         assertThat(result.getFailReasonMessage()).doesNotContain("internal");
     }
 

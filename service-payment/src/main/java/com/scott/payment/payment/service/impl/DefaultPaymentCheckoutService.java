@@ -6,6 +6,10 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageAudience;
+import com.scott.payment.component.core.openapi.result.OpenApiMessageLocale;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionProjection;
+import com.scott.payment.component.core.openapi.result.OpenApiTransactionResultProjector;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
@@ -82,13 +86,11 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentCheckoutService
- * @date : 2026-08-08 15:05
- * @email : scott_x@163.com
- * @description : 编排 Hosted Checkout 会话、支付尝试、3DS、交易提交及付款人状态查询，并保护令牌和卡数据安全边界
- * @status : create
+ * Hosted Checkout 会话与付款尝试编排服务。
+ *
+ * <p>该服务管理访问令牌、会话、支付尝试、3DS 回跳与付款人结果页，并把真实资金状态交给
+ * 支付核心服务维护。卡数据只在必要的内存调用链中短暂存在；Checkout 页面状态、渠道状态和
+ * 支付核心状态相互隔离，任何轮询或晚到回跳都不得绕过 CAS 覆盖已完成状态。</p>
  */
 @Service
 @Slf4j
@@ -515,6 +517,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         if (!isThreeDsTimedOut(attemptDO, now)) {
             return new PaymentStatusContext(sessionDO, attemptDO, requiresCoreTimeoutConvergence(attemptDO));
         }
+        // 超时收敛必须同时校验截止时间、当前状态和版本，防止轮询覆盖刚完成的 3DS 回跳。
         int updated = attemptMapper.markThreeDsTimedOutCas(
                 attemptDO.getCheckoutAttemptId(),
                 FAILURE_THREE_DS_AUTHENTICATION_TIMEOUT,
@@ -559,7 +562,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         try {
             authenticationRecordService.recordTimeout(attemptDO);
         } catch (RuntimeException exception) {
-            log.warn("event: THREE_DS_AUDIT_WRITE_FAILED transactionId: {} phase: TIMEOUT errorType: {}",
+            log.warn("3DS超时审计写入失败, event: THREE_DS_AUDIT_WRITE_FAILED, transactionId: {}, phase: TIMEOUT, errorType: {}",
                     attemptDO == null ? null : attemptDO.getTransactionId(),
                     exception.getClass().getSimpleName());
         }
@@ -1203,6 +1206,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      */
     private PaymentCheckoutPaymentResultDTO applyPreChannelFailure(PaymentSubmissionContext context) {
         LocalDateTime now = LocalDateTime.now();
+        // 前置编排失败尚未调用渠道，但已准备的核心交易必须幂等收敛，避免永久停留在准备态。
         failPreparedCoreTransaction(context.attemptDO(), PaymentFailureReasonEnum.ROUTE_FAILED.getCode(),
                 "checkout routing or 3DS preparation failed");
         PaymentCheckoutAttemptDO latestAttempt = markAttemptResult(context.attemptDO(),
@@ -1229,7 +1233,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                                       RuntimeException exception) {
         PaymentCheckoutSessionDO sessionDO = context == null ? null : context.sessionDO();
         PaymentCheckoutAttemptDO attemptDO = context == null ? null : context.attemptDO();
-        log.warn("event: CHECKOUT_PRE_CHANNEL_FAILED phase: {} checkoutSessionId: {} checkoutAttemptId: {} transactionId: {} exceptionType: {} reason: {}",
+        log.warn("收银台渠道提交前处理失败, event: CHECKOUT_PRE_CHANNEL_FAILED, phase: {}, checkoutSessionId: {}, checkoutAttemptId: {}, transactionId: {}, exceptionType: {}, reason: {}",
                 phase,
                 sessionDO == null ? null : sessionDO.getCheckoutSessionId(),
                 attemptDO == null ? null : attemptDO.getCheckoutAttemptId(),
@@ -1532,22 +1536,31 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
     /**
      * 输出付款人失败提示，内部渠道原因不直接暴露给浏览器。
      */
+    /**
+     * 构造付款人可见失败信息。会话语言只控制收银台界面，本字段属于公开协议，固定使用付款人英文安全文案。
+     */
     private PaymentCheckoutPaymentResultDTO.FailureDTO failureDetail(PaymentCheckoutSessionDO sessionDO,
                                                                      PaymentCheckoutAttemptDO attemptDO) {
         if (sessionDO == null) {
             return null;
         }
         PaymentCheckoutPaymentResultDTO.FailureDTO failureDTO = new PaymentCheckoutPaymentResultDTO.FailureDTO();
+        OpenApiTransactionProjection projection;
         if (attemptDO == null || attemptDO.getFailureReasonCode() == null) {
             if (!isPaymentTimeout(sessionDO)) {
                 return null;
             }
-            failureDTO.setReasonCode("PAYMENT_TIMEOUT");
-            failureDTO.setMessage("Payment was not completed within the allowed time.");
+            projection = OpenApiTransactionResultProjector.project(
+                    PaymentTransactionStatusEnum.FAILED.getCode(),
+                    sessionDO.getProcessStage(), "PAYMENT_TIMEOUT", null, null);
         } else {
-            failureDTO.setReasonCode(attemptDO.getFailureReasonCode());
-            failureDTO.setMessage(attemptDO.getPayerVisibleMessage());
+            projection = OpenApiTransactionResultProjector.project(
+                    attemptDO.getChannelStatus(), attemptDO.getProcessStage(),
+                    attemptDO.getFailureReasonCode(), null, attemptDO.getChannelResponseCode());
         }
+        failureDTO.setReasonCode(projection.resultCode().getCode());
+        failureDTO.setMessage(projection.message(
+                OpenApiMessageAudience.PAYER, OpenApiMessageLocale.EN_US));
         failureDTO.setRetryAllowed(mayStartPayment(sessionDO));
         return failureDTO;
     }
@@ -1563,7 +1576,10 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         return pollingDTO;
     }
 
-    /** 只为已形成 SUCCESS/FAILED 动作终态且配置 redirectUrl 的交易返回 Form POST。 */
+    /**
+     * 只为已形成 SUCCESS/FAILED 动作终态且配置 redirectUrl 的交易返回 Form POST。
+     * Form 会跨系统提交给商户，因此 message 固定使用商户英文文案，不跟随付款人页面语言。
+     */
     private PaymentCheckoutPaymentResultDTO.ActionDTO actionDetail(PaymentCheckoutSessionDO sessionDO,
                                                                     PaymentCheckoutAttemptDO attemptDO) {
         if (sessionDO == null || attemptDO == null
@@ -1587,12 +1603,12 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         form.setTransactionType(PaymentTransactionTypeEnum.PAYMENT.getCode());
         form.setTransactionStatus(attemptDO.getChannelStatus());
         form.setTransactionDateTime(attemptDO.getTransactionDateTime());
-        form.setCode(firstText(attemptDO.getChannelResponseCode(),
-                PaymentTransactionStatusEnum.SUCCESS.getCode().equals(attemptDO.getChannelStatus())
-                        ? ApiResultEnum.PAYMENT_SUCCESS.getCode() : ApiResultEnum.PAYMENT_REJECTED.getCode()));
-        form.setMessage(firstText(attemptDO.getChannelResponseMessage(),
-                PaymentTransactionStatusEnum.SUCCESS.getCode().equals(attemptDO.getChannelStatus())
-                        ? ApiResultEnum.PAYMENT_SUCCESS.getMessage() : ApiResultEnum.PAYMENT_REJECTED.getMessage()));
+        OpenApiTransactionProjection projection = OpenApiTransactionResultProjector.project(
+                attemptDO.getChannelStatus(), attemptDO.getProcessStage(),
+                attemptDO.getFailureReasonCode(), null, attemptDO.getChannelResponseCode());
+        form.setCode(projection.resultCode().getCode());
+        form.setMessage(projection.message(
+                OpenApiMessageAudience.MERCHANT, OpenApiMessageLocale.EN_US));
         actionDTO.setFormFields(form);
         return actionDTO;
     }
@@ -1884,7 +1900,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
      */
     private void validateIdempotentFingerprint(PaymentCheckoutSessionDO existed, PaymentCheckoutSessionCreateCommandDTO commandDTO) {
         if (!Objects.equals(existed.getRequestFingerprint(), commandDTO.getRequestFingerprint())) {
-            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+            throw new ServiceException(ApiResultEnum.IDEMPOTENCY_REQUEST_CONFLICT.getCode(),
                     "checkout session idempotency conflict");
         }
     }
@@ -1929,7 +1945,8 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                 && sessionDO.getLastSubmitTime() != null
                 && Integer.valueOf(1).equals(sessionDO.getRetryAllowed());
         if (!initialSubmission && !retrySubmission) {
-            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(), "checkout session is not payable");
+            throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED.getCode(),
+                    "checkout session is not payable");
         }
     }
 
@@ -2066,7 +2083,7 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
                         && (method.getBrands() == null || method.getBrands().stream()
                         .map(this::normalizeCode).anyMatch(cardBrand::equals)));
         if (!allowed) {
-            throw new ServiceException(ApiResultEnum.CARD_NOT_SUPPORTED.getCode(),
+            throw new ServiceException(ApiResultEnum.MERCHANT_PAYMENT_CONFIG_UNAVAILABLE.getCode(),
                     "current card brand is not supported by merchant channel MID");
         }
     }

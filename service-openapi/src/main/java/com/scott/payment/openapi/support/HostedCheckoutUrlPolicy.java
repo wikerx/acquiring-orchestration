@@ -1,7 +1,8 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
@@ -69,10 +70,12 @@ public class HostedCheckoutUrlPolicy {
             merchantUrlPolicy.validate(value);
         } catch (IllegalArgumentException exception) {
             if (fieldName != null && fieldName.toLowerCase(Locale.ROOT).contains("callback")) {
-                throw new ApiException(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED);
+                throw new ApiException(OpenApiResultCode.CALLBACK_URL_NOT_ALLOWED);
             }
-            throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                    fieldName + " is not allowed by the current environment URL policy");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    fieldName,
+                    "URL is not allowed by the current environment policy");
         }
         return value;
     }
@@ -114,7 +117,7 @@ public class HostedCheckoutUrlPolicy {
     private URI requirePlatformUri(String value, String targetName) {
         URI uri = parseHttpUri(value);
         if (uri == null) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR,
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR,
                     "system config is not a valid checkout frontend " + targetName);
         }
         return uri;

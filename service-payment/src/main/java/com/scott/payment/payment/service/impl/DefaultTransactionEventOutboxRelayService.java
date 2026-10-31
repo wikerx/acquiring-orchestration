@@ -28,13 +28,11 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultTransactionEventOutboxRelayService
- * @date : 2026-07-12 18:45
- * @email : scott_x@163.com
- * @description : 交易本地消息投递默认实现，位于 service-payment 服务实现层，通过本地消息表实现事务提交后 RocketMQ 最终一致投递。
- * @status : create
+ * 交易 Outbox 到 RocketMQ 的可靠投递服务。
+ *
+ * <p>Relay 使用数据库 claim/CAS 防止多个实例同时处理同一记录，并采用至少一次投递语义：
+ * MQ 已发送但 SENT 状态更新失败时允许再次发送，因此下游必须按消息号幂等。冻结的 JSON 负载
+ * 原样发送，避免重试时因重新序列化产生内容漂移。</p>
  */
 @Slf4j
 @Service
@@ -100,10 +98,11 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         String outcome = "failure";
         try {
             LocalDateTime now = LocalDateTime.now();
+            // 恢复超过租约的 PROCESSING 记录，处理实例宕机后留下的永久悬挂任务。
             int recovered = eventOutboxService.recoverStaleProcessing(
                     eventTime, now.minusSeconds(processingTimeoutSeconds), now);
             if (recovered > 0) {
-                log.warn("event: TRANSACTION_OUTBOX_PROCESSING_RECOVERED recoveredCount: {} eventQuarter: {}",
+                log.warn("交易Outbox超时任务已恢复, event: TRANSACTION_OUTBOX_PROCESSING_RECOVERED, recoveredCount: {}, eventQuarter: {}",
                         recovered, eventTime);
             }
             int batchSize = Math.max(limit, 1);
@@ -168,8 +167,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      */
     private boolean publishSingle(TransactionEventOutboxDO eventDO, LocalDateTime now) {
         long startNanos = System.nanoTime();
+        // claim 使用状态与版本条件竞争处理权，失败表示其他实例已处理或记录已不再到期。
         if (!eventOutboxService.claimForPublish(eventDO, now)) {
-            log.info("event: TRANSACTION_OUTBOX_CLAIM_SKIPPED eventNo: {} transactionId: {} version: {}",
+            log.info("交易Outbox抢占未成功, event: TRANSACTION_OUTBOX_CLAIM_SKIPPED, eventNo: {}, transactionId: {}, version: {}",
                     eventDO.getEventNo(), eventDO.getTransactionId(), eventDO.getVersion());
             return false;
         }
@@ -180,7 +180,7 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
             String traceId = StringUtils.hasText(message.getTraceId())
                     ? message.getTraceId() : TraceContext.getOrCreateTraceId();
             int retryCount = Math.max(eventDO.getRetryCount() == null ? 0 : eventDO.getRetryCount(), 0);
-            log.info("event: TRANSACTION_OUTBOX_PUBLISH_START stage=MQ traceId: {} eventNo: {} messageId: {} messageKey: {} retryCount: {} topic: {} tag: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} transactionType: {} transactionDateTime: {}",
+            log.info("开始投递交易Outbox消息, event: TRANSACTION_OUTBOX_PUBLISH_START, stage: MQ, traceId: {}, eventNo: {}, messageId: {}, messageKey: {}, retryCount: {}, topic: {}, tag: {}, transactionId: {}, operationId: {}, merchantId: {}, merchantOrderNo: {}, transactionType: {}, transactionDateTime: {}",
                     traceId,
                     eventDO.getEventNo(),
                     messageId,
@@ -195,9 +195,10 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                     eventDO.getTransactionType(),
                     eventDO.getTransactionDateTime());
             sendMessage(eventDO, message, messageId, traceId, retryCount);
+            // 发送与数据库更新无法构成分布式原子事务；CAS 失败时保留至少一次语义，不伪装成已完成。
             boolean updated = eventOutboxService.markSent(eventDO, LocalDateTime.now());
             if (!updated) {
-                log.warn("event: TRANSACTION_OUTBOX_MARK_SENT_CAS_FAILED stage=MQ traceId: {} eventNo: {} messageId: {} messageKey: {} transactionId: {} operationId: {} durationMs: {}",
+                log.warn("交易Outbox发送成功但状态更新竞争失败, event: TRANSACTION_OUTBOX_MARK_SENT_CAS_FAILED, stage: MQ, traceId: {}, eventNo: {}, messageId: {}, messageKey: {}, transactionId: {}, operationId: {}, durationMs: {}",
                         traceId,
                         eventDO.getEventNo(),
                         messageId,
@@ -206,7 +207,7 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                         eventDO.getOperationId(),
                         elapsedMillis(startNanos));
             } else {
-                log.info("event: TRANSACTION_OUTBOX_PUBLISH_END stage=MQ traceId: {} eventNo: {} messageId: {} messageKey: {} transactionId: {} operationId: {} status=SENT durationMs: {}",
+                log.info("交易Outbox消息投递完成, event: TRANSACTION_OUTBOX_PUBLISH_END, stage: MQ, traceId: {}, eventNo: {}, messageId: {}, messageKey: {}, transactionId: {}, operationId: {}, status: SENT, durationMs: {}",
                         traceId,
                         eventDO.getEventNo(),
                         messageId,
@@ -219,10 +220,11 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         } catch (Exception exception) {
             LocalDateTime nextRetryTime = now.plusMinutes(DEFAULT_RETRY_DELAY_MINUTES);
             String failureType = safeFailReason(exception);
+            // 失败原因只保存异常类型，避免异常正文携带冻结消息体或其他敏感数据。
             boolean failedStateRecorded = eventOutboxService.markFailed(
                     eventDO, nextRetryTime, failureType, now);
             if (!failedStateRecorded) {
-                log.error("event: TRANSACTION_OUTBOX_MARK_FAILED_CAS_FAILED stage=MQ traceId: {} eventNo: {} messageKey: {} transactionId: {} operationId: {} expectedVersion: {} errorType: {}",
+                log.error("交易Outbox失败状态更新竞争失败, event: TRANSACTION_OUTBOX_MARK_FAILED_CAS_FAILED, stage: MQ, traceId: {}, eventNo: {}, messageKey: {}, transactionId: {}, operationId: {}, expectedVersion: {}, errorType: {}",
                         TraceContext.getTraceId(),
                         eventDO.getEventNo(),
                         eventDO.getMessageKey(),
@@ -231,7 +233,7 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                         eventDO.getVersion(),
                         failureType);
             }
-            log.warn("event: TRANSACTION_OUTBOX_PUBLISH_FAILED stage=MQ traceId: {} eventNo: {} messageKey: {} transactionId: {} operationId: {} retryCount: {} nextRetryTime: {} errorType: {} stateRecorded: {} durationMs: {}",
+            log.warn("交易Outbox消息投递失败, event: TRANSACTION_OUTBOX_PUBLISH_FAILED, stage: MQ, traceId: {}, eventNo: {}, messageKey: {}, transactionId: {}, operationId: {}, retryCount: {}, nextRetryTime: {}, errorType: {}, stateRecorded: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     eventDO.getEventNo(),
                     eventDO.getMessageKey(),
@@ -355,6 +357,7 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
     }
 
     private BaseMqMessage buildMessage(TransactionEventOutboxDO eventDO) {
+        // 解析仅用于校验消息契约和读取 Header；真正发送的仍是数据库中已冻结的原始 JSON。
         if (MqTag.TRANSACTION_CLEARING_RETRY_DUE.equals(eventDO.getTag())) {
             ClearingRetryDueMessage retryMessage = JsonUtils.parseObject(
                     eventDO.getPayloadJson(), ClearingRetryDueMessage.class);

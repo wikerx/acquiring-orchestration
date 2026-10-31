@@ -3,6 +3,7 @@ package com.scott.payment.openapi.api.rest.notify.v1;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.id.GlobalIdConstants;
 import com.scott.payment.component.core.model.ApiResult;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackAcknowledgement;
 import com.scott.payment.channel.payment.dto.callback.VerifiedChannelEvent;
@@ -95,7 +96,7 @@ public class ChannelCallbackController {
                                      HttpServletRequest request,
                                      @RequestBody(required = false) byte[] rawBody) {
         long startNanos = System.nanoTime();
-        log.info("event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIpHash: {} headerCount: {} bodyLength: {} bodyDigest: {}",
+        log.info("OpenAPI渠道回调接收开始, event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_START, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, method: {}, path: {}, sourceIpHash: {}, headerCount: {}, bodyLength: {}, bodyDigest: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 request.getMethod(),
@@ -109,7 +110,7 @@ public class ChannelCallbackController {
                         channelCode, ChannelCallbackScene.STANDARD, request, rawBody);
         paymentInternalClient.acceptChannelCallback(buildCallbackRequest(channelCode, CHANNEL_CALLBACK_TYPE,
                 null, request, rawBody, securityResult));
-        log.info("event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_END stage=CALLBACK_RECEIVE traceId: {} channelCode: {} signatureValid: {} ipAllowed: {} durationMs: {}",
+        log.info("OpenAPI渠道回调接收完成, event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_END, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, signatureValid: {}, ipAllowed: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 securityResult.signatureValid(),
@@ -131,7 +132,7 @@ public class ChannelCallbackController {
                                             HttpServletRequest request,
                                             @RequestBody(required = false) byte[] rawBody) {
         long startNanos = System.nanoTime();
-        log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIpHash: {} headerCount: {} bodyLength: {} bodyDigest: {}",
+        log.info("OpenAPI渠道3DS回调接收开始, event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_START, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, method: {}, path: {}, sourceIpHash: {}, headerCount: {}, bodyLength: {}, bodyDigest: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 request.getMethod(),
@@ -145,7 +146,7 @@ public class ChannelCallbackController {
                         channelCode, ChannelCallbackScene.THREE_DS, request, rawBody);
         paymentInternalClient.acceptChannelCallback(buildCallbackRequest(channelCode, THREE_DS_CALLBACK_TYPE,
                 THREE_DS_EVENT_TYPE, request, rawBody, securityResult));
-        log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_END stage=CALLBACK_RECEIVE traceId: {} channelCode: {} signatureValid: {} ipAllowed: {} durationMs: {}",
+        log.info("OpenAPI渠道3DS回调接收完成, event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_END, stage: CALLBACK_RECEIVE, traceId: {}, channelCode: {}, signatureValid: {}, ipAllowed: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 securityResult.signatureValid(),
@@ -178,13 +179,15 @@ public class ChannelCallbackController {
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiResult<Void>> handleCallbackApiException(ApiException exception) {
         HttpStatus status = switch (exception.getCode()) {
-            case "F401" -> HttpStatus.UNAUTHORIZED;
-            case "F502" -> HttpStatus.BAD_GATEWAY;
-            case "F500" -> HttpStatus.INTERNAL_SERVER_ERROR;
-            default -> exception.getCode() != null && exception.getCode().startsWith("F4")
+            case "A2002" -> HttpStatus.UNAUTHORIZED;
+            case "F2000" -> HttpStatus.INTERNAL_SERVER_ERROR;
+            default -> exception.getCode() != null && exception.getCode().startsWith("A1")
                     ? HttpStatus.BAD_REQUEST : HttpStatus.SERVICE_UNAVAILABLE;
         };
-        return ResponseEntity.status(status).body(ApiResult.fail(exception.getCode(), exception.getMessage()));
+        String safeMessage = OpenApiResultCode.fromCode(exception.getCode())
+                .map(OpenApiResultCode::getMessage)
+                .orElse("Callback processing failed.");
+        return ResponseEntity.status(status).body(ApiResult.fail(exception.getCode(), safeMessage));
     }
 
     /**

@@ -4,21 +4,19 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.redis.rate.ReactiveRedisSlidingWindowRateLimiter;
 import com.scott.payment.component.redis.rate.SlidingWindowRateLimitResult;
 import com.scott.payment.gateway.config.GatewayRateLimitProperties;
+import com.scott.payment.gateway.support.GatewayOpenApiErrorWriter;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
-import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
-
-import java.nio.charset.StandardCharsets;
 
 /**
  * @author : scott
@@ -36,17 +34,16 @@ public class GatewayIpRateLimitFilter implements GlobalFilter, Ordered {
     private static final String OPENAPI_PATH_PREFIX = "/api/rest/";
     private static final String RATE_LIMIT_SCOPE = "openapiIp";
     private static final String UNKNOWN_CLIENT_IP = "unknown";
-    private static final byte[] RATE_LIMIT_BODY =
-            "{\"code\":\"F429\",\"message\":\"Too many requests. Please retry later.\",\"data\":null}"
-                    .getBytes(StandardCharsets.UTF_8);
-
     private final ReactiveRedisSlidingWindowRateLimiter rateLimiter;
     private final GatewayRateLimitProperties properties;
+    private final GatewayOpenApiErrorWriter errorWriter;
 
     public GatewayIpRateLimitFilter(ReactiveRedisSlidingWindowRateLimiter rateLimiter,
-                                    GatewayRateLimitProperties properties) {
+                                    GatewayRateLimitProperties properties,
+                                    GatewayOpenApiErrorWriter errorWriter) {
         this.rateLimiter = rateLimiter;
         this.properties = properties;
+        this.errorWriter = errorWriter;
     }
 
     /**
@@ -98,14 +95,11 @@ public class GatewayIpRateLimitFilter implements GlobalFilter, Ordered {
     private Mono<Void> writeRateLimited(ServerWebExchange exchange,
                                         SlidingWindowRateLimitResult result) {
         long retryAfterSeconds = Math.max(1L, result.retryAfterSeconds());
-        exchange.getResponse().setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
-        exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
         exchange.getResponse().getHeaders().set(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds));
-        exchange.getResponse().getHeaders().setCacheControl("no-store");
         log.warn("event: GATEWAY_IP_RATE_LIMITED traceId: {} path: {} retryAfterSeconds: {}",
                 exchange.getRequest().getHeaders().getFirst(TraceContext.TRACE_ID_HEADER),
                 exchange.getRequest().getURI().getPath(), retryAfterSeconds);
-        DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(RATE_LIMIT_BODY);
-        return exchange.getResponse().writeWith(Mono.just(buffer));
+        return errorWriter.write(exchange, HttpStatus.TOO_MANY_REQUESTS,
+                OpenApiResultCode.TOO_MANY_REQUESTS);
     }
 }

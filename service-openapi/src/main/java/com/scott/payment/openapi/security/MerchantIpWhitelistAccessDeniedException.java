@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.security;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import org.springframework.util.StringUtils;
 
 /**
@@ -10,7 +10,7 @@ import org.springframework.util.StringUtils;
  * @classname : MerchantIpWhitelistAccessDeniedException
  * @date : 2026-10-17 00:00
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI IP 准入拒绝异常，对外固定为 403，内部保留不泄露配置状态的审计原因。
+ * @description : 商户 OpenAPI IP 准入拒绝异常，对外固定投影为 A3003，内部保留不泄露配置状态的审计原因和规范化请求 IP。
  * @status : create
  */
 public class MerchantIpWhitelistAccessDeniedException extends ApiException {
@@ -29,8 +29,7 @@ public class MerchantIpWhitelistAccessDeniedException extends ApiException {
      * @param requestIp 平台识别到的规范化请求 IP；无法识别时为空
      */
     public MerchantIpWhitelistAccessDeniedException(MerchantIpWhitelistDenyReason reason, String requestIp) {
-        super(ApiResultEnum.FORBIDDEN,
-                "merchant ip not allowed, requestIp: " + displayRequestIp(requestIp));
+        super(OpenApiResultCode.SOURCE_NOT_ALLOWED);
         this.reason = reason;
         this.requestIp = StringUtils.hasText(requestIp) ? requestIp.trim() : null;
     }
@@ -51,9 +50,5 @@ public class MerchantIpWhitelistAccessDeniedException extends ApiException {
      */
     public String getRequestIp() {
         return requestIp;
-    }
-
-    private static String displayRequestIp(String requestIp) {
-        return StringUtils.hasText(requestIp) ? requestIp.trim() : "unknown";
     }
 }

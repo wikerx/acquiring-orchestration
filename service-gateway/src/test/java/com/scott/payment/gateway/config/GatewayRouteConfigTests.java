@@ -64,6 +64,22 @@ class GatewayRouteConfigTests {
         }
     }
 
+    /** 未命中的商户 OpenAPI 路径必须进入专用 V1.3 兜底，不得落入内部系统旧码响应。 */
+    @Test
+    void shouldRouteUnmatchedOpenApiPathToV13Fallback() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(PathRoutePredicateFactory.class);
+            context.refresh();
+            RouteLocator locator = new GatewayRouteConfig().openApiRoutes(new RouteLocatorBuilder(context));
+            Map<String, Route> routes = locator.getRoutes().collectList().block().stream()
+                    .collect(Collectors.toMap(Route::getId, Function.identity()));
+
+            Route fallbackRoute = routes.get("openapi-unmatched-path");
+            assertRouteMatches(fallbackRoute, "/api/rest/unknown/v9/action");
+            assertEquals("forward:/gateway/fallback/openapi-not-found", fallbackRoute.getUri().toString());
+        }
+    }
+
     private void assertRouteMatches(Route route, String path) {
         assertNotNull(route);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get(path).build());

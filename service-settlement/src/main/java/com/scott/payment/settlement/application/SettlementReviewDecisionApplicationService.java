@@ -54,7 +54,11 @@ public class SettlementReviewDecisionApplicationService {
     }
 
     public TaskResult submit(String reviewOrderNo, SettlementReviewDecisionCommand command) {
-        return transactions.submit(reviewOrderNo, command);
+        TaskResult result = transactions.submit(reviewOrderNo, command);
+        LOGGER.info("结算复核决策任务已提交或幂等返回, event: SETTLEMENT_REVIEW_DECISION_SUBMIT_END, taskNo: {}, reviewOrderNo: {}, decisionAction: {}, taskStatus: {}, totalSegmentCount: {}",
+                result.taskNo(), result.reviewOrderNo(), result.decisionAction(),
+                result.taskStatus(), result.totalSegmentCount());
+        return result;
     }
 
     public TaskResult get(String taskNo) {
@@ -62,7 +66,11 @@ public class SettlementReviewDecisionApplicationService {
     }
 
     public TaskResult resume(String taskNo, long expectedVersion, SettlementCommandAudit audit) {
-        return transactions.resume(taskNo, expectedVersion, audit);
+        TaskResult result = transactions.resume(taskNo, expectedVersion, audit);
+        LOGGER.info("结算复核决策任务已恢复或幂等返回, event: SETTLEMENT_REVIEW_DECISION_RESUME_END, taskNo: {}, reviewOrderNo: {}, taskStatus: {}, processedSegmentCount: {}, totalSegmentCount: {}",
+                result.taskNo(), result.reviewOrderNo(), result.taskStatus(),
+                result.processedSegmentCount(), result.totalSegmentCount());
+        return result;
     }
 
     public boolean processNext() {
@@ -76,8 +84,10 @@ public class SettlementReviewDecisionApplicationService {
         SettlementReviewDecisionTaskDO task = claimed.get();
         try {
             transactions.processClaimed(task.getTaskNo(), owner, nowUtc());
+            LOGGER.info("结算复核决策任务分段处理完成, event: SETTLEMENT_REVIEW_DECISION_CHUNK_END, taskNo: {}, decisionAction: {}",
+                    task.getTaskNo(), task.getDecisionAction());
         } catch (RuntimeException exception) {
-            LOGGER.warn("Settlement review decision task failed, taskNo={}, failureType={}",
+            LOGGER.warn("结算复核决策任务处理失败，准备记录补偿状态, event: SETTLEMENT_REVIEW_DECISION_CHUNK_FAILED, taskNo: {}, exceptionType: {}",
                     task.getTaskNo(), exception.getClass().getSimpleName());
             transactions.recordFailure(task.getTaskNo(), exception, maximumDuration, nowUtc());
         }

@@ -1,7 +1,8 @@
 package com.scott.payment.openapi.service.impl;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
@@ -169,7 +170,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         validateTransactionUrls(requestDTO);
         validateCreateRequestAmounts(requestDTO);
         PaymentCheckoutClientDTOs.SessionCreateRequest clientRequest = toClientCreateRequest(encryptedData, requestDTO);
-        log.info("event: OPENAPI_CHECKOUT_CREATE_START stage=OPENAPI_SERVICE traceId: {} merchantId: {} merchantOrderNo: {} merchantRequestId: {} amount: {} currency: {} checkoutDomain: {} requestFingerprint: {} payerCountry: {}",
+        log.info("OpenAPI收银台会话创建开始, event: OPENAPI_CHECKOUT_CREATE_START, stage: OPENAPI_SERVICE, traceId: {}, merchantId: {}, merchantOrderNo: {}, merchantRequestId: {}, amount: {}, currency: {}, checkoutDomain: {}, requestFingerprint: {}, payerCountry: {}",
                 TraceContext.getTraceId(),
                 clientRequest.getMerchantId(),
                 clientRequest.getMerchantOrderNo(),
@@ -182,7 +183,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         PaymentCheckoutClientDTOs.SessionCreateResponse clientResponse =
                 paymentInternalClient.createCheckoutSession(clientRequest);
         HostedCheckoutSessionCreateVO responseVO = toCreateVO(requestDTO, clientResponse);
-        log.info("event: OPENAPI_CHECKOUT_CREATE_END stage=OPENAPI_SERVICE traceId: {} merchantId: {} checkoutSessionId: {} checkoutStatus: {} idempotentHit: {} durationMs: {}",
+        log.info("OpenAPI收银台会话创建完成, event: OPENAPI_CHECKOUT_CREATE_END, stage: OPENAPI_SERVICE, traceId: {}, merchantId: {}, checkoutSessionId: {}, checkoutStatus: {}, idempotentHit: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 clientRequest.getMerchantId(),
                 clientResponse.getCheckoutSessionId(),
@@ -319,7 +320,11 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         target.setOrderDescription(transactionInfo == null ? null : transactionInfo.getDescription());
         target.setOrderItemsJson(requestDTO.getGoodsInfo() == null
                 ? null : JsonUtils.toJsonString(requestDTO.getGoodsInfo()));
-        target.setAllowedPaymentMethods(List.of());
+        PaymentCheckoutClientDTOs.AllowedPaymentMethod bankCardMethod =
+                new PaymentCheckoutClientDTOs.AllowedPaymentMethod();
+        bankCardMethod.setPaymentMethod(PAYMENT_METHOD_BANK_CARD);
+        bankCardMethod.setBrands(List.of());
+        target.setAllowedPaymentMethods(List.of(bankCardMethod));
         target.setCheckoutDomain(resolveCheckoutFrontendBaseUrl());
         target.setLocale(transactionInfo == null ? null : transactionInfo.getLanguage());
         target.setMerchantDisplayName(resolveMerchantDisplayName(requestDTO));
@@ -664,7 +669,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         String contextMerchantId = requestContext.getRequiredMerchantId();
         String requestMerchantId = requestDTO.getMerchantInfo() == null ? null : requestDTO.getMerchantInfo().getMerchantId();
         if (!contextMerchantId.equals(requestMerchantId)) {
-            throw new ApiException(ApiResultEnum.MERCHANT_INVALID, "merchantInfo.merchantId does not match authorization");
+            throw new ApiException(OpenApiResultCode.MERCHANT_INVALID, "merchantInfo.merchantId does not match authorization");
         }
     }
 
@@ -672,13 +677,18 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private void validatePayerIpAddress(HostedCheckoutSessionCreateRequestDTO requestDTO) {
         String payerIp = requestDTO.getPayerInfo() == null ? null : requestDTO.getPayerInfo().getIpAddress();
         if (!StringUtils.hasText(payerIp)) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "payerInfo.ipAddress is required");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_MISSING,
+                    "payerInfo.ipAddress",
+                    "payer IP address is required");
         }
         try {
             IpAddressNormalizer.normalizeExact(payerIp);
         } catch (IllegalArgumentException exception) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                    "payerInfo.ipAddress must be a valid IPv4 or IPv6 literal");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    "payerInfo.ipAddress",
+                    "payer IP address must be a valid IPv4 or IPv6 literal");
         }
     }
 
@@ -705,7 +715,10 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
                 continue;
             }
             if (!Objects.equals(normalizeCurrency(orderInfo.getCurrency()), normalizeCurrency(goods.getCurrency()))) {
-                throw new ApiException(ApiResultEnum.PARAM_INVALID, "goodsInfo.currency must match orderInfo.currency");
+                throw OpenApiContextualException.parameter(
+                        OpenApiResultCode.PARAM_INVALID,
+                        "goodsInfo.currency",
+                        "goods currency must match order currency");
             }
             validateAmount(goods.getAmount(), goods.getCurrency(), "goodsInfo.amount");
         }
@@ -717,12 +730,16 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
             return;
         }
         if (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 2) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                    field + " fraction digits exceed supported precision");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    field,
+                    "amount fraction digits exceed supported precision");
         }
         if (StringUtils.hasText(currency) && !isoDictionaryService.isCurrencyFractionValid(amount, currency)) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                    field + " fraction digits exceed currency minor unit");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID,
+                    field,
+                    "amount fraction digits exceed currency minor unit");
         }
     }
 
@@ -865,12 +882,14 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
     private String normalizedClientIp(HttpServletRequest request) {
         String clientIp = resolveClientIp(request);
         if (!StringUtils.hasText(clientIp)) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "payer IP address is invalid");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID, "payerInfo.ipAddress", "payer IP address is invalid");
         }
         try {
             return IpAddressNormalizer.normalizeExact(clientIp).ipValue();
         } catch (IllegalArgumentException exception) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "payer IP address is invalid");
+            throw OpenApiContextualException.parameter(
+                    OpenApiResultCode.PARAM_INVALID, "payerInfo.ipAddress", "payer IP address is invalid");
         }
     }
 
@@ -960,7 +979,7 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
             byte[] bytes = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(bytes);
         } catch (NoSuchAlgorithmException exception) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR, "digest failed");
+            throw new ApiException(OpenApiResultCode.SYSTEM_ERROR, "digest failed");
         }
     }
 

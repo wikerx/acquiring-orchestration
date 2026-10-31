@@ -127,7 +127,7 @@ public class SecurityInterceptEventRecorder {
                             merchantId, hitRuleCode, reasonCode, reasonMessage)
             );
         } catch (RuntimeException exception) {
-            log.warn("event: SECURITY_AUDIT_PUBLISH_FAILED eventType: {} exceptionType: {}",
+            log.warn("安全拦截审计事件发布失败, event: SECURITY_AUDIT_PUBLISH_FAILED, eventType: {}, exceptionType: {}",
                     eventType,
                     exception.getClass().getSimpleName());
         }

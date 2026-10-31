@@ -28,63 +28,31 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultPaymentChannelRouteService
- * @date : 2026-07-12 00:00
- * @email : scott_x@163.com
- * @description : 收单渠道路由默认实现，位于 service-payment 服务实现层，按商户 MID 绑定和 MID 能力范围选择渠道，当前不做权重和复杂路由。
- * @status : create
+ * 根据商户绑定、MID 范围和渠道能力选择收单路由。
+ *
+ * <p>多个候选同时满足硬性约束时，原币直连优先于 EDC，再使用能力配置中的
+ * {@code capabilitySortOrder}。最高优先级仍重复时拒绝交易，禁止依赖集合顺序随机选择资金通道。</p>
  */
 @Service
 @Slf4j
 public class DefaultPaymentChannelRouteService implements PaymentChannelRouteService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code DefaultPaymentChannelRouteService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 逻辑删除字段的有效值。 */
     private static final long NOT_DELETED = 0L;
 
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 配置、渠道和能力表统一使用的启用值。 */
     private static final int ENABLED = 1;
 
-    /**
-     * {@code BUSINESS_ACQUIRING}常量，统一 {@code DefaultPaymentChannelRouteService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 本服务只消费收单业务路由。 */
     private static final String BUSINESS_ACQUIRING = "ACQUIRING";
 
-    /**
-     * {@code ALL}常量，统一 {@code DefaultPaymentChannelRouteService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 范围配置不限制具体值时使用的通配字面量。 */
     private static final String ALL = "ALL";
 
+    /** 数据库存储多值范围时使用的分隔符。 */
     private static final String SCOPE_SEPARATOR = ",";
 
-    /**
-     * 默认支付方式，表示支付方式、通知方式或调用方式。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+    /** 历史命令未显式传支付方式时兼容为银行卡。 */
     private static final String DEFAULT_PAYMENT_METHOD = "BANK_CARD";
 
     private final PaymentChannelMidConfigMapper midConfigMapper;
@@ -124,7 +92,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     @Override
     public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
         long startNanos = System.nanoTime();
-        log.info("event: PAYMENT_ROUTE_START stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} payerCountry: {}",
+        log.info("收单渠道路由开始, event: PAYMENT_ROUTE_START, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, payerCountry: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -146,7 +114,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 .map(option -> toCandidate(option, commandDTO, now))
                 .filter(candidate -> candidate != null)
                 .toList();
-        log.info("event: PAYMENT_ROUTE_CANDIDATES stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} bindingCount: {} candidateCount: {} candidates: {}",
+        log.info("收单渠道候选已完成筛选, event: PAYMENT_ROUTE_CANDIDATES, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, bindingCount: {}, candidateCount: {}, candidates: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -159,7 +127,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 candidates.size(),
                 candidateSummary(candidates));
         if (candidates.isEmpty()) {
-            log.warn("event: PAYMENT_ROUTE_NO_CANDIDATE stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} bindingCount: {} candidateCount: {} durationMs: {}",
+            log.warn("收单渠道无可用候选, event: PAYMENT_ROUTE_NO_CANDIDATE, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, bindingCount: {}, candidateCount: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
@@ -173,8 +141,9 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     elapsedMillis(startNanos));
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        if (candidates.size() > 1) {
-            log.warn("event: PAYMENT_ROUTE_MULTI_CANDIDATE stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} candidateCount: {} candidates: {} durationMs: {}",
+        RouteCandidate candidate = selectCandidate(candidates);
+        if (candidate == null) {
+            log.warn("收单渠道最高优先级候选不唯一, event: PAYMENT_ROUTE_MULTI_CANDIDATE, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, candidateCount: {}, candidates: {}, durationMs: {}",
                     TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
@@ -188,7 +157,6 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     elapsedMillis(startNanos));
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        RouteCandidate candidate = candidates.get(0);
         PaymentRouteResultDTO resultDTO = PaymentRouteResultDTO.routed(candidate.channelInfo().getChannelCode());
         resultDTO.setChannelId(candidate.channelInfo().getId());
         resultDTO.setMidConfigId(candidate.midConfig().getId());
@@ -207,7 +175,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setThreeDsSupported(Integer.valueOf(ENABLED).equals(candidate.capability().getSupport3ds()));
         resultDTO.setSupportedCurrencies(candidate.supportedCurrencies());
         resultDTO.setRouteReason("MERCHANT_MID_BINDING");
-        log.info("event: PAYMENT_ROUTE_END stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelId: {} midConfigId: {} midNo: {} capabilityId: {} supportedCurrencies: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} endpointHost: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} routeReason: {} durationMs: {}",
+        log.info("收单渠道路由完成, event: PAYMENT_ROUTE_END, stage: ROUTE, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, transactionType: {}, paymentMethod: {}, currency: {}, amount: {}, channelCode: {}, channelId: {}, midConfigId: {}, midNo: {}, capabilityId: {}, supportedCurrencies: {}, requestedCurrency: {}, routedCurrency: {}, edcRequired: {}, endpointHost: {}, connectTimeoutSeconds: {}, readTimeoutSeconds: {}, routeReason: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
@@ -231,6 +199,41 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 resultDTO.getRouteReason(),
                 elapsedMillis(startNanos));
         return resultDTO;
+    }
+
+    /**
+     * 按原币直连和能力顺序选择唯一最高优先级候选。
+     *
+     * <p>没有配置顺序的候选只能在其本层唯一时被选择；两条候选的直连属性与最小
+     * {@code capabilitySortOrder} 均相同时返回 {@code null}，由调用方 fail closed。</p>
+     *
+     * @param candidates 已通过全部硬性能力校验的候选
+     * @return 唯一最高优先级候选；存在同优先级歧义时返回 {@code null}
+     */
+    private RouteCandidate selectCandidate(List<RouteCandidate> candidates) {
+        if (candidates.size() == 1) {
+            return candidates.get(0);
+        }
+        boolean directCandidateExists = candidates.stream().anyMatch(candidate -> !candidate.edcRequired());
+        List<RouteCandidate> currencyPreferred = directCandidateExists
+                ? candidates.stream().filter(candidate -> !candidate.edcRequired()).toList()
+                : candidates;
+        if (currencyPreferred.size() == 1) {
+            return currencyPreferred.get(0);
+        }
+
+        Integer minimumSortOrder = currencyPreferred.stream()
+                .map(candidate -> candidate.capability().getSortOrder())
+                .filter(sortOrder -> sortOrder != null)
+                .min(Integer::compareTo)
+                .orElse(null);
+        if (minimumSortOrder == null) {
+            return null;
+        }
+        List<RouteCandidate> priorityPreferred = currencyPreferred.stream()
+                .filter(candidate -> minimumSortOrder.equals(candidate.capability().getSortOrder()))
+                .toList();
+        return priorityPreferred.size() == 1 ? priorityPreferred.get(0) : null;
     }
 
     /**
@@ -282,7 +285,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setReadTimeoutSeconds(channelInfo.getReadTimeoutSeconds());
         resultDTO.setMetadataValues(parseMetadata(midConfig.getMetadataValueJson()));
         resultDTO.setRouteReason("RESTORED_FROM_TRANSACTION_OPERATION");
-        log.info("event: PAYMENT_ROUTE_RESTORED stage=ROUTE traceId: {} channelCode: {} channelId: {} midConfigId: {} resolvedChannelCode: {} midNo: {} routeReason: {} durationMs: {}",
+        log.info("原交易渠道路由已恢复, event: PAYMENT_ROUTE_RESTORED, stage: ROUTE, traceId: {}, channelCode: {}, channelId: {}, midConfigId: {}, resolvedChannelCode: {}, midNo: {}, routeReason: {}, durationMs: {}",
                 TraceContext.getTraceId(),
                 channelCode,
                 channelId,
@@ -301,7 +304,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                                            String channelCode,
                                            Long channelId,
                                            Long midConfigId) {
-        log.warn("event: ORIGINAL_TRANSACTION_ROUTE_REJECTED stage=ROUTE traceId: {} channelCode: {} channelId: {} midConfigId: {} reason: {}",
+        log.warn("原交易渠道路由不可继续, event: ORIGINAL_TRANSACTION_ROUTE_REJECTED, stage: ROUTE, traceId: {}, channelCode: {}, channelId: {}, midConfigId: {}, reason: {}",
                 TraceContext.getTraceId(), channelCode, channelId, midConfigId, internalReason);
         throw new ServiceException(ApiResultEnum.ORIGINAL_TRANSACTION_REJECTED);
     }

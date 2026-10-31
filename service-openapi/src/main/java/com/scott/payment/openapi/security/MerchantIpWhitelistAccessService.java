@@ -41,7 +41,7 @@ public class MerchantIpWhitelistAccessService {
      * 校验网关注入的可信客户端 IP 是否满足商户当前白名单策略。
      *
      * <p>商户业务 API 采用默认拒绝：有效白名单为空、请求 IP 缺失或未命中时均拒绝。
-     * 拒绝消息返回平台识别到的规范化请求 IP，方便商户核对其实际出口地址。</p>
+     * 规范化请求 IP 只保存在异常结构化字段并写入受控安全日志，禁止进入商户或付款人响应。</p>
      *
      * @param merchantId 商户号，用于读取对应的 OpenAPI 访问策略
      * @param request 当前 OpenAPI HTTP 请求，只信任网关注入的客户端 IP 请求头

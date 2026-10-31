@@ -22,13 +22,11 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantNotificationInitialDeliveryService
- * @date : 2026-08-20 22:30
- * @email : scott_x@163.com
- * @description : 在商户通知任务就绪的同一交易事务中写入首次五秒延时 Outbox，禁止同步或提交前访问商户端点
- * @status : create
+ * 商户通知任务的首次可靠投递调度服务。
+ *
+ * <p>通知任务进入可投递状态时，在同一交易事务内写入延时 Outbox；事务提交前不得同步访问
+ * 商户端点。消息只携带通知身份、交易分片时间和期望版本，回调 URL、载荷与密钥继续留在
+ * 通知任务和密钥域，MQ 消费者按通知版本 CAS 获取执行权。</p>
  */
 @Service
 public class MerchantNotificationInitialDeliveryService {
@@ -78,6 +76,7 @@ public class MerchantNotificationInitialDeliveryService {
                          int expectedVersion,
                          LocalDateTime readyTime) {
         validate(notification, expectedVersion, readyTime);
+        // 调用方事务回滚时通知任务与首次投递事件一起回滚，避免孤立消息提前触发 HTTP 回调。
         eventOutboxService.save(buildOutbox(notification, expectedVersion, readyTime));
     }
 
@@ -132,6 +131,7 @@ public class MerchantNotificationInitialDeliveryService {
 
     /** 使用通知号和任务版本生成可重复计算的 Outbox 唯一事件号。 */
     private String eventNo(String notifyId, int expectedVersion) {
+        // 相同通知版本重复调度得到同一事件号，由 Outbox 唯一约束阻止重复首次投递。
         String source = notifyId + ":" + expectedVersion;
         return EVENT_NO_PREFIX + UUID.nameUUIDFromBytes(source.getBytes(StandardCharsets.UTF_8));
     }

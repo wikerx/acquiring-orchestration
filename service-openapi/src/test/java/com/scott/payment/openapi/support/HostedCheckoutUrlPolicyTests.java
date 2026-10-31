@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import org.junit.jupiter.api.Test;
 
@@ -44,7 +44,7 @@ class HostedCheckoutUrlPolicyTests {
         assertThatThrownBy(() -> policy.normalizePlatformBaseUrl("https://user:secret@pay.example.com/"))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode());
+                .isEqualTo(OpenApiResultCode.SYSTEM_ERROR.getCode());
     }
 
     @Test
@@ -57,7 +57,7 @@ class HostedCheckoutUrlPolicyTests {
                 "https://merchant.example/callback", "transactionInfo.callbackUrl"))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getCode());
+                .isEqualTo(OpenApiResultCode.CALLBACK_URL_NOT_ALLOWED.getCode());
     }
 
     @Test
@@ -79,7 +79,7 @@ class HostedCheckoutUrlPolicyTests {
                 "https://127.0.0.1/callback", "transactionInfo.callbackUrl"))
                 .isInstanceOf(ApiException.class)
                 .extracting("code")
-                .isEqualTo(ApiResultEnum.CALLBACK_URL_NOT_ALLOWED.getCode());
+                .isEqualTo(OpenApiResultCode.CALLBACK_URL_NOT_ALLOWED.getCode());
     }
 
     private HostedCheckoutUrlPolicy developmentPolicy() {

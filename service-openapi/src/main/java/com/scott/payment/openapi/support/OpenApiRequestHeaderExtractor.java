@@ -1,8 +1,8 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.exception.RateLimitExceededException;
+import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.web.trace.HttpTrafficLoggingFilter;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
@@ -13,6 +13,7 @@ import com.scott.payment.openapi.security.MerchantIpWhitelistAccessDeniedExcepti
 import com.scott.payment.openapi.security.MerchantKeyProvider;
 import com.scott.payment.openapi.security.OpenApiMerchantRateLimitService;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
+import com.scott.payment.openapi.result.OpenApiContextualException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -174,7 +175,7 @@ public class OpenApiRequestHeaderExtractor {
         headerDTO.setIssuedAt(claims.getIssuedAt());
         headerDTO.setExpiresAt(claims.getExpiresAt());
         headerDTO.setClientIp(clientIp);
-        log.debug("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} clientIpDigest: {} jwtSummary: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {}",
+        log.debug("OpenAPI安全校验通过, event: OPENAPI_SECURITY_CHECK_END, stage: AUTH, traceId: {}, merchantId: {}, path: {}, apiVersion: {}, jwtValid: true, jtiDigest: {}, clientIpDigest: {}, jwtSummary: {}, headerSummary: {}, httpRequestDigest: {}, httpRequestLength: {}",
                 TraceContext.getTraceId(),
                 claims.getMerchantId(),
                 request.getRequestURI(),
@@ -228,7 +229,7 @@ public class OpenApiRequestHeaderExtractor {
                 securityInterceptEventRecorder.reasonCode(exception),
                 securityInterceptEventRecorder.reasonMessage(exception)
         );
-        log.warn("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false requestIp: {} hitRuleCode: {} reasonCode: {} exceptionType: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {}",
+        log.warn("OpenAPI安全校验未通过, event: OPENAPI_SECURITY_CHECK_END, stage: AUTH, traceId: {}, merchantId: {}, path: {}, apiVersion: {}, jwtValid: false, ipAllowed: false, requestIp: {}, hitRuleCode: {}, reasonCode: {}, exceptionType: {}, headerSummary: {}, httpRequestDigest: {}, httpRequestLength: {}, httpRequestSummary: {}",
                 TraceContext.getTraceId(),
                 merchantId,
                 request == null ? null : request.getRequestURI(),
@@ -269,7 +270,7 @@ public class OpenApiRequestHeaderExtractor {
                 securityInterceptEventRecorder.reasonCode(exception),
                 securityInterceptEventRecorder.reasonMessage(exception)
         );
-        log.warn("event: OPENAPI_MERCHANT_RATE_LIMITED traceId: {} merchantId: {} path: {} retryAfterSeconds: {}",
+        log.warn("OpenAPI商户请求触发限流, event: OPENAPI_MERCHANT_RATE_LIMITED, traceId: {}, merchantId: {}, path: {}, retryAfterSeconds: {}",
                 TraceContext.getTraceId(), merchantId, request.getRequestURI(),
                 exception.getRetryAfterSeconds());
     }
@@ -297,7 +298,7 @@ public class OpenApiRequestHeaderExtractor {
 
     private String resolveReplayEventType(RuntimeException exception) {
         String reasonCode = securityInterceptEventRecorder.reasonCode(exception);
-        if (ApiResultEnum.INTERNAL_SERVER_ERROR.getCode().equals(reasonCode)) {
+        if (OpenApiResultCode.SYSTEM_ERROR.getCode().equals(reasonCode)) {
             return "OPENAPI_REPLAY_UNAVAILABLE";
         }
         return "OPENAPI_REPLAY_DENIED";
@@ -319,12 +320,15 @@ public class OpenApiRequestHeaderExtractor {
             String headerValue = request.getHeader(header);
             if (!StringUtils.hasText(headerValue)) {
                 if (HEADER_AUTHORIZATION.equalsIgnoreCase(header)) {
-                    throw new ApiException(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
+                    throw new ApiException(OpenApiResultCode.AUTHORIZATION_MISSING);
                 }
-                throw new ApiException(ApiResultEnum.PARAM_MISSING, "header." + header);
+                throw OpenApiContextualException.parameter(
+                        OpenApiResultCode.PARAM_MISSING,
+                        "header." + header,
+                        "required request header is missing");
             }
             if (HEADER_CONTENT_TYPE.equalsIgnoreCase(header) && !isJsonContentType(headerValue)) {
-                throw new ApiException(ApiResultEnum.PARAM_INVALID, "header." + header);
+                throw new ApiException(OpenApiResultCode.CONTENT_TYPE_NOT_SUPPORTED);
             }
         }
     }
@@ -353,7 +357,7 @@ public class OpenApiRequestHeaderExtractor {
      */
     private String resolveToken(String authorization) {
         if (!StringUtils.hasText(authorization)) {
-            throw new ApiException(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
+            throw new ApiException(OpenApiResultCode.AUTHORIZATION_MISSING);
         }
         if (authorization.startsWith(BEARER_PREFIX)) {
             return authorization.substring(BEARER_PREFIX.length()).trim();

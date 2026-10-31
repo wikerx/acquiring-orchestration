@@ -9,13 +9,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DefaultMerchantRouteProfileCacheService
- * @date : 2026-08-01 15:35
- * @email : scott_x@163.com
- * @description : 商户路由永久缓存安全门面，pending 或 Redis 状态未知时丢弃旧快照并查询主库
- * @status : create
+ * 商户路由永久缓存的安全读取门面。
+ *
+ * <p>配置变更到缓存删除完成之间由失效门禁标记 pending。读取缓存前后都检查门禁，关闭“检查通过后
+ * 配置刚好发生变更”的并发窗口；门禁状态未知时按不安全处理并回主库，避免旧渠道或 MID 继续参与交易。</p>
  */
 @Slf4j
 @Service
@@ -55,6 +52,7 @@ public class DefaultMerchantRouteProfileCacheService implements MerchantRoutePro
             return cacheReader.findFresh(normalizedMerchantId);
         }
         MerchantRouteProfile profile = cacheReader.findCached(normalizedMerchantId);
+        // 缓存读取期间可能发生配置变更，后置检查命中时必须丢弃刚读到的旧快照。
         if (mustBypassCache(normalizedMerchantId)) {
             return cacheReader.findFresh(normalizedMerchantId);
         }
@@ -74,7 +72,7 @@ public class DefaultMerchantRouteProfileCacheService implements MerchantRoutePro
         try {
             return invalidationGuard.isPending(PaymentCacheNames.MERCHANT_ROUTE, merchantId);
         } catch (RuntimeException exception) {
-            log.warn("event: MERCHANT_ROUTE_GUARD_CHECK_FAILED cacheName: {} exceptionType: {}",
+            log.warn("商户路由缓存门禁检查失败, event: MERCHANT_ROUTE_GUARD_CHECK_FAILED, cacheName: {}, exceptionType: {}",
                     PaymentCacheNames.MERCHANT_ROUTE,
                     exception.getClass().getSimpleName());
             return true;
