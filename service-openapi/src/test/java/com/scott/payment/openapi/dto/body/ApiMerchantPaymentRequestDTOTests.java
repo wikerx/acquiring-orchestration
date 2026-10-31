@@ -44,6 +44,50 @@ class ApiMerchantPaymentRequestDTOTests {
         assertThat(violations).isEmpty();
     }
 
+    /**
+     * Capture 可省略币种，支付核心会继承原授权的标签币种。
+     */
+    @Test
+    void shouldAllowCaptureWithoutCurrency() {
+        ApiMerchantPaymentRequestDTO request = requestWithMerchantAndOrder();
+        request.getOrderInfo().setAmount(new BigDecimal("85.55"));
+        ApiMerchantPaymentRequestDTO.TransactionInfoDTO transactionInfo =
+                new ApiMerchantPaymentRequestDTO.TransactionInfoDTO();
+        transactionInfo.setSourceTransactionId("202610311030000000001");
+        request.setTransactionInfo(transactionInfo);
+
+        Set<ConstraintViolation<ApiMerchantPaymentRequestDTO>> violations = VALIDATOR.validate(
+                request,
+                ApiMerchantPaymentRequestDTO.Capture.class,
+                ApiMerchantPaymentRequestDTO.Format.class
+        );
+
+        assertThat(violations).isEmpty();
+    }
+
+    /**
+     * 增量授权仍需显式携带与原授权一致的标签币种。
+     */
+    @Test
+    void shouldStillRequireCurrencyForIncrementalAuthorization() {
+        ApiMerchantPaymentRequestDTO request = requestWithMerchantAndOrder();
+        request.getOrderInfo().setAmount(new BigDecimal("10.00"));
+        ApiMerchantPaymentRequestDTO.TransactionInfoDTO transactionInfo =
+                new ApiMerchantPaymentRequestDTO.TransactionInfoDTO();
+        transactionInfo.setSourceTransactionId("202610311030000000001");
+        request.setTransactionInfo(transactionInfo);
+
+        Set<ConstraintViolation<ApiMerchantPaymentRequestDTO>> violations = VALIDATOR.validate(
+                request,
+                ApiMerchantPaymentRequestDTO.IncrementalAuthorization.class,
+                ApiMerchantPaymentRequestDTO.Format.class
+        );
+
+        assertThat(violations)
+                .extracting(ConstraintViolation::getMessage)
+                .contains("orderInfo.currency");
+    }
+
     @Test
     void shouldRejectAmountAndCurrencyForVoid() {
         ApiMerchantPaymentRequestDTO request = requestWithMerchantAndOrder();

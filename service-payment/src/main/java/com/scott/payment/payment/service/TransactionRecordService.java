@@ -245,6 +245,22 @@ public interface TransactionRecordService {
                                                                LocalDateTime rootTransactionDateTime);
 
     /**
+     * 查询同一交易生命周期内的全部动作事实。
+     *
+     * <p>请款和增量授权在原主单行锁内使用该结果累计标签金额，禁止从交易金额反推商户累计金额。</p>
+     *
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime 生命周期根交易时间
+     * @param endTime 当前动作决策时间
+     * @return 按动作顺序排列的生命周期动作
+     */
+    default List<TransactionOperationDO> findOperationsByOperationId(String operationId,
+                                                                     LocalDateTime beginTime,
+                                                                     LocalDateTime endTime) {
+        return List.of();
+    }
+
+    /**
      * 按商户订单号查询同一订单下的首次起点交易动作。
      * <p>
      * 用于支付核心创建首次类交易前校验支付流和授权流互斥；只返回 PAYMENT、AUTHORIZATION、PRE_AUTHORIZATION

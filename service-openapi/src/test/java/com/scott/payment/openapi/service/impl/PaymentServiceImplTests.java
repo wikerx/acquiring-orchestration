@@ -118,6 +118,22 @@ class PaymentServiceImplTests {
                 .isEqualTo("https://stored-merchant.example/original");
     }
 
+    /**
+     * Capture 省略币种时，响应应保留支付核心返回的原授权标签币种。
+     */
+    @Test
+    void shouldKeepPaymentResultCurrencyWhenCaptureRequestOmitsCurrency() {
+        OpenApiRequestConverter converter = Mappers.getMapper(OpenApiRequestConverter.class);
+        ApiMerchantPaymentRequestDTO requestDTO = buildRequest();
+        requestDTO.getOrderInfo().setCurrency(null);
+        PaymentCreateClientResponseDTO responseDTO = new PaymentCreateClientResponseDTO();
+        responseDTO.setOrderAmount(new BigDecimal("85.55"));
+        responseDTO.setOrderCurrency("AUD");
+
+        assertThat(converter.toPaymentCreateVO(requestDTO, responseDTO, null)
+                .getOrderInfo().getCurrency()).isEqualTo("AUD");
+    }
+
     @Test
     void shouldPassCaptureOperationToPaymentService() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();

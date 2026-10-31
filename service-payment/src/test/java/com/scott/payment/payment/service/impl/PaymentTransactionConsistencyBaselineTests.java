@@ -1021,6 +1021,55 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     /**
+     * 商户省略请款币种时应继承原授权标签币种，并按冻结汇率上送渠道金额。
+     */
+    @Test
+    void shouldSendFrozenRateCaptureAmountToOriginalChannelWhenCurrencyIsOmitted() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = frozenRateSourceRecordService();
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, outboxService, channelService);
+        PaymentCreateCommandDTO commandDTO = followUpCommand("CAPTURE-FX-001", new BigDecimal("85.55"));
+        commandDTO.setCurrency(null);
+
+        PaymentCreateResultDTO resultDTO = service.capture(commandDTO);
+
+        assertThat(channelService.lastRequestAmount).isEqualByComparingTo("59.89");
+        assertThat(channelService.lastRequestCurrency).isEqualTo("USD");
+        assertThat(resultDTO.getOrderAmount()).isEqualByComparingTo("85.55");
+        assertThat(resultDTO.getOrderCurrency()).isEqualTo("AUD");
+        assertThat(resultDTO.getTransactionAmount()).isEqualByComparingTo("59.89");
+        assertThat(resultDTO.getTransactionCurrency()).isEqualTo("USD");
+        assertThat(recordService.lastFollowUpOperation.getLabelAmount()).isEqualByComparingTo("85.55");
+        assertThat(recordService.lastFollowUpOperation.getTransactionAmount()).isEqualByComparingTo("59.89");
+    }
+
+    /**
+     * 请款显式币种与原授权标签币种不一致时，必须在渠道外呼前拒绝。
+     */
+    @Test
+    void shouldRejectCaptureCurrencyMismatchBeforeChannelInvocation() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = frozenRateSourceRecordService();
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, outboxService, channelService);
+        PaymentCreateCommandDTO commandDTO = followUpCommand("CAPTURE-FX-002", new BigDecimal("85.55"));
+        commandDTO.setCurrency("EUR");
+
+        assertThatThrownBy(() -> service.capture(commandDTO))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("request currency must match source label currency");
+        assertThat(channelService.paymentInvokeCount()).isZero();
+        assertThat(recordService.followUpRecordCount).isZero();
+    }
+
+    /**
      * 05C-CAP-02：Capture 渠道成功后结果事务失败，重复同动作号只能返回已提交的 PROCESSING 事实，不能重新发起 Capture。
      */
     @Test
@@ -2466,6 +2515,23 @@ class PaymentTransactionConsistencyBaselineTests {
         return commandDTO;
     }
 
+    /**
+     * 构造 AUD 标签金额、USD 渠道金额和首笔冻结汇率的原授权事实。
+     */
+    private CapturingTransactionRecordService frozenRateSourceRecordService() {
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceLabelCurrency = "AUD";
+        recordService.sourceLabelAmount = new BigDecimal("89.59");
+        recordService.sourceTransactionCurrency = "USD";
+        recordService.sourceTransactionAmount = new BigDecimal("62.71");
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("62.71");
+        recordService.sourceTransactionRate = new BigDecimal("0.70000521");
+        recordService.sourceRateSource = "PLATFORM";
+        recordService.sourceRateTime = LocalDateTime.of(2026, 10, 31, 10, 30);
+        recordService.sourceEdcEnabled = 1;
+        return recordService;
+    }
+
     private PaymentCreateCommandDTO voidCommand(String merchantActionNo) {
         PaymentCreateCommandDTO commandDTO = followUpCommand(merchantActionNo, null);
         commandDTO.setCurrency(null);
@@ -2874,7 +2940,7 @@ class PaymentTransactionConsistencyBaselineTests {
 
             @Override
             public List<IsoCurrencyInfo> listCurrencies() {
-                return List.of(usdCurrencyInfo());
+                return List.of(usdCurrencyInfo(), audCurrencyInfo());
             }
 
             @Override
@@ -2892,12 +2958,14 @@ class PaymentTransactionConsistencyBaselineTests {
 
             @Override
             public List<IsoCurrencyInfo> searchCurrencies(String keyword) {
-                return List.of(usdCurrencyInfo());
+                return listCurrencies();
             }
 
             @Override
             public Optional<IsoCurrencyInfo> getCurrency(String value) {
-                return "USD".equalsIgnoreCase(value) ? Optional.of(usdCurrencyInfo()) : Optional.empty();
+                return listCurrencies().stream()
+                        .filter(currency -> currency.alphabeticCode().equalsIgnoreCase(value))
+                        .findFirst();
             }
 
             @Override
@@ -2912,6 +2980,11 @@ class PaymentTransactionConsistencyBaselineTests {
 
             private IsoCurrencyInfo usdCurrencyInfo() {
                 return new IsoCurrencyInfo("USD", "840", "US Dollar", "美元", 2, 100L, new BigDecimal("0.01"), "$");
+            }
+
+            private IsoCurrencyInfo audCurrencyInfo() {
+                return new IsoCurrencyInfo("AUD", "036", "Australian Dollar", "澳大利亚元", 2, 100L,
+                        new BigDecimal("0.01"), "A$");
             }
         };
     }
@@ -3127,6 +3200,24 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private BigDecimal sourceAvailableRefundAmount = BigDecimal.ZERO;
 
+        private String sourceLabelCurrency;
+
+        private BigDecimal sourceLabelAmount;
+
+        private String sourceTransactionCurrency = "USD";
+
+        private BigDecimal sourceTransactionAmount = new BigDecimal("12.34");
+
+        private BigDecimal sourceTransactionRate;
+
+        private String sourceRateSource;
+
+        private LocalDateTime sourceRateTime;
+
+        private Integer sourceEdcEnabled = 0;
+
+        private List<TransactionOperationDO> lifecycleOperations = List.of();
+
         private BigDecimal pendingRefundAmount = BigDecimal.ZERO;
 
         private boolean pendingVoidExists;
@@ -3281,9 +3372,16 @@ class PaymentTransactionConsistencyBaselineTests {
             orderDO.setTransactionType(sourceTransactionType);
             orderDO.setTransactionStatus(sourceStatus);
             orderDO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
-            orderDO.setTransactionAmount(new BigDecimal("12.34"));
-            orderDO.setTransactionCurrency("USD");
-            orderDO.setAuthorizedAmount(new BigDecimal("12.34"));
+            orderDO.setLabelCurrency(sourceLabelCurrency);
+            orderDO.setLabelAmount(sourceLabelAmount);
+            orderDO.setTransactionAmount(sourceTransactionAmount);
+            orderDO.setTransactionCurrency(sourceTransactionCurrency);
+            orderDO.setTransactionRate(sourceTransactionRate);
+            orderDO.setRateSource(sourceRateSource);
+            orderDO.setRateTime(sourceRateTime);
+            orderDO.setDccEnabled(0);
+            orderDO.setEdcEnabled(sourceEdcEnabled);
+            orderDO.setAuthorizedAmount(sourceTransactionAmount);
             orderDO.setCapturedAmount(BigDecimal.ZERO);
             orderDO.setRefundedAmount(BigDecimal.ZERO);
             orderDO.setAvailableCaptureAmount(sourceAvailableCaptureAmount);
@@ -3322,8 +3420,11 @@ class PaymentTransactionConsistencyBaselineTests {
             operationDO.setMerchantOrderId(MERCHANT_ORDER_ID);
             operationDO.setTransactionType(sourceTransactionType);
             operationDO.setTransactionStatus(sourceStatus);
-            operationDO.setTransactionAmount(new BigDecimal("12.34"));
-            operationDO.setTransactionCurrency("USD");
+            operationDO.setLabelCurrency(sourceLabelCurrency);
+            operationDO.setLabelAmount(sourceLabelAmount);
+            operationDO.setTransactionAmount(sourceTransactionAmount);
+            operationDO.setTransactionCurrency(sourceTransactionCurrency);
+            operationDO.setTransactionRate(sourceTransactionRate);
             operationDO.setChannelCode("MPGS");
             operationDO.setChannelId(101L);
             operationDO.setChannelMidConfigId(1001L);
@@ -3377,6 +3478,13 @@ class PaymentTransactionConsistencyBaselineTests {
                 return List.of();
             }
             return List.of(lastInitialOperation);
+        }
+
+        @Override
+        public List<TransactionOperationDO> findOperationsByOperationId(String operationId,
+                                                                         LocalDateTime beginTime,
+                                                                         LocalDateTime endTime) {
+            return lifecycleOperations;
         }
 
         @Override
@@ -3581,8 +3689,11 @@ class PaymentTransactionConsistencyBaselineTests {
             operationDO.setTransactionType(recordDTO.getResultDTO().getTransactionType());
             operationDO.setTransactionStatus(recordDTO.getResultDTO().getStatus());
             operationDO.setProcessStage(recordDTO.getResultDTO().getProcessStage());
-            operationDO.setTransactionAmount(recordDTO.getCommandDTO().getAmount());
-            operationDO.setTransactionCurrency(recordDTO.getCommandDTO().getCurrency());
+            operationDO.setLabelAmount(recordDTO.getCommandDTO().getLabelAmount());
+            operationDO.setLabelCurrency(recordDTO.getCommandDTO().getLabelCurrency());
+            operationDO.setTransactionAmount(recordDTO.getCommandDTO().getTransactionAmount());
+            operationDO.setTransactionCurrency(recordDTO.getCommandDTO().getTransactionCurrency());
+            operationDO.setTransactionRate(recordDTO.getCommandDTO().getTransactionRate());
             if (recordDTO.getChannelInvokeResultDTO() != null && recordDTO.getChannelInvokeResultDTO().getChannelRequest() != null) {
                 operationDO.setChannelCode(recordDTO.getChannelInvokeResultDTO().getChannelRequest().getChannelCode());
                 operationDO.setChannelOrderNo(recordDTO.getChannelInvokeResultDTO().getChannelRequest().getChannelOrderNo());
@@ -4043,6 +4154,10 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private String lastTargetTransactionId;
 
+        private BigDecimal lastRequestAmount;
+
+        private String lastRequestCurrency;
+
         private InspectingPaymentChannelInvokeService(ChannelPaymentResponse response) {
             this(response, () -> {
             });
@@ -4083,6 +4198,8 @@ class PaymentTransactionConsistencyBaselineTests {
             resultDTO.getChannelRequest().setChannelTransactionId("CH-" + transactionId);
             resultDTO.getChannelRequest().setAmount(commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount());
             resultDTO.getChannelRequest().setCurrency(commandDTO.getTransactionCurrency() == null ? commandDTO.getCurrency() : commandDTO.getTransactionCurrency());
+            lastRequestAmount = resultDTO.getChannelRequest().getAmount();
+            lastRequestCurrency = resultDTO.getChannelRequest().getCurrency();
             lastTargetTransactionId = commandDTO.getTransactionInfo() == null
                     ? null : commandDTO.getTransactionInfo().getSourceChannelTransactionId();
             if (timeoutOnFirstPayment && invokeCount.get() == 1) {
@@ -4126,6 +4243,8 @@ class PaymentTransactionConsistencyBaselineTests {
             resultDTO.getChannelRequest().setChannelTransactionId(preparedChannelRequest.getChannelTransactionId());
             resultDTO.getChannelRequest().setAmount(commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount());
             resultDTO.getChannelRequest().setCurrency(commandDTO.getTransactionCurrency() == null ? commandDTO.getCurrency() : commandDTO.getTransactionCurrency());
+            lastRequestAmount = resultDTO.getChannelRequest().getAmount();
+            lastRequestCurrency = resultDTO.getChannelRequest().getCurrency();
             lastTargetTransactionId = commandDTO.getTransactionInfo() == null
                     ? null : commandDTO.getTransactionInfo().getSourceChannelTransactionId();
             if (timeoutOnFirstPayment && invokeCount.get() == 1) {

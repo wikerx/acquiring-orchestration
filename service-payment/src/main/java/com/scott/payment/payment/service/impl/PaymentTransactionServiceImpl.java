@@ -1884,7 +1884,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
         String effectiveCurrency = StringUtils.hasText(commandDTO.getCurrency())
                 ? commandDTO.getCurrency()
-                : sourceOrderDO == null ? null : sourceOrderDO.getTransactionCurrency();
+                : sourceOrderDO == null ? null : firstText(
+                        sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
         String canonical = String.join("|",
                 "v1",
                 "merchantId=" + normalizeFingerprintText(commandDTO.getMerchantId()),
@@ -1940,7 +1941,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     private boolean requiresRequestCurrency(PaymentTransactionTypeEnum transactionTypeEnum) {
-        return PaymentTransactionTypeEnum.REFUND != transactionTypeEnum;
+        return PaymentTransactionTypeEnum.CAPTURE != transactionTypeEnum
+                && PaymentTransactionTypeEnum.REFUND != transactionTypeEnum;
     }
 
     private boolean requiresMerchantOrderNo(PaymentTransactionTypeEnum transactionTypeEnum) {

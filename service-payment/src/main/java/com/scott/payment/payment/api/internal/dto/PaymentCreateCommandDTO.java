@@ -117,7 +117,6 @@ public class PaymentCreateCommandDTO implements Serializable {
      * <p>
      * 该字段保留商户上送的标签币种；渠道不支持标签币种时，支付核心会在内部交易币种字段中保存 EDC 目标币种。
      */
-    @NotBlank(message = "currency is required")
     private String currency;
 
     /**

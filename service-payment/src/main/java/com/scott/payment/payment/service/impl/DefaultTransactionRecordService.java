@@ -932,6 +932,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 按生命周期关联标识查询全部动作事实。
+     */
+    @Override
+    @DS(DataSourceName.TRANSACTION)
+    public List<TransactionOperationDO> findOperationsByOperationId(String operationId,
+                                                                    LocalDateTime beginTime,
+                                                                    LocalDateTime endTime) {
+        if (!StringUtils.hasText(operationId) || beginTime == null || endTime == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        return transactionOperationMapper.selectByOperationId(
+                operationId, logicalBegin(beginTime), exclusiveEnd(endTime));
+    }
+
+    /**
      * 按商户订单号查询首次起点动作单。
      * <p>
      * 首次起点动作可能分布在历史季度分表，必须按当前分表规则从最小可查表扫描到当前表；调用方只用于创建前互斥校验，

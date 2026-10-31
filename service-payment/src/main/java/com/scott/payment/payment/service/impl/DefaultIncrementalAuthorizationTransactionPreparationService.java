@@ -11,6 +11,7 @@ import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.domain.order.FrozenRateFollowUpAmountCalculator;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
@@ -152,9 +153,15 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
                     "transaction state machine is not configured");
         }
+        FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan = calculateIncrementalAuthorizationAmountPlan(
+                commandDTO, sourceOrderDO);
+        applyIncrementalAuthorizationAmountPlan(commandDTO, sourceOrderDO, amountPlan);
         // 状态机和未决动作扫描必须基于持锁后的同一快照，否则并发增额可能同时通过。
         transactionStateMachineService.validateFollowUpAction(
-                sourceOrderDO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION, commandDTO.getAmount(), commandDTO.getCurrency());
+                sourceOrderDO,
+                PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION,
+                commandDTO.getTransactionAmount(),
+                commandDTO.getTransactionCurrency());
         validateNoConflictingAuthorizationAction(commandDTO, sourceOrderDO, LocalDateTime.now());
         LocalDateTime now = LocalDateTime.now();
         TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
@@ -179,7 +186,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
                 commandDTO.getTransactionInfo().getSourceTransactionId(),
                 commandDTO.getTransactionInfo().getSourceTransactionDateTime());
-        normalizeIncrementalAuthorizationCommand(commandDTO, sourceOrderDO, sourceOperationDO);
+        bindIncrementalAuthorizationSourceChannelTransaction(commandDTO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentCreateResultDTO resultDTO = buildIncrementalAuthorizationResult(commandDTO, sourceOrderDO, transactionId);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
@@ -318,7 +325,8 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
         String effectiveCurrency = StringUtils.hasText(commandDTO.getCurrency())
                 ? commandDTO.getCurrency()
-                : sourceOrderDO == null ? null : sourceOrderDO.getTransactionCurrency();
+                : sourceOrderDO == null ? null : firstText(
+                        sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
         String canonical = String.join("|",
                 "v1",
                 "merchantId=" + normalizeFingerprintText(commandDTO.getMerchantId()),
@@ -357,20 +365,58 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 将增量授权命令归一到原授权币种和原渠道交易号。
+     * 按首笔授权冻结汇率计算增量授权的标签金额和渠道交易金额。
      *
-     * <p>增量授权不重新换汇；缺失原渠道交易号时拒绝执行，避免渠道创建一笔脱离原授权链的新交易。</p>
+     * @param commandDTO 增量授权命令
+     * @param sourceOrderDO 已锁定的原授权主单
+     * @return 冻结汇率金额方案
      */
-    private void normalizeIncrementalAuthorizationCommand(PaymentCreateCommandDTO commandDTO,
-                                                         TransactionOrderDO sourceOrderDO,
-                                                         TransactionOperationDO sourceOperationDO) {
+    private FrozenRateFollowUpAmountCalculator.AmountPlan calculateIncrementalAuthorizationAmountPlan(
+            PaymentCreateCommandDTO commandDTO,
+            TransactionOrderDO sourceOrderDO) {
+        String labelCurrency = firstText(sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
+        return FrozenRateFollowUpAmountCalculator.calculateIncrementalAuthorization(
+                sourceOrderDO,
+                commandDTO.getAmount(),
+                commandDTO.getCurrency(),
+                resolveCurrencyExponent(labelCurrency),
+                resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency()));
+    }
+
+    /**
+     * 把增量授权的标签口径、渠道交易口径和首笔冻结汇率写入内部命令。
+     *
+     * @param commandDTO 待归一的增量授权命令
+     * @param sourceOrderDO 原授权主单
+     * @param amountPlan 冻结汇率金额方案
+     */
+    private void applyIncrementalAuthorizationAmountPlan(
+            PaymentCreateCommandDTO commandDTO,
+            TransactionOrderDO sourceOrderDO,
+            FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan) {
         validateIncrementalAuthorizationMerchantOrderNo(commandDTO, sourceOrderDO);
         commandDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
-        commandDTO.setLabelCurrency(StringUtils.hasText(commandDTO.getCurrency())
-                ? normalizeCurrency(commandDTO.getCurrency())
-                : sourceOrderDO.getTransactionCurrency());
-        commandDTO.setLabelAmount(commandDTO.getAmount());
-        commandDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
+        commandDTO.setLabelCurrency(amountPlan.labelCurrency());
+        commandDTO.setLabelAmount(amountPlan.labelAmount());
+        commandDTO.setTransactionCurrency(amountPlan.transactionCurrency());
+        commandDTO.setTransactionAmount(amountPlan.transactionAmount());
+        commandDTO.setTransactionRate(amountPlan.transactionRate());
+        commandDTO.setRateSource(amountPlan.rateSource());
+        commandDTO.setRateTime(amountPlan.rateTime());
+        commandDTO.setDccEnabled(amountPlan.dccEnabled());
+        commandDTO.setEdcEnabled(amountPlan.edcEnabled());
+    }
+
+    /**
+     * 绑定原授权的渠道交易号，确保增量授权继续原渠道授权链。
+     *
+     * @param commandDTO 增量授权命令
+     * @param sourceOrderDO 原授权主单
+     * @param sourceOperationDO 原授权动作单
+     */
+    private void bindIncrementalAuthorizationSourceChannelTransaction(
+            PaymentCreateCommandDTO commandDTO,
+            TransactionOperationDO sourceOperationDO) {
         if (sourceOperationDO == null || !StringUtils.hasText(sourceOperationDO.getChannelTransactionId())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "source channel transaction id is required for INCREMENTAL_AUTHORIZATION");
@@ -378,13 +424,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         if (commandDTO.getTransactionInfo() != null) {
             commandDTO.getTransactionInfo().setSourceChannelTransactionId(sourceOperationDO.getChannelTransactionId());
         }
-        commandDTO.setTransactionCurrency(sourceOrderDO.getTransactionCurrency());
-        commandDTO.setTransactionAmount(commandDTO.getAmount());
-        commandDTO.setTransactionRate(defaultTransactionRate());
-        commandDTO.setRateSource(null);
-        commandDTO.setRateTime(null);
-        commandDTO.setDccEnabled(0);
-        commandDTO.setEdcEnabled(0);
     }
 
     /**
@@ -418,8 +457,8 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         resultDTO.setMerchantId(commandDTO.getMerchantId());
         resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
         resultDTO.setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
-        resultDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
-        resultDTO.setAmount(toMinorAmount(commandDTO.getAmount(), sourceOrderDO.getTransactionCurrency()));
+        resultDTO.setCurrency(commandDTO.getTransactionCurrency());
+        resultDTO.setAmount(toMinorAmount(commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency()));
         return resultDTO;
     }
 
@@ -639,14 +678,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "currency fraction digits can not be resolved");
         }
         return currencyInfo.defaultFractionDigits();
-    }
-
-    private String normalizeCurrency(String currency) {
-        return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
-    }
-
-    private BigDecimal defaultTransactionRate() {
-        return new BigDecimal("1.00000000");
     }
 
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {

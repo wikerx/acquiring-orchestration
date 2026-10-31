@@ -11,6 +11,7 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.domain.order.FrozenRateFollowUpAmountCalculator;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
@@ -163,9 +164,12 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
             throw new ServiceException(ApiResultEnum.PAYMENT_CORE_CONFIG_UNAVAILABLE.getCode(),
                     "transaction state machine is not configured");
         }
+        FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan = calculateCaptureAmountPlan(
+                commandDTO, sourceOrderDO, LocalDateTime.now());
+        applyCaptureAmountPlan(commandDTO, sourceOrderDO, amountPlan);
         // 状态机校验与冲突动作扫描均发生在主单锁内，形成对可请款额度的串行决策点。
         transactionStateMachineService.validateFollowUpAction(
-                sourceOrderDO, transactionType, commandDTO.getAmount(), commandDTO.getCurrency());
+                sourceOrderDO, transactionType, commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency());
         validateNoNonTerminalCapture(commandDTO, sourceOrderDO, LocalDateTime.now());
         validateNoNonTerminalIncrementalAuthorization(commandDTO, sourceOrderDO, LocalDateTime.now());
         validateNoNonTerminalVoid(commandDTO, sourceOrderDO, LocalDateTime.now());
@@ -191,7 +195,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
                 commandDTO.getTransactionInfo().getSourceTransactionId(),
                 commandDTO.getTransactionInfo().getSourceTransactionDateTime());
-        normalizeCaptureCommand(commandDTO, sourceOrderDO, sourceOperationDO);
+        bindCaptureSourceChannelTransaction(commandDTO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentCreateResultDTO resultDTO = buildCaptureResult(commandDTO, sourceOrderDO, transactionId, transactionType);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
@@ -353,7 +357,8 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                 ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
         String effectiveCurrency = StringUtils.hasText(commandDTO.getCurrency())
                 ? commandDTO.getCurrency()
-                : sourceOrderDO == null ? null : sourceOrderDO.getTransactionCurrency();
+                : sourceOrderDO == null ? null : firstText(
+                        sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
         String canonical = String.join("|",
                 "v1",
                 "merchantId=" + normalizeFingerprintText(commandDTO.getMerchantId()),
@@ -392,42 +397,66 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
     }
 
     /**
-     * 将请款命令归一到原交易币种和渠道引用。
+     * 按原交易冻结汇率计算请款的标签金额和渠道交易金额。
      *
-     * <p>请款金额按原交易结算币种处理，不在后续动作中重新换汇；展示金额保留商户请求语义。</p>
+     * @param commandDTO 商户请款命令
+     * @param sourceOrderDO 已锁定的原授权主单
+     * @param decisionTime 本次金额决策时间
+     * @return 冻结汇率金额方案
      */
-    private void normalizeCaptureCommand(PaymentCreateCommandDTO commandDTO,
-                                         TransactionOrderDO sourceOrderDO,
-                                         TransactionOperationDO sourceOperationDO) {
-        BigDecimal transactionAmount = commandDTO.getAmount();
+    private FrozenRateFollowUpAmountCalculator.AmountPlan calculateCaptureAmountPlan(
+            PaymentCreateCommandDTO commandDTO,
+            TransactionOrderDO sourceOrderDO,
+            LocalDateTime decisionTime) {
+        String labelCurrency = firstText(sourceOrderDO.getLabelCurrency(), sourceOrderDO.getTransactionCurrency());
+        int labelCurrencyExponent = resolveCurrencyExponent(labelCurrency);
+        int transactionCurrencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+        List<TransactionOperationDO> lifecycleOperations = transactionRecordService.findOperationsByOperationId(
+                sourceOrderDO.getOperationId(),
+                sourceOrderDO.getTransactionDateTime(),
+                laterOf(decisionTime, commandDTO.getTransactionDateTime()));
+        return FrozenRateFollowUpAmountCalculator.calculateCapture(
+                sourceOrderDO,
+                lifecycleOperations,
+                commandDTO.getAmount(),
+                commandDTO.getCurrency(),
+                labelCurrencyExponent,
+                transactionCurrencyExponent);
+    }
+
+    /**
+     * 把请款标签口径、渠道交易口径和首笔冻结汇率同时写入内部命令。
+     *
+     * @param commandDTO 待归一的请款命令
+     * @param sourceOrderDO 原授权主单
+     * @param amountPlan 冻结汇率金额方案
+     */
+    private void applyCaptureAmountPlan(PaymentCreateCommandDTO commandDTO,
+                                        TransactionOrderDO sourceOrderDO,
+                                        FrozenRateFollowUpAmountCalculator.AmountPlan amountPlan) {
         commandDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
-        commandDTO.setLabelCurrency(resolveLabelCurrency(commandDTO, sourceOrderDO));
-        commandDTO.setLabelAmount(commandDTO.getLabelAmount() == null ? transactionAmount : commandDTO.getLabelAmount());
-        commandDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
+        commandDTO.setLabelCurrency(amountPlan.labelCurrency());
+        commandDTO.setLabelAmount(amountPlan.labelAmount());
+        commandDTO.setTransactionCurrency(amountPlan.transactionCurrency());
+        commandDTO.setTransactionAmount(amountPlan.transactionAmount());
+        commandDTO.setTransactionRate(amountPlan.transactionRate());
+        commandDTO.setRateSource(amountPlan.rateSource());
+        commandDTO.setRateTime(amountPlan.rateTime());
+        commandDTO.setDccEnabled(amountPlan.dccEnabled());
+        commandDTO.setEdcEnabled(amountPlan.edcEnabled());
+    }
+
+    /**
+     * 绑定原授权的渠道交易号，确保请款继续原渠道授权链。
+     *
+     * @param commandDTO 请款命令
+     * @param sourceOperationDO 原授权动作单
+     */
+    private void bindCaptureSourceChannelTransaction(PaymentCreateCommandDTO commandDTO,
+                                                     TransactionOperationDO sourceOperationDO) {
         if (commandDTO.getTransactionInfo() != null && sourceOperationDO != null) {
             commandDTO.getTransactionInfo().setSourceChannelTransactionId(sourceOperationDO.getChannelTransactionId());
         }
-        commandDTO.setTransactionCurrency(sourceOrderDO.getTransactionCurrency());
-        commandDTO.setTransactionAmount(transactionAmount);
-        commandDTO.setTransactionRate(defaultTransactionRate());
-        commandDTO.setRateSource(null);
-        commandDTO.setRateTime(null);
-        commandDTO.setDccEnabled(0);
-        commandDTO.setEdcEnabled(0);
-    }
-
-    /** 按本次展示币种、请求币种、原交易展示币种、原交易币种的顺序解析商户展示币种。 */
-    private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
-        if (StringUtils.hasText(commandDTO.getLabelCurrency())) {
-            return normalizeCurrency(commandDTO.getLabelCurrency());
-        }
-        if (StringUtils.hasText(commandDTO.getCurrency())) {
-            return normalizeCurrency(commandDTO.getCurrency());
-        }
-        if (StringUtils.hasText(sourceOrderDO.getLabelCurrency())) {
-            return sourceOrderDO.getLabelCurrency();
-        }
-        return sourceOrderDO.getTransactionCurrency();
     }
 
     private PaymentCreateResultDTO buildCaptureResult(PaymentCreateCommandDTO commandDTO,
@@ -443,8 +472,8 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         resultDTO.setMerchantId(commandDTO.getMerchantId());
         resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
         resultDTO.setTransactionType(transactionType.getCode());
-        resultDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
-        resultDTO.setAmount(toMinorAmount(commandDTO.getAmount(), sourceOrderDO.getTransactionCurrency()));
+        resultDTO.setCurrency(commandDTO.getTransactionCurrency());
+        resultDTO.setAmount(toMinorAmount(commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency()));
         return resultDTO;
     }
 
@@ -687,10 +716,6 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         return currencyInfo.defaultFractionDigits();
     }
 
-    private String normalizeCurrency(String currency) {
-        return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
-    }
-
     /** 仅允许标准请款和预授权完成共用本准备链，其他交易类型明确拒绝。 */
     private PaymentTransactionTypeEnum normalizeCaptureLikeType(PaymentTransactionTypeEnum transactionType) {
         if (transactionType == null || PaymentTransactionTypeEnum.CAPTURE == transactionType) {
@@ -700,10 +725,6 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
             return transactionType;
         }
         throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
-    }
-
-    private BigDecimal defaultTransactionRate() {
-        return new BigDecimal("1.00000000");
     }
 
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {

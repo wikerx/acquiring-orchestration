@@ -707,7 +707,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 订单币种，使用 ISO 4217 三位大写币种代码，例如 USD、EUR、CNY。
          */
-        @NotBlank(message = "orderInfo.currency", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class})
+        @NotBlank(message = "orderInfo.currency", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, PreAuthCompletion.class})
         @Pattern(regexp = "^[A-Z]{3}$", message = "orderInfo.currency format does not match", groups = {Format.class})
         private String currency;
 

@@ -146,7 +146,9 @@ public interface OpenApiRequestConverter {
             orderInfoVO.setOrderNo(requestDTO.getOrderInfo().getOrderNo());
             orderInfoVO.setOrderId(requestDTO.getOrderInfo().getOrderId());
             orderInfoVO.setAmount(requestDTO.getOrderInfo().getAmount());
-            orderInfoVO.setCurrency(requestDTO.getOrderInfo().getCurrency());
+            if (StringUtils.hasText(requestDTO.getOrderInfo().getCurrency())) {
+                orderInfoVO.setCurrency(requestDTO.getOrderInfo().getCurrency());
+            }
             normalizeCreateActionTotals(orderInfoVO, responseDTO);
             vo.setOrderInfo(orderInfoVO);
         }
