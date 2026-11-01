@@ -45,8 +45,7 @@ public class MqResourceInitializerRunner implements ApplicationRunner {
             if (failFast) {
                 throw exception;
             }
-            log.error("RocketMQ 资源初始化失败并降级继续启动, event: ROCKET_MQ_RESOURCE_INITIALIZATION_FAILED, "
-                            + "failFast: false, exceptionType: {}",
+            log.error("RocketMQ 资源初始化失败并降级继续启动, event: ROCKET_MQ_RESOURCE_INITIALIZATION_FAILED, failFast: false, exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }

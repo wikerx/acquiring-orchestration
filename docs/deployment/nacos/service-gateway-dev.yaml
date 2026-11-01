@@ -8,8 +8,8 @@ gateway:
     payout-openapi-path: /api/rest/payout/**
     # 渠道回调入口，统一由 service-openapi 处理后分发。
     channel-callback-path: /channel/**
-    # OpenAPI 健康检查、通知重试等支持入口。
-    support-path: /openapi/**
+    # OpenAPI 健康检查入口；维护命令不得通过公网支持路由暴露。
+    support-path: /openapi/health
   security:
     # 网关只做路径白名单和基础响应头处理；JWT验签、报文解密、参数校验下沉到 service-openapi。
     delegate-auth-to-openapi: true
@@ -129,14 +129,14 @@ spring:
                 allow-credentials: false
                 # 参数说明：浏览器缓存渠道回调预检结果的时间，单位秒。
                 max-age: 1800
-              "[/openapi/**]":
+              "[/openapi/health]":
                 allowed-origin-patterns:
                   # 来源说明：允许本机 localhost 任意端口访问 OpenAPI 支持接口，仅用于 dev。
                   - "http://localhost:*"
                   # 来源说明：允许本机回环 IP 任意端口访问 OpenAPI 支持接口，仅用于 dev。
                   - "http://127.0.0.1:*"
-                # 参数说明：OpenAPI 支持接口允许的浏览器方法集合。
-                allowed-methods: [GET, POST, OPTIONS]
+                # 参数说明：OpenAPI 健康检查只允许 GET 和浏览器预检 OPTIONS。
+                allowed-methods: [GET, OPTIONS]
                 # 参数说明：dev 支持接口允许任意请求头；正式环境必须按实际接口收敛。
                 allowed-headers: "*"
                 # 参数说明：OpenAPI 支持接口不携带浏览器凭据，必须保持 false。

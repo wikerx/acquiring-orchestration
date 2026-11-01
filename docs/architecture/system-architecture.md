@@ -221,7 +221,7 @@ acquiring/
 | `service-admin` | 8001 | `/admin/**` | 平台后台、商户/渠道/风控/费用配置、运营查询与受控命令 | MASTER、SLAVE、TRANSACTION、Redis、下游内部 API、对象存储 |
 | `service-merchant` | 8002 | `/merchant/**` | 商户身份、组织权限、资料、接入配置、交易与结算自助 | MASTER、SLAVE、TRANSACTION、Redis、Payment 内部 API |
 | `service-checkout` | 8003 | `/checkout/config/**`、`/checkout/health` | 收银台公开展示配置 | Redis、Gateway 入口签名 |
-| `service-openapi` | 8004 | `/api/rest/**`、`/checkout/api/**`、`/channel/**`、`/openapi/**` | 商户 OpenAPI、浏览器 Checkout、渠道回调公网协议 | Redis、MASTER/SLAVE、Payment/Payout 内部 API |
+| `service-openapi` | 8004 | `/api/rest/**`、`/checkout/api/**`、`/channel/**`、`/openapi/health` | 商户 OpenAPI、浏览器 Checkout、渠道回调公网协议 | Redis、MASTER/SLAVE、Payment/Payout 内部 API |
 | `service-payment` | 8005 | 无，内部调用 | 收单交易生命周期、路由、渠道执行、回调处理、交易 Outbox | MASTER、TRANSACTION、Redis、Risk、渠道库、RocketMQ |
 | `service-payout` | 8006 | 无，内部调用 | 代付受理骨架 | Redis、代付渠道库 |
 | `service-job` | 8007 | 无，内部调用 | 任务、执行节点、运行日志、分表治理和补偿触发 | MASTER、SLAVE、Redis、Payment/Clearing/Data |
@@ -317,7 +317,7 @@ Checkout 服务只提供公开展示配置和健康检查。交易会话、卡�
 | `/api/rest/checkout/**` | `service-openapi` | 商户创建 Checkout Session |
 | `/checkout/api/**` | `service-openapi` | 付款人浏览器 Checkout API |
 | `/channel/**` | `service-openapi` | 渠道回调 |
-| `/openapi/**` | `service-openapi` | OpenAPI 健康和通知支持接口 |
+| `/openapi/health` | `service-openapi` | OpenAPI 健康检查 |
 | `/admin/**` | `service-admin` | 平台管理端 |
 | `/merchant/**` | `service-merchant` | 商户后台 |
 | `/checkout/config/**` | `service-checkout` | 收银台展示配置 |

@@ -41,6 +41,11 @@ public final class DataMqConsumerGroups {
     public static final String CHECKOUT_CARD_VAULT = "acquiring-data-checkout-card-vault-consumer";
 
     /**
+     * Payment 与 Settlement 实际汇率使用事实消费组。
+     */
+    public static final String EXCHANGE_RATE_USAGE = "acquiring-data-exchange-rate-usage-consumer";
+
+    /**
      * 常量类不允许实例化。
      */
     private DataMqConsumerGroups() {

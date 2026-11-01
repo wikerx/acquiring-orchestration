@@ -1,5 +1,8 @@
 package com.scott.payment.merchant.application.auth;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
@@ -24,13 +27,15 @@ import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
 import com.scott.payment.merchant.config.MerchantDefaultLoginCredentialProperties;
 import com.scott.payment.merchant.dto.MerchantDefaultLoginCredentialDTO;
 import jakarta.servlet.http.HttpServletRequest;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -66,6 +71,9 @@ class MerchantAuthApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), "merchant-auth-application-test"),
+                SysMerchantUserDO.class);
         defaultLoginProperties = new MerchantDefaultLoginCredentialProperties();
         merchantAuthApplicationService = new MerchantAuthApplicationService(
                 systemAuthService,
@@ -166,6 +174,7 @@ class MerchantAuthApplicationServiceTest {
     @Test
     void shouldReturnDefaultLoginCredentialFromSeedAccount() {
         defaultLoginProperties.setEnabled(true);
+        defaultLoginProperties.setMerchantId("200045");
         defaultLoginProperties.setPassword("configured-local-password");
         SysAppDO app = new SysAppDO();
         app.setId(2L);
@@ -189,6 +198,11 @@ class MerchantAuthApplicationServiceTest {
         assertThat(actual.getMerchantId()).isEqualTo("200045");
         assertThat(actual.getLoginAccount()).isEqualTo("admin");
         assertThat(actual.getPassword()).isEqualTo("configured-local-password");
+        ArgumentCaptor<LambdaQueryWrapper<SysMerchantUserDO>> queryCaptor =
+                ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+        verify(sysMerchantUserMapper).selectOne(queryCaptor.capture());
+        assertThat(queryCaptor.getValue().getSqlSegment()).contains("merchant_id");
+        assertThat(queryCaptor.getValue().getParamNameValuePairs()).containsValue("200045");
     }
 
     @Test

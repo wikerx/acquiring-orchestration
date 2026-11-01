@@ -313,6 +313,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         PaymentCreateResultDTO resultDTO = buildInitialResult(commandDTO, operationId, transactionId, transactionType);
         PaymentRouteResultDTO routeResultDTO = null;
         PaymentChannelInvokeResultDTO preparedInvokeResultDTO = null;
+        CurrencyConversionOutcome conversionOutcome = CurrencyConversionOutcome.notApplied();
         boolean callChannel = false;
         if (!riskDecisionEnum.isAllowProceed()) {
             // 风控拒绝属于本地确定终态，不生成虚假渠道请求，也不进入渠道调用阶段。
@@ -347,7 +348,8 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                     routeResultDTO == null ? null : routeResultDTO.getRoutedCurrency(),
                     routeResultDTO != null && routeResultDTO.isEdcRequired(),
                     elapsedMillis(routeStartNanos));
-            if (!applyCurrencyConversion(commandDTO, routeResultDTO, resultDTO)) {
+            conversionOutcome = applyCurrencyConversion(commandDTO, routeResultDTO, resultDTO);
+            if (!conversionOutcome.successful()) {
                 // 汇率缺失在渠道调用前即可确认失败，因此不创建可发送的渠道请求。
                 log.warn("支付交易汇率缺失, event: PAYMENT_EXCHANGE_RATE_MISSING, stage: AMOUNT, traceId: {}, merchantId: {}, merchantOrderNo: {}, transactionId: {}, operationId: {}, transactionType: {}, labelCurrency: {}, routedCurrency: {}, labelAmount: {}, platformStatus: {}, failureCode: {}",
                         TraceContext.getTraceId(),
@@ -398,6 +400,21 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 resultDTO,
                 riskDecisionEnum,
                 currencyExponent);
+        if (conversionOutcome.appliedRate() != null) {
+            // 交易事实与汇率使用 Outbox 同事务提交，避免消息先发或事实已落库但审计事件丢失。
+            PaymentExchangeRateDTO appliedRate = conversionOutcome.appliedRate();
+            String calculationDescription = StringUtils.hasText(appliedRate.getAdjustDescription())
+                    ? appliedRate.getAdjustDescription()
+                    : "transactionAmount = labelAmount * transactionRate; targetCurrencyExponent="
+                    + currencyExponent;
+            TransactionRateUsageOutboxSupport.save(
+                    transactionEventOutboxService,
+                    commandDTO,
+                    resultDTO,
+                    appliedRate,
+                    conversionOutcome.appliedTime(),
+                    calculationDescription);
+        }
         // 只有已形成终态或确实准备调用渠道时才创建交易事件，纯重复回放不会产生新事件。
         if (isTerminal(resultDTO) || callChannel) {
             saveTransactionCreatedEvent(commandDTO, resultDTO);
@@ -771,19 +788,20 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      * 不允许用 1:1 或最新汇率兜底。
      * </p>
      */
-    private boolean applyCurrencyConversion(PaymentCreateCommandDTO commandDTO,
-                                            PaymentRouteResultDTO routeResultDTO,
-                                            PaymentCreateResultDTO resultDTO) {
+    private CurrencyConversionOutcome applyCurrencyConversion(PaymentCreateCommandDTO commandDTO,
+                                                              PaymentRouteResultDTO routeResultDTO,
+                                                              PaymentCreateResultDTO resultDTO) {
         String labelCurrency = normalizeCurrency(commandDTO.getLabelCurrency());
         String routedCurrency = normalizeCurrency(routeResultDTO == null ? null : routeResultDTO.getRoutedCurrency());
         if (!StringUtils.hasText(routedCurrency) || labelCurrency.equals(routedCurrency)) {
             applyNoConversion(commandDTO);
-            return true;
+            return CurrencyConversionOutcome.notApplied();
         }
         PaymentExchangeRateDTO rateDTO = paymentExchangeRateService.findTransactionRate(
                         labelCurrency, routedCurrency, commandDTO.getTransactionDateTime())
                 .orElse(null);
-        if (rateDTO == null || rateDTO.getFinalRate() == null || rateDTO.getFinalRate().compareTo(BigDecimal.ZERO) <= 0) {
+        if (rateDTO == null || rateDTO.getRateId() == null || rateDTO.getRateId() <= 0
+                || rateDTO.getFinalRate() == null || rateDTO.getFinalRate().compareTo(BigDecimal.ZERO) <= 0) {
             commandDTO.setTransactionCurrency(labelCurrency);
             commandDTO.setTransactionAmount(commandDTO.getLabelAmount());
             commandDTO.setTransactionRate(defaultTransactionRate());
@@ -796,7 +814,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
             resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
             resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
             resultDTO.setFailReasonCode(PaymentFailureReasonEnum.EXCHANGE_RATE_NOT_FOUND.getCode());
-            return false;
+            return CurrencyConversionOutcome.failed();
         }
         int targetExponent = resolveCurrencyExponent(routedCurrency);
         BigDecimal transactionAmount = commandDTO.getLabelAmount()
@@ -809,7 +827,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         commandDTO.setRateTime(rateDTO.getEffectiveTime());
         commandDTO.setDccEnabled(0);
         commandDTO.setEdcEnabled(1);
-        return true;
+        return CurrencyConversionOutcome.applied(rateDTO, LocalDateTime.now());
     }
 
     /**
@@ -937,6 +955,40 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         eventDO.setCreateTime(message.getCreatedAt());
         eventDO.setUpdateTime(message.getCreatedAt());
         transactionEventOutboxService.save(eventDO);
+    }
+
+    /**
+     * 记录换汇是否成功、是否真正使用跨币种汇率以及业务应用时间。
+     *
+     * <p>同币种路径 successful=true 但 appliedRate 为空；汇率缺失路径 successful=false，二者都
+     * 不会生成汇率使用事件。</p>
+     */
+    private record CurrencyConversionOutcome(boolean successful,
+                                             PaymentExchangeRateDTO appliedRate,
+                                             LocalDateTime appliedTime) {
+
+        /**
+         * 创建同币种或无需换汇的成功结果。
+         */
+        private static CurrencyConversionOutcome notApplied() {
+            return new CurrencyConversionOutcome(true, null, null);
+        }
+
+        /**
+         * 创建缺少有效汇率的失败结果。
+         */
+        private static CurrencyConversionOutcome failed() {
+            return new CurrencyConversionOutcome(false, null, null);
+        }
+
+        /**
+         * 创建已经用于交易金额计算的跨币种汇率结果。
+         */
+        private static CurrencyConversionOutcome applied(PaymentExchangeRateDTO rate,
+                                                         LocalDateTime appliedTime) {
+            return new CurrencyConversionOutcome(true, Objects.requireNonNull(rate),
+                    Objects.requireNonNull(appliedTime));
+        }
     }
 
     /**

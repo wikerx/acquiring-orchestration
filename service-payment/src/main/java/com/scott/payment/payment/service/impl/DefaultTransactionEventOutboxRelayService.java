@@ -4,6 +4,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.BaseMqMessage;
+import com.scott.payment.component.mq.message.ExchangeRateUsageMessage;
 import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessage;
 import com.scott.payment.component.mq.message.ClearingRetryDueMessage;
 import com.scott.payment.component.mq.constant.MqTopic;
@@ -415,6 +416,18 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                 throw new IllegalStateException("refund execution outbox payload is invalid");
             }
             return executionMessage;
+        }
+        if (MqTag.EXCHANGE_RATE_USAGE.equals(eventDO.getTag())) {
+            ExchangeRateUsageMessage usageMessage = JsonUtils.parseObject(
+                    eventDO.getPayloadJson(), ExchangeRateUsageMessage.class);
+            boolean valid = usageMessage != null
+                    && StringUtils.hasText(usageMessage.getUsageEventId())
+                    && usageMessage.getUsageEventId().equals(usageMessage.getMessageId())
+                    && MqTopic.EXCHANGE_RATE_USAGE.equals(eventDO.getTopic());
+            if (!valid) {
+                throw new IllegalStateException("exchange rate usage outbox payload is invalid");
+            }
+            return usageMessage;
         }
         TransactionEventMessage message = JsonUtils.parseObject(eventDO.getPayloadJson(), TransactionEventMessage.class);
         if (message == null || !StringUtils.hasText(message.getEventType())) {

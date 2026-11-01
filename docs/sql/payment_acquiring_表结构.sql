@@ -809,6 +809,8 @@ CREATE TABLE `exchange_rate_source` (
 DROP TABLE IF EXISTS `exchange_rate_usage_snapshot`;
 CREATE TABLE `exchange_rate_usage_snapshot` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `usage_event_id` varchar(96) NOT NULL COMMENT '汇率使用事件全局幂等号',
+  `producer_service` varchar(64) NOT NULL COMMENT '产生实际使用事实的服务名',
   `rate_type` varchar(32) NOT NULL COMMENT '汇率类型：TRANSACTION_RATE/SETTLEMENT_RATE',
   `usage_scene` varchar(64) NOT NULL COMMENT '汇率使用场景',
   `business_type` varchar(64) NOT NULL COMMENT '业务类型，如 PAYMENT/SETTLEMENT/REFUND',
@@ -819,12 +821,16 @@ CREATE TABLE `exchange_rate_usage_snapshot` (
   `business_rate_id` bigint DEFAULT NULL COMMENT '业务汇率ID',
   `raw_rate_id` bigint DEFAULT NULL COMMENT '原始汇率ID',
   `rule_id` bigint DEFAULT NULL COMMENT '汇率规则ID',
+  `rate_source` varchar(64) DEFAULT NULL COMMENT '实际采用的汇率来源编码',
+  `source_quote_direction` varchar(16) DEFAULT NULL COMMENT '原始报价方向：DIRECT/INVERSE',
+  `rate_effective_time` datetime(3) DEFAULT NULL COMMENT '实际采用汇率的生效时间',
   `calculation_description` varchar(512) DEFAULT NULL COMMENT '计算说明',
   `applied_time` datetime(3) NOT NULL COMMENT '业务实际使用时间',
   `create_by` varchar(64) DEFAULT NULL COMMENT '创建人',
   `create_time` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
   `deleted` bigint NOT NULL DEFAULT '0' COMMENT '删除标识：0未删除，大于0为删除记录ID',
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_exchange_snapshot_usage_event` (`usage_event_id`),
   KEY `idx_exchange_snapshot_business` (`business_type`,`business_no`,`deleted`),
   KEY `idx_exchange_snapshot_scope` (`rate_type`,`usage_scene`,`base_currency`,`quote_currency`,`deleted`),
   KEY `idx_exchange_snapshot_applied` (`applied_time`,`deleted`)

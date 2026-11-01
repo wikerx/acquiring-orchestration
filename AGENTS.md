@@ -96,6 +96,10 @@ After implementation:
 - A path named `/internal/**` is not a security boundary by itself.
 - Production configuration must fail closed for security controls; it must not silently enable
   mock channels, plaintext secrets, default passwords, or replay-protection bypasses.
+- A new mandatory configuration or startup gate must ship with an environment matrix, a usable
+  provisioning/bootstrap path, compatibility and migration handling, rollback or containment, and
+  focused startup verification for every affected service. Security hardening is incomplete when it
+  only removes a fallback and leaves approved local development unable to start.
 
 ## Architecture And Code Rules
 

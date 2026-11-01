@@ -57,8 +57,7 @@ public class HolidayCalendarCachePolicy {
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "节假日日历缓存保护检查失败, event: HOLIDAY_CALENDAR_CACHE_GUARD_CHECK_FAILED, "
-                            + "businessKey: {}, exceptionType: {}",
+                    "节假日日历缓存保护检查失败, event: HOLIDAY_CALENDAR_CACHE_GUARD_CHECK_FAILED, businessKey: {}, exceptionType: {}",
                     businessKey,
                     exception.getClass().getSimpleName()
             );

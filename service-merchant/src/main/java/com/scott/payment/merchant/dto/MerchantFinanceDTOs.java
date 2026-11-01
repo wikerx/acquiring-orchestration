@@ -1,5 +1,7 @@
 package com.scott.payment.merchant.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -209,6 +211,7 @@ public final class MerchantFinanceDTOs {
         /**
          * 该币种独立汇总金额，不与其他币种直接相加。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal amount;
     }
 
@@ -232,6 +235,7 @@ public final class MerchantFinanceDTOs {
         /**
          * 可用余额，单位为 settlementCurrency，允许为负。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal availableBalance;
         /**
          * 按标签币种分别统计的在途余额。
@@ -319,14 +323,17 @@ public final class MerchantFinanceDTOs {
         /**
          * 发生金额，单位为 currency，始终为非负数。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal amount;
         /**
          * 操作前余额，单位为 currency，可为负。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal balanceBefore;
         /**
          * 操作后余额，单位为 currency，可为负。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal balanceAfter;
         /**
          * 同一账户内严格递增序号，用于核对连续余额。

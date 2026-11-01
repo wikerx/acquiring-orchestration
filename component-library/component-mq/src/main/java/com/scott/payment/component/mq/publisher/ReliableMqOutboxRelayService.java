@@ -108,8 +108,7 @@ public class ReliableMqOutboxRelayService {
             boolean sent = outboxStore.markSent(event.getId(), claimedVersion, LocalDateTime.now()) == 1
                     || alreadySent(eventId);
             if (!sent) {
-                log.error("可靠消息发送成功状态 CAS 更新失败, event: RELIABLE_MQ_MARK_SENT_CAS_FAILED, "
-                                + "eventId: {}, topic: {}, expectedVersion: {}",
+                log.error("可靠消息发送成功状态 CAS 更新失败, event: RELIABLE_MQ_MARK_SENT_CAS_FAILED, eventId: {}, topic: {}, expectedVersion: {}",
                         event.getEventId(), event.getTopic(), claimedVersion);
             }
             return sent;
@@ -200,13 +199,11 @@ public class ReliableMqOutboxRelayService {
                 exception.getClass().getSimpleName(),
                 now);
         if (affectedRows != 1) {
-            log.error("可靠消息发送失败状态 CAS 更新失败, event: RELIABLE_MQ_MARK_FAILED_CAS_FAILED, "
-                            + "eventId: {}, topic: {}, expectedVersion: {}, exceptionType: {}",
+            log.error("可靠消息发送失败状态 CAS 更新失败, event: RELIABLE_MQ_MARK_FAILED_CAS_FAILED, eventId: {}, topic: {}, expectedVersion: {}, exceptionType: {}",
                     event.getEventId(), event.getTopic(), claimedVersion,
                     exception.getClass().getSimpleName());
         }
-        log.warn("可靠消息投递失败, event: RELIABLE_MQ_RELAY_FAILED, eventId: {}, topic: {}, "
-                        + "retryCount: {}, closed: {}, exceptionType: {}, stateRecorded: {}",
+        log.warn("可靠消息投递失败, event: RELIABLE_MQ_RELAY_FAILED, eventId: {}, topic: {}, retryCount: {}, closed: {}, exceptionType: {}, stateRecorded: {}",
                 event.getEventId(), event.getTopic(), nextRetryCount, exhausted,
                 exception.getClass().getSimpleName(), affectedRows == 1);
     }

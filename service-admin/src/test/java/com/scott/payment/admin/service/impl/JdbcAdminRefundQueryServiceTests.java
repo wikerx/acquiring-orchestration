@@ -1,5 +1,6 @@
 package com.scott.payment.admin.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundRecord;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSummary;
@@ -13,6 +14,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -80,6 +82,63 @@ class JdbcAdminRefundQueryServiceTests {
         verify(readExecutor).read(any());
         verify(readExecutor, never()).readPrimary(any());
         log.info("结果：退款分页、状态统计和金额统计均在transaction普通读作用域执行");
+    }
+
+    /**
+     * 分币种退款汇总必须保留交易事实中的币种精度和十进制金额，禁止按两位小数推断。
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchShouldPreserveCurrencyExponentAndExactSummaryAmount() throws Exception {
+        log.info("用例：验证管理端退款汇总保留JPY和USD币种精度及大额十进制金额");
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        TransactionLogicalReadExecutor readExecutor = executingReadExecutor();
+        ResultSet countResultSet = mock(ResultSet.class);
+        ResultSet jpyResultSet = refundCurrencyResultSet("JPY", 0, "100");
+        ResultSet usdResultSet = refundCurrencyResultSet("USD", 2, "123456789012345678.90");
+        when(countResultSet.getLong(anyString())).thenReturn(0L);
+        when(jdbcTemplate.queryForObject(
+                anyString(), any(MapSqlParameterSource.class), eq(Long.class))).thenReturn(0L);
+        when(jdbcTemplate.queryForObject(
+                anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> invocation.<RowMapper<RefundSummary>>getArgument(2)
+                        .mapRow(countResultSet, 0));
+        when(jdbcTemplate.query(
+                anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    RowMapper<?> mapper = invocation.getArgument(2, RowMapper.class);
+                    return List.of(mapper.mapRow(jpyResultSet, 0), mapper.mapRow(usdResultSet, 1));
+                });
+        JdbcAdminRefundQueryService service = new JdbcAdminRefundQueryService(
+                jdbcTemplate, readExecutor, mock(AdminTransactionQueryService.class),
+                new TransactionShardingProperties());
+
+        RefundSummary summary = service.search(query()).getSummary();
+
+        assertThat(summary.getCurrencyAmounts()).hasSize(2);
+        assertThat(summary.getCurrencyAmounts().get(0).getCurrency()).isEqualTo("JPY");
+        assertThat(summary.getCurrencyAmounts().get(0).getCurrencyExponent()).isZero();
+        assertThat(summary.getCurrencyAmounts().get(0).getTotalAmount())
+                .isEqualByComparingTo("100");
+        assertThat(summary.getCurrencyAmounts().get(1).getCurrency()).isEqualTo("USD");
+        assertThat(summary.getCurrencyAmounts().get(1).getCurrencyExponent()).isEqualTo(2);
+        assertThat(summary.getCurrencyAmounts().get(1).getTotalAmount())
+                .isEqualByComparingTo("123456789012345678.90");
+        String serializedSummary = new ObjectMapper()
+                .writeValueAsString(summary.getCurrencyAmounts().get(1));
+        assertThat(serializedSummary).contains(
+                "\"currencyExponent\":2",
+                "\"totalAmount\":\"123456789012345678.90\"",
+                "\"pendingApprovalAmount\":\"123456789012345678.90\"",
+                "\"successfulAmount\":\"123456789012345678.90\"",
+                "\"pendingAmount\":\"123456789012345678.90\"");
+        ArgumentCaptor<String> summarySql = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).query(
+                summarySql.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertThat(summarySql.getValue()).contains(
+                "o.currency_exponent",
+                "GROUP BY o.transaction_currency, o.currency_exponent");
+        log.info("结果：管理端退款汇总按币种和精度分组，金额未经过浮点转换");
     }
 
     /**
@@ -205,6 +264,19 @@ class JdbcAdminRefundQueryServiceTests {
         when(executor.read(any())).thenAnswer(invocation ->
                 invocation.<Supplier<?>>getArgument(0).get());
         return executor;
+    }
+
+    /**
+     * 创建退款分币种汇总结果集，所有金额列使用同一精确十进制值。
+     */
+    private ResultSet refundCurrencyResultSet(String currency,
+                                              int currencyExponent,
+                                              String amount) throws Exception {
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("currency")).thenReturn(currency);
+        when(resultSet.getInt("currency_exponent")).thenReturn(currencyExponent);
+        when(resultSet.getBigDecimal(anyString())).thenReturn(new BigDecimal(amount));
+        return resultSet;
     }
 
     private RefundQuery query() {

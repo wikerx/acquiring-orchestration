@@ -465,6 +465,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 paymentChannelRouteService,
                 transactionIdempotencyService,
                 transactionEventOutboxService,
+                paymentExchangeRateService,
                 transactionRecordService,
                 transactionStateMachineService)
                 : captureTransactionPreparationService;
@@ -504,6 +505,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 paymentChannelRouteService,
                 transactionIdempotencyService,
                 transactionEventOutboxService,
+                paymentExchangeRateService,
                 transactionRecordService,
                 transactionStateMachineService)
                 : incrementalAuthorizationTransactionPreparationService;

@@ -85,10 +85,13 @@ public class DefaultPaymentExchangeRateService implements PaymentExchangeRateSer
         PaymentExchangeRateDTO dto = new PaymentExchangeRateDTO();
         // 原样返回数据库 BigDecimal 汇率，不在查询层提前换算金额或舍入。
         dto.setRateId(rateDO.getId());
+        dto.setRawRateId(rateDO.getRawRateId());
+        dto.setRuleId(rateDO.getRuleId());
         dto.setSourceCode(rateDO.getSourceCode());
         dto.setBaseCurrency(rateDO.getBaseCurrency());
         dto.setQuoteCurrency(rateDO.getQuoteCurrency());
         dto.setFinalRate(rateDO.getFinalRate());
+        dto.setAdjustDescription(rateDO.getAdjustDescription());
         dto.setEffectiveTime(rateDO.getEffectiveTime());
         return Optional.of(dto);
     }

@@ -85,8 +85,7 @@ public class ReliableMqOutboxRelayScheduler {
         try {
             relayService.refreshMetrics();
         } catch (RuntimeException exception) {
-            log.warn("可靠消息 Outbox 指标刷新失败, event: RELIABLE_MQ_OUTBOX_METRICS_REFRESH_FAILED, "
-                            + "exceptionType: {}",
+            log.warn("可靠消息 Outbox 指标刷新失败, event: RELIABLE_MQ_OUTBOX_METRICS_REFRESH_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }

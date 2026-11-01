@@ -85,6 +85,11 @@ acquiring:
           type: TOPIC
           read-queue-nums: 4
           write-queue-nums: 4
+        # Payment/Settlement 实际使用跨币种汇率后发送普通审计事实，不要求业务顺序。
+        - name: acquiring_exchange_rate_usage_topic
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
         # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
         - name: acquiring_risk_evaluation_audit_topic
           # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
@@ -180,6 +185,12 @@ acquiring:
           consume-timeout-minute: 15
         # service-data 卡资料库独立消费组，数据库唯一键承担最终幂等。
         - name: acquiring-data-checkout-card-vault-consumer
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        # 汇率使用快照由 service-data 集中落库，数据库 usage_event_id 唯一键承担最终幂等。
+        - name: acquiring-data-exchange-rate-usage-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16

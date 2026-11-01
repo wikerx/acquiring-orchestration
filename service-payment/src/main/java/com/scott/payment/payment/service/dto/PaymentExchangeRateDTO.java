@@ -23,6 +23,16 @@ public class PaymentExchangeRateDTO implements Serializable {
     private Long rateId;
 
     /**
+     * 原始汇率记录主键，人工业务汇率允许为空。
+     */
+    private Long rawRateId;
+
+    /**
+     * 汇率规则主键，人工业务汇率允许为空。
+     */
+    private Long ruleId;
+
+    /**
      * 汇率源编码。
      */
     private String sourceCode;
@@ -41,6 +51,11 @@ public class PaymentExchangeRateDTO implements Serializable {
      * 最终交易汇率。
      */
     private BigDecimal finalRate;
+
+    /**
+     * 汇率调整说明，用于运营审计还原最终汇率来源。
+     */
+    private String adjustDescription;
 
     /**
      * 汇率生效时间。

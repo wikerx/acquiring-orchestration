@@ -33,7 +33,7 @@ Nacos DataId 统一使用标准 YAML 后缀 `.yaml`。dev 环境使用命名空�
 
 Nacos yaml 的职责边界：
 
-- `{service-name}-{env}.yaml`：每个服务唯一的服务配置，例如 `service-admin-dev.yaml`、`service-payment-dev.yaml`。正文包含服务客户端、调用权限、容量、超时、缓存、调度、观测参数，以及该服务真实参与的内部调用边密钥；不得再创建内部鉴权专用 DataId。
+- `{service-name}-{env}.yaml`：每个服务唯一的服务配置，例如 `service-admin-dev.yaml`、`service-payment-dev.yaml`。正文包含服务客户端、调用权限、容量、超时、缓存、调度、观测参数，以及该服务真实参与的内部调用边密钥；Admin/Merchant 的 Risk、MFA 和 dev 默认登录配置也必须保存在各自的服务 DataId，不得写入公共 DataId。
 - `common-{env}.yaml`：所有服务共享的非敏感配置，例如时间格式、管理端点、链路头名称；禁止写入内部 HMAC、JWT、数据库密码或其他密钥。
 - `service-gateway-{env}.yaml`：只放网关接入层说明、白名单、观测规则和 `gateway-checkout` 调用边，不放数据库、Redis、MQ、Seata、分表配置。
 - `service-risk-{env}.yaml`：放风控健康检查、服务专属规则参数和 `payment-risk` 调用边；Redis 与 MQ 连接参数分别复用公共 DataId。
@@ -120,23 +120,47 @@ Server 的兼容插件；本次配置整理不重启或改造 Nacos 容器。
 任何调用边密钥一旦出现在聊天、截图、日志或工单中，都必须视为已暴露，按“无停机密钥轮换”完成 prepare、activate、
 verify 和 retire-previous，不能继续沿用或只修改单边配置。
 
-### 进程级敏感配置
+### 服务级运行时敏感配置
 
-风控敏感值加密密钥和本地默认登录凭据属于进程级安全门禁，保留在服务的 `application-{env}.yml` 中并由部署环境注入，
-不得写入公共 DataId、仓库模板、日志或工单正文。部署平台必须把下列变量作为 Secret 管理，并限制为对应服务进程可读：
+Risk、MFA 与 Merchant dev 默认登录配置与内部 HMAC 一样，按环境保存在各自的服务 DataId。
+`application-dev.yml` 只负责连接 Nacos，不再导入 `runtime/secrets/*.properties`。真实值不得进入仓库模板、
+`common-{env}.yaml`、日志或工单；应用账号只能读取自身 DataId。
 
-| 服务 | 环境变量 | 约束 |
+| 服务 | Nacos 属性 | 约束 |
 | --- | --- | --- |
-| `service-admin` | `PAYMENT_RISK_SECRET` | 当前风控敏感值加密主密钥，UTF-8 编码后不少于 32 字节；连接持久化数据的所有环境必须配置稳定独立密钥，缺失或弱密钥时服务启动失败。 |
-| `service-admin` | `PAYMENT_RISK_PREVIOUS_SECRETS` | 轮换期间只用于解密存量密文的历史密钥，使用逗号分隔，最多两个；不得与当前密钥重复，轮换完成后必须清空。 |
-| `service-merchant` | `MERCHANT_DEFAULT_LOGIN_CREDENTIAL_ENABLED` | 本地种子商户凭据接口开关，默认 `false`；只允许隔离的 `dev`、`test` 或 `local` profile 显式开启。 |
-| `service-merchant` | `MERCHANT_DEFAULT_LOGIN_ACCOUNT` | 开启本地凭据接口时使用的种子商户登录账号，必须与当前隔离环境的种子数据一致。 |
-| `service-merchant` | `MERCHANT_DEFAULT_LOGIN_PASSWORD` | 开启本地凭据接口时注入的初始密码，UTF-8 编码后不少于 12 字节；禁止使用固定默认口令。 |
+| `service-admin` | `payment.risk.secret` / `payment.risk.previous-secrets` | 当前密钥不少于 32 字节；历史密钥最多两个，不得与当前密钥重复。 |
+| `service-admin` | `payment.risk.allow-legacy-dev-key-decryption` | 仅纯 `dev` 在历史密文迁移期可开启；其他 profile 失败关闭。 |
+| `service-admin` | `payment.mfa.secret` / `payment.mfa.previous-secrets` | 当前密钥不少于 32 字节；必须与 Merchant 独立。 |
+| `service-merchant` | `payment.mfa.secret` / `payment.mfa.previous-secrets` | 当前密钥不少于 32 字节；必须与 Admin 独立。 |
+| `service-merchant` | `payment.merchant.default-login.*` | 仅 dev 可开启；商户号、账号和不少于 12 字节的密码必须与本环境种子数据一致。 |
 
-风控密钥轮换必须先把新密钥写入 `PAYMENT_RISK_SECRET`，把原当前密钥加入
-`PAYMENT_RISK_PREVIOUS_SECRETS`，滚动重启并验证新写入和存量密文均可读取；确认所有实例已经使用新密钥后，再清空历史密钥并完成第二次滚动重启。不得在轮换过程中删除仍用于存量密文的旧密钥，也不得在多个环境复用同一密钥。
+仓库模板使用 `__NACOS_MANAGED_*__` 占位符表示上述字段。占位符不是默认值，禁止直接发布模板。
+`manage-nacos-internal-auth.sh` 会在受限临时目录中从当前 Nacos 保留真实值，任何字段缺失、弱密钥、
+未解析占位符或 Admin/Merchant 复用 MFA 密钥都会中止发布。
 
-`service-merchant` 的 UAT、生产和 sample 配置固定关闭默认登录凭据接口，不读取上述开关、账号和密码变量。即使部署环境误注入变量，接口也不得加入匿名访问白名单。开发或测试联调结束后必须关闭开关并清除进程环境中的账号和密码。
+已经使用历史本机 properties 的 dev 环境，只执行一次下列迁移：
+
+```bash
+CONFIRM_MIGRATE_LOCAL_DEV_RUNTIME_CONFIG=YES \
+NACOS_USERNAME='<受控发布账号>' NACOS_PASSWORD='<从 Secret 注入>' \
+  scripts/manage-nacos-internal-auth.sh migrate-local-dev-runtime-config \
+  dev 324ad8dc-58d0-4d0d-b264-24a9f951a2b0 /absolute/path/to/runtime/secrets
+```
+
+迁移前会用 `700/600` 权限备份全部 12 份服务 DataId，然后只更新 Admin 和 Merchant，发布后重新验证
+所有调用边、Risk/MFA 强度、Merchant 默认登录完整性以及 MFA 隔离。脚本不打印任何值。验收完成前可保留
+被 Git 忽略的历史文件作为回退源，但服务不再读取它们。
+
+`scripts/bootstrap-local-dev-config.sh` 现在只创建 Admin 前端的 `.env.development.local` 登录辅助配置，不会生成或覆盖后端密钥。
+Merchant dev 默认登录凭据与当前开发库已对齐并保存在 `service-merchant-dev.yaml` DataId，查看或变更时必须通过
+Nacos 受控权限，不得在文档或终端日志中打印。
+
+Risk/MFA 轮换必须先把新密钥写入当前字段，把原当前密钥加入同一服务 DataId 的
+`previous-secrets`，滚动重启并验证新旧密文均可解密；确认存量数据和所有实例完成切换后，再清空历史密钥并二次滚动重启。
+不得在多个环境或 Admin/Merchant 之间复用密钥。
+
+UAT、生产和 sample 必须在各自 namespace 中提供独立 Risk/MFA 密钥，并固定关闭 Merchant 默认登录接口。
+一次性本机迁移命令只接受 `dev`，不得用于其他环境。
 
 ### 环境初始化和 DataId 发布
 

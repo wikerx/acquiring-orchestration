@@ -104,9 +104,9 @@ public class GatewayRouteConfig {
     private static final String CHANNEL_CALLBACK_PATH = "/channel/**";
 
     /**
-     * OpenAPI 运维或内部回调路径，例如健康检查、商户通知重试。
+     * OpenAPI 健康检查精确路径；不得使用通配规则暴露未声明的维护入口。
      */
-    private static final String OPENAPI_SUPPORT_PATH = "/openapi/**";
+    private static final String OPENAPI_HEALTH_PATH = "/openapi/health";
 
     /**
      * 管理后台内部 API 路径，形如 /admin/auth/login、/admin/system/configs/search。
@@ -181,7 +181,7 @@ public class GatewayRouteConfig {
                 .route("merchant-checkout-openapi", route -> route.path(CHECKOUT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("checkout-browser-api", route -> route.path(CHECKOUT_BROWSER_API_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("channel-callback-openapi", route -> route.path(CHANNEL_CALLBACK_PATH).uri(SERVICE_OPENAPI_URI))
-                .route("openapi-support", route -> route.path(OPENAPI_SUPPORT_PATH).uri(SERVICE_OPENAPI_URI))
+                .route("openapi-support", route -> route.path(OPENAPI_HEALTH_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("admin-api", route -> route.path(ADMIN_API_PATH).uri(SERVICE_ADMIN_URI))
                 .route("merchant-api", route -> route.path(MERCHANT_API_PATH).uri(SERVICE_MERCHANT_URI))
                 .route("checkout-config", route -> route.path(CHECKOUT_CONFIG_PATH, CHECKOUT_HEALTH_PATH).uri(SERVICE_CHECKOUT_URI))

@@ -42,9 +42,24 @@ public class ExchangeBusinessRateDO {
     private String quoteCurrency;
 
     /**
+     * 生成该业务汇率的原始汇率主键；人工录入时允许为空。
+     */
+    private Long rawRateId;
+
+    /**
+     * 生成该业务汇率的规则主键；人工录入时允许为空。
+     */
+    private Long ruleId;
+
+    /**
      * 最终业务汇率，必须使用 BigDecimal 保留精度。
      */
     private BigDecimal finalRate;
+
+    /**
+     * 业务汇率调整说明，用于汇率使用快照追溯计算依据。
+     */
+    private String adjustDescription;
 
     /**
      * 业务汇率生效时间，数据库保留 DATETIME(3)。

@@ -16,6 +16,7 @@ class NacosInternalAuthScriptContractTest {
 
     private static final String OLD_SECRET = "0123456789abcdef0123456789abcdef";
     private static final String NEW_SECRET = "fedcba9876543210fedcba9876543210";
+    private static final String PREVIOUS_SECRET = "abcdef0123456789abcdef0123456789";
 
     @TempDir
     Path tempDir;
@@ -187,27 +188,35 @@ class NacosInternalAuthScriptContractTest {
     }
 
     /**
-     * 服务模板同步必须保留 Admin/Merchant 已配置的稳定 MFA 密钥，避免发布后再次触发启动门禁。
+     * 服务模板同步必须保留 Admin 已配置的 Risk 与 MFA 密钥，避免发布后再次触发启动门禁。
      */
     @Test
-    void scriptShouldPreserveRuntimeMfaSecretsDuringServiceConfigSync() throws Exception {
+    void scriptShouldPreserveAdminRuntimeSecretsDuringServiceConfigSync() throws Exception {
         Path script = repositoryPath("scripts/manage-nacos-internal-auth.sh");
         Path current = tempDir.resolve("current-mfa.yaml");
         Path template = tempDir.resolve("template-mfa.yaml");
         Path output = tempDir.resolve("output-mfa.yaml");
         Files.writeString(current, "payment:\n"
-                + "  mfa:\n"
+                + "  risk:\n"
                 + "    secret: \"" + OLD_SECRET + "\"\n"
-                + "    previous-secrets: " + NEW_SECRET + "\n", StandardCharsets.UTF_8);
-        Files.writeString(template, "payment:\n"
+                + "    previous-secrets: \"\"\n"
+                + "    allow-legacy-dev-key-decryption: true\n"
                 + "  mfa:\n"
-                + "    secret: ${PAYMENT_MFA_SECRET:}\n"
-                + "    previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}\n"
+                + "    secret: \"" + NEW_SECRET + "\"\n"
+                + "    previous-secrets: " + PREVIOUS_SECRET + "\n", StandardCharsets.UTF_8);
+        Files.writeString(template, "payment:\n"
+                + "  risk:\n"
+                + "    secret: __NACOS_MANAGED_ADMIN_RISK_SECRET__\n"
+                + "    previous-secrets: __NACOS_MANAGED_ADMIN_RISK_PREVIOUS_SECRETS__\n"
+                + "    allow-legacy-dev-key-decryption: __NACOS_MANAGED_ADMIN_RISK_LEGACY_DECRYPTION__\n"
+                + "  mfa:\n"
+                + "    secret: __NACOS_MANAGED_ADMIN_MFA_SECRET__\n"
+                + "    previous-secrets: __NACOS_MANAGED_ADMIN_MFA_PREVIOUS_SECRETS__\n"
                 + "    allow-ephemeral-test-secret: false\n", StandardCharsets.UTF_8);
 
         String command = "source \"$1\"\n"
                 + "work_dir=\"$2\"\n"
-                + "preserve_service_runtime_secrets service-admin \"$3\" \"$4\" \"$5\"\n";
+                + "render_service_runtime_config service-admin yaml \"$3\" \"$4\" \"$5\"\n";
         Process process = new ProcessBuilder(
                 "bash", "-c", command, "bash",
                 script.toString(), tempDir.toString(), current.toString(), template.toString(), output.toString())
@@ -218,10 +227,15 @@ class NacosInternalAuthScriptContractTest {
 
         assertThat(exitCode).as(processOutput).isZero();
         assertThat(Files.readString(output))
-                .contains("    secret: " + OLD_SECRET)
-                .contains("    previous-secrets: " + NEW_SECRET)
+                .contains("  risk:\n"
+                        + "    secret: '" + OLD_SECRET + "'\n"
+                        + "    previous-secrets: ''\n"
+                        + "    allow-legacy-dev-key-decryption: true")
+                .contains("  mfa:\n"
+                        + "    secret: '" + NEW_SECRET + "'\n"
+                        + "    previous-secrets: '" + PREVIOUS_SECRET + "'")
                 .contains("    allow-ephemeral-test-secret: false")
-                .doesNotContain("${PAYMENT_MFA_SECRET:}", "${PAYMENT_MFA_PREVIOUS_SECRETS:}");
+                .doesNotContain("__NACOS_MANAGED_");
     }
 
     private String legacyConfiguration() {

@@ -12,16 +12,23 @@ acquiring:
       # 环境说明：环境变量：OPENAPI_CRYPTO_MODE，dev 配置默认值为 "JWT + RSA-OAEP-256 + A256GCM"；test/uat/prod 必须选择已完成该环境验证的模式，切换时保留回退方案。
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
 
-payment:
-  mfa:
-    # dev 也必须由 Secret 管理系统提供至少 32 字节的稳定环境专属值，禁止公开固定兜底。
-    secret: ${PAYMENT_MFA_SECRET:}
-    previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}
-    allow-ephemeral-test-secret: false
-
 merchant:
   payment-client:
     # 商户查询留在 service-merchant 本地；退款、撤销和预授权完成等写操作调用 service-payment。
     internal-caller: service-merchant
     # 参数说明：Merchant 到 Payment 调用边的当前 HMAC 密钥引用；只用于交易写操作，禁止用于本地查询。
     internal-secret: ${acquiring.internal-auth.edges.merchant-payment.active-secret}
+
+payment:
+  merchant:
+    default-login:
+      # 默认登录凭据只允许在 dev 使用，由 Nacos 受控脚本从本机迁移后按环境独立管理。
+      enabled: __NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_ENABLED__
+      merchant-id: __NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_MERCHANT_ID__
+      login-account: __NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_ACCOUNT__
+      password: __NACOS_MANAGED_MERCHANT_DEFAULT_LOGIN_PASSWORD__
+  mfa:
+    # Merchant MFA 主密钥必须与 Admin 独立，占位符禁止直接发布。
+    secret: __NACOS_MANAGED_MERCHANT_MFA_SECRET__
+    previous-secrets: __NACOS_MANAGED_MERCHANT_MFA_PREVIOUS_SECRETS__
+    allow-ephemeral-test-secret: false

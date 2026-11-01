@@ -16,6 +16,7 @@ import com.scott.payment.settlement.entity.SettlementTransactionClearingDetailDO
 import com.scott.payment.settlement.exception.SettlementProcessingException;
 import com.scott.payment.settlement.mapper.SettlementBatchMapper;
 import com.scott.payment.settlement.mapper.SettlementResultMapper;
+import com.scott.payment.settlement.service.SettlementRateUsageOutboxService;
 import com.scott.payment.settlement.support.SettlementReviewFingerprintService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,13 +44,16 @@ class DefaultSettlementResultCalculationServiceTest {
 
     private SettlementBatchMapper batchMapper;
     private SettlementResultMapper resultMapper;
+    private SettlementRateUsageOutboxService rateUsageOutboxService;
     private DefaultSettlementResultCalculationService service;
 
     @BeforeEach
     void setUp() {
         batchMapper = mock(SettlementBatchMapper.class);
         resultMapper = mock(SettlementResultMapper.class);
-        service = new DefaultSettlementResultCalculationService(batchMapper, resultMapper);
+        rateUsageOutboxService = mock(SettlementRateUsageOutboxService.class);
+        service = new DefaultSettlementResultCalculationService(
+                batchMapper, resultMapper, new SettlementReviewFingerprintService(), rateUsageOutboxService);
     }
 
     /**
@@ -101,6 +105,7 @@ class DefaultSettlementResultCalculationServiceTest {
         assertThat(batch.getBatchStatus()).isEqualTo("CALCULATED");
         assertThat(batch.getProcessingOwner()).isNull();
         verify(batchMapper).markCalculated(batch.getSettlementBatchNo(), "worker-1", 6L, now);
+        verify(rateUsageOutboxService).saveForCalculatedBatch(batch, rates, now);
     }
 
     /**
@@ -114,7 +119,8 @@ class DefaultSettlementResultCalculationServiceTest {
         AtomicReference<List<SettlementResultItemDO>> items = new AtomicReference<>();
         SettlementReviewFingerprintService fingerprintService = mock(SettlementReviewFingerprintService.class);
         DefaultSettlementResultCalculationService reviewedService =
-                new DefaultSettlementResultCalculationService(batchMapper, resultMapper, fingerprintService);
+                new DefaultSettlementResultCalculationService(
+                        batchMapper, resultMapper, fingerprintService, rateUsageOutboxService);
         when(batchMapper.selectByBatchNoForUpdate(batch.getSettlementBatchNo())).thenReturn(batch);
         when(batchMapper.beginCalculating(batch.getSettlementBatchNo(), "worker-1", 5L, now)).thenReturn(1);
         when(resultMapper.insertItemsIdempotent(anyList())).thenAnswer(invocation -> {
@@ -135,6 +141,7 @@ class DefaultSettlementResultCalculationServiceTest {
                 });
 
         verify(resultMapper, never()).insertSummariesIdempotent(anyList());
+        verify(rateUsageOutboxService, never()).saveForCalculatedBatch(any(), any(), any());
         verify(batchMapper, never()).markCalculated(any(), any(), any(Long.class), any());
     }
 

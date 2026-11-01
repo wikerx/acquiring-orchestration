@@ -187,9 +187,7 @@ public class RiskInternalRestClient implements RiskInternalClient {
             }
             return result.getData();
         } catch (RestClientException exception) {
-            log.warn("service-risk 3DS 策略调用失败, event: PAYMENT_RISK_THREE_DS_POLICY_CALL_FAILED, "
-                            + "stage: RISK, traceId: {}, merchantId: {}, channelCode: {}, paymentMethod: {}, "
-                            + "cardBrand: {}, currency: {}, amount: {}, targetPath: {}, exceptionType: {}",
+            log.warn("service-risk 3DS 策略调用失败, event: PAYMENT_RISK_THREE_DS_POLICY_CALL_FAILED, stage: RISK, traceId: {}, merchantId: {}, channelCode: {}, paymentMethod: {}, cardBrand: {}, currency: {}, amount: {}, targetPath: {}, exceptionType: {}",
                     TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
                     requestDTO == null ? null : requestDTO.getChannelCode(),
@@ -235,9 +233,7 @@ public class RiskInternalRestClient implements RiskInternalClient {
             }
             return result.getData();
         } catch (RestClientException exception) {
-            log.warn("service-risk 限额预占撤销失败, event: PAYMENT_RISK_RESERVATION_CANCEL_FAILED, "
-                            + "stage: RISK_COMPENSATION, traceId: {}, transactionId: {}, riskRecordNo: {}, "
-                            + "reason: {}, targetPath: {}, exceptionType: {}",
+            log.warn("service-risk 限额预占撤销失败, event: PAYMENT_RISK_RESERVATION_CANCEL_FAILED, stage: RISK_COMPENSATION, traceId: {}, transactionId: {}, riskRecordNo: {}, reason: {}, targetPath: {}, exceptionType: {}",
                     TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
                     requestDTO == null ? null : requestDTO.getRiskRecordNo(),

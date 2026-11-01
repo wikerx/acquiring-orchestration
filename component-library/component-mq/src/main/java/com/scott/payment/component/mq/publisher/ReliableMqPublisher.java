@@ -235,14 +235,12 @@ public class ReliableMqPublisher {
                 try {
                     relayService.relayEvent(eventId);
                 } catch (RuntimeException exception) {
-                    log.warn("可靠消息立即投递失败, event: RELIABLE_MQ_IMMEDIATE_RELAY_FAILED, "
-                                    + "eventId: {}, exceptionType: {}",
+                    log.warn("可靠消息立即投递失败, event: RELIABLE_MQ_IMMEDIATE_RELAY_FAILED, eventId: {}, exceptionType: {}",
                             eventId, exception.getClass().getSimpleName());
                 }
             });
         } catch (RuntimeException exception) {
-            log.warn("可靠消息立即投递任务被拒绝, event: RELIABLE_MQ_IMMEDIATE_RELAY_REJECTED, "
-                            + "eventId: {}, exceptionType: {}",
+            log.warn("可靠消息立即投递任务被拒绝, event: RELIABLE_MQ_IMMEDIATE_RELAY_REJECTED, eventId: {}, exceptionType: {}",
                     eventId, exception.getClass().getSimpleName());
         }
     }

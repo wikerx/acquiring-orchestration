@@ -1,10 +1,9 @@
 # 环境接入配置：当前文件只负责连接对应环境的 Nacos 命名空间。
-# spring.config.import 会按顺序拉取服务专属、公共、数据库、分表、Redis、MQ、Seata、XXL-JOB 等 yaml 配置。
+# spring.config.import 按顺序拉取 Nacos 配置，最后加载服务专属 DataId。
+# MFA 和开发环境默认登录配置由 Nacos 统一管理，本文件不再导入本机密钥文件。
 spring:
   config:
     import:
-      # 参数说明：导入当前服务专属 Nacos DataId，承载当前服务业务参数和其参与的内部鉴权配置。
-      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入公共 Nacos DataId，统一时间、监控和链路追踪配置。
       - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入数据源 Nacos DataId，提供主从数据库连接与 MyBatis 配置。
@@ -19,6 +18,8 @@ spring:
       - optional:nacos:seata-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入 XXL-JOB Nacos DataId，提供调度中心和执行器配置。
       - optional:nacos:xxl-job-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # 参数说明：最后导入当前服务专属 DataId，保证 Merchant 业务参数和受管密钥不被共享配置覆盖。
+      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
   cloud:
     bootstrap:
       # 参数说明：控制 Spring Cloud Bootstrap 提前加载 Nacos 配置；关闭会导致远程配置无法在自动装配前生效。
@@ -68,16 +69,3 @@ acquiring:
   gateway-ingress:
     # dev/test 允许直连联调；专用客户端 IP 头不会被信任，审计只使用 TCP 对端地址。
     protect-portal-paths: false
-
-payment:
-  merchant:
-    default-login:
-      # 本地调试如需展示种子凭据，必须显式开启并通过环境变量注入口令。
-      enabled: ${MERCHANT_DEFAULT_LOGIN_CREDENTIAL_ENABLED:false}
-      login-account: ${MERCHANT_DEFAULT_LOGIN_ACCOUNT:admin}
-      password: ${MERCHANT_DEFAULT_LOGIN_PASSWORD:}
-  mfa:
-    secret: ${PAYMENT_MFA_SECRET:}
-    previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}
-    # dev 可能连接持久化数据，必须显式注入稳定密钥；进程临时密钥只允许隔离 test profile。
-    allow-ephemeral-test-secret: false

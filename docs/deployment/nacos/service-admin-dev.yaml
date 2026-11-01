@@ -56,9 +56,9 @@ acquiring:
 
 payment:
   mfa:
-    # dev 也必须由 Secret 管理系统提供至少 32 字节的稳定环境专属值，禁止公开固定兜底。
-    secret: ${PAYMENT_MFA_SECRET:}
-    previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}
+    # Admin MFA 主密钥必须与 Merchant 独立，由 Nacos 受控脚本迁移和保留。
+    secret: __NACOS_MANAGED_ADMIN_MFA_SECRET__
+    previous-secrets: __NACOS_MANAGED_ADMIN_MFA_PREVIOUS_SECRETS__
     allow-ephemeral-test-secret: false
   merchant:
     cache-invalidation:
@@ -71,6 +71,13 @@ payment:
       # 环境说明：环境变量 ADMIN_MERCHANT_CACHE_INVALIDATION_RELAY_FIXED_DELAY_MS；dev 默认 30000，缩短会增加主库空查询。
       relay-fixed-delay-ms: ${ADMIN_MERCHANT_CACHE_INVALIDATION_RELAY_FIXED_DELAY_MS:30000}
   risk:
+    # 当前 Risk 字段加密密钥；占位符只能由 Nacos 受控脚本替换，禁止直接发布模板。
+    secret: __NACOS_MANAGED_ADMIN_RISK_SECRET__
+    # 密钥轮换兼容窗口内的旧 Risk 密钥；无旧密钥时发布为空字符串。
+    previous-secrets: __NACOS_MANAGED_ADMIN_RISK_PREVIOUS_SECRETS__
+    allow-ephemeral-test-secret: false
+    # 仅纯 dev 可在数据迁移期读取历史固定密钥密文，禁止在其他环境开启。
+    allow-legacy-dev-key-decryption: __NACOS_MANAGED_ADMIN_RISK_LEGACY_DECRYPTION__
     cache-invalidation:
       # 参数说明：service-admin 启动后首次扫描风控规则缓存失效 Outbox 前的等待时间，单位毫秒。
       # 30000 表示启动 30 秒后执行首轮补偿；规则变更成功后的 generation 即时发布路径保持不变。

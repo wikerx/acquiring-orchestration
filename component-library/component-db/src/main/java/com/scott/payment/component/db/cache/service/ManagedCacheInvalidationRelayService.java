@@ -132,8 +132,7 @@ public class ManagedCacheInvalidationRelayService {
             scheduleRetry(event, version, now, failureReason(exception));
             LocalDateTime nextRetryTime = now.plusSeconds(RETRY_DELAY_SECONDS);
             log.warn(
-                    "受管缓存失效事件发布失败, event: MANAGED_CACHE_INVALIDATION_PUBLISH_FAILED, "
-                            + "eventId: {}, cacheName: {}, retryCount: {}, nextRetryTime: {}, exceptionType: {}",
+                    "受管缓存失效事件发布失败, event: MANAGED_CACHE_INVALIDATION_PUBLISH_FAILED, eventId: {}, cacheName: {}, retryCount: {}, nextRetryTime: {}, exceptionType: {}",
                     event.getEventId(),
                     event.getCacheName(),
                     event.getRetryCount(),

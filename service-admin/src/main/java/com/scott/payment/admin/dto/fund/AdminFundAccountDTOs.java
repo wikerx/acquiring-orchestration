@@ -1,5 +1,7 @@
 package com.scott.payment.admin.dto.fund;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
@@ -342,6 +344,7 @@ public final class AdminFundAccountDTOs {
         /**
          * 该币种独立汇总金额，不与其他币种直接相加。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal amount;
     }
 
@@ -373,6 +376,7 @@ public final class AdminFundAccountDTOs {
         /**
          * 可用余额，单位为 settlementCurrency，允许为负。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal availableBalance;
         /**
          * 按标签币种分别统计的在途余额，禁止跨币种直接相加。
@@ -492,14 +496,17 @@ public final class AdminFundAccountDTOs {
         /**
          * 发生金额，单位为 currency，始终为非负数。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal amount;
         /**
          * 操作前余额，单位为 currency，可为负。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal balanceBefore;
         /**
          * 操作后余额，单位为 currency，可为负。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal balanceAfter;
         /**
          * 同一账户内严格递增序号，用于核对连续余额。
@@ -619,6 +626,7 @@ public final class AdminFundAccountDTOs {
         /**
          * 充值金额，单位为 currency，范围 100 至 100,000,000。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal amount;
         /**
          * PENDING_AUDIT、PENDING_RECHECK、POSTED 或 REJECTED。
@@ -746,6 +754,7 @@ public final class AdminFundAccountDTOs {
         /**
          * 扣减金额，单位为 currency，始终为正数。
          */
+        @JsonSerialize(using = ToStringSerializer.class)
         private BigDecimal amount;
         /**
          * ACCOUNT_CORRECTION、EXTRA_FEE、PENALTY 或 OTHER。

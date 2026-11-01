@@ -575,6 +575,14 @@ public final class ExchangeRateDTOs {
     public static class UsageSnapshotResponse {
         private Long id;
         /**
+         * 跨服务汇率使用事件全局幂等号。
+         */
+        private String usageEventId;
+        /**
+         * 产生已使用事实的所有者服务名。
+         */
+        private String producerService;
+        /**
          * 汇率类型，用于区分基准汇率、业务汇率、买入价、卖出价或渠道报价。
          */
         private String rateType;
@@ -593,6 +601,18 @@ public final class ExchangeRateDTOs {
         private Long businessRateId;
         private Long rawRateId;
         private Long ruleId;
+        /**
+         * 实际采用的汇率来源编码。
+         */
+        private String rateSource;
+        /**
+         * 原始报价方向，取值为 DIRECT 或 INVERSE。
+         */
+        private String sourceQuoteDirection;
+        /**
+         * 实际采用汇率的生效时间。
+         */
+        private LocalDateTime rateEffectiveTime;
         private String calculationDescription;
         private LocalDateTime appliedTime;
         /**

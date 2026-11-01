@@ -495,6 +495,8 @@ public class AdminExchangeRateApplicationService {
     private ExchangeRateUsageSnapshotExportRow toUsageSnapshotExportRow(UsageSnapshotResponse source, Locale locale) {
         ExchangeRateUsageSnapshotExportRow row = new ExchangeRateUsageSnapshotExportRow();
         row.setRateType(resolveEnum("rateType", source.getRateType(), locale));
+        row.setUsageEventId(source.getUsageEventId());
+        row.setProducerService(source.getProducerService());
         row.setUsageScene(resolveEnum("usageScene", source.getUsageScene(), locale));
         row.setBusinessType(source.getBusinessType());
         row.setBusinessNo(source.getBusinessNo());
@@ -504,6 +506,9 @@ public class AdminExchangeRateApplicationService {
         row.setRawRateId(source.getRawRateId());
         row.setRuleId(source.getRuleId());
         row.setBusinessRateId(source.getBusinessRateId());
+        row.setRateSource(source.getRateSource());
+        row.setSourceQuoteDirection(source.getSourceQuoteDirection());
+        row.setRateEffectiveTime(source.getRateEffectiveTime());
         row.setAppliedTime(source.getAppliedTime());
         row.setCalculationDescription(source.getCalculationDescription());
         row.setCreateTime(source.getCreateTime());

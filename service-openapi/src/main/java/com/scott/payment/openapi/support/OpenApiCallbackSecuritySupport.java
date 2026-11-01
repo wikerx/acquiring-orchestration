@@ -31,7 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * OpenAPI 回调类入口安全校验组件，负责渠道回调签名和商户通知重试维护密钥校验。
+ * OpenAPI 渠道回调安全校验组件，负责来源地址、渠道协议和签名校验。
  */
 @Component
 public class OpenApiCallbackSecuritySupport {
@@ -70,11 +70,6 @@ public class OpenApiCallbackSecuritySupport {
     public static final String CHANNEL_EVENT_SIGNATURE_HEADER = "Event-Signature";
 
     /**
-     * 商户通知重试维护密钥请求头。
-     */
-    public static final String NOTIFY_RETRY_TOKEN_HEADER = "X-Notify-Retry-Token";
-
-    /**
      * 回调安全配置。
      */
     private final OpenApiCallbackProperties callbackProperties;
@@ -109,24 +104,6 @@ public class OpenApiCallbackSecuritySupport {
         this.securityInterceptEventRecorder = securityInterceptEventRecorder;
         this.callbackProtocolRegistry = callbackProtocolRegistry;
         this.channelCallbackSecretResolver = channelCallbackSecretResolver;
-    }
-
-    /**
-     * 校验商户通知重试维护密钥，避免外部直接触发通知重试。
-     *
-     * @param request HTTP 请求
-     */
-    public void verifyNotifyRetryToken(HttpServletRequest request) {
-        String expectedToken = callbackProperties.getNotifyRetryToken();
-        String actualToken = request.getHeader(NOTIFY_RETRY_TOKEN_HEADER);
-        if (!StringUtils.hasText(expectedToken)
-                || !InternalServiceSignature.matches(expectedToken, actualToken)) {
-            throw recordAndReturnOpenApiException(request,
-                    "OPENAPI_NOTIFY_RETRY_TOKEN_INVALID",
-                    SecurityInterceptEventRecorder.RISK_HIGH,
-                    "OPENAPI_NOTIFY_RETRY_TOKEN",
-                    "merchant notify retry token is invalid");
-        }
     }
 
     /**

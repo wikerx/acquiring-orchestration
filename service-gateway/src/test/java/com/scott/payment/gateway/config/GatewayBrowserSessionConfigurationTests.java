@@ -18,8 +18,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class GatewayBrowserSessionConfigurationTests {
 
-    private static final List<String> SESSION_ROUTES = List.of("admin", "merchant");
-    private static final List<String> STATELESS_ROUTES = List.of("api/rest", "channel", "openapi");
+    private static final List<String> SESSION_ROUTE_PATTERNS = List.of("admin/**", "merchant/**");
+    private static final List<String> STATELESS_ROUTE_PATTERNS = List.of(
+            "api/rest/**", "channel/**", "openapi/health");
 
     /**
      * 开发环境网关必须向后台服务透传浏览器会话 Cookie。
@@ -39,19 +40,19 @@ class GatewayBrowserSessionConfigurationTests {
         for (Path configuration : gatewayConfigurations()) {
             Properties properties = parseYaml(Files.readString(configuration));
 
-            for (String route : SESSION_ROUTES) {
-                assertThat(corsProperty(properties, route, "allow-credentials"))
-                        .as("credential policy for /%s/** in %s", route, configuration)
+            for (String routePattern : SESSION_ROUTE_PATTERNS) {
+                assertThat(corsProperty(properties, routePattern, "allow-credentials"))
+                        .as("credential policy for /%s in %s", routePattern, configuration)
                         .isEqualTo("true");
-                assertThat(corsProperty(properties, route, "allowed-origin-patterns[0]"))
-                        .as("origin policy for /%s/** in %s", route, configuration)
+                assertThat(corsProperty(properties, routePattern, "allowed-origin-patterns[0]"))
+                        .as("origin policy for /%s in %s", routePattern, configuration)
                         .isNotBlank()
                         .isNotEqualTo("*");
             }
 
-            for (String route : STATELESS_ROUTES) {
-                assertThat(corsProperty(properties, route, "allow-credentials"))
-                        .as("credential policy for /%s/** in %s", route, configuration)
+            for (String routePattern : STATELESS_ROUTE_PATTERNS) {
+                assertThat(corsProperty(properties, routePattern, "allow-credentials"))
+                        .as("credential policy for /%s in %s", routePattern, configuration)
                         .isEqualTo("false");
             }
         }
@@ -65,8 +66,8 @@ class GatewayBrowserSessionConfigurationTests {
                 modulePath("src/main/resources/application-prod.yml"));
     }
 
-    private String corsProperty(Properties properties, String route, String property) {
-        String suffix = "[/" + route + "/**]." + property;
+    private String corsProperty(Properties properties, String routePattern, String property) {
+        String suffix = "[/" + routePattern + "]." + property;
         List<String> matchingKeys = properties.keySet().stream()
                 .map(Object::toString)
                 .filter(key -> key.startsWith("spring.cloud.gateway.server.webflux.globalcors.cors-configurations"))

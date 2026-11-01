@@ -303,6 +303,7 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         RefundSummary safeSummary = summary == null ? new RefundSummary() : summary;
         safeSummary.setCurrencyAmounts(jdbcTemplate.query("""
                 SELECT o.transaction_currency AS currency,
+                       o.currency_exponent,
                        COALESCE(SUM(o.transaction_amount), 0) AS total_amount,
                        COALESCE(SUM(CASE WHEN a.approval_status = 'PENDING'
                                         THEN o.transaction_amount ELSE 0 END), 0)
@@ -314,8 +315,8 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
                                         THEN o.transaction_amount ELSE 0 END), 0)
                            AS pending_amount
                 """ + REFUND_FROM_SQL + whereSql + """
-                GROUP BY o.transaction_currency
-                ORDER BY o.transaction_currency
+                GROUP BY o.transaction_currency, o.currency_exponent
+                ORDER BY o.transaction_currency, o.currency_exponent
                 """, parameters, refundCurrencySummaryMapper()));
         return safeSummary;
     }
@@ -518,6 +519,7 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         return (resultSet, rowNumber) -> {
             RefundCurrencySummary summary = new RefundCurrencySummary();
             summary.setCurrency(resultSet.getString("currency"));
+            summary.setCurrencyExponent(resultSet.getInt("currency_exponent"));
             summary.setTotalAmount(defaultAmount(resultSet.getBigDecimal("total_amount")));
             summary.setPendingApprovalAmount(defaultAmount(
                     resultSet.getBigDecimal("pending_approval_amount")));

@@ -75,8 +75,7 @@ public class CardBinRangeIndexInitializer implements ApplicationRunner {
                 }
             }
             // 初始化失败不阻断服务启动；业务查询退化为一条从库区间 SQL，并等待 MQ 或下次启动重建。
-            log.warn("卡 BIN 区间索引初始化失败, event: CARD_BIN_RANGE_INDEX_INITIALIZATION_FAILED, "
-                            + "exceptionType: {}",
+            log.warn("卡 BIN 区间索引初始化失败, event: CARD_BIN_RANGE_INDEX_INITIALIZATION_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName(), exception);
         }
     }

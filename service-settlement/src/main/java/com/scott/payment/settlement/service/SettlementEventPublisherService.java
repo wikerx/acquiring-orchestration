@@ -1,6 +1,7 @@
 package com.scott.payment.settlement.service;
 
 import com.scott.payment.component.mq.producer.MqProducer;
+import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.settlement.entity.SettlementEventOutboxDO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,9 +42,14 @@ public class SettlementEventPublisherService {
         }
         SettlementEventOutboxDO row = claimed.get();
         try {
-            mqProducer.sendSerializedOrderly(row.getTopic(), row.getTag(), row.getMessageKey(),
-                    row.getSettlementBatchNo(), row.getRetryCount(), row.getPayloadJson(),
-                    row.getMessageGroup());
+            if (MqTopic.EXCHANGE_RATE_USAGE.equals(row.getTopic())) {
+                mqProducer.sendSerialized(row.getTopic(), row.getTag(), row.getMessageKey(),
+                        row.getSettlementBatchNo(), row.getRetryCount(), row.getPayloadJson());
+            } else {
+                mqProducer.sendSerializedOrderly(row.getTopic(), row.getTag(), row.getMessageKey(),
+                        row.getSettlementBatchNo(), row.getRetryCount(), row.getPayloadJson(),
+                        row.getMessageGroup());
+            }
             if (!persistenceService.markSent(row, LocalDateTime.now())) {
                 throw new IllegalStateException("settlement event outbox sent-state CAS failed");
             }

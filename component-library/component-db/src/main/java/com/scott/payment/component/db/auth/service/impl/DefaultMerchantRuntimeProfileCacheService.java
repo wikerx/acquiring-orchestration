@@ -182,8 +182,7 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "商户运行时资料缺失标记读取失败, "
-                            + "event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_READ_FAILED, exceptionType: {}",
+                    "商户运行时资料缺失标记读取失败, event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_READ_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
             return CacheMissMarkerStore.LookupStatus.UNAVAILABLE;
@@ -209,8 +208,7 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "商户运行时资料缺失标记写入失败, "
-                            + "event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_WRITE_FAILED, exceptionType: {}",
+                    "商户运行时资料缺失标记写入失败, event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_WRITE_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
         }
@@ -241,8 +239,7 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "安全缓存门禁检查失败, event: SECURITY_CACHE_GUARD_CHECK_FAILED, "
-                            + "cacheName: {}, exceptionType: {}",
+                    "安全缓存门禁检查失败, event: SECURITY_CACHE_GUARD_CHECK_FAILED, cacheName: {}, exceptionType: {}",
                     PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
                     exception.getClass().getSimpleName()
             );

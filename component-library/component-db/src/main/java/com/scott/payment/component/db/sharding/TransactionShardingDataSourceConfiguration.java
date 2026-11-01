@@ -103,8 +103,7 @@ public class TransactionShardingDataSourceConfiguration {
             DataSource transactionDataSource = ShardingSphereDataSourceFactory.createDataSource(
                     resources, buildRules(properties, replicas), buildSystemProperties(properties));
             registerCompositeDataSource(routingDataSource, routingResources, transactionDataSource);
-            log.info("交易 ShardingSphere 数据源注册完成, event: TRANSACTION_SHARDING_DATASOURCE_REGISTERED, "
-                            + "service: {}, ruleVersion: {}, checksumPrefix: {}",
+            log.info("交易 ShardingSphere 数据源注册完成, event: TRANSACTION_SHARDING_DATASOURCE_REGISTERED, service: {}, ruleVersion: {}, checksumPrefix: {}",
                     applicationName, properties.getRuleVersion(), checksumPrefix(properties.getRuleChecksum()));
         } catch (SQLException exception) {
             throw new IllegalStateException("failed to build transaction sharding datasource for rule "

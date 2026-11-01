@@ -123,8 +123,7 @@ public class MerchantAccessApprovalNotificationService {
             request.setVariables(variables);
             emailService.sendByTemplate(request);
         } catch (RuntimeException exception) {
-            log.warn("商户访问配置审批通知发送失败, event: ADMIN_MERCHANT_ACCESS_NOTICE_FAILED, merchantId: {}, configType: {}, "
-                            + "templateCode: {}, exceptionType: {}",
+            log.warn("商户访问配置审批通知发送失败, event: ADMIN_MERCHANT_ACCESS_NOTICE_FAILED, merchantId: {}, configType: {}, templateCode: {}, exceptionType: {}",
                     merchant.getMerchantId(), configType, templateCode, exception.getClass().getSimpleName());
         }
     }

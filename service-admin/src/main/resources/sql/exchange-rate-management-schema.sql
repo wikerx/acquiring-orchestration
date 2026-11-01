@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS exchange_business_rate (
 
 CREATE TABLE IF NOT EXISTS exchange_rate_usage_snapshot (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    usage_event_id VARCHAR(96) NOT NULL COMMENT '汇率使用事件全局幂等号',
+    producer_service VARCHAR(64) NOT NULL COMMENT '产生实际使用事实的服务名',
     rate_type VARCHAR(32) NOT NULL COMMENT '汇率类型：TRANSACTION_RATE/SETTLEMENT_RATE',
     usage_scene VARCHAR(64) NOT NULL COMMENT '汇率使用场景',
     business_type VARCHAR(64) NOT NULL COMMENT '业务类型，如 PAYMENT/SETTLEMENT/REFUND',
@@ -124,12 +126,16 @@ CREATE TABLE IF NOT EXISTS exchange_rate_usage_snapshot (
     business_rate_id BIGINT NULL COMMENT '业务汇率ID',
     raw_rate_id BIGINT NULL COMMENT '原始汇率ID',
     rule_id BIGINT NULL COMMENT '汇率规则ID',
+    rate_source VARCHAR(64) NULL COMMENT '实际采用的汇率来源编码',
+    source_quote_direction VARCHAR(16) NULL COMMENT '原始报价方向：DIRECT/INVERSE',
+    rate_effective_time DATETIME(3) NULL COMMENT '实际采用汇率的生效时间',
     calculation_description VARCHAR(512) NULL COMMENT '计算说明',
     applied_time DATETIME(3) NOT NULL COMMENT '业务实际使用时间',
     create_by VARCHAR(64) NULL COMMENT '创建人',
     create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
     PRIMARY KEY (id),
+    UNIQUE KEY uk_exchange_snapshot_usage_event (usage_event_id),
     KEY idx_exchange_snapshot_business (business_type, business_no, deleted),
     KEY idx_exchange_snapshot_scope (rate_type, usage_scene, base_currency, quote_currency, deleted),
     KEY idx_exchange_snapshot_applied (applied_time, deleted)

@@ -8,8 +8,11 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyPresentationInfo;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.openapi.result.OpenApiResultCode;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.message.ExchangeRateUsageMessage;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
@@ -962,6 +965,7 @@ class PaymentTransactionConsistencyBaselineTests {
                         sourceRouteService,
                         idempotencyService,
                         new CapturingTransactionEventOutboxService(),
+                        exchangeRateService(),
                         recordService,
                         new DefaultTransactionStateMachineService());
 
@@ -1007,6 +1011,7 @@ class PaymentTransactionConsistencyBaselineTests {
                         unavailableRouteService,
                         idempotencyService,
                         new CapturingTransactionEventOutboxService(),
+                        exchangeRateService(),
                         recordService,
                         new DefaultTransactionStateMachineService());
         PaymentCreateCommandDTO command = followUpCommand("CAPTURE-F414", new BigDecimal("5.00"));
@@ -1059,6 +1064,12 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(resultDTO.getTransactionCurrency()).isEqualTo("USD");
         assertThat(recordService.lastFollowUpOperation.getLabelAmount()).isEqualByComparingTo("85.55");
         assertThat(recordService.lastFollowUpOperation.getTransactionAmount()).isEqualByComparingTo("59.89");
+        ExchangeRateUsageMessage rateUsageMessage = JsonUtils.parseObject(
+                outboxService.lastRateUsageEvent.getPayloadJson(), ExchangeRateUsageMessage.class);
+        assertThat(rateUsageMessage.getBusinessType())
+                .isEqualTo(PaymentTransactionTypeEnum.CAPTURE.getCode());
+        assertThat(rateUsageMessage.getBusinessNo()).isEqualTo(resultDTO.getTransactionId());
+        assertThat(rateUsageMessage.getUsedRate()).isEqualByComparingTo("0.70000521");
     }
 
     /**
@@ -2062,6 +2073,33 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     /**
+     * 跨币种增量授权应继续使用首笔冻结汇率，并记录真实动作类型的汇率使用事件。
+     */
+    @Test
+    void shouldRecordFrozenRateUsageForIncrementalAuthorization() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = frozenRateSourceRecordService();
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService, recordService, outboxService, channelService);
+        PaymentCreateCommandDTO command = followUpCommand("INC-AUTH-FX-001", new BigDecimal("3.00"));
+        command.setCurrency("AUD");
+
+        PaymentCreateResultDTO result = service.createIncrementalAuthorization(command);
+
+        assertThat(channelService.lastRequestAmount).isEqualByComparingTo("2.10");
+        assertThat(channelService.lastRequestCurrency).isEqualTo("USD");
+        ExchangeRateUsageMessage rateUsageMessage = JsonUtils.parseObject(
+                outboxService.lastRateUsageEvent.getPayloadJson(), ExchangeRateUsageMessage.class);
+        assertThat(rateUsageMessage.getBusinessType())
+                .isEqualTo(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
+        assertThat(rateUsageMessage.getBusinessNo()).isEqualTo(result.getTransactionId());
+        assertThat(rateUsageMessage.getUsedRate()).isEqualByComparingTo("0.70000521");
+    }
+
+    /**
      * 05F-INC-AUTH-02：渠道成功后结果事务失败，重复同动作号只能返回已提交 PROCESSING 事实，不能重新发起增量授权。
      */
     @Test
@@ -2789,6 +2827,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 routeService(),
                 idempotencyService,
                 outboxService,
+                exchangeRateService(),
                 recordService,
                 new DefaultTransactionStateMachineService());
         return (commandDTO, idempotencyKey) -> {
@@ -2809,6 +2848,7 @@ class PaymentTransactionConsistencyBaselineTests {
                         routeService(),
                         idempotencyService,
                         outboxService,
+                        exchangeRateService(),
                         recordService,
                         new DefaultTransactionStateMachineService());
         return (commandDTO, idempotencyKey) -> {
@@ -2910,7 +2950,23 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     private PaymentExchangeRateService exchangeRateService() {
-        return (baseCurrency, quoteCurrency, atTime) -> Optional.<PaymentExchangeRateDTO>empty();
+        return (baseCurrency, quoteCurrency, atTime) -> {
+            if ("AUD".equals(baseCurrency)
+                    && "USD".equals(quoteCurrency)
+                    && LocalDateTime.of(2026, 10, 31, 10, 30).equals(atTime)) {
+                PaymentExchangeRateDTO rate = new PaymentExchangeRateDTO();
+                rate.setRateId(1001L);
+                rate.setRawRateId(901L);
+                rate.setRuleId(801L);
+                rate.setBaseCurrency("AUD");
+                rate.setQuoteCurrency("USD");
+                rate.setFinalRate(new BigDecimal("0.70000521"));
+                rate.setSourceCode("PLATFORM");
+                rate.setEffectiveTime(atTime);
+                return Optional.of(rate);
+            }
+            return Optional.empty();
+        };
     }
 
     private ChannelPaymentResponse channelResponse(ChannelTradeStatus tradeStatus) {
@@ -4160,12 +4216,17 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private int savedCount;
 
+        private TransactionEventOutboxDO lastRateUsageEvent;
+
         /**
          * 仅累计保存次数，用于断言交易事实提交时同步创建了一条 Outbox 事件。
          */
         @Override
         public void save(TransactionEventOutboxDO eventDO) {
             savedCount++;
+            if (MqTag.EXCHANGE_RATE_USAGE.equals(eventDO.getTag())) {
+                lastRateUsageEvent = eventDO;
+            }
         }
 
         /**

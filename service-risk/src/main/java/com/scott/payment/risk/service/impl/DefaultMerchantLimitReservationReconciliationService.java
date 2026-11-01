@@ -90,8 +90,7 @@ public class DefaultMerchantLimitReservationReconciliationService
             if (status == null) {
                 retained++;
                 log.error(
-                        "商户累计限额对账保留处理中状态, event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED, "
-                                + "reservationId: {}, transactionId: {}, reason: reservationStatusInvalid",
+                        "商户累计限额对账保留处理中状态, event: RISK_MERCHANT_LIMIT_RECONCILE_RETAINED, reservationId: {}, transactionId: {}, reason: reservationStatusInvalid",
                         reservation == null ? null : reservation.getId(),
                         reservation == null ? null : reservation.getTransactionId()
                 );

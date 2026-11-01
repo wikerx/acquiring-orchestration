@@ -225,8 +225,7 @@ public class RocketMqAdminFacade {
                     return true;
                 }
             } catch (Exception exception) {
-                log.warn("检查 RocketMQ Consumer Group 失败, event: ROCKET_MQ_CONSUMER_GROUP_CHECK_FAILED, "
-                                + "group: {}, brokerAddress: {}, exceptionType: {}",
+                log.warn("检查 RocketMQ Consumer Group 失败, event: ROCKET_MQ_CONSUMER_GROUP_CHECK_FAILED, group: {}, brokerAddress: {}, exceptionType: {}",
                         groupName,
                         brokerAddress,
                         exception.getClass().getSimpleName());

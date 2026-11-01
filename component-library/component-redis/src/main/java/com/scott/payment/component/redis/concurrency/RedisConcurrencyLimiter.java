@@ -119,8 +119,7 @@ public class RedisConcurrencyLimiter {
             try {
                 redisTemplate.opsForZSet().remove(key, token);
             } catch (RuntimeException exception) {
-                log.warn("Redis 并发租约释放失败, event: REDIS_CONCURRENCY_LEASE_RELEASE_FAILED, "
-                                + "domain: {}, business: {}, exceptionType: {}",
+                log.warn("Redis 并发租约释放失败, event: REDIS_CONCURRENCY_LEASE_RELEASE_FAILED, domain: {}, business: {}, exceptionType: {}",
                         domain, business, exception.getClass().getSimpleName());
             }
         }
@@ -166,13 +165,11 @@ public class RedisConcurrencyLimiter {
                     token
             );
             if (!Long.valueOf(ACQUIRED).equals(renewed)) {
-                log.warn("Redis 并发租约续期被拒绝, event: REDIS_CONCURRENCY_LEASE_RENEW_REJECTED, "
-                                + "domain: {}, business: {}",
+                log.warn("Redis 并发租约续期被拒绝, event: REDIS_CONCURRENCY_LEASE_RENEW_REJECTED, domain: {}, business: {}",
                         domain, business);
             }
         } catch (RuntimeException exception) {
-            log.warn("Redis 并发租约续期失败, event: REDIS_CONCURRENCY_LEASE_RENEW_FAILED, "
-                            + "domain: {}, business: {}, exceptionType: {}",
+            log.warn("Redis 并发租约续期失败, event: REDIS_CONCURRENCY_LEASE_RENEW_FAILED, domain: {}, business: {}, exceptionType: {}",
                     domain, business, exception.getClass().getSimpleName());
         }
     }

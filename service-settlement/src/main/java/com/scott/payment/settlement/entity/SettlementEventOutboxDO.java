@@ -26,6 +26,10 @@ public class SettlementEventOutboxDO {
      */
     private Long candidateId;
     /**
+     * 来源结算批次汇率行主键；交易投影事件为空，汇率使用事件不允许为空。
+     */
+    private Long rateUsageId;
+    /**
      * RocketMQ 目标 Topic，不允许为空。
      */
     private String topic;
