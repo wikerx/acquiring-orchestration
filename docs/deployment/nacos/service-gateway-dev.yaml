@@ -51,8 +51,6 @@ spring:
           default-filters:
             # 过滤器说明：向下游保留客户端原始 Host，供回调地址、租户域名和审计判断使用。
             - PreserveHostHeader
-            # 过滤器说明：清除浏览器 Cookie，避免后台会话或第三方 Cookie 被透传到业务服务。
-            - RemoveRequestHeader=Cookie
             # 过滤器说明：清除下游 Server 响应头，减少容器和中间件指纹暴露。
             - RemoveResponseHeader=Server
             # 过滤器说明：跨多个过滤器写入 CORS 响应头时只保留第一项，避免重复响应头导致浏览器拒绝。
@@ -157,8 +155,8 @@ spring:
                 allowed-headers: "*"
                 # 参数说明：允许管理前端读取链路追踪头用于故障定位。
                 exposed-headers: [X-Trace-Id]
-                # 参数说明：当前管理端使用显式令牌而非跨域 Cookie，禁止开启跨域凭据。
-                allow-credentials: false
+                # 参数说明：管理端使用 HttpOnly 会话 Cookie；来源模式受控且写请求仍必须通过 CSRF 校验。
+                allow-credentials: true
                 # 参数说明：浏览器缓存 Admin CORS 预检结果的时间，单位秒。
                 max-age: 1800
               "[/merchant/**]":
@@ -173,7 +171,7 @@ spring:
                 allowed-headers: "*"
                 # 参数说明：允许商户前端读取链路追踪头用于请求定位。
                 exposed-headers: [X-Trace-Id]
-                # 参数说明：当前商户端使用显式令牌而非跨域 Cookie，禁止开启跨域凭据。
-                allow-credentials: false
+                # 参数说明：商户端使用 HttpOnly 会话 Cookie；来源模式受控且写请求仍必须通过 CSRF 校验。
+                allow-credentials: true
                 # 参数说明：浏览器缓存 Merchant CORS 预检结果的时间，单位秒。
                 max-age: 1800

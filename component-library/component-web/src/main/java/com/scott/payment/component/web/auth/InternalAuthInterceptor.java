@@ -26,12 +26,7 @@ import java.util.List;
 public class InternalAuthInterceptor implements HandlerInterceptor {
 
     /**
-     * Authorization 请求头名称。
-     */
-    private static final String AUTHORIZATION_HEADER = "Authorization";
-
-    /**
-     * Bearer token 前缀。
+     * Bearer 令牌前缀。
      */
     private static final String BEARER_PREFIX = "Bearer ";
 
@@ -71,13 +66,18 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
         if (isWhitelisted(request.getRequestURI())) {
             return true;
         }
-        String authorization = request.getHeader(AUTHORIZATION_HEADER);
+        String authorization = BrowserSessionCookieSupport.resolveAuthorization(appCode, request);
         if (!StringUtils.hasText(authorization)) {
             writeError(response, HttpServletResponse.SC_UNAUTHORIZED, ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
             return false;
         }
         if (!authorization.startsWith(BEARER_PREFIX)) {
             writeError(response, HttpServletResponse.SC_UNAUTHORIZED, ApiResultEnum.UNAUTHORIZED);
+            return false;
+        }
+        if (!BrowserSessionCookieSupport.isCsrfValid(appCode, request)) {
+            writeError(response, HttpServletResponse.SC_FORBIDDEN,
+                    ApiResultEnum.FORBIDDEN.getCode(), "csrf token is invalid");
             return false;
         }
         try {

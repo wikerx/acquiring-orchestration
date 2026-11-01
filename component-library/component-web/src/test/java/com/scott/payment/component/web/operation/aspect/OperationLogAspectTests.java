@@ -2,6 +2,7 @@ package com.scott.payment.component.web.operation.aspect;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.web.operation.dto.OperationLogRecord;
 import com.scott.payment.component.web.operation.service.OperationLogPublisher;
 import jakarta.servlet.ServletRequest;
@@ -74,6 +75,25 @@ class OperationLogAspectTests {
         assertThat(record.getErrorCode()).isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode());
         assertThat(record.getErrorMsg()).isEqualTo(IllegalStateException.class.getSimpleName());
         assertThat(record.getErrorMsg()).doesNotContain("internal implementation detail");
+    }
+
+    /**
+     * 无认证上下文时不得使用浏览器请求头伪造商户或操作员身份。
+     */
+    @Test
+    void shouldLeaveIdentityEmptyWithoutAuthenticationContext() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<OperationLogPublisher> publisherProvider = mock(ObjectProvider.class);
+        OperationLogAspect aspect = new OperationLogAspect(publisherProvider);
+
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                aspect, "resolveMerchantId", (InternalAuthAccount) null)).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                aspect, "resolveOperatorId", (InternalAuthAccount) null)).isNull();
+        assertThat((String) ReflectionTestUtils.invokeMethod(
+                aspect, "resolveOperatorName", (InternalAuthAccount) null)).isNull();
+        assertThat((Integer) ReflectionTestUtils.invokeMethod(
+                aspect, "resolveOperatorType", (InternalAuthAccount) null, 1)).isEqualTo(1);
     }
 
     /**

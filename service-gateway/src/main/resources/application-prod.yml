@@ -70,8 +70,8 @@ spring:
                 allowed-headers: "*"
                 # 参数说明：声明允许浏览器读取的响应头，避免暴露无关内部头。
                 exposed-headers: [X-Trace-Id]
-                # 参数说明：控制跨域请求是否允许携带 Cookie/Authorization 等凭据；与通配 Origin 不可同时开启。
-                allow-credentials: false
+                # 参数说明：Admin 使用 HttpOnly 会话 Cookie；该路由仅允许上方明确配置的 HTTPS Origin。
+                allow-credentials: true
                 # 参数说明：配置浏览器缓存 CORS 预检结果的时长，单位秒。
                 max-age: 1800
               "[/merchant/**]":
@@ -85,8 +85,8 @@ spring:
                 allowed-headers: "*"
                 # 参数说明：声明允许浏览器读取的响应头，避免暴露无关内部头。
                 exposed-headers: [X-Trace-Id]
-                # 参数说明：控制跨域请求是否允许携带 Cookie/Authorization 等凭据；与通配 Origin 不可同时开启。
-                allow-credentials: false
+                # 参数说明：Merchant 使用 HttpOnly 会话 Cookie；该路由仅允许上方明确配置的 HTTPS Origin。
+                allow-credentials: true
                 # 参数说明：配置浏览器缓存 CORS 预检结果的时长，单位秒。
                 max-age: 1800
               "[/api/rest/**]":

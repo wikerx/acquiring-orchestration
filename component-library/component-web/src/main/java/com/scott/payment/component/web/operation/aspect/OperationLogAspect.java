@@ -48,26 +48,6 @@ public class OperationLogAspect {
     private static final String HEADER_TRACE_ID = "X-Trace-Id";
 
     /**
-     * 商户号请求头。
-     */
-    private static final String HEADER_MERCHANT_ID = "X-Merchant-Id";
-
-    /**
-     * 操作人ID请求头。
-     */
-    private static final String HEADER_OPERATOR_ID = "X-Operator-Id";
-
-    /**
-     * 操作人名称请求头。
-     */
-    private static final String HEADER_OPERATOR_NAME = "X-Operator-Name";
-
-    /**
-     * 操作人类型请求头。
-     */
-    private static final String HEADER_OPERATOR_TYPE = "X-Operator-Type";
-
-    /**
      * 操作地点请求头。
      */
     private static final String HEADER_OPERATOR_LOCATION = "X-Operator-Location";
@@ -160,15 +140,15 @@ public class OperationLogAspect {
             OperationLogRecord record = new OperationLogRecord();
             record.setTraceId(header(request, HEADER_TRACE_ID));
             record.setRequestId(header(request, HEADER_REQUEST_ID));
-            record.setMerchantId(resolveMerchantId(request, account));
+            record.setMerchantId(resolveMerchantId(account));
             record.setModuleName(operation.moduleName());
             record.setOperationName(operation.operation());
             record.setBusinessType(operation.businessType());
             record.setMethodName(methodName(point));
             record.setRequestMethod(request == null ? null : request.getMethod());
-            record.setOperatorType(resolveOperatorType(request, account, operation.operatorType()));
-            record.setOperatorId(resolveOperatorId(request, account));
-            record.setOperatorName(resolveOperatorName(request, account));
+            record.setOperatorType(resolveOperatorType(account, operation.operatorType()));
+            record.setOperatorId(resolveOperatorId(account));
+            record.setOperatorName(resolveOperatorName(account));
             record.setOperUrl(request == null ? null : request.getRequestURI());
             record.setOperIp(clientIp(request));
             record.setOperLocation(header(request, HEADER_OPERATOR_LOCATION));
@@ -277,71 +257,59 @@ public class OperationLogAspect {
     }
 
     /**
-     * 解析商户号，认证上下文优先，请求头只作为无登录上下文的兼容兜底。
+     * 从服务端认证上下文解析商户号，禁止信任浏览器可伪造的身份请求头。
      *
-     * @param request 请求对象
      * @param account 当前登录账号上下文
      * @return 商户号
      */
-    private String resolveMerchantId(HttpServletRequest request, InternalAuthAccount account) {
+    private String resolveMerchantId(InternalAuthAccount account) {
         if (account != null && account.getMerchantId() != null && !account.getMerchantId().isBlank()) {
             return account.getMerchantId();
         }
-        return header(request, HEADER_MERCHANT_ID);
+        return null;
     }
 
     /**
-     * 解析操作人类型，认证上下文优先，请求头只作为无登录上下文的兼容兜底。
+     * 从服务端认证上下文解析操作人类型。
      *
-     * @param request         请求对象
      * @param account         当前登录账号上下文
      * @param defaultOperator 默认操作人类型
      * @return 操作人类型
      */
-    private Integer resolveOperatorType(HttpServletRequest request, InternalAuthAccount account, int defaultOperator) {
+    private Integer resolveOperatorType(InternalAuthAccount account, int defaultOperator) {
         if (account != null) {
             return account.getMerchantId() != null && !account.getMerchantId().isBlank() ? 2 : defaultOperator;
         }
-        String operatorType = header(request, HEADER_OPERATOR_TYPE);
-        if (operatorType == null || operatorType.isBlank()) {
-            return defaultOperator;
-        }
-        try {
-            return Integer.parseInt(operatorType);
-        } catch (NumberFormatException exception) {
-            return defaultOperator;
-        }
+        return defaultOperator;
     }
 
     /**
-     * 解析操作人ID，认证上下文优先，请求头只作为无登录上下文的兼容兜底。
+     * 从服务端认证上下文解析操作人ID。
      *
-     * @param request 请求对象
      * @param account 当前登录账号上下文
      * @return 操作人ID
      */
-    private String resolveOperatorId(HttpServletRequest request, InternalAuthAccount account) {
+    private String resolveOperatorId(InternalAuthAccount account) {
         if (account != null && account.getAccountId() != null) {
             return String.valueOf(account.getAccountId());
         }
-        return header(request, HEADER_OPERATOR_ID);
+        return null;
     }
 
     /**
-     * 解析操作人名称，认证上下文优先，请求头只作为无登录上下文的兼容兜底。
+     * 从服务端认证上下文解析操作人名称。
      *
-     * @param request 请求对象
      * @param account 当前登录账号上下文
      * @return 操作人名称
      */
-    private String resolveOperatorName(HttpServletRequest request, InternalAuthAccount account) {
+    private String resolveOperatorName(InternalAuthAccount account) {
         if (account != null) {
             if (account.getRealName() != null && !account.getRealName().isBlank()) {
                 return account.getRealName();
             }
             return account.getLoginAccount();
         }
-        return header(request, HEADER_OPERATOR_NAME);
+        return null;
     }
 
     /**
