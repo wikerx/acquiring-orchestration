@@ -2253,6 +2253,144 @@ public final class AdminTransactionDTOs {
     }
 
     /**
+     * 管理后台交易详情中的风控规则执行节点。
+     *
+     * <p>该模型只承载风控审计表已经脱敏的命中值，并保持阶段顺序、节点决策和最终决策相互独立，
+     * 避免使用动态键值结构导致新增字段或数据库类型变化时静默改变对外响应。</p>
+     */
+    @Data
+    public static class RiskTimelineEventResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 风控命中明细主键。
+         */
+        private Long riskEventId;
+
+        /**
+         * 风控评估记录号。
+         */
+        private String riskRecordNo;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 时间轴事件类型，当前固定为 RISK_RULE_EVALUATED。
+         */
+        private String eventType;
+
+        /**
+         * 时间轴事件阶段，当前固定为 RISK。
+         */
+        private String eventStage;
+
+        /**
+         * 风控功能或阶段展示名称。
+         */
+        private String eventName;
+
+        /**
+         * 管理端统一事件状态：SUCCESS、PENDING、FAILED 或 SKIPPED。
+         */
+        private String eventStatus;
+
+        /**
+         * 风控节点决策说明；不得包含未脱敏命中原文。
+         */
+        private String eventContent;
+
+        /**
+         * 风控节点完成时间。
+         */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime eventTime;
+
+        /**
+         * 交易时间轴排序序号。
+         */
+        private Integer timelineSequence;
+
+        /**
+         * 风控阶段编码。
+         */
+        private String stageCode;
+
+        /**
+         * 风控阶段名称。
+         */
+        private String stageName;
+
+        /**
+         * 风控阶段原始顺序。
+         */
+        private Integer stageOrder;
+
+        /**
+         * 风控模块类型。
+         */
+        private String moduleType;
+
+        /**
+         * 风控功能编码。
+         */
+        private String functionCode;
+
+        /**
+         * 风控功能名称。
+         */
+        private String functionName;
+
+        /**
+         * 命中的规则主键。
+         */
+        private Long ruleId;
+
+        /**
+         * 参与规则判断的元素名称。
+         */
+        private String hitElement;
+
+        /**
+         * 已脱敏的规则命中值。
+         */
+        private String hitValueMasked;
+
+        /**
+         * 规则匹配结果。
+         */
+        private String matchResult;
+
+        /**
+         * 当前节点决策结果。
+         */
+        private String decisionResult;
+
+        /**
+         * 当前节点对整体决策的影响。
+         */
+        private String decisionEffect;
+
+        /**
+         * 当前节点稳定原因码。
+         */
+        private String reasonCode;
+
+        /**
+         * 整笔风控评估的最终决策。
+         */
+        private String finalDecision;
+
+        /**
+         * 整笔风控评估的最终原因。
+         */
+        private String finalReason;
+    }
+
+    /**
      * 交易聚合详情响应。
      */
     @Data
@@ -2316,7 +2454,7 @@ public final class AdminTransactionDTOs {
         /**
          * 风控服务异步审计的实际执行节点，按规则优先级排序。
          */
-        private List<Map<String, Object>> riskEvents = Collections.emptyList();
+        private List<RiskTimelineEventResponse> riskEvents = Collections.emptyList();
 
         /**
          * {@code amountChanges}，表示当前交易、费用、限额或统计口径下的金额值。

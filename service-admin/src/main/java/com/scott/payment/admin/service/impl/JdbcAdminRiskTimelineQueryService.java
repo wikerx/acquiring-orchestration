@@ -1,6 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.RiskTimelineEventResponse;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -8,11 +9,11 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * 管理端交易风控时间轴 JDBC 查询实现。
@@ -45,11 +46,11 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
      */
     @Override
     @DS(DataSourceName.SLAVE)
-    public List<Map<String, Object>> findRiskEvents(String paymentOrderNo) {
+    public List<RiskTimelineEventResponse> findRiskEvents(String paymentOrderNo) {
         if (!StringUtils.hasText(paymentOrderNo)) {
             return List.of();
         }
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+        List<RiskTimelineEventResponse> events = jdbcTemplate.query("""
                 SELECT d.id AS risk_event_id,
                        r.risk_record_no,
                        r.payment_order_no,
@@ -78,55 +79,53 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
                          COALESCE(d.stage_order, 9999) ASC,
                          d.decision_time ASC,
                          d.id ASC
-                """, new MapSqlParameterSource("paymentOrderNo", paymentOrderNo.trim()));
-        if (rows == null || rows.isEmpty()) {
-            return List.of();
-        }
-        List<Map<String, Object>> events = new ArrayList<>(rows.size());
-        for (Map<String, Object> row : rows) {
-            events.add(toTimelineEvent(row));
-        }
-        return events;
+                """, new MapSqlParameterSource("paymentOrderNo", paymentOrderNo.trim()),
+                this::mapTimelineEvent);
+        return events == null ? List.of() : events;
     }
 
     /**
-     * 将单条 JDBC 风控明细映射为管理端统一时间轴字段。
+     * 将单条 JDBC 风控明细映射为管理端统一时间轴响应。
      *
-     * @param row 同时包含风控主记录和命中明细的查询行
+     * @param resultSet 同时包含风控主记录和命中明细的查询结果
+     * @param rowNumber 当前结果行号
      * @return 包含脱敏命中值、阶段顺序和最终决策的时间轴事件
+     * @throws SQLException JDBC 字段读取失败
      */
-    private Map<String, Object> toTimelineEvent(Map<String, Object> row) {
-        Map<String, Object> event = new LinkedHashMap<>();
-        Object stageOrder = value(row, "stage_order");
-        event.put("riskEventId", value(row, "risk_event_id"));
-        event.put("riskRecordNo", value(row, "risk_record_no"));
-        event.put("transactionId", value(row, "payment_order_no"));
-        event.put("eventType", "RISK_RULE_EVALUATED");
-        event.put("eventStage", "RISK");
-        event.put("eventName", firstText(row, "function_name", "stage_name", "function_code"));
-        event.put("eventStatus", eventStatus(
-                value(row, "decision_effect"),
-                value(row, "decision_result"),
-                value(row, "match_result"),
-                value(row, "reason_code")));
-        event.put("eventContent", firstText(row, "decision_reason", "final_reason"));
-        event.put("eventTime", value(row, "decision_time"));
-        event.put("timelineSequence", intValue(stageOrder, 9999) + 200);
-        event.put("stageCode", value(row, "stage_code"));
-        event.put("stageName", value(row, "stage_name"));
-        event.put("stageOrder", stageOrder);
-        event.put("moduleType", value(row, "module_type"));
-        event.put("functionCode", value(row, "function_code"));
-        event.put("functionName", value(row, "function_name"));
-        event.put("ruleId", value(row, "rule_id"));
-        event.put("hitElement", value(row, "hit_element"));
-        event.put("hitValueMasked", value(row, "hit_value_masked"));
-        event.put("matchResult", value(row, "match_result"));
-        event.put("decisionResult", value(row, "decision_result"));
-        event.put("decisionEffect", value(row, "decision_effect"));
-        event.put("reasonCode", value(row, "reason_code"));
-        event.put("finalDecision", value(row, "final_decision"));
-        event.put("finalReason", value(row, "final_reason"));
+    private RiskTimelineEventResponse mapTimelineEvent(ResultSet resultSet, int rowNumber) throws SQLException {
+        Integer stageOrder = nullableInteger(resultSet, "stage_order");
+        String decisionEffect = resultSet.getString("decision_effect");
+        String decisionResult = resultSet.getString("decision_result");
+        String matchResult = resultSet.getString("match_result");
+        String reasonCode = resultSet.getString("reason_code");
+        RiskTimelineEventResponse event = new RiskTimelineEventResponse();
+        event.setRiskEventId(nullableLong(resultSet, "risk_event_id"));
+        event.setRiskRecordNo(resultSet.getString("risk_record_no"));
+        event.setTransactionId(resultSet.getString("payment_order_no"));
+        event.setEventType("RISK_RULE_EVALUATED");
+        event.setEventStage("RISK");
+        event.setEventName(firstText(resultSet.getString("function_name"),
+                resultSet.getString("stage_name"), resultSet.getString("function_code")));
+        event.setEventStatus(eventStatus(decisionEffect, decisionResult, matchResult, reasonCode));
+        event.setEventContent(firstText(resultSet.getString("decision_reason"),
+                resultSet.getString("final_reason")));
+        event.setEventTime(resultSet.getObject("decision_time", LocalDateTime.class));
+        event.setTimelineSequence((stageOrder == null ? 9999 : stageOrder) + 200);
+        event.setStageCode(resultSet.getString("stage_code"));
+        event.setStageName(resultSet.getString("stage_name"));
+        event.setStageOrder(stageOrder);
+        event.setModuleType(resultSet.getString("module_type"));
+        event.setFunctionCode(resultSet.getString("function_code"));
+        event.setFunctionName(resultSet.getString("function_name"));
+        event.setRuleId(nullableLong(resultSet, "rule_id"));
+        event.setHitElement(resultSet.getString("hit_element"));
+        event.setHitValueMasked(resultSet.getString("hit_value_masked"));
+        event.setMatchResult(matchResult);
+        event.setDecisionResult(decisionResult);
+        event.setDecisionEffect(decisionEffect);
+        event.setReasonCode(reasonCode);
+        event.setFinalDecision(resultSet.getString("final_decision"));
+        event.setFinalReason(resultSet.getString("final_reason"));
         return event;
     }
 
@@ -139,7 +138,7 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
      * @param reasonCode 稳定原因码
      * @return 管理端统一状态 SUCCESS、PENDING、FAILED 或 SKIPPED
      */
-    private String eventStatus(Object effect, Object decision, Object matchResult, Object reasonCode) {
+    private String eventStatus(String effect, String decision, String matchResult, String reasonCode) {
         String normalizedMatch = normalizeStatus(matchResult);
         String normalizedDecision = normalizeStatus(decision);
         String normalizedReason = normalizeStatus(reasonCode);
@@ -150,7 +149,7 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
                 || "NOT_CONFIGURED".equals(normalizedReason)) {
             return "SKIPPED";
         }
-        String normalized = String.valueOf(effect == null ? decision : effect).trim().toUpperCase(Locale.ROOT);
+        String normalized = normalizeStatus(StringUtils.hasText(effect) ? effect : decision);
         if ("BLOCK".equals(normalized) || "REJECT".equals(normalized)) {
             return "FAILED";
         }
@@ -158,92 +157,57 @@ public class JdbcAdminRiskTimelineQueryService implements AdminRiskTimelineQuery
                 || "REQUIRE_3DS".equals(normalized)) {
             return "PENDING";
         }
-        return "SUCCESS";
+        if ("ALLOW".equals(normalized) || "PASS".equals(normalized) || "APPROVE".equals(normalized)) {
+            return "SUCCESS";
+        }
+        return "PENDING";
     }
 
     /**
      * 规范化状态。
      */
-    private String normalizeStatus(Object value) {
-        return value == null ? "" : String.valueOf(value).trim().toUpperCase(Locale.ROOT);
+    private String normalizeStatus(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     /**
-     * 按字段优先级返回首个非空文本。
+     * 按参数优先级返回首个非空文本。
      *
-     * @param row JDBC 查询行
-     * @param keys 候选字段名，按优先级排列
-     * @return 首个非空字段文本；均为空时返回 {@code null}
+     * @param candidates 候选文本，按优先级排列
+     * @return 首个非空文本；均为空时返回 {@code null}
      */
-    private String firstText(Map<String, Object> row, String... keys) {
-        for (String key : keys) {
-            Object candidate = value(row, key);
-            if (candidate != null && StringUtils.hasText(String.valueOf(candidate))) {
-                return String.valueOf(candidate);
+    private String firstText(String... candidates) {
+        for (String candidate : candidates) {
+            if (StringUtils.hasText(candidate)) {
+                return candidate;
             }
         }
         return null;
     }
 
     /**
-     * 兼容 JDBC 驱动返回的下划线键与驼峰键。
+     * 读取允许为空的 BIGINT 字段。
      *
-     * @param row JDBC 查询行
-     * @param key 下划线格式字段名
-     * @return 对应字段值；不存在时返回 {@code null}
+     * @param resultSet JDBC 查询结果
+     * @param columnName 字段名
+     * @return long 值；数据库字段为空时返回 {@code null}
+     * @throws SQLException JDBC 字段读取失败
      */
-    private Object value(Map<String, Object> row, String key) {
-        if (row == null || key == null) {
-            return null;
-        }
-        Object value = row.get(key);
-        if (value != null) {
-            return value;
-        }
-        return row.get(toCamelCase(key));
+    private Long nullableLong(ResultSet resultSet, String columnName) throws SQLException {
+        long value = resultSet.getLong(columnName);
+        return resultSet.wasNull() ? null : value;
     }
 
     /**
-     * 将数据库下划线字段名转换为驼峰形式，用于兼容不同列名映射策略。
+     * 读取允许为空的 INTEGER 字段。
      *
-     * @param value 下划线格式字段名
-     * @return 驼峰格式字段名
+     * @param resultSet JDBC 查询结果
+     * @param columnName 字段名
+     * @return int 值；数据库字段为空时返回 {@code null}
+     * @throws SQLException JDBC 字段读取失败
      */
-    private String toCamelCase(String value) {
-        StringBuilder result = new StringBuilder(value.length());
-        boolean upperNext = false;
-        for (int index = 0; index < value.length(); index++) {
-            char current = value.charAt(index);
-            if (current == '_') {
-                upperNext = true;
-            } else if (upperNext) {
-                result.append(Character.toUpperCase(current));
-                upperNext = false;
-            } else {
-                result.append(current);
-            }
-        }
-        return result.toString();
-    }
-
-    /**
-     * 将 JDBC 行中的数值字段转换为 int，空值或非法文本使用调用方提供的默认值。
-     *
-     * @param value    JDBC 原始字段
-     * @param fallback 无法转换时的默认值
-     * @return 转换后的整数
-     */
-    private int intValue(Object value, int fallback) {
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-        if (value == null) {
-            return fallback;
-        }
-        try {
-            return Integer.parseInt(String.valueOf(value));
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
+    private Integer nullableInteger(ResultSet resultSet, String columnName) throws SQLException {
+        int value = resultSet.getInt(columnName);
+        return resultSet.wasNull() ? null : value;
     }
 }
