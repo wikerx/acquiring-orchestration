@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
+import java.util.List;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -43,7 +43,7 @@ public class AdminRiskDashboardController {
     @GetMapping("/dashboard")
     @RequiresPermission("risk:dashboard:overview:list")
     @OperationLog(moduleName = "收单风控-风险工作台", businessType = OperationTypeConstants.QUERY, operation = "查询风险工作台")
-    public CommonResult<Map<String, Object>> dashboard() {
+    public CommonResult<RiskDTOs.RiskDashboardResponse> dashboard() {
         return success(riskManagementApplicationService.dashboard());
     }
 
@@ -55,7 +55,7 @@ public class AdminRiskDashboardController {
      */
     @PostMapping("/dashboard/today-events/page")
     @RequiresPermission("risk:dashboard:todayEvents:list")
-    public CommonResult<PageResult<Map<String, Object>>> pageTodayEvents(
+    public CommonResult<PageResult<RiskDTOs.RiskEvaluationResponse>> pageTodayEvents(
             @RequestBody(required = false) RiskDTOs.EvaluationQueryRequest request) {
         return success(riskManagementApplicationService.pageTodayRiskEvents(request));
     }
@@ -67,7 +67,7 @@ public class AdminRiskDashboardController {
      */
     @GetMapping("/dashboard/merchant-ranking")
     @RequiresPermission("risk:dashboard:merchantRanking:list")
-    public CommonResult<java.util.List<Map<String, Object>>> merchantRanking() {
+    public CommonResult<List<RiskDTOs.MerchantRiskRankingResponse>> merchantRanking() {
         return success(riskManagementApplicationService.merchantRiskRanking());
     }
 
@@ -79,7 +79,8 @@ public class AdminRiskDashboardController {
      */
     @PostMapping("/changes/page")
     @RequiresPermission("risk:dashboard:configChanges:list")
-    public CommonResult<PageResult<Map<String, Object>>> pageChangeLogs(@RequestBody(required = false) AdminRiskManagementApplicationService.PageRequestAdapter request) {
+    public CommonResult<PageResult<RiskDTOs.RiskChangeLogResponse>> pageChangeLogs(
+            @RequestBody(required = false) AdminRiskManagementApplicationService.PageRequestAdapter request) {
         return success(riskManagementApplicationService.pageChangeLogs(request));
     }
 }

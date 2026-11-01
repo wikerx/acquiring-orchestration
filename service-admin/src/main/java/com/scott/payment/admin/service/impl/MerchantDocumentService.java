@@ -472,7 +472,7 @@ public class MerchantDocumentService {
         try {
             storage.delete(objectKey);
         } catch (RuntimeException exception) {
-            log.warn("event: ADMIN_MERCHANT_DOCUMENT_CLEANUP_FAILED objectKeyDigest: {} exceptionType: {}",
+            log.warn("商户文档清理失败, event: ADMIN_MERCHANT_DOCUMENT_CLEANUP_FAILED, objectKeyDigest: {}, exceptionType: {}",
                     sha256(objectKey.getBytes(StandardCharsets.UTF_8)), exception.getClass().getSimpleName());
         }
     }

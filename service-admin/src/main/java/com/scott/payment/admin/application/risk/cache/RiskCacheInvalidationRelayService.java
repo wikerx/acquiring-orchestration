@@ -171,8 +171,8 @@ public class RiskCacheInvalidationRelayService {
                     now
             );
             log.warn(
-                    "event: RISK_CACHE_INVALIDATION_PUBLISH_FAILED eventId: {} retryCount: {} "
-                            + "nextRetryTime: {} exceptionType: {}",
+                    "风控缓存失效事件发布失败, event: RISK_CACHE_INVALIDATION_PUBLISH_FAILED, eventId: {}, retryCount: {}, "
+                            + "nextRetryTime: {}, exceptionType: {}",
                     event.getEventId(),
                     event.getRetryCount(),
                     nextRetryTime,

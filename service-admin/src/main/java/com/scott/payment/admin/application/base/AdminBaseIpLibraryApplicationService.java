@@ -35,37 +35,10 @@ import java.util.stream.IntStream;
 @Service
 public class AdminBaseIpLibraryApplicationService {
 
-    /**
-     * {@code IPV4}常量，统一 {@code AdminBaseIpLibraryApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String IPV4 = "IPV4";
-    /**
-     * {@code IPV6}常量，统一 {@code AdminBaseIpLibraryApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String IPV6 = "IPV6";
-    /**
-     * {@code ACTIVE}常量，统一 {@code AdminBaseIpLibraryApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int ACTIVE = 1;
-    /**
-     * {@code IPV4_MAX}常量，统一 {@code AdminBaseIpLibraryApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long IPV4_MAX = 4_294_967_295L;
-    /**
-     * {@code IPV6_MAX}常量，统一 {@code AdminBaseIpLibraryApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final BigInteger IPV6_MAX = BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE);
     private static final Set<String> ALLOWED_TABLES = IntStream.rangeClosed(1, 8)
             .mapToObj(index -> String.format("%02d", index))

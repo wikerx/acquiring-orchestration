@@ -14,9 +14,6 @@ import java.net.URI;
 @Data
 @ConfigurationProperties(prefix = "admin.clearing-client")
 public class ClearingInternalClientProperties {
-    /**
-     * {@code REQUIRED_CALLER}常量，统一 {@code ClearingInternalClientProperties} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String REQUIRED_CALLER = "service-admin";
     /**
      * service-clearing 的 HTTP(S) 服务根地址，不允许携带凭据、查询或片段。

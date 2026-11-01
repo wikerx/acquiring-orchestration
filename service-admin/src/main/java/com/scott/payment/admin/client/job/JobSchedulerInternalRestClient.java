@@ -403,7 +403,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("get", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("event: ADMIN_JOB_INTERNAL_CALL_FAILED method: {} path: {} exceptionType: {}",
+            log.warn("任务调度内部接口调用失败, event: ADMIN_JOB_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
                     HttpMethod.GET.name(), targetUri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job get call failed");
         }
@@ -433,7 +433,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("post", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("event: ADMIN_JOB_INTERNAL_CALL_FAILED method: {} path: {} exceptionType: {}",
+            log.warn("任务调度内部接口调用失败, event: ADMIN_JOB_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
                     HttpMethod.POST.name(), targetUri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job post call failed");
         }
@@ -453,7 +453,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("put", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("event: ADMIN_JOB_INTERNAL_CALL_FAILED method: {} path: {} exceptionType: {}",
+            log.warn("任务调度内部接口调用失败, event: ADMIN_JOB_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
                     HttpMethod.PUT.name(), targetUri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job put call failed");
         }
@@ -472,7 +472,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("delete", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("event: ADMIN_JOB_INTERNAL_CALL_FAILED method: {} path: {} exceptionType: {}",
+            log.warn("任务调度内部接口调用失败, event: ADMIN_JOB_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
                     HttpMethod.DELETE.name(), targetUri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job delete call failed");
         }
@@ -549,7 +549,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
      * @return 平台异常
      */
     private ApiException translateHttpException(String method, URI targetUri, HttpStatusCodeException exception) {
-        log.warn("event: ADMIN_JOB_INTERNAL_HTTP_REJECTED method: {} path: {} status: {} exceptionType: {}",
+        log.warn("任务调度内部接口请求被拒绝, event: ADMIN_JOB_INTERNAL_HTTP_REJECTED, method: {}, path: {}, status: {}, exceptionType: {}",
                 method,
                 targetUri.getPath(),
                 exception.getStatusCode().value(),

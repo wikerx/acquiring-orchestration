@@ -75,70 +75,17 @@ import java.util.stream.Collectors;
 @Service
 public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminChannelAlertServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = 0L;
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int ENABLED = 1;
-    /**
-     * {@code DISABLED}，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DISABLED = 0;
-    /**
-     * {@code ALL}常量，统一 {@code AdminChannelAlertServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String ALL = "ALL";
-    /**
-     * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-     */
     private static final String EMAIL = "EMAIL";
-    /**
-     * {@code BANK_CARD}常量，统一 {@code AdminChannelAlertServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String BANK_CARD = "BANK_CARD";
-    /**
-     * {@code ADMIN_APP_CODE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     */
     private static final String ADMIN_APP_CODE = "ADMIN";
-    /**
-     * 默认邮件语言区域，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-     */
     private static final String DEFAULT_EMAIL_LOCALE = "zh-CN";
-    /**
-     * 默认邮件场景，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
-     */
     private static final String DEFAULT_EMAIL_SCENE = "CHANNEL_ALERT";
-    /**
-     * {@code EVENT_STATUS_ACKNOWLEDGED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String EVENT_STATUS_ACKNOWLEDGED = "ACKNOWLEDGED";
-    /**
-     * 规则编码前缀，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     */
     private static final String RULE_CODE_PREFIX = "CAR";
-    /**
-     * 规则分组编码前缀，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     */
     private static final String RULE_GROUP_CODE_PREFIX = "CARG";
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,63}$");
     private static final Set<String> BUSINESS_TYPES = Set.of("ACQUIRING", "PAYOUT");

@@ -1,6 +1,7 @@
 package com.scott.payment.admin.dto.transaction;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
 import lombok.Data;
@@ -152,66 +153,27 @@ public final class AdminTransactionDTOs {
 
         /**
          * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String channelCode;
 
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与 operationId、merchantOrderNo 共同定位一笔平台交易。
-         * </p>
          */
         private String transactionId;
 
         /**
          * 渠道订单号，由渠道返回，用于渠道查询、回调匹配和对账。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String channelOrderNo;
 
-        /**
-         * 请求状态，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：请求链路、回调链路或跨服务调用上下文。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String requestStatus;
 
-        /**
-         * {@code interactionType}，用于区分 渠道日志查询 记录的处理类别、配置维度或外部协议枚举。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
         private String interactionType;
 
-        /**
-         * 请求中的{@code beginTime}，用于限定本次操作的输入和校验范围。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
         private LocalDateTime beginTime;
 
         /**
          * 请求中的结束时间，用于限定本次操作的输入和校验范围。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private LocalDateTime endTime;
 
@@ -232,67 +194,30 @@ public final class AdminTransactionDTOs {
 
         /**
          * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String channelCode;
 
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与 operationId、merchantOrderNo 共同定位一笔平台交易。
-         * </p>
          */
         private String transactionId;
 
         /**
          * 渠道订单号，由渠道返回，用于渠道查询、回调匹配和对账。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String channelOrderNo;
 
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
-         * </p>
          */
         private String channelTransactionId;
 
-        /**
-         * 回调状态，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：请求链路、回调链路或跨服务调用上下文。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String callbackStatus;
 
-        /**
-         * 请求中的{@code beginTime}，用于限定本次操作的输入和校验范围。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
         private LocalDateTime beginTime;
 
         /**
          * 请求中的结束时间，用于限定本次操作的输入和校验范围。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private LocalDateTime endTime;
 
@@ -313,49 +238,20 @@ public final class AdminTransactionDTOs {
 
         /**
          * 商户号，用于限定商户配置、交易数据、风控规则和权限归属。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与 merchantOrderNo、transactionId 共同限定商户交易归属。
-         * </p>
          */
         private String merchantId;
 
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与 operationId、merchantOrderNo 共同定位一笔平台交易。
-         * </p>
          */
         private String transactionId;
 
-        /**
-         * 通知状态，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String notifyStatus;
 
-        /**
-         * 请求中的{@code beginTime}，用于限定本次操作的输入和校验范围。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
         private LocalDateTime beginTime;
 
         /**
          * 请求中的结束时间，用于限定本次操作的输入和校验范围。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private LocalDateTime endTime;
 
@@ -535,59 +431,31 @@ public final class AdminTransactionDTOs {
 
         /**
          * 平台操作号，由支付核心生成，用于定位一次授权、请款、退款、撤销或回调处理动作。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 transactionId、transactionType 共同定位一次交易动作。
-         * </p>
          */
         private String operationId;
 
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String rootTransactionId;
 
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String latestTransactionId;
 
         /**
          * 商户号，用于限定商户配置、交易数据、风控规则和权限归属。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 merchantOrderNo、transactionId 共同限定商户交易归属。
-         * </p>
          */
         private String merchantId;
 
         /**
          * 商户订单号，由商户生成并在同一商户范围内用于交易幂等、查询和对账。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 merchantId、transactionId 共同支持幂等、查询和对账。
-         * </p>
          */
         private String merchantOrderNo;
 
         /**
          * 商户请求订单标识，用于区分同一商户订单下的一次接口提交或后续交易动作。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 merchantId、transactionId 共同支持幂等、查询和对账。
-         * </p>
          */
         private String merchantOrderId;
 
@@ -596,41 +464,18 @@ public final class AdminTransactionDTOs {
          */
         private String merchantWebsite;
 
-        /**
-         * 支付方式，表示支付方式、通知方式或调用方式。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private String paymentMethod;
 
         /**
          * 支付品牌编码，用于区分银行卡、钱包或本地支付品牌。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String paymentBrand;
 
         /**
          * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String transactionType;
 
-        /**
-         * 交易状态，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String transactionStatus;
 
         /**
@@ -643,53 +488,14 @@ public final class AdminTransactionDTOs {
          */
         private String lifecycleStatusMessage;
 
-        /**
-         * 响应中的{@code processStage}，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private String processStage;
 
-        /**
-         * 标签币种，表示金额字段使用的币种。
-         * <p>
-         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-         * </p>
-         */
         private String labelCurrency;
 
-        /**
-         * 标签金额，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
         private BigDecimal labelAmount;
 
-        /**
-         * 交易币种，表示金额字段使用的币种。
-         * <p>
-         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-         * </p>
-         */
         private String transactionCurrency;
 
-        /**
-         * 交易金额，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
         private BigDecimal transactionAmount;
 
         /**
@@ -753,54 +559,14 @@ public final class AdminTransactionDTOs {
          */
         private String payerResultMessage;
 
-        /**
-         * {@code authorizedAmount}，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
         private BigDecimal authorizedAmount;
 
-        /**
-         * {@code capturedAmount}，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
         private BigDecimal capturedAmount;
 
-        /**
-         * {@code refundedAmount}，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
         private BigDecimal refundedAmount;
 
-        /**
-         * {@code availableCaptureAmount}，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
         private BigDecimal availableCaptureAmount;
 
-        /**
-         * {@code availableRefundAmount}，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
         private BigDecimal availableRefundAmount;
 
         /**
@@ -839,70 +605,26 @@ public final class AdminTransactionDTOs {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime settlementTransactionDateTime;
 
-        /**
-         * 结算状态，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String settlementStatus;
 
-        /**
-         * {@code reconciliationStatus}，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String reconciliationStatus;
 
-        /**
-         * {@code accountingStatus}，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String accountingStatus;
 
-        /**
-         * 渠道匹配状态，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String channelMatchStatus;
 
         /**
          * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String channelCode;
 
         /**
          * 渠道订单号，由渠道返回，用于渠道查询、回调匹配和对账。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String channelOrderNo;
 
         /**
          * 交易受理时刻，按交易业务时区解释并保留毫秒精度。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
@@ -915,10 +637,6 @@ public final class AdminTransactionDTOs {
 
         /**
          * 交易业务时区，使用 IANA 时区标识解释本地交易时间。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String transactionTimeZone;
     }
@@ -933,139 +651,51 @@ public final class AdminTransactionDTOs {
 
         /**
          * 平台操作号，由支付核心生成，用于定位一次授权、请款、退款、撤销或回调处理动作。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 transactionId、transactionType 共同定位一次交易动作。
-         * </p>
          */
         private String operationId;
 
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 operationId、merchantOrderNo 共同定位一笔平台交易。
-         * </p>
          */
         private String transactionId;
 
         /**
          * 原平台交易号，用于将请款、退款、撤销、增量授权等后续动作关联到原始交易。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 transactionId 建立后续请款、退款、撤销和原交易之间的关联。
-         * </p>
          */
         private String sourceTransactionId;
 
         /**
          * 商户号，用于限定商户配置、交易数据、风控规则和权限归属。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 merchantOrderNo、transactionId 共同限定商户交易归属。
-         * </p>
          */
         private String merchantId;
 
         /**
          * 商户订单号，由商户生成并在同一商户范围内用于交易幂等、查询和对账。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 merchantId、transactionId 共同支持幂等、查询和对账。
-         * </p>
          */
         private String merchantOrderNo;
 
         /**
          * 商户请求订单标识，用于区分同一商户订单下的一次接口提交或后续交易动作。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 merchantId、transactionId 共同支持幂等、查询和对账。
-         * </p>
          */
         private String merchantOrderId;
 
-        /**
-         * 响应中的{@code operationSequence}，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private Integer operationSequence;
 
         /**
          * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String transactionType;
 
-        /**
-         * 交易状态，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String transactionStatus;
 
-        /**
-         * 响应中的{@code processStage}，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private String processStage;
 
-        /**
-         * 标签币种，表示金额字段使用的币种。
-         * <p>
-         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-         * </p>
-         */
         private String labelCurrency;
 
-        /**
-         * 标签金额，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
         private BigDecimal labelAmount;
 
-        /**
-         * 交易币种，表示金额字段使用的币种。
-         * <p>
-         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-         * </p>
-         */
         private String transactionCurrency;
 
-        /**
-         * 交易金额，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
         private BigDecimal transactionAmount;
 
         /**
@@ -1148,30 +778,15 @@ public final class AdminTransactionDTOs {
          */
         private BigDecimal availableRefundAmount;
 
-        /**
-         * 支付方式，表示支付方式、通知方式或调用方式。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private String paymentMethod;
 
         /**
          * 支付品牌编码，用于区分银行卡、钱包或本地支付品牌。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String paymentBrand;
 
         /**
          * 卡 BIN，用于识别发卡行、卡组织、国家地区和风控规则。
-         * <p>
-         * 单位：无；格式：卡 BIN 或尾号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：仅保存识别片段，不保存完整 PAN；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String cardBin;
 
@@ -1182,10 +797,6 @@ public final class AdminTransactionDTOs {
 
         /**
          * 访问类型，用于区分登录、查询、导出或配置变更等审计场景。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String accessType;
 
@@ -1196,66 +807,25 @@ public final class AdminTransactionDTOs {
 
         /**
          * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String channelCode;
 
         /**
          * 渠道订单号，由渠道返回，用于渠道查询、回调匹配和对账。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         private String channelOrderNo;
 
         /**
          * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
-         * </p>
          */
         private String channelTransactionId;
 
-        /**
-         * 渠道响应编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private String channelResponseCode;
 
-        /**
-         * 响应中的渠道响应说明，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private String channelResponseMessage;
 
-        /**
-         * {@code authCode}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private String authCode;
 
-        /**
-         * 响应中的{@code acquirerReferenceNo}，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private String acquirerReferenceNo;
 
         /**
@@ -1283,52 +853,16 @@ public final class AdminTransactionDTOs {
          */
         private String settlementBatchNo;
 
-        /**
-         * 结算状态，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String settlementStatus;
 
-        /**
-         * {@code reconciliationStatus}，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String reconciliationStatus;
 
-        /**
-         * {@code accountingStatus}，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String accountingStatus;
 
-        /**
-         * 渠道匹配状态，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
-         */
         private String channelMatchStatus;
 
         /**
          * 交易受理时刻，按交易业务时区解释并保留毫秒精度。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
          */
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
@@ -1339,13 +873,6 @@ public final class AdminTransactionDTOs {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime rootTransactionDateTime;
 
-        /**
-         * 响应中的动作时间，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private LocalDateTime operationTime;
     }
 
@@ -1625,6 +1152,557 @@ public final class AdminTransactionDTOs {
          * 付款人客户端 User-Agent。
          */
         private String userAgent;
+    }
+
+    /**
+     * 管理后台交易状态流转记录。
+     *
+     * <p>该模型固定状态历史表对管理端暴露的字段，避免数据库新增内部列时自动扩展接口响应。</p>
+     */
+    @Data
+    public static class TransactionStatusHistoryResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 物理记录主键；使用字符串返回，避免浏览器解析 BIGINT 时丢失精度。
+         */
+        private String id;
+
+        /**
+         * 状态历史业务号。
+         */
+        private String statusHistoryId;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 交易动作号。
+         */
+        private String operationId;
+
+        /**
+         * 状态所属对象，例如 ORDER 或 OPERATION。
+         */
+        private String statusObject;
+
+        /**
+         * 流转前状态。
+         */
+        private String fromStatus;
+
+        /**
+         * 流转后状态。
+         */
+        private String toStatus;
+
+        /**
+         * 状态流转触发类型。
+         */
+        private String triggerType;
+
+        /**
+         * 触发对象业务号。
+         */
+        private String triggerId;
+
+        /**
+         * 状态流转执行结果。
+         */
+        private String transitionResult;
+
+        /**
+         * 状态流转失败或忽略原因。
+         */
+        private String failReason;
+
+        /**
+         * 流转前乐观锁版本。
+         */
+        private Integer versionBefore;
+
+        /**
+         * 流转后乐观锁版本。
+         */
+        private Integer versionAfter;
+
+        /**
+         * 状态流转时间。
+         */
+        private LocalDateTime statusTime;
+
+        /**
+         * 原交易分片时间。
+         */
+        private LocalDateTime transactionDateTime;
+
+        /**
+         * 原交易 UTC 时间。
+         */
+        private LocalDateTime transactionUtcTime;
+
+        /**
+         * 原交易 IANA 时区。
+         */
+        private String transactionTimeZone;
+
+        /**
+         * 记录创建时间。
+         */
+        private LocalDateTime createTime;
+    }
+
+    /**
+     * 管理后台交易流程事件。
+     *
+     * <p>事件状态、前后交易状态和关联对象分别保存，管理端不得从事件文案反推交易终态。</p>
+     */
+    @Data
+    public static class TransactionFlowEventResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 物理记录主键；使用字符串返回，避免浏览器解析 BIGINT 时丢失精度。
+         */
+        private String id;
+
+        /**
+         * 流程事件业务号。
+         */
+        private String flowEventId;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 交易动作号。
+         */
+        private String operationId;
+
+        /**
+         * 流程事件类型。
+         */
+        private String eventType;
+
+        /**
+         * 流程事件阶段。
+         */
+        private String eventStage;
+
+        /**
+         * 流程事件状态。
+         */
+        private String eventStatus;
+
+        /**
+         * 流程事件展示名称。
+         */
+        private String eventName;
+
+        /**
+         * 流程事件摘要。
+         */
+        private String eventContent;
+
+        /**
+         * 事件发生前交易状态。
+         */
+        private String previousStatus;
+
+        /**
+         * 事件发生后交易状态。
+         */
+        private String currentStatus;
+
+        /**
+         * 操作者类型。
+         */
+        private String operatorType;
+
+        /**
+         * 操作者标识。
+         */
+        private String operatorId;
+
+        /**
+         * 关联对象类型。
+         */
+        private String referenceType;
+
+        /**
+         * 关联对象业务号。
+         */
+        private String referenceId;
+
+        /**
+         * 事件错误码。
+         */
+        private String errorCode;
+
+        /**
+         * 事件错误摘要。
+         */
+        private String errorMessage;
+
+        /**
+         * 事件发生时间。
+         */
+        private LocalDateTime eventTime;
+
+        /**
+         * 原交易分片时间。
+         */
+        private LocalDateTime transactionDateTime;
+
+        /**
+         * 原交易 UTC 时间。
+         */
+        private LocalDateTime transactionUtcTime;
+
+        /**
+         * 原交易 IANA 时区。
+         */
+        private String transactionTimeZone;
+
+        /**
+         * 记录创建时间。
+         */
+        private LocalDateTime createTime;
+    }
+
+    /**
+     * 管理后台交易生命周期金额变动记录。
+     *
+     * <p>所有金额均使用交易金额币种解释；累计金额与可用金额保持持久化时的业务快照，
+     * 不在查询阶段重新计算或换汇。</p>
+     */
+    @Data
+    public static class TransactionAmountChangeResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 物理记录主键；历史补录记录没有物理主键。
+         */
+        private String id;
+
+        /**
+         * 金额变动业务号。
+         */
+        private String amountChangeId;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 触发金额变动的交易动作号。
+         */
+        private String operationId;
+
+        /**
+         * 被影响或引用的源交易号。
+         */
+        private String sourceTransactionId;
+
+        /**
+         * 被影响或引用的源动作号。
+         */
+        private String sourceOperationId;
+
+        /**
+         * 金额变动类型。
+         */
+        private String changeType;
+
+        /**
+         * 查询阶段补录记录的来源；持久化日志不返回该字段。
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private String changeSource;
+
+        /**
+         * 金额币种。
+         */
+        private String amountCurrency;
+
+        /**
+         * 本次变动金额。
+         */
+        private BigDecimal changeAmount;
+
+        /**
+         * 变动前累计授权金额。
+         */
+        private BigDecimal authorizedBefore;
+
+        /**
+         * 变动后累计授权金额。
+         */
+        private BigDecimal authorizedAfter;
+
+        /**
+         * 变动前累计请款金额。
+         */
+        private BigDecimal capturedBefore;
+
+        /**
+         * 变动后累计请款金额。
+         */
+        private BigDecimal capturedAfter;
+
+        /**
+         * 变动前累计退款金额。
+         */
+        private BigDecimal refundedBefore;
+
+        /**
+         * 变动后累计退款金额。
+         */
+        private BigDecimal refundedAfter;
+
+        /**
+         * 变动前可请款金额。
+         */
+        private BigDecimal availableCaptureBefore;
+
+        /**
+         * 变动后可请款金额。
+         */
+        private BigDecimal availableCaptureAfter;
+
+        /**
+         * 变动前可退款金额。
+         */
+        private BigDecimal availableRefundBefore;
+
+        /**
+         * 变动后可退款金额。
+         */
+        private BigDecimal availableRefundAfter;
+
+        /**
+         * 金额变动原因。
+         */
+        private String changeReason;
+
+        /**
+         * 金额变动时间。
+         */
+        private LocalDateTime changeTime;
+
+        /**
+         * 原交易分片时间。
+         */
+        private LocalDateTime transactionDateTime;
+
+        /**
+         * 原交易 UTC 时间。
+         */
+        private LocalDateTime transactionUtcTime;
+
+        /**
+         * 原交易 IANA 时区。
+         */
+        private String transactionTimeZone;
+
+        /**
+         * 记录创建时间。
+         */
+        private LocalDateTime createTime;
+    }
+
+    /**
+     * 管理后台渠道请求业务记录。
+     *
+     * <p>该模型只返回脱敏地址、渠道响应摘要和平台判断结果，不包含渠道请求或响应原文。</p>
+     */
+    @Data
+    public static class ChannelRequestResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 物理记录主键；使用字符串返回，避免浏览器解析 BIGINT 时丢失精度。
+         */
+        private String id;
+
+        /**
+         * 平台渠道请求号。
+         */
+        private String requestId;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 交易动作号。
+         */
+        private String operationId;
+
+        /**
+         * 渠道信息主键；使用字符串返回避免浏览器精度损失。
+         */
+        private String channelId;
+
+        /**
+         * 渠道编码。
+         */
+        private String channelCode;
+
+        /**
+         * 渠道 MID 配置主键；使用字符串返回避免浏览器精度损失。
+         */
+        private String channelMidConfigId;
+
+        /**
+         * 交易类型。
+         */
+        private String transactionType;
+
+        /**
+         * 渠道请求场景。
+         */
+        private String requestScene;
+
+        /**
+         * 是否为渠道结果勾兑请求。
+         */
+        private Boolean channelMatchFlag;
+
+        /**
+         * 渠道请求状态。
+         */
+        private String requestStatus;
+
+        /**
+         * HTTP 请求方法。
+         */
+        private String httpMethod;
+
+        /**
+         * 已脱敏的渠道请求地址。
+         */
+        private String requestUrlMasked;
+
+        /**
+         * 上送渠道币种。
+         */
+        private String requestCurrency;
+
+        /**
+         * 上送渠道金额。
+         */
+        private BigDecimal requestAmount;
+
+        /**
+         * 渠道订单号。
+         */
+        private String channelOrderNo;
+
+        /**
+         * 渠道交易号。
+         */
+        private String channelTransactionId;
+
+        /**
+         * 渠道网关外层结果。
+         */
+        private String gatewayResult;
+
+        /**
+         * 渠道网关返回码。
+         */
+        private String gatewayCode;
+
+        /**
+         * 收单机构返回码。
+         */
+        private String acquirerCode;
+
+        /**
+         * 收单机构返回描述。
+         */
+        private String acquirerMessage;
+
+        /**
+         * 渠道原始交易状态。
+         */
+        private String channelStatus;
+
+        /**
+         * 平台是否将本次渠道结果判定为成功。
+         */
+        private Boolean platformSuccess;
+
+        /**
+         * 平台统一结果码。
+         */
+        private String platformResultCode;
+
+        /**
+         * 平台失败原因。
+         */
+        private String platformFailReason;
+
+        /**
+         * 渠道请求发起时间。
+         */
+        private LocalDateTime requestStartTime;
+
+        /**
+         * 渠道响应时间。
+         */
+        private LocalDateTime responseTime;
+
+        /**
+         * 渠道请求耗时，单位为毫秒。
+         */
+        private Integer durationMillis;
+
+        /**
+         * 原交易分片时间。
+         */
+        private LocalDateTime transactionDateTime;
+
+        /**
+         * 原交易 UTC 时间。
+         */
+        private LocalDateTime transactionUtcTime;
+
+        /**
+         * 原交易 IANA 时区。
+         */
+        private String transactionTimeZone;
+
+        /**
+         * 乐观锁版本号。
+         */
+        private Integer version;
+
+        /**
+         * 软删除标识。
+         */
+        private Boolean deleted;
+
+        /**
+         * 记录创建时间。
+         */
+        private LocalDateTime createTime;
+
+        /**
+         * 记录更新时间。
+         */
+        private LocalDateTime updateTime;
     }
 
     /**
@@ -1966,6 +2044,127 @@ public final class AdminTransactionDTOs {
     }
 
     /**
+     * 管理后台渠道回调原文日志。
+     *
+     * <p>仅承载已脱敏的回调请求头、请求体和平台响应摘要；验签与来源 IP 校验结果保持独立字段。</p>
+     */
+    @Data
+    public static class ChannelCallbackLogResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 物理记录主键；使用字符串返回，避免浏览器解析 BIGINT 时丢失精度。
+         */
+        private String id;
+
+        /**
+         * 渠道回调日志业务号。
+         */
+        private String callbackLogId;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 交易动作号。
+         */
+        private String operationId;
+
+        /**
+         * 渠道编码。
+         */
+        private String channelCode;
+
+        /**
+         * 平台识别的回调类型。
+         */
+        private String callbackType;
+
+        /**
+         * 渠道订单号。
+         */
+        private String channelOrderNo;
+
+        /**
+         * 渠道交易号。
+         */
+        private String channelTransactionId;
+
+        /**
+         * 回调请求 URI。
+         */
+        private String requestUri;
+
+        /**
+         * HTTP 请求方法。
+         */
+        private String httpMethod;
+
+        /**
+         * 渠道回调来源 IP。
+         */
+        private String sourceIp;
+
+        /**
+         * 已脱敏的回调请求头 JSON。
+         */
+        private String requestHeaderJsonMasked;
+
+        /**
+         * 已脱敏的回调请求体 JSON。
+         */
+        private String requestBodyJsonMasked;
+
+        /**
+         * 渠道签名是否校验通过。
+         */
+        private Boolean signatureValid;
+
+        /**
+         * 渠道来源 IP 是否通过白名单校验。
+         */
+        private Boolean ipAllowed;
+
+        /**
+         * 平台返回给渠道的响应码。
+         */
+        private String platformResponseCode;
+
+        /**
+         * 平台返回给渠道的响应摘要。
+         */
+        private String platformResponseBody;
+
+        /**
+         * 回调接收时间。
+         */
+        private LocalDateTime callbackReceivedTime;
+
+        /**
+         * 原交易分片时间。
+         */
+        private LocalDateTime transactionDateTime;
+
+        /**
+         * 原交易 UTC 时间。
+         */
+        private LocalDateTime transactionUtcTime;
+
+        /**
+         * 原交易 IANA 时区。
+         */
+        private String transactionTimeZone;
+
+        /**
+         * 记录创建时间。
+         */
+        private LocalDateTime createTime;
+    }
+
+    /**
      * 管理后台商户通知任务。
      */
     @Data
@@ -2234,6 +2433,157 @@ public final class AdminTransactionDTOs {
     }
 
     /**
+     * 管理后台商户 OpenAPI 交互日志。
+     *
+     * <p>请求和响应只返回安全摘要、掩码与脱敏明文，不返回 JWT、完整密文或敏感支付资料。</p>
+     */
+    @Data
+    public static class MerchantApiInteractionLogResponse implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 物理记录主键；使用字符串返回，避免浏览器解析 BIGINT 时丢失精度。
+         */
+        private String id;
+
+        /**
+         * 商户 API 交互日志业务号。
+         */
+        private String apiLogId;
+
+        /**
+         * 商户本次请求唯一标识。
+         */
+        private String requestId;
+
+        /**
+         * 平台交易号。
+         */
+        private String transactionId;
+
+        /**
+         * 交易动作号。
+         */
+        private String operationId;
+
+        /**
+         * 平台商户号。
+         */
+        private String merchantId;
+
+        /**
+         * 商户订单号。
+         */
+        private String merchantOrderNo;
+
+        /**
+         * 商户请求号。
+         */
+        private String merchantOrderId;
+
+        /**
+         * 商户 API 交易动作。
+         */
+        private String apiOperation;
+
+        /**
+         * 商户请求路径。
+         */
+        private String requestPath;
+
+        /**
+         * 商户请求进入支付核心的时间。
+         */
+        private LocalDateTime requestTime;
+
+        /**
+         * 请求处理结果。
+         */
+        private String requestResult;
+
+        /**
+         * 商户请求密文安全摘要。
+         */
+        private String requestCipherDigest;
+
+        /**
+         * 商户请求密文掩码。
+         */
+        private String requestCipherMasked;
+
+        /**
+         * 商户请求脱敏明文 JSON。
+         */
+        private String requestPlainJsonMasked;
+
+        /**
+         * 平台响应生成时间。
+         */
+        private LocalDateTime responseTime;
+
+        /**
+         * 平台响应结果。
+         */
+        private String responseResult;
+
+        /**
+         * 商户侧可见响应码。
+         */
+        private String merchantResponseCode;
+
+        /**
+         * 商户侧可见响应描述。
+         */
+        private String merchantResponseMessage;
+
+        /**
+         * 平台返回商户的脱敏明文 JSON。
+         */
+        private String responsePlainJsonMasked;
+
+        /**
+         * 平台响应密文安全摘要。
+         */
+        private String responseCipherDigest;
+
+        /**
+         * 平台响应密文掩码。
+         */
+        private String responseCipherMasked;
+
+        /**
+         * OpenAPI 到支付核心处理耗时，单位为毫秒。
+         */
+        private Integer durationMillis;
+
+        /**
+         * 调用链追踪号。
+         */
+        private String traceId;
+
+        /**
+         * 原交易分片时间。
+         */
+        private LocalDateTime transactionDateTime;
+
+        /**
+         * 原交易 UTC 时间。
+         */
+        private LocalDateTime transactionUtcTime;
+
+        /**
+         * 原交易 IANA 时区。
+         */
+        private String transactionTimeZone;
+
+        /**
+         * 记录创建时间。
+         */
+        private LocalDateTime createTime;
+    }
+
+    /**
      * 商户通知任务及其投递尝试详情。
      */
     @Data
@@ -2398,13 +2748,6 @@ public final class AdminTransactionDTOs {
 
         private static final long serialVersionUID = 1L;
 
-        /**
-         * 响应中的订单，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
         private TransactionOrderResponse order;
 
         /**
@@ -2422,34 +2765,17 @@ public final class AdminTransactionDTOs {
          */
         private TransactionContactInfoResponse shippingInfo;
 
-        /**
-         * 交易动作集合，承载 {@code TransactionDetailResponse} 当前请求或响应中的多值数据。
-         * <p>
-         * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-         * </p>
-         */
         private List<TransactionOperationResponse> operations = Collections.emptyList();
 
         /**
-         * {@code statusHistory}，表示当前记录在业务流程中的处理状态。
-         * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-         * </p>
+         * 交易状态流转历史，按交易时间和物理主键升序排列。
          */
-        private List<Map<String, Object>> statusHistory = Collections.emptyList();
+        private List<TransactionStatusHistoryResponse> statusHistory = Collections.emptyList();
 
         /**
-         * 响应中的{@code flowEvents}，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
+         * 交易流程事件，按交易时间和物理主键升序排列。
          */
-        private List<Map<String, Object>> flowEvents = Collections.emptyList();
+        private List<TransactionFlowEventResponse> flowEvents = Collections.emptyList();
 
         /**
          * 风控服务异步审计的实际执行节点，按规则优先级排序。
@@ -2457,78 +2783,43 @@ public final class AdminTransactionDTOs {
         private List<RiskTimelineEventResponse> riskEvents = Collections.emptyList();
 
         /**
-         * {@code amountChanges}，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
+         * 生命周期金额变动记录；历史首笔成功动作缺少日志时会补充一条只读展示记录。
          */
-        private List<Map<String, Object>> amountChanges = Collections.emptyList();
+        private List<TransactionAmountChangeResponse> amountChanges = Collections.emptyList();
 
         /**
-         * 响应中的{@code channelRequests}，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
+         * 渠道请求业务记录。
          */
-        private List<Map<String, Object>> channelRequests = Collections.emptyList();
+        private List<ChannelRequestResponse> channelRequests = Collections.emptyList();
 
         /**
-         * 响应中的{@code channelInteractionLogs}，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
+         * 已脱敏的渠道请求、响应和异常交互日志。
          */
-        private List<Map<String, Object>> channelInteractionLogs = Collections.emptyList();
+        private List<ChannelInteractionLogResponse> channelInteractionLogs = Collections.emptyList();
 
         /**
-         * 响应中的{@code channelCallbacks}，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
-         * </p>
+         * 渠道回调业务处理记录。
          */
-        private List<Map<String, Object>> channelCallbacks = Collections.emptyList();
+        private List<ChannelCallbackResponse> channelCallbacks = Collections.emptyList();
 
         /**
-         * 响应中的渠道回调日志，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
-         * </p>
+         * 已脱敏的渠道回调原文日志。
          */
-        private List<Map<String, Object>> channelCallbackLogs = Collections.emptyList();
+        private List<ChannelCallbackLogResponse> channelCallbackLogs = Collections.emptyList();
 
         /**
-         * 响应中的商户通知任务，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
+         * 商户通知任务。
          */
-        private List<Map<String, Object>> merchantNotifications = Collections.emptyList();
+        private List<MerchantNotificationResponse> merchantNotifications = Collections.emptyList();
 
         /**
-         * 响应中的商户通知日志，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
+         * 已脱敏的商户通知投递日志。
          */
-        private List<Map<String, Object>> merchantNotificationLogs = Collections.emptyList();
+        private List<MerchantNotificationDeliveryLogResponse> merchantNotificationLogs = Collections.emptyList();
 
         /**
-         * 响应中的{@code merchantApiInteractionLogs}，用于管理端或商户端展示当前处理结果。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
+         * 已脱敏的商户 OpenAPI 请求和响应日志。
          */
-        private List<Map<String, Object>> merchantApiInteractionLogs = Collections.emptyList();
+        private List<MerchantApiInteractionLogResponse> merchantApiInteractionLogs = Collections.emptyList();
     }
 }

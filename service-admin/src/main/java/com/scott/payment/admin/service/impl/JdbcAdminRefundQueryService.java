@@ -6,11 +6,11 @@ import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundRecord;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSummary;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.service.AdminRefundQueryService;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
-import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
@@ -234,10 +234,9 @@ public class JdbcAdminRefundQueryService implements AdminRefundQueryService {
         RefundDetailResponse response = new RefundDetailResponse();
         response.setRefund(refund);
         if (refund.getRootTransactionDateTime() != null) {
-            Object transactionDetail = transactionQueryService.detail(
+            TransactionDetailResponse transactionDetail = transactionQueryService.detail(
                     transactionId, transactionDateTime, refund.getRootTransactionDateTime());
-            response.setTransactionDetail(JsonUtils.parseObject(
-                    JsonUtils.toJsonString(transactionDetail), Map.class));
+            response.setTransactionDetail(transactionDetail);
         }
         return response;
     }

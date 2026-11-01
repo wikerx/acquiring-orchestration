@@ -66,133 +66,31 @@ import java.util.regex.Pattern;
 @Service
 public class AdminEmailServiceImpl implements AdminEmailService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = 0L;
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int ENABLED = 1;
-    /**
-     * {@code DISABLED}，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DISABLED = 0;
-    /**
-     * {@code YES}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int YES = 1;
-    /**
-     * 编号常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int NO = 0;
-    /**
-     * {@code VERIFY_UNVERIFIED}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int VERIFY_UNVERIFIED = 0;
-    /**
-     * {@code VERIFY_SUCCESS}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int VERIFY_SUCCESS = 1;
-    /**
-     * {@code VERIFY_FAILED}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int VERIFY_FAILED = 2;
-    /**
-     * {@code SEND_PENDING}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int SEND_PENDING = EmailDeliveryStatus.PENDING.getCode();
     /**
      * 同步测试邮件发送过程中使用的中间状态。
      */
     private static final int SEND_SENDING = EmailDeliveryStatus.SENDING.getCode();
-    /**
-     * {@code SEND_SUCCESS}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int SEND_SUCCESS = EmailDeliveryStatus.SUCCESS.getCode();
-    /**
-     * {@code SEND_FAILED}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int SEND_FAILED = EmailDeliveryStatus.CLOSED.getCode();
-    /**
-     * {@code COMMON_SCENE}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String COMMON_SCENE = "COMMON";
     /**
      * 全局通用发件账户应用编码，用于没有应用专属发件账户时兜底。
      */
     private static final String APP_COMMON = "COMMON";
-    /**
-     * 范围系统常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String SCOPE_SYSTEM = "SYSTEM";
-    /**
-     * 范围商户常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String SCOPE_MERCHANT = "MERCHANT";
-    /**
-     * {@code SMTP_PROVIDER}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String SMTP_PROVIDER = "SMTP";
-    /**
-     * 默认语言区域常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DEFAULT_LOCALE = "zh-CN";
-    /**
-     * {@code CONTENT_HTML}常量，统一 {@code AdminEmailServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String CONTENT_HTML = "HTML";
-    /**
-     * {@code TEMPLATE_VARIABLE_PATTERN}，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final Pattern TEMPLATE_VARIABLE_PATTERN = Pattern.compile("\\$\\{([A-Za-z][A-Za-z0-9_]*)}");
     private final EmailAccountMapper accountMapper;
     private final EmailTemplateMapper templateMapper;

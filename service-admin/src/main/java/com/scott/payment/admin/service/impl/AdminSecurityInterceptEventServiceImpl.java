@@ -32,42 +32,10 @@ import java.util.List;
 @Service
 public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInterceptEventService {
 
-    /**
-     * {@code PROCESS_UNHANDLED}常量，统一 {@code AdminSecurityInterceptEventServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int PROCESS_UNHANDLED = 0;
-    /**
-     * {@code PROCESS_HANDLED}常量，统一 {@code AdminSecurityInterceptEventServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int PROCESS_HANDLED = 1;
-    /**
-     * {@code PROCESS_IGNORED}常量，统一 {@code AdminSecurityInterceptEventServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int PROCESS_IGNORED = 2;
-    /**
-     * {@code EXPORT_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final int EXPORT_LIMIT = 10000;
-    /**
-     * 默认查询时间时区常量，统一 {@code AdminSecurityInterceptEventServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
 
     private final SecurityInterceptEventMapper eventMapper;

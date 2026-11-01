@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -43,7 +42,8 @@ public class AdminRiskRecordController {
      */
     @PostMapping("/evaluations/page")
     @RequiresPermission("risk:record:evaluation:list")
-    public CommonResult<PageResult<Map<String, Object>>> pageEvaluations(@RequestBody(required = false) RiskDTOs.EvaluationQueryRequest request) {
+    public CommonResult<PageResult<RiskDTOs.RiskEvaluationResponse>> pageEvaluations(
+            @RequestBody(required = false) RiskDTOs.EvaluationQueryRequest request) {
         return success(riskManagementApplicationService.pageEvaluations(request));
     }
 
@@ -55,7 +55,8 @@ public class AdminRiskRecordController {
      */
     @GetMapping("/evaluations/{riskRecordNo}/hits")
     @RequiresPermission("risk:record:evaluation:detail")
-    public CommonResult<List<Map<String, Object>>> evaluationHits(@PathVariable("riskRecordNo") String riskRecordNo) {
+    public CommonResult<List<RiskDTOs.RiskEvaluationDetailResponse>> evaluationHits(
+            @PathVariable("riskRecordNo") String riskRecordNo) {
         return success(riskManagementApplicationService.evaluationDetails(riskRecordNo));
     }
 
@@ -67,7 +68,8 @@ public class AdminRiskRecordController {
      */
     @GetMapping("/evaluations/{riskRecordNo}/details")
     @RequiresPermission("risk:record:evaluation:detail")
-    public CommonResult<List<Map<String, Object>>> evaluationDetails(@PathVariable("riskRecordNo") String riskRecordNo) {
+    public CommonResult<List<RiskDTOs.RiskEvaluationDetailResponse>> evaluationDetails(
+            @PathVariable("riskRecordNo") String riskRecordNo) {
         return success(riskManagementApplicationService.evaluationDetails(riskRecordNo));
     }
 }

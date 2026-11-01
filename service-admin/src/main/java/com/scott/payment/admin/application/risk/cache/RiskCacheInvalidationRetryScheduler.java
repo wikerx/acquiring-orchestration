@@ -40,7 +40,7 @@ public class RiskCacheInvalidationRetryScheduler {
     public void retryDueEvents() {
         int published = relayService.publishDueEvents(BATCH_SIZE);
         if (published > 0) {
-            log.info("event: RISK_CACHE_INVALIDATION_RETRY_COMPLETED publishedCount: {}", published);
+            log.info("风控缓存失效事件重试完成, event: RISK_CACHE_INVALIDATION_RETRY_COMPLETED, publishedCount: {}", published);
         }
     }
 }

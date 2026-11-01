@@ -37,7 +37,7 @@ public class AdminAccountEmailChangedListener {
                     AdminEmailVerificationService.PURPOSE_EMAIL_CHANGE,
                     event.locale(), "self-service", null, false);
         } catch (RuntimeException exception) {
-            log.warn("event: ADMIN_ACCOUNT_EMAIL_VERIFICATION_ISSUE_FAILED accountId: {} exceptionType: {}",
+            log.warn("管理员邮箱变更验证签发失败, event: ADMIN_ACCOUNT_EMAIL_VERIFICATION_ISSUE_FAILED, accountId: {}, exceptionType: {}",
                     event.accountId(), exception.getClass().getSimpleName());
         }
     }

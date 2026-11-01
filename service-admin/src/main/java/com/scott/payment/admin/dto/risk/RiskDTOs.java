@@ -1,5 +1,9 @@
 package com.scott.payment.admin.dto.risk;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.scott.payment.component.core.model.PageRequest;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -1104,6 +1108,554 @@ public final class RiskDTOs {
          * 组合元素 JSON。
          */
         private String elementsJson;
+    }
+
+    /**
+     * 风险工作台概览响应。
+     */
+    @Data
+    public static class RiskDashboardResponse {
+        /**
+         * 按风险功能定义顺序返回的配置统计。
+         */
+        private List<RiskDashboardFunctionResponse> functions;
+
+        /**
+         * 最近十条配置变更记录。
+         */
+        private List<RiskChangeLogResponse> changeLogs;
+    }
+
+    /**
+     * 单个风险功能的工作台统计响应。
+     */
+    @Data
+    public static class RiskDashboardFunctionResponse {
+        /**
+         * 风险模块类型。
+         */
+        private String moduleType;
+
+        /**
+         * 稳定功能编码。
+         */
+        private String functionCode;
+
+        /**
+         * 功能展示名称。
+         */
+        private String functionName;
+
+        /**
+         * 管理端路由地址。
+         */
+        private String routePath;
+
+        /**
+         * 权限编码前缀。
+         */
+        private String permissionPrefix;
+
+        /**
+         * 是否为地区类功能。
+         */
+        private boolean regionFunction;
+
+        /**
+         * 是否为规则类功能。
+         */
+        private boolean ruleFunction;
+
+        /**
+         * 未删除配置总数。
+         */
+        private long total;
+
+        /**
+         * 已启用配置数量。
+         */
+        private long enabled;
+
+        /**
+         * 已停用配置数量。
+         */
+        private long disabled;
+
+        /**
+         * 启用率，取 0 到 100 的整数百分比。
+         */
+        private long enabledRate;
+
+        /**
+         * 当前功能是否已有配置。
+         */
+        private boolean configured;
+
+        /**
+         * 最近一次配置更新时间。
+         */
+        private LocalDateTime latestUpdateTime;
+
+        /**
+         * 最近一次变更操作类型；没有变更日志时不返回。
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private String latestOperationType;
+
+        /**
+         * 最近一次变更操作人；没有变更日志时不返回。
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private String latestOperator;
+
+        /**
+         * 最近一次变更时间；没有变更日志时不返回。
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        private LocalDateTime latestOperationTime;
+    }
+
+    /**
+     * 风控配置变更日志响应。
+     */
+    @Data
+    public static class RiskChangeLogResponse {
+        /**
+         * 变更日志主键，按字符串序列化以避免浏览器整数精度丢失。
+         */
+        @JsonProperty("id")
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+
+        /**
+         * 风险模块类型。
+         */
+        @JsonProperty("module_type")
+        private String moduleType;
+
+        /**
+         * 风险功能编码。
+         */
+        @JsonProperty("function_code")
+        private String functionCode;
+
+        /**
+         * 被变更业务记录主键。
+         */
+        @JsonProperty("business_id")
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long businessId;
+
+        /**
+         * 变更操作类型。
+         */
+        @JsonProperty("operation_type")
+        private String operationType;
+
+        /**
+         * 已脱敏的变更前快照。
+         */
+        @JsonProperty("before_snapshot")
+        private String beforeSnapshot;
+
+        /**
+         * 已脱敏的变更后快照。
+         */
+        @JsonProperty("after_snapshot")
+        private String afterSnapshot;
+
+        /**
+         * 操作人。
+         */
+        private String operator;
+
+        /**
+         * 操作时间。
+         */
+        @JsonProperty("operation_time")
+        private LocalDateTime operationTime;
+
+        /**
+         * 操作备注。
+         */
+        private String remark;
+
+        /**
+         * 模块展示名称。
+         */
+        private String moduleName;
+
+        /**
+         * 功能展示名称。
+         */
+        private String functionName;
+
+        /**
+         * 操作展示名称。
+         */
+        private String operationName;
+
+        /**
+         * 被变更业务对象的可读标识。
+         */
+        private String businessLabel;
+    }
+
+    /**
+     * 高风险商户排行响应。
+     */
+    @Data
+    public static class MerchantRiskRankingResponse {
+        /**
+         * 商户号。
+         */
+        @JsonProperty("merchant_id")
+        private String merchantId;
+
+        /**
+         * 商户名称。
+         */
+        @JsonProperty("merchant_name")
+        private String merchantName;
+
+        /**
+         * 近三十天风险事件总数。
+         */
+        @JsonProperty("risk_count")
+        private long riskCount;
+
+        /**
+         * 近三十天高风险事件数量。
+         */
+        @JsonProperty("high_risk_count")
+        private long highRiskCount;
+
+        /**
+         * 近三十天拒绝事件数量。
+         */
+        @JsonProperty("reject_count")
+        private long rejectCount;
+
+        /**
+         * 最近一次风险评估时间。
+         */
+        @JsonProperty("latest_evaluation_time")
+        private LocalDateTime latestEvaluationTime;
+    }
+
+    /**
+     * 风控评估摘要响应。
+     */
+    @Data
+    public static class RiskEvaluationResponse {
+        /**
+         * 评估记录主键，按字符串序列化以避免浏览器整数精度丢失。
+         */
+        @JsonProperty("id")
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+
+        /**
+         * 风控记录号。
+         */
+        @JsonProperty("risk_record_no")
+        private String riskRecordNo;
+
+        /**
+         * 商户号。
+         */
+        @JsonProperty("merchant_id")
+        private String merchantId;
+
+        /**
+         * 商户名称。
+         */
+        @JsonProperty("merchant_name")
+        private String merchantName;
+
+        /**
+         * 商户订单号。
+         */
+        @JsonProperty("merchant_order_no")
+        private String merchantOrderNo;
+
+        /**
+         * 平台支付订单号。
+         */
+        @JsonProperty("payment_order_no")
+        private String paymentOrderNo;
+
+        /**
+         * 风控评估对应的交易金额。
+         */
+        @JsonProperty("transaction_amount")
+        private BigDecimal transactionAmount;
+
+        /**
+         * 风控评估对应的交易币种。
+         */
+        @JsonProperty("transaction_currency")
+        private String transactionCurrency;
+
+        /**
+         * 风险等级。
+         */
+        @JsonProperty("risk_level")
+        private String riskLevel;
+
+        /**
+         * 最终决策结果。
+         */
+        @JsonProperty("decision_result")
+        private String decisionResult;
+
+        /**
+         * 最终决策说明。
+         */
+        @JsonProperty("decision_reason")
+        private String decisionReason;
+
+        /**
+         * 最终有效命中数量。
+         */
+        @JsonProperty("hit_count")
+        private Integer hitCount;
+
+        /**
+         * 风控评估时间。
+         */
+        @JsonProperty("evaluation_time")
+        private LocalDateTime evaluationTime;
+    }
+
+    /**
+     * 单条风控规则执行明细响应。
+     */
+    @Data
+    public static class RiskEvaluationDetailResponse {
+        /**
+         * 执行明细主键，按字符串序列化以避免浏览器整数精度丢失。
+         */
+        @JsonProperty("id")
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+
+        /**
+         * 风控记录号。
+         */
+        @JsonProperty("risk_record_no")
+        private String riskRecordNo;
+
+        /**
+         * 风险模块类型。
+         */
+        @JsonProperty("module_type")
+        private String moduleType;
+
+        /**
+         * 风险功能编码。
+         */
+        @JsonProperty("function_code")
+        private String functionCode;
+
+        /**
+         * 风险功能展示名称。
+         */
+        @JsonProperty("function_name")
+        private String functionName;
+
+        /**
+         * 命中规则主键。
+         */
+        @JsonProperty("rule_id")
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long ruleId;
+
+        /**
+         * 命中元素类型。
+         */
+        @JsonProperty("hit_element")
+        private String hitElement;
+
+        /**
+         * 命中值的脱敏展示。
+         */
+        @JsonProperty("hit_value_masked")
+        private String hitValueMasked;
+
+        /**
+         * 风险等级。
+         */
+        @JsonProperty("risk_level")
+        private String riskLevel;
+
+        /**
+         * 当前规则决策结果。
+         */
+        @JsonProperty("decision_result")
+        private String decisionResult;
+
+        /**
+         * 稳定原因码。
+         */
+        @JsonProperty("reason_code")
+        private String reasonCode;
+
+        /**
+         * 当前规则决策说明。
+         */
+        @JsonProperty("decision_reason")
+        private String decisionReason;
+
+        /**
+         * 当前规则决策时间。
+         */
+        @JsonProperty("decision_time")
+        private LocalDateTime decisionTime;
+
+        /**
+         * 频率规则统计窗口秒数。
+         */
+        @JsonProperty("time_window_seconds")
+        private Integer timeWindowSeconds;
+
+        /**
+         * 频率规则阈值次数。
+         */
+        @JsonProperty("threshold_count")
+        private Integer thresholdCount;
+
+        /**
+         * 频率规则统计元素快照。
+         */
+        @JsonProperty("elements_json")
+        private String elementsJson;
+
+        /**
+         * 当前统计次数。
+         */
+        @JsonProperty("current_count")
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long currentCount;
+
+        /**
+         * 风控执行阶段编码。
+         */
+        @JsonProperty("stage_code")
+        private String stageCode;
+
+        /**
+         * 风控执行阶段名称。
+         */
+        @JsonProperty("stage_name")
+        private String stageName;
+
+        /**
+         * 风控执行阶段顺序。
+         */
+        @JsonProperty("stage_order")
+        private Integer stageOrder;
+
+        /**
+         * 匹配结果。
+         */
+        @JsonProperty("match_result")
+        private String matchResult;
+
+        /**
+         * 当前明细对最终决策的影响。
+         */
+        @JsonProperty("decision_effect")
+        private String decisionEffect;
+    }
+
+    /**
+     * 系统交易加黑记录响应。
+     */
+    @Data
+    public static class TradeBlackResponse {
+        /**
+         * 记录主键，按字符串序列化以避免浏览器整数精度丢失。
+         */
+        @JsonProperty("id")
+        @JsonSerialize(using = ToStringSerializer.class)
+        private Long id;
+
+        /**
+         * 商户号。
+         */
+        @JsonProperty("merchant_id")
+        private String merchantId;
+
+        /**
+         * 商户名称。
+         */
+        @JsonProperty("merchant_name")
+        private String merchantName;
+
+        /**
+         * 商户订单号。
+         */
+        @JsonProperty("merchant_order_no")
+        private String merchantOrderNo;
+
+        /**
+         * 平台支付订单号。
+         */
+        @JsonProperty("payment_order_no")
+        private String paymentOrderNo;
+
+        /**
+         * 加黑对象类型。
+         */
+        @JsonProperty("black_target_type")
+        private String blackTargetType;
+
+        /**
+         * 加黑对象的脱敏展示值。
+         */
+        @JsonProperty("black_target_value_masked")
+        private String blackTargetValueMasked;
+
+        /**
+         * 加黑来源类型。
+         */
+        @JsonProperty("source_type")
+        private String sourceType;
+
+        /**
+         * 当前动作类型。
+         */
+        @JsonProperty("action_type")
+        private String actionType;
+
+        /**
+         * 操作原因。
+         */
+        @JsonProperty("action_reason")
+        private String actionReason;
+
+        /**
+         * 状态：0 已解除，1 已加黑。
+         */
+        private Integer status;
+
+        /**
+         * 最近操作人。
+         */
+        private String operator;
+
+        /**
+         * 创建时间。
+         */
+        @JsonProperty("create_time")
+        private LocalDateTime createTime;
+
+        /**
+         * 更新时间。
+         */
+        @JsonProperty("update_time")
+        private LocalDateTime updateTime;
     }
 
     /**

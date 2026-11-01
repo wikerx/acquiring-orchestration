@@ -54,30 +54,8 @@ import com.scott.payment.admin.dto.transaction.AdminSettlementDTOs.ReviewCandida
 @Service
 public class AdminSettlementApplicationService {
 
-    /**
-     * {@code TRANSACTION_BATCH_DOMAIN}，表示远程服务主机、商户域名或渠道访问域名。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String TRANSACTION_BATCH_DOMAIN = "TRANSACTION";
-    /**
-     * {@code RESERVE_BATCH_DOMAIN}，表示远程服务主机、商户域名或渠道访问域名。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String RESERVE_BATCH_DOMAIN = "RESERVE";
-    /**
-     * {@code TRANSACTION_BATCH_TYPES}，用于区分 {@code AdminSettlementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：集合或键值映射；不允许为空；非敏感字段。
-     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-     * </p>
-     */
     private static final Set<String> TRANSACTION_BATCH_TYPES = Set.of("REGULAR");
     private static final Set<String> RESERVE_BATCH_TYPES = Set.of("RESERVE_RELEASE", "ADJUSTMENT");
 

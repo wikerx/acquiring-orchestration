@@ -25,9 +25,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 @RequestMapping("/admin/email/records")
 public class AdminEmailRecordController {
 
-    /**
-     * 邮件管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
-     */
     private final AdminEmailApplicationService emailApplicationService;
 
     /**

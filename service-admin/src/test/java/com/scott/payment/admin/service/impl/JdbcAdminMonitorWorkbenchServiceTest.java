@@ -19,6 +19,7 @@ import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.TraceResponse;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.TraceSearchQuery;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookMonitorQuery;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookMonitorResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
@@ -81,12 +82,13 @@ class JdbcAdminMonitorWorkbenchServiceTest {
         order.setTransactionDateTime(transactionTime);
         TransactionDetailResponse detail = new TransactionDetailResponse();
         detail.setOrder(order);
-        detail.setChannelInteractionLogs(List.of(Map.of(
-                "interaction_log_id", "INTERACTION-1",
-                "transaction_id", "TX-UNKNOWN",
-                "channel_code", "TEST",
-                "interaction_type", "REQUEST",
-                "interaction_time", transactionTime)));
+        ChannelInteractionLogResponse interaction = new ChannelInteractionLogResponse();
+        interaction.setInteractionLogId("INTERACTION-1");
+        interaction.setTransactionId("TX-UNKNOWN");
+        interaction.setChannelCode("TEST");
+        interaction.setInteractionType("REQUEST");
+        interaction.setInteractionTime(transactionTime);
+        detail.setChannelInteractionLogs(List.of(interaction));
         AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
         when(transactionQueryService.detail("TX-UNKNOWN", transactionTime, transactionTime)).thenReturn(detail);
         JdbcAdminMonitorWorkbenchService service = createService(

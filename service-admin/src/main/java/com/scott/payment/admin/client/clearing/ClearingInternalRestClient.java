@@ -44,21 +44,9 @@ import java.util.regex.Pattern;
 public class ClearingInternalRestClient implements ClearingInternalClient {
 
     private static final Pattern IPV4 = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
-    /**
-     * {@code ROOT}常量，统一 {@code ClearingInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String ROOT = "/internal/clearing/v1";
-    /**
-     * 交易常量，统一 {@code ClearingInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String TRANSACTIONS = ROOT + "/transactions";
-    /**
-     * {@code RESERVE_ADJUSTMENTS}常量，统一 {@code ClearingInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String RESERVE_ADJUSTMENTS = ROOT + "/reserve-adjustments";
-    /**
-     * {@code TIER_PERIOD_REPLAYS}常量，统一 {@code ClearingInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String TIER_PERIOD_REPLAYS = ROOT + "/tier-period-replays";
 
     private final RestTemplate direct;
@@ -192,12 +180,12 @@ public class ClearingInternalRestClient implements ClearingInternalClient {
             }
             return result.getData();
         } catch (HttpStatusCodeException exception) {
-            log.warn("event: ADMIN_CLEARING_INTERNAL_HTTP_REJECTED method: {} path: {} status: {}",
+            log.warn("清分内部接口请求被拒绝, event: ADMIN_CLEARING_INTERNAL_HTTP_REJECTED, method: {}, path: {}, status: {}",
                     method.name(), uri.getPath(), exception.getStatusCode().value());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-clearing management call rejected");
         } catch (RestClientException exception) {
-            log.warn("event: ADMIN_CLEARING_INTERNAL_CALL_FAILED method: {} path: {} exceptionType: {}",
+            log.warn("清分内部接口调用失败, event: ADMIN_CLEARING_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
                     method.name(), uri.getPath(), exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-clearing management call failed");

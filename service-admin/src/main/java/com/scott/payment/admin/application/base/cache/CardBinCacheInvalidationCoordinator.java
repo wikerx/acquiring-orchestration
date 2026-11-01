@@ -22,17 +22,7 @@ import java.time.LocalDateTime;
 @Service
 public class CardBinCacheInvalidationCoordinator {
 
-    /**
-     * {@code CACHE_NAMESPACE}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     */
     public static final String CACHE_NAMESPACE = "card-bin-range";
-    /**
-     * {@code PUBLICATION_GATE_TTL}常量，统一 {@code CardBinCacheInvalidationCoordinator} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     static final Duration PUBLICATION_GATE_TTL = Duration.ofMinutes(30);
 
     private final Object transactionResourceKey = new Object();
@@ -97,7 +87,7 @@ public class CardBinCacheInvalidationCoordinator {
                         generationStore.abort(publication);
                     }
                 } catch (RuntimeException exception) {
-                    log.warn("event: CARD_BIN_CACHE_GENERATION_ABORT_FAILED exceptionType: {}",
+                    log.warn("卡BIN缓存代际终止失败, event: CARD_BIN_CACHE_GENERATION_ABORT_FAILED, exceptionType: {}",
                             exception.getClass().getSimpleName());
                 } finally {
                     if (TransactionSynchronizationManager.hasResource(transactionResourceKey)) {

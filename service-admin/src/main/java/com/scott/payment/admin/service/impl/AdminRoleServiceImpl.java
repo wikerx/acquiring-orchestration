@@ -58,33 +58,11 @@ import java.util.stream.Collectors;
 @Service
 public class AdminRoleServiceImpl implements AdminRoleService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminRoleServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = 0L;
-    /**
-     * {@code ROLE_TYPE_CUSTOM}，用于区分 {@code AdminRoleServiceImpl} 记录的处理类别、配置维度或外部协议枚举。
-     */
     private static final String ROLE_TYPE_CUSTOM = "CUSTOM";
-    /**
-     * 角色类型系统，用于区分 {@code AdminRoleServiceImpl} 记录的处理类别、配置维度或外部协议枚举。
-     */
     private static final String ROLE_TYPE_SYSTEM = "SYSTEM";
-    /**
-     * {@code DATA_SCOPE_ALL}常量，统一 {@code AdminRoleServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DATA_SCOPE_ALL = "ALL";
-    /**
-     * {@code DATA_SCOPE_SELF}常量，统一 {@code AdminRoleServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DATA_SCOPE_SELF = "SELF";
-    /**
-     * {@code DATA_SCOPE_CUSTOM}常量，统一 {@code AdminRoleServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DATA_SCOPE_CUSTOM = "CUSTOM";
 
     private final SysAppMapper sysAppMapper;

@@ -16,8 +16,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
@@ -46,7 +44,8 @@ public class AdminRiskTradeBlackController {
      */
     @PostMapping("/page")
     @RequiresPermission("risk:tradeBlack:system:list")
-    public CommonResult<PageResult<Map<String, Object>>> page(@RequestBody(required = false) RiskDTOs.TradeBlackQueryRequest request) {
+    public CommonResult<PageResult<RiskDTOs.TradeBlackResponse>> page(
+            @RequestBody(required = false) RiskDTOs.TradeBlackQueryRequest request) {
         return success(riskManagementApplicationService.pageTradeBlack(request));
     }
 

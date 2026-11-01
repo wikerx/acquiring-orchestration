@@ -1286,7 +1286,16 @@ public interface RiskManagementMapper {
      * @return 配置变更日志列表
      */
     @Select("""
-            SELECT *
+            SELECT id,
+                   module_type,
+                   function_code,
+                   business_id,
+                   operation_type,
+                   before_snapshot,
+                   after_snapshot,
+                   operator,
+                   operation_time,
+                   remark
             FROM risk_config_change_log
             ORDER BY operation_time DESC, id DESC
             LIMIT #{offset}, #{pageSize}
@@ -1560,7 +1569,28 @@ public interface RiskManagementMapper {
      * @return 命中明细列表
      */
     @Select("""
-            SELECT *
+            SELECT id,
+                   risk_record_no,
+                   module_type,
+                   function_code,
+                   function_name,
+                   rule_id,
+                   hit_element,
+                   hit_value_masked,
+                   risk_level,
+                   decision_result,
+                   reason_code,
+                   decision_reason,
+                   decision_time,
+                   time_window_seconds,
+                   threshold_count,
+                   elements_json,
+                   current_count,
+                   stage_code,
+                   stage_name,
+                   stage_order,
+                   match_result,
+                   decision_effect
             FROM risk_evaluation_hit_detail
             WHERE risk_record_no = #{riskRecordNo}
             ORDER BY COALESCE(stage_order, 9999) ASC, decision_time ASC, id ASC
@@ -1609,7 +1639,20 @@ public interface RiskManagementMapper {
      */
     @Select("""
             <script>
-            SELECT *
+            SELECT id,
+                   merchant_id,
+                   merchant_name,
+                   merchant_order_no,
+                   payment_order_no,
+                   black_target_type,
+                   black_target_value_masked,
+                   source_type,
+                   action_type,
+                   action_reason,
+                   status,
+                   operator,
+                   create_time,
+                   update_time
             FROM risk_trade_black_record
             WHERE deleted = 0
             <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>

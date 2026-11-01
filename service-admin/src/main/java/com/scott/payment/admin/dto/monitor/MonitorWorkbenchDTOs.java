@@ -1,5 +1,7 @@
 package com.scott.payment.admin.dto.monitor;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
 import jakarta.validation.constraints.NotNull;
@@ -556,7 +558,7 @@ public final class MonitorWorkbenchDTOs {
         /**
          * 线程池指标摘要，默认空集合且不得包含任务参数。
          */
-        private List<Map<String, Object>> threadPools = Collections.emptyList();
+        private List<ThreadPoolMetric> threadPools = Collections.emptyList();
         /**
          * 线程池指标提供方状态，允许为空。
          */
@@ -565,6 +567,37 @@ public final class MonitorWorkbenchDTOs {
          * 响应生成时间，使用服务端本地时间。
          */
         private LocalDateTime generatedAt;
+    }
+
+    /**
+     * 线程池运行指标；实现方不得在该模型中返回任务参数或线程栈。
+     */
+    @Data
+    public static class ThreadPoolMetric {
+        /**
+         * 线程池稳定名称。
+         */
+        private String name;
+
+        /**
+         * 当前活动线程数。
+         */
+        private Integer activeCount;
+
+        /**
+         * 当前线程池大小。
+         */
+        private Integer poolSize;
+
+        /**
+         * 当前队列长度。
+         */
+        private Integer queueSize;
+
+        /**
+         * 已完成任务总数。
+         */
+        private Long completedTaskCount;
     }
 
     /**
@@ -1274,11 +1307,89 @@ public final class MonitorWorkbenchDTOs {
         /**
          * 告警来源相关指标，默认空集合，不包含来源报文。
          */
-        private Map<String, Object> sourceMetrics = Collections.emptyMap();
+        private AlertSourceMetrics sourceMetrics = new AlertSourceMetrics();
         /**
          * 告警历史指标上下文能力状态，允许为空。
          */
         private ProviderCapability contextMetricCapability;
+    }
+
+    /**
+     * 告警来源的安全指标快照；渠道和安全事件共用该模型，未适用字段不返回。
+     */
+    @Data
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class AlertSourceMetrics {
+        @JsonProperty("channel_code")
+        private String channelCode;
+
+        @JsonProperty("rule_type")
+        private String ruleType;
+
+        @JsonProperty("window_minutes")
+        private Integer windowMinutes;
+
+        @JsonProperty("sample_count")
+        private Long sampleCount;
+
+        @JsonProperty("failure_count")
+        private Long failureCount;
+
+        @JsonProperty("success_count")
+        private Long successCount;
+
+        @JsonProperty("success_rate")
+        private BigDecimal successRate;
+
+        @JsonProperty("error_rate")
+        private BigDecimal errorRate;
+
+        @JsonProperty("max_continuous_failure_count")
+        private Long maxContinuousFailureCount;
+
+        @JsonProperty("average_latency_millis")
+        private BigDecimal averageLatencyMillis;
+
+        @JsonProperty("trigger_value_count")
+        private Long triggerValueCount;
+
+        @JsonProperty("trigger_value_rate")
+        private BigDecimal triggerValueRate;
+
+        @JsonProperty("trigger_value_millis")
+        private BigDecimal triggerValueMillis;
+
+        @JsonProperty("window_start_time")
+        private LocalDateTime windowStartTime;
+
+        @JsonProperty("window_end_time")
+        private LocalDateTime windowEndTime;
+
+        @JsonProperty("source_layer")
+        private String sourceLayer;
+
+        @JsonProperty("event_type")
+        private String eventType;
+
+        @JsonProperty("risk_level")
+        private String riskLevel;
+
+        private String action;
+
+        @JsonProperty("merchant_id")
+        private String merchantId;
+
+        @JsonProperty("service_name")
+        private String serviceName;
+
+        @JsonProperty("hit_rule_code")
+        private String hitRuleCode;
+
+        @JsonProperty("reason_code")
+        private String reasonCode;
+
+        @JsonProperty("event_time")
+        private LocalDateTime eventTime;
     }
 
     /**

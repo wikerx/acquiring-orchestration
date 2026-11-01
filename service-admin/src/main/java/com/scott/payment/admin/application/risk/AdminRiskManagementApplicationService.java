@@ -84,278 +84,256 @@ public class AdminRiskManagementApplicationService {
     private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     /**
-     * 默认范围常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 未指定生效范围时使用平台全局范围。
      */
     private static final String DEFAULT_SCOPE = "GLOBAL";
     /**
-     * 默认风控等级常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 未指定风险等级时使用中风险。
      */
     private static final String DEFAULT_RISK_LEVEL = "MEDIUM";
     /**
-     * 默认结论动作常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 未指定命中动作时进入人工复核。
      */
     private static final String DEFAULT_DECISION_ACTION = "REVIEW";
     /**
-     * {@code VALIDITY_SUPER_LONG}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 超长期有效期类型，不要求填写有效天数。
      */
     private static final String VALIDITY_SUPER_LONG = "SUPER_LONG";
     /**
-     * {@code VALIDITY_LONG}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 长期有效期类型，有效天数不得低于长期阈值。
      */
     private static final String VALIDITY_LONG = "LONG";
     /**
-     * {@code VALIDITY_LIMITED}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * 限定有效期类型，必须填写有效天数。
      */
     private static final String VALIDITY_LIMITED = "LIMITED";
     /**
-     * {@code SOURCE_MANUAL}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 管理员手工维护的配置来源。
      */
     private static final String SOURCE_MANUAL = "MANUAL";
     /**
-     * {@code SOURCE_IMPORT}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 文件批量导入的配置来源。
      */
     private static final String SOURCE_IMPORT = "IMPORT";
     /**
-     * {@code MODULE_AML}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * AML 强制拦截模块编码。
      */
     private static final String MODULE_AML = "AML";
     /**
-     * {@code MODULE_BLACK}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 黑名单模块编码。
      */
     private static final String MODULE_BLACK = "BLACK";
     /**
-     * {@code MODULE_WHITE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 白名单模块编码。
      */
     private static final String MODULE_WHITE = "WHITE";
     /**
-     * {@code MODULE_RULE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 内部风控规则模块编码。
      */
     private static final String MODULE_RULE = "RULE";
     /**
-     * {@code MODULE_TRADE_BLACK}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 交易加黑模块编码。
      */
     private static final String MODULE_TRADE_BLACK = "TRADE_BLACK";
     /**
-     * {@code FUNCTION_REGION}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 地区风险功能编码。
      */
     private static final String FUNCTION_REGION = "region";
     /**
-     * {@code FUNCTION_SOURCE_URL}，表示回调、通知、来源站点或远程接口地址。
+     * 商户来源网址功能编码。
      */
     private static final String FUNCTION_SOURCE_URL = "sourceUrl";
     /**
-     * {@code FUNCTION_MERCHANT_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
+     * 商户交易限额功能编码。
      */
     private static final String FUNCTION_MERCHANT_LIMIT = "merchantLimit";
     /**
-     * {@code FUNCTION_THREE_DS}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 3DS 策略功能编码。
      */
     private static final String FUNCTION_THREE_DS = "threeDs";
     /**
-     * {@code FIXED_LIMIT_CURRENCY_USD}，表示金额字段使用的币种。
+     * 商户限额规则当前固定使用美元计价。
      */
     private static final String FIXED_LIMIT_CURRENCY_USD = "USD";
     /**
-     * {@code MERCHANT_LIMIT_AMOUNT_SCALE}，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
+     * 商户限额金额保存和比较时保留两位小数。
      */
     private static final int MERCHANT_LIMIT_AMOUNT_SCALE = 2;
     /**
-     * {@code THREE_DS_ALL_DIMENSION}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 3DS 策略不限制某一具体维度时使用的通配值。
      */
     private static final String THREE_DS_ALL_DIMENSION = "ALL";
     /**
-     * {@code THREE_DS_BANK_CARD_PAYMENT_METHOD}，表示支付方式、通知方式或调用方式。
+     * 3DS 策略仅适用于银行卡支付。
      */
     private static final String THREE_DS_BANK_CARD_PAYMENT_METHOD = "BANK_CARD";
     /**
-     * {@code THREE_DS_DEFAULT_PAYMENT_METHOD}，表示支付方式、通知方式或调用方式。
+     * 未指定 3DS 支付方式时适用于全部银行卡支付方式。
      */
     private static final String THREE_DS_DEFAULT_PAYMENT_METHOD = THREE_DS_ALL_DIMENSION;
     /**
-     * {@code THREE_DS_RULE_TYPE_RISK}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
+     * 默认 3DS 规则类型为风险策略。
      */
     private static final String THREE_DS_RULE_TYPE_RISK = "RISK_STRATEGY";
     /**
-     * {@code THREE_DS_AMOUNT_ALL}，表示当前交易、费用、限额或统计口径下的金额值。
+     * 3DS 策略对全部交易金额生效的匹配类型。
      */
     private static final String THREE_DS_AMOUNT_ALL = "ALL";
     /**
-     * {@code THREE_DS_RISK_ANY}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 3DS 策略对任意风险等级生效的条件。
      */
     private static final String THREE_DS_RISK_ANY = "ANY";
     /**
-     * {@code THREE_DS_ACTION_FORCE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 默认 3DS 命中动作为强制执行验证。
      */
     private static final String THREE_DS_ACTION_FORCE = "FORCE_3DS";
     /**
-     * {@code THREE_DS_DEFAULT_PRIORITY}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 未指定 3DS 规则优先级时使用的默认值。
      */
     private static final int THREE_DS_DEFAULT_PRIORITY = 100;
     /**
-     * {@code THREE_DS_AMOUNT_SCALE}，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
+     * 3DS 金额边界归一化时保留两位小数。
      */
     private static final int THREE_DS_AMOUNT_SCALE = 2;
     /**
-     * {@code LIMIT_TYPE_DAILY}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
+     * 按自然日累计的商户限额类型。
      */
     private static final String LIMIT_TYPE_DAILY = "DAILY";
     /**
-     * {@code LIMIT_TYPE_WEEKLY}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
+     * 按自然周累计的商户限额类型。
      */
     private static final String LIMIT_TYPE_WEEKLY = "WEEKLY";
     /**
-     * {@code LIMIT_TYPE_MONTHLY}，用于区分 {@code AdminRiskManagementApplicationService} 记录的处理类别、配置维度或外部协议枚举。
+     * 按自然月累计的商户限额类型。
      */
     private static final String LIMIT_TYPE_MONTHLY = "MONTHLY";
     /**
-     * {@code WEEKLY_LIMIT_MULTIPLIER}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
+     * 根据日限额生成默认周限额时使用七倍系数。
      */
     private static final BigDecimal WEEKLY_LIMIT_MULTIPLIER = BigDecimal.valueOf(7);
     /**
-     * {@code MONTHLY_LIMIT_MULTIPLIER}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
+     * 根据周限额生成默认月限额时使用四倍系数。
      */
     private static final BigDecimal MONTHLY_LIMIT_MULTIPLIER = BigDecimal.valueOf(4);
     /**
-     * {@code TRADE_BLACK_FUNCTION_SYSTEM}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 系统交易加黑功能编码。
      */
     private static final String TRADE_BLACK_FUNCTION_SYSTEM = "system";
     /**
-     * {@code TRADE_BLACK_DISPLAY_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * 系统交易加黑功能的审计展示名称。
      */
     private static final String TRADE_BLACK_DISPLAY_NAME = "系统交易加黑";
     /**
-     * {@code TRADE_BLACK_RELEASE_DISPLAY_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * 解除交易加黑操作的审计展示名称。
      */
     private static final String TRADE_BLACK_RELEASE_DISPLAY_NAME = "解除系统交易加黑";
     /**
-     * {@code TRADE_BLACK_ACTION_ADD}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 新增加黑记录的动作编码。
      */
     private static final String TRADE_BLACK_ACTION_ADD = "ADD";
     /**
-     * {@code CHANGE_OPERATION_CREATE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 新增配置的审计操作编码。
      */
     private static final String CHANGE_OPERATION_CREATE = "CREATE";
     /**
-     * {@code CHANGE_OPERATION_UPDATE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 修改配置的审计操作编码。
      */
     private static final String CHANGE_OPERATION_UPDATE = "UPDATE";
     /**
-     * {@code CHANGE_OPERATION_DELETE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 删除配置的审计操作编码。
      */
     private static final String CHANGE_OPERATION_DELETE = "DELETE";
     /**
-     * 变更动作状态，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * 更新配置状态的审计操作编码。
      */
     private static final String CHANGE_OPERATION_STATUS = "STATUS";
     /**
-     * {@code CHANGE_OPERATION_IMPORT}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 文件导入配置的审计操作编码。
      */
     private static final String CHANGE_OPERATION_IMPORT = "IMPORT";
     /**
-     * 变更动作批次常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 批量处理配置的审计操作编码。
      */
     private static final String CHANGE_OPERATION_BATCH = "BATCH";
     /**
-     * {@code CHANGE_OPERATION_RELEASE}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 解除交易加黑的审计操作编码。
      */
     private static final String CHANGE_OPERATION_RELEASE = "RELEASE";
     /**
-     * {@code EMPTY_DISPLAY_TEXT}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 管理端缺失展示值的统一占位文本。
      */
     private static final String EMPTY_DISPLAY_TEXT = "-";
     /**
-     * 快照展示文本常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 无法提取业务标签时使用的快照提示文本。
      */
     private static final String SNAPSHOT_DISPLAY_TEXT = "查看快照";
     /**
-     * {@code CONFIG_ID_DISPLAY_PREFIX}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
+     * 使用配置主键构造业务标签时的展示前缀。
      */
     private static final String CONFIG_ID_DISPLAY_PREFIX = "配置ID：";
     /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 风控配置启用状态值。
      */
     private static final int ENABLED = 1;
     /**
-     * {@code LONG_VALIDITY_MIN_DAYS}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 长期有效期允许的最小天数。
      */
     private static final int LONG_VALIDITY_MIN_DAYS = 120;
     /**
-     * {@code IMPORT_ERROR_MESSAGE_MAX_LENGTH}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 导入错误信息写入数据库前允许的最大字符数。
      */
     private static final int IMPORT_ERROR_MESSAGE_MAX_LENGTH = 1000;
     /**
-     * {@code IMPORT_RAW_CONTENT_MAX_LENGTH}常量，统一 {@code AdminRiskManagementApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 脱敏导入原始行写入数据库前允许的最大字符数。
      */
     private static final int IMPORT_RAW_CONTENT_MAX_LENGTH = 4000;
     /**
-     * {@code EXCEL_IMPORT_HEADER_SCAN_ROWS}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * Excel 导入时用于识别表头的最大扫描行数。
      */
     private static final int EXCEL_IMPORT_HEADER_SCAN_ROWS = 10;
+
+    /**
+     * 来源网址规则允许的匹配模式。
+     */
     private static final Set<String> VALID_MATCH_MODES = Set.of("EXACT", "DOMAIN", "CONTAINS", "REGEX");
+
+    /**
+     * 商户限额规则允许的限额类型。
+     */
     private static final Set<String> MERCHANT_LIMIT_TYPES = Set.of("SINGLE_MIN", "SINGLE_MAX", "DAILY", "WEEKLY", "MONTHLY");
+
+    /**
+     * 3DS 策略允许的规则类型。
+     */
     private static final Set<String> THREE_DS_RULE_TYPES = Set.of("RISK_STRATEGY", "EXEMPTION_STRATEGY", "CHANNEL_POLICY");
+
+    /**
+     * 3DS 策略允许的金额匹配方式。
+     */
     private static final Set<String> THREE_DS_AMOUNT_MATCH_TYPES = Set.of("ALL", "GE", "LE", "BETWEEN");
+
+    /**
+     * 3DS 策略允许的风险等级条件。
+     */
     private static final Set<String> THREE_DS_RISK_CONDITIONS = Set.of("ANY", "LOW_AND_ABOVE", "MEDIUM_AND_ABOVE", "HIGH_AND_ABOVE", "CRITICAL_ONLY");
+
+    /**
+     * 3DS 策略允许的触发动作。
+     */
     private static final Set<String> THREE_DS_TRIGGER_ACTIONS = Set.of("FORCE_3DS", "SKIP_3DS", "FOLLOW_DEFAULT");
+
+    /**
+     * 频率规则允许参与统计的交易元素编码。
+     */
     private static final Set<String> FREQUENCY_ELEMENT_CODES = Set.of("cardNo", "cardFingerprint", "ip", "email", "phone", "customerId", "deviceFingerprint");
     /**
-     * 金额文本正则模式，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
+     * 从导入文本中识别非负十进制金额的正则表达式。
      */
     private static final Pattern AMOUNT_TEXT_PATTERN = Pattern.compile("(?<![A-Za-z0-9])\\d+(?:\\.\\d+)?");
+
+    /**
+     * 风控模块编码与管理端展示名称的映射。
+     */
     private static final Map<String, String> MODULE_DISPLAY_NAMES = Map.of(
             MODULE_AML, "AML强制拦截",
             MODULE_BLACK, "黑名单管理",
@@ -363,6 +341,10 @@ public class AdminRiskManagementApplicationService {
             MODULE_RULE, "内风控规则管理",
             MODULE_TRADE_BLACK, TRADE_BLACK_DISPLAY_NAME
     );
+
+    /**
+     * 配置变更操作编码与管理端展示名称的映射。
+     */
     private static final Map<String, String> CHANGE_OPERATION_DISPLAY_NAMES = Map.of(
             CHANGE_OPERATION_CREATE, "新增",
             CHANGE_OPERATION_UPDATE, "修改",
@@ -1215,38 +1197,38 @@ public class AdminRiskManagementApplicationService {
      * @return 各功能配置数量、启用数量和最近配置变更
      */
     @DS(DataSourceName.SLAVE)
-    public Map<String, Object> dashboard() {
-        List<Map<String, Object>> groups = new ArrayList<>();
+    public RiskDTOs.RiskDashboardResponse dashboard() {
+        List<RiskDTOs.RiskDashboardFunctionResponse> functions = new ArrayList<>();
         for (RiskFunctionDefinition definition : RiskFunctionDefinition.all()) {
             Map<String, Object> stats = riskManagementMapper.selectDashboardStats(definition.getTableName());
             long total = asLong(stats.get("total"));
             long enabled = asLong(stats.get("enabled"));
             long disabled = Math.max(total - enabled, 0);
             Map<String, Object> latestChange = riskManagementMapper.selectLatestChangeLog(definition.getModuleType(), definition.getFunctionCode());
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("moduleType", definition.getModuleType());
-            item.put("functionCode", definition.getFunctionCode());
-            item.put("functionName", definition.getFunctionName());
-            item.put("routePath", definition.getRoutePath());
-            item.put("permissionPrefix", definition.getPermissionPrefix());
-            item.put("regionFunction", definition.isRegionFunction());
-            item.put("ruleFunction", definition.isRuleFunction());
-            item.put("total", total);
-            item.put("enabled", enabled);
-            item.put("disabled", disabled);
-            item.put("enabledRate", total == 0 ? 0 : Math.round(enabled * 100.0D / total));
-            item.put("configured", total > 0);
-            item.put("latestUpdateTime", stats.get("latest_update_time"));
+            RiskDTOs.RiskDashboardFunctionResponse item = new RiskDTOs.RiskDashboardFunctionResponse();
+            item.setModuleType(definition.getModuleType());
+            item.setFunctionCode(definition.getFunctionCode());
+            item.setFunctionName(definition.getFunctionName());
+            item.setRoutePath(definition.getRoutePath());
+            item.setPermissionPrefix(definition.getPermissionPrefix());
+            item.setRegionFunction(definition.isRegionFunction());
+            item.setRuleFunction(definition.isRuleFunction());
+            item.setTotal(total);
+            item.setEnabled(enabled);
+            item.setDisabled(disabled);
+            item.setEnabledRate(total == 0 ? 0 : Math.round(enabled * 100.0D / total));
+            item.setConfigured(total > 0);
+            item.setLatestUpdateTime(asLocalDateTime(firstValue(stats, "latestUpdateTime", "latest_update_time")));
             if (latestChange != null) {
-                item.put("latestOperationType", latestChange.get("operation_type"));
-                item.put("latestOperator", latestChange.get("operator"));
-                item.put("latestOperationTime", latestChange.get("operation_time"));
+                item.setLatestOperationType(asString(firstValue(latestChange, "operationType", "operation_type")));
+                item.setLatestOperator(asString(latestChange.get("operator")));
+                item.setLatestOperationTime(asLocalDateTime(firstValue(latestChange, "operationTime", "operation_time")));
             }
-            groups.add(item);
+            functions.add(item);
         }
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("functions", groups);
-        result.put("changeLogs", enrichChangeLogRows(riskManagementMapper.selectChangeLogs(0, 10)));
+        RiskDTOs.RiskDashboardResponse result = new RiskDTOs.RiskDashboardResponse();
+        result.setFunctions(functions);
+        result.setChangeLogs(toChangeLogResponses(riskManagementMapper.selectChangeLogs(0, 10)));
         return result;
     }
 
@@ -1256,8 +1238,9 @@ public class AdminRiskManagementApplicationService {
      * @return 近 30 天商户风险统计，按高风险命中数倒序
      */
     @DS(DataSourceName.SLAVE)
-    public List<Map<String, Object>> merchantRiskRanking() {
-        return riskManagementMapper.selectMerchantRiskRanking(20);
+    public List<RiskDTOs.MerchantRiskRankingResponse> merchantRiskRanking() {
+        List<Map<String, Object>> rows = riskManagementMapper.selectMerchantRiskRanking(20);
+        return rows == null ? List.of() : rows.stream().map(this::toMerchantRiskRankingResponse).toList();
     }
 
     /**
@@ -1267,10 +1250,12 @@ public class AdminRiskManagementApplicationService {
      * @return 配置变更日志分页数据
      */
     @DS(DataSourceName.SLAVE)
-    public PageResult<Map<String, Object>> pageChangeLogs(PageRequestAdapter request) {
+    public PageResult<RiskDTOs.RiskChangeLogResponse> pageChangeLogs(PageRequestAdapter request) {
         PageRequestAdapter query = request == null ? new PageRequestAdapter() : request;
         long total = riskManagementMapper.countChangeLogs();
-        List<Map<String, Object>> rows = enrichChangeLogRows(riskManagementMapper.selectChangeLogs(offset(query.safePageNo(), query.safePageSize()), query.safePageSize()));
+        List<RiskDTOs.RiskChangeLogResponse> rows = toChangeLogResponses(
+                riskManagementMapper.selectChangeLogs(
+                        offset(query.safePageNo(), query.safePageSize()), query.safePageSize()));
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), rows);
     }
 
@@ -1281,7 +1266,8 @@ public class AdminRiskManagementApplicationService {
      * @return 风控评估记录分页数据
      */
     @DS(DataSourceName.SLAVE)
-    public PageResult<Map<String, Object>> pageTodayRiskEvents(RiskDTOs.EvaluationQueryRequest request) {
+    public PageResult<RiskDTOs.RiskEvaluationResponse> pageTodayRiskEvents(
+            RiskDTOs.EvaluationQueryRequest request) {
         RiskDTOs.EvaluationQueryRequest query = request == null
                 ? new RiskDTOs.EvaluationQueryRequest()
                 : request;
@@ -1304,7 +1290,8 @@ public class AdminRiskManagementApplicationService {
      * @return 风控评估记录分页数据
      */
     @DS(DataSourceName.SLAVE)
-    public PageResult<Map<String, Object>> pageEvaluations(RiskDTOs.EvaluationQueryRequest request) {
+    public PageResult<RiskDTOs.RiskEvaluationResponse> pageEvaluations(
+            RiskDTOs.EvaluationQueryRequest request) {
         RiskDTOs.EvaluationQueryRequest query = request == null ? new RiskDTOs.EvaluationQueryRequest() : request;
         validateEvaluationTimeRange(query);
         long total = riskManagementMapper.countEvaluations(
@@ -1326,8 +1313,8 @@ public class AdminRiskManagementApplicationService {
                 offset(query.safePageNo(), query.safePageSize()),
                 query.safePageSize()
         );
-        List<Map<String, Object>> normalizedRows = rows == null ? List.of() : rows.stream()
-                .map(this::normalizeEvaluationSummary)
+        List<RiskDTOs.RiskEvaluationResponse> normalizedRows = rows == null ? List.of() : rows.stream()
+                .map(this::toEvaluationResponse)
                 .toList();
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), normalizedRows);
     }
@@ -1344,31 +1331,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 统一风控评估摘要：非 PASS 决策不展示命中计数，避免把阻断阶段的中间明细误解为最终命中。
-     *
-     * @param source Mapper 返回的评估摘要
-     * @return 可安全用于管理端列表的独立副本
-     */
-    private Map<String, Object> normalizeEvaluationSummary(Map<String, Object> source) {
-        Map<String, Object> row = source == null ? new LinkedHashMap<>() : new LinkedHashMap<>(source);
-        String decision = String.valueOf(firstValue(row, "decisionResult", "decision_result"));
-        if (!"PASS".equalsIgnoreCase(decision)) {
-            row.put("hit_count", 0);
-            if (row.containsKey("hitCount")) {
-                row.put("hitCount", 0);
-            }
-        }
-        return row;
-    }
-
-    /**
      * 查询单笔风控评估命中明细。
      *
      * @param riskRecordNo 风控记录号
      * @return 命中明细列表
      */
     @DS(DataSourceName.SLAVE)
-    public List<Map<String, Object>> evaluationHits(String riskRecordNo) {
+    public List<RiskDTOs.RiskEvaluationDetailResponse> evaluationHits(String riskRecordNo) {
         return evaluationDetails(riskRecordNo);
     }
 
@@ -1379,11 +1348,12 @@ public class AdminRiskManagementApplicationService {
      * @return 按执行阶段排列的规则评估记录
      */
     @DS(DataSourceName.SLAVE)
-    public List<Map<String, Object>> evaluationDetails(String riskRecordNo) {
+    public List<RiskDTOs.RiskEvaluationDetailResponse> evaluationDetails(String riskRecordNo) {
         if (!StringUtils.hasText(riskRecordNo)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "风控记录号不能为空");
         }
-        return riskManagementMapper.selectEvaluationHits(riskRecordNo);
+        List<Map<String, Object>> rows = riskManagementMapper.selectEvaluationHits(riskRecordNo);
+        return rows == null ? List.of() : rows.stream().map(this::toEvaluationDetailResponse).toList();
     }
 
     /**
@@ -1393,10 +1363,10 @@ public class AdminRiskManagementApplicationService {
      * @return 系统交易加黑分页数据
      */
     @DS(DataSourceName.SLAVE)
-    public PageResult<Map<String, Object>> pageTradeBlack(RiskDTOs.TradeBlackQueryRequest request) {
+    public PageResult<RiskDTOs.TradeBlackResponse> pageTradeBlack(RiskDTOs.TradeBlackQueryRequest request) {
         RiskDTOs.TradeBlackQueryRequest query = request == null ? new RiskDTOs.TradeBlackQueryRequest() : request;
         long total = riskManagementMapper.countTradeBlack(query.getMerchantId(), query.getMerchantOrderNo(), query.getPaymentOrderNo(), query.getBlackTargetType(), query.getStatus());
-        List<Map<String, Object>> rows = riskManagementMapper.selectTradeBlack(
+        List<Map<String, Object>> sourceRows = riskManagementMapper.selectTradeBlack(
                 query.getMerchantId(),
                 query.getMerchantOrderNo(),
                 query.getPaymentOrderNo(),
@@ -1405,6 +1375,9 @@ public class AdminRiskManagementApplicationService {
                 offset(query.safePageNo(), query.safePageSize()),
                 query.safePageSize()
         );
+        List<RiskDTOs.TradeBlackResponse> rows = sourceRows == null
+                ? List.of()
+                : sourceRows.stream().map(this::toTradeBlackResponse).toList();
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), rows);
     }
 
@@ -2183,26 +2156,144 @@ public class AdminRiskManagementApplicationService {
      * @param rows Mapper 查询出的变更日志原始行
      * @return 已补充模块、功能、操作和业务标签的日志行
      */
-    private List<Map<String, Object>> enrichChangeLogRows(List<Map<String, Object>> rows) {
-        return rows.stream().map(this::enrichChangeLogRow).toList();
+    private List<RiskDTOs.RiskChangeLogResponse> toChangeLogResponses(List<Map<String, Object>> rows) {
+        return rows == null ? List.of() : rows.stream().map(this::toChangeLogResponse).toList();
     }
 
     /**
-     * 补充单条配置变更日志的可读字段，保留原始编码字段供排查和兼容旧页面使用。
+     * 将单条配置变更日志转换为稳定响应，并补充管理端所需的可读字段。
      *
      * @param row Mapper 查询出的变更日志原始行
-     * @return 已补充展示字段的日志行
+     * @return 已补充展示字段的变更日志响应
      */
-    private Map<String, Object> enrichChangeLogRow(Map<String, Object> row) {
-        Map<String, Object> copy = new LinkedHashMap<>(row);
-        String moduleType = asString(row.get("module_type"));
-        String functionCode = asString(row.get("function_code"));
-        String operationType = asString(row.get("operation_type"));
-        copy.put("moduleName", moduleDisplayName(moduleType));
-        copy.put("functionName", functionDisplayName(moduleType, functionCode));
-        copy.put("operationName", operationDisplayName(operationType));
-        copy.put("businessLabel", changeBusinessLabel(row));
-        return copy;
+    private RiskDTOs.RiskChangeLogResponse toChangeLogResponse(Map<String, Object> row) {
+        RiskDTOs.RiskChangeLogResponse response = new RiskDTOs.RiskChangeLogResponse();
+        String moduleType = asString(firstValue(row, "moduleType", "module_type"));
+        String functionCode = asString(firstValue(row, "functionCode", "function_code"));
+        String operationType = asString(firstValue(row, "operationType", "operation_type"));
+        response.setId(asLong(row.get("id")));
+        response.setModuleType(moduleType);
+        response.setFunctionCode(functionCode);
+        response.setBusinessId(asLong(firstValue(row, "businessId", "business_id")));
+        response.setOperationType(operationType);
+        response.setBeforeSnapshot(asString(firstValue(row, "beforeSnapshot", "before_snapshot")));
+        response.setAfterSnapshot(asString(firstValue(row, "afterSnapshot", "after_snapshot")));
+        response.setOperator(asString(row.get("operator")));
+        response.setOperationTime(asLocalDateTime(firstValue(row, "operationTime", "operation_time")));
+        response.setRemark(asString(row.get("remark")));
+        response.setModuleName(moduleDisplayName(moduleType));
+        response.setFunctionName(functionDisplayName(moduleType, functionCode));
+        response.setOperationName(operationDisplayName(operationType));
+        response.setBusinessLabel(changeBusinessLabel(row));
+        return response;
+    }
+
+    /**
+     * 将商户风险统计行转换为排行响应。
+     *
+     * @param row Mapper 返回的商户风险统计行
+     * @return 高风险商户排行响应
+     */
+    private RiskDTOs.MerchantRiskRankingResponse toMerchantRiskRankingResponse(Map<String, Object> row) {
+        RiskDTOs.MerchantRiskRankingResponse response = new RiskDTOs.MerchantRiskRankingResponse();
+        response.setMerchantId(asString(firstValue(row, "merchantId", "merchant_id")));
+        response.setMerchantName(asString(firstValue(row, "merchantName", "merchant_name")));
+        response.setRiskCount(defaultLong(asLong(firstValue(row, "riskCount", "risk_count"))));
+        response.setHighRiskCount(defaultLong(asLong(firstValue(row, "highRiskCount", "high_risk_count"))));
+        response.setRejectCount(defaultLong(asLong(firstValue(row, "rejectCount", "reject_count"))));
+        response.setLatestEvaluationTime(asLocalDateTime(
+                firstValue(row, "latestEvaluationTime", "latest_evaluation_time")));
+        return response;
+    }
+
+    /**
+     * 将风控评估数据库行转换为列表响应。
+     *
+     * <p>非 PASS 决策统一展示零命中，避免把阻断阶段的中间明细误解为最终有效命中。</p>
+     *
+     * @param row Mapper 返回的风控评估行
+     * @return 风控评估摘要响应
+     */
+    private RiskDTOs.RiskEvaluationResponse toEvaluationResponse(Map<String, Object> row) {
+        RiskDTOs.RiskEvaluationResponse response = new RiskDTOs.RiskEvaluationResponse();
+        response.setId(asLong(row.get("id")));
+        response.setRiskRecordNo(asString(firstValue(row, "riskRecordNo", "risk_record_no")));
+        response.setMerchantId(asString(firstValue(row, "merchantId", "merchant_id")));
+        response.setMerchantName(asString(firstValue(row, "merchantName", "merchant_name")));
+        response.setMerchantOrderNo(asString(firstValue(row, "merchantOrderNo", "merchant_order_no")));
+        response.setPaymentOrderNo(asString(firstValue(row, "paymentOrderNo", "payment_order_no")));
+        response.setTransactionAmount(asBigDecimal(firstValue(row, "transactionAmount", "transaction_amount")));
+        response.setTransactionCurrency(asString(firstValue(row, "transactionCurrency", "transaction_currency")));
+        response.setRiskLevel(asString(firstValue(row, "riskLevel", "risk_level")));
+        String decisionResult = asString(firstValue(row, "decisionResult", "decision_result"));
+        response.setDecisionResult(decisionResult);
+        response.setDecisionReason(asString(firstValue(row, "decisionReason", "decision_reason")));
+        response.setHitCount("PASS".equalsIgnoreCase(decisionResult)
+                ? defaultInteger(asInteger(firstValue(row, "hitCount", "hit_count")))
+                : 0);
+        response.setEvaluationTime(asLocalDateTime(firstValue(row, "evaluationTime", "evaluation_time")));
+        return response;
+    }
+
+    /**
+     * 将风控规则执行行转换为明细响应。
+     *
+     * @param row Mapper 返回的风控规则执行行
+     * @return 风控规则执行明细响应
+     */
+    private RiskDTOs.RiskEvaluationDetailResponse toEvaluationDetailResponse(Map<String, Object> row) {
+        RiskDTOs.RiskEvaluationDetailResponse response = new RiskDTOs.RiskEvaluationDetailResponse();
+        response.setId(asLong(row.get("id")));
+        response.setRiskRecordNo(asString(firstValue(row, "riskRecordNo", "risk_record_no")));
+        response.setModuleType(asString(firstValue(row, "moduleType", "module_type")));
+        response.setFunctionCode(asString(firstValue(row, "functionCode", "function_code")));
+        response.setFunctionName(asString(firstValue(row, "functionName", "function_name")));
+        response.setRuleId(asLong(firstValue(row, "ruleId", "rule_id")));
+        response.setHitElement(asString(firstValue(row, "hitElement", "hit_element")));
+        response.setHitValueMasked(asString(firstValue(row, "hitValueMasked", "hit_value_masked")));
+        response.setRiskLevel(asString(firstValue(row, "riskLevel", "risk_level")));
+        response.setDecisionResult(asString(firstValue(row, "decisionResult", "decision_result")));
+        response.setReasonCode(asString(firstValue(row, "reasonCode", "reason_code")));
+        response.setDecisionReason(asString(firstValue(row, "decisionReason", "decision_reason")));
+        response.setDecisionTime(asLocalDateTime(firstValue(row, "decisionTime", "decision_time")));
+        response.setTimeWindowSeconds(asInteger(firstValue(row, "timeWindowSeconds", "time_window_seconds")));
+        response.setThresholdCount(asInteger(firstValue(row, "thresholdCount", "threshold_count")));
+        response.setElementsJson(asString(firstValue(row, "elementsJson", "elements_json")));
+        response.setCurrentCount(asLong(firstValue(row, "currentCount", "current_count")));
+        response.setStageCode(asString(firstValue(row, "stageCode", "stage_code")));
+        response.setStageName(asString(firstValue(row, "stageName", "stage_name")));
+        response.setStageOrder(asInteger(firstValue(row, "stageOrder", "stage_order")));
+        response.setMatchResult(asString(firstValue(row, "matchResult", "match_result")));
+        response.setDecisionEffect(asString(firstValue(row, "decisionEffect", "decision_effect")));
+        return response;
+    }
+
+    /**
+     * 将系统交易加黑数据库行转换为列表响应。
+     *
+     * <p>响应仅返回管理端展示和操作必需字段，不暴露目标哈希及软删除标识。</p>
+     *
+     * @param row Mapper 返回的交易加黑行
+     * @return 系统交易加黑响应
+     */
+    private RiskDTOs.TradeBlackResponse toTradeBlackResponse(Map<String, Object> row) {
+        RiskDTOs.TradeBlackResponse response = new RiskDTOs.TradeBlackResponse();
+        response.setId(asLong(row.get("id")));
+        response.setMerchantId(asString(firstValue(row, "merchantId", "merchant_id")));
+        response.setMerchantName(asString(firstValue(row, "merchantName", "merchant_name")));
+        response.setMerchantOrderNo(asString(firstValue(row, "merchantOrderNo", "merchant_order_no")));
+        response.setPaymentOrderNo(asString(firstValue(row, "paymentOrderNo", "payment_order_no")));
+        response.setBlackTargetType(asString(firstValue(row, "blackTargetType", "black_target_type")));
+        response.setBlackTargetValueMasked(asString(
+                firstValue(row, "blackTargetValueMasked", "black_target_value_masked")));
+        response.setSourceType(asString(firstValue(row, "sourceType", "source_type")));
+        response.setActionType(asString(firstValue(row, "actionType", "action_type")));
+        response.setActionReason(asString(firstValue(row, "actionReason", "action_reason")));
+        response.setStatus(asInteger(row.get("status")));
+        response.setOperator(asString(row.get("operator")));
+        response.setCreateTime(asLocalDateTime(firstValue(row, "createTime", "create_time")));
+        response.setUpdateTime(asLocalDateTime(firstValue(row, "updateTime", "update_time")));
+        return response;
     }
 
     /**
@@ -5323,6 +5414,20 @@ public class AdminRiskManagementApplicationService {
             return number.intValue();
         }
         return value == null ? null : Integer.parseInt(String.valueOf(value));
+    }
+
+    /**
+     * 将可空长整数转换为统计响应使用的零默认值。
+     */
+    private long defaultLong(Long value) {
+        return value == null ? 0L : value;
+    }
+
+    /**
+     * 将可空整数转换为计数响应使用的零默认值。
+     */
+    private int defaultInteger(Integer value) {
+        return value == null ? 0 : value;
     }
 
     /**

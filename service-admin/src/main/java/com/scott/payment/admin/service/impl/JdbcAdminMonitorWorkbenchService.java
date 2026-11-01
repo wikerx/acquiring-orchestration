@@ -2,6 +2,7 @@ package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.application.monitor.AdminMonitorCacheApplicationService;
 import com.scott.payment.admin.application.monitor.AdminMonitorDatasourceApplicationService;
+import com.scott.payment.admin.dto.monitor.CacheInfoResponse;
 import com.scott.payment.admin.dto.monitor.DataSourceMonitorResponse;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertActionRequest;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertDetailResponse;
@@ -9,6 +10,7 @@ import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertHistoryItem
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertItem;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertQuery;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertSearchResponse;
+import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.AlertSourceMetrics;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.ApiAggregateItem;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.ApiMonitorQuery;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.ApiMonitorResponse;
@@ -38,6 +40,11 @@ import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookItem;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookMonitorQuery;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.WebhookMonitorResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelRequestResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantApiInteractionLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionFlowEventResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.service.AdminMonitorWorkbenchService;
@@ -781,48 +788,49 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
      */
     private List<TraceEvent> sanitizedTraceEvents(TransactionDetailResponse detail) {
         List<TraceEvent> events = new ArrayList<>();
-        for (Map<String, Object> row : detail.getMerchantApiInteractionLogs()) {
+        for (MerchantApiInteractionLogResponse row : detail.getMerchantApiInteractionLogs()) {
             events.add(traceEvent(
-                    string(row, "api_log_id"), string(row, "transaction_id"), string(row, "trace_id"),
-                    "service-openapi", string(row, "api_operation"), string(row, "request_path"),
-                    string(row, "request_result"), dateTime(row, "request_time"), dateTime(row, "response_time"),
-                    nullableInteger(row, "duration_millis"), string(row, "merchant_response_code"),
-                    isFailure(string(row, "request_result")) ? string(row, "merchant_response_message") : null,
+                    row.getApiLogId(), row.getTransactionId(), row.getTraceId(),
+                    "service-openapi", row.getApiOperation(), row.getRequestPath(),
+                    row.getRequestResult(), row.getRequestTime(), row.getResponseTime(),
+                    row.getDurationMillis(), row.getMerchantResponseCode(),
+                    isFailure(row.getRequestResult()) ? row.getMerchantResponseMessage() : null,
                     "Merchant API interaction"));
         }
-        for (Map<String, Object> row : detail.getFlowEvents()) {
+        for (TransactionFlowEventResponse row : detail.getFlowEvents()) {
             events.add(traceEvent(
-                    string(row, "flow_event_id"), string(row, "transaction_id"), null,
-                    serviceForStage(string(row, "event_stage")), string(row, "event_type"), string(row, "event_name"),
-                    string(row, "event_status"), dateTime(row, "event_time"), dateTime(row, "event_time"),
-                    0, string(row, "error_code"), string(row, "error_message"), string(row, "event_content")));
+                    row.getFlowEventId(), row.getTransactionId(), null,
+                    serviceForStage(row.getEventStage()), row.getEventType(), row.getEventName(),
+                    row.getEventStatus(), row.getEventTime(), row.getEventTime(),
+                    0, row.getErrorCode(), row.getErrorMessage(), row.getEventContent()));
         }
-        for (Map<String, Object> row : detail.getChannelRequests()) {
+        for (ChannelRequestResponse row : detail.getChannelRequests()) {
             events.add(traceEvent(
-                    string(row, "request_id"), string(row, "transaction_id"), null,
-                    "channel-" + lowerOrUnknown(string(row, "channel_code")), string(row, "request_scene"),
-                    string(row, "channel_code"), string(row, "request_status"), dateTime(row, "request_start_time"),
-                    dateTime(row, "response_time"), nullableInteger(row, "duration_millis"),
-                    firstText(row, "platform_result_code", row, "acquirer_code"),
-                    string(row, "platform_fail_reason"), "Channel request"));
+                    row.getRequestId(), row.getTransactionId(), null,
+                    "channel-" + lowerOrUnknown(row.getChannelCode()), row.getRequestScene(),
+                    row.getChannelCode(), row.getRequestStatus(), row.getRequestStartTime(),
+                    row.getResponseTime(), row.getDurationMillis(),
+                    firstText(row.getPlatformResultCode(), row.getAcquirerCode()),
+                    row.getPlatformFailReason(), "Channel request"));
         }
-        for (Map<String, Object> row : detail.getChannelInteractionLogs()) {
+        for (ChannelInteractionLogResponse row : detail.getChannelInteractionLogs()) {
             events.add(traceEvent(
-                    string(row, "interaction_log_id"), string(row, "transaction_id"), string(row, "trace_id"),
-                    "channel-" + lowerOrUnknown(string(row, "channel_code")), string(row, "interaction_type"),
-                    string(row, "channel_code"), interactionResult(row), dateTime(row, "interaction_time"),
-                    dateTime(row, "interaction_time"), nullableInteger(row, "duration_millis"),
-                    nullableInteger(row, "http_status") == null ? null : String.valueOf(integer(row, "http_status")),
-                    string(row, "exception_message"), "Channel interaction"));
+                    row.getInteractionLogId(), row.getTransactionId(), row.getTraceId(),
+                    "channel-" + lowerOrUnknown(row.getChannelCode()), row.getInteractionType(),
+                    row.getChannelCode(), interactionResult(row), row.getInteractionTime(),
+                    row.getInteractionTime(), row.getDurationMillis(),
+                    row.getHttpStatus() == null ? null : String.valueOf(row.getHttpStatus()),
+                    row.getExceptionMessage(), "Channel interaction"));
         }
-        for (Map<String, Object> row : detail.getMerchantNotificationLogs()) {
+        for (MerchantNotificationDeliveryLogResponse row : detail.getMerchantNotificationLogs()) {
             events.add(traceEvent(
-                    string(row, "notify_log_id"), string(row, "transaction_id"), null,
-                    "service-webhook", "MERCHANT_NOTIFICATION", "Attempt " + integer(row, "attempt_no"),
-                    bool(row, "success") ? "SUCCESS" : "FAILED", dateTime(row, "notify_time"),
-                    dateTime(row, "notify_time"), nullableInteger(row, "duration_millis"),
-                    nullableInteger(row, "http_status") == null ? null : String.valueOf(integer(row, "http_status")),
-                    string(row, "error_message"), "Merchant notification attempt"));
+                    row.getNotifyLogId(), row.getTransactionId(), null,
+                    "service-webhook", "MERCHANT_NOTIFICATION",
+                    "Attempt " + Objects.requireNonNullElse(row.getAttemptNo(), 0),
+                    Boolean.TRUE.equals(row.getSuccess()) ? "SUCCESS" : "FAILED", row.getNotifyTime(),
+                    row.getNotifyTime(), row.getDurationMillis(),
+                    row.getHttpStatus() == null ? null : String.valueOf(row.getHttpStatus()),
+                    row.getErrorMessage(), "Merchant notification attempt"));
         }
         return events.stream().filter(item -> item.getStartTime() != null).toList();
     }
@@ -1449,7 +1457,7 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
      * @param alert 已定位的来源告警
      * @return 来源指标映射；来源不存在时返回空映射
      */
-    private Map<String, Object> loadAlertSourceMetrics(AlertItem alert) {
+    private AlertSourceMetrics loadAlertSourceMetrics(AlertItem alert) {
         if ("CHANNEL".equals(alert.getSourceType())) {
             List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                     SELECT channel_code, rule_type, window_minutes, sample_count, failure_count,
@@ -1460,7 +1468,7 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
                     WHERE event_code = :sourceId AND deleted = 0
                     LIMIT 1
                     """, new MapSqlParameterSource("sourceId", alert.getSourceId()));
-            return rows.isEmpty() ? Map.of() : sanitizeMetricMap(rows.get(0));
+            return rows.isEmpty() ? new AlertSourceMetrics() : toChannelAlertSourceMetrics(rows.get(0));
         }
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT source_layer, event_type, risk_level, action, merchant_id,
@@ -1469,7 +1477,47 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
                 WHERE event_no = :sourceId
                 LIMIT 1
                 """, new MapSqlParameterSource("sourceId", alert.getSourceId()));
-        return rows.isEmpty() ? Map.of() : sanitizeMetricMap(rows.get(0));
+        return rows.isEmpty() ? new AlertSourceMetrics() : toSecurityAlertSourceMetrics(rows.get(0));
+    }
+
+    /**
+     * 将渠道告警指标行转换为固定响应，避免数据库新增列自动扩展管理端接口。
+     */
+    private AlertSourceMetrics toChannelAlertSourceMetrics(Map<String, Object> row) {
+        AlertSourceMetrics metrics = new AlertSourceMetrics();
+        metrics.setChannelCode(safeText(string(row, "channel_code"), 256));
+        metrics.setRuleType(safeText(string(row, "rule_type"), 256));
+        metrics.setWindowMinutes(nullableInteger(row, "window_minutes"));
+        metrics.setSampleCount(longValue(row, "sample_count"));
+        metrics.setFailureCount(longValue(row, "failure_count"));
+        metrics.setSuccessCount(longValue(row, "success_count"));
+        metrics.setSuccessRate(nullableDecimalValue(row, "success_rate"));
+        metrics.setErrorRate(nullableDecimalValue(row, "error_rate"));
+        metrics.setMaxContinuousFailureCount(longValue(row, "max_continuous_failure_count"));
+        metrics.setAverageLatencyMillis(nullableDecimalValue(row, "average_latency_millis"));
+        metrics.setTriggerValueCount(longValue(row, "trigger_value_count"));
+        metrics.setTriggerValueRate(nullableDecimalValue(row, "trigger_value_rate"));
+        metrics.setTriggerValueMillis(nullableDecimalValue(row, "trigger_value_millis"));
+        metrics.setWindowStartTime(dateTime(row, "window_start_time"));
+        metrics.setWindowEndTime(dateTime(row, "window_end_time"));
+        return metrics;
+    }
+
+    /**
+     * 将安全拦截指标行转换为固定响应，并限制所有可展示文本长度。
+     */
+    private AlertSourceMetrics toSecurityAlertSourceMetrics(Map<String, Object> row) {
+        AlertSourceMetrics metrics = new AlertSourceMetrics();
+        metrics.setSourceLayer(safeText(string(row, "source_layer"), 256));
+        metrics.setEventType(safeText(string(row, "event_type"), 256));
+        metrics.setRiskLevel(safeText(string(row, "risk_level"), 256));
+        metrics.setAction(safeText(string(row, "action"), 256));
+        metrics.setMerchantId(safeText(string(row, "merchant_id"), 256));
+        metrics.setServiceName(safeText(string(row, "service_name"), 256));
+        metrics.setHitRuleCode(safeText(string(row, "hit_rule_code"), 256));
+        metrics.setReasonCode(safeText(string(row, "reason_code"), 256));
+        metrics.setEventTime(dateTime(row, "event_time"));
+        return metrics;
     }
 
     /**
@@ -2821,10 +2869,10 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
     private List<DependencyStatus> dependencyStatuses(ServiceInventoryResponse services) {
         List<DependencyStatus> statuses = new ArrayList<>();
         try {
-            Map<String, Object> redis = cacheApplicationService.info();
-            boolean connected = Boolean.TRUE.equals(redis.get("connected"));
+            CacheInfoResponse redis = cacheApplicationService.info();
+            boolean connected = Boolean.TRUE.equals(redis.getConnected());
             statuses.add(dependency("redis", "Redis", connected ? "HEALTHY" : "ERROR",
-                    connected ? "Connected" : "Unavailable", Objects.toString(redis.get("message"), null)));
+                    connected ? "Connected" : "Unavailable", redis.getMessage()));
         } catch (RuntimeException exception) {
             statuses.add(dependency("redis", "Redis", "ERROR", "Unavailable", exception.getClass().getSimpleName()));
         }
@@ -3125,21 +3173,6 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
     }
 
     /**
-     * 清理告警来源指标中的字符串值，数值和时间类型保持原始精度。
-     *
-     * @param source 来源指标查询行
-     * @return 可安全返回前端的有序副本
-     */
-    private Map<String, Object> sanitizeMetricMap(Map<String, Object> source) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        source.forEach((key, value) -> {
-            if (value instanceof String text) result.put(key, safeText(text, 256));
-            else result.put(key, value);
-        });
-        return result;
-    }
-
-    /**
      * 解析当前告警操作人；无内部认证上下文的系统调用使用 system 身份。
      *
      * <p>只保存账号标识和展示名称，不保存 Token、权限或其他认证上下文。</p>
@@ -3174,9 +3207,9 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
     /**
      * 根据交互类型和 HTTP 状态推导渠道交互结果。
      */
-    private String interactionResult(Map<String, Object> row) {
-        if ("EXCEPTION".equals(upper(string(row, "interaction_type")))) return "FAILED";
-        Integer status = nullableInteger(row, "http_status");
+    private String interactionResult(ChannelInteractionLogResponse row) {
+        if ("EXCEPTION".equals(upper(row.getInteractionType()))) return "FAILED";
+        Integer status = row.getHttpStatus();
         if (status == null) return "UNKNOWN";
         return status >= 400 ? "FAILED" : "SUCCESS";
     }
@@ -3289,6 +3322,14 @@ public class JdbcAdminMonitorWorkbenchService implements AdminMonitorWorkbenchSe
                              Map<String, Object> second, String secondKey) {
         String value = first == null ? null : trim(string(first, firstKey));
         return value == null && second != null ? trim(string(second, secondKey)) : value;
+    }
+
+    /**
+     * 返回两个强类型字段中的首个非空文本。
+     */
+    private String firstText(String first, String second) {
+        String value = trim(first);
+        return value == null ? trim(second) : value;
     }
 
     /**

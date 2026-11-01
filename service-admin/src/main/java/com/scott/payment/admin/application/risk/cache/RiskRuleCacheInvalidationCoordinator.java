@@ -105,7 +105,7 @@ public class RiskRuleCacheInvalidationCoordinator {
                     relayService.publish(event.getEventId());
                 } catch (RuntimeException exception) {
                     log.warn(
-                            "event: RISK_CACHE_INVALIDATION_AFTER_COMMIT_FAILED eventId: {} exceptionType: {}",
+                            "风控缓存失效事件提交后发布失败, event: RISK_CACHE_INVALIDATION_AFTER_COMMIT_FAILED, eventId: {}, exceptionType: {}",
                             event.getEventId(),
                             exception.getClass().getSimpleName()
                     );
@@ -123,7 +123,7 @@ public class RiskRuleCacheInvalidationCoordinator {
                     }
                 } catch (RuntimeException exception) {
                     log.warn(
-                            "event: RISK_CACHE_INVALIDATION_ABORT_FAILED eventId: {} exceptionType: {}",
+                            "风控缓存失效事件终止失败, event: RISK_CACHE_INVALIDATION_ABORT_FAILED, eventId: {}, exceptionType: {}",
                             event.getEventId(),
                             exception.getClass().getSimpleName()
                     );

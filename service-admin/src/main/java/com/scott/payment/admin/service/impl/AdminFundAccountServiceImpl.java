@@ -54,37 +54,13 @@ import java.util.stream.Collectors;
 @Service
 public class AdminFundAccountServiceImpl implements AdminFundAccountService {
 
-    /**
-     * {@code BUILTIN_ADMIN_ACCOUNT}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String BUILTIN_ADMIN_ACCOUNT = "admin";
-    /**
-     * 等待审计常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String PENDING_AUDIT = "PENDING_AUDIT";
-    /**
-     * {@code PENDING_RECHECK}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String PENDING_RECHECK = "PENDING_RECHECK";
-    /**
-     * {@code POSTED}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String POSTED = "POSTED";
-    /**
-     * {@code REJECTED}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String REJECTED = "REJECTED";
-    /**
-     * {@code NORMAL}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String NORMAL = "NORMAL";
-    /**
-     * {@code FROZEN}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String FROZEN = "FROZEN";
-    /**
-     * {@code CLOSED}常量，统一 {@code AdminFundAccountServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String CLOSED = "CLOSED";
 
     private final MerchantFundAccountMapper accountMapper;

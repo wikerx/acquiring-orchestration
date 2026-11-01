@@ -1,8 +1,8 @@
 package com.scott.payment.admin.api.monitor;
 
 import com.scott.payment.admin.application.monitor.AdminMonitorOnlineApplicationService;
+import com.scott.payment.admin.dto.monitor.OnlineUserPageResponse;
 import com.scott.payment.component.core.model.CommonResult;
-import static com.scott.payment.component.core.model.CommonResult.success;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
+import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
  * 管理端在线会话监控 HTTP 入口，负责权限、分页参数和统一响应，不直接查询或修改登录会话数据。
@@ -41,7 +41,7 @@ public class MonitorOnlineController {
     /**
      * 查询在线用户列表。
      *
-     * <p>返回当前未退出的登录会话，包含用户名称、登录 IP、登录时间等信息。
+     * <p>返回当前未退出的登录会话，包含用户名称、登录 IP、登录时间等信息。</p>
      *
      * @param pageNo   页码，默认 1
      * @param pageSize 每页条数，默认 10
@@ -51,7 +51,7 @@ public class MonitorOnlineController {
      */
     @GetMapping("/online/list")
     @RequiresPermission("system:online:list")
-    public CommonResult<Map<String, Object>> onlineList(
+    public CommonResult<OnlineUserPageResponse> onlineList(
             @RequestParam(value = "pageNo", defaultValue = "1") int pageNo,
             @RequestParam(value = "pageSize", defaultValue = "10") int pageSize,
             @RequestParam(value = "loginIp", required = false) String loginIp,

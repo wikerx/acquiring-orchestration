@@ -63,7 +63,7 @@ public class MerchantSecurityCacheInvalidationRetryScheduler {
             );
             if (result.successCount() > 0) {
                 log.info(
-                        "event: MERCHANT_SECURITY_CACHE_INVALIDATION_RETRY_COMPLETED publishedCount: {}",
+                        "商户安全缓存失效事件重试完成, event: MERCHANT_SECURITY_CACHE_INVALIDATION_RETRY_COMPLETED, publishedCount: {}",
                         result.successCount()
                 );
             }

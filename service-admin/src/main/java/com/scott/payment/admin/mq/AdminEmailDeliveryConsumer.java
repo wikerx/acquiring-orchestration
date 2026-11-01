@@ -55,13 +55,14 @@ public class AdminEmailDeliveryConsumer implements RocketMQListener<String> {
                 || message.getRecordId() == null || message.getRecordId() <= 0
                 || !StringUtils.hasText(message.getEmailNo())
                 || !APP_CODE.equalsIgnoreCase(message.getAppCode())) {
-            log.error("event: ADMIN_EMAIL_DELIVERY_INVALID payloadLength: {}", payload == null ? 0 : payload.length());
+            log.error("邮件投递消息无效, event: ADMIN_EMAIL_DELIVERY_INVALID, payloadLength: {}",
+                    payload == null ? 0 : payload.length());
             throw new IllegalArgumentException("admin email delivery message required fields are missing");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
             boolean delivered = deliveryService.deliver(message);
-            log.info("event: ADMIN_EMAIL_DELIVERY_CONSUMED traceId: {} messageId: {} recordId: {} delivered: {}",
+            log.info("邮件投递消息消费完成, event: ADMIN_EMAIL_DELIVERY_CONSUMED, traceId: {}, messageId: {}, recordId: {}, delivered: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getRecordId(), delivered);
         } finally {
             TraceContext.clear();
@@ -78,7 +79,7 @@ public class AdminEmailDeliveryConsumer implements RocketMQListener<String> {
         try {
             return JsonUtils.parseObject(payload, EmailDeliveryMessage.class);
         } catch (RuntimeException exception) {
-            log.error("event: ADMIN_EMAIL_DELIVERY_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
+            log.error("邮件投递消息反序列化失败, event: ADMIN_EMAIL_DELIVERY_DESERIALIZE_FAILED, payloadLength: {}, exceptionType: {}",
                     payload.length(), exception.getClass().getSimpleName());
             throw new IllegalArgumentException("admin email delivery payload is invalid", exception);
         }

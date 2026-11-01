@@ -27,17 +27,8 @@ import java.util.stream.Collectors;
 @Service
 public class AdminSettlementRateResolver {
 
-    /**
-     * {@code USD}常量，统一 {@code AdminSettlementRateResolver} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String USD = "USD";
-    /**
-     * 结算汇率常量，统一 {@code AdminSettlementRateResolver} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String SETTLEMENT_RATE = "SETTLEMENT_RATE";
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     */
     private static final String ENABLED = "ENABLED";
 
     private final ExchangeBusinessRateMapper businessRateMapper;

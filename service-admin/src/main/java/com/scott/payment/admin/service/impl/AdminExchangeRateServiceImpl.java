@@ -55,111 +55,26 @@ import java.util.regex.Pattern;
 @Service
 public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = 0L;
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int ENABLED = 1;
-    /**
-     * {@code DISABLED}，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DISABLED = 0;
-    /**
-     * {@code ALL}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String ALL = "ALL";
-    /**
-     * 自动常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String AUTO = "AUTO";
-    /**
-     * {@code MANUAL}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String MANUAL = "MANUAL";
     /**
      * 无登录上下文时写入审计字段的系统操作人标识，无单位、非敏感且不允许为空。
      */
     private static final String SYSTEM_OPERATOR = "system";
-    /**
-     * 汇率状态启用标识，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String RATE_STATUS_ENABLED = "ENABLED";
-    /**
-     * {@code RATE_STATUS_VOIDED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String RATE_STATUS_VOIDED = "VOIDED";
-    /**
-     * {@code RATE_STATUS_DISABLED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String RATE_STATUS_DISABLED = "DISABLED";
-    /**
-     * {@code RATE_STATUS_EXPIRED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String RATE_STATUS_EXPIRED = "EXPIRED";
-    /**
-     * {@code UP}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String UP = "UP";
-    /**
-     * {@code DOWN}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DOWN = "DOWN";
-    /**
-     * {@code NONE}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String NONE = "NONE";
-    /**
-     * {@code BP}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String BP = "BP";
-    /**
-     * {@code PERCENT}常量，统一 {@code AdminExchangeRateServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String PERCENT = "PERCENT";
     private static final Pattern CODE_PATTERN = Pattern.compile("^[A-Z0-9_]{2,64}$");
-    /**
-     * 币种正则模式，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
     private static final Pattern CURRENCY_PATTERN = Pattern.compile("^[A-Z]{3}$|^ALL$");
     private static final Set<String> SOURCE_TYPES = Set.of("WEB", "API", "MANUAL", "IMPORT");
     private static final Set<String> RATE_TYPES = Set.of("TRANSACTION_RATE", "SETTLEMENT_RATE");

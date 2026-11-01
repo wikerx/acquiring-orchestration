@@ -95,12 +95,13 @@ class AdminRiskManagementApplicationServiceTests {
                 mock(MerchantAccessApprovalNotificationService.class)
         );
 
-        List<Map<String, Object>> records = service.pageEvaluations(new RiskDTOs.EvaluationQueryRequest())
+        List<RiskDTOs.RiskEvaluationResponse> records = service.pageEvaluations(
+                        new RiskDTOs.EvaluationQueryRequest())
                 .getRecords();
 
         assertThat(records).hasSize(2);
-        assertThat(records.get(0)).containsEntry("hit_count", 0);
-        assertThat(records.get(1)).containsEntry("hit_count", 3);
+        assertThat(records.get(0).getHitCount()).isZero();
+        assertThat(records.get(1).getHitCount()).isEqualTo(3);
     }
 
     @Test

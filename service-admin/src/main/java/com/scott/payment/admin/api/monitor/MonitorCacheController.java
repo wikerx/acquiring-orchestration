@@ -1,6 +1,9 @@
 package com.scott.payment.admin.api.monitor;
 
 import com.scott.payment.admin.application.monitor.AdminMonitorCacheApplicationService;
+import com.scott.payment.admin.dto.monitor.CacheInfoResponse;
+import com.scott.payment.admin.dto.monitor.CacheKeyDetailResponse;
+import com.scott.payment.admin.dto.monitor.CacheKeyPageResponse;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.CacheMetricsResponse;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
@@ -11,9 +14,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
-import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -41,7 +41,7 @@ public class MonitorCacheController {
      */
     @GetMapping("/info")
     @RequiresPermission("system:cache:list")
-    public CommonResult<Map<String, Object>> info() {
+    public CommonResult<CacheInfoResponse> info() {
         return success(adminMonitorCacheApplicationService.info());
     }
 
@@ -66,9 +66,10 @@ public class MonitorCacheController {
      */
     @GetMapping("/keys")
     @RequiresPermission("system:cache:query")
-    public CommonResult<Map<String, Object>> keys(@RequestParam(value = "keyPattern", required = false) String keyPattern,
-                                                  @RequestParam(value = "pageNo", defaultValue = "1") int pageNo,
-                                                  @RequestParam(value = "pageSize", defaultValue = "10") int pageSize) {
+    public CommonResult<CacheKeyPageResponse> keys(
+            @RequestParam(value = "keyPattern", required = false) String keyPattern,
+            @RequestParam(value = "pageNo", defaultValue = "1") int pageNo,
+            @RequestParam(value = "pageSize", defaultValue = "10") int pageSize) {
         return success(adminMonitorCacheApplicationService.keys(keyPattern, pageNo, pageSize));
     }
 
@@ -80,7 +81,7 @@ public class MonitorCacheController {
      */
     @GetMapping("/value")
     @RequiresPermission("system:cache:query")
-    public CommonResult<Map<String, Object>> value(@RequestParam("key") String key) {
+    public CommonResult<CacheKeyDetailResponse> value(@RequestParam("key") String key) {
         return success(adminMonitorCacheApplicationService.value(key));
     }
 

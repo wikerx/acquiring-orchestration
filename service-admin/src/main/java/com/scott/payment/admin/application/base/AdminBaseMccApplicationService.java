@@ -56,69 +56,17 @@ import java.util.stream.Collectors;
 @Service
 public class AdminBaseMccApplicationService {
 
-    /**
-     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = 0L;
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int ENABLED = 1;
-    /**
-     * {@code DISABLED}，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DISABLED = 0;
-    /**
-     * 一级分类常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String LEVEL1 = "LEVEL1";
-    /**
-     * 二级分类常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String LEVEL2 = "LEVEL2";
-    /**
-     * {@code MCC_CODE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     */
     private static final String MCC_CODE = "MCC_CODE";
-    /**
-     * {@code APPLY_SCOPE_ALL}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String APPLY_SCOPE_ALL = "ALL";
-    /**
-     * {@code APPLY_SCOPE_SPECIFIC}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String APPLY_SCOPE_SPECIFIC = "SPECIFIC";
-    /**
-     * {@code CARD_BRAND_DICT}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String CARD_BRAND_DICT = "card_brand";
-    /**
-     * 默认语言区域常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DEFAULT_LOCALE = "zh-CN";
-    /**
-     * {@code FOUR_DIGIT_MCC}常量，统一 {@code AdminBaseMccApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String FOUR_DIGIT_MCC = "^[0-9]{4}$";
 
     private final BaseMccLevel1Mapper level1Mapper;

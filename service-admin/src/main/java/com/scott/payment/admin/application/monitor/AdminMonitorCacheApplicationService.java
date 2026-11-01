@@ -1,5 +1,9 @@
 package com.scott.payment.admin.application.monitor;
 
+import com.scott.payment.admin.dto.monitor.CacheInfoResponse;
+import com.scott.payment.admin.dto.monitor.CacheKeyDetailResponse;
+import com.scott.payment.admin.dto.monitor.CacheKeyPageResponse;
+import com.scott.payment.admin.dto.monitor.CacheKeyResponse;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.CacheMetricsResponse;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.CategoryMetric;
 import com.scott.payment.admin.dto.monitor.MonitorWorkbenchDTOs.ProviderCapability;
@@ -182,7 +186,8 @@ public class AdminMonitorCacheApplicationService {
             keyTypeCapability = capability(
                     "REDIS_KEY_TYPE_METRICS", "UNAVAILABLE",
                     "Redis key type metrics unavailable: " + exception.getClass().getSimpleName());
-            log.warn("event: ADMIN_REDIS_METRICS_FAILED exceptionType: {}", exception.getClass().getSimpleName());
+            log.warn("Redis监控指标采集失败, event: ADMIN_REDIS_METRICS_FAILED, exceptionType: {}",
+                    exception.getClass().getSimpleName());
         }
     }
 
@@ -458,36 +463,36 @@ public class AdminMonitorCacheApplicationService {
      *
      * @return Redis 连接状态、部署模式、页面摘要与各节点运行信息
      */
-    public Map<String, Object> info() {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public CacheInfoResponse info() {
+        CacheInfoResponse response = new CacheInfoResponse();
         if (stringRedisTemplate == null) {
-            result.put("connected", false);
-            result.put("message", "RedisTemplate unavailable");
-            return result;
+            response.setConnected(false);
+            response.setMessage("RedisTemplate unavailable");
+            return response;
         }
         try {
             RedisInfoResult redisInfo = stringRedisTemplate.execute(
                     (RedisCallback<RedisInfoResult>) this::readInfo);
             if (redisInfo == null) {
-                result.put("connected", false);
-                result.put("message", "Redis INFO unavailable");
-                return result;
+                response.setConnected(false);
+                response.setMessage("Redis INFO unavailable");
+                return response;
             }
             Map<String, String> summary = firstAvailableInfo(redisInfo.nodeInfo());
-            result.put("connected", redisInfo.failedNodes().isEmpty() && !summary.isEmpty());
-            result.put("deploymentMode", redisInfo.deploymentMode());
-            result.put("masterCount", redisInfo.nodeInfo().size() + redisInfo.failedNodes().size());
-            result.put("info", summary);
-            result.put("nodes", redisInfo.nodeInfo());
+            response.setConnected(redisInfo.failedNodes().isEmpty() && !summary.isEmpty());
+            response.setDeploymentMode(redisInfo.deploymentMode());
+            response.setMasterCount(redisInfo.nodeInfo().size() + redisInfo.failedNodes().size());
+            response.setInfo(summary);
+            response.setNodes(redisInfo.nodeInfo());
             if (!redisInfo.failedNodes().isEmpty()) {
-                result.put("failedNodes", redisInfo.failedNodes());
-                result.put("message", "Redis INFO unavailable for one or more nodes");
+                response.setFailedNodes(redisInfo.failedNodes());
+                response.setMessage("Redis INFO unavailable for one or more nodes");
             }
-            return result;
+            return response;
         } catch (RuntimeException exception) {
-            result.put("connected", false);
-            result.put("message", "Redis INFO unavailable: " + exception.getClass().getSimpleName());
-            return result;
+            response.setConnected(false);
+            response.setMessage("Redis INFO unavailable: " + exception.getClass().getSimpleName());
+            return response;
         }
     }
 
@@ -499,7 +504,7 @@ public class AdminMonitorCacheApplicationService {
      * @param pageSize   每页大小，最大 100
      * @return Key 列表与分页摘要
      */
-    public Map<String, Object> keys(String keyPattern, int pageNo, int pageSize) {
+    public CacheKeyPageResponse keys(String keyPattern, int pageNo, int pageSize) {
         ScanResult scanResult = scanKeys(toManagedScanPattern(keyPattern));
         List<String> keys = scanResult.keys();
         int safePageNo = Math.max(pageNo, 1);
@@ -507,15 +512,15 @@ public class AdminMonitorCacheApplicationService {
         long requestedOffset = (long) (safePageNo - 1) * safePageSize;
         int fromIndex = (int) Math.min(requestedOffset, keys.size());
         int toIndex = Math.min(fromIndex + safePageSize, keys.size());
-        List<Map<String, Object>> records = keys.subList(fromIndex, toIndex).stream()
+        List<CacheKeyResponse> records = keys.subList(fromIndex, toIndex).stream()
                 .map(this::toKeyRow)
                 .toList();
 
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("records", records);
-        result.put("total", keys.size());
-        result.put("truncated", scanResult.truncated());
-        return result;
+        CacheKeyPageResponse response = new CacheKeyPageResponse();
+        response.setRecords(records);
+        response.setTotal(keys.size());
+        response.setTruncated(scanResult.truncated());
+        return response;
     }
 
     /**
@@ -526,12 +531,17 @@ public class AdminMonitorCacheApplicationService {
      * @param key Redis Key
      * @return Key 类型、TTL、大小及 Value 可读性
      */
-    public Map<String, Object> value(String key) {
+    public CacheKeyDetailResponse value(String key) {
         requireManagedKey(key);
-        Map<String, Object> result = toKeyRow(key);
-        result.put("valueReadable", false);
-        result.put("value", null);
-        return result;
+        CacheKeyResponse metadata = toKeyRow(key);
+        CacheKeyDetailResponse response = new CacheKeyDetailResponse();
+        response.setKey(metadata.getKey());
+        response.setType(metadata.getType());
+        response.setTtl(metadata.getTtl());
+        response.setSize(metadata.getSize());
+        response.setValueReadable(false);
+        response.setValue(null);
+        return response;
     }
 
     /**
@@ -546,7 +556,7 @@ public class AdminMonitorCacheApplicationService {
             return false;
         }
         boolean deleted = Boolean.TRUE.equals(stringRedisTemplate.delete(key));
-        log.info("event: ADMIN_REDIS_CACHE_KEY_DELETE keyDigest: {} deleted: {}",
+        log.info("Redis缓存键删除完成, event: ADMIN_REDIS_CACHE_KEY_DELETE, keyDigest: {}, deleted: {}",
                 RedisKeyDigest.sha256(key), deleted);
         return deleted;
     }
@@ -671,7 +681,7 @@ public class AdminMonitorCacheApplicationService {
                 nodeInfo.put(nodeName, toMap(clusterConnection.serverCommands().info(masterNode)));
             } catch (RuntimeException exception) {
                 failedNodes.add(nodeName);
-                log.warn("event: ADMIN_REDIS_CLUSTER_INFO_FAILED nodeDigest: {} exceptionType: {}",
+                log.warn("Redis集群节点信息读取失败, event: ADMIN_REDIS_CLUSTER_INFO_FAILED, nodeDigest: {}, exceptionType: {}",
                         RedisKeyDigest.sha256(nodeName), exception.getClass().getSimpleName());
             }
         }
@@ -797,20 +807,20 @@ public class AdminMonitorCacheApplicationService {
      * @param key 已通过命名空间校验的 Redis Key
      * @return 管理端可展示的脱敏元数据
      */
-    private Map<String, Object> toKeyRow(String key) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("key", key);
+    private CacheKeyResponse toKeyRow(String key) {
+        CacheKeyResponse response = new CacheKeyResponse();
+        response.setKey(key);
         if (stringRedisTemplate == null || !StringUtils.hasText(key)) {
-            row.put("type", "NONE");
-            row.put("ttl", -2);
-            row.put("size", 0);
-            return row;
+            response.setType("NONE");
+            response.setTtl(-2L);
+            response.setSize(0L);
+            return response;
         }
         DataType type = stringRedisTemplate.type(key);
-        row.put("type", type == null ? "NONE" : type.code());
-        row.put("ttl", stringRedisTemplate.getExpire(key));
-        row.put("size", sizeOf(key, type));
-        return row;
+        response.setType(type == null ? "NONE" : type.code());
+        response.setTtl(stringRedisTemplate.getExpire(key));
+        response.setSize(sizeOf(key, type));
+        return response;
     }
 
     /**

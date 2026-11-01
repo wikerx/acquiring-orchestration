@@ -46,9 +46,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 @RequestMapping("/admin/openapi/merchant-keys")
 public class AdminOpenApiMerchantKeyController {
 
-    /**
-     * {@code OPENAPI_KEY_MODULE_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     */
     private static final String OPENAPI_KEY_MODULE_NAME = "OpenAPI对接材料";
 
     /**

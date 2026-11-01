@@ -1,16 +1,19 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelInteractionLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDeliveryLogResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionAmountChangeResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationSummaryResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionStatusHistoryResponse;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -30,7 +33,6 @@ import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -79,26 +81,30 @@ class JdbcAdminTransactionQueryServiceTest {
         operation.setTransactionAmount(new BigDecimal("31.02"));
         operation.setOperationTime(order.getTransactionDateTime());
         LocalDateTime successTime = order.getTransactionDateTime().plusSeconds(2);
-        Map<String, Object> successHistory = Map.of(
-                "transactionId", "transaction-a", "statusObject", "OPERATION",
-                "toStatus", "SUCCESS", "statusTime", successTime);
+        TransactionStatusHistoryResponse successHistory = new TransactionStatusHistoryResponse();
+        successHistory.setTransactionId("transaction-a");
+        successHistory.setStatusObject("OPERATION");
+        successHistory.setToStatus("SUCCESS");
+        successHistory.setStatusTime(successTime);
 
-        List<Map<String, Object>> changes = JdbcAdminTransactionQueryService.withInitialAmountChange(
+        List<TransactionAmountChangeResponse> changes = JdbcAdminTransactionQueryService.withInitialAmountChange(
                 order, List.of(operation), List.of(successHistory), List.of());
 
         assertThat(changes).hasSize(1);
-        assertThat(changes.get(0)).containsEntry("changeSource", "INITIAL_OPERATION")
-                .containsEntry("changeTime", successTime)
-                .containsEntry("authorizedAfter", new BigDecimal("31.02"))
-                .containsEntry("capturedAfter", new BigDecimal("31.02"))
-                .containsEntry("availableCaptureAfter", BigDecimal.ZERO)
-                .containsEntry("availableRefundAfter", new BigDecimal("31.02"));
+        assertThat(changes.get(0).getChangeSource()).isEqualTo("INITIAL_OPERATION");
+        assertThat(changes.get(0).getChangeTime()).isEqualTo(successTime);
+        assertThat(changes.get(0).getAuthorizedAfter()).isEqualByComparingTo("31.02");
+        assertThat(changes.get(0).getCapturedAfter()).isEqualByComparingTo("31.02");
+        assertThat(changes.get(0).getAvailableCaptureAfter()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(changes.get(0).getAvailableRefundAfter()).isEqualByComparingTo("31.02");
         assertThat(JdbcAdminTransactionQueryService.withInitialAmountChange(
                 order, List.of(operation), List.of(successHistory), changes)).hasSize(1);
-        Map<String, Object> refund = Map.of("transactionId", "refund-a", "changeType", "REFUND");
+        TransactionAmountChangeResponse refund = new TransactionAmountChangeResponse();
+        refund.setTransactionId("refund-a");
+        refund.setChangeType("REFUND");
         assertThat(JdbcAdminTransactionQueryService.withInitialAmountChange(
                 order, List.of(operation), List.of(successHistory), List.of(refund)))
-                .extracting(row -> row.get("changeType"))
+                .extracting(TransactionAmountChangeResponse::getChangeType)
                 .containsExactly("PAYMENT", "REFUND");
     }
 
@@ -111,13 +117,13 @@ class JdbcAdminTransactionQueryServiceTest {
         operation.setTransactionStatus("SUCCESS");
         operation.setTransactionAmount(new BigDecimal("16.56"));
 
-        List<Map<String, Object>> changes = JdbcAdminTransactionQueryService.withInitialAmountChange(
+        List<TransactionAmountChangeResponse> changes = JdbcAdminTransactionQueryService.withInitialAmountChange(
                 order, List.of(operation), List.of(), List.of());
 
-        assertThat(changes.get(0)).containsEntry("authorizedAfter", new BigDecimal("16.56"))
-                .containsEntry("capturedAfter", BigDecimal.ZERO)
-                .containsEntry("availableCaptureAfter", new BigDecimal("16.56"))
-                .containsEntry("availableRefundAfter", BigDecimal.ZERO);
+        assertThat(changes.get(0).getAuthorizedAfter()).isEqualByComparingTo("16.56");
+        assertThat(changes.get(0).getCapturedAfter()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(changes.get(0).getAvailableCaptureAfter()).isEqualByComparingTo("16.56");
+        assertThat(changes.get(0).getAvailableRefundAfter()).isEqualByComparingTo(BigDecimal.ZERO);
         operation.setTransactionStatus("FAILED");
         assertThat(JdbcAdminTransactionQueryService.withInitialAmountChange(
                 order, List.of(operation), List.of(), List.of())).isEmpty();
@@ -675,11 +681,6 @@ class JdbcAdminTransactionQueryServiceTest {
                     if (sql.contains("FROM transaction_operation")) {
                         return List.of(operation);
                     }
-                    return Collections.emptyList();
-                });
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class)))
-                .thenAnswer(invocation -> {
-                    String sql = invocation.getArgument(0, String.class);
                     if (sql.contains("FROM transaction_merchant_api_interaction_log")) {
                         throw new TransactionDataUnavailableException(
                                 "transaction_merchant_api_interaction_log", "2026-Q2", "test-001");
@@ -889,12 +890,14 @@ class JdbcAdminTransactionQueryServiceTest {
      * 状态历史表没有 deleted 字段，详情聚合查询不应拼接 deleted = 0。
      */
     @Test
-    void selectMapsByOperationIdShouldSkipDeletedConditionWhenTableHasNoSoftDeleteColumn() {
+    void selectDetailRowsShouldSkipDeletedConditionWhenTableHasNoSoftDeleteColumn() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(Collections.emptyList());
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.emptyList());
 
-        invokeSelectMapsByOperationId(service, "transaction_status_history");
+        invokeSelectDetailRowsByOperationId(
+                service, "transaction_status_history", "id, status_history_id", mock(RowMapper.class));
 
         String sql = captureQuerySql(jdbcTemplate);
         assertThat(sql).contains("FROM transaction_status_history");
@@ -909,12 +912,14 @@ class JdbcAdminTransactionQueryServiceTest {
      * 渠道请求表包含 deleted 字段，详情聚合查询仍应保留软删过滤。
      */
     @Test
-    void selectMapsByOperationIdShouldKeepDeletedConditionWhenTableHasSoftDeleteColumn() {
+    void selectDetailRowsShouldKeepDeletedConditionWhenTableHasSoftDeleteColumn() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(Collections.emptyList());
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.emptyList());
 
-        invokeSelectMapsByOperationId(service, "transaction_channel_request");
+        invokeSelectDetailRowsByOperationId(
+                service, "transaction_channel_request", "id, request_id", mock(RowMapper.class));
 
         String sql = captureQuerySql(jdbcTemplate);
         assertThat(sql).contains("FROM transaction_channel_request");
@@ -923,53 +928,51 @@ class JdbcAdminTransactionQueryServiceTest {
     }
 
     /**
-     * JDBC Map 查询会返回数据库下划线字段名，详情响应必须转换成前端读取的驼峰字段名。
+     * 渠道交互详情使用强类型映射，数据库字段名不得泄漏到 API 属性命名。
      */
     @Test
-    void selectMapsByOperationIdShouldReturnCamelCaseKeysForFrontendDetail() {
-        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
-        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("interaction_log_id", "CI202607211953505260922");
-        row.put("transaction_id", "202607211953505070920");
-        row.put("request_body_json_masked", "{\"apiOperation\":\"PAY\"}");
-        row.put("response_body_json_masked", "{\"result\":\"ERROR\"}");
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(List.of(row));
+    @SuppressWarnings("unchecked")
+    void channelInteractionMapperShouldReturnTypedFrontendFields() throws Exception {
+        JdbcAdminTransactionQueryService service = buildService(mock(NamedParameterJdbcTemplate.class));
+        ResultSet resultSet = mock(ResultSet.class);
+        when(resultSet.getString("interaction_log_id")).thenReturn("CI202607211953505260922");
+        when(resultSet.getString("transaction_id")).thenReturn("202607211953505070920");
+        when(resultSet.getString("request_body_json_masked")).thenReturn("{\"apiOperation\":\"PAY\"}");
+        when(resultSet.getString("response_body_json_masked")).thenReturn("{\"result\":\"ERROR\"}");
+        RowMapper<ChannelInteractionLogResponse> mapper =
+                (RowMapper<ChannelInteractionLogResponse>) ReflectionTestUtils.invokeMethod(
+                        service, "channelInteractionLogMapper");
 
-        List<Map<String, Object>> rows = invokeSelectMapsByOperationId(service, "transaction_channel_interaction_log");
+        ChannelInteractionLogResponse response = mapper.mapRow(resultSet, 0);
 
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0)).containsEntry("interactionLogId", "CI202607211953505260922");
-        assertThat(rows.get(0)).containsEntry("transactionId", "202607211953505070920");
-        assertThat(rows.get(0)).containsEntry("requestBodyJsonMasked", "{\"apiOperation\":\"PAY\"}");
-        assertThat(rows.get(0)).containsEntry("responseBodyJsonMasked", "{\"result\":\"ERROR\"}");
-        assertThat(rows.get(0)).doesNotContainKeys("interaction_log_id", "transaction_id", "request_body_json_masked", "response_body_json_masked");
+        assertThat(response.getInteractionLogId()).isEqualTo("CI202607211953505260922");
+        assertThat(response.getTransactionId()).isEqualTo("202607211953505070920");
+        assertThat(response.getRequestBodyJsonMasked()).isEqualTo("{\"apiOperation\":\"PAY\"}");
+        assertThat(response.getResponseBodyJsonMasked()).isEqualTo("{\"result\":\"ERROR\"}");
     }
 
     /**
      * JDBC 的 BIGINT 主键必须在 JSON 序列化前转为字符串，避免浏览器按 IEEE-754 number 解析后丢失尾数。
      */
     @Test
-    void selectMapsByOperationIdShouldReturnNumericIdentifiersAsStrings() {
-        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
-        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
-        Map<String, Object> row = new LinkedHashMap<>();
+    @SuppressWarnings("unchecked")
+    void merchantNotificationLogMapperShouldReturnNumericIdentifiersAsStrings() throws Exception {
+        JdbcAdminTransactionQueryService service = buildService(mock(NamedParameterJdbcTemplate.class));
+        ResultSet resultSet = mock(ResultSet.class);
         LocalDateTime responseTime = LocalDateTime.of(2026, 3, 1, 12, 0, 0, 123_000_000);
-        row.put("id", 202603000000000825L);
-        row.put("account_id", 42L);
-        row.put("duration_millis", 123L);
-        row.put("create_time", responseTime);
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(List.of(row));
+        when(resultSet.getString("id")).thenReturn("202603000000000825");
+        when(resultSet.getInt("duration_millis")).thenReturn(123);
+        when(resultSet.getTimestamp("create_time")).thenReturn(java.sql.Timestamp.valueOf(responseTime));
+        RowMapper<MerchantNotificationDeliveryLogResponse> mapper =
+                (RowMapper<MerchantNotificationDeliveryLogResponse>) ReflectionTestUtils.invokeMethod(
+                        service, "merchantNotificationDeliveryLogMapper");
 
-        List<Map<String, Object>> rows = invokeSelectMapsByOperationId(
-                service, "transaction_merchant_notification_log");
+        MerchantNotificationDeliveryLogResponse response = mapper.mapRow(resultSet, 0);
 
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0)).containsEntry("id", "202603000000000825");
-        assertThat(rows.get(0)).containsEntry("accountId", "42");
-        assertThat(rows.get(0)).containsEntry("durationMillis", 123L);
-        assertThat(rows.get(0)).containsEntry("httpMethod", "POST");
-        assertThat(rows.get(0)).containsEntry("responseTime", responseTime);
+        assertThat(response.getId()).isEqualTo("202603000000000825");
+        assertThat(response.getDurationMillis()).isEqualTo(123);
+        assertThat(response.getHttpMethod()).isEqualTo("POST");
+        assertThat(response.getResponseTime()).isEqualTo(responseTime);
     }
 
     /**
@@ -1008,22 +1011,17 @@ class JdbcAdminTransactionQueryServiceTest {
     void merchantNotificationDetailShouldExcludeSensitiveConfigSnapshot() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("notify_id", "notify-a");
-        row.put("notify_config_snapshot_json", "{\"callbackUrl\":\"https://merchant.example/callback?token=secret\"}");
-        row.put("target_url_masked", "https://merchant.example/callback?***");
-        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(List.of(row));
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(List.of(new MerchantNotificationResponse()));
+        String projection = (String) ReflectionTestUtils.getField(
+                JdbcAdminTransactionQueryService.class, "TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION");
 
-        List<Map<String, Object>> rows = invokeSelectMapsByOperationId(
-                service, "transaction_merchant_notification");
+        invokeSelectDetailRowsByOperationId(
+                service, "transaction_merchant_notification", projection, mock(RowMapper.class));
 
         String sql = captureQuerySql(jdbcTemplate);
         assertThat(sql).contains("target_url_masked");
         assertThat(sql).doesNotContain("notify_config_snapshot_json");
-        assertThat(rows).singleElement().satisfies(result -> {
-            assertThat(result).containsEntry("targetUrlMasked", "https://merchant.example/callback?***");
-            assertThat(result).doesNotContainKey("notifyConfigSnapshotJson");
-        });
     }
 
     private JdbcAdminTransactionQueryService buildService(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -1032,21 +1030,32 @@ class JdbcAdminTransactionQueryServiceTest {
                 mock(AdminRiskTimelineQueryService.class));
     }
 
+    /**
+     * 调用强类型详情查询私有方法，供 SQL 过滤和安全投影测试复用。
+     */
     @SuppressWarnings("unchecked")
-    private List<java.util.Map<String, Object>> invokeSelectMapsByOperationId(JdbcAdminTransactionQueryService service,
-                                                                              String logicalTable) {
-        return (List<java.util.Map<String, Object>>) ReflectionTestUtils.invokeMethod(
+    private <T> List<T> invokeSelectDetailRowsByOperationId(JdbcAdminTransactionQueryService service,
+                                                             String logicalTable,
+                                                             String projection,
+                                                             RowMapper<T> rowMapper) {
+        return (List<T>) ReflectionTestUtils.invokeMethod(
                 service,
-                "selectMapsByOperationId",
+                "selectDetailRowsByOperationId",
                 logicalTable,
+                projection,
                 LocalDateTime.of(2026, 7, 21, 0, 0),
                 LocalDateTime.of(2026, 7, 21, 23, 59),
-                "OP202607211953260920709");
+                "OP202607211953260920709",
+                rowMapper);
     }
 
+    /**
+     * 捕获详情查询 SQL。
+     */
     private String captureQuerySql(NamedParameterJdbcTemplate jdbcTemplate) {
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate).queryForList(sqlCaptor.capture(), any(MapSqlParameterSource.class));
+        verify(jdbcTemplate).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
         return sqlCaptor.getValue();
     }
 

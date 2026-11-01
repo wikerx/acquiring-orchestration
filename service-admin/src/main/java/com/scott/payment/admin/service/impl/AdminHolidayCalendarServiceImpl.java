@@ -41,13 +41,7 @@ import java.util.stream.Collectors;
 @Service
 public class AdminHolidayCalendarServiceImpl implements AdminHolidayCalendarService {
 
-    /**
-     * {@code REGION_CODE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     */
     private static final String REGION_CODE = "CN_MAINLAND";
-    /**
-     * 时间时区常量，统一 {@code AdminHolidayCalendarServiceImpl} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String TIME_ZONE = "Asia/Shanghai";
 
     private final SettlementCalendarYearMapper yearMapper;

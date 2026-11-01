@@ -285,7 +285,8 @@ public class AdminDatasourceMonitorSampler {
             sqlCapability = capability(
                     "MYSQL_PERFORMANCE_SCHEMA", "UNAVAILABLE",
                     "performance_schema metrics unavailable: " + exception.getClass().getSimpleName());
-            log.warn("event: ADMIN_DATASOURCE_SQL_METRICS_FAILED exceptionType: {}", exception.getClass().getSimpleName());
+            log.warn("数据源SQL指标采集失败, event: ADMIN_DATASOURCE_SQL_METRICS_FAILED, exceptionType: {}",
+                    exception.getClass().getSimpleName());
         }
     }
 

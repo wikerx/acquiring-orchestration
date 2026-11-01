@@ -29,9 +29,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 @RequestMapping("/admin/risk")
 public class AdminRiskRuleController {
 
-    /**
-     * {@code MODULE_TYPE}，用于区分 {@code AdminRiskRuleController} 记录的处理类别、配置维度或外部协议枚举。
-     */
     private static final String MODULE_TYPE = "RULE";
 
     private final AdminRiskManagementApplicationService riskManagementApplicationService;

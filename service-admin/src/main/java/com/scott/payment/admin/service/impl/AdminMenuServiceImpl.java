@@ -44,29 +44,8 @@ import java.util.Set;
 @Service
 public class AdminMenuServiceImpl implements AdminMenuService {
 
-    /**
-     * {@code ROOT_PARENT_ID}，用于定位 {@code AdminMenuServiceImpl} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long ROOT_PARENT_ID = 0L;
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminMenuServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = 0L;
-    /**
-     * {@code DEFAULT_SORT_NO}，用于控制列表展示或规则匹配时的排序优先级。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DEFAULT_SORT_NO = 100;
     private static final Set<String> MENU_TYPES = Set.of("CATALOG", "MENU", "BUTTON", "LINK");
 

@@ -44,7 +44,7 @@ public class AdminEmailDeliveryRecoveryScheduler {
         try {
             deliveryService.recoverAndRequeue();
         } catch (RuntimeException exception) {
-            log.warn("event: ADMIN_EMAIL_DELIVERY_RECOVERY_FAILED exceptionType: {}",
+            log.warn("邮件投递恢复任务执行失败, event: ADMIN_EMAIL_DELIVERY_RECOVERY_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }

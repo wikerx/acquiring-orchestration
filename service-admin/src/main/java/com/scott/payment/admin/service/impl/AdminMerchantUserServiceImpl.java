@@ -61,13 +61,6 @@ import java.util.stream.Collectors;
 @Service
 public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
 
-    /**
-     * {@code ROOT_PARENT_ID}，用于定位 {@code AdminMerchantUserServiceImpl} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long ROOT_PARENT_ID = 0L;
 
     private final SysAppMapper sysAppMapper;

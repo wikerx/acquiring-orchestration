@@ -658,7 +658,7 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
             try {
                 sendVerificationEmail(account, row, emailCode, locale);
             } catch (RuntimeException exception) {
-                log.warn("event: ADMIN_PASSWORD_RESET_VERIFICATION_EMAIL_FAILED accountId: {} exceptionType: {}",
+                log.warn("管理员重置密码验证邮件发送失败, event: ADMIN_PASSWORD_RESET_VERIFICATION_EMAIL_FAILED, accountId: {}, exceptionType: {}",
                         account.getId(), exception.getClass().getSimpleName());
             }
         });
@@ -749,7 +749,7 @@ public class AdminPasswordResetServiceImpl implements AdminPasswordResetService 
         try {
             emailService.sendByTemplate(email);
         } catch (RuntimeException exception) {
-            log.warn("event: ADMIN_PASSWORD_RESET_EMAIL_ENQUEUE_FAILED purpose: {} accountId: {} exceptionType: {}",
+            log.warn("管理员重置密码邮件入队失败, event: ADMIN_PASSWORD_RESET_EMAIL_ENQUEUE_FAILED, purpose: {}, accountId: {}, exceptionType: {}",
                     purpose, accountId, exception.getClass().getSimpleName());
         }
     }

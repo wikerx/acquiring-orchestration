@@ -67,22 +67,7 @@ public class AdminTransactionApplicationService {
      * 退款预览沿用支付核心非终态退款查询的状态口径。
      */
     private static final Set<String> REFUND_IN_PROGRESS_STATUSES = Set.of("PROCESSING", "PENDING");
-    /**
-     * 退款动作类型，用于区分 {@code AdminTransactionApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String REFUND_OPERATION_TYPE = "REFUND";
-    /**
-     * 成功状态，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String SUCCESS_STATUS = "SUCCESS";
     /**
      * 异常退出后 Redis 并发租约的最长自恢复时间。

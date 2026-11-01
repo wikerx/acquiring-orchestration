@@ -85,9 +85,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String CHANNEL_MATCH_REQUERY_PATH = "/internal/payment/channel-match";
 
-    /**
-     * {@code REFUND_APPROVAL_PATH}，表示接口路径、资源路径或路由匹配路径。
-     */
     private static final String REFUND_APPROVAL_PATH = "/internal/payment/refund-approvals";
 
     private static final String CHANNEL_MATCH_ABNORMAL_PATH =
@@ -322,7 +319,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException(HttpMethod.POST, uri, exception);
         } catch (RestClientException exception) {
-            log.warn("event: ADMIN_PAYMENT_INTERNAL_CALL_FAILED method: {} path: {} exceptionType: {}",
+            log.warn("支付内部接口调用失败, event: ADMIN_PAYMENT_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
                     HttpMethod.POST.name(), uri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment post call failed");
         }
@@ -405,7 +402,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * 将内部服务 HTTP 异常转换为受控业务异常。
      */
     private ApiException translateHttpException(HttpMethod method, URI uri, HttpStatusCodeException exception) {
-        log.warn("event: ADMIN_PAYMENT_INTERNAL_HTTP_REJECTED method: {} path: {} status: {} exceptionType: {}",
+        log.warn("支付内部接口请求被拒绝, event: ADMIN_PAYMENT_INTERNAL_HTTP_REJECTED, method: {}, path: {}, status: {}, exceptionType: {}",
                 method.name(),
                 uri.getPath(),
                 exception.getStatusCode().value(),

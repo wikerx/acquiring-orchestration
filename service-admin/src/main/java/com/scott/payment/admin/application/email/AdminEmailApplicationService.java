@@ -23,9 +23,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class AdminEmailApplicationService {
 
-    /**
-     * 邮件管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
-     */
     private final AdminEmailService adminEmailService;
 
     /**

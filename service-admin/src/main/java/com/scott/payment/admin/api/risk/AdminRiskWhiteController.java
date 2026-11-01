@@ -29,9 +29,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 @RequestMapping("/admin/risk")
 public class AdminRiskWhiteController {
 
-    /**
-     * {@code MODULE_TYPE}，用于区分 {@code AdminRiskWhiteController} 记录的处理类别、配置维度或外部协议枚举。
-     */
     private static final String MODULE_TYPE = "WHITE";
 
     private final AdminRiskManagementApplicationService riskManagementApplicationService;

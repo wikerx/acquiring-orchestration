@@ -41,13 +41,13 @@ public class IpLookupRoutingRefreshScheduler implements ApplicationRunner {
     public void refresh() {
         try {
             if (routingSnapshot.refresh()) {
-                log.info("event: IP_LOOKUP_ROUTING_REFRESHED service: admin");
+                log.info("IP查询路由刷新完成, event: IP_LOOKUP_ROUTING_REFRESHED, service: admin");
             }
         } catch (RuntimeException exception) {
             long now = System.currentTimeMillis();
             long previous = lastWarningMillis.get();
             if (now - previous >= 60_000 && lastWarningMillis.compareAndSet(previous, now)) {
-                log.warn("event: IP_LOOKUP_ROUTING_REFRESH_FAILED service: admin exceptionType: {}",
+                log.warn("IP查询路由刷新失败, event: IP_LOOKUP_ROUTING_REFRESH_FAILED, service: admin, exceptionType: {}",
                         exception.getClass().getSimpleName(), exception);
             }
         }

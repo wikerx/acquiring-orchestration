@@ -11,40 +11,15 @@ import java.util.List;
 @Data
 public class ShardingTablePreCreateResultResponse {
 
-    /**
-     * {@code dryRun}，用于明确 {@code ShardingTablePreCreateResultResponse} 当前业务分支是否成立。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
-     */
     private Boolean dryRun;
 
     /**
      * 时区配置，使用 IANA 时区标识解释关联的本地日期时间。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
      */
     private String timezone;
 
-    /**
-     * 响应中的策略，用于管理端或商户端展示当前处理结果。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
-     */
     private String strategy;
 
-    /**
-     * 响应中的当前季度，用于管理端或商户端展示当前处理结果。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
-     */
     private String currentQuarter;
 
     /**
@@ -77,73 +52,17 @@ public class ShardingTablePreCreateResultResponse {
      */
     private String nextAction;
 
-    /**
-     * 目标分表季度集合，承载 {@code ShardingTablePreCreateResultResponse} 当前请求或响应中的多值数据。
-     * <p>
-     * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-     * </p>
-     */
     private List<String> targetQuarters = new ArrayList<>();
 
-    /**
-     * 创建表集合，承载 {@code ShardingTablePreCreateResultResponse} 当前请求或响应中的多值数据。
-     * <p>
-     * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-     * </p>
-     */
     private List<String> createdTables = new ArrayList<>();
 
-    /**
-     * {@code skippedTables}集合，承载 {@code ShardingTablePreCreateResultResponse} 当前请求或响应中的多值数据。
-     * <p>
-     * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-     * </p>
-     */
     private List<String> skippedTables = new ArrayList<>();
 
-    /**
-     * 失败表集合，承载 {@code ShardingTablePreCreateResultResponse} 当前请求或响应中的多值数据。
-     * <p>
-     * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-     * </p>
-     */
     private List<String> failedTables = new ArrayList<>();
 
-    /**
-     * {@code schemaMismatchTables}集合，承载 {@code ShardingTablePreCreateResultResponse} 当前请求或响应中的多值数据。
-     * <p>
-     * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-     * </p>
-     */
     private List<String> schemaMismatchTables = new ArrayList<>();
 
-    /**
-     * {@code warnings}集合，承载 {@code ShardingTablePreCreateResultResponse} 当前请求或响应中的多值数据。
-     * <p>
-     * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-     * </p>
-     */
     private List<String> warnings = new ArrayList<>();
 
-    /**
-     * 表结果集合，承载 {@code ShardingTablePreCreateResultResponse} 当前请求或响应中的多值数据。
-     * <p>
-     * 单位：无；格式：集合或键值映射；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：元素类型和数量由所属请求、响应或聚合模型约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-     * </p>
-     */
     private List<ShardingTablePreCreateTableResultResponse> tableResults = new ArrayList<>();
 }

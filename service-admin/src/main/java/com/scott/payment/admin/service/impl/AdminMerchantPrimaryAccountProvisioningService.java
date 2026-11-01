@@ -69,94 +69,22 @@ import java.util.Set;
 @Service
 public class AdminMerchantPrimaryAccountProvisioningService {
 
-    /**
-     * 账号创建模板，用于定位邮件、通知或渠道参数模板。
-     */
     private static final String ACCOUNT_ACTIVATION_TEMPLATE = "MERCHANT_ACCOUNT_ACTIVATION";
-    /**
-     * 账号创建场景常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String ACCOUNT_ACTIVATION_SCENE = "ACCOUNT_ACTIVATION";
-    /**
-     * {@code ACCOUNT_ACTIVATION_PURPOSE}常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String ACCOUNT_ACTIVATION_PURPOSE = "ACCOUNT_ACTIVATION";
-    /**
-     * {@code VERIFICATION_STATE_PENDING}常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String VERIFICATION_STATE_PENDING = "PENDING";
-    /**
-     * {@code EMAIL_CODE_TTL_MINUTES}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int EMAIL_CODE_TTL_MINUTES = 30;
-    /**
-     * {@code ACCOUNT_LOGIN_SEPARATOR}常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String ACCOUNT_LOGIN_SEPARATOR = "_";
-    /**
-     * {@code CODE_DIGITS}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String CODE_DIGITS = "23456789";
-    /**
-     * {@code CODE_LOWERCASE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String CODE_LOWERCASE = "abcdefghijkmnopqrstuvwxyz";
-    /**
-     * {@code CODE_UPPERCASE}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String CODE_UPPERCASE = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-    /**
-     * {@code CODE_CHARACTERS}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String CODE_CHARACTERS = CODE_DIGITS + CODE_LOWERCASE + CODE_UPPERCASE;
     private static final DateTimeFormatter EMAIL_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-    /**
-     * 角色类型系统，用于区分 {@code AdminMerchantPrimaryAccountProvisioningService} 记录的处理类别、配置维度或外部协议枚举。
-     */
     private static final String ROLE_TYPE_SYSTEM = "SYSTEM";
-    /**
-     * {@code DATA_SCOPE_SELF}常量，统一 {@code AdminMerchantPrimaryAccountProvisioningService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DATA_SCOPE_SELF = "SELF";
     /**
      * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 

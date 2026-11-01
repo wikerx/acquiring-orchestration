@@ -44,17 +44,8 @@ import java.util.regex.Pattern;
 public class SettlementInternalRestClient implements SettlementInternalClient {
 
     private static final Pattern IPV4 = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
-    /**
-     * {@code BATCHES}常量，统一 {@code SettlementInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String BATCHES = "/internal/settlement/v1/batches";
-    /**
-     * {@code REVIEWS}常量，统一 {@code SettlementInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String REVIEWS = "/internal/settlement/v1/reviews";
-    /**
-     * {@code REVERSALS}常量，统一 {@code SettlementInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String REVERSALS = "/internal/settlement/v1/reversal-orders";
 
     private final RestTemplate direct;
@@ -256,17 +247,17 @@ public class SettlementInternalRestClient implements SettlementInternalClient {
             return result.getData();
         } catch (HttpStatusCodeException exception) {
             if (exception.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
-                log.warn("event: ADMIN_SETTLEMENT_INTERNAL_AUTH_REJECTED method: {} path: {} status: {}",
+                log.warn("结算内部接口鉴权被拒绝, event: ADMIN_SETTLEMENT_INTERNAL_AUTH_REJECTED, method: {}, path: {}, status: {}",
                         method.name(), uri.getPath(), exception.getStatusCode().value());
                 throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                         "service-settlement internal authentication failed");
             }
-            log.warn("event: ADMIN_SETTLEMENT_INTERNAL_HTTP_REJECTED method: {} path: {} status: {}",
+            log.warn("结算内部接口请求被拒绝, event: ADMIN_SETTLEMENT_INTERNAL_HTTP_REJECTED, method: {}, path: {}, status: {}",
                     method.name(), uri.getPath(), exception.getStatusCode().value());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-settlement management call rejected");
         } catch (RestClientException exception) {
-            log.warn("event: ADMIN_SETTLEMENT_INTERNAL_CALL_FAILED method: {} path: {} exceptionType: {}",
+            log.warn("结算内部接口调用失败, event: ADMIN_SETTLEMENT_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
                     method.name(), uri.getPath(), exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-settlement management call failed");

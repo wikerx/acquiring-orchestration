@@ -47,118 +47,22 @@ import java.util.stream.Collectors;
 @Service
 public class AdminBaseCardBinApplicationService {
 
-    /**
-     * {@code EXPORT_TIME_FORMATTER}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    /**
-     * 批次时间格式化器常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final DateTimeFormatter BATCH_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long NOT_DELETED = AuthConstants.NOT_DELETED;
-    /**
-     * {@code STATUS_DISABLED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final int STATUS_DISABLED = 0;
-    /**
-     * 状态启用标识，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final int STATUS_ENABLED = 1;
-    /**
-     * 状态等待，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final int STATUS_PENDING = 2;
-    /**
-     * {@code STATUS_EXPIRED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final int STATUS_EXPIRED = 3;
-    /**
-     * 默认优先级常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DEFAULT_PRIORITY = 50;
-    /**
-     * {@code NORMALIZED_BIN_LENGTH}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int NORMALIZED_BIN_LENGTH = 11;
-    /**
-     * {@code CARD_BRAND_DICT}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String CARD_BRAND_DICT = "card_brand";
-    /**
-     * {@code CARD_TYPE_DICT}，用于区分 {@code AdminBaseCardBinApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     */
     private static final String CARD_TYPE_DICT = "base_card_type";
-    /**
-     * {@code CARD_BIN_STATUS_DICT}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String CARD_BIN_STATUS_DICT = "base_card_bin_status";
-    /**
-     * {@code DATA_SOURCE_DICT}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DATA_SOURCE_DICT = "base_card_bin_data_source";
-    /**
-     * 默认语言区域常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DEFAULT_LOCALE = "zh-CN";
-    /**
-     * {@code DATA_SOURCE_MANUAL}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DATA_SOURCE_MANUAL = "MANUAL";
-    /**
-     * {@code DATA_SOURCE_LEGACY}常量，统一 {@code AdminBaseCardBinApplicationService} 内部使用的配置值、状态码或协议字段。
-     */
     private static final String DATA_SOURCE_LEGACY = "LEGACY_DB";
-    /**
-     * {@code IMPORT_TYPE_DB_INIT}，用于区分 {@code AdminBaseCardBinApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     */
     private static final String IMPORT_TYPE_DB_INIT = "DB_INIT";
     private static final Set<Integer> VALID_STATUSES = Set.of(STATUS_DISABLED, STATUS_ENABLED, STATUS_PENDING, STATUS_EXPIRED);
 

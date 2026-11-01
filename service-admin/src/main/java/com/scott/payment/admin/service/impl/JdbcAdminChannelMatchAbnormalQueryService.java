@@ -5,11 +5,11 @@ import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.Abn
 import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord;
 import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSearchResponse;
 import com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSummary;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.service.AdminChannelMatchAbnormalQueryService;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
-import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
@@ -204,11 +204,10 @@ public class JdbcAdminChannelMatchAbnormalQueryService
         AbnormalDetailResponse response = new AbnormalDetailResponse();
         response.setAbnormality(record);
         if (record.getRootTransactionDateTime() != null) {
-            Object transactionDetail = transactionQueryService.detail(
+            TransactionDetailResponse transactionDetail = transactionQueryService.detail(
                     record.getTransactionId(), record.getTransactionDateTime(),
                     record.getRootTransactionDateTime());
-            response.setTransactionDetail(JsonUtils.parseObject(
-                    JsonUtils.toJsonString(transactionDetail), Map.class));
+            response.setTransactionDetail(transactionDetail);
         }
         return response;
     }
