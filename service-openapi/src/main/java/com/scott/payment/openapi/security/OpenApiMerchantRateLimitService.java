@@ -12,14 +12,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class OpenApiMerchantRateLimitService {
 
-    /**
-     * {@code RATE_LIMIT_SCOPE}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final String RATE_LIMIT_SCOPE = "openapiMerchant";
 
     private final RedisSlidingWindowRateLimiter rateLimiter;

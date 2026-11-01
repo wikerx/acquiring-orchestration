@@ -1,4 +1,4 @@
-package com.scott.payment.merchant.controller;
+package com.scott.payment.merchant.api;
 
 import com.scott.payment.component.core.model.ApiResult;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.ApiResult.success;
 
 /**
- * 商户服务健康检查控制器
+ * 商户服务健康检查控制器。
  */
 @RestController
 public class MerchantHealthController {

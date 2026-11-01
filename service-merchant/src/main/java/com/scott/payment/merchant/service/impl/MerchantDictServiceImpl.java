@@ -21,7 +21,7 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 /**
- * 商户dict服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
+ * 商户字典查询服务，按字典类型返回已启用且允许商户使用的条目。
  */
 @Service
 public class MerchantDictServiceImpl implements MerchantDictService {

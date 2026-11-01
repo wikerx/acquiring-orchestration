@@ -10,6 +10,9 @@ public final class ChannelCode {
      **/
     public static final String VALUE = "SCOTT_CHANNEL_A";
 
+    /**
+     * 禁止实例化只承载稳定渠道编码的工具类。
+     **/
     private ChannelCode() {
     }
 }

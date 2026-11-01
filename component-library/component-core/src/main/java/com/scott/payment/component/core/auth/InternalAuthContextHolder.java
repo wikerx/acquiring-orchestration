@@ -10,6 +10,9 @@ public final class InternalAuthContextHolder {
      */
     private static final ThreadLocal<InternalAuthAccount> CONTEXT = new ThreadLocal<>();
 
+    /**
+     * 禁止实例化线程级认证上下文工具类。
+     */
     private InternalAuthContextHolder() {
     }
 

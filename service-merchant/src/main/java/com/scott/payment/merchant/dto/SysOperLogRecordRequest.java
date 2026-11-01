@@ -3,7 +3,7 @@ package com.scott.payment.merchant.dto;
 import lombok.Data;
 
 /**
- * 商户管理系统操作日志写入请求
+ * 商户管理系统操作日志写入请求。
  */
 @Data
 public class SysOperLogRecordRequest {

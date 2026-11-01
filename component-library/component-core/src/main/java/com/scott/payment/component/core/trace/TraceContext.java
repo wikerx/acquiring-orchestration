@@ -20,42 +20,16 @@ public final class TraceContext {
      */
     public static final String MDC_TRACE_ID_KEY = "traceId";
 
-    /**
-     * {@code TRACE_ID_LENGTH}常量，统一 {@code TraceContext} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与日志 MDC 和 X-Trace-Id 请求头共同串联一次链路。
-     * </p>
-     */
+
     private static final int TRACE_ID_LENGTH = 32;
 
-    /**
-     * {@code MAX_ACCEPTED_TRACE_ID_LENGTH}常量，统一 {@code TraceContext} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与日志 MDC 和 X-Trace-Id 请求头共同串联一次链路。
-     * </p>
-     */
+
     private static final int MAX_ACCEPTED_TRACE_ID_LENGTH = 64;
 
-    /**
-     * {@code HEX}常量，统一 {@code TraceContext} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final char[] HEX = "0123456789abcdef".toCharArray();
 
-    /**
-     * 安全随机数生成器常量，统一 {@code TraceContext} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final SecureRandom RANDOM = new SecureRandom();
 
     /**
@@ -63,6 +37,9 @@ public final class TraceContext {
      */
     private static final ThreadLocal<String> TRACE_ID = new ThreadLocal<>();
 
+    /**
+     * 禁止实例化线程级链路追踪上下文工具类。
+     */
     private TraceContext() {
     }
 
@@ -169,6 +146,12 @@ public final class TraceContext {
         MDC.remove(MDC_TRACE_ID_KEY);
     }
 
+    /**
+     * 判断链路号候选值是否包含非空白字符。
+     *
+     * @param value 待检查文本
+     * @return 包含有效字符时返回 true
+     */
     private static boolean hasText(String value) {
         if (value == null) {
             return false;

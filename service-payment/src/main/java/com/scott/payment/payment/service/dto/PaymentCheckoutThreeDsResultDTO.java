@@ -128,6 +128,8 @@ public class PaymentCheckoutThreeDsResultDTO implements Serializable {
     }
 
     /**
+     * 判断是否必须先执行 3DS Method，再继续认证流程。
+     *
      * @return true 表示必须先在浏览器执行 3DS Method HTML。
      */
     public boolean methodRequired() {

@@ -34,45 +34,15 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * 商户资料变更文件服务，确保对象存储正文、申请归属和元数据状态一致
+ * 商户资料变更文件服务，确保对象正文、申请归属和元数据状态一致。
  */
 @Slf4j
 @Service
 public class MerchantProfileDocumentService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code MerchantProfileDocumentService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int NOT_DELETED = 0;
-    /**
-     * {@code DOCUMENT_BIZ_TYPE}，用于区分 {@code MerchantProfileDocumentService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DOCUMENT_BIZ_TYPE = "MERCHANT_KYB";
-    /**
-     * 状态等待，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String STATUS_PENDING = "PENDING_REVIEW";
-    /**
-     * 默认最大文件大小字节数，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
     private static final long DEFAULT_MAX_FILE_SIZE_BYTES = 20L * 1024 * 1024;
 
     private final MerchantDocumentMapper documentMapper;
@@ -178,6 +148,9 @@ public class MerchantProfileDocumentService {
         deleteAfterCommit(requireStorage(), document.getObjectKey());
     }
 
+    /**
+     * 锁定并校验资料变更申请仍可编辑。
+     */
     private void requireEditableRequest(String merchantId, String requestNo) {
         MerchantProfileChangeRequestDO active = changeRequestService.findActive(merchantId);
         if (active == null || !StringUtils.hasText(requestNo) || !requestNo.equals(active.getRequestNo())) {
@@ -189,6 +162,9 @@ public class MerchantProfileDocumentService {
         }
     }
 
+    /**
+     * 查询并校验资料文件属于当前商户和申请。
+     */
     private MerchantDocumentDO requireDocument(String merchantId, Long documentId) {
         if (!StringUtils.hasText(merchantId) || documentId == null) {
             throw invalid("merchant id and document id are required");
@@ -205,6 +181,9 @@ public class MerchantProfileDocumentService {
         return row;
     }
 
+    /**
+     * 获取已启用的对象存储服务，配置或实现缺失时拒绝文件操作。
+     */
     private ObjectStorageService requireStorage() {
         ObjectStorageService storage = objectStorageProvider.getIfAvailable();
         if (storage == null || !storageProperties.isEnabled()) {
@@ -214,6 +193,9 @@ public class MerchantProfileDocumentService {
         return storage;
     }
 
+    /**
+     * 读取上传文件并校验大小、空内容和读取结果。
+     */
     private byte[] readAndValidate(MultipartFile file) {
         if (file == null || file.isEmpty()) throw invalid("upload file is required");
         long maxSize = storageProperties.getMaxFileSizeBytes() > 0
@@ -230,6 +212,9 @@ public class MerchantProfileDocumentService {
         }
     }
 
+    /**
+     * 依据文件魔数识别允许的资料类型，不信任客户端扩展名。
+     */
     private DetectedFileType detectFileType(byte[] content) {
         if (startsWith(content, new byte[]{0x25, 0x50, 0x44, 0x46, 0x2D})) {
             return new DetectedFileType("application/pdf", "pdf");
@@ -243,6 +228,9 @@ public class MerchantProfileDocumentService {
         throw invalid("only PDF, JPEG or PNG documents are supported");
     }
 
+    /**
+     * 判断文件内容是否以指定魔数字节开头。
+     */
     private boolean startsWith(byte[] content, byte[] signature) {
         if (content.length < signature.length) return false;
         for (int index = 0; index < signature.length; index++) {
@@ -251,6 +239,9 @@ public class MerchantProfileDocumentService {
         return true;
     }
 
+    /**
+     * 校验并规范化商户资料文件类型编码。
+     */
     private String normalizeDocumentType(String value) {
         if (!StringUtils.hasText(value)) throw invalid("document type is required");
         String normalized = value.trim().toUpperCase(Locale.ROOT);
@@ -258,6 +249,9 @@ public class MerchantProfileDocumentService {
         return normalized;
     }
 
+    /**
+     * 生成不含路径片段和控制字符的安全文件名。
+     */
     private String safeFilename(String value, String extension) {
         String filename = StringUtils.hasText(value) ? value.trim() : "document." + extension;
         filename = filename.replace('\\', '/');
@@ -266,6 +260,9 @@ public class MerchantProfileDocumentService {
         return filename.length() <= 255 ? filename : filename.substring(0, 255);
     }
 
+    /**
+     * 生成限定商户与申请范围的私有对象存储键。
+     */
     private String objectKey(String merchantId, String requestNo, String extension) {
         LocalDate today = LocalDate.now();
         return "merchants/" + merchantId + "/profile-changes/" + requestNo + "/"
@@ -273,6 +270,9 @@ public class MerchantProfileDocumentService {
                 + "/" + UUID.randomUUID().toString().replace("-", "") + "." + extension;
     }
 
+    /**
+     * 计算输入内容的 SHA-256 十六进制摘要。
+     */
     private String sha256(byte[] content) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
@@ -281,11 +281,17 @@ public class MerchantProfileDocumentService {
         }
     }
 
+    /**
+     * 规范化对象存储提供商编码。
+     */
     private String normalizedProvider() {
         return StringUtils.hasText(storageProperties.getProvider())
                 ? storageProperties.getProvider().trim().toUpperCase(Locale.ROOT) : "S3";
     }
 
+    /**
+     * 读取当前操作人名称，缺失时使用系统操作人标识。
+     */
     private String operatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) return "system";
@@ -293,6 +299,9 @@ public class MerchantProfileDocumentService {
         return StringUtils.hasText(account.getLoginAccount()) ? account.getLoginAccount().trim() : "system";
     }
 
+    /**
+     * 将商户资料文件实体转换为前端可见的文件信息。
+     */
     private MerchantProfileChangeDTOs.Document toResponse(MerchantDocumentDO row) {
         MerchantProfileChangeDTOs.Document response = new MerchantProfileChangeDTOs.Document();
         response.setId(row.getId());
@@ -307,9 +316,15 @@ public class MerchantProfileDocumentService {
         return response;
     }
 
+    /**
+     * 注册事务回滚补偿，删除尚未形成有效元数据的对象。
+     */
     private void registerRollbackCleanup(ObjectStorageService storage, String objectKey) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 事务未提交时清理本次已写入的对象存储文件。
+             */
             @Override
             public void afterCompletion(int status) {
                 if (status != TransactionSynchronization.STATUS_COMMITTED) deleteQuietly(storage, objectKey);
@@ -317,12 +332,18 @@ public class MerchantProfileDocumentService {
         });
     }
 
+    /**
+     * 在资料软删除事务提交后删除对象正文。
+     */
     private void deleteAfterCommit(ObjectStorageService storage, String objectKey) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             storage.delete(objectKey);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在当前事务成功提交后执行延迟动作。
+             */
             @Override
             public void afterCommit() {
                 deleteQuietly(storage, objectKey);
@@ -330,15 +351,21 @@ public class MerchantProfileDocumentService {
         });
     }
 
+    /**
+     * 尽力清理对象存储文件，失败时只记录对象键摘要。
+     */
     private void deleteQuietly(ObjectStorageService storage, String objectKey) {
         try {
             storage.delete(objectKey);
         } catch (RuntimeException exception) {
-            log.warn("merchant profile document cleanup failed, objectKey: {}, exceptionType: {}",
-                    objectKey, exception.getClass().getSimpleName());
+            log.warn("商户资料对象清理失败, event: MERCHANT_PROFILE_DOCUMENT_CLEANUP_FAILED, objectKeyDigest: {}, exceptionType: {}",
+                    sha256(objectKey.getBytes(StandardCharsets.UTF_8)), exception.getClass().getSimpleName());
         }
     }
 
+    /**
+     * 创建参数校验失败业务异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
@@ -349,6 +376,9 @@ public class MerchantProfileDocumentService {
     public record DocumentDownload(String filename, String contentType, byte[] content) {
     }
 
+    /**
+     * 根据文件魔数识别出的安全文件类型。
+     */
     private record DetectedFileType(String contentType, String extension) {
     }
 }

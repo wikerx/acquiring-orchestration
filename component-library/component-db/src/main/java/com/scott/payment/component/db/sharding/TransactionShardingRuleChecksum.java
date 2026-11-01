@@ -12,6 +12,9 @@ import java.util.List;
  */
 public final class TransactionShardingRuleChecksum {
 
+    /**
+     * 禁止实例化交易分片规则校验和工具类。
+     */
     private TransactionShardingRuleChecksum() {
     }
 
@@ -31,6 +34,12 @@ public final class TransactionShardingRuleChecksum {
         }
     }
 
+    /**
+     * 将影响交易路由的规则字段按固定顺序序列化，集合字段先排序以消除配置顺序差异。
+     *
+     * @param properties 待发布交易分片规则
+     * @return 用于摘要计算的规范文本
+     */
     static String canonicalize(TransactionShardingProperties properties) {
         List<String> tables = properties.getLogicTables().stream().sorted().toList();
         List<String> nodes = properties.getPhysicalNodes().stream().sorted().toList();

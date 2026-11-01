@@ -11,6 +11,9 @@ import lombok.Data;
  */
 public final class MerchantPasswordResetDTOs {
 
+    /**
+     * 禁止实例化密码重置 DTO 聚合类。
+     */
     private MerchantPasswordResetDTOs() {
     }
 

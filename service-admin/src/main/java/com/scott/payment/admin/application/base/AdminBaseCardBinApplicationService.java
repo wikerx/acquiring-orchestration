@@ -323,19 +323,10 @@ public class AdminBaseCardBinApplicationService {
 
         int totalCount = cardBinRangeMapper.countLegacyRows();
         int failedCount = cardBinRangeMapper.countInvalidLegacyRows();
-        int successCount = 0;
-        int duplicateCount = 0;
         cacheInvalidationCoordinator.prepare();
-        for (Map<String, Object> legacy : cardBinRangeMapper.selectValidLegacyRows()) {
-            Long legacyPkId = longValue(legacy.get("legacyPkId"));
-            if (legacyPkId == null || existsLegacyRow(legacyPkId)) {
-                duplicateCount++;
-                continue;
-            }
-            CardBinEntities.BaseCardBinRangeDO row = toRangeFromLegacy(legacy, batchNo);
-            cardBinRangeMapper.insert(row);
-            successCount++;
-        }
+        int successCount = cardBinRangeMapper.insertValidLegacyRows(batchNo, currentOperatorName());
+        int validCount = Math.max(0, totalCount - failedCount);
+        int duplicateCount = Math.max(0, validCount - successCount);
         batch.setTotalCount(totalCount);
         batch.setSuccessCount(successCount);
         batch.setFailedCount(failedCount);
@@ -750,116 +741,6 @@ public class AdminBaseCardBinApplicationService {
         response.setCreateTime(row.getCreateTime());
         response.setUpdateTime(row.getUpdateTime());
         return response;
-    }
-
-    /**
-     * 判断卡 BIN 是否存在待迁移的旧记录。
-     */
-    private boolean existsLegacyRow(Long legacyPkId) {
-        Long count = cardBinRangeMapper.selectCount(
-                Wrappers.<CardBinEntities.BaseCardBinRangeDO>lambdaQuery()
-                        .eq(CardBinEntities.BaseCardBinRangeDO::getDeleted, NOT_DELETED)
-                        .eq(CardBinEntities.BaseCardBinRangeDO::getDataSource, DATA_SOURCE_LEGACY)
-                        .eq(CardBinEntities.BaseCardBinRangeDO::getLegacyPkId, legacyPkId)
-        );
-        return count != null && count > 0;
-    }
-
-    /**
-     * 将旧卡 BIN 表记录转换为新版范围实体。
-     */
-    private CardBinEntities.BaseCardBinRangeDO toRangeFromLegacy(Map<String, Object> legacy, String batchNo) {
-        Long start = longValue(legacy.get("cardBinStart"));
-        Long end = longValue(legacy.get("cardBinEnd"));
-        CardBinEntities.BaseCardBinRangeDO row = new CardBinEntities.BaseCardBinRangeDO();
-        row.setLegacyPkId(longValue(legacy.get("legacyPkId")));
-        row.setCardBinStart(start);
-        row.setCardBinEnd(end);
-        row.setBinLength(inferBinLength(start, end));
-        row.setCardBrand(defaultIfBlank(upper(stringValue(legacy.get("cardBrand"))), "UNKNOWN"));
-        row.setCardSubBrand(trimToNull(stringValue(legacy.get("cardSubBrand"))));
-        row.setCardType(normalizeLegacyCardType(stringValue(legacy.get("creditDebit"))));
-        row.setIssuerCountryName(trimToNull(stringValue(legacy.get("issuerCountryName"))));
-        row.setIssuerCountryAlpha2(upper(trimToNull(stringValue(legacy.get("issuerCountryAlpha2")))));
-        row.setIssuerCountryAlpha3(upper(trimToNull(stringValue(legacy.get("issuerCountryAlpha3")))));
-        row.setIssuerCountryNumeric(trimToNull(stringValue(legacy.get("issuerCountryNumeric"))));
-        row.setIssuerBank(trimToNull(stringValue(legacy.get("issuerBank"))));
-        row.setIssuerWebUrl(trimToNull(stringValue(legacy.get("issuerWebUrl"))));
-        row.setIssuerTelephone(trimToNull(stringValue(legacy.get("issuerTelephone"))));
-        row.setDataSource(DATA_SOURCE_LEGACY);
-        row.setSourceBatchNo(batchNo);
-        row.setSourcePriority(DEFAULT_PRIORITY);
-        row.setStatus(STATUS_ENABLED);
-        row.setRemark("旧表card_bin_type_info初始化导入");
-        row.setCreateBy(currentOperatorName());
-        row.setUpdateBy(currentOperatorName());
-        row.setCreateTime(localDateTimeValue(legacy.get("createTime")));
-        row.setUpdateTime(localDateTimeValue(legacy.get("updateTime")));
-        row.setDeleted(NOT_DELETED);
-        return row;
-    }
-
-    /**
-     * 推断卡 BIN 起止值使用的统一长度。
-     */
-    private int inferBinLength(Long start, Long end) {
-        if (start == null || end == null) {
-            return NORMALIZED_BIN_LENGTH;
-        }
-        for (int length = 6; length <= NORMALIZED_BIN_LENGTH; length++) {
-            long factor = (long) Math.pow(10, NORMALIZED_BIN_LENGTH - length);
-            if (factor <= 1) {
-                return NORMALIZED_BIN_LENGTH;
-            }
-            if (start % factor == 0 && end % factor == factor - 1 && start / factor == end / factor) {
-                return length;
-            }
-        }
-        return NORMALIZED_BIN_LENGTH;
-    }
-
-    /**
-     * 将旧表卡类型映射为平台统一卡种编码。
-     */
-    private String normalizeLegacyCardType(String value) {
-        String normalized = upper(trimToNull(value));
-        if (normalized == null) {
-            return "UNKNOWN";
-        }
-        return switch (normalized) {
-            case "CREDIT", "DEBIT", "PREPAID", "CHARGE", "COMMERCIAL" -> normalized;
-            default -> "UNKNOWN";
-        };
-    }
-
-    /**
-     * 从旧表行中读取长整数值。
-     */
-    private Long longValue(Object value) {
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        if (value == null) {
-            return null;
-        }
-        return Long.parseLong(value.toString());
-    }
-
-    /**
-     * 从旧表行中读取字符串值。
-     */
-    private String stringValue(Object value) {
-        return value == null ? null : value.toString();
-    }
-
-    /**
-     * 读取本地日期时间值。
-     */
-    private LocalDateTime localDateTimeValue(Object value) {
-        if (value instanceof LocalDateTime localDateTime) {
-            return localDateTime;
-        }
-        return LocalDateTime.now();
     }
 
     /**

@@ -10,42 +10,32 @@ public enum PayoutChannelStatus {
 
     /**
      * SUCCESS 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
      */
     SUCCESS("SUCCESS"),
     /**
      * FAILED 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
      */
     FAILED("FAILED"),
     /**
      * PENDING 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
      */
     PENDING("PENDING"),
     /**
      * PROCESSING 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
      */
     PROCESSING("PROCESSING"),
     /**
      * RETURNED 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
      */
     RETURNED("RETURNED");
 
     private final String code;
 
+    /**
+     * 绑定统一代付渠道状态与稳定协议编码。
+     *
+     * @param code 状态编码
+     */
     PayoutChannelStatus(String code) {
         this.code = code;
     }

@@ -78,9 +78,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     private static final int DEFAULT_RISK_LEVEL = 2;
     private static final int DEFAULT_KEY_SIZE = 2048;
     private static final String JWT_ALGORITHM = "HS256";
-    /**
-     * 报文算法，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     */
+
     private static final String PAYLOAD_ALGORITHM = "RSA-OAEP-256+A256GCM";
     /**
      * 商户主体名称和账单描述需要进入渠道侧及卡组织资料，限制为可打印英文字符避免中文导致渠道拒绝。

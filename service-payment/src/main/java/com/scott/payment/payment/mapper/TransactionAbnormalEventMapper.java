@@ -164,6 +164,10 @@ public interface TransactionAbnormalEventMapper extends BaseMapper<TransactionAb
                                                @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
     /**
+     * 按案件号和精确分片时间读取管理端所需的异常详情投影。
+     *
+     * @param eventId 异常案件号
+     * @param transactionDateTime 交易分片时间
      * @return 精确案件详情投影
      */
     @Select("""

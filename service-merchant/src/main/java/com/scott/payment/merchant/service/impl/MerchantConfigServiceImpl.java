@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 /**
- * 商户配置服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
+ * 商户门户配置查询服务，从系统参数中读取商户端可用配置。
  */
 @Service
 public class MerchantConfigServiceImpl implements MerchantConfigService {

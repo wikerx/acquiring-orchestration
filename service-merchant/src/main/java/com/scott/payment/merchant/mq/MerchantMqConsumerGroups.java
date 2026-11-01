@@ -10,6 +10,9 @@ public final class MerchantMqConsumerGroups {
      */
     public static final String EMAIL_DELIVERY = "acquiring-merchant-email-delivery-consumer";
 
+    /**
+     * 禁止实例化商户 MQ 消费组常量类。
+     */
     private MerchantMqConsumerGroups() {
     }
 }

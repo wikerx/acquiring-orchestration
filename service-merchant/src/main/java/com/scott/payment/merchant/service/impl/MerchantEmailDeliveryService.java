@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 通过数据库 CAS 驱动 Merchant 邮件投递、失败退避和超时恢复，严格限制 MERCHANT 应用边界
+ * 通过数据库 CAS 驱动商户邮件投递、失败退避和超时恢复，严格限制商户应用边界。
  */
 @Service
 public class MerchantEmailDeliveryService {

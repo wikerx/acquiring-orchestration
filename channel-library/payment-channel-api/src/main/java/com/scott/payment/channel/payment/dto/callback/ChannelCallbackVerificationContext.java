@@ -12,6 +12,9 @@ public record ChannelCallbackVerificationContext(String defaultSecret,
                                                  long allowedClockSkewMillis,
                                                  long currentTimeMillis) {
 
+    /**
+     * 防御性复制按事件选择的验签密钥映射，避免回调处理期间被外部修改。
+     */
     public ChannelCallbackVerificationContext {
         eventSecrets = eventSecrets == null || eventSecrets.isEmpty()
                 ? Map.of()

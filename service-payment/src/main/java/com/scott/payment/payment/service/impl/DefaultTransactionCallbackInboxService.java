@@ -40,104 +40,31 @@ import java.util.Locale;
 @Service
 public class DefaultTransactionCallbackInboxService implements TransactionCallbackInboxService {
 
-    /**
-     * {@code INBOX_PREFIX}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String INBOX_PREFIX = "CBI";
-    /**
-     * {@code ACCEPTED}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String ACCEPTED = "ACCEPTED";
     /**
      * 是否命中既有幂等结果；为 true 时必须复用原结果且禁止重复调用渠道。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与幂等结果和准备结果共同决定是否允许发起渠道调用。
-     * </p>
      */
     private static final String DUPLICATE = "DUPLICATE";
-    /**
-     * {@code DEFAULT_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int DEFAULT_MAX_RETRY_COUNT = 12;
-    /**
-     * 最大批次大小，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int MAX_BATCH_SIZE = 500;
-    /**
-     * {@code MAX_PAYLOAD_LENGTH}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int MAX_PAYLOAD_LENGTH = 131_072;
-    /**
-     * {@code MAX_ERROR_LENGTH}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int MAX_ERROR_LENGTH = 256;
-    /**
-     * {@code MAX_CHANNEL_CODE_LENGTH}，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int MAX_CHANNEL_CODE_LENGTH = 32;
-    /**
-     * {@code MAX_CREDENTIAL_HINT_LENGTH}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int MAX_CREDENTIAL_HINT_LENGTH = 128;
-    /**
-     * {@code MAX_CALLBACK_EVENT_ID_LENGTH}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
-     * </p>
-     */
+
     private static final int MAX_CALLBACK_EVENT_ID_LENGTH = 256;
-    /**
-     * {@code MAX_RETRY_DELAY_SECONDS}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final long MAX_RETRY_DELAY_SECONDS = 3_600L;
-    /**
-     * {@code SHA256_HEX_PATTERN}常量，统一 {@code DefaultTransactionCallbackInboxService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String SHA256_HEX_PATTERN = "[0-9a-fA-F]{64}";
 
     private final TransactionCallbackInboxMapper inboxMapper;

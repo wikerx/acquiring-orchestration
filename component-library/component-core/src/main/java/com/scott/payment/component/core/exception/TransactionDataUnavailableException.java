@@ -35,21 +35,27 @@ public class TransactionDataUnavailableException extends IllegalStateException {
     }
 
     /**
-     * @return 发生路由缺口的交易逻辑表名
+     * 获取发生路由缺口的交易逻辑表名。
+     *
+     * @return 交易逻辑表名
      */
     public String getLogicalTable() {
         return logicalTable;
     }
 
     /**
-     * @return 未发布的自然季度
+     * 获取尚未发布分片节点的自然季度。
+     *
+     * @return 格式为 yyyy-Qn 的自然季度
      */
     public String getQuarter() {
         return quarter;
     }
 
     /**
-     * @return 当前规则版本
+     * 获取触发路由失败的分片规则版本。
+     *
+     * @return 分片规则版本
      */
     public String getRuleVersion() {
         return ruleVersion;

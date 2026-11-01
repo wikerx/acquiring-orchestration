@@ -12,17 +12,11 @@ import java.util.Locale;
 @Service
 public class RefundApprovalPolicyService {
 
-    /**
-     * {@code POLICY_NONE}常量，统一 {@code RefundApprovalPolicyService} 内部使用的配置值、状态码或协议字段。
-     */
+
     private static final String POLICY_NONE = "NONE";
-    /**
-     * {@code POLICY_PARTIAL_ONLY}常量，统一 {@code RefundApprovalPolicyService} 内部使用的配置值、状态码或协议字段。
-     */
+
     private static final String POLICY_PARTIAL_ONLY = "PARTIAL_ONLY";
-    /**
-     * {@code POLICY_ALL}常量，统一 {@code RefundApprovalPolicyService} 内部使用的配置值、状态码或协议字段。
-     */
+
     private static final String POLICY_ALL = "ALL";
 
     private final RefundManagementProperties properties;
@@ -64,6 +58,8 @@ public class RefundApprovalPolicyService {
     }
 
     /**
+     * 获取退款审批单的有效时长，并将无效配置收敛为一分钟。
+     *
      * @return 审批有效分钟数，至少一分钟
      */
     public long approvalExpireMinutes() {

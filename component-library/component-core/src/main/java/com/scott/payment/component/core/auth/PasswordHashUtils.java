@@ -39,6 +39,9 @@ public final class PasswordHashUtils {
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * 禁止实例化密码哈希工具类。
+     */
     private PasswordHashUtils() {
     }
 

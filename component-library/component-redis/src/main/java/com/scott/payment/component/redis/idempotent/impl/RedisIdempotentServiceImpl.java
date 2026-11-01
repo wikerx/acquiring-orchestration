@@ -425,13 +425,15 @@ public class RedisIdempotentServiceImpl implements IdempotentService {
                 return;
             }
             if (exception == null) {
-                log.warn("event: REDIS_MQ_IDEMPOTENT_FALLBACK stage=MQ_DEDUP namespace: {} reason: {} "
+                log.warn("Redis MQ 幂等校验降级, event: REDIS_MQ_IDEMPOTENT_FALLBACK, "
+                                + "stage: MQ_DEDUP, namespace: {}, reason: {}, "
                                 + "action: continueToDatabaseUniqueConstraint",
                         namespace, reason);
             } else {
-                log.warn("event: REDIS_MQ_IDEMPOTENT_FALLBACK stage=MQ_DEDUP namespace: {} reason: {} "
-                                + "action: continueToDatabaseUniqueConstraint",
-                        namespace, reason, exception);
+                log.warn("Redis MQ 幂等校验降级, event: REDIS_MQ_IDEMPOTENT_FALLBACK, "
+                                + "stage: MQ_DEDUP, namespace: {}, reason: {}, "
+                                + "action: continueToDatabaseUniqueConstraint, exceptionType: {}",
+                        namespace, reason, exception.getClass().getSimpleName(), exception);
             }
             fallbackWarningLogged = true;
         }

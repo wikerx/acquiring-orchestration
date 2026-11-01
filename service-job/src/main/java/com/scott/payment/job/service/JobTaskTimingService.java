@@ -5,7 +5,7 @@ import com.scott.payment.job.entity.SysJobTaskDO;
 import java.time.LocalDateTime;
 
 /**
- * 任务任务时间计算服务接口
+ * 调度任务触发时间计算服务。
  */
 public interface JobTaskTimingService {
 

@@ -109,67 +109,18 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 商户系统服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
+ * 商户组织与权限管理服务，维护部门、岗位、员工账号、角色及其授权关系。
  */
 @Slf4j
 @Service
 public class MerchantSystemServiceImpl implements MerchantSystemService {
 
-    /**
-     * {@code ROOT_PARENT_ID}，用于定位 {@code MerchantSystemServiceImpl} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final long ROOT_PARENT_ID = 0L;
-    /**
-     * {@code ROLE_TYPE_CUSTOM}，用于区分 {@code MerchantSystemServiceImpl} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String ROLE_TYPE_CUSTOM = "CUSTOM";
-    /**
-     * 角色类型系统，用于区分 {@code MerchantSystemServiceImpl} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String ROLE_TYPE_SYSTEM = "SYSTEM";
-    /**
-     * {@code DATA_SCOPE_ALL}常量，统一 {@code MerchantSystemServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DATA_SCOPE_ALL = "ALL";
-    /**
-     * {@code DATA_SCOPE_SELF}常量，统一 {@code MerchantSystemServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DATA_SCOPE_SELF = "SELF";
-    /**
-     * {@code DATA_SCOPE_CUSTOM}常量，统一 {@code MerchantSystemServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DATA_SCOPE_CUSTOM = "CUSTOM";
-    /**
-     * {@code ACCOUNT_LOGIN_SEPARATOR}常量，统一 {@code MerchantSystemServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String ACCOUNT_LOGIN_SEPARATOR = "_";
     /**
      * MFA 登录票据类型。
@@ -270,6 +221,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      */
     private final MerchantPasswordResetService merchantPasswordResetService;
 
+    /**
+     * 创建商户组织、账号、角色和权限管理服务。
+     */
     public MerchantSystemServiceImpl(BaseMerchantInfoMapper baseMerchantInfoMapper,
                                      SysAppMapper sysAppMapper,
                                      SysUserMapper sysUserMapper,
@@ -426,10 +380,6 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
 
     /**
      * 删除或停用部门，调用方需保证权限和状态允许该操作。
-     * <p>
-     * 删除或停用必须通过 商户后台服务 既有权限和状态校验，并沿用软删除约定。
-     * </p>
-     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -1418,7 +1368,6 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
 
     /**
      * 查询指定角色已授权的权限集合。
-     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
      * @return 已授权权限主键及权限明细
      */
     @Override
@@ -1522,6 +1471,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(SysMerchantUserRoleDO::getMerchantUserId).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
+    /**
+     * 按登录账号或姓名关键字查询当前商户的账号主键集合。
+     */
     private Set<Long> accountIdsByKeyword(Long appId, String merchantId, String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return Collections.emptySet();
@@ -1537,6 +1489,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(SysAccountDO::getId).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
+    /**
+     * 将部门归属写入账号授权关系。
+     */
     private void applyDept(SysMerchantDeptDO dept, DeptSaveRequest request) {
         dept.setParentId(request.getParentId() == null ? ROOT_PARENT_ID : request.getParentId());
         dept.setDeptCode(required(request.getDeptCode(), "deptCode"));
@@ -1549,6 +1504,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         dept.setRemark(normalize(request.getRemark()));
     }
 
+    /**
+     * 将岗位归属写入账号授权关系。
+     */
     private void applyPost(SysMerchantPostDO post, PostSaveRequest request) {
         post.setPostCode(required(request.getPostCode(), "postCode"));
         post.setPostName(required(request.getPostName(), "postName"));
@@ -1557,6 +1515,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         post.setRemark(normalize(request.getRemark()));
     }
 
+    /**
+     * 更新账号基础字段，不覆盖角色、部门和岗位关系。
+     */
     private boolean updateAccountBaseFields(Long appId, String merchantId, SysAccountDO account, AccountBaseSaveRequest request) {
         SysMerchantUserDO merchantUser = getMerchantUser(merchantId, account.getId());
         assertAccountAvailable(merchantId, request.getLoginAccount(), merchantUser.getId());
@@ -1587,6 +1548,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return emailChanged;
     }
 
+    /**
+     * 创建商户用户主档并绑定系统账号。
+     */
     private SysMerchantUserDO createMerchantUser(String merchantId, String loginAccount, SysUserDO user, SysAccountDO account, LocalDateTime now) {
         SysMerchantUserDO merchantUser = new SysMerchantUserDO();
         merchantUser.setMerchantInfoId(currentMerchantInfoId(merchantId));
@@ -1671,6 +1635,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysAccountMfaMapper.updateById(mfa);
     }
 
+    /**
+     * 读取账号当前 MFA 配置。
+     */
     private SysAccountMfaDO loadMfa(Long appId, Long accountId) {
         return sysAccountMfaMapper.selectOne(Wrappers.<SysAccountMfaDO>lambdaQuery()
                 .eq(SysAccountMfaDO::getAppId, appId)
@@ -1679,6 +1646,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 读取或初始化账号 MFA 状态记录。
+     */
     private SysAccountMfaDO ensureMfa(SysAppDO app, SysAccountDO account, LocalDateTime now) {
         SysAccountMfaDO mfa = loadMfa(app.getId(), account.getId());
         if (mfa != null) {
@@ -1704,6 +1674,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return created;
     }
 
+    /**
+     * 使账号尚未使用的 MFA 临时令牌全部失效。
+     */
     private void expireOpenMfaTokens(Long appId, Long accountId, LocalDateTime now) {
         sysAccountMfaTokenMapper.update(
                 Wrappers.<SysAccountMfaTokenDO>lambdaUpdate()
@@ -1718,6 +1691,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         );
     }
 
+    /**
+     * 密码重置成功后注销账号现有会话。
+     */
     private void logoutSessions(Long appId, Long accountId, LocalDateTime now) {
         sysLoginSessionMapper.update(
                 Wrappers.<SysLoginSessionDO>lambdaUpdate()
@@ -1730,6 +1706,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         );
     }
 
+    /**
+     * 记录 MFA 操作审计，不保存密钥或验证码。
+     */
     private void recordMfaLog(SysAppDO app,
                               SysAccountDO account,
                               SysAccountMfaDO mfa,
@@ -1761,6 +1740,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysAccountMfaLogMapper.insert(logRow);
     }
 
+    /**
+     * 发送 MFA 状态变更通知，并在失败时记录安全审计。
+     */
     private void sendMfaNotice(SysAppDO app, SysAccountDO account, String templateCode, String reason, LocalDateTime exemptUntil) {
         if (!StringUtils.hasText(account.getEmail())) {
             return;
@@ -1780,7 +1762,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                     String.valueOf(account.getId())
             ));
         } catch (RuntimeException exception) {
-            log.warn("merchant mfa notice send failed, accountId: {}, templateCode: {}, exceptionType: {}",
+            log.warn("商户MFA通知发送失败, event: MERCHANT_MFA_NOTICE_FAILED, accountId: {}, templateCode: {}, exceptionType: {}",
                     account.getId(), templateCode, exception.getClass().getSimpleName());
             SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
             recordMfaLog(app, account, mfa, "SEND_NOTICE", MFA_RESULT_FAILED,
@@ -1789,6 +1771,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         }
     }
 
+    /**
+     * 构建 MFA 安全通知模板变量。
+     */
     private Map<String, Object> mfaEmailVariables(SysAccountDO account, String reason, LocalDateTime exemptUntil) {
         Map<String, Object> variables = new LinkedHashMap<>();
         variables.put("loginAccount", displayLoginAccount(account));
@@ -1803,12 +1788,18 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return variables;
     }
 
+    /**
+     * 读取并规范化商户系统前端基地址。
+     */
     private String merchantSystemBaseUrl() {
         return merchantConfigService.enabledConfigValue(MERCHANT_FRONTEND_BASE_URL_KEY)
                 .map(this::trimTrailingSlash)
                 .orElse("");
     }
 
+    /**
+     * 构建商户系统登录页面地址。
+     */
     private String merchantLoginUrl(String merchantSystemBaseUrl) {
         if (!StringUtils.hasText(merchantSystemBaseUrl)) {
             return "/login";
@@ -1816,6 +1807,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return trimTrailingSlash(merchantSystemBaseUrl) + "/login";
     }
 
+    /**
+     * 移除地址末尾的斜杠，避免拼接出重复分隔符。
+     */
     private String trimTrailingSlash(String value) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -1827,6 +1821,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return normalized;
     }
 
+    /**
+     * 读取商户展示名称，缺失时回退到商户号。
+     */
     private String merchantName(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             return "-";
@@ -1841,6 +1838,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return merchant.getMerchantName();
     }
 
+    /**
+     * 读取商户默认语言并执行规范化。
+     */
     private String merchantLocale(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             return com.scott.payment.component.db.auth.support.MerchantLocaleSupport.CHINESE;
@@ -1853,6 +1853,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 merchant == null ? null : merchant.getDefaultLocale());
     }
 
+    /**
+     * 将 MFA 持久化记录转换为商户可见状态响应。
+     */
     private AccountMfaStatusResponse toMfaStatusResponse(SysAccountDO account, SysAccountMfaDO mfa) {
         AccountMfaStatusResponse response = new AccountMfaStatusResponse();
         response.setAccountId(account.getId());
@@ -1866,6 +1869,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return response;
     }
 
+    /**
+     * 将 MFA 状态补充到商户账号响应。
+     */
     private void fillMfaStatus(SysAccountDO account, AccountDTO dto) {
         SysAccountMfaDO mfa = loadMfa(account.getAppId(), account.getId());
         dto.setMfaPolicy(mfa == null ? AuthConstants.MFA_POLICY_OPTIONAL : mfa.getMfaPolicy());
@@ -1876,6 +1882,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         dto.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
     }
 
+    /**
+     * 禁止当前账号对自身执行受保护的管理动作。
+     */
     private void assertNotSelf(Long targetAccountId, String message) {
         InternalAuthAccount operator = currentOperator();
         if (operator != null && Objects.equals(operator.getAccountId(), targetAccountId)) {
@@ -1883,16 +1892,25 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         }
     }
 
+    /**
+     * 读取当前操作人账号标识。
+     */
     private InternalAuthAccount currentOperator() {
         return InternalAuthContextHolder.get();
     }
 
+    /**
+     * 生成 MFA 通知中使用的脱敏账号标签。
+     */
     private String mfaAccountLabel(SysAccountDO account) {
         return StringUtils.hasText(account.getMerchantId())
                 ? account.getMerchantId() + ":" + account.getLoginAccount()
                 : account.getLoginAccount();
     }
 
+    /**
+     * 返回脱敏后可展示的登录账号。
+     */
     private String displayLoginAccount(SysAccountDO account) {
         if (account == null || !StringUtils.hasText(account.getLoginAccount())) {
             return "-";
@@ -1904,6 +1922,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return account.getLoginAccount();
     }
 
+    /**
+     * 读取当前认证商户的资料主键。
+     */
     private Long currentMerchantInfoId(String merchantId) {
         BaseMerchantInfoDO merchant = baseMerchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
                 .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
@@ -1915,6 +1936,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return merchant.getId();
     }
 
+    /**
+     * 替换账号角色关系，并保留系统角色保护规则。
+     */
     private void replaceAccountRoles(Long appId, String merchantId, SysMerchantUserDO merchantUser, List<Long> roleIds) {
         Set<Long> ids = normalizeIds(roleIds);
         if (!ids.isEmpty()) {
@@ -1950,6 +1974,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         });
     }
 
+    /**
+     * 替换账号部门关系。
+     */
     private void replaceAccountDepts(String merchantId, Long accountId, List<Long> deptIds) {
         Set<Long> ids = normalizeIds(deptIds);
         if (!ids.isEmpty() && !listDepts().stream().map(DeptDTO::getDeptId).collect(Collectors.toSet()).containsAll(ids)) {
@@ -1970,6 +1997,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         });
     }
 
+    /**
+     * 替换账号岗位关系。
+     */
     private void replaceAccountPosts(String merchantId, Long accountId, List<Long> postIds) {
         Set<Long> ids = normalizeIds(postIds);
         if (!ids.isEmpty() && !listPosts().stream().map(PostDTO::getPostId).collect(Collectors.toSet()).containsAll(ids)) {
@@ -1990,6 +2020,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         });
     }
 
+    /**
+     * 替换角色菜单与权限授权关系。
+     */
     private void replaceRoleGrants(Long appId, String merchantId, Long roleId, List<Long> menuIds, List<Long> permissionIds) {
         if (menuIds == null && permissionIds == null) {
             return;
@@ -2030,6 +2063,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         });
     }
 
+    /**
+     * 查询商户角色当前已授权的菜单主键集合。
+     */
     private Set<Long> loadGrantedMenuIds(Long appId, String merchantId) {
         return sysMerchantMenuGrantMapper.selectList(Wrappers.<SysMerchantMenuGrantDO>lambdaQuery()
                         .eq(SysMerchantMenuGrantDO::getAppId, appId)
@@ -2039,6 +2075,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(SysMerchantMenuGrantDO::getMenuId).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
+    /**
+     * 查询商户角色当前已授权的权限主键集合。
+     */
     private Set<Long> loadGrantedPermissionIds(Long appId, String merchantId) {
         return sysMerchantPermissionGrantMapper.selectList(Wrappers.<SysMerchantPermissionGrantDO>lambdaQuery()
                         .eq(SysMerchantPermissionGrantDO::getAppId, appId)
@@ -2048,6 +2087,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(SysMerchantPermissionGrantDO::getPermissionId).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
+    /**
+     * 查询商户角色当前已授权且可展示的菜单树。
+     */
     private List<AuthMenuDTO> loadGrantedMenuTree(Long appId, String merchantId) {
         Set<Long> ids = loadGrantedMenuIds(appId, merchantId);
         if (ids.isEmpty()) {
@@ -2063,6 +2105,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return buildMenuTree(nodes);
     }
 
+    /**
+     * 软删除角色现有菜单授权。
+     */
     private void softDeleteRoleMenus(Long appId, Long roleId) {
         sysRoleMenuMapper.selectList(Wrappers.<SysRoleMenuDO>lambdaQuery()
                 .eq(SysRoleMenuDO::getAppId, appId)
@@ -2073,6 +2118,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         });
     }
 
+    /**
+     * 软删除角色现有权限授权。
+     */
     private void softDeleteRolePermissions(Long appId, Long roleId) {
         sysRolePermissionMapper.selectList(Wrappers.<SysRolePermissionDO>lambdaQuery()
                 .eq(SysRolePermissionDO::getAppId, appId)
@@ -2083,6 +2131,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         });
     }
 
+    /**
+     * 查询当前商户的有效部门，记录不存在时返回业务错误。
+     */
     private SysMerchantDeptDO getDept(String merchantId, Long id) {
         SysMerchantDeptDO dept = sysMerchantDeptMapper.selectOne(Wrappers.<SysMerchantDeptDO>lambdaQuery()
                 .eq(SysMerchantDeptDO::getMerchantId, merchantId)
@@ -2095,6 +2146,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return dept;
     }
 
+    /**
+     * 查询当前商户的有效岗位，记录不存在时返回业务错误。
+     */
     private SysMerchantPostDO getPost(String merchantId, Long id) {
         SysMerchantPostDO post = sysMerchantPostMapper.selectOne(Wrappers.<SysMerchantPostDO>lambdaQuery()
                 .eq(SysMerchantPostDO::getMerchantId, merchantId)
@@ -2107,6 +2161,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return post;
     }
 
+    /**
+     * 查询当前商户应用中的有效账号，记录不存在时返回业务错误。
+     */
     private SysAccountDO getAccount(Long appId, String merchantId, Long id) {
         SysAccountDO account = sysAccountMapper.selectOne(Wrappers.<SysAccountDO>lambdaQuery()
                 .eq(SysAccountDO::getAppId, appId)
@@ -2120,6 +2177,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return account;
     }
 
+    /**
+     * 查询当前商户与账号的有效员工关系，记录不存在时返回业务错误。
+     */
     private SysMerchantUserDO getMerchantUser(String merchantId, Long accountId) {
         SysMerchantUserDO merchantUser = sysMerchantUserMapper.selectOne(Wrappers.<SysMerchantUserDO>lambdaQuery()
                 .eq(SysMerchantUserDO::getMerchantId, merchantId)
@@ -2132,6 +2192,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return merchantUser;
     }
 
+    /**
+     * 查询当前商户应用中的有效角色，记录不存在时返回业务错误。
+     */
     private SysRoleDO getRole(Long appId, String merchantId, Long id) {
         SysRoleDO role = sysRoleMapper.selectOne(Wrappers.<SysRoleDO>lambdaQuery()
                 .eq(SysRoleDO::getAppId, appId)
@@ -2145,6 +2208,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return role;
     }
 
+    /**
+     * 校验上级部门属于当前商户且不能指向待保存部门自身。
+     */
     private void validateDeptParent(String merchantId, Long parentId, Long currentId) {
         if (parentId == null || parentId == ROOT_PARENT_ID) {
             return;
@@ -2155,6 +2221,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         getDept(merchantId, parentId);
     }
 
+    /**
+     * 校验部门编码在当前商户下未被其他部门使用。
+     */
     private void assertDeptCodeAvailable(String merchantId, String code, Long currentId) {
         Long count = sysMerchantDeptMapper.selectCount(Wrappers.<SysMerchantDeptDO>lambdaQuery()
                 .eq(SysMerchantDeptDO::getMerchantId, merchantId)
@@ -2166,6 +2235,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         }
     }
 
+    /**
+     * 校验岗位编码在当前商户下未被其他岗位使用。
+     */
     private void assertPostCodeAvailable(String merchantId, String code, Long currentId) {
         Long count = sysMerchantPostMapper.selectCount(Wrappers.<SysMerchantPostDO>lambdaQuery()
                 .eq(SysMerchantPostDO::getMerchantId, merchantId)
@@ -2177,6 +2249,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         }
     }
 
+    /**
+     * 校验登录账号在当前商户下未绑定其他员工。
+     */
     private void assertAccountAvailable(String merchantId, String loginAccount, Long currentMerchantUserId) {
         Long count = sysMerchantUserMapper.selectCount(Wrappers.<SysMerchantUserDO>lambdaQuery()
                 .eq(SysMerchantUserDO::getMerchantId, merchantId)
@@ -2188,6 +2263,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         }
     }
 
+    /**
+     * 校验角色编码在当前商户应用中未被其他角色使用。
+     */
     private void assertRoleCodeAvailable(Long appId, String merchantId, String roleCode, Long currentId) {
         Long count = sysRoleMapper.selectCount(Wrappers.<SysRoleDO>lambdaQuery()
                 .eq(SysRoleDO::getAppId, appId)
@@ -2200,10 +2278,16 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         }
     }
 
+    /**
+     * 将认证账号转换为商户员工账号响应。
+     */
     private AccountDTO toAccountDTO(Long appId, SysAccountDO account) {
         return toAccountDTO(appId, getMerchantUser(account.getMerchantId(), account.getId()));
     }
 
+    /**
+     * 根据商户员工关系查询并组装账号响应。
+     */
     private AccountDTO toAccountDTO(Long appId, SysMerchantUserDO merchantUser) {
         SysAccountDO account = sysAccountMapper.selectById(merchantUser.getAccountId());
         AccountDTO dto = new AccountDTO();
@@ -2248,6 +2332,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return dto;
     }
 
+    /**
+     * 构建角色菜单与权限授权树。
+     */
     private List<AuthGrantNodeDTO> buildGrantTree(List<AuthMenuDTO> menus, List<PermissionDTO> permissions) {
         Map<Long, AuthMenuDTO> menuMap = flattenAuthMenus(menus).stream()
                 .collect(Collectors.toMap(AuthMenuDTO::getId, item -> item, (left, right) -> left, LinkedHashMap::new));
@@ -2265,6 +2352,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .toList();
     }
 
+    /**
+     * 将菜单及其权限转换为角色授权树节点。
+     */
     private AuthGrantNodeDTO toGrantNode(AuthMenuDTO menu, Map<Long, List<PermissionDTO>> permissionMap) {
         AuthGrantNodeDTO node = new AuthGrantNodeDTO();
         node.setId("m_" + menu.getId());
@@ -2295,6 +2385,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return node;
     }
 
+    /**
+     * 解析权限在授权树中应挂载的菜单节点。
+     */
     private Long resolvePermissionDisplayMenuId(PermissionDTO permission, Map<Long, AuthMenuDTO> menuMap) {
         if (permission.getMenuId() == null) {
             return null;
@@ -2326,18 +2419,27 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return null;
     }
 
+    /**
+     * 判断菜单节点是否允许出现在角色授权树中。
+     */
     private boolean isGrantDisplayMenu(AuthMenuDTO menu) {
         return menu != null
                 && !"BUTTON".equals(menu.getMenuType())
                 && AuthConstants.ENABLED == (menu.getVisible() == null ? AuthConstants.ENABLED : menu.getVisible());
     }
 
+    /**
+     * 将菜单树展平为稳定顺序的授权节点集合。
+     */
     private List<AuthMenuDTO> flattenAuthMenus(List<AuthMenuDTO> menus) {
         List<AuthMenuDTO> result = new ArrayList<>();
         flattenAuthMenus(menus, result);
         return result;
     }
 
+    /**
+     * 将菜单树展平为稳定顺序的授权节点集合。
+     */
     private void flattenAuthMenus(List<AuthMenuDTO> menus, List<AuthMenuDTO> result) {
         if (menus == null || menus.isEmpty()) {
             return;
@@ -2348,6 +2450,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         });
     }
 
+    /**
+     * 解析授权树节点类型。
+     */
     private String resolveGrantNodeType(String menuType) {
         if ("CATALOG".equals(menuType)) {
             return "DIR";
@@ -2358,6 +2463,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return "MENU";
     }
 
+    /**
+     * 根据父子关系构建商户菜单树。
+     */
     private List<AuthMenuDTO> buildMenuTree(List<AuthMenuDTO> nodes) {
         Map<Long, AuthMenuDTO> nodeMap = nodes.stream().collect(Collectors.toMap(AuthMenuDTO::getId, item -> item, (left, right) -> left, LinkedHashMap::new));
         List<AuthMenuDTO> roots = new ArrayList<>();
@@ -2371,6 +2479,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return roots;
     }
 
+    /**
+     * 根据父子关系构建商户部门树。
+     */
     private List<DeptDTO> buildDeptTree(List<DeptDTO> nodes) {
         Map<Long, DeptDTO> nodeMap = nodes.stream().collect(Collectors.toMap(DeptDTO::getDeptId, item -> item, (left, right) -> left, LinkedHashMap::new));
         List<DeptDTO> roots = new ArrayList<>();
@@ -2384,6 +2495,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return roots;
     }
 
+    /**
+     * 过滤无效主键并去除重复值。
+     */
     private Set<Long> normalizeIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptySet();
@@ -2391,6 +2505,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return ids.stream().filter(Objects::nonNull).filter(id -> id > 0).collect(Collectors.toSet());
     }
 
+    /**
+     * 校验状态编码属于允许的账号或角色状态。
+     */
     private Integer validStatus(Integer status) {
         if (status == null) {
             return AuthConstants.ENABLED;
@@ -2401,6 +2518,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "status is invalid");
     }
 
+    /**
+     * 解析角色数据范围并校验自定义部门授权。
+     */
     private String resolveDataScope(String dataScope) {
         if (!StringUtils.hasText(dataScope)) {
             return DATA_SCOPE_SELF;
@@ -2412,10 +2532,16 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "dataScope is invalid");
     }
 
+    /**
+     * 判断角色是否为不可删除的系统内置角色。
+     */
     private boolean isSystemRole(SysRoleDO role) {
         return role != null && ROLE_TYPE_SYSTEM.equals(role.getRoleType());
     }
 
+    /**
+     * 校验必填文本并返回去除首尾空白后的值。
+     */
     private String required(String value, String field) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), field + " is required");
@@ -2423,10 +2549,16 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return value.trim();
     }
 
+    /**
+     * 去除字符串首尾空白，并将空字符串转换为空值。
+     */
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 解析页面日期时间条件，非法格式返回参数错误。
+     */
     private LocalDateTime parseQueryDateTime(String value, boolean endOfDay) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -2442,10 +2574,16 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         }
     }
 
+    /**
+     * 规范化账号登录名用于唯一性比较。
+     */
     private String toAccountLoginName(String merchantId, String loginAccount) {
         return required(loginAccount, "loginAccount") + ACCOUNT_LOGIN_SEPARATOR + merchantId;
     }
 
+    /**
+     * 查询商户应用配置。
+     */
     private SysAppDO merchantApp() {
         SysAppDO app = sysAppMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
                 .eq(SysAppDO::getAppCode, AuthConstants.APP_MERCHANT)
@@ -2457,6 +2595,9 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return app;
     }
 
+    /**
+     * 读取当前认证上下文中的商户号，缺失时拒绝请求。
+     */
     private String currentMerchantId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || !StringUtils.hasText(account.getMerchantId())) {
@@ -2465,11 +2606,17 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return account.getMerchantId();
     }
 
+    /**
+     * 读取当前认证账号主键。
+     */
     private Long currentAccountId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         return account == null ? null : account.getAccountId();
     }
 
+    /**
+     * 判断当前账号是否有权授予目标角色。
+     */
     private boolean currentAccountCanGrantRole() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || account.getPermissions() == null) {

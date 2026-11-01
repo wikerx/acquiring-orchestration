@@ -65,6 +65,9 @@ public final class MqTopic {
      */
     public static final String CACHE_INVALIDATION = "acquiring_cache_invalidation_topic";
 
+    /**
+     * 禁止实例化 RocketMQ 主题常量类。
+     */
     private MqTopic() {
     }
 }

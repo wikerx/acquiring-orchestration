@@ -62,9 +62,7 @@ public final class ChannelDTOs {
         private Integer supportPayout;
         @NotNull(message = "support3ds is required")
         private Integer support3ds;
-        /**
-         * 默认请求URL，表示当前内部调用、渠道调用或商户通知的目标地址。
-         */
+
         private String defaultRequestUrl;
         private String defaultInteractionMode;
         /**
@@ -103,9 +101,7 @@ public final class ChannelDTOs {
         private Integer supportAcquiring;
         private Integer supportPayout;
         private Integer support3ds;
-        /**
-         * 默认请求URL，表示当前内部调用、渠道调用或商户通知的目标地址。
-         */
+
         private String defaultRequestUrl;
         private String defaultInteractionMode;
         /**

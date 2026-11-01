@@ -40,21 +40,9 @@ public final class GatewayIngressSignature {
      */
     public static final int MINIMUM_SECRET_LENGTH = 32;
 
-    /**
-     * {@code HMAC_SHA256}常量，统一 {@code GatewayIngressSignature} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String HMAC_SHA256 = "HmacSHA256";
-    /**
-     * {@code LINE_SEPARATOR}常量，统一 {@code GatewayIngressSignature} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String LINE_SEPARATOR = "\n";
 
     /**
@@ -72,6 +60,9 @@ public final class GatewayIngressSignature {
      */
     public static final String EMPTY_BODY_SHA256 = payloadSha256(new byte[0]);
 
+    /**
+     * 禁止实例化 Gateway 入口签名协议工具类。
+     */
     private GatewayIngressSignature() {
     }
 
@@ -213,6 +204,13 @@ public final class GatewayIngressSignature {
         return isProtectedCheckoutPath(path) || isProtectedPortalPath(path);
     }
 
+    /**
+     * 使用共享密钥计算规范文本的 HMAC-SHA256 十六进制摘要。
+     *
+     * @param content 已按协议拼装的规范文本
+     * @param secret Gateway 与下游共享的密钥
+     * @return 小写十六进制签名
+     */
     private static String hmacSha256(String content, String secret) {
         try {
             Mac mac = Mac.getInstance(HMAC_SHA256);

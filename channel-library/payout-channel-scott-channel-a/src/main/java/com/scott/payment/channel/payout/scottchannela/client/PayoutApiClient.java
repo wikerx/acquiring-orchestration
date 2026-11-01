@@ -10,6 +10,7 @@ import com.scott.payment.channel.payout.scottchannela.converter.PayoutRequestCon
 import com.scott.payment.channel.payout.scottchannela.converter.PayoutResponseConverter;
 import com.scott.payment.channel.payout.scottchannela.model.request.SubmitRequestPayload;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import org.springframework.util.StringUtils;
 
@@ -20,6 +21,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -30,59 +32,37 @@ import java.util.Map;
 public class PayoutApiClient {
 
     /**
-     * {@code API_PATH_PREFIX}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
+     * ScottChannelA 代付 API 的固定 REST 路径前缀。
      */
-    private static final String API_PATH_PREFIX = "/api/";
+    private static final String API_PATH_PREFIX = "/api/rest/";
+
     /**
-     * {@code PAYOUT_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
+     * 创建代付端点。
      */
     private static final String PAYOUT_PATH = "/payouts";
+
     /**
-     * {@code QUERY_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
+     * 查询代付端点。
      */
     private static final String QUERY_PATH = "/payouts/query";
+
     /**
-     * {@code CANCEL_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
+     * 取消代付端点。
      */
     private static final String CANCEL_PATH = "/payouts/cancel";
+
     /**
-     * 请求头商户ID，用于定位 代付API内部调用 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
+     * 渠道 MID 请求头名称。
      */
     private static final String HEADER_MERCHANT_ID = "X-Merchant-Id";
+
     /**
-     * 请求头API密钥，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
+     * 渠道 API Key 请求头名称；对应值禁止写入日志和审计明文。
      */
     private static final String HEADER_API_KEY = "X-Api-Key";
+
     /**
-     * 内容类型，用于区分 代付API内部调用 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
+     * ScottChannelA JSON 请求媒体类型。
      */
     private static final String CONTENT_TYPE = "application/json";
 
@@ -90,6 +70,7 @@ public class PayoutApiClient {
     private final HttpClient httpClient;
     private final PayoutRequestConverter requestConverter;
     private final PayoutResponseConverter responseConverter;
+    private final OutboundHttpUrlPolicy outboundUrlPolicy;
 
     /**
      * 创建使用环境级 HTTP 客户端的 ScottChannelA 代付客户端。
@@ -97,10 +78,23 @@ public class PayoutApiClient {
      * @param properties 环境级连接配置和兜底凭据
      **/
     public PayoutApiClient(ChannelProperties properties) {
+        this(properties, new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY));
+    }
+
+    /**
+     * 创建按运行环境校验渠道出站地址的代付客户端。
+     *
+     * @param properties 环境级连接配置和兜底凭据
+     * @param outboundUrlPolicy 出站地址安全策略
+     **/
+    public PayoutApiClient(ChannelProperties properties, OutboundHttpUrlPolicy outboundUrlPolicy) {
         this(properties,
                 HttpClient.newBuilder()
                         .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
-                        .build());
+                        .build(),
+                new PayoutRequestConverter(),
+                new PayoutResponseConverter(),
+                outboundUrlPolicy);
     }
 
     /**
@@ -110,7 +104,8 @@ public class PayoutApiClient {
      * @param httpClient HTTP 传输实现
      **/
     PayoutApiClient(ChannelProperties properties, HttpClient httpClient) {
-        this(properties, httpClient, new PayoutRequestConverter(), new PayoutResponseConverter());
+        this(properties, httpClient, new PayoutRequestConverter(), new PayoutResponseConverter(),
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY));
     }
 
     /**
@@ -119,11 +114,13 @@ public class PayoutApiClient {
     PayoutApiClient(ChannelProperties properties,
                     HttpClient httpClient,
                     PayoutRequestConverter requestConverter,
-                    PayoutResponseConverter responseConverter) {
+                    PayoutResponseConverter responseConverter,
+                    OutboundHttpUrlPolicy outboundUrlPolicy) {
         this.properties = properties;
         this.httpClient = httpClient;
         this.requestConverter = requestConverter;
         this.responseConverter = responseConverter;
+        this.outboundUrlPolicy = outboundUrlPolicy;
     }
 
     /**
@@ -189,7 +186,7 @@ public class PayoutApiClient {
                     httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             ChannelPayoutResponse result = responseConverter.convert(
                     channelCode, operationId, payoutOrderNo, response.statusCode(), response.body());
-            addAuditEvidence(result, context, requestBody);
+            addAuditEvidence(result, context, requestBody, response);
             return result;
         } catch (java.net.http.HttpTimeoutException exception) {
             throw new PayoutChannelException("ScottChannelA payout request timed out", exception, true);
@@ -220,7 +217,12 @@ public class PayoutApiClient {
             throw new PayoutChannelException("ScottChannelA payout version is invalid");
         }
         String url = baseUrl.trim().replaceAll("/+$", "") + API_PATH_PREFIX + normalizedVersion + path;
-        return new RequestContext(url, merchantId, apiKey);
+        try {
+            return new RequestContext(outboundUrlPolicy.validate(url).toASCIIString(), merchantId, apiKey);
+        } catch (IllegalArgumentException exception) {
+            throw new PayoutChannelException(
+                    "ScottChannelA payout requestUrl violates outbound URL policy", exception);
+        }
     }
 
     /**
@@ -243,13 +245,38 @@ public class PayoutApiClient {
      **/
     private void addAuditEvidence(ChannelPayoutResponse result,
                                   RequestContext context,
-                                  String requestBody) {
+                                  String requestBody,
+                                  HttpResponse<String> response) {
+        result.setHttpMethod("POST");
         result.setRequestUrlMasked(context.url());
         result.setRequestHeaderJsonMasked(JsonUtils.toJsonString(Map.of(
                 HEADER_MERCHANT_ID, SensitiveDataMaskUtils.maskJson(
                         JsonUtils.toJsonString(Map.of("merchantId", context.merchantId()))),
                 HEADER_API_KEY, "***")));
         result.setRequestBodyJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(requestBody));
+        result.setResponseHeaderJsonMasked(safeResponseHeaders(response));
+        result.setResponseBodyJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(response.body()));
+    }
+
+    /**
+     * 仅保留渠道响应中可用于链路关联的非敏感 Header。
+     *
+     * @param response 渠道 HTTP 响应
+     * @return 脱敏后的响应 Header JSON
+     **/
+    private String safeResponseHeaders(HttpResponse<?> response) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        putResponseHeader(headers, response, "Content-Type");
+        putResponseHeader(headers, response, "X-Request-Id");
+        putResponseHeader(headers, response, "X-Correlation-Id");
+        return JsonUtils.toJsonString(headers);
+    }
+
+    /**
+     * 按大小写不敏感的 HTTP Header 语义保存首个响应值。
+     **/
+    private void putResponseHeader(Map<String, String> target, HttpResponse<?> response, String name) {
+        response.headers().firstValue(name).ifPresent(value -> target.put(name, value));
     }
 
     /**
@@ -266,6 +293,12 @@ public class PayoutApiClient {
         }
     }
 
+    /**
+     * 按优先级返回第一个非空文本。
+     *
+     * @param values 候选值
+     * @return 首个非空值或 {@code null}
+     **/
     private String firstText(String... values) {
         if (values != null) {
             for (String value : values) {

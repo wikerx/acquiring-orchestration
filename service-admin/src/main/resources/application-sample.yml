@@ -70,6 +70,10 @@ acquiring:
     protect-portal-paths: false
 
 payment:
+  risk:
+    secret: ${PAYMENT_RISK_SECRET:}
+    previous-secrets: ${PAYMENT_RISK_PREVIOUS_SECRETS:}
+    allow-ephemeral-test-secret: false
   mfa:
     # sample 不属于本地可信环境，必须显式注入，不提供公开默认值。
     secret: ${PAYMENT_MFA_SECRET:}

@@ -16,6 +16,7 @@ import java.util.Set;
 
 import static com.scott.payment.channel.payment.scottchannela.converter.PaymentOperationClassifier.isCardAuthorizationRequest;
 import static com.scott.payment.channel.payment.scottchannela.converter.PaymentOperationClassifier.isRefundQuery;
+import static com.scott.payment.channel.payment.scottchannela.converter.PaymentOperationClassifier.effectiveOperation;
 import static com.scott.payment.channel.payment.scottchannela.converter.PaymentOperationClassifier.normalize;
 
 /**
@@ -23,7 +24,7 @@ import static com.scott.payment.channel.payment.scottchannela.converter.PaymentO
  **/
 public class PaymentResponseConverter {
 
-    private static final Set<Integer> DETERMINISTIC_HTTP_FAILURES = Set.of(400, 401, 404, 409);
+    private static final Set<Integer> DETERMINISTIC_HTTP_FAILURES = Set.of(400, 401, 404);
 
     /**
      * 将渠道响应转换为平台统一响应。
@@ -89,7 +90,7 @@ public class PaymentResponseConverter {
         result.setRawChannelStatus(status);
         result.setChannelTradeStatus(deterministicRejection
                 ? ChannelTradeStatus.FAILED.getCode()
-                : mapStatus(status).getCode());
+                : mapStatus(request, status).getCode());
         result.setChannelResponseCode(responseCode);
         result.setChannelResponseMessage(firstText(
                 data == null ? null : data.getResponseDescription(),
@@ -182,22 +183,36 @@ public class PaymentResponseConverter {
     /**
      * 将渠道状态映射为平台状态；未知值保持待处理。
      **/
-    private ChannelTradeStatus mapStatus(String status) {
+    private ChannelTradeStatus mapStatus(ChannelPaymentRequest request, String status) {
         return switch (normalize(status)) {
             case "SUCCESS", "SUCCEEDED" -> ChannelTradeStatus.SUCCESS;
-            case "FAIL", "FAILED", "CANCELLED", "CANCELED",
+            case "CANCELLED", "CANCELED" -> ChannelCapability.VOID.getCode().equals(effectiveOperation(request))
+                    ? ChannelTradeStatus.VOIDED : ChannelTradeStatus.FAILED;
+            case "FAIL", "FAILED",
                     "ORDER_NOT_FOUND", "TRANSACTION_NOT_FOUND", "REFUND_NOT_FOUND" -> ChannelTradeStatus.FAILED;
             case "PROCESSING", "PENDING", "T201", "T202", "T203" -> ChannelTradeStatus.PROCESSING;
             default -> ChannelTradeStatus.PENDING;
         };
     }
 
+    /**
+     * 识别渠道外层响应码中表示处理中结果的稳定编码。
+     *
+     * @param code 渠道响应码
+     * @return 处理中编码；其他编码返回 {@code null}
+     **/
     private String processingCode(String code) {
         String normalized = normalize(code);
         return Set.of("PROCESSING", "PENDING", "T201", "T202", "T203").contains(normalized)
                 ? normalized : null;
     }
 
+    /**
+     * 按优先级返回第一个非空文本。
+     *
+     * @param values 候选值
+     * @return 首个非空值或 {@code null}
+     **/
     private String firstText(String... values) {
         if (values != null) {
             for (String value : values) {
@@ -209,6 +224,13 @@ public class PaymentResponseConverter {
         return null;
     }
 
+    /**
+     * 仅将非空渠道原始证据写入审计映射。
+     *
+     * @param values 原始证据映射
+     * @param key    证据字段名
+     * @param value  证据字段值
+     **/
     private void putRawIfText(Map<String, String> values, String key, String value) {
         if (StringUtils.hasText(value)) {
             values.put(key, value);

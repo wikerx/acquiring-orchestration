@@ -98,29 +98,11 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     private static final String CODE_INDEX_VERSION = "v1";
 
-    /**
-     * {@code ALPHA2_FIELD_PREFIX}常量，统一 {@code IsoDictionaryServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String ALPHA2_FIELD_PREFIX = "A2:";
-    /**
-     * {@code ALPHA3_FIELD_PREFIX}常量，统一 {@code IsoDictionaryServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String ALPHA3_FIELD_PREFIX = "A3:";
-    /**
-     * {@code NUMERIC_FIELD_PREFIX}常量，统一 {@code IsoDictionaryServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String NUMERIC_FIELD_PREFIX = "N:";
 
     /**
@@ -229,16 +211,19 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         CodeCacheReadResult<IsoCountryInfo> cacheRead = readCodeCache(
                 cacheKey, fields, IsoCountryInfo.class, "COUNTRY");
         if (cacheRead.status() == CodeCacheReadStatus.PRESENT) {
-            log.debug("event: ISO_CODE_CACHE_HIT dictionary: COUNTRY criteriaCount: {} matched: {}",
+            log.debug("ISO 代码缓存命中, event: ISO_CODE_CACHE_HIT, dictionary: COUNTRY, "
+                            + "criteriaCount: {}, matched: {}",
                     fields.size() - 1, !cacheRead.values().isEmpty());
             return cacheRead.values();
         }
         if (cacheRead.status() == CodeCacheReadStatus.UNAVAILABLE) {
-            log.debug("event: ISO_CODE_CACHE_MISS dictionary: COUNTRY reason: REDIS_UNAVAILABLE");
+            log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, "
+                    + "dictionary: COUNTRY, reason: REDIS_UNAVAILABLE");
             return loadCountriesByCodesFromDatabase(alpha2, alpha3, numeric);
         }
 
-        log.debug("event: ISO_CODE_CACHE_MISS dictionary: COUNTRY reason: INDEX_NOT_READY");
+        log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, "
+                + "dictionary: COUNTRY, reason: INDEX_NOT_READY");
         // 代码索引缺失时优先复用全量快照；只有两个缓存都不存在时才扫描一次从库。
         List<IsoCountryInfo> countries = loadCountriesForCodeIndex();
         return filterCountriesByCodes(countries, alpha2, alpha3, numeric);
@@ -360,16 +345,19 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         CodeCacheReadResult<IsoCurrencyInfo> cacheRead = readCodeCache(
                 cacheKey, fields, IsoCurrencyInfo.class, "CURRENCY");
         if (cacheRead.status() == CodeCacheReadStatus.PRESENT) {
-            log.debug("event: ISO_CODE_CACHE_HIT dictionary: CURRENCY criteriaCount: {} matched: {}",
+            log.debug("ISO 代码缓存命中, event: ISO_CODE_CACHE_HIT, dictionary: CURRENCY, "
+                            + "criteriaCount: {}, matched: {}",
                     fields.size() - 1, !cacheRead.values().isEmpty());
             return cacheRead.values();
         }
         if (cacheRead.status() == CodeCacheReadStatus.UNAVAILABLE) {
-            log.debug("event: ISO_CODE_CACHE_MISS dictionary: CURRENCY reason: REDIS_UNAVAILABLE");
+            log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, "
+                    + "dictionary: CURRENCY, reason: REDIS_UNAVAILABLE");
             return loadCurrenciesByCodesFromDatabase(alphabeticCode, numericCode);
         }
 
-        log.debug("event: ISO_CODE_CACHE_MISS dictionary: CURRENCY reason: INDEX_NOT_READY");
+        log.debug("ISO 代码缓存未命中, event: ISO_CODE_CACHE_MISS, "
+                + "dictionary: CURRENCY, reason: INDEX_NOT_READY");
         // 代码索引缺失时优先复用全量快照；只有两个缓存都不存在时才扫描一次从库。
         List<IsoCurrencyInfo> currencies = loadCurrenciesForCodeIndex();
         return filterCurrenciesByCodes(currencies, alphabeticCode, numericCode);
@@ -580,7 +568,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 newCacheKey(COUNTRY_CACHE_BUSINESS, CODE_INDEX_BUSINESS_KEY),
                 aliases,
                 "COUNTRY")) {
-            log.debug("event: ISO_CODE_CACHE_REBUILT dictionary: COUNTRY recordCount: {} aliasCount: {}",
+            log.debug("ISO 代码缓存重建完成, event: ISO_CODE_CACHE_REBUILT, dictionary: COUNTRY, "
+                            + "recordCount: {}, aliasCount: {}",
                     countries.size(), aliases.size() - 1);
         }
     }
@@ -597,7 +586,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                 newCacheKey(CURRENCY_CACHE_BUSINESS, CODE_INDEX_BUSINESS_KEY),
                 aliases,
                 "CURRENCY")) {
-            log.debug("event: ISO_CODE_CACHE_REBUILT dictionary: CURRENCY recordCount: {} aliasCount: {}",
+            log.debug("ISO 代码缓存重建完成, event: ISO_CODE_CACHE_REBUILT, dictionary: CURRENCY, "
+                            + "recordCount: {}, aliasCount: {}",
                     currencies.size(), aliases.size() - 1);
         }
     }
@@ -627,7 +617,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         try {
             cachedValues = stringRedisTemplate.opsForHash().multiGet(cacheKey, fields);
         } catch (RuntimeException exception) {
-            log.warn("读取 ISO 代码 Hash 失败，dictionary: {}，异常类型: {}",
+            log.warn("ISO 代码 Hash 读取失败, event: ISO_CODE_HASH_READ_FAILED, "
+                            + "dictionary: {}, exceptionType: {}",
                     dictionary, exception.getClass().getSimpleName());
             return CodeCacheReadResult.unavailable();
         }
@@ -656,7 +647,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
                     : CodeCacheReadResult.present(List.of(resolved));
         } catch (RuntimeException exception) {
             // 损坏载荷不能作为权威未命中；下一次从库全量加载会替换整个固定 Hash。
-            log.warn("ISO 代码 Hash 载荷无效，将从数据库重建，dictionary: {}，异常类型: {}",
+            log.warn("ISO 代码 Hash 载荷无效并回源数据库, event: ISO_CODE_HASH_PAYLOAD_INVALID, "
+                            + "dictionary: {}, exceptionType: {}",
                     dictionary, exception.getClass().getSimpleName());
             return CodeCacheReadResult.missing();
         }
@@ -675,7 +667,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             stringRedisTemplate.opsForHash().putAll(cacheKey, aliases);
             return true;
         } catch (RuntimeException exception) {
-            log.warn("写入 ISO 代码 Hash 失败，dictionary: {}，异常类型: {}",
+            log.warn("ISO 代码 Hash 写入失败, event: ISO_CODE_HASH_WRITE_FAILED, "
+                            + "dictionary: {}, exceptionType: {}",
                     dictionary, exception.getClass().getSimpleName());
             return false;
         }
@@ -704,6 +697,13 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         return List.copyOf(fields);
     }
 
+    /**
+     * 将非空 ISO 代码按类型前缀加入本次 Hash 批量查询字段。
+     *
+     * @param fields 本次 HMGET 字段集合
+     * @param prefix ISO 代码类型前缀
+     * @param value 已规范化代码值
+     */
     private void addCodeField(List<Object> fields, String prefix, String value) {
         if (value != null) {
             fields.add(prefix + value);
@@ -739,6 +739,14 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         return aliases;
     }
 
+    /**
+     * 将非空 ISO 代码别名指向同一权威记录 JSON。
+     *
+     * @param aliases 待发布别名索引
+     * @param prefix ISO 代码类型前缀
+     * @param code 代码值
+     * @param json 权威记录 JSON
+     */
     private void putAlias(Map<String, String> aliases, String prefix, String code, String json) {
         if (StringUtils.hasText(code)) {
             aliases.put(prefix + code, json);
@@ -818,12 +826,19 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             }
             return values;
         } catch (DataAccessException exception) {
-            log.warn("ISO 字典数据库读取失败，未使用非权威内置数据兜底，异常类型: {}",
+            log.warn("ISO 字典数据库读取失败, event: ISO_DICTIONARY_DATABASE_READ_FAILED, "
+                            + "fallbackUsed: false, exceptionType: {}",
                     exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.NETWORK_BUSY, exception);
         }
     }
 
+    /**
+     * 将 Redis Hash 返回值转换为文本，并保留空值语义。
+     *
+     * @param value Redis 返回值
+     * @return 文本值，原值为空时返回 null
+     */
     private String stringValue(Object value) {
         return value == null ? null : value.toString();
     }
@@ -904,7 +919,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             return databaseValues;
         } catch (DataAccessException exception) {
             log.warn(
-                    "ISO 字典数据库读取失败，未使用非权威内置数据兜底，异常类型: {}",
+                    "ISO 字典数据库读取失败, event: ISO_DICTIONARY_DATABASE_READ_FAILED, "
+                            + "fallbackUsed: false, exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
             throw new ServiceException(ApiResultEnum.NETWORK_BUSY, exception);
@@ -934,7 +950,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             }
             return CacheReadResult.present(values);
         } catch (RuntimeException exception) {
-            log.warn("读取 ISO 字典 Redis 缓存失败，异常类型: {}",
+            log.warn("ISO 字典 Redis 缓存读取失败, event: ISO_DICTIONARY_CACHE_READ_FAILED, "
+                            + "exceptionType: {}",
                     exception.getClass().getSimpleName());
             return CacheReadResult.unavailable();
         }
@@ -957,7 +974,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         try {
             stringRedisTemplate.opsForValue().set(cacheKey, JsonUtils.toJsonString(values));
         } catch (RuntimeException exception) {
-            log.warn("写入 ISO 字典 Redis 缓存失败，异常类型: {}",
+            log.warn("ISO 字典 Redis 缓存写入失败, event: ISO_DICTIONARY_CACHE_WRITE_FAILED, "
+                            + "exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }
@@ -1002,7 +1020,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             return !invalidationGuard.isPending(cacheName, businessKey);
         } catch (RuntimeException exception) {
             log.warn(
-                    "ISO 字典缓存门禁状态读取失败，cacheName: {}，异常类型: {}",
+                    "ISO 字典缓存门禁检查失败, event: ISO_DICTIONARY_CACHE_GUARD_CHECK_FAILED, "
+                            + "cacheName: {}, exceptionType: {}",
                     cacheName,
                     exception.getClass().getSimpleName()
             );
@@ -1057,7 +1076,8 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
             stringRedisTemplate.delete(cacheKey);
         } catch (RuntimeException exception) {
             log.warn(
-                    "ISO 字典 Redis 缓存失效失败，异常类型: {}",
+                    "ISO 字典 Redis 缓存失效失败, event: ISO_DICTIONARY_CACHE_EVICTION_FAILED, "
+                            + "exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
             throw exception;
@@ -1168,11 +1188,18 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
         );
     }
 
+    /**
+     * 校验币种图标键；非法配置降级为空，由前端使用受控默认图标。
+     *
+     * @param currencyDO 币种数据库记录
+     * @return 安全图标键，配置非法时返回 null
+     */
     private String safeIconKey(IsoCurrencyDO currencyDO) {
         try {
             return IsoCurrencyIconKey.normalize(currencyDO.getAlpha3Code(), currencyDO.getIconKey());
         } catch (IllegalArgumentException exception) {
-            log.warn("忽略非法币种展示图标键，currency: {}", currencyDO.getAlpha3Code());
+            log.warn("非法币种展示图标键已忽略, event: ISO_CURRENCY_ICON_KEY_INVALID, currency: {}",
+                    currencyDO.getAlpha3Code());
             return null;
         }
     }
@@ -1286,16 +1313,10 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     private enum CodeCacheReadStatus {
         /**
          * PRESENT 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         PRESENT,
         /**
          * MISSING 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         MISSING,
         UNAVAILABLE
@@ -1306,14 +1327,33 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     private record CodeCacheReadResult<T>(CodeCacheReadStatus status, List<T> values) {
 
+        /**
+         * 创建固定代码 Hash 已命中的读取结果，允许值列表为空表示权威未命中。
+         *
+         * @param values 已解析的权威记录
+         * @param <T> ISO 记录类型
+         * @return PRESENT 读取结果
+         */
         private static <T> CodeCacheReadResult<T> present(List<T> values) {
             return new CodeCacheReadResult<>(CodeCacheReadStatus.PRESENT, List.copyOf(values));
         }
 
+        /**
+         * 创建固定代码 Hash 尚未发布的读取结果。
+         *
+         * @param <T> ISO 记录类型
+         * @return MISSING 读取结果
+         */
         private static <T> CodeCacheReadResult<T> missing() {
             return new CodeCacheReadResult<>(CodeCacheReadStatus.MISSING, List.of());
         }
 
+        /**
+         * 创建 Redis 不可用的读取结果，调用方必须回源数据库且不得写负缓存。
+         *
+         * @param <T> ISO 记录类型
+         * @return UNAVAILABLE 读取结果
+         */
         private static <T> CodeCacheReadResult<T> unavailable() {
             return new CodeCacheReadResult<>(CodeCacheReadStatus.UNAVAILABLE, List.of());
         }
@@ -1325,16 +1365,10 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
     private enum CacheReadStatus {
         /**
          * PRESENT 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         PRESENT,
         /**
          * MISSING 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         MISSING,
         UNAVAILABLE
@@ -1345,14 +1379,33 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictio
      */
     private record CacheReadResult<T>(CacheReadStatus status, List<T> values) {
 
+        /**
+         * 创建完整快照已命中的读取结果，允许权威空列表。
+         *
+         * @param values 已解析快照
+         * @param <T> ISO 记录类型
+         * @return PRESENT 读取结果
+         */
         private static <T> CacheReadResult<T> present(List<T> values) {
             return new CacheReadResult<>(CacheReadStatus.PRESENT, List.copyOf(values));
         }
 
+        /**
+         * 创建完整快照不存在的读取结果。
+         *
+         * @param <T> ISO 记录类型
+         * @return MISSING 读取结果
+         */
         private static <T> CacheReadResult<T> missing() {
             return new CacheReadResult<>(CacheReadStatus.MISSING, List.of());
         }
 
+        /**
+         * 创建 Redis 不可用的快照读取结果。
+         *
+         * @param <T> ISO 记录类型
+         * @return UNAVAILABLE 读取结果
+         */
         private static <T> CacheReadResult<T> unavailable() {
             return new CacheReadResult<>(CacheReadStatus.UNAVAILABLE, List.of());
         }

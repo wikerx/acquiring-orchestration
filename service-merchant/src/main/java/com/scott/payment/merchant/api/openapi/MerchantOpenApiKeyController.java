@@ -1,4 +1,4 @@
-package com.scott.payment.merchant.controller;
+package com.scott.payment.merchant.api.openapi;
 
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
@@ -39,28 +39,15 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 商户openAPI密钥 HTTP 控制器，位于 商户后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
+ * 商户 OpenAPI 密钥管理控制器，提供密钥生成、轮换、启停和审计记录查询接口。
  */
 @RestController
 @RequestMapping("/merchant/openapi/keys")
 public class MerchantOpenApiKeyController {
 
-    /**
-     * {@code OPENAPI_KEY_MODULE_NAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：构造器注入的应用服务或 HTTP 请求对象。
-     * </p>
-     */
     private static final String OPENAPI_KEY_MODULE_NAME = "商户OpenAPI密钥";
 
-    /**
-     * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
-     */
     private final MerchantOpenApiKeyApplicationService keyApplicationService;
-    /**
-     * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
-     */
     private final OpenApiKeyAuditService keyAuditService;
     private final MerchantOperLogService merchantOperLogService;
 
@@ -206,6 +193,9 @@ public class MerchantOpenApiKeyController {
         return account.getMerchantId();
     }
 
+    /**
+     * 校验当前账号具有密钥复制权限。
+     */
     private void requireCopyPermission(OpenApiKeyType keyType) {
         rejectPlatformPrivateKey(keyType);
         if (keyAuditService.isPublicMaterial(keyType)) {
@@ -214,6 +204,9 @@ public class MerchantOpenApiKeyController {
         requirePermission("merchant:openapi:key:download-private", "缺少敏感材料复制权限");
     }
 
+    /**
+     * 校验当前账号具有密钥下载权限。
+     */
     private void requireDownloadPermission(OpenApiKeyType keyType) {
         rejectPlatformPrivateKey(keyType);
         if (keyAuditService.isPublicMaterial(keyType)) {
@@ -222,6 +215,9 @@ public class MerchantOpenApiKeyController {
         requirePermission("merchant:openapi:key:download-private", "缺少敏感材料下载权限");
     }
 
+    /**
+     * 校验当前账号具有密钥轮换权限。
+     */
     private void requireRotatePermission(OpenApiKeyType keyType) {
         if (keyType == OpenApiKeyType.JWT_KEY) {
             requirePermission("merchant:openapi:key:rotate-jwt", "缺少 JWT 密钥轮换权限");
@@ -234,6 +230,9 @@ public class MerchantOpenApiKeyController {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户端仅允许轮换 JWT_KEY 或 MERCHANT_RESPONSE_PRIVATE_KEY");
     }
 
+    /**
+     * 校验当前账号拥有指定权限编码。
+     */
     private void requirePermission(String permission, String message) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         List<String> permissions = account == null ? List.of() : account.getPermissions();
@@ -242,12 +241,18 @@ public class MerchantOpenApiKeyController {
         }
     }
 
+    /**
+     * 拒绝导出平台私钥，防止服务端密钥材料离开安全边界。
+     */
     private void rejectPlatformPrivateKey(OpenApiKeyType keyType) {
         if (keyType == OpenApiKeyType.PLATFORM_PRIVATE_KEY) {
             throw new ServiceException(ApiResultEnum.FORBIDDEN.getCode(), "商户端不允许查看或导出平台请求解密私钥");
         }
     }
 
+    /**
+     * 将受控密钥下载内容转换为 HTTP 文件响应。
+     */
     private ResponseEntity<byte[]> toDownloadResponse(OpenApiKeyDownloadFile file) {
         String encodedFileName = URLEncoder.encode(file.getFileName(), StandardCharsets.UTF_8);
         return ResponseEntity.ok()

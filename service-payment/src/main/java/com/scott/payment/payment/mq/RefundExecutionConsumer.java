@@ -34,6 +34,8 @@ public class RefundExecutionConsumer implements RocketMQListener<String> {
     private final RefundExecutionService refundExecutionService;
 
     /**
+     * 创建退款执行消息消费者。
+     *
      * @param refundExecutionService 退款执行消息状态机
      */
     public RefundExecutionConsumer(RefundExecutionService refundExecutionService) {

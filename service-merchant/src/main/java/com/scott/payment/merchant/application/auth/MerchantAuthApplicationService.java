@@ -22,6 +22,7 @@ import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantUserMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.merchant.config.MerchantDefaultLoginCredentialProperties;
 import com.scott.payment.merchant.dto.MerchantDefaultLoginCredentialDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.env.Environment;
@@ -29,27 +30,10 @@ import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 /**
- * 商户auth应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
+ * 商户认证应用服务，编排登录、登出、会话续期和当前账号信息查询。
  */
 @Service
 public class MerchantAuthApplicationService {
-
-    /**
-     * 默认登录账号常量，统一 {@code MerchantAuthApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
-    private static final String DEFAULT_LOGIN_ACCOUNT = "admin";
-    /**
-     * {@code DEFAULT_LOGIN_PASSWORD}常量，统一 {@code MerchantAuthApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
-    private static final String DEFAULT_LOGIN_PASSWORD = "Merchant@123456";
 
     /**
      * 商户鉴权能力。
@@ -60,6 +44,7 @@ public class MerchantAuthApplicationService {
     private final SysAccountMapper sysAccountMapper;
     private final SysMerchantUserMapper sysMerchantUserMapper;
     private final Environment environment;
+    private final MerchantDefaultLoginCredentialProperties defaultLoginProperties;
 
     /**
      * 创建商户门户认证应用服务。
@@ -69,17 +54,20 @@ public class MerchantAuthApplicationService {
      * @param sysAccountMapper  登录账号 Mapper
      * @param sysMerchantUserMapper 商户端用户 Mapper
      * @param environment       Spring 环境
+     * @param defaultLoginProperties 本地开发默认登录凭据配置
      */
     public MerchantAuthApplicationService(SystemAuthService systemAuthService,
                                           SysAppMapper sysAppMapper,
                                           SysAccountMapper sysAccountMapper,
                                           SysMerchantUserMapper sysMerchantUserMapper,
-                                          Environment environment) {
+                                          Environment environment,
+                                          MerchantDefaultLoginCredentialProperties defaultLoginProperties) {
         this.systemAuthService = systemAuthService;
         this.sysAppMapper = sysAppMapper;
         this.sysAccountMapper = sysAccountMapper;
         this.sysMerchantUserMapper = sysMerchantUserMapper;
         this.environment = environment;
+        this.defaultLoginProperties = defaultLoginProperties;
     }
 
     /**
@@ -117,7 +105,8 @@ public class MerchantAuthApplicationService {
     @DS(DataSourceName.SLAVE)
     public MerchantDefaultLoginCredentialDTO defaultLoginCredential() {
         MerchantDefaultLoginCredentialDTO credential = new MerchantDefaultLoginCredentialDTO();
-        if (!environment.acceptsProfiles(Profiles.of("dev", "test", "sample", "local"))) {
+        if (!defaultLoginProperties.isEnabled()
+                || !environment.acceptsProfiles(Profiles.of("dev", "test", "local"))) {
             return credential;
         }
         SysAppDO merchantApp = sysAppMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
@@ -129,7 +118,7 @@ public class MerchantAuthApplicationService {
             return credential;
         }
         SysMerchantUserDO merchantUser = sysMerchantUserMapper.selectOne(Wrappers.<SysMerchantUserDO>lambdaQuery()
-                .eq(SysMerchantUserDO::getLoginAccount, DEFAULT_LOGIN_ACCOUNT)
+                .eq(SysMerchantUserDO::getLoginAccount, defaultLoginProperties.getLoginAccount())
                 .eq(SysMerchantUserDO::getStatus, AuthConstants.ENABLED)
                 .eq(SysMerchantUserDO::getDeleted, AuthConstants.NOT_DELETED)
                 .orderByAsc(SysMerchantUserDO::getMerchantId)
@@ -148,7 +137,7 @@ public class MerchantAuthApplicationService {
         }
         credential.setMerchantId(merchantUser.getMerchantId());
         credential.setLoginAccount(merchantUser.getLoginAccount());
-        credential.setPassword(DEFAULT_LOGIN_PASSWORD);
+        credential.setPassword(defaultLoginProperties.getPassword());
         return credential;
     }
 

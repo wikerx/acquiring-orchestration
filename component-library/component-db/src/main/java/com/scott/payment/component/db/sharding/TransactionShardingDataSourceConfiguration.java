@@ -103,7 +103,8 @@ public class TransactionShardingDataSourceConfiguration {
             DataSource transactionDataSource = ShardingSphereDataSourceFactory.createDataSource(
                     resources, buildRules(properties, replicas), buildSystemProperties(properties));
             registerCompositeDataSource(routingDataSource, routingResources, transactionDataSource);
-            log.info("Transaction ShardingSphere datasource registered for service {}, ruleVersion={}, checksumPrefix={}",
+            log.info("交易 ShardingSphere 数据源注册完成, event: TRANSACTION_SHARDING_DATASOURCE_REGISTERED, "
+                            + "service: {}, ruleVersion: {}, checksumPrefix: {}",
                     applicationName, properties.getRuleVersion(), checksumPrefix(properties.getRuleChecksum()));
         } catch (SQLException exception) {
             throw new IllegalStateException("failed to build transaction sharding datasource for rule "
@@ -181,6 +182,13 @@ public class TransactionShardingDataSourceConfiguration {
                 registered.put(name, new NonClosingDelegatingDataSource(dataSource)));
     }
 
+    /**
+     * 根据已验证配置构建分表、单表和可选读写分离规则。
+     *
+     * @param properties 已通过激活校验的交易分片配置
+     * @param replicas 已注册副本数据源名称
+     * @return 交给 ShardingSphere 的规则集合
+     */
     Collection<RuleConfiguration> buildRules(TransactionShardingProperties properties, List<String> replicas) {
         ShardingRuleConfiguration shardingRule = new ShardingRuleConfiguration();
         List<ShardingTableRuleConfiguration> tableRules = properties.getLogicTables().stream()
@@ -268,6 +276,8 @@ public class TransactionShardingDataSourceConfiguration {
         }
 
         /**
+         * 从真实数据源获取默认连接。
+         *
          * @return 真实数据源创建的连接
          */
         @Override
@@ -276,7 +286,11 @@ public class TransactionShardingDataSourceConfiguration {
         }
 
         /**
-         * @return 使用显式凭证创建的连接；凭证不会被记录
+         * 使用显式凭证从真实数据源获取连接，凭证不会被记录。
+         *
+         * @param username 数据库用户名
+         * @param password 数据库密码
+         * @return 使用显式凭证创建的连接
          */
         @Override
         public Connection getConnection(String username, String password) throws SQLException {
@@ -284,6 +298,8 @@ public class TransactionShardingDataSourceConfiguration {
         }
 
         /**
+         * 获取真实数据源的 JDBC 日志输出器。
+         *
          * @return 真实数据源日志输出器
          */
         @Override
@@ -308,7 +324,9 @@ public class TransactionShardingDataSourceConfiguration {
         }
 
         /**
-         * @return 真实数据源登录超时秒数
+         * 获取真实数据源登录超时秒数。
+         *
+         * @return 登录超时秒数
          */
         @Override
         public int getLoginTimeout() throws SQLException {
@@ -316,20 +334,32 @@ public class TransactionShardingDataSourceConfiguration {
         }
 
         /**
-         * @return 真实数据源的父日志器
+         * 获取真实数据源的父日志器。
+         *
+         * @return 父日志器
          */
         @Override
         public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
             return delegate.getParentLogger();
         }
 
+        /**
+         * 将当前代理或真实数据源解包为调用方请求的接口。
+         *
+         * @param iface 目标接口类型
+         * @param <T> 目标接口类型参数
+         * @return 当前代理或真实数据源提供的接口实例
+         */
         @Override
         public <T> T unwrap(Class<T> iface) throws SQLException {
             return iface.isInstance(this) ? iface.cast(this) : delegate.unwrap(iface);
         }
 
         /**
-         * @return 当前代理或真实数据源是否支持指定接口
+         * 判断当前代理或真实数据源是否支持指定接口。
+         *
+         * @param iface 待检查接口类型
+         * @return 支持指定接口时返回 true
          */
         @Override
         public boolean isWrapperFor(Class<?> iface) throws SQLException {

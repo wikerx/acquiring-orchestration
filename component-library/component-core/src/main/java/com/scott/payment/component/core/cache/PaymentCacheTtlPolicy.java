@@ -13,6 +13,9 @@ public final class PaymentCacheTtlPolicy {
      */
     public static final int MAX_JITTER_PERCENT = 50;
 
+    /**
+     * 禁止实例化缓存生命周期策略工具类。
+     */
     private PaymentCacheTtlPolicy() {
     }
 

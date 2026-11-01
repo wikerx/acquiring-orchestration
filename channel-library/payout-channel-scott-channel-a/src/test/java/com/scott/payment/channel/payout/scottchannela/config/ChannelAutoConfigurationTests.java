@@ -1,7 +1,7 @@
 package com.scott.payment.channel.payout.scottchannela.config;
 
 import com.scott.payment.channel.payout.api.PayoutChannelClient;
-import com.scott.payment.channel.payout.scottchannela.adapter.ScottChannelAPayoutAdapter;
+import com.scott.payment.channel.payout.scottchannela.adapter.PayoutChannelAdapter;
 import com.scott.payment.channel.payout.scottchannela.client.PayoutApiClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -16,19 +16,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 验证 ScottChannelA 代付自动配置的装配条件、Bean 唯一名称和元数据入口。
  **/
-class ScottChannelAPayoutAutoConfigurationTests {
+class ChannelAutoConfigurationTests {
 
     private static final String AUTO_CONFIGURATION_IMPORTS =
             "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(ScottChannelAPayoutAutoConfiguration.class));
+            .withConfiguration(AutoConfigurations.of(ChannelAutoConfiguration.class));
 
     @Test
     void shouldRegisterPayoutComponentsByDefault() {
         contextRunner.run(context -> {
             assertThat(context).hasSingleBean(PayoutApiClient.class);
-            assertThat(context).hasSingleBean(ScottChannelAPayoutAdapter.class);
+            assertThat(context).hasSingleBean(PayoutChannelAdapter.class);
             assertThat(context.getBeansOfType(PayoutChannelClient.class)).hasSize(1);
             assertThat(context).hasBean("scottChannelAPayoutApiClient");
             assertThat(context).hasBean("scottChannelAPayoutAdapter");
@@ -40,7 +40,7 @@ class ScottChannelAPayoutAutoConfigurationTests {
         contextRunner.withPropertyValues("payment.channel.scott-channel-a.payout.enabled=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(PayoutApiClient.class);
-                    assertThat(context).doesNotHaveBean(ScottChannelAPayoutAdapter.class);
+                    assertThat(context).doesNotHaveBean(PayoutChannelAdapter.class);
                 });
     }
 
@@ -50,6 +50,6 @@ class ScottChannelAPayoutAutoConfigurationTests {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         assertThat(imports.lines()).contains(
-                "com.scott.payment.channel.payout.scottchannela.config.ScottChannelAPayoutAutoConfiguration");
+                "com.scott.payment.channel.payout.scottchannela.config.ChannelAutoConfiguration");
     }
 }

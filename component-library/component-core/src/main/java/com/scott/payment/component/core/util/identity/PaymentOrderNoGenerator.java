@@ -34,6 +34,9 @@ public final class PaymentOrderNoGenerator {
      */
     private static final int MAX_SEQUENCE = 9999;
 
+    /**
+     * 禁止实例化平台订单号生成工具类。
+     */
     private PaymentOrderNoGenerator() {
     }
 

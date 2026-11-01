@@ -23,6 +23,8 @@ public class RefundApprovalInternalController {
     private final RefundApprovalApplicationService applicationService;
 
     /**
+     * 创建退款审批内部接口。
+     *
      * @param applicationService 退款审批应用服务
      */
     public RefundApprovalInternalController(RefundApprovalApplicationService applicationService) {

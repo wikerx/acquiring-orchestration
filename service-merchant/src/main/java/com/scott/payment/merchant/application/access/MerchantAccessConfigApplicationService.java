@@ -34,29 +34,8 @@ import java.util.Map;
 @Service
 public class MerchantAccessConfigApplicationService {
 
-    /**
-     * 等待常量，统一 {@code MerchantAccessConfigApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int PENDING = 0;
-    /**
-     * {@code DISABLED}，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int DISABLED = 0;
-    /**
-     * 商户常量，统一 {@code MerchantAccessConfigApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String MERCHANT = "MERCHANT";
     private static final String SOURCE_URL_SELECT = """
             SELECT id, merchant_id, source_url, source_host, status, approval_status,
@@ -218,6 +197,9 @@ public class MerchantAccessConfigApplicationService {
         return created;
     }
 
+    /**
+     * 校验来源域名在当前商户的访问配置中未重复。
+     */
     private void assertSourceUrlAvailable(String merchantId, String sourceHost) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -231,6 +213,9 @@ public class MerchantAccessConfigApplicationService {
         }
     }
 
+    /**
+     * 校验 IP 地址在当前商户的白名单中未重复。
+     */
     private void assertIpAvailable(String merchantId, String ipValue) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -244,6 +229,9 @@ public class MerchantAccessConfigApplicationService {
         }
     }
 
+    /**
+     * 规范化店铺网址并拒绝重复或超出数量限制的域名。
+     */
     private List<SourceUrlValue> normalizeSourceUrls(List<String> sourceUrls) {
         Map<String, SourceUrlValue> normalized = new LinkedHashMap<>();
         if (sourceUrls != null) {
@@ -260,6 +248,9 @@ public class MerchantAccessConfigApplicationService {
         return List.copyOf(normalized.values());
     }
 
+    /**
+     * 校验店铺网址协议和主机名，并生成用于唯一性查询的规范化值。
+     */
     private SourceUrlValue normalizeSourceUrl(String sourceUrl) {
         String text = trimToNull(sourceUrl);
         if (text == null) {
@@ -290,6 +281,9 @@ public class MerchantAccessConfigApplicationService {
         }
     }
 
+    /**
+     * 规范化 IP 白名单并拒绝重复或超出数量限制的地址。
+     */
     private List<IpAddressNormalizer.NormalizedIp> normalizeIps(List<String> ipValues) {
         Map<String, IpAddressNormalizer.NormalizedIp> normalized = new LinkedHashMap<>();
         if (ipValues != null) {
@@ -326,6 +320,9 @@ public class MerchantAccessConfigApplicationService {
         return normalized;
     }
 
+    /**
+     * 校验并规范化备注。
+     */
     private String normalizeRemark(String remark, int maxLength) {
         String normalized = trimToNull(remark);
         if (normalized != null && normalized.length() > maxLength) {
@@ -334,14 +331,23 @@ public class MerchantAccessConfigApplicationService {
         return normalized;
     }
 
+    /**
+     * 去除字符串首尾空白，并将空字符串转换为空值。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 创建参数校验失败业务异常。
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
+    /**
+     * 创建来源网址数据库结果映射器。
+     */
     private RowMapper<SourceUrlItem> sourceUrlMapper() {
         return (rs, rowNum) -> {
             SourceUrlItem item = new SourceUrlItem();
@@ -362,6 +368,9 @@ public class MerchantAccessConfigApplicationService {
         };
     }
 
+    /**
+     * 创建 IP 白名单数据库结果映射器。
+     */
     private RowMapper<IpWhitelistItem> ipWhitelistMapper() {
         return (rs, rowNum) -> {
             IpWhitelistItem item = new IpWhitelistItem();
@@ -382,6 +391,9 @@ public class MerchantAccessConfigApplicationService {
         };
     }
 
+    /**
+     * 将来源网址查询行转换为商户响应条目。
+     */
     private SourceUrlItem sourceUrlItem(Number id, String merchantId, SourceUrlValue value,
                                         String remark, LocalDateTime now) {
         SourceUrlItem item = new SourceUrlItem();
@@ -398,6 +410,9 @@ public class MerchantAccessConfigApplicationService {
         return item;
     }
 
+    /**
+     * 将 IP 白名单查询行转换为商户响应条目。
+     */
     private IpWhitelistItem ipWhitelistItem(Number id, String merchantId,
                                              IpAddressNormalizer.NormalizedIp value,
                                              String remark, LocalDateTime now) {
@@ -415,10 +430,16 @@ public class MerchantAccessConfigApplicationService {
         return item;
     }
 
+    /**
+     * 将数据库时间戳转换为本地日期时间。
+     */
     private LocalDateTime toLocalDateTime(Timestamp value) {
         return value == null ? null : value.toLocalDateTime();
     }
 
+    /**
+     * 规范化后的来源网址值及其数据库查询键。
+     */
     private record SourceUrlValue(String url, String host) {
     }
 }

@@ -8,6 +8,9 @@ import com.alibaba.nacos.plugin.datasource.model.MapperResult;
  */
 final class NacosConfigInfoMapperSqlSupport {
 
+    /**
+     * 禁止实例化 Nacos Mapper SQL 适配工具类。
+     */
     private NacosConfigInfoMapperSqlSupport() {
     }
 

@@ -34,6 +34,9 @@ public final class PaymentCacheRegistry {
             Map.entry(PaymentCacheNames.EMAIL_TEMPLATE_ENABLED, Duration.ofMinutes(5))
     );
 
+    /**
+     * 禁止实例化缓存生命周期注册表。
+     */
     private PaymentCacheRegistry() {
     }
 

@@ -226,13 +226,7 @@ public final class SettlementReviewFingerprintService {
     }
 
     private static final class Canonical {
-        /**
-         * 值字段，保存 规范化 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+
         private final StringBuilder value = new StringBuilder();
 
         private Canonical(String version) {

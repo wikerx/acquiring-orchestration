@@ -20,6 +20,12 @@ final class PaymentRedisCacheTtlFunction implements RedisCacheWriter.TtlFunction
      */
     private final int jitterPercent;
 
+    /**
+     * 创建有界随机 TTL 计算器并立即校验基础生命周期和抖动比例。
+     *
+     * @param baseTtl 基础缓存生命周期
+     * @param jitterPercent 允许正负浮动的百分比
+     */
     PaymentRedisCacheTtlFunction(Duration baseTtl, int jitterPercent) {
         PaymentCacheTtlPolicy.validate(baseTtl, jitterPercent);
         this.baseTtl = baseTtl;

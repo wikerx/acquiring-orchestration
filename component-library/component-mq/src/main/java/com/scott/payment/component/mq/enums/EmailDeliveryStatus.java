@@ -41,6 +41,12 @@ public enum EmailDeliveryStatus {
      */
     private final boolean terminal;
 
+    /**
+     * 创建邮件投递状态定义。
+     *
+     * @param code 数据库存储状态值
+     * @param terminal 是否为不可自动推进的终态
+     */
     EmailDeliveryStatus(int code, boolean terminal) {
         this.code = code;
         this.terminal = terminal;

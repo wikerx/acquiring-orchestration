@@ -6,6 +6,9 @@ package com.scott.payment.component.core.id;
  */
 public final class GlobalIdValidator {
 
+    /**
+     * 禁止实例化全局编号校验工具类。
+     */
     private GlobalIdValidator() {
     }
 

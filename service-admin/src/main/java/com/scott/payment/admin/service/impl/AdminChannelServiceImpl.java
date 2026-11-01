@@ -50,6 +50,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -164,10 +165,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      * MID 参数模板字段名格式。
      */
     private static final Pattern METADATA_FIELD_KEY_PATTERN = Pattern.compile("^[A-Za-z][A-Za-z0-9_]{1,63}$");
-    /**
-     * 渠道默认请求地址格式。
-     */
-    private static final Pattern HTTP_URL_PATTERN = Pattern.compile("^https?://.+", Pattern.CASE_INSENSITIVE);
     /**
      * 允许开启增量授权的交易类型。
      */
@@ -957,8 +954,8 @@ public class AdminChannelServiceImpl implements AdminChannelService {
             throw badRequest("渠道编码已存在");
         }
         if (StringUtils.hasText(request.getDefaultRequestUrl())
-                && !HTTP_URL_PATTERN.matcher(trim(request.getDefaultRequestUrl())).matches()) {
-            throw badRequest("默认请求地址必须以 http:// 或 https:// 开头");
+                && !OutboundHttpUrlPolicy.isStructurallyValid(trim(request.getDefaultRequestUrl()))) {
+            throw badRequest("默认请求地址必须以 http:// 或 https:// 开头，并且是合法 URL");
         }
         validateTimeoutSeconds(request.getConnectTimeoutSeconds(), "连接超时时间");
         validateTimeoutSeconds(request.getReadTimeoutSeconds(), "读取超时时间");

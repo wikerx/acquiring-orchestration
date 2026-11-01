@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * 消费 Merchant 邮件定位消息并交给数据库 CAS 状态机，日志不记录邮件正文或地址
+ * 消费商户邮件定位消息并交给数据库 CAS 状态机，日志不记录邮件正文或地址。
  */
 @Slf4j
 @Component
@@ -55,13 +55,14 @@ public class MerchantEmailDeliveryConsumer implements RocketMQListener<String> {
                 || message.getRecordId() == null || message.getRecordId() <= 0
                 || !StringUtils.hasText(message.getEmailNo())
                 || !APP_CODE.equalsIgnoreCase(message.getAppCode())) {
-            log.error("event: MERCHANT_EMAIL_DELIVERY_INVALID payloadLength: {}", payload == null ? 0 : payload.length());
+            log.error("邮件投递消息无效, event: MERCHANT_EMAIL_DELIVERY_INVALID, payloadLength: {}",
+                    payload == null ? 0 : payload.length());
             throw new IllegalArgumentException("merchant email delivery message required fields are missing");
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
             boolean delivered = deliveryService.deliver(message);
-            log.info("event: MERCHANT_EMAIL_DELIVERY_CONSUMED traceId: {} messageId: {} recordId: {} delivered: {}",
+            log.info("邮件投递消息消费完成, event: MERCHANT_EMAIL_DELIVERY_CONSUMED, traceId: {}, messageId: {}, recordId: {}, delivered: {}",
                     TraceContext.getTraceId(), message.getMessageId(), message.getRecordId(), delivered);
         } finally {
             TraceContext.clear();
@@ -78,7 +79,7 @@ public class MerchantEmailDeliveryConsumer implements RocketMQListener<String> {
         try {
             return JsonUtils.parseObject(payload, EmailDeliveryMessage.class);
         } catch (RuntimeException exception) {
-            log.error("event: MERCHANT_EMAIL_DELIVERY_DESERIALIZE_FAILED payloadLength: {} exceptionType: {}",
+            log.error("邮件投递消息反序列化失败, event: MERCHANT_EMAIL_DELIVERY_DESERIALIZE_FAILED, payloadLength: {}, exceptionType: {}",
                     payload.length(), exception.getClass().getSimpleName());
             throw new IllegalArgumentException("merchant email delivery payload is invalid", exception);
         }

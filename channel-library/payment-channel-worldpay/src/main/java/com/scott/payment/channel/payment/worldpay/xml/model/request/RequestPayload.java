@@ -76,14 +76,7 @@ public class RequestPayload {
          */
         private String description;
 
-        /**
-         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
+
         private Amount amount;
 
         /**
@@ -157,10 +150,6 @@ public class RequestPayload {
 
         /**
          * 卡编号，表示银行卡号或脱敏卡号字段。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；银行卡敏感字段，只允许脱敏或摘要化使用。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
          */
         private String cardNumber;
 
@@ -178,13 +167,7 @@ public class RequestPayload {
          */
         private String cardHolderName;
 
-        /**
-         * {@code cvc}，表示卡组织或 3DS 认证链路使用的安全认证值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * </p>
-         */
+
         private String cvc;
 
         /**
@@ -459,14 +442,7 @@ public class RequestPayload {
          */
         private DateValue date;
 
-        /**
-         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
+
         private Amount amount;
     }
 
@@ -485,14 +461,7 @@ public class RequestPayload {
          */
         private String reference;
 
-        /**
-         * 金额，表示当前交易、费用、限额或统计口径下的金额值。
-         * <p>
-         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：必须与 currency 或同名币种字段一起解释。
-         * </p>
-         */
+
         private Amount amount;
     }
 
@@ -542,14 +511,7 @@ public class RequestPayload {
          */
         private long value;
 
-        /**
-         * 币种编码，表示金额字段使用的币种。
-         * <p>
-         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值必须来自平台支持币种；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-         * </p>
-         */
+
         private String currencyCode;
 
         /**

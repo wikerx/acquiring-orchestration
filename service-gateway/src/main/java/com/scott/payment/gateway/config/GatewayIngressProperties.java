@@ -19,6 +19,8 @@ public class GatewayIngressProperties {
     private int maxRequestBodyBytes = 1024 * 1024;
 
     /**
+     * 获取网关与收银台服务共享的 HMAC 密钥。
+     *
      * @return 外部注入的 HMAC 共享密钥
      */
     public String getSecret() {
@@ -26,6 +28,8 @@ public class GatewayIngressProperties {
     }
 
     /**
+     * 设置网关与收银台服务共享的 HMAC 密钥。
+     *
      * @param secret 外部注入的 HMAC 共享密钥
      */
     public void setSecret(String secret) {

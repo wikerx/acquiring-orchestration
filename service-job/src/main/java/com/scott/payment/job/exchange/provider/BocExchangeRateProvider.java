@@ -17,17 +17,13 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * boc汇率汇率提供方协作组件，位于 调度任务服务，封装该业务的本地校验、转换或运行时协作入口。
+ * 中国银行外汇牌价适配器，抓取并解析人民币报价。
  */
 @Component
 public class BocExchangeRateProvider implements ExchangeRateProvider {
 
     /**
-     * 来源编码，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 中国银行汇率源编码，用于匹配汇率源配置。
      */
     public static final String SOURCE_CODE = "BOC";
 

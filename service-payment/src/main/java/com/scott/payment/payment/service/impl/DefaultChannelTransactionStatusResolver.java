@@ -100,6 +100,12 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
                     ? success(rawChannelStatus, channelResponseCode, channelResponseMessage)
                     : processing(rawChannelStatus, channelResponseCode, channelResponseMessage);
         }
+        // 撤销完成只能终结 VOID 动作，禁止把原支付或其他后续动作误推进成功。
+        if (ChannelTradeStatus.VOIDED.getCode().equals(channelTradeStatus)) {
+            return PaymentTransactionTypeEnum.VOID.getCode().equals(transactionType)
+                    ? success(rawChannelStatus, channelResponseCode, channelResponseMessage)
+                    : processing(rawChannelStatus, channelResponseCode, channelResponseMessage);
+        }
         // SUCCESS/FAILED 是渠道适配层已经确认的通用终态，不再依赖原始 message 判断。
         if (ChannelTradeStatus.SUCCESS.getCode().equals(channelTradeStatus)) {
             return success(rawChannelStatus, channelResponseCode, channelResponseMessage);

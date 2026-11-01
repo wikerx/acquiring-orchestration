@@ -117,6 +117,13 @@ public class ShardingQuarterResolver {
         return new ShardingQuarter(rule.getEndYear(), rule.getEndQuarter());
     }
 
+    /**
+     * 校验分表规则年份存在且季度位于一至四。
+     *
+     * @param year 规则年份
+     * @param quarter 规则季度
+     * @param label 起始或结束边界标签
+     */
     private void validateRuleQuarter(Integer year, Integer quarter, String label) {
         if (year == null || quarter == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), label + " sharding year and quarter are required");

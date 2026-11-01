@@ -24,6 +24,9 @@ public record VerifiedChannelEvent(String channelCode,
                                    String channelResponseMessage,
                                    Map<String, String> extension) {
 
+    /**
+     * 防御性复制渠道扩展证据，保证已认证事件在处理期间不可变。
+     */
     public VerifiedChannelEvent {
         extension = extension == null || extension.isEmpty()
                 ? Map.of()

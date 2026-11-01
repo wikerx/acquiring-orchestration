@@ -34,11 +34,7 @@ public class FrequencyRuleRuntime {
             "META-INF/payment/redis/scripts/v1/frequency-increment.lua";
 
     /**
-     * {@code FREQUENCY_INCREMENT_SCRIPT}常量，统一 {@code FrequencyRuleRuntime} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 原子递增固定窗口计数并设置首次过期时间的 Redis 脚本。
      */
     private static final DefaultRedisScript<Long> FREQUENCY_INCREMENT_SCRIPT = frequencyScript();
 

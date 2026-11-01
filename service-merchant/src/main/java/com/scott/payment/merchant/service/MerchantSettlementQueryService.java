@@ -40,11 +40,21 @@ public interface MerchantSettlementQueryService {
     BatchDetail getBatch(String merchantId, String settlementBatchNo);
 
     /**
+     * 查询当前商户指定结算批次的不可变凭证快照。
+     *
+     * @param merchantId 可信认证上下文中的商户号
+     * @param settlementBatchNo 结算批次号
      * @return 当前认证商户指定批次的完整凭证快照
      */
     BatchDetail getVoucher(String merchantId, String settlementBatchNo);
 
     /**
+     * 分页查询当前商户指定结算批次的结果汇总行。
+     *
+     * @param merchantId 可信认证上下文中的商户号
+     * @param settlementBatchNo 结算批次号
+     * @param pageNo 页码，从 1 开始
+     * @param pageSize 每页条数
      * @return 当前认证商户指定批次的结算汇总标准分页
      */
     PageResult<SummaryLine> searchResultSummaries(String merchantId,

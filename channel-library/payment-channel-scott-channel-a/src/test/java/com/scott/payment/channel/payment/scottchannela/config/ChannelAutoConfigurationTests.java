@@ -2,10 +2,10 @@ package com.scott.payment.channel.payment.scottchannela.config;
 
 import com.scott.payment.channel.payment.api.PaymentChannelCallbackProtocol;
 import com.scott.payment.channel.payment.api.PaymentChannelClient;
-import com.scott.payment.channel.payment.scottchannela.adapter.ScottChannelAPaymentAdapter;
+import com.scott.payment.channel.payment.scottchannela.adapter.PaymentChannelAdapter;
 import com.scott.payment.channel.payment.scottchannela.callback.CallbackHandler;
 import com.scott.payment.channel.payment.scottchannela.callback.CallbackVerifier;
-import com.scott.payment.channel.payment.scottchannela.callback.ScottChannelACallbackProtocol;
+import com.scott.payment.channel.payment.scottchannela.callback.CallbackProtocol;
 import com.scott.payment.channel.payment.scottchannela.client.PaymentApiClient;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -20,22 +20,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 验证 ScottChannelA 收单自动配置的装配条件、Bean 唯一名称和元数据入口。
  **/
-class ScottChannelAAutoConfigurationTests {
+class ChannelAutoConfigurationTests {
 
     private static final String AUTO_CONFIGURATION_IMPORTS =
             "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports";
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(ScottChannelAAutoConfiguration.class));
+            .withConfiguration(AutoConfigurations.of(ChannelAutoConfiguration.class));
 
     @Test
     void shouldRegisterPaymentAndCallbackComponentsByDefault() {
         contextRunner.run(context -> {
             assertThat(context).hasSingleBean(PaymentApiClient.class);
-            assertThat(context).hasSingleBean(ScottChannelAPaymentAdapter.class);
+            assertThat(context).hasSingleBean(PaymentChannelAdapter.class);
             assertThat(context).hasSingleBean(CallbackVerifier.class);
             assertThat(context).hasSingleBean(CallbackHandler.class);
-            assertThat(context).hasSingleBean(ScottChannelACallbackProtocol.class);
+            assertThat(context).hasSingleBean(CallbackProtocol.class);
             assertThat(context.getBeansOfType(PaymentChannelClient.class)).hasSize(1);
             assertThat(context.getBeansOfType(PaymentChannelCallbackProtocol.class)).hasSize(1);
             assertThat(context).hasBean("scottChannelAPaymentApiClient");
@@ -49,8 +49,8 @@ class ScottChannelAAutoConfigurationTests {
         contextRunner.withPropertyValues("payment.channel.scott-channel-a.enabled=false")
                 .run(context -> {
                     assertThat(context).doesNotHaveBean(PaymentApiClient.class);
-                    assertThat(context).doesNotHaveBean(ScottChannelAPaymentAdapter.class);
-                    assertThat(context).doesNotHaveBean(ScottChannelACallbackProtocol.class);
+                    assertThat(context).doesNotHaveBean(PaymentChannelAdapter.class);
+                    assertThat(context).doesNotHaveBean(CallbackProtocol.class);
                 });
     }
 
@@ -60,6 +60,6 @@ class ScottChannelAAutoConfigurationTests {
                 .getContentAsString(StandardCharsets.UTF_8);
 
         assertThat(imports.lines()).contains(
-                "com.scott.payment.channel.payment.scottchannela.config.ScottChannelAAutoConfiguration");
+                "com.scott.payment.channel.payment.scottchannela.config.ChannelAutoConfiguration");
     }
 }

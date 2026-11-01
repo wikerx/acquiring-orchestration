@@ -70,6 +70,12 @@ acquiring:
     protect-portal-paths: false
 
 payment:
+  merchant:
+    default-login:
+      # sample 环境始终使用安全默认值；即使误开启，应用服务也不会返回凭据。
+      enabled: false
+      login-account: admin
+      password: ""
   mfa:
     # sample 不属于本地可信环境，必须显式注入，不提供公开默认值。
     secret: ${PAYMENT_MFA_SECRET:}

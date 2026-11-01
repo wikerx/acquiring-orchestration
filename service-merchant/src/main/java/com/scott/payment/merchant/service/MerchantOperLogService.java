@@ -7,7 +7,7 @@ import com.scott.payment.merchant.dto.SysOperLogRecordRequest;
 
 
 /**
- * 商户oper日志服务契约，位于 商户后台服务，声明该业务能力的输入、返回结果和异常边界，由实现类保持一致。
+ * 商户操作日志查询与持久化服务契约。
  */
 public interface MerchantOperLogService {
 

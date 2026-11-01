@@ -95,6 +95,9 @@ public final class PaymentCacheNames {
      */
     public static final String EMAIL_TEMPLATE_ENABLED = "email:template:enabled";
 
+    /**
+     * 禁止实例化共享缓存名称注册表。
+     */
     private PaymentCacheNames() {
     }
 }

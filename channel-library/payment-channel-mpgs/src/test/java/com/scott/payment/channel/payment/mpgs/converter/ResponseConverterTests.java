@@ -88,6 +88,44 @@ class ResponseConverterTests {
     }
 
     /**
+     * MPGS 增加新的顶层结果值时不能在缺少失败证据的情况下直接关闭交易。
+     **/
+    @Test
+    void shouldKeepUnrecognizedResultProcessing() {
+        ResponsePayload payload = successPayload("PROVIDER_ADDED_RESULT");
+
+        ChannelPaymentResponse response = mapper.toChannelResponse(request(), payload);
+
+        assertThat(response.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.PROCESSING.getCode());
+    }
+
+    /**
+     * 顶层请求成功但收单响应码缺失时结果仍不确定，必须等待查询或回调补全证据。
+     **/
+    @Test
+    void shouldKeepSuccessWithoutAcquirerCodeProcessing() {
+        ResponsePayload payload = successPayload("SUCCESS");
+        payload.getResponse().setAcquirerCode(null);
+
+        ChannelPaymentResponse response = mapper.toChannelResponse(request(), payload);
+
+        assertThat(response.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.PROCESSING.getCode());
+    }
+
+    /**
+     * MPGS 明确返回失败类顶层结果时应映射为失败终态。
+     **/
+    @Test
+    void shouldMapExplicitFailureResultAsFailed() {
+        ResponsePayload payload = new ResponsePayload();
+        payload.setResult("FAILURE");
+
+        ChannelPaymentResponse response = mapper.toChannelResponse(request(), payload);
+
+        assertThat(response.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.FAILED.getCode());
+    }
+
+    /**
      * 验证 MPGS 错误响应映射：保留渠道真实失败原因，供后台排查；商户和付款人展示文案由上层服务再做模糊化。
      */
     @Test

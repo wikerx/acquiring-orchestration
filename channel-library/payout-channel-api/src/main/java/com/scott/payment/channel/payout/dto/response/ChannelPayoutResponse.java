@@ -81,6 +81,11 @@ public class ChannelPayoutResponse implements Serializable {
     private Integer httpStatus;
 
     /**
+     * 渠道真实 HTTP 方法，用于内部审计和排障。
+     */
+    private String httpMethod;
+
+    /**
      * 脱敏后的渠道请求 URL。
      */
     private String requestUrlMasked;
@@ -94,4 +99,14 @@ public class ChannelPayoutResponse implements Serializable {
      * 脱敏后的渠道请求体摘要。
      */
     private String requestBodyJsonMasked;
+
+    /**
+     * 脱敏后的渠道响应头 JSON，只保留受控诊断字段。
+     */
+    private String responseHeaderJsonMasked;
+
+    /**
+     * 脱敏后的渠道原始响应体 JSON。
+     */
+    private String responseBodyJsonMasked;
 }

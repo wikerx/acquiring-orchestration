@@ -33,13 +33,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Applies session and notification side effects for merchant freeze state transitions.
+ * 管理端商户状态生命周期服务，在商户冻结或解冻后处理会话失效和邮件通知。
  */
 @Slf4j
 @Service
 public class AdminMerchantStatusLifecycleService {
 
+    /**
+     * 商户冻结通知使用的邮件模板编码。
+     */
     public static final String TEMPLATE_FROZEN = "MERCHANT_FROZEN";
+
+    /**
+     * 商户解冻通知使用的邮件模板编码。
+     */
     public static final String TEMPLATE_UNFROZEN = "MERCHANT_UNFROZEN";
     private static final String SCENE = "MERCHANT_STATUS_CHANGED";
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -72,10 +79,11 @@ public class AdminMerchantStatusLifecycleService {
     }
 
     /**
-     * 响应{@code onStatusChanged}事件，按所属服务的事务提交顺序执行后续联动。
-     * @param merchant 已读取的商户资料记录，状态变更前必须校验当前版本和目标状态
-     * @param targetStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
-     * @param operationTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * 处理商户冻结状态变更；冻结时注销现有会话，并在事务提交后发送状态通知。
+     *
+     * @param merchant 已完成状态变更的商户资料
+     * @param targetStatus 商户目标状态，2 表示冻结，其他允许状态按解冻处理
+     * @param operationTime 状态变更时间
      */
     public void onStatusChanged(BaseMerchantInfoDO merchant, int targetStatus, LocalDateTime operationTime) {
         SysAppDO app = merchantApp();

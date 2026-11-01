@@ -9,16 +9,13 @@ import java.util.regex.Pattern;
  */
 public final class IsoCurrencyIconKey {
 
-    /**
-     * 标识密钥常量，统一 ISO币种图标密钥 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final Pattern FLAG_KEY = Pattern.compile("^FLAG:([A-Z]{2})$");
     private static final Pattern CURRENCY_KEY = Pattern.compile("^CURRENCY:([A-Z0-9]{3,12})$");
 
+    /**
+     * 禁止实例化币种图标键校验工具类。
+     */
     private IsoCurrencyIconKey() {
     }
 
@@ -52,6 +49,12 @@ public final class IsoCurrencyIconKey {
         throw new IllegalArgumentException("currency icon key must use flag:XX or currency:CODE");
     }
 
+    /**
+     * 判断文本是否包含非空白字符。
+     *
+     * @param value 待检查文本
+     * @return 包含有效字符时返回 true
+     */
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }

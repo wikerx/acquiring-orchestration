@@ -63,7 +63,7 @@ public class ResponseConverter {
         ResponseDetails details = responseDetails(response);
         String rawStatus = details.rawStatus();
         target.setRawChannelStatus(rawStatus);
-        target.setChannelTradeStatus(tradeStatusMapper.map(rawStatus));
+        target.setChannelTradeStatus(tradeStatusMapper.map(rawStatus, effectiveTransactionType(request)));
         target.setChannelResponseCode(details.responseCode());
         target.setChannelResponseMessage(details.responseMessage());
         target.setAuthCode(firstText(response.getAuthorizationCode(), issuerAuthorizationCode(response)));
@@ -298,6 +298,21 @@ public class ResponseConverter {
      */
     private String issuerAcquirerReference(ResponsePayload response) {
         return response == null || response.getIssuer() == null ? null : response.getIssuer().getAcquirerReferenceNumber();
+    }
+
+    /**
+     * 查询响应沿用原交易类型解释撤销等动作状态。
+     *
+     * @param request 平台统一渠道请求
+     * @return 查询动作对应的原交易类型；非查询动作返回当前交易类型
+     */
+    private String effectiveTransactionType(ChannelPaymentRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return "QUERY".equalsIgnoreCase(request.getTransactionType())
+                ? request.getExtension().get("originalTransactionType")
+                : request.getTransactionType();
     }
 
     /**

@@ -24,6 +24,9 @@ public final class PasswordPolicy {
      */
     private static final Pattern PATTERN = Pattern.compile(REGEX);
 
+    /**
+     * 禁止实例化统一密码策略工具类。
+     */
     private PasswordPolicy() {
     }
 

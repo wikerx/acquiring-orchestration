@@ -10,7 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 汇率汇率提供方注册表协作组件，位于 调度任务服务，封装该业务的本地校验、转换或运行时协作入口。
+ * 汇率源适配器注册表，按稳定来源编码选择对应外部报价提供器。
  */
 @Component
 public class ExchangeRateProviderRegistry {

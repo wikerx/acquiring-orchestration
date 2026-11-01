@@ -22,7 +22,14 @@ import java.time.LocalDateTime;
 @Service
 public class CardBinCacheInvalidationCoordinator {
 
+    /**
+     * Card BIN 范围索引在 Redis 中使用的缓存命名空间。
+     */
     public static final String CACHE_NAMESPACE = "card-bin-range";
+
+    /**
+     * 缓存代际发布门闩的有效期，防止发布事务异常后长期阻塞后续刷新。
+     */
     static final Duration PUBLICATION_GATE_TTL = Duration.ofMinutes(30);
 
     private final Object transactionResourceKey = new Object();

@@ -11,6 +11,9 @@ import java.util.List;
  */
 public final class JsonUtils {
 
+    /**
+     * 禁止实例化统一 JSON 工具类。
+     */
     private JsonUtils() {
     }
 
@@ -69,6 +72,12 @@ public final class JsonUtils {
         return JSON.parseArray(json, clazz);
     }
 
+    /**
+     * 判断 JSON 文本是否为空，供各反序列化入口统一处理空输入。
+     *
+     * @param value 待检查文本
+     * @return null、空串或纯空白时返回 true
+     */
     private static boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }

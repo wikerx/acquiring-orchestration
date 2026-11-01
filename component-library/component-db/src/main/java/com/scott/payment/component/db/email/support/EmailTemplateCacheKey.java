@@ -9,6 +9,9 @@ import java.util.Locale;
  */
 public final class EmailTemplateCacheKey {
 
+    /**
+     * 禁止实例化邮件模板缓存键工具类。
+     */
     private EmailTemplateCacheKey() {
     }
 

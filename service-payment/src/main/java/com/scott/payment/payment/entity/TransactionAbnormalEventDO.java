@@ -18,18 +18,10 @@ public class TransactionAbnormalEventDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /**
-     * {@code TransactionAbnormalEventDO} 数据库主键，用于唯一标识当前记录。
-     */
+
     @TableId(type = IdType.AUTO)
     private Long id;
-    /**
-     * {@code abnormalEventId}，用于定位 {@code TransactionAbnormalEventDO} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private String abnormalEventId;
     /**
      * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
@@ -41,48 +33,21 @@ public class TransactionAbnormalEventDO implements Serializable {
     private String operationId;
     /**
      * {@code abnormalType}，用于区分 {@code TransactionAbnormalEventDO} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String abnormalType;
     /**
      * 持久化的{@code abnormalLevel}，用于还原当前记录的业务事实。
      */
     private String abnormalLevel;
-    /**
-     * {@code eventStatus}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
+
     private String eventStatus;
     /**
      * 来源记录类型，用于区分 {@code TransactionAbnormalEventDO} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String sourceRecordType;
-    /**
-     * 来源记录ID，用于定位 {@code TransactionAbnormalEventDO} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private String sourceRecordId;
-    /**
-     * {@code abnormalDescription}，用于保存人工备注、交易说明或配置补充说明。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private String abnormalDescription;
     /**
      * 持久化的{@code rawReferenceJson}，用于还原当前记录的业务事实。
@@ -136,14 +101,7 @@ public class TransactionAbnormalEventDO implements Serializable {
      * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
      */
     private String transactionType;
-    /**
-     * 平台状态，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
+
     private String platformStatus;
     /**
      * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
@@ -157,14 +115,7 @@ public class TransactionAbnormalEventDO implements Serializable {
      * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
      */
     private String channelTransactionId;
-    /**
-     * 渠道状态，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
+
     private String channelStatus;
     /**
      * 持久化的渠道匹配结果，用于还原当前记录的业务事实。
@@ -174,50 +125,15 @@ public class TransactionAbnormalEventDO implements Serializable {
      * 持久化的{@code detectSource}，用于还原当前记录的业务事实。
      */
     private String detectSource;
-    /**
-     * 平台币种，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private String platformCurrency;
-    /**
-     * 平台金额，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal platformAmount;
-    /**
-     * 渠道币种，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private String channelCurrency;
-    /**
-     * 渠道金额，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal channelAmount;
-    /**
-     * {@code amountDifference}，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal amountDifference;
     /**
      * 交易币种的小数位数，用于主币种单位与最小货币单位之间的精确转换。
@@ -227,29 +143,11 @@ public class TransactionAbnormalEventDO implements Serializable {
      * 持久化的{@code lastSeenTime}，用于还原当前记录的业务事实。
      */
     private LocalDateTime lastSeenTime;
-    /**
-     * {@code occurrenceCount}，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private Integer occurrenceCount;
-    /**
-     * {@code assignedToId}，用于定位 {@code TransactionAbnormalEventDO} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private String assignedToId;
-    /**
-     * {@code assignedToName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private String assignedToName;
     /**
      * 持久化的{@code assignedTime}，用于还原当前记录的业务事实。
@@ -257,31 +155,15 @@ public class TransactionAbnormalEventDO implements Serializable {
     private LocalDateTime assignedTime;
     /**
      * {@code resolutionType}，用于区分 {@code TransactionAbnormalEventDO} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String resolutionType;
-    /**
-     * {@code resolutionReferenceId}，用于定位 {@code TransactionAbnormalEventDO} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private String resolutionReferenceId;
     /**
      * 持久化的商户通知必需标识，用于还原当前记录的业务事实。
      */
     private Integer merchantNotifyRequired;
-    /**
-     * 版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private Integer version;
     /**
      * 逻辑删除标识；0 表示有效，1 表示已删除，查询必须沿用统一软删除口径。

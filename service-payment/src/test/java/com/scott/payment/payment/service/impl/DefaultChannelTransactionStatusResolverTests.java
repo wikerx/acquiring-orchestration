@@ -87,4 +87,36 @@ class DefaultChannelTransactionStatusResolverTests {
         assertThat(resolution.getTargetStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
         assertThat(resolution.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
     }
+
+    /**
+     * 渠道统一 VOIDED 只允许平台 VOID 动作进入成功终态。
+     */
+    @Test
+    void shouldCompleteVoidWhenUnifiedChannelStatusIsVoided() {
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelCode("PROVIDER_D");
+        response.setChannelTradeStatus("VOIDED");
+        response.setRawChannelStatus("CANCELLED");
+
+        ChannelTransactionStatusResolution resolution = new DefaultChannelTransactionStatusResolver()
+                .resolveSync("PROVIDER_D", PaymentTransactionTypeEnum.VOID.getCode(), response);
+
+        assertThat(resolution.getTargetStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(resolution.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+    }
+
+    /**
+     * 非 VOID 动作收到 VOIDED 时保持处理中，避免误终结原交易。
+     */
+    @Test
+    void shouldNotCompletePaymentWhenUnifiedChannelStatusIsVoided() {
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelCode("PROVIDER_D");
+        response.setChannelTradeStatus("VOIDED");
+
+        ChannelTransactionStatusResolution resolution = new DefaultChannelTransactionStatusResolver()
+                .resolveSync("PROVIDER_D", PaymentTransactionTypeEnum.PAYMENT.getCode(), response);
+
+        assertThat(resolution.getTargetStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+    }
 }

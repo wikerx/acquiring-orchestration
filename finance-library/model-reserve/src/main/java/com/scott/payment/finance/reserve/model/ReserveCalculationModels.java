@@ -11,6 +11,9 @@ import java.util.Objects;
  */
 public final class ReserveCalculationModels {
 
+    /**
+     * 禁止实例化仅承载保证金计算契约的工具类。
+     */
     private ReserveCalculationModels() {
     }
 
@@ -20,23 +23,14 @@ public final class ReserveCalculationModels {
     public enum ReserveActionType {
         /**
          * HOLD 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         HOLD,
         /**
          * RETURN 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         RETURN,
         /**
          * RELEASE 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         RELEASE,
         ADJUSTMENT
@@ -48,9 +42,6 @@ public final class ReserveCalculationModels {
     public enum ReserveAdjustmentDirection {
         /**
          * DEBIT 枚举值，表示当前枚举定义中的一个受控业务取值。
-         * <p>
-         * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-         * </p>
          */
         DEBIT,
         CREDIT
@@ -67,6 +58,9 @@ public final class ReserveCalculationModels {
                                      BigDecimal reserveRate,
                                      RoundingMode roundingMode) {
 
+        /**
+         * 校验扣留基数、冻结保证金比例和舍入规则。
+         */
         public ReserveHoldCommand {
             Objects.requireNonNull(labelAmount, "label amount is required");
             requireNonNegative(labelAmount, "label amount");
@@ -94,6 +88,9 @@ public final class ReserveCalculationModels {
                                        Money returnedReserveAmountBefore,
                                        RoundingMode roundingMode) {
 
+        /**
+         * 校验退款累计、原扣留和已返还保证金事实处于同一标签币种。
+         */
         public ReserveReturnCommand {
             Objects.requireNonNull(refundLabelAmount, "refund label amount is required");
             Objects.requireNonNull(originalLabelAmount, "original label amount is required");
@@ -133,6 +130,9 @@ public final class ReserveCalculationModels {
     public record ReserveReleaseCommand(Money currentRemainingAmount,
                                         BigDecimal originalReserveRate) {
 
+        /**
+         * 校验到期释放金额为符合原标签币种精度的正数。
+         */
         public ReserveReleaseCommand {
             Objects.requireNonNull(currentRemainingAmount, "current remaining reserve is required");
             validateRate(originalReserveRate);
@@ -157,6 +157,9 @@ public final class ReserveCalculationModels {
                                            ReserveAdjustmentDirection direction,
                                            BigDecimal originalReserveRate) {
 
+        /**
+         * 校验差额调整方向、币种一致性和信用调整上限。
+         */
         public ReserveAdjustmentCommand {
             Objects.requireNonNull(currentRemainingAmount, "current remaining reserve is required");
             Objects.requireNonNull(adjustmentAmount, "reserve adjustment amount is required");
@@ -192,6 +195,9 @@ public final class ReserveCalculationModels {
                                            Money amount,
                                            Money remainingAmount) {
 
+        /**
+         * 固化扣留、返还或释放动作的基数、比例和剩余保证金。
+         */
         public ReserveCalculationResult {
             Objects.requireNonNull(actionType, "reserve action type is required");
             Objects.requireNonNull(basisAmount, "reserve basis amount is required");
@@ -219,6 +225,9 @@ public final class ReserveCalculationModels {
                                           Money amount,
                                           Money remainingAmount) {
 
+        /**
+         * 固化保证金差额调整前后金额和调整方向。
+         */
         public ReserveAdjustmentResult {
             Objects.requireNonNull(direction, "reserve adjustment direction is required");
             Objects.requireNonNull(basisAmount, "reserve adjustment basis is required");
@@ -256,16 +265,34 @@ public final class ReserveCalculationModels {
         }
     }
 
+    /**
+     * 判断金额是否无需舍入即可符合其币种 exponent。
+     *
+     * @param amount 待检查金额
+     * @return 金额有效小数位不超过币种 exponent 时返回 {@code true}
+     */
     private static boolean conformsToExponent(Money amount) {
         return amount.amount().stripTrailingZeros().scale() <= amount.exponent();
     }
 
+    /**
+     * 校验保证金金额非负。
+     *
+     * @param money     待校验金额
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requireNonNegative(Money money, String fieldName) {
         if (money.amount().signum() < 0) {
             throw new IllegalArgumentException(fieldName + " must not be negative");
         }
     }
 
+    /**
+     * 校验保证金金额严格大于零。
+     *
+     * @param money     待校验金额
+     * @param fieldName 错误消息使用的字段名
+     */
     private static void requirePositive(Money money, String fieldName) {
         if (money.amount().signum() <= 0) {
             throw new IllegalArgumentException(fieldName + " must be positive");

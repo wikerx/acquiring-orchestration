@@ -17,7 +17,7 @@ import java.util.Set;
 /**
  * 使用原始请求体、MID 级密钥和纯文本 ACK 的 ScottChannelA 回调协议。
  **/
-public class ScottChannelACallbackProtocol implements PaymentChannelCallbackProtocol {
+public class CallbackProtocol implements PaymentChannelCallbackProtocol {
 
     private static final ChannelCallbackProtocolDescriptor DESCRIPTOR =
             new ChannelCallbackProtocolDescriptor(
@@ -36,7 +36,7 @@ public class ScottChannelACallbackProtocol implements PaymentChannelCallbackProt
      * @param verifier 基于原始 HTTP 请求体执行 HMAC-SHA256 验签的认证器
      * @param parser 验签通过后解析交易身份、状态和渠道证据的解析器
      **/
-    public ScottChannelACallbackProtocol(CallbackVerifier verifier, CallbackHandler parser) {
+    public CallbackProtocol(CallbackVerifier verifier, CallbackHandler parser) {
         this.verifier = verifier;
         this.parser = parser;
     }

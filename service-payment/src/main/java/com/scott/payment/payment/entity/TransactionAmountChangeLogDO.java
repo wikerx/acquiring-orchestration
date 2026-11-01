@@ -18,20 +18,11 @@ public class TransactionAmountChangeLogDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /**
-     * {@code TransactionAmountChangeLogDO} 数据库主键，用于唯一标识当前记录。
-     */
+
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /**
-     * 金额变更ID，用于定位 {@code TransactionAmountChangeLogDO} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private String amountChangeId;
 
     /**
@@ -51,31 +42,13 @@ public class TransactionAmountChangeLogDO implements Serializable {
 
     /**
      * 变更类型，用于区分 {@code TransactionAmountChangeLogDO} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String changeType;
 
-    /**
-     * 金额币种，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private String amountCurrency;
 
-    /**
-     * 变更金额，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal changeAmount;
 
     /**

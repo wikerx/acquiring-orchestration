@@ -58,6 +58,11 @@ public class ClearingInternalClientConfig {
                 .additionalInterceptors(traceInterceptor).build();
     }
 
+    /**
+     * 在创建任一客户端前执行同一套地址、凭据和超时门禁。
+     *
+     * @param properties 清分内部客户端配置
+     */
     private void validate(ClearingInternalClientProperties properties) {
         properties.validate();
     }

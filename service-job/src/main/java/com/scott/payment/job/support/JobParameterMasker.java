@@ -25,14 +25,13 @@ public final class JobParameterMasker {
     );
 
     /**
-     * 脱敏值常量，统一 {@code JobParameterMasker} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 敏感任务参数在日志摘要中的固定替代值。
      */
     private static final String MASKED_VALUE = "******";
 
+    /**
+     * 禁止实例化无状态任务参数脱敏类。
+     */
     private JobParameterMasker() {
     }
 

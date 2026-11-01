@@ -88,6 +88,26 @@ class ExchangeRateFetchServiceImplTest {
     }
 
     @Test
+    void shouldDescribeZeroAdjustmentWhenNoneRuleHasNullAdjustValue() {
+        ExchangeRateRuleDO rule = transactionRule();
+        rule.setAdjustDirection("NONE");
+        rule.setAdjustValue(null);
+        when(sourceMapper.selectOne(any())).thenReturn(source());
+        when(rawRateMapper.selectCount(any())).thenReturn(0L);
+        when(ruleMapper.selectList(any())).thenReturn(List.of(rule));
+        when(businessRateMapper.selectList(any())).thenReturn(List.of());
+
+        ExchangeRateFetchResult result = service.fetch(new ExchangeRateFetchRequest(), null);
+
+        assertThat(result.getFetchStatus()).isEqualTo("SUCCESS");
+        ArgumentCaptor<ExchangeBusinessRateDO> captor = ArgumentCaptor.forClass(ExchangeBusinessRateDO.class);
+        verify(businessRateMapper).insert(captor.capture());
+        ExchangeBusinessRateDO businessRate = captor.getValue();
+        assertThat(businessRate.getFinalRate()).isEqualByComparingTo("7.18650000");
+        assertThat(businessRate.getAdjustDescription()).contains("NONE 0 BP");
+    }
+
+    @Test
     void shouldNotGenerateBusinessRateWhenDuplicatedRawRateAlreadyHasGeneratedRate() {
         when(sourceMapper.selectOne(any())).thenReturn(source());
         when(rawRateMapper.selectCount(any())).thenReturn(1L);

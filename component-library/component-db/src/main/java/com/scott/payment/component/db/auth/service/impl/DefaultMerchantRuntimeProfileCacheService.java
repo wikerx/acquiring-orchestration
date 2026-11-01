@@ -164,6 +164,12 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
         // Spring Cache 负责删除物理缓存，本方法只表达跨模块失效语义。
     }
 
+    /**
+     * 查询商户资料短期不存在标记；存储不可用时返回 UNAVAILABLE 并继续回源数据库。
+     *
+     * @param merchantId 商户号
+     * @return miss marker 查询状态
+     */
     private CacheMissMarkerStore.LookupStatus lookupMissMarker(String merchantId) {
         if (missMarkerStore == null) {
             return CacheMissMarkerStore.LookupStatus.UNAVAILABLE;
@@ -176,13 +182,19 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_READ_FAILED exceptionType: {}",
+                    "商户运行时资料缺失标记读取失败, "
+                            + "event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_READ_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
             return CacheMissMarkerStore.LookupStatus.UNAVAILABLE;
         }
     }
 
+    /**
+     * 仅在主库确认商户不存在后写入有界生命周期的不存在标记。
+     *
+     * @param merchantId 已由主库确认不存在的商户号
+     */
     private void markConfirmedMissing(String merchantId) {
         if (missMarkerStore == null) {
             return;
@@ -197,7 +209,8 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_WRITE_FAILED exceptionType: {}",
+                    "商户运行时资料缺失标记写入失败, "
+                            + "event: MERCHANT_RUNTIME_PROFILE_MISS_MARKER_WRITE_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
         }
@@ -228,7 +241,8 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
             );
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: SECURITY_CACHE_GUARD_CHECK_FAILED cacheName: {} exceptionType: {}",
+                    "安全缓存门禁检查失败, event: SECURITY_CACHE_GUARD_CHECK_FAILED, "
+                            + "cacheName: {}, exceptionType: {}",
                     PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
                     exception.getClass().getSimpleName()
             );

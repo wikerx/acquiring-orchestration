@@ -25,7 +25,7 @@ import java.time.ZoneId;
 import java.util.Locale;
 
 /**
- * 商户主体资料领域服务实现，以 base_merchant_info 为事实源并与 Admin、OpenAPI 共用 merchant:info 永久缓存
+ * 商户主体资料领域服务实现，以商户主档为事实源并与管理端、OpenAPI 共用商户资料缓存。
  */
 @Service
 public class MerchantProfileServiceImpl implements MerchantProfileService {

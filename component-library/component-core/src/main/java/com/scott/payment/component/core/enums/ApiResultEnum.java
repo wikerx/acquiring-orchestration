@@ -111,9 +111,6 @@ public enum ApiResultEnum implements IResult {
     MERCHANT_INVALID("F401009", "Merchant is invalid or unavailable"),
     /**
      * MERCHANT FROZEN 枚举值，表示当前枚举定义中的一个受控业务取值。
-     * <p>
-     * 单位：无；格式：枚举常量；非敏感字段；不允许在业务状态流转中使用未声明取值。
-     * </p>
      */
     MERCHANT_FROZEN("F401010", "Merchant account is frozen"),
 
@@ -306,6 +303,12 @@ public enum ApiResultEnum implements IResult {
      */
     private final String message;
 
+    /**
+     * 创建统一接口结果定义。
+     *
+     * @param code 对外稳定响应码
+     * @param message 对外安全响应描述
+     */
     ApiResultEnum(String code, String message) {
         this.code = code;
         this.message = message;

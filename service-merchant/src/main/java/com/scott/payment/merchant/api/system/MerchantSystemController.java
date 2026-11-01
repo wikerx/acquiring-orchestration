@@ -1,4 +1,4 @@
-package com.scott.payment.merchant.controller;
+package com.scott.payment.merchant.api.system;
 
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
@@ -49,7 +49,7 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 商户系统 HTTP 控制器，位于 商户后台服务，只承接参数、鉴权注解和统一响应，业务编排委托应用服务。
+ * 商户组织与权限管理控制器，提供部门、岗位、员工账号、角色和授权关系接口。
  */
 @RestController
 @RequestMapping("/merchant/system")

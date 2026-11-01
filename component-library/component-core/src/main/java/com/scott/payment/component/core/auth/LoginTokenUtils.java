@@ -24,6 +24,9 @@ public final class LoginTokenUtils {
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * 禁止实例化登录令牌工具类。
+     */
     private LoginTokenUtils() {
     }
 

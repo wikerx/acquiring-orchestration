@@ -30,9 +30,24 @@ import java.util.Map;
 @Service
 public class AdminMerchantSecurityNotificationService {
 
+    /**
+     * 商户 API 密钥首次创建通知使用的邮件模板编码。
+     */
     public static final String TEMPLATE_CREATED = "API_KEY_CREATED";
+
+    /**
+     * 商户 API 密钥重置通知使用的邮件模板编码。
+     */
     public static final String TEMPLATE_RESET = "API_KEY_RESET";
+
+    /**
+     * 商户 API 密钥启用通知使用的邮件模板编码。
+     */
     public static final String TEMPLATE_ENABLED = "API_KEY_ENABLED";
+
+    /**
+     * 商户 API 密钥停用通知使用的邮件模板编码。
+     */
     public static final String TEMPLATE_DISABLED = "API_KEY_DISABLED";
     private static final String SCENE = "API_KEY_CHANGED";
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

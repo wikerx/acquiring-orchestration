@@ -17,6 +17,9 @@ public final class EmailDeliveryFailureSummary {
     private static final String ENCRYPTION_KEY_MISMATCH =
             "邮件加密数据无法解密，请确认邮件加密主密钥一致，或重新录入 SMTP 授权码";
 
+    /**
+     * 禁止实例化邮件失败摘要工具类。
+     */
     private EmailDeliveryFailureSummary() {
     }
 

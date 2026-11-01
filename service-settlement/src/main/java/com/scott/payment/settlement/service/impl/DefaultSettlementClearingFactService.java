@@ -35,37 +35,13 @@ import java.util.Set;
 @Service
 public class DefaultSettlementClearingFactService implements SettlementClearingFactService {
 
-    /**
-     * {@code ACTIVE}常量，统一 {@code DefaultSettlementClearingFactService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String ACTIVE = "ACTIVE";
-    /**
-     * {@code CLEARING_REVISION}常量，统一 {@code DefaultSettlementClearingFactService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String CLEARING_REVISION = "CLEARING_REVISION";
-    /**
-     * {@code RESERVE_RELEASE}常量，统一 {@code DefaultSettlementClearingFactService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String RESERVE_RELEASE = "RESERVE_RELEASE";
-    /**
-     * {@code ADJUSTMENT}常量，统一 {@code DefaultSettlementClearingFactService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String ADJUSTMENT = "ADJUSTMENT";
     private static final Set<String> SOURCE_TYPES = Set.of(
             CLEARING_REVISION, RESERVE_RELEASE, ADJUSTMENT);

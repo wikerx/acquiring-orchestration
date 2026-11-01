@@ -47,7 +47,8 @@ public class DictionaryOptionCacheCondition {
             return !invalidationGuard.isPending(PaymentCacheNames.SYSTEM_DICT_OPTIONS, businessKey);
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: DICTIONARY_OPTION_CACHE_GUARD_CHECK_FAILED exceptionType: {}",
+                    "数据字典缓存门禁检查失败, event: DICTIONARY_OPTION_CACHE_GUARD_CHECK_FAILED, "
+                            + "exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
             return false;

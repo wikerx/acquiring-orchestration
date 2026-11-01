@@ -22,6 +22,9 @@ public record ChannelCallbackAcknowledgement(int statusCode,
         PLATFORM_SUCCESS_ENVELOPE
     }
 
+    /**
+     * 校验确认响应只能使用 2xx 状态，并为响应体模式提供安全默认值。
+     */
     public ChannelCallbackAcknowledgement {
         if (statusCode < 200 || statusCode > 299) {
             throw new IllegalArgumentException("callback acknowledgement must use a 2xx status");

@@ -3,9 +3,11 @@ package com.scott.payment.channel.payment.scottchannela.client;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
+import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.channel.payment.exception.ChannelResponseException;
 import com.scott.payment.channel.payment.scottchannela.config.ChannelProperties;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -45,13 +47,15 @@ class PaymentApiClientTests {
 
     @AfterEach
     void tearDown() {
-        server.stop(0);
+        if (server != null) {
+            server.stop(0);
+        }
     }
 
     @Test
     void shouldUseConfiguredVersionAndDirectPayinPath() {
         ChannelProperties properties = properties();
-        PaymentApiClient client = new PaymentApiClient(properties);
+        PaymentApiClient client = paymentClient(properties);
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("PAYMENT");
         request.setTransactionId("CMT-001");
@@ -71,10 +75,23 @@ class PaymentApiClientTests {
         assertThat(payload).containsKey("requestTime");
     }
 
+    /**
+     * 默认客户端使用生产级出站策略，必须在发送前拒绝 HTTP 和回环地址。
+     **/
+    @Test
+    void shouldRejectLocalHttpTargetWithDefaultOutboundPolicy() {
+        PaymentApiClient client = new PaymentApiClient(properties());
+        ChannelPaymentRequest request = cardlessPaymentRequest("CMT-STRICT-URL-001");
+
+        assertThatThrownBy(() -> client.execute(request))
+                .isInstanceOf(ChannelRequestException.class)
+                .hasMessageContaining("outbound URL policy");
+    }
+
     @Test
     void shouldUseChannelRequestUrlInsteadOfMidApiBaseUrl() {
         ChannelProperties properties = properties();
-        PaymentApiClient client = new PaymentApiClient(properties);
+        PaymentApiClient client = paymentClient(properties);
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("PAYMENT");
         request.setMerchantOrderNo("ORDER-CHANNEL-URL");
@@ -91,7 +108,7 @@ class PaymentApiClientTests {
 
     @Test
     void shouldSendOnlyMerchantOrderNoForPayinQueryWhenTransactionIdIsAbsent() {
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("QUERY");
         request.setMerchantOrderNo("ORDER-QUERY-001");
@@ -108,7 +125,7 @@ class PaymentApiClientTests {
     void shouldUseOriginalPaymentTransactionIdForRefund() {
         responseStatus.set(201);
         responseBody.set(refundResponse());
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("REFUND");
         request.setTransactionId("CMT-REFUND-ACTION");
@@ -143,7 +160,7 @@ class PaymentApiClientTests {
     void shouldNormalizeRefundAmountToTwoDecimalPlaces() {
         responseStatus.set(201);
         responseBody.set(refundResponse());
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("REFUND");
         request.setTransactionId("REFUND-ACTION-SCALE-001");
@@ -165,7 +182,7 @@ class PaymentApiClientTests {
     void shouldMapClientErrorToDeterministicFailure() {
         responseStatus.set(400);
         responseBody.set("{\"code\":\"INVALID_REQUEST\",\"message\":\"Request validation failed\",\"errors\":[\"amount: scale must be less than or equal to 2\"]}");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("REFUND");
         request.setTransactionId("REFUND-ACTION-INVALID-001");
@@ -191,7 +208,7 @@ class PaymentApiClientTests {
     void shouldKeepServerErrorOutcomeUncertain() {
         responseStatus.set(500);
         responseBody.set("{\"code\":\"INTERNAL_ERROR\",\"message\":\"Internal server error\"}");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("REFUND");
         request.setTransactionId("REFUND-ACTION-SERVER-ERROR-001");
@@ -206,12 +223,27 @@ class PaymentApiClientTests {
     }
 
     /**
+     * 幂等冲突不能证明首个资金请求失败，必须等待查询或回调确认。
+     **/
+    @Test
+    void shouldKeepConflictOutcomeUncertain() {
+        responseStatus.set(409);
+        responseBody.set("{\"code\":\"DUPLICATE_REQUEST\",\"message\":\"Request already exists\"}");
+        PaymentApiClient client = paymentClient(properties());
+
+        assertThatThrownBy(() -> client.execute(cardRequest(
+                ChannelCapability.AUTHORIZATION, "CMT-AUTH-CONFLICT")))
+                .isInstanceOfSatisfying(ChannelResponseException.class,
+                        exception -> assertThat(exception.isOutcomeUncertain()).isTrue());
+    }
+
+    /**
      * 退款查询必须调用退款查询接口，并使用 merchantRefundNo 作为唯一查询标识。
      **/
     @Test
     void shouldQueryRefundByMerchantRefundNoAndMapRefundId() {
         responseBody.set("{\"code\":\"SUCCESS\",\"message\":\"OK\",\"data\":{\"merchantOrderNo\":\"CMT-ORIGINAL-PAYMENT\",\"transactionId\":\"CMT-ORIGINAL-PAYMENT\",\"merchantRefundNo\":\"REFUND-001\",\"refundId\":\"CMR-001\",\"status\":\"SUCCESS\",\"responseCode\":\"SUCCESS\",\"currency\":\"USD\",\"amount\":10.25}}");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("QUERY");
         request.setChannelOrderNo("CMT-ORIGINAL-PAYMENT");
@@ -233,7 +265,7 @@ class PaymentApiClientTests {
     @Test
     void shouldMapPlatformProcessingCodesToProcessing() {
         responseBody.set("{\"code\":\"T202\",\"message\":\"Processing\",\"data\":{\"merchantOrderNo\":\"CMT-001\",\"transactionId\":\"TX-001\",\"responseCode\":\"T202\",\"currency\":\"USD\",\"amount\":10.25}}");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("PAYMENT");
         request.setTransactionId("CMT-001");
@@ -252,7 +284,7 @@ class PaymentApiClientTests {
     void shouldMapMissingOrderQueryToDeterministicFailure() {
         responseStatus.set(404);
         responseBody.set("{\"code\":\"ORDER_NOT_FOUND\",\"message\":\"Order not found\"}");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType("QUERY");
         request.setMerchantOrderNo("ORDER-MISSING");
@@ -268,7 +300,7 @@ class PaymentApiClientTests {
     void shouldCreateAuthorizationWithPlatformTransactionId() {
         responseStatus.set(201);
         responseBody.set(cardResponse("AUTH", null, "000101"));
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = cardRequest(ChannelCapability.AUTHORIZATION, "CMT-AUTH-001");
 
         ChannelPaymentResponse response = client.execute(request);
@@ -289,7 +321,7 @@ class PaymentApiClientTests {
     void shouldUsePreAuthorizationPath() {
         responseStatus.set(201);
         responseBody.set(cardResponse("PREAUTH", null, "000102"));
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
 
         client.execute(cardRequest(ChannelCapability.PRE_AUTHORIZATION, "CMT-PREAUTH-001"));
 
@@ -300,7 +332,7 @@ class PaymentApiClientTests {
     void shouldCaptureByAuthorizationIdAndMapArn() {
         responseStatus.set(201);
         responseBody.set(cardResponse("CAPTURE", "20261031000000000000101", "000103"));
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = cardRequest(ChannelCapability.CAPTURE, "CMT-CAPTURE-001");
         request.setChannelOrderNo("CMA-001");
 
@@ -319,7 +351,7 @@ class PaymentApiClientTests {
     void shouldUsePreAuthorizationCompletionPath() {
         responseStatus.set(201);
         responseBody.set(cardResponse("PREAUTH_COMPLETE", "20261031000000000000102", "000104"));
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = cardRequest(ChannelCapability.PRE_AUTH_COMPLETION, "CMT-COMPLETE-001");
         request.setChannelOrderNo("CMA-001");
 
@@ -332,7 +364,7 @@ class PaymentApiClientTests {
     void shouldUseIncrementalAuthorizationPath() {
         responseStatus.set(201);
         responseBody.set(cardResponse("INCREMENT", null, "000105"));
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = cardRequest(ChannelCapability.INCREMENTAL_AUTHORIZATION, "CMT-INCREMENT-001");
         request.setChannelOrderNo("CMA-001");
 
@@ -345,7 +377,7 @@ class PaymentApiClientTests {
     void shouldVoidWithoutAmount() {
         responseStatus.set(201);
         responseBody.set(cardResponse("VOID", null, null));
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = cardRequest(ChannelCapability.VOID, "CMT-VOID-001");
         request.setChannelOrderNo("CMA-001");
         request.setAmount(null);
@@ -362,10 +394,28 @@ class PaymentApiClientTests {
         assertThat(response.getAcquirerReferenceNo()).isNull();
     }
 
+    /**
+     * VOID 请求收到渠道 CANCELLED 时表示撤销完成，不得映射成渠道失败。
+     **/
+    @Test
+    void shouldMapCancelledVoidAsVoided() {
+        responseStatus.set(201);
+        responseBody.set("{\"code\":\"SUCCESS\",\"message\":\"OK\",\"data\":{\"merchantOrderNo\":\"CMT-VOID-002\",\"transactionId\":\"TX-VOID-002\",\"authorizationId\":\"CMA-001\",\"operationType\":\"VOID\",\"status\":\"CANCELLED\",\"responseCode\":\"SUCCESS\"}}");
+        PaymentApiClient client = paymentClient(properties());
+        ChannelPaymentRequest request = cardRequest(ChannelCapability.VOID, "CMT-VOID-002");
+        request.setChannelOrderNo("CMA-001");
+        request.setAmount(null);
+        request.setCurrency(null);
+
+        ChannelPaymentResponse response = client.execute(request);
+
+        assertThat(response.getChannelTradeStatus()).isEqualTo("VOIDED");
+    }
+
     @Test
     void shouldQueryCardActionAndMapAuthorizationReferences() {
         responseBody.set(cardResponse("CAPTURE", "20261031000000000000103", "000106"));
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType(ChannelCapability.QUERY.getCode());
         request.setTransactionId("CMT-CAPTURE-QUERY-001");
@@ -386,7 +436,7 @@ class PaymentApiClientTests {
     @Test
     void shouldQueryLatestCardActionByAuthorizationId() {
         responseBody.set(cardResponse("INCREMENT", null, "000107"));
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType(ChannelCapability.QUERY.getCode());
         request.getExtension().put("authorizationId", "CMA-001");
@@ -405,7 +455,7 @@ class PaymentApiClientTests {
     void shouldKeepMalformedSuccessfulResponseUncertain() {
         responseStatus.set(201);
         responseBody.set("not-json");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
 
         assertThatThrownBy(() -> client.execute(cardRequest(
                 ChannelCapability.AUTHORIZATION, "CMT-AUTH-MALFORMED")))
@@ -417,7 +467,7 @@ class PaymentApiClientTests {
     void shouldKeepIncompleteAuthorizationResponseUncertain() {
         responseStatus.set(201);
         responseBody.set("{\"code\":\"SUCCESS\",\"message\":\"OK\",\"data\":{\"status\":\"SUCCESS\"}}");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
 
         assertThatThrownBy(() -> client.execute(cardRequest(
                 ChannelCapability.AUTHORIZATION, "CMT-AUTH-INCOMPLETE")))
@@ -429,7 +479,7 @@ class PaymentApiClientTests {
     void shouldKeepMissingSuccessfulStatusUncertain() {
         responseStatus.set(201);
         responseBody.set("{\"code\":\"SUCCESS\",\"message\":\"OK\",\"data\":{\"transactionId\":\"CMT-CHANNEL-001\",\"authorizationId\":\"CMA-001\"}}");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
 
         assertThatThrownBy(() -> client.execute(cardRequest(
                 ChannelCapability.AUTHORIZATION, "CMT-AUTH-NO-STATUS")))
@@ -440,7 +490,7 @@ class PaymentApiClientTests {
     @Test
     void shouldNotInferChannelMoneyFromRequestWhenResponseOmitsIt() {
         responseBody.set("{\"code\":\"SUCCESS\",\"message\":\"OK\",\"data\":{\"merchantOrderNo\":\"CMT-001\",\"transactionId\":\"TX-001\",\"authorizationId\":\"CMA-001\",\"status\":\"SUCCESS\",\"responseCode\":\"SUCCESS\"}}");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
 
         ChannelPaymentResponse response = client.execute(cardRequest(
                 ChannelCapability.AUTHORIZATION, "CMT-AUTH-NO-MONEY"));
@@ -451,7 +501,7 @@ class PaymentApiClientTests {
 
     @Test
     void shouldMaskCardDataInRequestAudit() {
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setTransactionType(ChannelCapability.PAYMENT.getCode());
         request.setTransactionId("CMT-PAYMENT-MASK-001");
@@ -472,7 +522,7 @@ class PaymentApiClientTests {
 
     @Test
     void shouldMergeOpenPaymentDataWithStandardCardFields() {
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
         ChannelPaymentRequest request = cardlessPaymentRequest("CMT-PAYMENT-DATA-001");
         request.setPaymentMethod("BANK_CARD");
         request.setCardNo("4111111111111111");
@@ -490,7 +540,7 @@ class PaymentApiClientTests {
     void shouldKeepRateLimitOutcomeUncertain() {
         responseStatus.set(429);
         responseBody.set("{\"code\":\"RATE_LIMITED\",\"message\":\"Too many requests\"}");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
 
         assertThatThrownBy(() -> client.execute(cardRequest(
                 ChannelCapability.AUTHORIZATION, "CMT-AUTH-RATE-LIMITED")))
@@ -501,7 +551,7 @@ class PaymentApiClientTests {
     @Test
     void shouldIgnoreUnknownResponseFields() {
         responseBody.set("{\"code\":\"SUCCESS\",\"message\":\"OK\",\"futureRoot\":true,\"data\":{\"merchantOrderNo\":\"CMT-001\",\"transactionId\":\"TX-001\",\"status\":\"SUCCESS\",\"responseCode\":\"SUCCESS\",\"futureData\":{\"nested\":true}}}");
-        PaymentApiClient client = new PaymentApiClient(properties());
+        PaymentApiClient client = paymentClient(properties());
 
         ChannelPaymentResponse response = client.execute(cardlessPaymentRequest("CMT-001"));
 
@@ -561,6 +611,17 @@ class PaymentApiClientTests {
         properties.setMerchantId("MID-TEST");
         properties.setApiKey("KEY-TEST");
         return properties;
+    }
+
+    /**
+     * 创建允许本地测试服务器的渠道客户端。
+     *
+     * @param properties 测试渠道配置
+     * @return 使用开发模式出站策略的客户端
+     **/
+    private PaymentApiClient paymentClient(ChannelProperties properties) {
+        return new PaymentApiClient(properties,
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.DEVELOPMENT));
     }
 
     private void handle(HttpExchange exchange) throws IOException {

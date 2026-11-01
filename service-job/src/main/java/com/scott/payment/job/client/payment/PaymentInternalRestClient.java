@@ -33,31 +33,15 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
 
     private static final Pattern IPV4_HOST_PATTERN = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
 
-    /**
-     * {@code LOCALHOST}，表示远程服务主机、商户域名或渠道访问域名。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String LOCALHOST = "localhost";
 
     /**
-     * {@code IPV6_LOOPBACK}常量，统一 {@code PaymentInternalRestClient} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
+     * IPv6 回环地址，用于识别本地开发环境的直连目标。
      */
     private static final String IPV6_LOOPBACK = "::1";
 
-    /**
-     * {@code DOMAIN_SEPARATOR}，表示远程服务主机、商户域名或渠道访问域名。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String DOMAIN_SEPARATOR = ".";
 
     /**
@@ -129,6 +113,15 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return expiredCount == null ? 0 : expiredCount;
     }
 
+    /**
+     * 向支付核心发送一次已签名 POST 请求并解析类型化响应。
+     *
+     * @param url 支付内部接口地址
+     * @param body 可空请求对象
+     * @param typeReference 响应类型描述
+     * @param <T> 响应模型类型
+     * @return 已解析响应
+     */
     private <T> T post(String url, Object body, TypeReference<T> typeReference) {
         URI uri = URI.create(url);
         try {
@@ -138,7 +131,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException(uri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-payment compensation call failed, targetPath: {}, exceptionType: {}",
+            log.warn("支付服务补偿调用失败, event: JOB_PAYMENT_COMPENSATION_FAILED, targetPath: {}, exceptionType: {}",
                     uri.getPath(), exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-payment compensation call failed");
@@ -210,6 +203,13 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return loadBalancedRestTemplate;
     }
 
+    /**
+     * 解包统一内部响应，并保留支付服务返回的业务错误码。
+     *
+     * @param result 支付服务统一响应
+     * @param <T> 数据类型
+     * @return 成功响应数据
+     */
     private <T> T unwrapData(CommonResult<T> result) {
         if (result == null) {
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-payment response is empty");
@@ -220,8 +220,15 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return result.getData();
     }
 
+    /**
+     * 将支付服务 HTTP 拒绝映射为稳定的内部错误语义，不透传响应正文。
+     *
+     * @param uri 调用目标 URI
+     * @param exception HTTP 状态异常
+     * @return 可抛出的平台服务异常
+     */
     private ServiceException translateHttpException(URI uri, HttpStatusCodeException exception) {
-        log.warn("service-payment compensation call returned non-success status, targetPath: {}, status: {}, exceptionType: {}",
+        log.warn("支付服务补偿调用返回非成功状态, event: JOB_PAYMENT_COMPENSATION_REJECTED, targetPath: {}, status: {}, exceptionType: {}",
                 uri.getPath(),
                 exception.getStatusCode().value(),
                 exception.getClass().getSimpleName());

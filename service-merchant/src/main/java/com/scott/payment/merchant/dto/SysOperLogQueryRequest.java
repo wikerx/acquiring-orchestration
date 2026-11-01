@@ -7,7 +7,7 @@ import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
- * sysoper日志查询条件模型，位于 商户后台服务，承载筛选字段、时间范围和分页边界，不包含数据范围授权结果。
+ * 商户操作日志分页查询条件。
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

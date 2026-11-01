@@ -40,9 +40,7 @@ public final class ChannelEntities {
         private Integer supportPayout;
         @TableField("support_3ds")
         private Integer support3ds;
-        /**
-         * 默认请求URL，表示当前内部调用、渠道调用或商户通知的目标地址。
-         */
+
         private String defaultRequestUrl;
         /**
          * 持久化的{@code defaultInteractionMode}，用于还原当前记录的业务事实。

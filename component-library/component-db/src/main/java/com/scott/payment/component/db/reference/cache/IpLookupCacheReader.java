@@ -102,6 +102,12 @@ public class IpLookupCacheReader {
         return entry;
     }
 
+    /**
+     * 以 IP 版本和无符号数值构造环境隔离的精确查询缓存 Key。
+     *
+     * @param normalizedIp 已规范化精确 IP
+     * @return Redis 业务 Key
+     */
     private String cacheKey(IpAddressNormalizer.NormalizedIp normalizedIp) {
         String ipVersion = normalizedIp.ipv4() ? "v4" : "v6";
         return redisProperties.businessKey(
@@ -135,15 +141,27 @@ public class IpLookupCacheReader {
                 && hasText(entry.detail().dataVersion());
     }
 
+    /**
+     * 判断缓存详情字段是否包含有效文本。
+     *
+     * @param value 待检查文本
+     * @return 包含非空白字符时返回 true
+     */
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
+    /**
+     * 按一分钟窗口限制 IP 缓存回退告警频率。
+     *
+     * @param operation 失败的受控操作名
+     * @param exception Redis 或载荷异常
+     */
     private void warn(String operation, RuntimeException exception) {
         long now = System.currentTimeMillis();
         long previous = lastWarningMillis.get();
         if (now - previous >= 60_000 && lastWarningMillis.compareAndSet(previous, now)) {
-            log.warn("event: IP_LOOKUP_CACHE_FALLBACK operation: {} exceptionType: {}",
+            log.warn("IP 查询缓存降级, event: IP_LOOKUP_CACHE_FALLBACK, operation: {}, exceptionType: {}",
                     operation, exception.getClass().getSimpleName(), exception);
         }
     }

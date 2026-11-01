@@ -144,9 +144,7 @@ public final class ExchangeRateDTOs {
          */
         @NotBlank(message = "sourceType is required")
         private String sourceType;
-        /**
-         * 请求URL，表示当前内部调用、渠道调用或商户通知的目标地址。
-         */
+
         private String requestUrl;
         /**
          * 请求中的默认来源，用于限定本次操作的输入和校验范围。
@@ -180,9 +178,7 @@ public final class ExchangeRateDTOs {
          * 数据来源类型，用于区分手工维护、文件导入、外部抓取或系统初始化数据。
          */
         private String sourceType;
-        /**
-         * 请求URL，表示当前内部调用、渠道调用或商户通知的目标地址。
-         */
+
         private String requestUrl;
         private Integer defaultSource;
         /**

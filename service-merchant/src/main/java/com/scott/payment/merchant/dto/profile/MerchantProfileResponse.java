@@ -5,7 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 当前认证商户的主体资料响应，合并共享缓存字段和仅从主库读取的敏感联系字段
+ * 当前认证商户的主体资料响应，合并共享缓存字段和仅从主库读取的敏感联系字段。
  */
 @Data
 public class MerchantProfileResponse {
@@ -36,7 +36,7 @@ public class MerchantProfileResponse {
     private Integer merchantStatus;
 
     /**
-     * Merchant portal and email default locale.
+     * 商户门户和通知邮件使用的默认语言。
      */
     private String defaultLocale;
 

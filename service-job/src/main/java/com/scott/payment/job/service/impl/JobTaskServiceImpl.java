@@ -27,17 +27,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 任务任务服务实现
+ * 调度任务定义服务实现，负责配置校验、触发时间计算和任务状态维护。
  */
 @Service
 public class JobTaskServiceImpl implements JobTaskService {
 
     /**
-     * {@code NOT_DELETED}常量，统一 {@code JobTaskServiceImpl} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 未逻辑删除标识，用于任务定义查询和唯一性校验。
      */
     private static final int NOT_DELETED = 0;
 

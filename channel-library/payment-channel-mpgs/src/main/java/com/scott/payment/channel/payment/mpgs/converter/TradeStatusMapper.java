@@ -5,6 +5,9 @@ import com.scott.payment.channel.payment.mpgs.model.response.ResponsePayload;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import org.springframework.util.StringUtils;
 
+import java.util.Locale;
+import java.util.Set;
+
 /**
  * MPGS 交易状态映射器，位于 payment-channel-mpgs 渠道实现层，负责按 result 和收单响应码判断渠道交易结果，不处理平台交易状态机。
  */
@@ -26,6 +29,11 @@ public class TradeStatusMapper {
     private static final String RESULT_UNKNOWN = "UNKNOWN";
 
     /**
+     * MPGS 已明确结束且未成功的顶层结果。
+     **/
+    private static final Set<String> FAILED_RESULTS = Set.of("ERROR", "FAILURE", "FAILED");
+
+    /**
      * ISO 8583 收单批准响应码。
      */
     private static final String APPROVED_ACQUIRER_CODE = "00";
@@ -38,7 +46,7 @@ public class TradeStatusMapper {
      *
      * @param response MPGS 原始响应
      * @return 渠道统一状态编码
-     */
+     **/
     public String map(ResponsePayload response) {
         if (response == null) {
             return ChannelTradeStatus.PROCESSING.getCode();
@@ -48,7 +56,11 @@ public class TradeStatusMapper {
             return ChannelTradeStatus.PROCESSING.getCode();
         }
         if (RESULT_SUCCESS.equalsIgnoreCase(result)) {
-            return APPROVED_ACQUIRER_CODE.equals(acquirerCode(response))
+            String acquirerCode = acquirerCode(response);
+            if (!StringUtils.hasText(acquirerCode)) {
+                return ChannelTradeStatus.PROCESSING.getCode();
+            }
+            return APPROVED_ACQUIRER_CODE.equals(acquirerCode)
                     ? ChannelTradeStatus.SUCCESS.getCode()
                     : ChannelTradeStatus.FAILED.getCode();
         }
@@ -58,7 +70,10 @@ public class TradeStatusMapper {
         if (RESULT_UNKNOWN.equalsIgnoreCase(result)) {
             return ChannelTradeStatus.PROCESSING.getCode();
         }
-        return ChannelTradeStatus.FAILED.getCode();
+        if (FAILED_RESULTS.contains(result.trim().toUpperCase(Locale.ROOT))) {
+            return ChannelTradeStatus.FAILED.getCode();
+        }
+        return ChannelTradeStatus.PROCESSING.getCode();
     }
 
     /**
@@ -66,7 +81,7 @@ public class TradeStatusMapper {
      *
      * @param response MPGS 原始响应
      * @return 收单响应码，节点缺失时返回 null
-     */
+     **/
     private String acquirerCode(ResponsePayload response) {
         return response.getResponse() == null ? null : response.getResponse().getAcquirerCode();
     }

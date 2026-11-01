@@ -16,7 +16,7 @@ import java.util.Set;
  **/
 public class PayoutResponseConverter {
 
-    private static final Set<Integer> DETERMINISTIC_HTTP_FAILURES = Set.of(400, 401, 404, 409);
+    private static final Set<Integer> DETERMINISTIC_HTTP_FAILURES = Set.of(400, 401, 404);
 
     /**
      * 将渠道响应转换为平台统一代付响应。
@@ -150,12 +150,25 @@ public class PayoutResponseConverter {
         };
     }
 
+    /**
+     * 仅将非空渠道原始证据写入统一代付响应。
+     *
+     * @param result 统一代付响应
+     * @param key    证据字段名
+     * @param value  证据字段值
+     **/
     private void putRaw(ChannelPayoutResponse result, String key, String value) {
         if (StringUtils.hasText(value)) {
             result.getRawResponse().put(key, value);
         }
     }
 
+    /**
+     * 按优先级返回第一个非空文本。
+     *
+     * @param values 候选值
+     * @return 首个非空值或 {@code null}
+     **/
     private String firstText(String... values) {
         if (values != null) {
             for (String value : values) {

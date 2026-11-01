@@ -2,6 +2,7 @@ package com.scott.payment.merchant.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
@@ -36,7 +37,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 商户模板邮件服务实现，位于 商户后台服务，执行该业务的规则校验和数据读写，并保持现有事务与异常边界。
+ * 商户模板邮件服务，校验模板变量并持久化待投递邮件。
  */
 @Service
 public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailService {
@@ -136,6 +137,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
      * @param emailAccountMapper    发件账户 Mapper
      * @param emailSendRecordMapper 邮件发送记录 Mapper
      * @param objectMapper          JSON 序列化工具
+     * @param payloadCrypto 邮件正文加密组件
+     * @param deliveryService 邮件异步投递服务
+     * @param deliveryProperties 邮件投递重试配置
      * @param enabledTemplateCacheReader 已启用邮件模板快照读取器
      */
     public MerchantTemplateEmailServiceImpl(MerchantEmailAccountMapper emailAccountMapper,
@@ -174,13 +178,18 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return prepareByTemplate(request, true);
     }
 
+    /**
+     * 校验模板和变量后创建待投递邮件记录。
+     */
     private MerchantEmailSendResult prepareByTemplate(MerchantEmailSendCommand request, boolean suppressDelivery) {
         MerchantEmailTemplateDO template;
         MerchantEmailAccountDO account;
+        List<String> sensitiveVariableNames;
         try {
             template = requireEnabledTemplate(request.templateCode(), defaultIfBlank(request.locale(), DEFAULT_LOCALE));
             account = selectAccount(request.appCode(), request.merchantId(),
                     defaultIfBlank(request.sceneCode(), template.getSceneCode()));
+            sensitiveVariableNames = parseStringList(template.getSensitiveVariableNames());
         } catch (RuntimeException exception) {
             return recordPreparationFailure(request, exception);
         }
@@ -190,7 +199,7 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         if (!missingVariables.isEmpty()) {
             record.setSubject(template.getSubjectTemplate());
             record.setContentSnapshot("模板变量缺失：" + String.join(",", missingVariables));
-            record.setVariablesSnapshot(toJson(maskVariables(variables, parseStringList(template.getSensitiveVariableNames()))));
+            record.setVariablesSnapshot(toJson(maskVariables(variables, sensitiveVariableNames)));
             record.setSendStatus(SEND_FAILED);
             record.setErrorCode("EMAIL_VARIABLE_MISSING");
             record.setErrorMessage("模板变量缺失：" + String.join(",", missingVariables));
@@ -202,8 +211,8 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         String content = render(template.getContentTemplate(), variables, htmlContent);
         record.setSubject(render(template.getSubjectTemplate(), variables, false));
         record.setContentSnapshot(maskSensitiveContent(template.getContentTemplate(), variables,
-                parseStringList(template.getSensitiveVariableNames()), htmlContent));
-        record.setVariablesSnapshot(toJson(maskVariables(variables, parseStringList(template.getSensitiveVariableNames()))));
+                sensitiveVariableNames, htmlContent));
+        record.setVariablesSnapshot(toJson(maskVariables(variables, sensitiveVariableNames)));
         record.setDeliveryContentCipher(payloadCrypto.encrypt(content));
         record.setContentType(contentType);
         if (suppressDelivery) {
@@ -258,6 +267,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return new MerchantEmailSendResult(record.getId(), record.getSendStatus());
     }
 
+    /**
+     * 对全部模板变量执行默认脱敏。
+     */
     private Map<String, Object> maskAllVariables(Map<String, Object> variables) {
         if (variables == null || variables.isEmpty()) {
             return Map.of();
@@ -342,6 +354,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         throw new IllegalStateException("available email account not found");
     }
 
+    /**
+     * 构建限定邮件账号与应用范围的数据库查询条件。
+     */
     private LambdaQueryWrapper<MerchantEmailAccountDO> accountRouteWrapper(String appCode,
                                                                           String scopeType,
                                                                           String merchantId,
@@ -357,6 +372,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
                 .orderByDesc(MerchantEmailAccountDO::getId);
     }
 
+    /**
+     * 构建不含明文敏感变量的邮件投递记录。
+     */
     private MerchantEmailSendRecordDO buildRecord(MerchantEmailSendCommand request,
                                                   MerchantEmailTemplateDO template,
                                                   MerchantEmailAccountDO account) {
@@ -394,12 +412,18 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return record;
     }
 
+    /**
+     * 返回模板引用但请求未提供的变量名集合。
+     */
     private Set<String> missingVariables(String template, Map<String, Object> variables) {
         Set<String> required = extractVariables(template);
         required.removeIf(key -> variables.containsKey(key) && variables.get(key) != null);
         return required;
     }
 
+    /**
+     * 从模板正文中提取变量占位符。
+     */
     private Set<String> extractVariables(String template) {
         Set<String> variables = new LinkedHashSet<>();
         if (!StringUtils.hasText(template)) {
@@ -412,6 +436,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return variables;
     }
 
+    /**
+     * 使用已校验变量渲染模板，并按内容类型执行转义。
+     */
     private String render(String template, Map<String, Object> variables, boolean htmlEscape) {
         Matcher matcher = TEMPLATE_VARIABLE_PATTERN.matcher(template);
         StringBuilder builder = new StringBuilder();
@@ -427,6 +454,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return builder.toString();
     }
 
+    /**
+     * 按模板敏感变量配置脱敏邮件内容。
+     */
     private String maskSensitiveContent(String template,
                                         Map<String, Object> variables,
                                         List<String> sensitiveNames,
@@ -437,6 +467,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return render(template, maskVariables(variables, sensitiveNames), htmlEscape);
     }
 
+    /**
+     * 复制模板变量并脱敏指定字段。
+     */
     private Map<String, Object> maskVariables(Map<String, Object> variables, List<String> sensitiveNames) {
         Map<String, Object> masked = new LinkedHashMap<>(variables);
         for (String name : sensitiveNames) {
@@ -447,6 +480,13 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return masked;
     }
 
+    /**
+     * 解析模板敏感变量名称；非法配置必须进入邮件准备失败审计，不能按空集合继续发送。
+     *
+     * @param json 模板敏感变量名称 JSON 数组
+     * @return 敏感变量名称列表
+     * @throws IllegalStateException JSON 不是字符串数组时抛出
+     */
     private List<String> parseStringList(String json) {
         if (!StringUtils.hasText(json)) {
             return List.of();
@@ -454,31 +494,29 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         try {
             return objectMapper.readValue(json, new TypeReference<>() {
             });
-        } catch (Exception ignored) {
-            return List.of();
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("email template sensitive variable configuration is invalid", exception);
         }
     }
 
-    private String[] parseEmailArray(String json) {
-        if (!StringUtils.hasText(json)) {
-            return new String[0];
-        }
-        try {
-            return objectMapper.readValue(json, new TypeReference<List<String>>() {
-            }).stream().filter(StringUtils::hasText).toArray(String[]::new);
-        } catch (Exception ignored) {
-            return new String[0];
-        }
-    }
-
+    /**
+     * 将邮件地址或模板变量序列化为 JSON 文本；失败时中止当前事务，避免持久化伪造的空数组。
+     *
+     * @param value 待序列化值
+     * @return JSON 文本
+     * @throws IllegalStateException JSON 序列化失败时抛出
+     */
     private String toJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
-        } catch (Exception ignored) {
-            return "[]";
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("email audit payload serialization failed", exception);
         }
     }
 
+    /**
+     * 补充邮件操作人信息，防止信任调用方伪造审计字段。
+     */
     private void fillOperator(MerchantEmailSendRecordDO record) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -489,6 +527,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         record.setOperatorName(currentOperatorName());
     }
 
+    /**
+     * 读取当前操作人展示名称。
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -503,23 +544,38 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return "system";
     }
 
+    /**
+     * 将空集合归一化为不可变空集合。
+     */
     private List<String> defaultList(List<String> source) {
         return source == null ? List.of() : source;
     }
 
+    /**
+     * 去除字符串首尾空白，空值保持为空。
+     */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }
 
+    /**
+     * 去除字符串空白并转换为大写编码。
+     */
     private String trimUpper(String value) {
         String trimmed = trim(value);
         return trimmed == null ? null : trimmed.toUpperCase();
     }
 
+    /**
+     * 字符串为空时返回指定默认值。
+     */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
+    /**
+     * 按持久化字段长度安全截断文本。
+     */
     private String truncate(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
@@ -527,6 +583,9 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return value.substring(0, maxLength);
     }
 
+    /**
+     * 生成满足模板要求的一次性验证码。
+     */
     private String generateCode(String prefix) {
         return prefix + "_" + System.currentTimeMillis();
     }

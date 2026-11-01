@@ -46,7 +46,7 @@ public class ReliableMqOutboxRelayScheduler {
         try {
             relayService.relayDue();
         } catch (RuntimeException exception) {
-            log.warn("event: RELIABLE_MQ_RELAY_SCAN_FAILED exceptionType: {}",
+            log.warn("可靠消息待投递扫描失败, event: RELIABLE_MQ_RELAY_SCAN_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }
@@ -67,7 +67,7 @@ public class ReliableMqOutboxRelayScheduler {
         try {
             relayService.recoverStale();
         } catch (RuntimeException exception) {
-            log.warn("event: RELIABLE_MQ_STALE_RECOVERY_FAILED exceptionType: {}",
+            log.warn("可靠消息过期任务恢复失败, event: RELIABLE_MQ_STALE_RECOVERY_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }
@@ -85,7 +85,8 @@ public class ReliableMqOutboxRelayScheduler {
         try {
             relayService.refreshMetrics();
         } catch (RuntimeException exception) {
-            log.warn("event: RELIABLE_MQ_OUTBOX_METRICS_REFRESH_FAILED exceptionType: {}",
+            log.warn("可靠消息 Outbox 指标刷新失败, event: RELIABLE_MQ_OUTBOX_METRICS_REFRESH_FAILED, "
+                            + "exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }

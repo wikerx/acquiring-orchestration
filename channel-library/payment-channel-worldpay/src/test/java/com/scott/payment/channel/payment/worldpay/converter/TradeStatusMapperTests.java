@@ -1,6 +1,7 @@
 package com.scott.payment.channel.payment.worldpay.converter;
 
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
+import com.scott.payment.channel.payment.enums.ChannelCapability;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,5 +37,16 @@ class TradeStatusMapperTests {
     void shouldKeepMissingAndUnknownStatusProcessing() {
         assertThat(mapper.map(null)).isEqualTo(ChannelTradeStatus.PROCESSING.getCode());
         assertThat(mapper.map("providerAddedState")).isEqualTo(ChannelTradeStatus.PROCESSING.getCode());
+    }
+
+    /**
+     * Worldpay 取消完成只对平台 VOID 动作构成成功状态。
+     */
+    @Test
+    void shouldMapCancelledVoidAsVoided() {
+        assertThat(mapper.map("CANCELLED", ChannelCapability.VOID.getCode()))
+                .isEqualTo(ChannelTradeStatus.VOIDED.getCode());
+        assertThat(mapper.map("CANCELLED", ChannelCapability.PAYMENT.getCode()))
+                .isEqualTo(ChannelTradeStatus.FAILED.getCode());
     }
 }

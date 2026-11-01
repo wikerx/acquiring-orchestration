@@ -12,6 +12,9 @@ import java.util.List;
  */
 public final class MerchantTransactionAnalyticsDTOs {
 
+    /**
+     * 禁止实例化商户交易分析 DTO 聚合类。
+     */
     private MerchantTransactionAnalyticsDTOs() {
     }
 

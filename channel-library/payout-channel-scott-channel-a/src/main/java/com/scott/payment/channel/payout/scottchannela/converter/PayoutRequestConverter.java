@@ -21,11 +21,7 @@ import java.util.Map;
 public class PayoutRequestConverter {
 
     /**
-     * 请求时间格式化器常量，统一 {@code PayoutRequestConverter} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 渠道请求时间使用的 ISO 本地日期时间格式。
      */
     private static final DateTimeFormatter REQUEST_TIME_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
@@ -129,6 +125,12 @@ public class PayoutRequestConverter {
         };
     }
 
+    /**
+     * 按优先级返回第一个非空文本。
+     *
+     * @param values 候选值
+     * @return 首个非空值或 {@code null}
+     **/
     private String firstText(String... values) {
         if (values != null) {
             for (String value : values) {

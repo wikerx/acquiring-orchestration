@@ -15,6 +15,9 @@ public final class TrustedClientIpResolver {
      */
     public static final String UNKNOWN_IP = "unknown";
 
+    /**
+     * 禁止实例化可信客户端 IP 解析工具类。
+     */
     private TrustedClientIpResolver() {
     }
 
@@ -35,6 +38,9 @@ public final class TrustedClientIpResolver {
     }
 
     /**
+     * 解析可信客户端 IP，并在无法获得合法地址时返回固定占位符。
+     *
+     * @param request 当前 Servlet 请求
      * @return 可信客户端 IP；无法解析时返回 {@value #UNKNOWN_IP}
      */
     public static String resolveOrUnknown(HttpServletRequest request) {
@@ -42,6 +48,12 @@ public final class TrustedClientIpResolver {
         return resolved == null ? UNKNOWN_IP : resolved;
     }
 
+    /**
+     * 将精确 IPv4 或 IPv6 文本规范化，拒绝主机名、列表和代理链表达式。
+     *
+     * @param value 候选 IP 文本
+     * @return 规范地址，输入缺失或非法时返回 null
+     */
     private static String normalize(String value) {
         if (!StringUtils.hasText(value)) {
             return null;

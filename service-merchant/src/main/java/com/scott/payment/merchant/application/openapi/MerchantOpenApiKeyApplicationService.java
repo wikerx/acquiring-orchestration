@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 商户门户 OpenAPI 密钥用例编排，统一读写数据源并将密钥轮换与共享商户缓存失效绑定到同一事务
+ * 商户门户 OpenAPI 密钥用例编排，统一读写数据源并将密钥轮换与共享缓存失效绑定到同一事务。
  */
 @Service
 public class MerchantOpenApiKeyApplicationService {

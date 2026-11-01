@@ -20,6 +20,9 @@ public final class InternalHttpTimeoutPolicy {
      */
     public static final int MAX_TIMEOUT_MILLIS = 60_000;
 
+    /**
+     * 禁止实例化内部 HTTP 超时策略工具类。
+     */
     private InternalHttpTimeoutPolicy() {
     }
 

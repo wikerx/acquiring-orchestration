@@ -111,6 +111,27 @@ class AdminEmailServiceAsyncTests {
         verify(deliveryService, never()).enqueue(any());
     }
 
+    /**
+     * 敏感变量配置非法时必须终止邮件准备并记录失败，不能把敏感值写入普通快照。
+     */
+    @Test
+    void shouldRejectInvalidSensitiveVariableConfiguration() {
+        EnabledEmailTemplateSnapshot snapshot = templateSnapshot();
+        snapshot.setSensitiveVariableNames("{invalid-json");
+        EmailSendRequest request = request();
+        when(enabledTemplateCacheReader.findEnabled("LOGIN_NOTICE", "zh-CN")).thenReturn(snapshot);
+        when(accountMapper.selectOne(any())).thenReturn(account());
+
+        assertThatThrownBy(() -> emailService.sendByTemplate(request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Sensitive variable names");
+
+        verify(preparationFailureRecorder).record(request, "EMAIL_CONFIGURATION_INVALID");
+        verify(recordMapper, never()).insert(any(EmailSendRecordDO.class));
+        verify(deliveryService, never()).enqueue(any());
+        verify(payloadCrypto, never()).encrypt(any());
+    }
+
     @Test
     void shouldPersistEncryptedPendingRecordAndEnqueueWithoutSmtp() {
         when(enabledTemplateCacheReader.findEnabled("LOGIN_NOTICE", "zh-CN"))

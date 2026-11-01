@@ -34,61 +34,19 @@ import java.util.Map;
 @Service
 public class MccOptionCacheReader implements MccOptionCacheInvalidator {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code MccOptionCacheReader} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final long NOT_DELETED = 0L;
-    /**
-     * 启用标识，表示当前配置项或业务能力的启停开关。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int ENABLED = 1;
-    /**
-     * {@code CACHE_DOMAIN}，表示远程服务主机、商户域名或渠道访问域名。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String CACHE_DOMAIN = "mcc";
-    /**
-     * {@code CACHE_BUSINESS}常量，统一 {@code MccOptionCacheReader} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String CACHE_BUSINESS = "options";
-    /**
-     * {@code CACHE_BUSINESS_KEY}常量，统一 {@code MccOptionCacheReader} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String CACHE_BUSINESS_KEY = "all";
-    /**
-     * 等级1值前缀常量，统一 {@code MccOptionCacheReader} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String LEVEL1_VALUE_PREFIX = "L1:";
-    /**
-     * 等级2值前缀常量，统一 {@code MccOptionCacheReader} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String LEVEL2_VALUE_PREFIX = "L2:";
 
     /**
@@ -206,7 +164,7 @@ public class MccOptionCacheReader implements MccOptionCacheInvalidator {
                     });
             return values == null ? List.of() : values;
         } catch (RuntimeException exception) {
-            log.warn("读取 MCC 公共缓存失败，cacheKey: {}，异常类型: {}",
+            log.warn("MCC 公共缓存读取失败, event: MCC_CACHE_READ_FAILED, cacheKey: {}, exceptionType: {}",
                     cacheKey, exception.getClass().getSimpleName());
             return List.of();
         }
@@ -222,7 +180,7 @@ public class MccOptionCacheReader implements MccOptionCacheInvalidator {
         try {
             redisTemplate.opsForValue().set(cacheKey, JsonUtils.toJsonString(options));
         } catch (RuntimeException exception) {
-            log.warn("写入 MCC 公共缓存失败，cacheKey: {}，异常类型: {}",
+            log.warn("MCC 公共缓存写入失败, event: MCC_CACHE_WRITE_FAILED, cacheKey: {}, exceptionType: {}",
                     cacheKey, exception.getClass().getSimpleName());
         }
     }
@@ -237,7 +195,8 @@ public class MccOptionCacheReader implements MccOptionCacheInvalidator {
         try {
             return !invalidationGuard.isPending(PaymentCacheNames.MCC_OPTIONS, CACHE_BUSINESS_KEY);
         } catch (RuntimeException exception) {
-            log.warn("读取 MCC 缓存门禁失败，异常类型: {}", exception.getClass().getSimpleName());
+            log.warn("MCC 缓存门禁检查失败, event: MCC_CACHE_GUARD_CHECK_FAILED, exceptionType: {}",
+                    exception.getClass().getSimpleName());
             return false;
         }
     }

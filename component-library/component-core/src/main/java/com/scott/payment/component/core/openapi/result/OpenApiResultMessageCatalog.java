@@ -33,16 +33,12 @@ public final class OpenApiResultMessageCatalog {
     private static final Pattern SENSITIVE_ASSIGNMENT = Pattern.compile(
             "(?i)(?:pan|card\\s*number|cardnumber|cvv|cvc|authorization|bearer|api\\s*key|apikey|"
                     + "private\\s*key|secret|token)\\s*[:=]");
-    /**
-     * {@code MESSAGES}常量，统一 {@code OpenApiResultMessageCatalog} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：集合元素必须沿用所属模型的主键、币种、状态和数据范围口径。
-     * </p>
-     */
+
     private static final Map<OpenApiResultCode, MessageSet> MESSAGES = buildMessages();
 
+    /**
+     * 禁止实例化 OpenAPI 分层文案目录。
+     */
     private OpenApiResultMessageCatalog() {
     }
 

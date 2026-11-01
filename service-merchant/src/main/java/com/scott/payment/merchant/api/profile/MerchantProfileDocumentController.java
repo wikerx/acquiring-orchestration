@@ -31,7 +31,7 @@ import java.nio.charset.StandardCharsets;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 商户资料变更文件接口，只允许当前认证商户访问自己的私有资料
+ * 商户资料变更文件接口，只允许当前认证商户访问自己的私有资料。
  */
 @RestController
 @RequestMapping("/merchant/info/change-requests/{requestNo}/documents")
@@ -106,6 +106,9 @@ public class MerchantProfileDocumentController {
         return success();
     }
 
+    /**
+     * 读取当前认证上下文中的商户号，缺失时拒绝请求。
+     */
     private String currentMerchantId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || !StringUtils.hasText(account.getMerchantId())) {

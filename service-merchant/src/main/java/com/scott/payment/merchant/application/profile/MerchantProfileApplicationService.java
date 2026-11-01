@@ -8,7 +8,7 @@ import com.scott.payment.merchant.service.impl.MerchantProfileChangeRequestServi
 import org.springframework.stereotype.Service;
 
 /**
- * 商户主体资料应用服务，承接接口层当前商户身份并编排资料查询和受限更新用例
+ * 商户主体资料应用服务，承接认证商户身份并编排资料查询和受限更新用例。
  */
 @Service
 public class MerchantProfileApplicationService {

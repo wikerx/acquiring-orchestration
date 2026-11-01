@@ -23,11 +23,7 @@ import java.util.UUID;
 public class ShardingTablePreCreateApplicationService {
 
     /**
-     * {@code MANUAL_RUN_PREFIX}常量，统一 {@code ShardingTablePreCreateApplicationService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 管理端手工预建表运行号前缀，用于与调度触发记录区分。
      */
     private static final String MANUAL_RUN_PREFIX = "sharding-manual-";
 
@@ -55,6 +51,13 @@ public class ShardingTablePreCreateApplicationService {
         return shardingTablePreCreateService.preCreate(preCreateRequest, buildContext(safeRequest, preCreateRequest));
     }
 
+    /**
+     * 将内部接口请求转换为不含操作人信息的领域命令。
+     *
+     * @param request 已归一化的内部接口请求
+     * @param dryRun 是否仅检查目标表和 Schema
+     * @return 分表预建领域命令
+     */
     private ShardingTablePreCreateRequest toPreCreateRequest(ShardingTablePreCreateInternalRequest request, boolean dryRun) {
         ShardingTablePreCreateRequest preCreateRequest = new ShardingTablePreCreateRequest();
         preCreateRequest.setDryRun(dryRun);
@@ -65,6 +68,13 @@ public class ShardingTablePreCreateApplicationService {
         return preCreateRequest;
     }
 
+    /**
+     * 为手工执行构造完整任务审计上下文，并保留操作人身份。
+     *
+     * @param request 内部接口请求
+     * @param preCreateRequest 已转换的领域命令
+     * @return 手工同步执行上下文
+     */
     private JobExecuteContext buildContext(ShardingTablePreCreateInternalRequest request,
                                            ShardingTablePreCreateRequest preCreateRequest) {
         JobExecuteContext context = new JobExecuteContext();
@@ -87,6 +97,12 @@ public class ShardingTablePreCreateApplicationService {
         return context;
     }
 
+    /**
+     * 去除可选文本首尾空白，并将空文本归一为空值。
+     *
+     * @param value 待归一文本
+     * @return 非空文本或 {@code null}
+     */
     private String trimToNull(String value) {
         if (!StringUtils.hasText(value)) {
             return null;

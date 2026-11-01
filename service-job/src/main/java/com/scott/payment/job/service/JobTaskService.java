@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 任务任务服务接口
+ * 调度任务定义领域服务。
  */
 public interface JobTaskService {
 

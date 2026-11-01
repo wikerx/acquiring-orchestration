@@ -21,6 +21,7 @@ import com.scott.payment.component.db.auth.mapper.SysMerchantUserMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.core.security.GatewayIngressSignature;
 import com.scott.payment.component.web.gateway.GatewayIngressAuthFilter;
+import com.scott.payment.merchant.config.MerchantDefaultLoginCredentialProperties;
 import com.scott.payment.merchant.dto.MerchantDefaultLoginCredentialDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,15 +62,18 @@ class MerchantAuthApplicationServiceTest {
     private HttpServletRequest servletRequest;
 
     private MerchantAuthApplicationService merchantAuthApplicationService;
+    private MerchantDefaultLoginCredentialProperties defaultLoginProperties;
 
     @BeforeEach
     void setUp() {
+        defaultLoginProperties = new MerchantDefaultLoginCredentialProperties();
         merchantAuthApplicationService = new MerchantAuthApplicationService(
                 systemAuthService,
                 sysAppMapper,
                 sysAccountMapper,
                 sysMerchantUserMapper,
-                environment
+                environment,
+                defaultLoginProperties
         );
     }
 
@@ -161,6 +165,8 @@ class MerchantAuthApplicationServiceTest {
 
     @Test
     void shouldReturnDefaultLoginCredentialFromSeedAccount() {
+        defaultLoginProperties.setEnabled(true);
+        defaultLoginProperties.setPassword("configured-local-password");
         SysAppDO app = new SysAppDO();
         app.setId(2L);
         SysMerchantUserDO merchantUser = new SysMerchantUserDO();
@@ -182,13 +188,24 @@ class MerchantAuthApplicationServiceTest {
 
         assertThat(actual.getMerchantId()).isEqualTo("200045");
         assertThat(actual.getLoginAccount()).isEqualTo("admin");
-        assertThat(actual.getPassword()).isEqualTo("Merchant@123456");
+        assertThat(actual.getPassword()).isEqualTo("configured-local-password");
     }
 
     @Test
     void shouldHideDefaultLoginCredentialOutsideLocalProfiles() {
+        defaultLoginProperties.setEnabled(true);
+        defaultLoginProperties.setPassword("configured-local-password");
         when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(false);
 
+        MerchantDefaultLoginCredentialDTO actual = merchantAuthApplicationService.defaultLoginCredential();
+
+        assertThat(actual.getMerchantId()).isNull();
+        assertThat(actual.getLoginAccount()).isNull();
+        assertThat(actual.getPassword()).isNull();
+    }
+
+    @Test
+    void shouldHideDefaultLoginCredentialWhenFeatureIsDisabled() {
         MerchantDefaultLoginCredentialDTO actual = merchantAuthApplicationService.defaultLoginCredential();
 
         assertThat(actual.getMerchantId()).isNull();

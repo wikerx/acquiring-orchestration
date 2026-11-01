@@ -34,6 +34,9 @@ public final class TotpUtils {
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * 禁止实例化 TOTP 协议工具类。
+     */
     private TotpUtils() {
     }
 
@@ -88,11 +91,13 @@ public final class TotpUtils {
                 + "&algorithm=SHA1&digits=6&period=30";
     }
 
+
     /**
-     * 创建编码，完成必要校验后写入或委托下游服务处理。
-     * @param secret 敏感认证或加密材料，只能在当前安全边界内使用，禁止明文日志和异常回显
-     * @param step TOTP 时间步长序号，用于计算当前或相邻窗口的一次性验证码
-     * @return 当前方法生成或规范化后的文本值
+     * 按 RFC 6238 动态截断规则计算指定时间步的六位验证码。
+     *
+     * @param secret TOTP 原始密钥字节
+     * @param step TOTP 时间步序号
+     * @return 固定六位十进制验证码
      */
     private static String generateCode(byte[] secret, long step) {
         try {
@@ -110,6 +115,12 @@ public final class TotpUtils {
         }
     }
 
+    /**
+     * 将随机密钥编码为不带填充符的 RFC 4648 Base32 文本。
+     *
+     * @param bytes 原始密钥字节
+     * @return Base32 密钥文本
+     */
     private static String base32Encode(byte[] bytes) {
         StringBuilder result = new StringBuilder((bytes.length * 8 + 4) / 5);
         int buffer = 0;
@@ -128,6 +139,12 @@ public final class TotpUtils {
         return result.toString();
     }
 
+    /**
+     * 解码允许包含空格和填充符的 Base32 密钥。
+     *
+     * @param value Base32 密钥文本
+     * @return 原始密钥字节
+     */
     private static byte[] base32Decode(String value) {
         String normalized = value.replace("=", "").replace(" ", "").toUpperCase(Locale.ROOT);
         int buffer = 0;
@@ -146,6 +163,12 @@ public final class TotpUtils {
         return Arrays.copyOf(output, count);
     }
 
+    /**
+     * 将单个 Base32 字符转换为五位数值。
+     *
+     * @param ch 已转为大写的 Base32 字符
+     * @return 0 至 31 的字符值
+     */
     private static int base32Digit(char ch) {
         for (int i = 0; i < BASE32_ALPHABET.length; i++) {
             if (BASE32_ALPHABET[i] == ch) {
@@ -155,6 +178,12 @@ public final class TotpUtils {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "totp secret is invalid");
     }
 
+    /**
+     * 对 otpauth URI 参数执行 UTF-8 百分号编码，并把空格规范为 %20。
+     *
+     * @param value 待编码文本
+     * @return URI 参数编码结果
+     */
     private static String urlEncode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }

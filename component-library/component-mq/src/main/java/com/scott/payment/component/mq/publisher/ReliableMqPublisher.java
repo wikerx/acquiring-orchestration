@@ -214,6 +214,9 @@ public class ReliableMqPublisher {
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            /**
+             * 在 Outbox 事件事务提交成功后调度即时投递，避免发送早于数据库事实。
+             */
             @Override
             public void afterCommit() {
                 scheduleImmediateRelay(eventId);
@@ -232,12 +235,14 @@ public class ReliableMqPublisher {
                 try {
                     relayService.relayEvent(eventId);
                 } catch (RuntimeException exception) {
-                    log.warn("event: RELIABLE_MQ_IMMEDIATE_RELAY_FAILED eventId: {} exceptionType: {}",
+                    log.warn("可靠消息立即投递失败, event: RELIABLE_MQ_IMMEDIATE_RELAY_FAILED, "
+                                    + "eventId: {}, exceptionType: {}",
                             eventId, exception.getClass().getSimpleName());
                 }
             });
         } catch (RuntimeException exception) {
-            log.warn("event: RELIABLE_MQ_IMMEDIATE_RELAY_REJECTED eventId: {} exceptionType: {}",
+            log.warn("可靠消息立即投递任务被拒绝, event: RELIABLE_MQ_IMMEDIATE_RELAY_REJECTED, "
+                            + "eventId: {}, exceptionType: {}",
                     eventId, exception.getClass().getSimpleName());
         }
     }

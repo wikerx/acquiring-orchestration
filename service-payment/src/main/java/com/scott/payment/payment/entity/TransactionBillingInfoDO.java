@@ -18,18 +18,10 @@ public class TransactionBillingInfoDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /**
-     * {@code TransactionBillingInfoDO} 数据库主键，用于唯一标识当前记录。
-     */
+
     @TableId(type = IdType.AUTO)
     private Long id;
-    /**
-     * 账单信息ID，用于定位 {@code TransactionBillingInfoDO} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private String billingInfoId;
     /**
      * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
@@ -57,9 +49,7 @@ public class TransactionBillingInfoDO implements Serializable {
      * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
      */
     private String phone;
-    /**
-     * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
-     */
+
     @TableField("billing_country")
     private String country;
     /**

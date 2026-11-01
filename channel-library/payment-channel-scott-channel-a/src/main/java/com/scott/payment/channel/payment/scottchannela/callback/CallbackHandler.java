@@ -3,6 +3,7 @@ package com.scott.payment.channel.payment.scottchannela.callback;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
 import com.scott.payment.channel.payment.enums.ChannelCallbackKind;
+import com.scott.payment.channel.payment.enums.ChannelCapability;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.channel.payment.scottchannela.model.callback.CallbackPayload;
@@ -83,7 +84,7 @@ public class CallbackHandler {
             throw new ChannelRequestException("ScottChannelA callback transaction identity is incomplete");
         }
         result.setRawChannelStatus(body.getStatus());
-        result.setChannelTradeStatus(mapStatus(result.getRawChannelStatus()).getCode());
+        result.setChannelTradeStatus(mapStatus(result.getRawChannelStatus(), body.getOperationType()).getCode());
         result.setAmount(body.getAmount());
         result.setCurrency(body.getCurrency());
         result.setChannelResponseCode(firstText(body.getResponseCode(), body.getCode()));
@@ -122,18 +123,33 @@ public class CallbackHandler {
         throw new ChannelRequestException("ScottChannelA callback body is invalid");
     }
 
-    private ChannelTradeStatus mapStatus(String status) {
+    /**
+     * 将渠道原始状态映射为统一状态，未知值保守保持待处理。
+     *
+     * @param status 渠道原始状态
+     * @return 统一渠道交易状态
+     */
+    private ChannelTradeStatus mapStatus(String status, String operationType) {
         if (status == null) {
             return ChannelTradeStatus.PENDING;
         }
         return switch (status.trim().toUpperCase()) {
             case "SUCCESS", "SUCCEEDED" -> ChannelTradeStatus.SUCCESS;
-            case "FAIL", "FAILED", "CANCELLED", "CANCELED" -> ChannelTradeStatus.FAILED;
+            case "CANCELLED", "CANCELED" -> ChannelCapability.VOID.getCode().equalsIgnoreCase(operationType)
+                    ? ChannelTradeStatus.VOIDED : ChannelTradeStatus.FAILED;
+            case "FAIL", "FAILED" -> ChannelTradeStatus.FAILED;
             case "PROCESSING", "T201", "T202", "T203" -> ChannelTradeStatus.PROCESSING;
             default -> ChannelTradeStatus.PENDING;
         };
     }
 
+    /**
+     * 按 HTTP Header 大小写不敏感语义读取首值。
+     *
+     * @param request 回调请求
+     * @param name    Header 名称
+     * @return Header 值或 {@code null}
+     */
     private String header(ChannelCallbackRequest request, String name) {
         if (request.getHeaders() == null) {
             return null;
@@ -145,16 +161,35 @@ public class CallbackHandler {
                 .orElse(null);
     }
 
+    /**
+     * 将可选十进制证据转换为不使用科学计数法的文本。
+     *
+     * @param value 十进制值
+     * @return 十进制文本或 {@code null}
+     */
     private String decimalText(java.math.BigDecimal value) {
         return value == null ? null : value.toPlainString();
     }
 
+    /**
+     * 仅将非空渠道证据写入回调扩展字段。
+     *
+     * @param result 回调解析结果
+     * @param key    扩展字段名
+     * @param value  扩展字段值
+     */
     private void put(ChannelCallbackResult result, String key, String value) {
         if (StringUtils.hasText(value)) {
             result.getExtension().put(key, value);
         }
     }
 
+    /**
+     * 按优先级返回第一个非空文本。
+     *
+     * @param values 候选值
+     * @return 首个非空值或 {@code null}
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;

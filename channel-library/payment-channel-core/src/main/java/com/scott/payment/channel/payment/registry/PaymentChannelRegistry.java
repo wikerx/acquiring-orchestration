@@ -64,6 +64,12 @@ public class PaymentChannelRegistry {
         return clients;
     }
 
+    /**
+     * 将渠道编码规范化为注册表使用的大写形式。
+     *
+     * @param channelCode 原始渠道编码
+     * @return 规范化渠道编码
+     */
     private String normalize(String channelCode) {
         return channelCode == null ? null : channelCode.trim().toUpperCase(Locale.ROOT);
     }

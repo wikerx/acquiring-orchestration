@@ -52,6 +52,9 @@ public final class PaymentRedisScripts {
     private static final DefaultRedisScript<List> SLIDING_WINDOW_RATE_LIMIT_V1 =
             load("v1/sliding-window-rate-limit.lua", List.class);
 
+    /**
+     * 禁止实例化版本化 Redis Lua 脚本注册表。
+     */
     private PaymentRedisScripts() {
     }
 

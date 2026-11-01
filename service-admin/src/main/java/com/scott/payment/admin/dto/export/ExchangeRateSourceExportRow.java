@@ -23,9 +23,7 @@ public class ExchangeRateSourceExportRow {
     @ExcelExportColumn(order = 3, headerKey = "excel.exchange.source.sourceType", width = 16)
     private String sourceType;
 
-    /**
-     * 请求URL，表示当前内部调用、渠道调用或商户通知的目标地址。
-     */
+
     @ExcelExportColumn(order = 4, headerKey = "excel.exchange.source.requestUrl", width = 36)
     private String requestUrl;
 

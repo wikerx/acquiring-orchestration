@@ -67,6 +67,12 @@ public class RedisObservabilityAutoConfiguration {
     @ConditionalOnMissingBean(name = "redisSensitiveTagMeterFilter")
     public MeterFilter redisSensitiveTagMeterFilter() {
         return new MeterFilter() {
+            /**
+             * 拒绝 acquiring.redis 指标中包含敏感或无界标签名的 Meter。
+             *
+             * @param id 待注册指标标识
+             * @return 拒绝或保持中立
+             */
             @Override
             public MeterFilterReply accept(io.micrometer.core.instrument.Meter.Id id) {
                 if (!id.getName().startsWith("acquiring.redis.")) {

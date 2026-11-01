@@ -8,15 +8,12 @@ import org.springframework.util.StringUtils;
  */
 public final class InternalServiceClientCredentialValidator {
 
-    /**
-     * {@code DEVELOPMENT_SECRET}常量，统一 {@code InternalServiceClientCredentialValidator} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String DEVELOPMENT_SECRET = "dev-internal-service-secret";
 
+    /**
+     * 禁止实例化内部客户端凭据校验工具类。
+     */
     private InternalServiceClientCredentialValidator() {
     }
 

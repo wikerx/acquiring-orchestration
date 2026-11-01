@@ -26,6 +26,7 @@ import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.HorizontalAlignment;
@@ -70,6 +71,7 @@ import java.util.stream.Stream;
  * 收单风控管理应用服务，负责管理端名单、规则、交易加黑和风控记录的页面编排，不参与实时交易风控决策。
  */
 @Service
+@Slf4j
 public class AdminRiskManagementApplicationService {
 
     /**
@@ -2385,7 +2387,9 @@ public class AdminRiskManagementApplicationService {
         }
         try {
             return JsonUtils.parseObject(text, STRING_OBJECT_MAP_TYPE);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException exception) {
+            log.warn("风控配置快照解析失败, event: RISK_CHANGE_SNAPSHOT_PARSE_FAILED, exceptionType: {}",
+                    exception.getClass().getSimpleName());
             return null;
         }
     }
@@ -4245,6 +4249,8 @@ public class AdminRiskManagementApplicationService {
             Map<String, Object> policy = JsonUtils.parseObject(json, STRING_OBJECT_MAP_TYPE);
             return policy == null ? Map.of() : policy;
         } catch (RuntimeException exception) {
+            log.warn("风控频控策略解析失败, event: RISK_FREQUENCY_POLICY_PARSE_FAILED, exceptionType: {}",
+                    exception.getClass().getSimpleName());
             return Map.of();
         }
     }

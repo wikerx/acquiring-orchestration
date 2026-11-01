@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Properties;
 
 /**
- * Merchant SMTP 外部系统适配器，只发送冻结记录，不负责投递状态流转或重试决策
+ * 商户 SMTP 外部系统适配器，只发送已冻结内容，不负责投递状态流转或重试决策。
  */
 @Component
 public class MerchantSmtpEmailSender {

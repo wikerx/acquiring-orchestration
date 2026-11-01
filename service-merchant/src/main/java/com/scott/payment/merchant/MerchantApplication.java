@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * Merchant 服务启动类
+ * 商户服务启动类。
  */
 @SpringBootApplication(scanBasePackages = "com.scott.payment")
 public class MerchantApplication {

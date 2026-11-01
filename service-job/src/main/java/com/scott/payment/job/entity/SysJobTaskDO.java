@@ -8,7 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 系统任务任务数据对象
+ * 系统调度任务持久化对象。
  */
 @Data
 @TableName("sys_job_task")

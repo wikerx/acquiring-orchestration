@@ -28,18 +28,11 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 商户正式资料快照实现，负责高风险主档和相关人员的一致读取与原子替换
+ * 商户正式资料快照实现，负责高风险主档和关联人员的一致读取与原子替换。
  */
 @Service
 public class DefaultMerchantProfileSnapshotService implements MerchantProfileSnapshotService {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code DefaultMerchantProfileSnapshotService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final int NOT_DELETED = 0;
 
     private final BaseMerchantInfoMapper merchantInfoMapper;
@@ -191,6 +184,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         }
     }
 
+    /**
+     * 将商户关联人员资料转换为待持久化实体，并保留未重新提交的证件信息。
+     */
     private MerchantRelatedPersonDO toPersonEntity(
             String merchantId,
             MerchantProfileChangeDTOs.RelatedPerson source,
@@ -220,6 +216,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         return row;
     }
 
+    /**
+     * 解密并写入商户人员证件号码，解密失败时拒绝返回不完整快照。
+     */
     private void applyIdNumber(MerchantRelatedPersonDO target,
                                MerchantProfileChangeDTOs.RelatedPerson source,
                                MerchantRelatedPersonDO previous,
@@ -238,6 +237,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         }
     }
 
+    /**
+     * 读取并校验商户，缺失时抛出业务异常。
+     */
     private BaseMerchantInfoDO requireMerchant(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw invalid("merchant id is required");
@@ -253,6 +255,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         return merchant;
     }
 
+    /**
+     * 将商户主档转换为资料变更流程使用的快照。
+     */
     private MerchantProfileChangeDTOs.ProfileSnapshot toSnapshot(BaseMerchantInfoDO row) {
         MerchantProfileChangeDTOs.ProfileSnapshot value = new MerchantProfileChangeDTOs.ProfileSnapshot();
         value.setMerchantName(row.getMerchantName());
@@ -311,6 +316,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         return value;
     }
 
+    /**
+     * 将关联人员实体转换为不含证件明文的资料快照。
+     */
     private MerchantProfileChangeDTOs.RelatedPerson toPerson(MerchantRelatedPersonDO row) {
         MerchantProfileChangeDTOs.RelatedPerson value = new MerchantProfileChangeDTOs.RelatedPerson();
         value.setId(row.getId());
@@ -331,12 +339,18 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         return value;
     }
 
+    /**
+     * 按分隔符拆分并规范化多值文本。
+     */
     private List<String> split(String value) {
         if (!StringUtils.hasText(value)) return Collections.emptyList();
         return Arrays.stream(value.split(","))
                 .map(String::trim).filter(StringUtils::hasText).distinct().toList();
     }
 
+    /**
+     * 规范化并连接多值文本。
+     */
     private String join(List<String> values) {
         if (values == null) return null;
         String joined = values.stream().filter(Objects::nonNull).map(String::trim)
@@ -344,6 +358,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         return joined.isBlank() ? null : joined;
     }
 
+    /**
+     * 将多值编码规范化为大写后连接。
+     */
     private String joinUpper(List<String> values) {
         if (values == null) return null;
         String joined = values.stream().filter(Objects::nonNull).map(this::upper)
@@ -351,28 +368,46 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         return joined.isBlank() ? null : joined;
     }
 
+    /**
+     * 将可空布尔值转换为持久化整数标识。
+     */
     private Integer bool(Boolean value) {
         return value == null ? null : value ? 1 : 0;
     }
 
+    /**
+     * 判断持久化整数标识是否为真。
+     */
     private Boolean isTrue(Integer value) {
         return value == null ? null : value == 1;
     }
 
+    /**
+     * 去除字符串首尾空白，并将空字符串转换为空值。
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 将可空编码规范化为大写。
+     */
     private String upper(String value) {
         String normalized = trimToNull(value);
         return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 将可空编码规范化为小写。
+     */
     private String lower(String value) {
         String normalized = trimToNull(value);
         return normalized == null ? null : normalized.toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 对可识别文本执行部分掩码。
+     */
     private String mask(String value) {
         if (value.length() <= 4) return "*".repeat(value.length());
         if (value.length() <= 8) {
@@ -383,6 +418,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
                 + value.substring(value.length() - 4);
     }
 
+    /**
+     * 校验资料加密主密钥已配置且满足最小强度。
+     */
     private void requireEncryptionSecret() {
         if (!StringUtils.hasText(properties.getEncryptionSecret())) {
             throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(),
@@ -390,6 +428,9 @@ public class DefaultMerchantProfileSnapshotService implements MerchantProfileSna
         }
     }
 
+    /**
+     * 创建参数校验失败业务异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

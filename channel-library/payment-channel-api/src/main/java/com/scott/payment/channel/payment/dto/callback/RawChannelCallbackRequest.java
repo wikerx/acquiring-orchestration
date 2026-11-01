@@ -22,6 +22,9 @@ public record RawChannelCallbackRequest(String channelCode,
                                         byte[] body,
                                         String sourceIp) {
 
+    /**
+     * 规范化渠道编码与 HTTP 方法，并防御性复制多值 Header 和原始正文。
+     */
     public RawChannelCallbackRequest {
         channelCode = normalizeChannelCode(channelCode);
         method = method == null ? null : method.trim().toUpperCase(Locale.ROOT);
@@ -87,6 +90,12 @@ public record RawChannelCallbackRequest(String channelCode,
         return Collections.unmodifiableMap(firstValues);
     }
 
+    /**
+     * 深度复制多值 Header，保留原始顺序并返回不可变视图。
+     *
+     * @param source 原始多值 Header
+     * @return 不可变 Header 映射
+     */
     private static Map<String, List<String>> immutableHeaders(Map<String, List<String>> source) {
         if (source == null || source.isEmpty()) {
             return Map.of();
@@ -102,6 +111,12 @@ public record RawChannelCallbackRequest(String channelCode,
         return Collections.unmodifiableMap(copy);
     }
 
+    /**
+     * 将渠道编码规范化为大写形式。
+     *
+     * @param value 原始渠道编码
+     * @return 规范化渠道编码
+     */
     private static String normalizeChannelCode(String value) {
         return value == null ? null : value.trim().toUpperCase(Locale.ROOT);
     }

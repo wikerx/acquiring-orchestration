@@ -144,12 +144,12 @@ public class DataInternalRestClient implements DataInternalClient {
             }
             return result.getData();
         } catch (HttpStatusCodeException exception) {
-            log.warn("service-data compensation call rejected, targetPath: {}, httpStatus: {}",
+            log.warn("数据服务补偿调用被拒绝, event: JOB_DATA_COMPENSATION_REJECTED, targetPath: {}, httpStatus: {}",
                     uri.getPath(), exception.getStatusCode().value());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-data compensation call rejected");
         } catch (RestClientException exception) {
-            log.warn("service-data compensation call failed, targetPath: {}, exceptionType: {}",
+            log.warn("数据服务补偿调用失败, event: JOB_DATA_COMPENSATION_FAILED, targetPath: {}, exceptionType: {}",
                     uri.getPath(), exception.getClass().getSimpleName());
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(),
                     "service-data compensation call failed");

@@ -48,6 +48,14 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
                 () -> UUID.randomUUID().toString().replace("-", ""));
     }
 
+    /**
+     * 创建可注入时钟和 nonce 生成器的收银台入口签名过滤器，供确定性测试使用。
+     *
+     * @param properties 网关入口签名配置
+     * @param errorWriter OpenAPI 错误响应写出器
+     * @param currentTimeMillis 当前时间提供器
+     * @param nonceSupplier 单次请求随机数提供器
+     */
     CheckoutGatewayIngressFilter(GatewayIngressProperties properties,
                                  GatewayOpenApiErrorWriter errorWriter,
                                  LongSupplier currentTimeMillis,
@@ -96,6 +104,12 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
                 .onErrorResume(DataBufferLimitException.class, exception -> writePayloadTooLarge(exchange));
     }
 
+    /**
+     * 复制请求缓冲区内容并始终释放 Netty 引用计数。
+     *
+     * @param buffer 待读取的数据缓冲区
+     * @return 可重复读取的请求正文字节
+     */
     private byte[] readAndRelease(DataBuffer buffer) {
         try {
             byte[] body = new byte[buffer.readableByteCount()];
@@ -106,6 +120,16 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
         }
     }
 
+    /**
+     * 基于原始请求目标、正文摘要和可信客户端 IP 生成签名后继续转发。
+     *
+     * @param exchange 当前 Gateway 请求上下文
+     * @param chain 后续路由链
+     * @param requestBuilder 已清除外部伪造签名头的请求构造器
+     * @param rawPath 未解码请求路径
+     * @param body 请求正文字节
+     * @return 下游异步处理结果
+     */
     private Mono<Void> signAndForward(ServerWebExchange exchange,
                                       GatewayFilterChain chain,
                                       ServerHttpRequest.Builder requestBuilder,
@@ -145,18 +169,43 @@ public class CheckoutGatewayIngressFilter implements GlobalFilter, Ordered {
         return Ordered.HIGHEST_PRECEDENCE + 25;
     }
 
+    /**
+     * 在入口签名密钥未配置时返回失败关闭响应。
+     *
+     * @param exchange 当前 Gateway 请求上下文
+     * @return 错误响应写出结果
+     */
     private Mono<Void> writeUnavailable(ServerWebExchange exchange) {
         return errorWriter.write(exchange, HttpStatus.SERVICE_UNAVAILABLE, OpenApiResultCode.SYSTEM_ERROR);
     }
 
+    /**
+     * 在声明或实际正文超过上限时返回统一的 413 响应。
+     *
+     * @param exchange 当前 Gateway 请求上下文
+     * @return 错误响应写出结果
+     */
     private Mono<Void> writePayloadTooLarge(ServerWebExchange exchange) {
         return errorWriter.write(exchange, HttpStatus.PAYLOAD_TOO_LARGE, OpenApiResultCode.REQUEST_TOO_LARGE);
     }
 
+    /**
+     * 使用缓存字节重建可供下游再次订阅的请求正文。
+     *
+     * @param exchange 当前 Gateway 请求上下文
+     * @param request 已写入可信签名头的请求
+     * @param body 已缓存请求正文
+     * @return 可重复读取正文的请求装饰器
+     */
     private ServerHttpRequest replayableRequest(ServerWebExchange exchange,
                                                 ServerHttpRequest request,
                                                 byte[] body) {
         return new ServerHttpRequestDecorator(request) {
+            /**
+             * 为每次订阅创建新的 DataBuffer，避免复用已释放缓冲区。
+             *
+             * @return 当前缓存正文的数据流
+             */
             @Override
             public Flux<DataBuffer> getBody() {
                 if (body.length == 0) {

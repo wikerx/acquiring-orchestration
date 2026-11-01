@@ -8,14 +8,13 @@ import java.time.Duration;
 public final class GatewayHttpClientTimeoutPolicy {
 
     /**
-     * 最大超时毫秒数常量，统一 {@code GatewayHttpClientTimeoutPolicy} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
+     * 下游连接和响应等待时间允许的单项上限，单位毫秒。
      */
     private static final long MAX_TIMEOUT_MILLIS = 60_000L;
 
+    /**
+     * 禁止实例化无状态超时策略类。
+     */
     private GatewayHttpClientTimeoutPolicy() {
     }
 

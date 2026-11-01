@@ -28,6 +28,14 @@ public class ReactiveRedisSlidingWindowRateLimiter {
     private final RateLimitFailurePolicy failurePolicy;
     private final AtomicLong lastWarningMillis = new AtomicLong();
 
+    /**
+     * 创建 WebFlux Redis 滑动窗口限流器及有界本地故障策略。
+     *
+     * @param redisTemplate 响应式 Redis 模板
+     * @param redisProperties 统一 Redis Key 配置
+     * @param localMaxIdentities 本地降级最大身份数
+     * @param failurePolicy Redis 故障时失败关闭或本地降级策略
+     */
     public ReactiveRedisSlidingWindowRateLimiter(ReactiveStringRedisTemplate redisTemplate,
                                                  PaymentRedisProperties redisProperties,
                                                  int localMaxIdentities,
@@ -81,6 +89,14 @@ public class ReactiveRedisSlidingWindowRateLimiter {
                 });
     }
 
+    /**
+     * 校验限流范围、身份、配额和窗口时长均可安全执行。
+     *
+     * @param scope 限流业务范围
+     * @param identity 限流身份原文
+     * @param limit 窗口内允许次数
+     * @param window 滑动窗口时长
+     */
     private void requireArguments(String scope, String identity, int limit, Duration window) {
         if (!StringUtils.hasText(scope) || !StringUtils.hasText(identity)
                 || limit <= 0 || window == null || window.isZero() || window.isNegative()) {
@@ -88,6 +104,12 @@ public class ReactiveRedisSlidingWindowRateLimiter {
         }
     }
 
+    /**
+     * 将身份原文转换为 Redis Key 使用的不可逆 SHA-256 摘要。
+     *
+     * @param value 身份原文
+     * @return 64 位小写十六进制摘要
+     */
     private String digest(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
@@ -97,6 +119,12 @@ public class ReactiveRedisSlidingWindowRateLimiter {
         }
     }
 
+    /**
+     * 将失败关闭时的窗口时长向上取整为至少一秒的重试等待值。
+     *
+     * @param window 滑动窗口时长
+     * @return Retry-After 秒数
+     */
     private long retryAfterSeconds(Duration window) {
         return Math.max(1L, (window.toMillis() + 999L) / 1000L);
     }
@@ -108,7 +136,8 @@ public class ReactiveRedisSlidingWindowRateLimiter {
         long now = System.currentTimeMillis();
         long previous = lastWarningMillis.get();
         if (now - previous >= 60_000L && lastWarningMillis.compareAndSet(previous, now)) {
-            log.warn("event: REDIS_RATE_LIMIT_FAILURE scope: {} failurePolicy: {} exceptionType: {}",
+            log.warn("Redis 限流执行失败, event: REDIS_RATE_LIMIT_FAILURE, "
+                            + "scope: {}, failurePolicy: {}, exceptionType: {}",
                     scope, failurePolicy, exception.getClass().getSimpleName(), exception);
         }
     }

@@ -114,6 +114,12 @@ public class InternalServiceAuthProperties {
                 .anyMatch(pattern -> PATH_MATCHER.match(pattern, requestPath));
     }
 
+    /**
+     * 校验调用方身份格式、轮换密钥和最小内部路径权限。
+     *
+     * @param caller 调用方服务身份
+     * @param credential 调用方轮换凭据和路径权限
+     */
     private void validateCallerCredential(String caller, CallerCredential credential) {
         if (!StringUtils.hasText(caller) || !CALLER_PATTERN.matcher(caller).matches()) {
             throw new IllegalStateException("internal service caller identity is invalid");
@@ -138,6 +144,12 @@ public class InternalServiceAuthProperties {
         }
     }
 
+    /**
+     * 校验内部 HMAC 密钥已解析、不是历史弱密钥且满足最低长度。
+     *
+     * @param value 待校验密钥
+     * @param slot active 或 previous 密钥槽位
+     */
     private void validateSecret(String value, String slot) {
         if (!StringUtils.hasText(value) || value.contains("${")) {
             throw new IllegalStateException("internal service " + slot + " secret is required");
@@ -148,6 +160,12 @@ public class InternalServiceAuthProperties {
         }
     }
 
+    /**
+     * 校验认证时间窗口配置为正时长。
+     *
+     * @param value 配置时长
+     * @param propertyName 非敏感配置属性名
+     */
     private void requirePositiveDuration(Duration value, String propertyName) {
         if (value == null || value.isZero() || value.isNegative()) {
             throw new IllegalStateException(propertyName + " must be positive");

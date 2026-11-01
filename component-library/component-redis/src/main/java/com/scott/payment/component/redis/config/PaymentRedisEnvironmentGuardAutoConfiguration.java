@@ -69,6 +69,12 @@ public class PaymentRedisEnvironmentGuardAutoConfiguration {
         return new RedisEnvironmentPrefixGuard();
     }
 
+    /**
+     * 解析唯一受保护环境，拒绝同时激活多个生产类 profile。
+     *
+     * @param environment Spring 环境
+     * @return 受保护环境名，当前仅为开发测试环境时返回 null
+     */
     private String resolveProtectedProfile(Environment environment) {
         List<String> protectedProfiles = Arrays.stream(environment.getActiveProfiles())
                 .map(profile -> profile.trim().toLowerCase(Locale.ROOT))

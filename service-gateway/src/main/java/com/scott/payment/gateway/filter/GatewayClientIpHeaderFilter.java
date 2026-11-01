@@ -115,6 +115,12 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
         return remoteIp;
     }
 
+    /**
+     * 从 TCP 连接读取并规范化直接上游地址，不信任任何请求头。
+     *
+     * @param request 当前网关请求
+     * @return 规范化远端 IP；连接未提供地址时返回 {@code null}
+     */
     private String remoteIp(ServerHttpRequest request) {
         InetSocketAddress remoteAddress = request.getRemoteAddress();
         if (remoteAddress == null || remoteAddress.getAddress() == null) {

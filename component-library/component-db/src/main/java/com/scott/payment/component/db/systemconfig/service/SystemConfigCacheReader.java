@@ -16,13 +16,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class SystemConfigCacheReader {
 
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code SystemConfigCacheReader} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final long NOT_DELETED = 0L;
 
     private final SystemConfigMapper systemConfigMapper;
@@ -65,6 +59,12 @@ public class SystemConfigCacheReader {
         return load(configKey);
     }
 
+    /**
+     * 从当前指定数据源加载未删除的唯一系统配置记录。
+     *
+     * @param configKey 全局唯一配置键
+     * @return 配置快照，不存在时返回 null
+     */
     private SystemConfigSnapshot load(String configKey) {
         SystemConfigDO row = systemConfigMapper.selectOne(
                 Wrappers.<SystemConfigDO>lambdaQuery()
@@ -75,6 +75,12 @@ public class SystemConfigCacheReader {
         return row == null ? null : toSnapshot(row);
     }
 
+    /**
+     * 将数据库配置记录转换为跨服务只读快照。
+     *
+     * @param row 数据库配置记录
+     * @return 不暴露持久化行为的配置快照
+     */
     private SystemConfigSnapshot toSnapshot(SystemConfigDO row) {
         return new SystemConfigSnapshot(
                 row.getId(),

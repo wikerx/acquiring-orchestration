@@ -11,6 +11,9 @@ import java.io.Serializable;
  */
 public final class MerchantDictDTOs {
 
+    /**
+     * 禁止实例化商户字典 DTO 聚合类。
+     */
     private MerchantDictDTOs() {
     }
 

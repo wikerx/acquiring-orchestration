@@ -9,6 +9,9 @@ import com.scott.payment.component.core.exception.ServiceException;
  */
 public final class LuhnMod10Utils {
 
+    /**
+     * 禁止实例化 Luhn 校验工具类。
+     */
     private LuhnMod10Utils() {
     }
 

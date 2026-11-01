@@ -41,18 +41,20 @@ public class RocketMqResourceInitializer {
      */
     public void initialize() {
         if (!properties.isEnabled() || !properties.isScanOnStartup()) {
-            log.info("RocketMQ 资源初始化器未启用或跳过启动扫描，enabled：{}，scanOnStartup：{}",
+            log.info("RocketMQ 资源初始化器跳过启动扫描, event: ROCKET_MQ_RESOURCE_SCAN_SKIPPED, "
+                            + "enabled: {}, scanOnStartup: {}",
                     properties.isEnabled(),
                     properties.isScanOnStartup());
             return;
         }
         if (CollectionUtils.isEmpty(properties.getResources())) {
-            log.info("RocketMQ 资源初始化器已启用，但未声明资源列表，跳过执行。");
+            log.info("RocketMQ 资源初始化器未发现资源声明, event: ROCKET_MQ_RESOURCE_LIST_EMPTY");
             return;
         }
         List<MqResourceCheckResult> results = adminFacade.checkAndInitialize(properties.getResources());
         for (MqResourceCheckResult result : results) {
-            log.info("RocketMQ 资源检查完成，type：{}，name：{}，exists：{}，created：{}，updated：{}，message：{}",
+            log.info("RocketMQ 资源检查完成, event: ROCKET_MQ_RESOURCE_CHECKED, type: {}, name: {}, "
+                            + "exists: {}, created: {}, updated: {}, message: {}",
                     result.getResourceType(),
                     result.getResourceName(),
                     result.isExists(),

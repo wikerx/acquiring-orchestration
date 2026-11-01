@@ -7,6 +7,9 @@ import org.springframework.util.StringUtils;
  */
 public final class DictionaryOptionCacheKey {
 
+    /**
+     * 禁止实例化字典缓存键工具类。
+     */
     private DictionaryOptionCacheKey() {
     }
 

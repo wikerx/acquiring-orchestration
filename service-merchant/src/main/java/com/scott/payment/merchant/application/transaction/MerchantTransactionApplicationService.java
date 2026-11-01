@@ -42,7 +42,7 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 商户交易应用服务，位于 商户后台服务，编排可信登录上下文、权限、领域服务调用和响应模型组装。
+ * 商户交易应用服务，编排交易查询以及请款、预授权完成、退款和撤销操作。
  */
 @Service
 public class MerchantTransactionApplicationService {
@@ -55,22 +55,7 @@ public class MerchantTransactionApplicationService {
      * 退款预览沿用支付核心非终态退款查询的状态口径。
      */
     private static final Set<String> REFUND_IN_PROGRESS_STATUSES = Set.of("PROCESSING", "PENDING");
-    /**
-     * 退款动作类型，用于区分 {@code MerchantTransactionApplicationService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String REFUND_OPERATION_TYPE = "REFUND";
-    /**
-     * 成功状态，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
     private static final String SUCCESS_STATUS = "SUCCESS";
     /**
      * 异常退出后 Redis 并发租约的最长自恢复时间。
@@ -392,6 +377,9 @@ public class MerchantTransactionApplicationService {
         });
     }
 
+    /**
+     * 复制查询条件并强制覆盖为认证上下文中的商户号。
+     */
     private TransactionPageQuery merchantScopedQuery(String merchantId, TransactionPageQuery source) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ApiException(ApiResultEnum.UNAUTHORIZED, "merchant context missing");
@@ -453,6 +441,9 @@ public class MerchantTransactionApplicationService {
         return "merchant-account:" + merchantId + ":" + accountIdentity;
     }
 
+    /**
+     * 复制交易查询条件，避免修改控制器接收的原始对象。
+     */
     private TransactionPageQuery copyTransactionQuery(TransactionPageQuery source) {
         TransactionPageQuery query = source == null ? new TransactionPageQuery() : source;
         TransactionPageQuery copy = new TransactionPageQuery();
@@ -475,6 +466,9 @@ public class MerchantTransactionApplicationService {
         return copy;
     }
 
+    /**
+     * 校验交易详情属于当前认证商户，防止越权操作。
+     */
     private void ensureBelongsToMerchant(String merchantId, TransactionDetailResponse detailResponse) {
         if (detailResponse == null || detailResponse.getOrder() == null) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -489,6 +483,9 @@ public class MerchantTransactionApplicationService {
         }
     }
 
+    /**
+     * 从聚合详情中定位后续动作引用的原交易操作。
+     */
     private TransactionOperationResponse resolveSourceOperation(TransactionDetailResponse detailResponse, String transactionId) {
         if (detailResponse == null || detailResponse.getOperations() == null) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -499,6 +496,9 @@ public class MerchantTransactionApplicationService {
                 .orElseThrow(() -> new ApiException(ApiResultEnum.ORDER_NOT_FOUND));
     }
 
+    /**
+     * 构建发送支付核心的后续交易命令，并绑定认证商户与原交易身份。
+     */
     private PaymentTransactionActionClientRequestDTO buildActionRequest(String merchantId,
                                                                        TransactionOperationResponse sourceOperation,
                                                                        TransactionActionRequest request,
@@ -625,6 +625,9 @@ public class MerchantTransactionApplicationService {
         return amount.setScale(digits, roundingMode);
     }
 
+    /**
+     * 解析后续动作的标签币种；未上送时沿用原交易币种，上送时必须一致。
+     */
     private String resolveLabelCurrency(TransactionOperationResponse sourceOperation, TransactionActionRequest request) {
         if (StringUtils.hasText(request == null ? null : request.getCurrency())) {
             return request.getCurrency().trim().toUpperCase(Locale.ROOT);
@@ -635,6 +638,9 @@ public class MerchantTransactionApplicationService {
         return sourceOperation.getTransactionCurrency();
     }
 
+    /**
+     * 读取原交易剩余可操作金额，保证后续动作沿用原交易币种口径。
+     */
     private BigDecimal fullTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal preferredAmount) {
         BigDecimal amount = preferredAmount == null ? sourceOperation.getTransactionAmount() : preferredAmount;
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
@@ -643,6 +649,9 @@ public class MerchantTransactionApplicationService {
         return amount;
     }
 
+    /**
+     * 读取原交易剩余标签金额，保证商户侧金额口径不随渠道换汇变化。
+     */
     private BigDecimal fullLabelAmount(TransactionOperationResponse sourceOperation, BigDecimal transactionAmount) {
         BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
         BigDecimal sourceLabelAmount = sourceOperation.getLabelAmount();
@@ -654,6 +663,9 @@ public class MerchantTransactionApplicationService {
         return amount.multiply(sourceLabelAmount).divide(sourceTransactionAmount, 6, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 按原交易锁定的标签金额与交易金额比例换算本次渠道交易金额。
+     */
     private BigDecimal toTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal labelAmount) {
         if (labelAmount == null || labelAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
@@ -667,6 +679,9 @@ public class MerchantTransactionApplicationService {
         return labelAmount.multiply(sourceTransactionAmount).divide(sourceLabelAmount, 6, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 将交易动作转换为 CSV 行并执行字段转义。
+     */
     private String toOperationCsvLine(TransactionOperationResponse row, Locale locale) {
         return String.join(",",
                 csv(row.getTransactionId()),
@@ -700,6 +715,9 @@ public class MerchantTransactionApplicationService {
         );
     }
 
+    /**
+     * 根据布尔值返回导出文件使用的中文标签。
+     */
     private String binaryLabel(Integer value,
                                Locale locale,
                                String zhEnabled,
@@ -710,11 +728,17 @@ public class MerchantTransactionApplicationService {
         return csvLabel(locale, enabled ? zhEnabled : zhDisabled, enabled ? enEnabled : enDisabled);
     }
 
+    /**
+     * 将布尔值转换为 CSV 展示文本。
+     */
     private String csvLabel(Locale locale, String zhText, String enText) {
         return locale != null && Locale.CHINESE.getLanguage().equalsIgnoreCase(locale.getLanguage())
                 ? zhText : enText;
     }
 
+    /**
+     * 转义 CSV 单元格中的引号、逗号和换行。
+     */
     private String csv(Object value) {
         if (value == null) {
             return "";

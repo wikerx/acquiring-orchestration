@@ -7,6 +7,9 @@ import com.scott.payment.component.core.trace.TraceContext;
  */
 public final class TraceIdSupport {
 
+    /**
+     * 禁止实例化无状态链路标识工具类。
+     */
     private TraceIdSupport() {
     }
 

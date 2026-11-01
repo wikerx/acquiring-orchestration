@@ -8,6 +8,7 @@ import com.scott.payment.channel.payout.exception.PayoutChannelException;
 import com.scott.payment.channel.payout.scottchannela.config.ChannelProperties;
 import com.scott.payment.channel.payout.scottchannela.support.ChannelCode;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PayoutApiClientTests {
 
     /**
+     * 默认客户端使用生产级出站策略，必须在发送前拒绝 HTTP 和回环地址。
+     **/
+    @Test
+    void shouldRejectLocalHttpTargetWithDefaultOutboundPolicy() {
+        ChannelProperties properties = new ChannelProperties();
+        properties.setBaseUrl("http://127.0.0.1:8080");
+        properties.setVersion("v3");
+        properties.setMerchantId("MID-TEST");
+        properties.setApiKey("KEY-TEST");
+        PayoutApiClient client = new PayoutApiClient(properties);
+        ChannelPayoutQueryRequest request = new ChannelPayoutQueryRequest();
+        request.setChannelCode(ChannelCode.VALUE);
+        request.setChannelOrderNo("PAYOUT-STRICT-URL-001");
+
+        assertThatThrownBy(() -> client.query(request))
+                .isInstanceOf(PayoutChannelException.class)
+                .hasMessageContaining("outbound URL policy");
+    }
+
+    /**
      * 代付缺少 beneficiaryReference 时必须在 Provider 边界拒绝。
      **/
     @Test
@@ -37,7 +58,7 @@ class PayoutApiClientTests {
         request.setAmount(new BigDecimal("10.25"));
         request.setCurrency("USD");
 
-        PayoutApiClient apiClient = new PayoutApiClient(new ChannelProperties());
+        PayoutApiClient apiClient = payoutClient(new ChannelProperties());
 
         assertThatThrownBy(() -> apiClient.submit(request))
                 .isInstanceOf(RuntimeException.class)
@@ -60,14 +81,14 @@ class PayoutApiClientTests {
             properties.setVersion("v3");
             properties.setMerchantId("MID-TEST");
             properties.setApiKey("KEY-TEST");
-            PayoutApiClient client = new PayoutApiClient(properties);
+            PayoutApiClient client = payoutClient(properties);
             ChannelPayoutQueryRequest request = new ChannelPayoutQueryRequest();
             request.setChannelCode(ChannelCode.VALUE);
             request.setChannelOrderNo("PAYOUT-001");
 
             client.query(request);
 
-            assertThat(path).hasValue("/api/v3/payouts/query");
+            assertThat(path).hasValue("/api/rest/v3/payouts/query");
             Map<String, Object> payload = parsePayload(body.get());
             assertThat(payload).containsEntry("merchantOrderNo", "PAYOUT-001");
             assertThat(payload).doesNotContainKey("transactionId");
@@ -88,7 +109,7 @@ class PayoutApiClientTests {
         server.start();
         try {
             ChannelProperties properties = properties(server);
-            PayoutApiClient client = new PayoutApiClient(properties);
+            PayoutApiClient client = payoutClient(properties);
             ChannelPayoutQueryRequest request = new ChannelPayoutQueryRequest();
             request.setChannelCode(ChannelCode.VALUE);
             request.setChannelOrderNo("PAYOUT-CHANNEL-URL");
@@ -97,7 +118,7 @@ class PayoutApiClientTests {
 
             client.query(request);
 
-            assertThat(path).hasValue("/api/v3/payouts/query");
+            assertThat(path).hasValue("/api/rest/v3/payouts/query");
         } finally {
             server.stop(0);
         }
@@ -114,7 +135,7 @@ class PayoutApiClientTests {
         server.start();
         try {
             ChannelProperties properties = properties(server);
-            PayoutApiClient client = new PayoutApiClient(properties);
+            PayoutApiClient client = payoutClient(properties);
             ChannelPayoutRequest request = payoutRequest();
             request.setPaymentMethod("BANK_CARD");
             request.getExtension().put("paymentMethod", "CASH_APP_PAY");
@@ -134,7 +155,7 @@ class PayoutApiClientTests {
         server.createContext("/", exchange -> handle(exchange, new AtomicReference<>(), body));
         server.start();
         try {
-            PayoutApiClient client = new PayoutApiClient(properties(server));
+            PayoutApiClient client = payoutClient(properties(server));
             ChannelPayoutRequest request = payoutRequest();
             request.setPayoutOrderNo("PO-PLATFORM-001");
             request.setMerchantOrderNo("MERCHANT-ORDER-001");
@@ -159,14 +180,14 @@ class PayoutApiClientTests {
         server.createContext("/", exchange -> handle(exchange, path, body));
         server.start();
         try {
-            PayoutApiClient client = new PayoutApiClient(properties(server));
+            PayoutApiClient client = payoutClient(properties(server));
             ChannelPayoutCancelRequest request = new ChannelPayoutCancelRequest();
             request.setChannelCode(ChannelCode.VALUE);
             request.setChannelTransactionId("TX-001");
 
             client.cancel(request);
 
-            assertThat(path).hasValue("/api/v3/payouts/cancel");
+            assertThat(path).hasValue("/api/rest/v3/payouts/cancel");
             assertThat(parsePayload(body.get()))
                     .containsOnlyKeys("transactionId")
                     .containsEntry("transactionId", "TX-001");
@@ -186,7 +207,7 @@ class PayoutApiClientTests {
         server.start();
         try {
             ChannelProperties properties = properties(server);
-            PayoutApiClient client = new PayoutApiClient(properties);
+            PayoutApiClient client = payoutClient(properties);
             ChannelPayoutRequest request = payoutRequest();
             request.getExtension().put("paymentMethod", "CASH_APP_PAY");
 
@@ -210,7 +231,7 @@ class PayoutApiClientTests {
         try {
             ChannelProperties properties = properties(server);
             properties.setApiKey("SECRET-API-KEY");
-            PayoutApiClient client = new PayoutApiClient(properties);
+            PayoutApiClient client = payoutClient(properties);
             ChannelPayoutRequest request = payoutRequest();
             request.setPaymentMethod("ACH_DEBIT");
 
@@ -218,6 +239,8 @@ class PayoutApiClientTests {
 
             assertThat(response.getRequestHeaderJsonMasked()).contains("\"X-Api-Key\":\"***\"");
             assertThat(response.getRequestHeaderJsonMasked()).doesNotContain("SECRET-API-KEY");
+            assertThat(response.getHttpMethod()).isEqualTo("POST");
+            assertThat(response.getResponseBodyJsonMasked()).contains("PROCESSING");
         } finally {
             server.stop(0);
         }
@@ -228,7 +251,7 @@ class PayoutApiClientTests {
         HttpServer server = responseServer(400,
                 "{\"code\":\"INVALID_REQUEST\",\"message\":\"Request validation failed\"}");
         try {
-            PayoutApiClient client = new PayoutApiClient(properties(server));
+            PayoutApiClient client = payoutClient(properties(server));
             ChannelPayoutQueryRequest request = new ChannelPayoutQueryRequest();
             request.setChannelCode(ChannelCode.VALUE);
             request.setChannelOrderNo("PO-001");
@@ -246,7 +269,7 @@ class PayoutApiClientTests {
     void shouldKeepMalformedSuccessfulResponseUncertain() throws IOException {
         HttpServer server = responseServer(200, "not-json");
         try {
-            PayoutApiClient client = new PayoutApiClient(properties(server));
+            PayoutApiClient client = payoutClient(properties(server));
             ChannelPayoutQueryRequest request = new ChannelPayoutQueryRequest();
             request.setChannelCode(ChannelCode.VALUE);
             request.setChannelOrderNo("PO-001");
@@ -264,7 +287,28 @@ class PayoutApiClientTests {
         HttpServer server = responseServer(500,
                 "{\"code\":\"INTERNAL_ERROR\",\"message\":\"Internal server error\"}");
         try {
-            PayoutApiClient client = new PayoutApiClient(properties(server));
+            PayoutApiClient client = payoutClient(properties(server));
+            ChannelPayoutQueryRequest request = new ChannelPayoutQueryRequest();
+            request.setChannelCode(ChannelCode.VALUE);
+            request.setChannelOrderNo("PO-001");
+
+            assertThatThrownBy(() -> client.query(request))
+                    .isInstanceOfSatisfying(PayoutChannelException.class,
+                            exception -> assertThat(exception.isOutcomeUncertain()).isTrue());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    /**
+     * 幂等冲突不能证明首个代付请求失败，必须等待查询确认最终结果。
+     **/
+    @Test
+    void shouldKeepConflictOutcomeUncertain() throws IOException {
+        HttpServer server = responseServer(409,
+                "{\"code\":\"DUPLICATE_REQUEST\",\"message\":\"Request already exists\"}");
+        try {
+            PayoutApiClient client = payoutClient(properties(server));
             ChannelPayoutQueryRequest request = new ChannelPayoutQueryRequest();
             request.setChannelCode(ChannelCode.VALUE);
             request.setChannelOrderNo("PO-001");
@@ -283,7 +327,7 @@ class PayoutApiClientTests {
         request.setPaymentMethod("ACH_DEBIT");
         request.getExtension().put("paymentData", "not-json");
 
-        assertThatThrownBy(() -> new PayoutApiClient(new ChannelProperties())
+        assertThatThrownBy(() -> payoutClient(new ChannelProperties())
                 .submit(request))
                 .isInstanceOfSatisfying(PayoutChannelException.class, exception -> {
                     assertThat(exception.isOutcomeUncertain()).isFalse();
@@ -309,7 +353,7 @@ class PayoutApiClientTests {
                 }
                 """);
         try {
-            PayoutApiClient client = new PayoutApiClient(properties(server));
+            PayoutApiClient client = payoutClient(properties(server));
             ChannelPayoutQueryRequest request = new ChannelPayoutQueryRequest();
             request.setChannelCode(ChannelCode.VALUE);
             request.setChannelOrderNo("PO-001");
@@ -339,7 +383,7 @@ class PayoutApiClientTests {
                 }
                 """);
         try {
-            PayoutApiClient client = new PayoutApiClient(properties(server));
+            PayoutApiClient client = payoutClient(properties(server));
             ChannelPayoutQueryRequest request = new ChannelPayoutQueryRequest();
             request.setChannelCode(ChannelCode.VALUE);
             request.setChannelOrderNo("PO-001");
@@ -362,7 +406,7 @@ class PayoutApiClientTests {
         HttpServer server = responseServer(200,
                 "{\"code\":\"SUCCESS\",\"data\":{\"status\":\"SUCCESS\"}}");
         try {
-            PayoutApiClient client = new PayoutApiClient(properties(server));
+            PayoutApiClient client = payoutClient(properties(server));
             ChannelPayoutQueryRequest request = new ChannelPayoutQueryRequest();
             request.setChannelCode(ChannelCode.VALUE);
             request.setChannelOrderNo("PO-001");
@@ -382,6 +426,17 @@ class PayoutApiClientTests {
         properties.setMerchantId("MID-TEST");
         properties.setApiKey("KEY-TEST");
         return properties;
+    }
+
+    /**
+     * 创建允许本地测试服务器的代付客户端。
+     *
+     * @param properties 测试渠道配置
+     * @return 使用开发模式出站策略的客户端
+     **/
+    private PayoutApiClient payoutClient(ChannelProperties properties) {
+        return new PayoutApiClient(properties,
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.DEVELOPMENT));
     }
 
     private ChannelPayoutRequest payoutRequest() {

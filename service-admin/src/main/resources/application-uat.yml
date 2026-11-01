@@ -73,6 +73,11 @@ acquiring:
     accept-legacy-signature: false
 
 payment:
+  risk:
+    # UAT 缺少独立强密钥时启动失败；历史密钥只用于受控轮换窗口。
+    secret: ${PAYMENT_RISK_SECRET:}
+    previous-secrets: ${PAYMENT_RISK_PREVIOUS_SECRETS:}
+    allow-ephemeral-test-secret: false
   mfa:
     # UAT 缺少独立强密钥时启动失败；不得使用 dev/test 本地回退。
     secret: ${PAYMENT_MFA_SECRET:}

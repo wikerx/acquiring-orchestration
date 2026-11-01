@@ -41,6 +41,9 @@ public class MerchantSettlementController {
 
     private final MerchantSettlementApplicationService applicationService;
 
+    /**
+     * 创建商户结算查询控制器。
+     */
     public MerchantSettlementController(MerchantSettlementApplicationService applicationService) {
         this.applicationService = applicationService;
     }

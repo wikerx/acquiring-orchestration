@@ -73,6 +73,11 @@ acquiring:
     accept-legacy-signature: false
 
 payment:
+  merchant:
+    default-login:
+      enabled: false
+      login-account: admin
+      password: ""
   mfa:
     # UAT 缺少独立强密钥时启动失败；不得使用 dev/test 本地回退。
     secret: ${PAYMENT_MFA_SECRET:}

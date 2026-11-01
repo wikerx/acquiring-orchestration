@@ -12,7 +12,11 @@ import java.util.Map;
  */
 public class RequestHeaderParams {
 
-    private RequestHeaderParams(){}
+    /**
+     * 禁止实例化 HTTP 请求元数据采集工具类。
+     */
+    private RequestHeaderParams() {
+    }
 
     /**
      * 获取请求中的所有 Header。

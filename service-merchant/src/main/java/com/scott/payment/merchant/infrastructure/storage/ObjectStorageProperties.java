@@ -4,7 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 商户端 S3 兼容对象存储配置，支持 MinIO 与 AWS S3 平滑切换
+ * 商户资料 S3 兼容对象存储配置，支持 MinIO 与 AWS S3 实现切换。
  */
 @Data
 @ConfigurationProperties(prefix = "acquiring.object-storage")

@@ -32,13 +32,7 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
      */
     private static final Pattern NONCE_PATTERN = Pattern.compile("[A-Za-z0-9_-]{16,128}");
 
-    /**
-     * {@code PATH_MATCHER}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     /**
@@ -123,6 +117,18 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
         return true;
     }
 
+    /**
+     * 使用当前和上一轮密钥完成常量时间验签，支持无停机密钥轮换。
+     *
+     * @param request 当前内部请求
+     * @param timestamp 签名毫秒时间戳
+     * @param nonce 单次请求随机串
+     * @param caller 调用方服务身份
+     * @param payloadSha256 原始正文摘要
+     * @param signature 请求签名
+     * @param callerSecrets 当前及上一轮候选密钥
+     * @return 任一候选密钥验签通过时返回 true
+     */
     private boolean matchesAnySecret(HttpServletRequest request,
                                      long timestamp,
                                      String nonce,
@@ -196,6 +202,14 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
         return value;
     }
 
+    /**
+     * 解析内部签名时间戳，格式非法时直接写入未授权响应。
+     *
+     * @param timestampText 请求头时间戳文本
+     * @param response HTTP 响应
+     * @return Unix 毫秒时间戳，解析失败时返回 -1
+     * @throws IOException 错误响应写入失败时抛出
+     */
     private long parseTimestamp(String timestampText, HttpServletResponse response) throws IOException {
         try {
             return Long.parseLong(timestampText);
@@ -205,10 +219,27 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
         }
     }
 
+    /**
+     * 以 401 状态写入内部认证错误响应。
+     *
+     * @param response HTTP 响应
+     * @param code 统一错误码
+     * @param message 安全错误描述
+     * @throws IOException 响应写入失败时抛出
+     */
     private void writeError(HttpServletResponse response, String code, String message) throws IOException {
         writeError(response, HttpServletResponse.SC_UNAUTHORIZED, code, message);
     }
 
+    /**
+     * 使用受控错误码和文案写入内部接口 JSON 错误响应。
+     *
+     * @param response HTTP 响应
+     * @param status HTTP 状态码
+     * @param code 统一错误码
+     * @param message 安全错误描述
+     * @throws IOException 响应写入失败时抛出
+     */
     private void writeError(HttpServletResponse response, int status, String code, String message) throws IOException {
         response.setStatus(status);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

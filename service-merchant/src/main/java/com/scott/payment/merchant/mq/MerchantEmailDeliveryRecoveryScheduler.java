@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 定时恢复 Merchant 邮件超时占用并触发到期重投，不直接调用 SMTP
+ * 定时恢复商户邮件超时占用并触发到期重投，不直接调用 SMTP。
  */
 @Slf4j
 @Component
@@ -44,7 +44,7 @@ public class MerchantEmailDeliveryRecoveryScheduler {
         try {
             deliveryService.recoverAndRequeue();
         } catch (RuntimeException exception) {
-            log.warn("event: MERCHANT_EMAIL_DELIVERY_RECOVERY_FAILED exceptionType: {}",
+            log.warn("邮件投递恢复任务执行失败, event: MERCHANT_EMAIL_DELIVERY_RECOVERY_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName());
         }
     }

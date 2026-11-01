@@ -17,6 +17,11 @@ public class PayoutChannelExecutor {
 
     private final PayoutChannelRegistry channelRegistry;
 
+    /**
+     * 创建代付渠道执行器。
+     *
+     * @param channelRegistry 代付 Provider 注册表
+     */
     public PayoutChannelExecutor(PayoutChannelRegistry channelRegistry) {
         this.channelRegistry = channelRegistry;
     }

@@ -11,6 +11,9 @@ import java.util.List;
  * service-job 与 service-clearing 之间的补偿扫描 JSON 契约，使用交易时间与主键复合游标保证稳定翻页。
  */
 public final class ClearingCompensationClientDTOs {
+    /**
+     * 禁止实例化清分补偿协议聚合类型。
+     */
     private ClearingCompensationClientDTOs() {
     }
 

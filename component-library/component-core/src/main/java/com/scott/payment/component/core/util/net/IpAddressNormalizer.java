@@ -12,49 +12,27 @@ import java.util.Locale;
  */
 public final class IpAddressNormalizer {
 
-    /**
-     * {@code IPV4}常量，统一 {@code IpAddressNormalizer} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String IPV4 = "IPv4";
-    /**
-     * {@code IPV6}常量，统一 {@code IpAddressNormalizer} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String IPV6 = "IPv6";
-    /**
-     * {@code IPV4_PATTERN}常量，统一 {@code IpAddressNormalizer} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String IPV4_PATTERN = "^[0-9.]+$";
-    /**
-     * {@code IPV6_PATTERN}常量，统一 {@code IpAddressNormalizer} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String IPV6_PATTERN = "^[0-9A-Fa-f:.]+$";
 
+    /**
+     * 禁止实例化精确 IP 规范化工具类。
+     */
     private IpAddressNormalizer() {
     }
 
+
     /**
-     * 解析精确值，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 仅返回规范化或计算结果，不直接提交交易状态。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 构造、转换或解析后的业务值
+     * 校验并规范化单个精确 IPv4 或 IPv6 地址，不接受主机名、CIDR、范围或批量表达式。
+     *
+     * @param value 待规范化 IP 文本
+     * @return 包含 IP 类型和规范地址的结果
      */
     public static NormalizedIp normalizeExact(String value) {
         if (value == null) {
@@ -93,6 +71,12 @@ public final class IpAddressNormalizer {
         }
     }
 
+    /**
+     * 校验并去除 IPv4 分段中的多余前导零。
+     *
+     * @param candidate 仅包含十进制数字和点号的 IPv4 候选值
+     * @return 类型为 IPv4 的规范化地址
+     */
     private static NormalizedIp normalizeIpv4(String candidate) {
         if (!candidate.matches(IPV4_PATTERN)) {
             throw new IllegalArgumentException("IPv4 地址格式不正确");
@@ -124,6 +108,12 @@ public final class IpAddressNormalizer {
         return new NormalizedIp(IPV4, builder.toString());
     }
 
+    /**
+     * 使用 JDK 地址解析器校验并压缩 IPv6 文本。
+     *
+     * @param candidate 仅包含十六进制字符、冒号和点号的 IPv6 候选值
+     * @return 类型为 IPv6 的规范化地址
+     */
     private static NormalizedIp normalizeIpv6(String candidate) {
         if (!candidate.matches(IPV6_PATTERN)) {
             throw new IllegalArgumentException("IPv6 地址格式不正确");

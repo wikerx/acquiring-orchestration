@@ -9,7 +9,9 @@ package com.scott.payment.component.db.reference.model;
 public record IpLookupSnapshot(String routingVersion, IpLookupDetail detail) {
 
     /**
-     * @return OpenAPI 使用的归属结果；查询详情不完整时返回 null
+     * 从本次数据库查询详情读取 OpenAPI 使用的 IP 归属结果。
+     *
+     * @return 归属结果，查询详情不完整时返回 null
      */
     public IpLookupResult result() {
         return detail == null ? null : detail.result();

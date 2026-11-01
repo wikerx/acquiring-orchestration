@@ -94,7 +94,7 @@ public class ResponseConverter {
         response.setChannelOrderNo(orderCode);
         response.setChannelTransactionId(channelTransactionId);
         response.setRawChannelStatus(rawStatus);
-        response.setChannelTradeStatus(tradeStatusMapper.map(rawStatus));
+        response.setChannelTradeStatus(tradeStatusMapper.map(rawStatus, effectiveTransactionType(request)));
         response.setChannelResponseCode(responseCode);
         response.setChannelResponseMessage(responseMessage);
         response.setAuthCode(payment == null ? null : payment.getAuthorisationCode());
@@ -212,6 +212,21 @@ public class ResponseConverter {
         put(response, "cvcResultCode", payment == null ? null : payment.getCvcResultCode());
         put(response, "merchantCode", payload == null ? null : payload.getMerchantCode());
         put(response, "errorCode", error == null ? null : error.getCode());
+    }
+
+    /**
+     * 查询响应沿用原交易类型解释撤销等动作状态。
+     *
+     * @param request 平台统一渠道请求
+     * @return 查询动作对应的原交易类型；非查询动作返回当前交易类型
+     */
+    private String effectiveTransactionType(ChannelPaymentRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return "QUERY".equalsIgnoreCase(request.getTransactionType())
+                ? request.getExtension().get("originalTransactionType")
+                : request.getTransactionType();
     }
 
     /**

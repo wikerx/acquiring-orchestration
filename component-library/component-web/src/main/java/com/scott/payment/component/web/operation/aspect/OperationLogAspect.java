@@ -182,7 +182,8 @@ public class OperationLogAspect {
             publisher.publish(record);
             logStructuredOperation(record);
         } catch (RuntimeException exception) {
-            log.warn("管理类系统操作日志采集失败，方法：{}，异常类型：{}",
+            log.warn("管理系统操作日志采集失败, event: ADMIN_OPERATION_LOG_CAPTURE_FAILED, "
+                            + "method: {}, exceptionType: {}",
                     methodName(point), exception.getClass().getSimpleName());
         }
     }
@@ -200,7 +201,10 @@ public class OperationLogAspect {
             return;
         }
         String event = isQuery(record.getBusinessType()) ? "ADMIN_QUERY_ACCESS" : "ADMIN_WRITE_OPERATION";
-        log.info("event: {} traceId: {} module: {} operation: {} businessType: {} method: {} path: {} requestMethod: {} merchantId: {} operatorId: {} operatorType: {} querySummary: {} resultRecorded: {} status: {} durationMs: {}",
+        log.info("管理系统操作日志已记录, event: {}, traceId: {}, module: {}, operation: {}, "
+                        + "businessType: {}, method: {}, path: {}, requestMethod: {}, merchantId: {}, "
+                        + "operatorId: {}, operatorType: {}, querySummary: {}, resultRecorded: {}, "
+                        + "status: {}, durationMs: {}",
                 event,
                 record.getTraceId(),
                 record.getModuleName(),

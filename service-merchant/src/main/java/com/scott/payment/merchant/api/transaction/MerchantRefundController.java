@@ -37,6 +37,8 @@ public class MerchantRefundController {
     private final MerchantRefundApplicationService applicationService;
 
     /**
+     * 创建商户退款查询控制器。
+     *
      * @param applicationService 商户退款应用服务
      */
     public MerchantRefundController(MerchantRefundApplicationService applicationService) {
@@ -76,6 +78,9 @@ public class MerchantRefundController {
         applicationService.export(currentMerchantId(), query, currentOperatorName(), response);
     }
 
+    /**
+     * 读取当前认证上下文中的商户号，缺失时拒绝请求。
+     */
     private String currentMerchantId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || !StringUtils.hasText(account.getMerchantId())) {
@@ -84,6 +89,9 @@ public class MerchantRefundController {
         return account.getMerchantId();
     }
 
+    /**
+     * 读取当前操作人展示名称。
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {

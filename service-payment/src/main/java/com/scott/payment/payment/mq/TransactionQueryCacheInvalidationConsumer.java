@@ -47,6 +47,8 @@ public class TransactionQueryCacheInvalidationConsumer implements RocketMQListen
     private final TransactionQueryCacheService transactionQueryCacheService;
 
     /**
+     * 创建交易查询缓存失效消费者。
+     *
      * @param transactionQueryCacheService 订单级查询缓存 generation 服务
      */
     public TransactionQueryCacheInvalidationConsumer(TransactionQueryCacheService transactionQueryCacheService) {

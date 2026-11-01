@@ -57,8 +57,8 @@ public class PaymentInternalClientConfig {
     public RestTemplate merchantPaymentInternalLoadBalancedRestTemplate(RestTemplateBuilder restTemplateBuilder,
                                                                         TraceIdRestTemplateInterceptor traceIdRestTemplateInterceptor) {
         return restTemplateBuilder
-                .setConnectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MILLIS))
-                .setReadTimeout(Duration.ofMillis(READ_TIMEOUT_MILLIS))
+                .connectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MILLIS))
+                .readTimeout(Duration.ofMillis(READ_TIMEOUT_MILLIS))
                 .additionalInterceptors(traceIdRestTemplateInterceptor)
                 .build();
     }

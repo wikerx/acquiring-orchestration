@@ -30,6 +30,9 @@ public final class ErrorCode {
      */
     public static final String REPLAY_REQUEST = "REPLAY_REQUEST";
 
+    /**
+     * 禁止实例化基础错误码常量类。
+     */
     private ErrorCode() {
     }
 }

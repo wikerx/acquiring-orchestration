@@ -12,7 +12,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 /**
- * 商户端 S3 协议对象存储实现，不向业务层暴露供应商差异
+ * 商户资料 S3 协议对象存储实现，不向业务层暴露供应商差异。
  */
 @Service
 @ConditionalOnProperty(prefix = "acquiring.object-storage", name = "enabled", havingValue = "true")
@@ -72,6 +72,9 @@ public class S3ObjectStorageService implements ObjectStorageService {
         }
     }
 
+    /**
+     * 将对象存储异常转换为不暴露基础设施细节的业务异常。
+     */
     private ServiceException storageFailure(String message, S3Exception exception) {
         return new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(),
                 message + "，对象存储返回状态：" + exception.statusCode());

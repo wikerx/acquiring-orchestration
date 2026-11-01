@@ -132,6 +132,13 @@ public class MerchantRuntimeProfileCacheReader {
         return profile;
     }
 
+    /**
+     * 在并发许可保护下从主库加载完整商户运行资料。
+     *
+     * @param merchantId 已规范化的商户号
+     * @return 商户运行资料，不存在时返回 null
+     * @throws ServiceException 数据库回源并发达到上限时抛出
+     */
     private MerchantRuntimeProfile load(String merchantId) {
         if (!databaseLoadPermits.tryAcquire()) {
             throw new ServiceException(

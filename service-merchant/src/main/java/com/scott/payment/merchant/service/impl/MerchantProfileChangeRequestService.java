@@ -35,89 +35,43 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 商户资料变更申请领域服务，确保待审核快照与正式商户主档隔离
+ * 商户资料变更申请领域服务，确保待审核快照与正式商户主档隔离。
  */
 @Service
 public class MerchantProfileChangeRequestService {
 
     /**
-     * 状态草稿，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * 商户资料变更申请尚未提交的草稿状态。
      */
     public static final String STATUS_DRAFT = "DRAFT";
+
     /**
-     * 状态等待审核，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * 商户资料变更申请等待管理端审核的状态。
      */
     public static final String STATUS_PENDING_REVIEW = "PENDING_REVIEW";
+
     /**
-     * {@code STATUS_SUPPLEMENT_REQUIRED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * 商户资料变更申请需要补充材料的状态。
      */
     public static final String STATUS_SUPPLEMENT_REQUIRED = "SUPPLEMENT_REQUIRED";
+
     /**
-     * {@code STATUS_APPROVED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * 商户资料变更申请审核通过的终态。
      */
     public static final String STATUS_APPROVED = "APPROVED";
+
     /**
-     * {@code STATUS_REJECTED}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * 商户资料变更申请审核拒绝的终态。
      */
     public static final String STATUS_REJECTED = "REJECTED";
+
     /**
-     * {@code STATUS_WITHDRAWN}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
+     * 商户主动撤回资料变更申请的终态。
      */
     public static final String STATUS_WITHDRAWN = "WITHDRAWN";
 
-    /**
-     * {@code ACTIVE}常量，统一 {@code MerchantProfileChangeRequestService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：布尔值或 0/1 标识；不允许为空；非敏感字段。
-     * 取值范围：仅允许平台约定的真假取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
-     */
     private static final int ACTIVE = 1;
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code MerchantProfileChangeRequestService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
-     */
     private static final int NOT_DELETED = 0;
-    /**
-     * {@code DOCUMENT_BIZ_TYPE}，用于区分 {@code MerchantProfileChangeRequestService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
-     */
     private static final String DOCUMENT_BIZ_TYPE = "MERCHANT_KYB";
     private static final Set<String> REGISTRATION_DOCUMENT_TYPES =
             Set.of("BUSINESS_LICENSE", "INCORPORATION");
@@ -439,6 +393,9 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
+    /**
+     * 收集商户资料快照缺失的必填业务项。
+     */
     private List<String> completenessIssues(MerchantProfileChangeDTOs.ProfileSnapshot profile,
                                             List<MerchantProfileChangeDTOs.Document> documents,
                                             String activeRequestNo) {
@@ -479,6 +436,9 @@ public class MerchantProfileChangeRequestService {
         return issues;
     }
 
+    /**
+     * 校验商户人员列表的角色、持股比例和身份完整性。
+     */
     private void validatePersons(List<String> issues, MerchantProfileChangeDTOs.ProfileSnapshot profile) {
         List<MerchantProfileChangeDTOs.RelatedPerson> persons = profile.getRelatedPersons() == null
                 ? List.of() : profile.getRelatedPersons();
@@ -499,11 +459,17 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
+    /**
+     * 判断账号是否持有指定角色。
+     */
     private boolean hasRole(MerchantProfileChangeDTOs.RelatedPerson person, String role) {
         return person != null && person.getPersonRoles() != null
                 && person.getPersonRoles().stream().anyMatch(role::equalsIgnoreCase);
     }
 
+    /**
+     * 校验商户资料文件均属于当前申请且状态可提交。
+     */
     private void validateDocuments(List<String> issues,
                                    List<MerchantProfileChangeDTOs.Document> documents,
                                    String activeRequestNo) {
@@ -526,6 +492,9 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
+    /**
+     * 查询商户当前有效的资料文件，并按上传时间倒序返回。
+     */
     private List<MerchantProfileChangeDTOs.Document> loadDocuments(String merchantId) {
         return documentMapper.selectList(Wrappers.<MerchantDocumentDO>lambdaQuery()
                         .eq(MerchantDocumentDO::getBizType, DOCUMENT_BIZ_TYPE)
@@ -535,6 +504,9 @@ public class MerchantProfileChangeRequestService {
                 .stream().map(this::toDocument).toList();
     }
 
+    /**
+     * 将资料文件实体转换为变更申请中的文件信息。
+     */
     private MerchantProfileChangeDTOs.Document toDocument(MerchantDocumentDO row) {
         MerchantProfileChangeDTOs.Document response = new MerchantProfileChangeDTOs.Document();
         response.setId(row.getId());
@@ -549,6 +521,9 @@ public class MerchantProfileChangeRequestService {
         return response;
     }
 
+    /**
+     * 清理不可信文本，避免控制字符进入日志或导出文件。
+     */
     private MerchantProfileChangeDTOs.ProfileSnapshot sanitize(
             MerchantProfileChangeDTOs.ProfileSnapshot source) {
         if (source == null) return null;
@@ -588,6 +563,9 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
+    /**
+     * 判断两个人员快照是否指向同一业务身份。
+     */
     private boolean samePerson(MerchantProfileChangeDTOs.RelatedPerson previous,
                                MerchantProfileChangeDTOs.RelatedPerson proposed) {
         if (previous == null) {
@@ -605,6 +583,9 @@ public class MerchantProfileChangeRequestService {
                 && Objects.equals(upper(previous.getIdType()), upper(proposed.getIdType()));
     }
 
+    /**
+     * 校验必填文本并返回去除首尾空白后的值。
+     */
     private void required(List<String> issues, String value, String code) {
         if (!StringUtils.hasText(value)) issues.add(code);
     }
@@ -633,12 +614,18 @@ public class MerchantProfileChangeRequestService {
         reviewRecordMapper.insert(record);
     }
 
+    /**
+     * 读取当前操作人账号主键。
+     */
     private String currentOperatorId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         return account == null || account.getAccountId() == null
                 ? null : String.valueOf(account.getAccountId());
     }
 
+    /**
+     * 读取当前操作人名称，缺失时使用系统操作人标识。
+     */
     private String operatorName(InternalAuthAccount account) {
         if (account == null) return "system";
         if (account.getRealName() != null && !account.getRealName().isBlank()) {
@@ -647,14 +634,23 @@ public class MerchantProfileChangeRequestService {
         return account.getLoginAccount() == null ? "system" : account.getLoginAccount().trim();
     }
 
+    /**
+     * 去除字符串首尾空白，并将空字符串转换为空值。
+     */
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    /**
+     * 将可空编码规范化为大写。
+     */
     private String upper(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 
+    /**
+     * 将资料快照序列化为持久化使用的 JSON 文本。
+     */
     private String toJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -664,6 +660,9 @@ public class MerchantProfileChangeRequestService {
         }
     }
 
+    /**
+     * 创建参数校验失败业务异常。
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

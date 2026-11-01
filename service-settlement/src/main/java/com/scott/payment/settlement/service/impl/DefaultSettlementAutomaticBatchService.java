@@ -26,23 +26,9 @@ import java.util.Objects;
 @Service
 public class DefaultSettlementAutomaticBatchService implements SettlementAutomaticBatchService {
 
-    /**
-     * 分组页大小，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int GROUP_PAGE_SIZE = 100;
-    /**
-     * {@code REVIEW_CANDIDATE_LIMIT}，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
+
     private static final int REVIEW_CANDIDATE_LIMIT = 1000;
 
     private final MerchantSettlementProfileMapper profileMapper;

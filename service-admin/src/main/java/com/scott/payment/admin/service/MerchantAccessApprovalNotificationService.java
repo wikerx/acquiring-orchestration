@@ -24,7 +24,14 @@ import java.util.Map;
 @Service
 public class MerchantAccessApprovalNotificationService {
 
+    /**
+     * 商户来源网址配置的审批类型编码。
+     */
     public static final String TYPE_SOURCE_URL = "SOURCE_URL";
+
+    /**
+     * 商户 IP 白名单配置的审批类型编码。
+     */
     public static final String TYPE_IP_WHITELIST = "IP_WHITELIST";
     private static final String SCENE = "MERCHANT_ACCESS_CONFIG_APPROVAL";
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

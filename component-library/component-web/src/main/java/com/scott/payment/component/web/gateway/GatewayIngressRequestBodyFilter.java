@@ -32,6 +32,11 @@ public class GatewayIngressRequestBodyFilter extends OncePerRequestFilter {
 
     private final GatewayIngressAuthProperties properties;
 
+    /**
+     * 创建使用统一入口大小限制的请求正文缓存过滤器。
+     *
+     * @param properties Gateway 入口验签配置
+     */
     public GatewayIngressRequestBodyFilter(GatewayIngressAuthProperties properties) {
         this.properties = properties;
     }
@@ -72,33 +77,40 @@ public class GatewayIngressRequestBodyFilter extends OncePerRequestFilter {
                 && !(properties.isProtectPortalPaths() && GatewayIngressSignature.isProtectedPortalPath(path));
     }
 
+    /**
+     * 保存受控大小原始请求字节并允许验签和控制器重复读取的请求包装器。
+     */
     private static final class ReplayRequestWrapper extends HttpServletRequestWrapper {
 
         private final byte[] body;
 
+        /**
+         * 创建请求包装器并复制正文，避免外部数组后续修改验签内容。
+         *
+         * @param request 原始 Servlet 请求
+         * @param body 已按大小上限读取的原始正文
+         */
         private ReplayRequestWrapper(HttpServletRequest request, byte[] body) {
             super(request);
             this.body = body == null ? new byte[0] : body.clone();
         }
 
+
         /**
-         * 查询{@code getInputStream}；筛选条件、分页上限和数据范围由方法参数共同限定。
-         * <p>
-         * 只读操作；实现必须沿用 公共组件库 既有权限、数据范围和空结果约定。
-         * </p>
-         * @return 查询得到的业务对象、分页结果或空结果
+         * 返回从缓存正文起点读取的新 Servlet 输入流。
+         *
+         * @return 可重复读取的 Servlet 输入流
          */
         @Override
         public ServletInputStream getInputStream() {
             return new ReplayServletInputStream(new ByteArrayInputStream(body));
         }
 
+
         /**
-         * 查询{@code getReader}；筛选条件、分页上限和数据范围由方法参数共同限定。
-         * <p>
-         * 只读操作；实现必须沿用 公共组件库 既有权限、数据范围和空结果约定。
-         * </p>
-         * @return 查询得到的业务对象、分页结果或空结果
+         * 按请求字符集返回从缓存正文起点读取的字符流。
+         *
+         * @return 可重复读取的字符流
          */
         @Override
         public BufferedReader getReader() {
@@ -107,24 +119,22 @@ public class GatewayIngressRequestBodyFilter extends OncePerRequestFilter {
             return new BufferedReader(new InputStreamReader(getInputStream(), charset));
         }
 
+
         /**
-         * 查询{@code getContentLength}；筛选条件、分页上限和数据范围由方法参数共同限定。
-         * <p>
-         * 只读操作；实现必须沿用 公共组件库 既有权限、数据范围和空结果约定。
-         * </p>
-         * @return 查询得到的业务对象、分页结果或空结果
+         * 获取缓存请求正文的整数长度。
+         *
+         * @return 正文字节数
          */
         @Override
         public int getContentLength() {
             return body.length;
         }
 
+
         /**
-         * 查询{@code getContentLengthLong}；筛选条件、分页上限和数据范围由方法参数共同限定。
-         * <p>
-         * 只读操作；实现必须沿用 公共组件库 既有权限、数据范围和空结果约定。
-         * </p>
-         * @return 查询得到的业务对象、分页结果或空结果
+         * 获取缓存请求正文的长整数长度。
+         *
+         * @return 正文字节数
          */
         @Override
         public long getContentLengthLong() {
@@ -132,41 +142,49 @@ public class GatewayIngressRequestBodyFilter extends OncePerRequestFilter {
         }
     }
 
+    /**
+     * 基于内存字节流提供同步及非阻塞 Servlet 读取语义。
+     */
     private static final class ReplayServletInputStream extends ServletInputStream {
 
         private final ByteArrayInputStream inputStream;
 
+        /**
+         * 创建可重复请求正文的 Servlet 输入流适配器。
+         *
+         * @param inputStream 请求包装器持有的内存字节流
+         */
         private ReplayServletInputStream(ByteArrayInputStream inputStream) {
             this.inputStream = inputStream;
         }
 
+
         /**
-         * 规范化读取，返回调用链后续步骤可直接使用的业务值。
-         * @return 当前方法计算的数量、版本或状态数值
+         * 从当前内存正文位置读取一个字节。
+         *
+         * @return 无符号字节值，读取完成时返回 -1
          */
         @Override
         public int read() {
             return inputStream.read();
         }
 
+
         /**
-         * 判断 is finished 条件是否成立，用于控制 Replay Servlet Input Stream 的后续分支。
-         * <p>
-         * 纯判断操作，不修改业务状态。
-         * </p>
-         * @return 条件满足时返回 true，否则返回 false
+         * 判断缓存正文是否已经读取完毕。
+         *
+         * @return 没有剩余字节时返回 true
          */
         @Override
         public boolean isFinished() {
             return inputStream.available() == 0;
         }
 
+
         /**
-         * 判断 is ready 条件是否成立，用于控制 Replay Servlet Input Stream 的后续分支。
-         * <p>
-         * 纯判断操作，不修改业务状态。
-         * </p>
-         * @return 条件满足时返回 true，否则返回 false
+         * 表明内存正文无需等待外部 I/O，始终可以读取。
+         *
+         * @return 固定返回 true
          */
         @Override
         public boolean isReady() {

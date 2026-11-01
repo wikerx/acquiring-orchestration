@@ -23,6 +23,9 @@ public final class GatewayRequestIdSupport {
      */
     private static final int MAX_REQUEST_ID_LENGTH = 64;
 
+    /**
+     * 禁止实例化无状态请求号校验类。
+     */
     private GatewayRequestIdSupport() {
     }
 

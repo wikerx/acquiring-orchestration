@@ -82,7 +82,8 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
         }
         OperationLogMessage message = buildMessage(record);
         mqPublisher.publish(resolveTopic(), null, message);
-        log.info("操作日志消息已进入可靠投递队列，systemCode：{}，topic：{}，messageId：{}，requestId：{}",
+        log.info("操作日志消息已进入可靠投递队列, event: OPERATION_LOG_MQ_QUEUED, "
+                        + "systemCode: {}, topic: {}, messageId: {}, requestId: {}",
                 systemCode.name(),
                 resolveTopic(),
                 message.getMessageId(),

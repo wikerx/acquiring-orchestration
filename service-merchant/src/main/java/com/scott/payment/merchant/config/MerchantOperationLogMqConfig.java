@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * service-merchant 操作日志 MQ 标识配置
+ * 商户服务操作日志 MQ 标识配置。
  */
 @Configuration
 public class MerchantOperationLogMqConfig {

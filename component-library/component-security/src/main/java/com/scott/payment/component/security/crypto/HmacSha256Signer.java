@@ -79,6 +79,12 @@ public class HmacSha256Signer {
         }
     }
 
+    /**
+     * 按参数名排序并用与号拼装稳定签名文本，空值按空字符串处理。
+     *
+     * @param parameters 待签名参数
+     * @return 排序后的规范文本
+     */
     private String buildCanonicalText(Map<String, String> parameters) {
         TreeMap<String, String> sortedParameters = new TreeMap<>(parameters);
         StringBuilder builder = new StringBuilder();
@@ -91,6 +97,12 @@ public class HmacSha256Signer {
         return builder.toString();
     }
 
+    /**
+     * 将签名字节转换为小写十六进制文本。
+     *
+     * @param value 签名字节
+     * @return 小写十六进制文本
+     */
     private String toHex(byte[] value) {
         StringBuilder builder = new StringBuilder(value.length * 2);
         for (byte item : value) {

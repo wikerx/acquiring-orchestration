@@ -79,6 +79,13 @@ public class PaymentRedisClusterAutoConfiguration {
         );
     }
 
+    /**
+     * 根据 Spring Redis Cluster 和受控连接池配置构建 Redisson 客户端配置。
+     *
+     * @param redisProperties Spring Redis 连接配置
+     * @param redissonProperties Redisson 线程、连接池和超时配置
+     * @return 已校验的 Redisson 配置
+     */
     static Config buildRedissonConfig(RedisProperties redisProperties,
                                       PaymentRedissonProperties redissonProperties) {
         List<String> nodes = redisProperties.getCluster() == null

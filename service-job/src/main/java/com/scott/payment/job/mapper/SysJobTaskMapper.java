@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 系统任务任务数据访问接口
+ * 系统调度任务数据访问接口。
  */
 public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
 

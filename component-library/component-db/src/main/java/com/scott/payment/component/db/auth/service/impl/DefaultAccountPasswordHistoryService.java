@@ -90,11 +90,24 @@ public class DefaultAccountPasswordHistoryService implements AccountPasswordHist
         historyMapper.insert(row);
     }
 
+    /**
+     * 使用历史盐值验证候选密码是否与某次历史哈希匹配。
+     *
+     * @param candidatePassword 候选密码明文，仅在当前校验调用内使用
+     * @param salt 历史密码盐值
+     * @param hash 历史密码哈希
+     * @return 历史材料完整且密码匹配时返回 true
+     */
     private boolean matches(String candidatePassword, String salt, String hash) {
         return StringUtils.hasText(salt) && StringUtils.hasText(hash)
                 && PasswordHashUtils.matches(candidatePassword, salt, hash);
     }
 
+    /**
+     * 创建统一的近期密码重复校验异常。
+     *
+     * @return 不包含密码材料的参数异常
+     */
     private ServiceException reusedPassword() {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "new password was used recently");
     }

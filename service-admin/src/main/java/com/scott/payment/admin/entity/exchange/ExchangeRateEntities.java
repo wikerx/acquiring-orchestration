@@ -39,9 +39,7 @@ public final class ExchangeRateEntities {
          */
         private String sourceType;
 
-        /**
-         * 请求URL，表示当前内部调用、渠道调用或商户通知的目标地址。
-         */
+
         private String requestUrl;
 
         /**

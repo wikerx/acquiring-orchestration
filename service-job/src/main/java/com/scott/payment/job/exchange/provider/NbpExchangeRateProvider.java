@@ -28,11 +28,7 @@ public class NbpExchangeRateProvider implements ExchangeRateProvider {
      */
     public static final String SOURCE_CODE = "NBP";
     /**
-     * 默认超时秒数常量，统一 {@code NbpExchangeRateProvider} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 数据源未配置超时时使用的请求超时秒数。
      */
     private static final int DEFAULT_TIMEOUT_SECONDS = 10;
 

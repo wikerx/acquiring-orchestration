@@ -15,7 +15,7 @@ import java.util.Set;
 /**
  * 声明提交、查询和取消能力的 ScottChannelA 代付 SPI。
  **/
-public class ScottChannelAPayoutAdapter implements PayoutChannelClient {
+public class PayoutChannelAdapter implements PayoutChannelClient {
 
     private final PayoutApiClient apiClient;
 
@@ -24,7 +24,7 @@ public class ScottChannelAPayoutAdapter implements PayoutChannelClient {
      *
      * @param apiClient ScottChannelA 代付 HTTP 协议客户端
      **/
-    public ScottChannelAPayoutAdapter(PayoutApiClient apiClient) {
+    public PayoutChannelAdapter(PayoutApiClient apiClient) {
         this.apiClient = apiClient;
     }
 

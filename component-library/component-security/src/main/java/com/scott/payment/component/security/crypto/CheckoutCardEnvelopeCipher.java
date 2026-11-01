@@ -29,68 +29,22 @@ import java.util.Base64;
 public final class CheckoutCardEnvelopeCipher {
 
     /**
-     * 卡数据混合加密协议标识，调用双方必须使用完全一致的算法组合。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 收银台卡数据密文信封对外声明的组合算法标识。
      */
     public static final String ALGORITHM = "RSA-OAEP-256+A256GCM";
-    /**
-     * 卡数据对称加密算法标识，固定使用带认证的 AES-GCM。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String AES_TRANSFORMATION = "AES/GCM/NoPadding";
-    /**
-     * 一次性 AES 密钥封装算法标识。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String RSA_TRANSFORMATION = "RSA/ECB/OAEPPadding";
-    /**
-     * 一次性 AES 数据密钥字节数。
-     * <p>
-     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int AES_KEY_BYTES = 32;
-    /**
-     * AES-GCM 随机 IV 字节数，每次卡数据封装必须重新生成。
-     * <p>
-     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int GCM_IV_BYTES = 12;
-    /**
-     * AES-GCM 认证标签位数，用于同时校验卡数据密文完整性。
-     * <p>
-     * 单位：位；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或数值精度边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int GCM_TAG_BITS = 128;
-    /**
-     * 允许解密的最大密文长度，用于限制异常报文和内存占用。
-     * <p>
-     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int MAX_CIPHERTEXT_BYTES = 4096;
-    /**
-     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
@@ -189,6 +143,14 @@ public final class CheckoutCardEnvelopeCipher {
         }
     }
 
+    /**
+     * 创建明确使用 SHA-256 MGF1 的 RSA-OAEP 密钥包裹实例。
+     *
+     * @param mode 加密或解密模式
+     * @param key RSA 公钥或私钥
+     * @return 已初始化 RSA-OAEP 实例
+     * @throws GeneralSecurityException 算法或密钥不可用时抛出
+     */
     private Cipher rsaCipher(int mode, java.security.Key key) throws GeneralSecurityException {
         Cipher cipher = Cipher.getInstance(RSA_TRANSFORMATION);
         cipher.init(mode, key, new OAEPParameterSpec(
@@ -196,12 +158,24 @@ public final class CheckoutCardEnvelopeCipher {
         return cipher;
     }
 
+    /**
+     * 使用密码学安全随机源生成指定长度字节。
+     *
+     * @param length 所需字节数
+     * @return 新生成的随机字节
+     */
     private byte[] randomBytes(int length) {
         byte[] value = new byte[length];
         secureRandom.nextBytes(value);
         return value;
     }
 
+    /**
+     * 校验并编码将卡资料密文绑定到业务上下文的附加认证数据。
+     *
+     * @param aad 业务身份绑定文本
+     * @return UTF-8 字节
+     */
     private byte[] aadBytes(String aad) {
         if (aad == null || aad.isBlank() || aad.length() > 512) {
             throw invalidEnvelope();
@@ -209,10 +183,22 @@ public final class CheckoutCardEnvelopeCipher {
         return aad.getBytes(StandardCharsets.UTF_8);
     }
 
+    /**
+     * 将信封二进制字段编码为无填充 Base64Url 文本。
+     *
+     * @param value 原始字节
+     * @return Base64Url 文本
+     */
     private String base64Url(byte[] value) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(value);
     }
 
+    /**
+     * 校验长度并解码信封中的 Base64Url 字段。
+     *
+     * @param value 信封字段文本
+     * @return 解码字节
+     */
     private byte[] decode(String value) {
         try {
             if (value == null || value.isBlank() || value.length() > 8192) {
@@ -224,6 +210,11 @@ public final class CheckoutCardEnvelopeCipher {
         }
     }
 
+    /**
+     * 创建不泄露具体密码学失败位置的统一信封异常。
+     *
+     * @return 加密数据无效异常
+     */
     private ServiceException invalidEnvelope() {
         return new ServiceException(ApiResultEnum.ENCRYPTED_DATA_INVALID.getCode(), "card data envelope is invalid");
     }

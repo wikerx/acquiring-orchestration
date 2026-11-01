@@ -50,6 +50,11 @@ public class IndependentReliableMqPublisher {
         }
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                /**
+                 * 无论外层事务提交或回滚，都在资源释放后独立保存冻结的审计事件。
+                 *
+                 * @param status 外层事务完成状态
+                 */
                 @Override
                 public void afterCompletion(int status) {
                     schedulePersistence(event);
@@ -68,7 +73,8 @@ public class IndependentReliableMqPublisher {
         try {
             outboxExecutor.execute(() -> persistSafely(event));
         } catch (RuntimeException exception) {
-            log.warn("event: INDEPENDENT_MQ_OUTBOX_SCHEDULE_REJECTED eventId: {} exceptionType: {}",
+            log.warn("独立 Outbox 持久化任务被拒绝, event: INDEPENDENT_MQ_OUTBOX_SCHEDULE_REJECTED, "
+                            + "eventId: {}, exceptionType: {}",
                     event.getEventId(), exception.getClass().getSimpleName());
             persistSafely(event);
         }
@@ -81,7 +87,8 @@ public class IndependentReliableMqPublisher {
         try {
             delegate.publishPreparedEvent(event);
         } catch (RuntimeException exception) {
-            log.warn("event: INDEPENDENT_MQ_OUTBOX_PERSIST_FAILED eventId: {} exceptionType: {}",
+            log.warn("独立 Outbox 事件持久化失败, event: INDEPENDENT_MQ_OUTBOX_PERSIST_FAILED, "
+                            + "eventId: {}, exceptionType: {}",
                     event.getEventId(), exception.getClass().getSimpleName());
         }
     }

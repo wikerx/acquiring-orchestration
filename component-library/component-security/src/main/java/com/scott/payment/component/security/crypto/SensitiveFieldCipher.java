@@ -14,39 +14,18 @@ import java.util.Base64;
  */
 public final class SensitiveFieldCipher {
 
-    /**
-     * 版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String VERSION = "v1";
-    /**
-     * AES-GCM 随机 IV 字节数，每次加密必须重新生成。
-     * <p>
-     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int IV_BYTES = 12;
-    /**
-     * AES-GCM 认证标签位数，用于同时校验密文完整性。
-     * <p>
-     * 单位：位；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或数值精度边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int TAG_BITS = 128;
-    /**
-     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * 禁止实例化敏感字段加密工具类。
+     */
     private SensitiveFieldCipher() {
     }
 
@@ -105,6 +84,13 @@ public final class SensitiveFieldCipher {
         }
     }
 
+    /**
+     * 校验主密钥最低长度并派生固定 256 位 AES 密钥。
+     *
+     * @param secret 外部安全配置的主密钥
+     * @return AES 密钥
+     * @throws GeneralSecurityException SHA-256 算法不可用时抛出
+     */
     private static SecretKeySpec key(String secret) throws GeneralSecurityException {
         if (secret == null || secret.length() < 24) {
             throw new IllegalArgumentException("sensitive field encryption secret must contain at least 24 characters");
@@ -113,6 +99,12 @@ public final class SensitiveFieldCipher {
         return new SecretKeySpec(keyBytes, "AES");
     }
 
+    /**
+     * 将非空业务身份作为附加认证数据绑定到 AES-GCM 密文。
+     *
+     * @param cipher 已初始化的 AES-GCM 实例
+     * @param aad 业务身份绑定文本
+     */
     private static void applyAad(Cipher cipher, String aad) {
         if (aad != null && !aad.isBlank()) {
             cipher.updateAAD(aad.getBytes(StandardCharsets.UTF_8));

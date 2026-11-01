@@ -1,4 +1,4 @@
-package com.scott.payment.merchant.controller;
+package com.scott.payment.merchant.api.auth;
 
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import org.junit.jupiter.api.Test;

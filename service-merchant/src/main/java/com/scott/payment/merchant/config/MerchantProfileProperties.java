@@ -4,7 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 商户资料安全配置，统一承载证件号和变更快照字段级加密密钥
+ * 商户资料安全配置，统一承载证件号和变更快照的字段级加密密钥。
  */
 @Data
 @ConfigurationProperties(prefix = "acquiring.merchant-profile")

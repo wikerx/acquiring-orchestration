@@ -20,6 +20,9 @@ public final class DataSourceName {
      */
     public static final String TRANSACTION = "transaction";
 
+    /**
+     * 禁止实例化动态数据源名称常量类。
+     */
     private DataSourceName() {
     }
 }

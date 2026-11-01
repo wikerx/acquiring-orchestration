@@ -54,6 +54,9 @@ public final class MfaSecretCrypto {
      */
     private static volatile Keyring configuredKeyring;
 
+    /**
+     * 禁止实例化 MFA 密钥加解密工具类。
+     */
     private MfaSecretCrypto() {
     }
 
@@ -142,6 +145,11 @@ public final class MfaSecretCrypto {
         }
     }
 
+    /**
+     * 获取已初始化密钥环；未完成安全配置时拒绝执行加解密。
+     *
+     * @return 当前加密密钥及有界历史解密密钥
+     */
     private static Keyring keyring() {
         Keyring keyring = configuredKeyring;
         if (keyring == null) {
@@ -152,10 +160,22 @@ public final class MfaSecretCrypto {
         return keyring;
     }
 
+    /**
+     * 将主密钥派生为 AES 密钥对象。
+     *
+     * @param masterSecret 已通过强度校验的主密钥
+     * @return AES 密钥
+     */
     private static SecretKeySpec toKey(String masterSecret) {
         return new SecretKeySpec(deriveKey(masterSecret), KEY_ALGORITHM);
     }
 
+    /**
+     * 使用 SHA-256 将可变长度主密钥派生为固定 256 位 AES 密钥材料。
+     *
+     * @param masterSecret 已通过强度校验的主密钥
+     * @return 32 字节派生密钥
+     */
     private static byte[] deriveKey(String masterSecret) {
         try {
             return MessageDigest.getInstance("SHA-256")
@@ -165,10 +185,19 @@ public final class MfaSecretCrypto {
         }
     }
 
+    /**
+     * 清空静态密钥环，仅供隔离单元测试重建配置。
+     */
     static synchronized void resetForTests() {
         configuredKeyring = null;
     }
 
+    /**
+     * 当前加密密钥与按顺序尝试的历史解密密钥集合。
+     *
+     * @param encryptionKey 新密文使用的当前密钥
+     * @param decryptionKeys 当前及历史解密密钥的有界列表
+     */
     private record Keyring(SecretKeySpec encryptionKey, List<SecretKeySpec> decryptionKeys) {
     }
 }

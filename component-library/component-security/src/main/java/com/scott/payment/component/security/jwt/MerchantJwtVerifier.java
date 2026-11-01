@@ -93,6 +93,12 @@ public class MerchantJwtVerifier {
         return validatePayload(jwt, nowEpochSeconds);
     }
 
+    /**
+     * 解析商户 JWT；缺失和格式错误分别映射为稳定公开错误码。
+     *
+     * @param token 商户 Bearer JWT
+     * @return 已解析 JWT
+     */
     private JWT parseToken(String token) {
         if (!StringUtils.hasText(token)) {
             throw new ApiException(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
@@ -104,6 +110,11 @@ public class MerchantJwtVerifier {
         }
     }
 
+    /**
+     * 校验 JWT 类型和算法，拒绝算法降级或类型混淆。
+     *
+     * @param jwt 已解析 JWT
+     */
     private void validateHeader(JWT jwt) {
         if (!JWT_TYPE.equalsIgnoreCase(asString(jwt.getHeader(JWTHeader.TYPE)))) {
             throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
@@ -113,6 +124,12 @@ public class MerchantJwtVerifier {
         }
     }
 
+    /**
+     * 使用当前商户 HS256 密钥验证 JWT 签名。
+     *
+     * @param jwt 已解析 JWT
+     * @param merchantKey 商户签名密钥
+     */
     private void validateSignature(JWT jwt, String merchantKey) {
         JWTSigner signer = JWTSignerUtil.hs256(merchantKey.getBytes(StandardCharsets.UTF_8));
         if (!jwt.verify(signer)) {
@@ -120,6 +137,13 @@ public class MerchantJwtVerifier {
         }
     }
 
+    /**
+     * 校验受众、签发方、商户身份、JWT ID 和时间窗口并构造受控声明。
+     *
+     * @param jwt 已验签 JWT
+     * @param nowEpochSeconds 当前秒级时间
+     * @return 已校验商户声明
+     */
     private JwtMerchantClaims validatePayload(JWT jwt, long nowEpochSeconds) {
         validateAudience(jwt.getPayload(RegisteredPayload.AUDIENCE));
         if (!EXPECTED_ISSUER.equals(asString(jwt.getPayload(RegisteredPayload.ISSUER)))) {
@@ -145,6 +169,11 @@ public class MerchantJwtVerifier {
         return claims;
     }
 
+    /**
+     * 校验 audience 字符串或集合包含平台固定受众。
+     *
+     * @param audiences JWT audience 原始值
+     */
     private void validateAudience(Object audiences) {
         if (audiences instanceof Collection<?> audienceCollection && audienceCollection.contains(EXPECTED_AUDIENCE)) {
             return;
@@ -155,6 +184,13 @@ public class MerchantJwtVerifier {
         throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_AUD_INVALID);
     }
 
+    /**
+     * 将 Instant、数字或数字文本统一转换为秒级时间戳，并兼容毫秒输入。
+     *
+     * @param value JWT 时间声明原始值
+     * @param errorCode 转换失败时使用的稳定错误码
+     * @return 秒级 Unix 时间戳
+     */
     private long toEpochSeconds(Object value, ApiResultEnum errorCode) {
         if (value instanceof Instant instant) {
             return instant.getEpochSecond();
@@ -175,6 +211,13 @@ public class MerchantJwtVerifier {
         }
     }
 
+    /**
+     * 校验签发、过期、最长有效期和允许的时钟偏差。
+     *
+     * @param issuedAt 签发秒级时间
+     * @param expiresAt 过期秒级时间
+     * @param nowEpochSeconds 当前秒级时间
+     */
     private void validateTimeWindow(long issuedAt, long expiresAt, long nowEpochSeconds) {
         if (issuedAt <= 0L || expiresAt <= 0L || expiresAt <= issuedAt) {
             throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_EXPIRED);
@@ -190,6 +233,12 @@ public class MerchantJwtVerifier {
         }
     }
 
+    /**
+     * 将 JWT 声明值安全转换为文本并保留 null。
+     *
+     * @param value 声明原始值
+     * @return 文本值或 null
+     */
     private String asString(Object value) {
         return value == null ? null : String.valueOf(value);
     }

@@ -57,29 +57,8 @@ import java.util.function.Supplier;
 @Service
 public class JdbcMerchantTransactionQueryService implements MerchantTransactionQueryService {
 
-    /**
-     * 交易订单表常量，统一 {@code JdbcMerchantTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String TRANSACTION_ORDER_TABLE = "transaction_order";
-    /**
-     * 交易动作表常量，统一 {@code JdbcMerchantTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
-    /**
-     * 交易支付方式信息表，表示支付方式、通知方式或调用方式。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String TRANSACTION_PAYMENT_METHOD_INFO_TABLE = "transaction_payment_method_info";
     /**
      * 交易主单查询仅投影商户页面实际使用的字段。禁止使用 SELECT *，避免 ShardingSphere
@@ -113,29 +92,8 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             settlement_status, reconciliation_status, accounting_status,
             transaction_date_time, operation_time, request_source
             """;
-    /**
-     * {@code ACCESS_TYPE_DIRECT_API}，用于区分 {@code JdbcMerchantTransactionQueryService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String ACCESS_TYPE_DIRECT_API = "DIRECT_API";
-    /**
-     * {@code ACCESS_TYPE_HOSTED_CHECKOUT}，用于区分 {@code JdbcMerchantTransactionQueryService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String ACCESS_TYPE_HOSTED_CHECKOUT = "HOSTED_CHECKOUT";
-    /**
-     * 默认查询时间时区常量，统一 {@code JdbcMerchantTransactionQueryService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
@@ -354,6 +312,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return accumulator.toResponse();
     }
 
+    /**
+     * 统计认证商户在查询范围内的交易主单数量。
+     */
     private long countOrders(String table, TransactionPageQuery query) {
         return jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -366,6 +327,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 """.formatted(table, orderWhereSql(query)), orderParams(query), Long.class);
     }
 
+    /**
+     * 分页查询认证商户的交易主单。
+     */
     private List<TransactionOrderResponse> selectOrders(String table, TransactionPageQuery query, long offset, long limit) {
         MapSqlParameterSource params = orderParams(query)
                 .addValue("offset", offset)
@@ -383,6 +347,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 """.formatted(ORDER_QUERY_COLUMNS, table, orderWhereSql(query)), params, orderMapper());
     }
 
+    /**
+     * 统计认证商户在查询范围内的交易动作数量。
+     */
     private long countOperations(String table, String paymentTable, TransactionPageQuery query) {
         return jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -395,6 +362,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 """.formatted(table, operationWhereSql(query, paymentTable)), operationParams(query), Long.class);
     }
 
+    /**
+     * 分页查询认证商户的交易动作。
+     */
     private List<TransactionOperationResponse> selectOperations(String table, String paymentTable, TransactionPageQuery query, long offset, long limit) {
         MapSqlParameterSource params = operationParams(query)
                 .addValue("offset", offset)
@@ -412,6 +382,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 """.formatted(OPERATION_QUERY_COLUMNS, table, operationWhereSql(query, paymentTable)), params, operationMapper());
     }
 
+    /**
+     * 按币种查询交易金额汇总。
+     */
     private List<SummaryRow> selectAmountSummary(String table, String paymentTable, TransactionPageQuery query) {
         return jdbcTemplate.query("""
                 SELECT o.transaction_status AS transaction_status,
@@ -429,6 +402,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 """.formatted(table, operationWhereSql(query, paymentTable)), operationParams(query), summaryRowMapper());
     }
 
+    /**
+     * 按支付方式查询交易数量汇总。
+     */
     private List<SummaryRow> selectPaymentMethodSummary(String table, String paymentTable, TransactionPageQuery query) {
         return jdbcTemplate.query("""
                 SELECT COALESCE(p.payment_method, 'UNKNOWN') AS payment_method,
@@ -449,6 +425,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 """.formatted(table, paymentTable, operationWhereSql(query, paymentTable)), operationParams(query), paymentSummaryRowMapper());
     }
 
+    /**
+     * 构建交易主单查询条件，并始终绑定认证商户和时间范围。
+     */
     private String orderWhereSql(TransactionPageQuery query) {
         StringBuilder sql = new StringBuilder();
         appendTextFilter(sql, query.getMerchantOrderNo(), "AND merchant_order_no = :merchantOrderNo");
@@ -464,6 +443,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return sql.toString();
     }
 
+    /**
+     * 构建交易动作查询条件，并始终绑定认证商户和时间范围。
+     */
     private String operationWhereSql(TransactionPageQuery query, String paymentTable) {
         StringBuilder sql = new StringBuilder();
         appendTextFilter(sql, query.getMerchantOrderNo(), "AND o.merchant_order_no = :merchantOrderNo");
@@ -485,12 +467,18 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return sql.toString();
     }
 
+    /**
+     * 仅在文本条件非空时追加 SQL 参数和谓词。
+     */
     private void appendTextFilter(StringBuilder sql, String value, String fragment) {
         if (StringUtils.hasText(value)) {
             sql.append(' ').append(fragment);
         }
     }
 
+    /**
+     * 构建交易主单查询参数。
+     */
     private MapSqlParameterSource orderParams(TransactionPageQuery query) {
         return baseParams(query)
                 .addValue("merchantOrderNo", query.getMerchantOrderNo())
@@ -505,6 +493,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .addValue("settlementStatus", query.getSettlementStatus());
     }
 
+    /**
+     * 构建交易动作查询参数。
+     */
     private MapSqlParameterSource operationParams(TransactionPageQuery query) {
         return baseParams(query)
                 .addValue("merchantOrderNo", query.getMerchantOrderNo())
@@ -519,6 +510,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .addValue("paymentBrand", query.getPaymentBrand());
     }
 
+    /**
+     * 构建交易查询共用参数。
+     */
     private MapSqlParameterSource baseParams(TransactionPageQuery query) {
         return new MapSqlParameterSource()
                 .addValue("merchantId", query.getMerchantId())
@@ -526,6 +520,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .addValue("endTime", exclusiveEnd(query.getEndTime()));
     }
 
+    /**
+     * 按交易号、商户号和精确分片时间查询交易动作。
+     */
     private TransactionOperationResponse selectOperationByTransactionId(String table,
                                                                          String transactionId,
                                                                          LocalDateTime transactionDateTime,
@@ -546,6 +543,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * 按操作号、商户号和精确分片时间查询交易主单。
+     */
     private TransactionOrderResponse selectOrderByOperationId(String table,
                                                                String operationId,
                                                                LocalDateTime transactionDateTime,
@@ -565,6 +565,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * 查询同一交易操作链中的全部商户可见动作。
+     */
     private List<TransactionOperationResponse> selectOperationsByOperationId(String operationId,
                                                                               String merchantId,
                                                                               LocalDateTime beginTime,
@@ -585,6 +588,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                     .addValue("endTime", exclusiveEnd(endTime)), operationMapper());
     }
 
+    /**
+     * 批量补充交易动作的支付方式与主单展示信息，避免逐条查询。
+     */
     private void enrichOperations(List<TransactionOperationResponse> rows) {
         if (rows == null || rows.isEmpty()) {
             return;
@@ -649,6 +655,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         }
     }
 
+    /**
+     * 批量补充交易主单的支付方式与最新动作展示信息，避免逐条查询。
+     */
     private void enrichOrders(List<TransactionOrderResponse> rows) {
         if (rows == null || rows.isEmpty()) {
             return;
@@ -749,6 +758,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return result;
     }
 
+    /**
+     * 按交易号读取首个可展示支付信息。
+     */
     private PaymentInfoRow firstPaymentInfo(TransactionOrderResponse row, Map<String, PaymentInfoRow> paymentInfoByTransaction) {
         PaymentInfoRow latest = paymentInfoByTransaction.get(row.getLatestTransactionId());
         if (hasCardInfo(latest)) {
@@ -761,10 +773,16 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return latest != null ? latest : root;
     }
 
+    /**
+     * 判断交易是否包含可展示的卡信息。
+     */
     private boolean hasCardInfo(PaymentInfoRow row) {
         return row != null && (StringUtils.hasText(row.cardBin()) || StringUtils.hasText(row.cardNumberMasked()));
     }
 
+    /**
+     * 按交易分片批量查询并索引支付信息。
+     */
     private Map<String, PaymentInfoRow> paymentInfoByTransaction(List<TransactionOperationResponse> rows) {
         Map<String, PaymentInfoRow> result = new LinkedHashMap<>();
         Map<MerchantTimeScope, List<String>> idsByScope = new LinkedHashMap<>();
@@ -804,6 +822,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return result;
     }
 
+    /**
+     * 按主单交易号批量查询并索引支付信息。
+     */
     private Map<String, PaymentInfoRow> paymentInfoByOrderTransaction(List<TransactionOrderResponse> rows) {
         Map<String, PaymentInfoRow> result = new LinkedHashMap<>();
         Map<MerchantTimeScope, List<String>> idsByScope = new LinkedHashMap<>();
@@ -844,6 +865,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return result;
     }
 
+    /**
+     * 按主单操作号批量查询并索引支付信息。
+     */
     private Map<String, PaymentInfoRow> paymentInfoByOrderOperation(List<TransactionOrderResponse> rows) {
         Map<String, PaymentInfoRow> result = new LinkedHashMap<>();
         Map<MerchantTimeScope, List<String>> operationIdsByScope = new LinkedHashMap<>();
@@ -884,6 +908,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return result;
     }
 
+    /**
+     * 按操作号批量查询并索引商户可见响应信息。
+     */
     private Map<String, OperationVisibleInfoRow> operationVisibleInfoByOperation(List<TransactionOrderResponse> rows) {
         Map<String, OperationVisibleInfoRow> result = new LinkedHashMap<>();
         Map<MerchantTimeScope, List<String>> operationIdsByScope = new LinkedHashMap<>();
@@ -923,12 +950,18 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return result;
     }
 
+    /**
+     * 将非空且未重复的文本追加到展示值集合。
+     */
     private void addIfText(List<String> values, String value) {
         if (StringUtils.hasText(value) && !values.contains(value)) {
             values.add(value);
         }
     }
 
+    /**
+     * 按操作号查询并索引交易主单。
+     */
     private Map<String, TransactionOrderResponse> orderByOperation(List<TransactionOperationResponse> rows) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
@@ -966,6 +999,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 LinkedHashMap::new));
     }
 
+    /**
+     * 校验并规范化交易查询条件，强制限制商户和时间范围。
+     */
     private TransactionPageQuery normalize(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = query == null ? new TransactionPageQuery() : query;
         if (!StringUtils.hasText(safeQuery.getMerchantId())) {
@@ -977,6 +1013,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return safeQuery;
     }
 
+    /**
+     * 补充默认查询时间范围并限制最大扫描窗口。
+     */
     private void fillDefaultTimeRange(TransactionPageQuery query) {
         ZoneId queryZone = resolveQueryZone(query.getQueryTimeZone());
         LocalDateTime safeEnd = query.getEndTime() == null ? LocalDateTime.now(queryZone) : query.getEndTime();
@@ -993,15 +1032,24 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         query.setQueryTimeZone(queryZone.getId());
     }
 
+    /**
+     * 判断查询时间范围是否为空区间。
+     */
     private boolean isEmptyTimeRange(TransactionPageQuery query) {
         return query.getBeginTime() != null && query.getEndTime() != null
                 && query.getBeginTime().isAfter(query.getEndTime());
     }
 
+    /**
+     * 构建保持当前分页参数的空结果。
+     */
     private <T> PageResult<T> emptyPage(PageRequest query) {
         return PageResult.of(0L, query.safePageNo(), query.safePageSize(), List.of());
     }
 
+    /**
+     * 规范化商户响应码，缺失值保持为空。
+     */
     private void normalizeMerchantResponseCode(TransactionPageQuery query) {
         if (!StringUtils.hasText(query.getMerchantResponseCode())) {
             return;
@@ -1018,6 +1066,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         query.setTransactionStatus(mappedStatus);
     }
 
+    /**
+     * 解析查询时区，非法值在访问数据库前失败。
+     */
     private ZoneId resolveQueryZone(String queryTimeZone) {
         String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : DEFAULT_QUERY_TIME_ZONE;
         try {
@@ -1027,6 +1078,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         }
     }
 
+    /**
+     * 规范化 UTC、GMT 偏移和 IANA 时区标识。
+     */
     private String normalizeZoneId(String zone) {
         if (!StringUtils.hasText(zone)) {
             return DEFAULT_QUERY_TIME_ZONE;
@@ -1050,11 +1104,17 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return normalized;
     }
 
+    /**
+     * 在查询时区与交易存储时区之间转换具体时间。
+     */
     private LocalDateTime convertBetweenZones(LocalDateTime sourceTime, ZoneId sourceZone, ZoneId targetZone) {
         ZonedDateTime source = sourceTime.atZone(sourceZone);
         return source.withZoneSameInstant(targetZone).toLocalDateTime();
     }
 
+    /**
+     * 计算数据库分页偏移量。
+     */
     private long offset(PageRequest query) {
         return (query.safePageNo() - 1) * query.safePageSize();
     }
@@ -1076,6 +1136,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return actualEnd.plusNanos(1_000_000L);
     }
 
+    /**
+     * 创建交易主单结果集映射器。
+     */
     private RowMapper<TransactionOrderResponse> orderMapper() {
         return (rs, rowNum) -> {
             TransactionOrderResponse row = new TransactionOrderResponse();
@@ -1137,6 +1200,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         };
     }
 
+    /**
+     * 创建交易动作结果集映射器。
+     */
     private RowMapper<TransactionOperationResponse> operationMapper() {
         return (rs, rowNum) -> {
             TransactionOperationResponse row = new TransactionOperationResponse();
@@ -1192,6 +1258,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 : ACCESS_TYPE_DIRECT_API;
     }
 
+    /**
+     * 创建交易金额汇总结果集映射器。
+     */
     private RowMapper<SummaryRow> summaryRowMapper() {
         return (rs, rowNum) -> new SummaryRow(
                 rs.getString("transaction_status"),
@@ -1203,6 +1272,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 rs.getBigDecimal("amount"));
     }
 
+    /**
+     * 创建支付方式汇总结果集映射器。
+     */
     private RowMapper<SummaryRow> paymentSummaryRowMapper() {
         return (rs, rowNum) -> new SummaryRow(
                 null,
@@ -1224,6 +1296,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 .orElse(null);
     }
 
+    /**
+     * 创建支付方式信息结果集映射器。
+     */
     private RowMapper<PaymentInfoRow> paymentInfoMapper() {
         return (rs, rowNum) -> {
             String masked = rs.getString("card_number_masked");
@@ -1238,6 +1313,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         };
     }
 
+    /**
+     * 创建商户可见交易结果映射器。
+     */
     private RowMapper<OperationVisibleInfoRow> operationVisibleInfoMapper() {
         return (rs, rowNum) -> {
             String masked = rs.getString("card_number_masked");
@@ -1250,10 +1328,16 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         };
     }
 
+    /**
+     * 读取结果集中的可空日期时间。
+     */
     private LocalDateTime localDateTime(ResultSet rs, String column) throws SQLException {
         return rs.getTimestamp(column) == null ? null : rs.getTimestamp(column).toLocalDateTime();
     }
 
+    /**
+     * 读取结果集中的可空整数字段。
+     */
     private Integer nullableInt(ResultSet rs, String column) throws SQLException {
         int value = rs.getInt(column);
         return rs.wasNull() ? null : value;
@@ -1289,6 +1373,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return transactionAmount;
     }
 
+    /**
+     * 解析生命周期状态。
+     */
     private String resolveLifecycleStatus(TransactionOrderResponse row, ResultSet rs) throws SQLException {
         if (!"SUCCESS".equals(row.getTransactionStatus())) {
             return row.getTransactionStatus();
@@ -1317,14 +1404,23 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return row.getTransactionStatus();
     }
 
+    /**
+     * 判断交易类型是否属于授权类交易。
+     */
     private static boolean isAuthorizationLike(String transactionType) {
         return "AUTHORIZATION".equals(transactionType) || "PRE_AUTHORIZATION".equals(transactionType) || "PRE_AUTH_COMPLETION".equals(transactionType);
     }
 
+    /**
+     * 将空金额转换为零，保留非空金额的原始精度。
+     */
     private BigDecimal zeroIfNull(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    /**
+     * 将空比率转换为零，不提前执行舍入。
+     */
     private BigDecimal defaultRate(BigDecimal value) {
         return value == null ? new BigDecimal("1.00000000") : value;
     }
@@ -1384,6 +1480,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 null);
     }
 
+    /**
+     * 规范化卡号掩码，禁止返回完整卡号。
+     */
     private String normalizeCardNumberMasked(String cardBin, String cardLast4, String masked) {
         if (StringUtils.hasText(cardBin) && cardBin.length() >= 6 && StringUtils.hasText(cardLast4)) {
             return cardBin.substring(0, 6) + "****" + cardLast4;
@@ -1398,6 +1497,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return masked;
     }
 
+    /**
+     * 规范化卡 BIN 展示值。
+     */
     private String normalizeCardBin(String cardBin, String masked) {
         if (StringUtils.hasText(cardBin)) {
             String digits = cardBin.replaceAll("\\D", "");
@@ -1412,10 +1514,16 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return digits.length() >= 6 ? digits.substring(0, 6) : null;
     }
 
+    /**
+     * 交易支付方式的商户可见投影。
+     */
     private record PaymentInfoRow(String transactionId, String operationId, String paymentMethod, String paymentBrand,
                                   String cardBin, String cardNumberMasked) {
     }
 
+    /**
+     * 交易动作的商户可见结果投影。
+     */
     private record OperationVisibleInfoRow(String operationId, String authCode, String cardBin, String cardNumberMasked) {
     }
 
@@ -1440,10 +1548,16 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     private record MerchantTimeScope(String merchantId, LocalDateTime transactionDateTime) {
     }
 
+    /**
+     * 按币种或支付方式聚合的交易汇总行。
+     */
     private record SummaryRow(String transactionStatus, String paymentMethod, String paymentBrand, String currency,
                               Integer currencyExponent, long count, BigDecimal amount) {
     }
 
+    /**
+     * 按币种和支付方式累积交易统计的容器。
+     */
     private static class SummaryAccumulator {
         /**
          * 当前筛选条件命中的交易操作单数量。
@@ -1474,6 +1588,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
          */
         private final Map<String, TransactionPaymentMethodSummaryResponse> paymentMethodSummaries = new LinkedHashMap<>();
 
+        /**
+         * 按币种合并金额统计，禁止跨币种求和。
+         */
         void addAmount(SummaryRow row) {
             totalCount += row.count();
             if ("SUCCESS".equals(row.transactionStatus())) {
@@ -1486,6 +1603,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             mergeAmount(amountSummaries, row);
         }
 
+        /**
+         * 将支付方式统计合并到当前汇总结果。
+         */
         void addPaymentMethod(SummaryRow row) {
             String key = (row.paymentMethod() == null ? "UNKNOWN" : row.paymentMethod()) + "|" + (row.paymentBrand() == null ? "" : row.paymentBrand());
             TransactionPaymentMethodSummaryResponse summary = paymentMethodSummaries.computeIfAbsent(key, ignored -> {
@@ -1502,6 +1622,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             summary.setAmountSummaries(new ArrayList<>(amounts.values()));
         }
 
+        /**
+         * 将累计的交易数量、金额和支付方式统计组装为汇总响应。
+         */
         TransactionOperationSummaryResponse toResponse() {
             TransactionOperationSummaryResponse response = new TransactionOperationSummaryResponse();
             response.setTotalCount(totalCount);
@@ -1514,6 +1637,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             return response;
         }
 
+        /**
+         * 按币种合并单条金额统计记录。
+         */
         private void mergeAmount(Map<String, TransactionAmountSummaryResponse> target, SummaryRow row) {
             TransactionAmountSummaryResponse amount = target.computeIfAbsent(row.currency(), ignored -> {
                 TransactionAmountSummaryResponse value = new TransactionAmountSummaryResponse();

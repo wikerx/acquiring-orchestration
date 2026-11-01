@@ -15,29 +15,11 @@ import java.util.zip.ZipOutputStream;
  */
 public class OpenApiKeyExportService {
 
-    /**
-     * 文本内容类型，用于区分 {@code OpenApiKeyExportService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String TEXT_CONTENT_TYPE = "text/plain;charset=UTF-8";
-    /**
-     * {@code PROPERTIES_CONTENT_TYPE}，用于区分 {@code OpenApiKeyExportService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String PROPERTIES_CONTENT_TYPE = "text/plain;charset=UTF-8";
-    /**
-     * {@code ZIP_CONTENT_TYPE}，用于区分 {@code OpenApiKeyExportService} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String ZIP_CONTENT_TYPE = "application/zip";
 
     /**
@@ -246,12 +228,25 @@ public class OpenApiKeyExportService {
         return new OpenApiKeyDownloadFile(fileName, PROPERTIES_CONTENT_TYPE, content.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 将受控文件名和 UTF-8 文本写入商户接入包。
+     *
+     * @param zip 接入包输出流
+     * @param name 受控压缩包条目名
+     * @param content 文件内容
+     * @throws IOException 写入失败时抛出
+     */
     private void addZipEntry(ZipOutputStream zip, String name, String content) throws IOException {
         zip.putNextEntry(new ZipEntry(name));
         zip.write(content.getBytes(StandardCharsets.UTF_8));
         zip.closeEntry();
     }
 
+    /**
+     * 生成接入包中的密钥存放和轮换安全说明。
+     *
+     * @return UTF-8 使用说明文本
+     */
     private String readme() {
         return ""
                 + "1. 将 merchant-config.properties 与 keys/ 保持当前相对目录结构，SDK 会从配置文件所在目录解析密钥。\n"
@@ -262,6 +257,11 @@ public class OpenApiKeyExportService {
                 + "6. 如密钥泄露，请立即在管理系统或商户系统中轮换密钥。\n";
     }
 
+    /**
+     * 解析配置的 OpenAPI 基础地址并统一追加 V1.3 路径和尾部斜杠。
+     *
+     * @return SDK 配置使用的 OpenAPI 基础地址
+     */
     private String openApiBaseUrl() {
         String baseUrl = baseUrlResolver == null ? null : baseUrlResolver.resolve();
         if (baseUrl == null || baseUrl.trim().isEmpty()) {

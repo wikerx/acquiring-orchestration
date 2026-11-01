@@ -36,39 +36,46 @@ public class GatewayIngressAuthProperties {
     private boolean protectPortalPaths = true;
 
     /**
-     * @return 外部注入的 HMAC 共享密钥
+     * 获取外部注入的 Gateway HMAC 共享密钥。
+     *
+     * @return HMAC 共享密钥
      */
     public String getSecret() {
         return secret;
     }
 
     /**
-     * @param secret 外部注入的 HMAC 共享密钥
+     * 设置外部注入的 Gateway HMAC 共享密钥。
+     *
+     * @param secret HMAC 共享密钥
      */
     public void setSecret(String secret) {
         this.secret = secret;
     }
 
     /**
-     * @return 允许的最大时钟偏差，单位毫秒
+     * 获取允许的最大签名时钟偏差。
+     *
+     * @return 最大时钟偏差，单位毫秒
      */
     public long getAllowedClockSkewMillis() {
         return allowedClockSkewMillis;
     }
 
     /**
-     * @param allowedClockSkewMillis 允许的最大时钟偏差，单位毫秒
+     * 设置允许的最大签名时钟偏差。
+     *
+     * @param allowedClockSkewMillis 最大时钟偏差，单位毫秒
      */
     public void setAllowedClockSkewMillis(long allowedClockSkewMillis) {
         this.allowedClockSkewMillis = allowedClockSkewMillis;
     }
 
+
     /**
-     * 判断 is accept legacy signature 条件是否成立，用于控制 Gateway Ingress Auth Properties 的后续分支。
-     * <p>
-     * 纯判断操作，不修改业务状态。
-     * </p>
-     * @return 条件满足时返回 true，否则返回 false
+     * 判断是否在迁移窗口内接受未绑定正文的旧版入口签名。
+     *
+     * @return 允许旧版签名时返回 true
      */
     public boolean isAcceptLegacySignature() {
         return acceptLegacySignature;
@@ -83,12 +90,11 @@ public class GatewayIngressAuthProperties {
         this.acceptLegacySignature = acceptLegacySignature;
     }
 
+
     /**
-     * 判断 is replay protection required 条件是否成立，用于控制 Gateway Ingress Auth Properties 的后续分支。
-     * <p>
-     * 纯判断操作，不修改业务状态。
-     * </p>
-     * @return 条件满足时返回 true，否则返回 false
+     * 判断是否强制通过 Redis 原子登记 nonce 防止请求重放。
+     *
+     * @return 必须启用防重放时返回 true
      */
     public boolean isReplayProtectionRequired() {
         return replayProtectionRequired;
@@ -121,12 +127,11 @@ public class GatewayIngressAuthProperties {
         this.maxRequestBodyBytes = maxRequestBodyBytes;
     }
 
+
     /**
-     * 判断 is protect portal paths 条件是否成立，用于控制 Gateway Ingress Auth Properties 的后续分支。
-     * <p>
-     * 纯判断操作，不修改业务状态。
-     * </p>
-     * @return 条件满足时返回 true，否则返回 false
+     * 判断管理后台和商户后台公网路径是否必须经过 Gateway HMAC。
+     *
+     * @return 门户路径受保护时返回 true
      */
     public boolean isProtectPortalPaths() {
         return protectPortalPaths;

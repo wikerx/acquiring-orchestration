@@ -19,39 +19,18 @@ public final class OpenApiPemUtils {
      */
     private static final int PEM_LINE_LENGTH = 64;
 
-    /**
-     * {@code PUBLIC_KEY_BEGIN}常量，统一 {@code OpenApiPemUtils} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String PUBLIC_KEY_BEGIN = "-----BEGIN PUBLIC KEY-----";
-    /**
-     * {@code PUBLIC_KEY_END}常量，统一 {@code OpenApiPemUtils} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String PUBLIC_KEY_END = "-----END PUBLIC KEY-----";
-    /**
-     * {@code PRIVATE_KEY_BEGIN}常量，统一 {@code OpenApiPemUtils} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String PRIVATE_KEY_BEGIN = "-----BEGIN PRIVATE KEY-----";
-    /**
-     * 私钥密钥结束常量，统一 {@code OpenApiPemUtils} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String PRIVATE_KEY_END = "-----END PRIVATE KEY-----";
 
+    /**
+     * 禁止实例化 OpenAPI PEM 工具类。
+     */
     private OpenApiPemUtils() {
     }
 
@@ -109,6 +88,14 @@ public final class OpenApiPemUtils {
         }
     }
 
+    /**
+     * 将规范 Base64 密钥正文按 64 字符换行封装为指定 PEM 类型。
+     *
+     * @param value DER Base64 或已有 PEM 文本
+     * @param begin PEM 起始标记
+     * @param end PEM 结束标记
+     * @return 标准 PEM 文本
+     */
     private static String toPem(String value, String begin, String end) {
         String normalizedBase64 = normalizePem(value);
         StringBuilder builder = new StringBuilder(begin).append('\n');

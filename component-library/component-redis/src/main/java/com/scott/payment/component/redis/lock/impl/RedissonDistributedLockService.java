@@ -158,6 +158,16 @@ public class RedissonDistributedLockService implements DistributedLockService {
         return lock(key).isHeldByCurrentThread();
     }
 
+    /**
+     * 在获得分布式锁后执行本地动作，并在 finally 中仅由持有线程释放锁。
+     *
+     * @param key 完整 Redis 锁 Key
+     * @param waitTime 最大等待时间
+     * @param leaseTime 租约时间
+     * @param action 获锁后执行的动作
+     * @param <T> 动作结果类型
+     * @return 获锁结果或竞争失败结果
+     */
     @Override
     public <T> DistributedLockExecution<T> execute(String key,
                                                    Duration waitTime,

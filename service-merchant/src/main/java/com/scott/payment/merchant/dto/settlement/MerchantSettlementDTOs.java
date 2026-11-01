@@ -13,6 +13,9 @@ import java.util.List;
  */
 public final class MerchantSettlementDTOs {
 
+    /**
+     * 禁止实例化商户结算 DTO 聚合类。
+     */
     private MerchantSettlementDTOs() {
     }
 

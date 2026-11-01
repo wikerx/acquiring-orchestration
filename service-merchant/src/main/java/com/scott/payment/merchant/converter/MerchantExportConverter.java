@@ -11,7 +11,7 @@ import org.mapstruct.ReportingPolicy;
 import org.mapstruct.factory.Mappers;
 
 /**
- * Merchant Export Converter 转换组件，位于 商户后台服务，在接口模型、领域对象、数据库记录或消息载荷之间复制并规范化字段。
+ * 商户财务导出转换器，将资金流水和退款记录转换为商户可见的导出行。
  */
 @Mapper(unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface MerchantExportConverter {
@@ -19,10 +19,7 @@ public interface MerchantExportConverter {
     MerchantExportConverter INSTANCE = Mappers.getMapper(MerchantExportConverter.class);
 
     /**
-     * 构造{@code toLedgerExportRow}对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
+     * 将资金流水响应转换为导出行。
      * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
      * @return 构造、转换或解析后的业务值
      */
@@ -43,10 +40,7 @@ public interface MerchantExportConverter {
     MerchantFundLedgerExportRow toLedgerExportRow(FundLedgerResponse source);
 
     /**
-     * 构造{@code toRefundExportRow}对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 转换过程不改变来源对象的业务状态；敏感字段仅保留目标模型所需的最小集合。
-     * </p>
+     * 将退款记录转换为不含内部审批和渠道错误信息的导出行。
      * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
      * @return 构造、转换或解析后的业务值
      */

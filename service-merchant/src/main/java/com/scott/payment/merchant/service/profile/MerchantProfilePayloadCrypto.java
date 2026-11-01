@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
- * 商户资料变更快照加密边界，使用申请编号作为 AAD 防止跨申请替换密文
+ * 商户资料变更快照加密边界，使用申请编号作为 AAD 防止跨申请替换密文。
  */
 @Component
 public class MerchantProfilePayloadCrypto {

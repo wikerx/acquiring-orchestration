@@ -71,12 +71,18 @@ public class SystemConfigReadService {
         return findByKey(configKey).flatMap(SystemConfigSnapshot::enabledValue);
     }
 
+    /**
+     * 检查配置失效事件是否仍在传播；门禁不可用时保守回源主库。
+     *
+     * @param configKey 全局唯一配置键
+     * @return 必须绕过缓存时返回 true
+     */
     private boolean mustBypassCache(String configKey) {
         try {
             return invalidationGuard.isPending(PaymentCacheNames.SYSTEM_CONFIG, configKey);
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: SYSTEM_CONFIG_CACHE_GUARD_CHECK_FAILED exceptionType: {}",
+                    "系统配置缓存门禁检查失败, event: SYSTEM_CONFIG_CACHE_GUARD_CHECK_FAILED, exceptionType: {}",
                     exception.getClass().getSimpleName()
             );
             return true;

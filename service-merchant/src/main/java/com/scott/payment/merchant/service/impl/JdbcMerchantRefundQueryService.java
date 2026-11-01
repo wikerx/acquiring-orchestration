@@ -533,20 +533,32 @@ public class JdbcMerchantRefundQueryService implements MerchantRefundQueryServic
         return LocalDateTime.of(year, (quarter - 1) * 3 + 1, 1, 0, 0);
     }
 
+    /**
+     * 仅在文本条件非空时追加 SQL 参数和谓词。
+     */
     private void appendTextFilter(StringBuilder sql, String value, String fragment) {
         if (StringUtils.hasText(value)) {
             sql.append(' ').append(fragment);
         }
     }
 
+    /**
+     * 判断开始时间是否晚于或等于结束时间。
+     */
     private boolean isInvalidRange(LocalDateTime beginTime, LocalDateTime endTime) {
         return beginTime != null && endTime != null && beginTime.isAfter(endTime);
     }
 
+    /**
+     * 将闭区间结束日期转换为数据库查询使用的排他结束时间。
+     */
     private LocalDateTime exclusiveEnd(LocalDateTime value) {
         return value.plusNanos(1_000_000L);
     }
 
+    /**
+     * 将空金额转换为零，不改变非空金额精度。
+     */
     private BigDecimal defaultAmount(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }

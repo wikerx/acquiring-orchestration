@@ -21,47 +21,27 @@ import java.util.Locale;
 public class RiskEvaluationAuditService {
 
     /**
-     * {@code EFFECT_ALLOW}常量，统一 {@code RiskEvaluationAuditService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 规则允许动作，用于排除未实际命中的审计节点。
      */
     private static final String EFFECT_ALLOW = "ALLOW";
 
     /**
-     * {@code RISK_LEVEL_LOW}常量，统一 {@code RiskEvaluationAuditService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 低风险等级编码。
      */
     private static final String RISK_LEVEL_LOW = "LOW";
 
     /**
-     * {@code RISK_LEVEL_MEDIUM}常量，统一 {@code RiskEvaluationAuditService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 中风险等级编码。
      */
     private static final String RISK_LEVEL_MEDIUM = "MEDIUM";
 
     /**
-     * {@code RISK_LEVEL_HIGH}常量，统一 {@code RiskEvaluationAuditService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 高风险等级编码。
      */
     private static final String RISK_LEVEL_HIGH = "HIGH";
 
     /**
-     * {@code RISK_LEVEL_CRITICAL}常量，统一 {@code RiskEvaluationAuditService} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 严重风险等级编码。
      */
     private static final String RISK_LEVEL_CRITICAL = "CRITICAL";
 

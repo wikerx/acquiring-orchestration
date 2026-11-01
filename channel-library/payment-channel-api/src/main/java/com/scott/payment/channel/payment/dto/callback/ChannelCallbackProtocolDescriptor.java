@@ -16,6 +16,9 @@ public record ChannelCallbackProtocolDescriptor(Set<String> methods,
                                                 int maxBodyBytes,
                                                 ChannelCallbackAuthentication authentication) {
 
+    /**
+     * 规范化 HTTP 契约集合，并校验场景、正文上限和认证姿态。
+     */
     public ChannelCallbackProtocolDescriptor {
         methods = normalize(methods);
         contentTypes = normalize(contentTypes);
@@ -62,6 +65,12 @@ public record ChannelCallbackProtocolDescriptor(Set<String> methods,
         return contentTypes.contains(mediaType);
     }
 
+    /**
+     * 将 HTTP 方法或媒体类型集合规范化为小写不可变集合。
+     *
+     * @param values 原始协议值集合
+     * @return 过滤空值后的不可变集合
+     */
     private static Set<String> normalize(Set<String> values) {
         if (values == null || values.isEmpty()) {
             return Set.of();

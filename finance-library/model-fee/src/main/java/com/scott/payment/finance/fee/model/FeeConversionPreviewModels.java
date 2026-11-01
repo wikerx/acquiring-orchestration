@@ -15,6 +15,9 @@ import java.util.Objects;
  */
 public final class FeeConversionPreviewModels {
 
+    /**
+     * 禁止实例化仅承载费用换算预览契约的工具类。
+     */
     private FeeConversionPreviewModels() {
     }
 
@@ -31,6 +34,9 @@ public final class FeeConversionPreviewModels {
                                            int targetExponent,
                                            Map<String, BigDecimal> directRates) {
 
+        /**
+         * 规范化目标币种和显式直接汇率，并构造不可变预览命令。
+         */
         public FeeConversionPreviewCommand {
             Objects.requireNonNull(feeResult, "fee result is required");
             targetCurrency = new Money(BigDecimal.ZERO, targetCurrency, targetExponent).currency();
@@ -59,6 +65,9 @@ public final class FeeConversionPreviewModels {
                                           Money finalFee,
                                           AppliedLimit appliedLimit) {
 
+        /**
+         * 校验预览原始费用、最终费用和实际应用限额。
+         */
         public FeeConversionPreviewResult {
             Objects.requireNonNull(rawFee, "raw preview fee is required");
             Objects.requireNonNull(finalFee, "final preview fee is required");

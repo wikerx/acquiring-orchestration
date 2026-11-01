@@ -169,6 +169,9 @@ public final class PaymentRedisSerializerFactory {
             MERCHANT_FEE_TIER_CLASS_NAME
     );
 
+    /**
+     * 禁止实例化 Redis 安全序列化器工厂。
+     */
     private PaymentRedisSerializerFactory() {
     }
 
@@ -323,6 +326,9 @@ public final class PaymentRedisSerializerFactory {
         }
     }
 
+    /**
+     * 仅允许精确登记对象图的当前格式序列化器，并保留历史格式只读兼容能力。
+     */
     private static final class RegisteredTypeRedisSerializer implements RedisSerializer<Object> {
 
         private static final JacksonObjectReader REGISTERED_READER =

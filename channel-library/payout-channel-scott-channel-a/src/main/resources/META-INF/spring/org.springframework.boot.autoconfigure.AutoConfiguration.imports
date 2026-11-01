@@ -1,1 +1,1 @@
-com.scott.payment.channel.payout.scottchannela.config.ScottChannelAPayoutAutoConfiguration
+com.scott.payment.channel.payout.scottchannela.config.ChannelAutoConfiguration

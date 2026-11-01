@@ -18,41 +18,20 @@ final class NacosConfigInfoEncryptedKeyCompatibility {
 
     private static final String CONFIG_SERVER_MARKER =
             "com.alibaba.nacos.config.server.service.repository.ConfigInfoPersistService";
-    /**
-     * {@code MAPPER_MANAGER_CLASS}常量，统一 {@code NacosConfigInfoEncryptedKeyCompatibility} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String MAPPER_MANAGER_CLASS = "com.alibaba.nacos.plugin.datasource.MapperManager";
     private static final String CONFIG_INFO_MAPPER_INTERFACE =
             "com.alibaba.nacos.plugin.datasource.mapper.ConfigInfoMapper";
-    /**
-     * 配置信息表常量，统一 {@code NacosConfigInfoEncryptedKeyCompatibility} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String CONFIG_INFO_TABLE = "config_info";
-    /**
-     * 内容字段常量，统一 {@code NacosConfigInfoEncryptedKeyCompatibility} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String CONTENT_COLUMN = "content";
-    /**
-     * {@code ENCRYPTED_DATA_KEY_COLUMN}常量，统一 {@code NacosConfigInfoEncryptedKeyCompatibility} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String ENCRYPTED_DATA_KEY_COLUMN = "encrypted_data_key";
 
+    /**
+     * 禁止实例化 Nacos 服务端兼容层。
+     */
     private NacosConfigInfoEncryptedKeyCompatibility() {
     }
 
@@ -83,6 +62,14 @@ final class NacosConfigInfoEncryptedKeyCompatibility {
         }
     }
 
+    /**
+     * 为所有已加载数据源的 config_info Mapper 安装一次兼容代理。
+     *
+     * @param registry Nacos 数据源 Mapper 注册表
+     * @param mapperInterface ConfigInfoMapper 接口
+     * @param classLoader Nacos 服务端类加载器
+     * @return 新安装代理数量
+     */
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static int installMapperProxies(Map<?, ?> registry, Class<?> mapperInterface, ClassLoader classLoader) {
         int installed = 0;
@@ -110,11 +97,24 @@ final class NacosConfigInfoEncryptedKeyCompatibility {
         return installed;
     }
 
+    /**
+     * 判断 Mapper 是否已经由本兼容层代理，防止重复包装。
+     *
+     * @param mapper 当前 Mapper 实例
+     * @return 已安装兼容代理时返回 true
+     */
     private static boolean isCompatibilityProxy(Object mapper) {
         return Proxy.isProxyClass(mapper.getClass())
                 && Proxy.getInvocationHandler(mapper) instanceof ConfigInfoMapperInvocationHandler;
     }
 
+    /**
+     * 判断当前类加载器是否包含指定 Nacos 服务端类型。
+     *
+     * @param className 完整类名
+     * @param classLoader 当前类加载器
+     * @return 类型存在时返回 true
+     */
     private static boolean isPresent(String className, ClassLoader classLoader) {
         try {
             Class.forName(className, false, classLoader);
@@ -141,10 +141,18 @@ final class NacosConfigInfoEncryptedKeyCompatibility {
         return sql.substring(0, fromIndex) + "," + ENCRYPTED_DATA_KEY_COLUMN + sql.substring(fromIndex);
     }
 
+    /**
+     * 拦截 Nacos ConfigInfoMapper 查询定义并补齐加密数据密钥选择列。
+     */
     private static final class ConfigInfoMapperInvocationHandler implements InvocationHandler {
 
         private final Object delegate;
 
+        /**
+         * 创建保留原 Mapper 行为的兼容代理处理器。
+         *
+         * @param delegate Nacos 原始 ConfigInfoMapper
+         */
         private ConfigInfoMapperInvocationHandler(Object delegate) {
             this.delegate = delegate;
         }

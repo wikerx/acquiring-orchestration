@@ -22,9 +22,17 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Verify Java and Maven
         run: |
           java -version
           mvn -version
+          python3 --version
+      - name: Verify Java comment contracts
+        run: python3 scripts/verify-java-comments.py
+      - name: Verify structured logging rules
+        run: python3 scripts/verify-logging-rules.py
       - name: Run reactor tests
         run: mvn -B test

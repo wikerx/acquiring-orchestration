@@ -84,14 +84,14 @@ public class PaymentTimeoutCloseJob implements JobHandler {
         int limit = normalizeLimit(request == null ? null : request.getLimit());
         long startNanos = System.nanoTime();
         String traceId = context == null ? TraceContext.getTraceId() : context.getTraceId();
-        log.info("event: JOB_HANDLER_SCAN_START traceId: {} jobId: {} handler: {} runId: {} limit: {}",
+        log.info("支付超时关单扫描开始, event: JOB_HANDLER_SCAN_START, traceId: {}, jobId: {}, handler: {}, runId: {}, limit: {}",
                 traceId,
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,
                 context == null ? null : context.getRunId(),
                 limit);
         int expiredCount = paymentInternalClient.expireDueCheckoutSessions(limit);
-        log.info("event: JOB_HANDLER_SCAN_END traceId: {} jobId: {} handler: {} runId: {} expiredCount: {} durationMs: {}",
+        log.info("支付超时关单扫描结束, event: JOB_HANDLER_SCAN_END, traceId: {}, jobId: {}, handler: {}, runId: {}, expiredCount: {}, durationMs: {}",
                 traceId,
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,

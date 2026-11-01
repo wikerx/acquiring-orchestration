@@ -122,7 +122,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
         }
         List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request);
         long startNanos = System.nanoTime();
-        log.info("event: JOB_HANDLER_SCAN_START traceId: {} jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} limit: {}",
+        log.info("商户通知重试扫描开始, event: JOB_HANDLER_SCAN_START, traceId: {}, jobId: {}, handler: {}, runId: {}, shardIndex: {}, shardTotal: {}, paramsSummary: {}, scanRanges: {}, limit: {}",
                 context == null ? TraceContext.getTraceId() : context.getTraceId(),
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,
@@ -140,7 +140,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
                 successCount = notify(transactionDateTime, request, limit);
             } catch (RuntimeException exception) {
                 failCount++;
-                log.warn("event: JOB_HANDLER_SCAN_ITEM_FAILED traceId: {} jobId: {} handler: {} runId: {} scanRange: {} failureReason: {}",
+                log.warn("商户通知重试分片失败, event: JOB_HANDLER_SCAN_ITEM_FAILED, traceId: {}, jobId: {}, handler: {}, runId: {}, scanRange: {}, failureReason: {}",
                         context == null ? TraceContext.getTraceId() : context.getTraceId(),
                         context == null ? null : context.getJobId(),
                         HANDLER_CODE,
@@ -153,7 +153,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
             totalSuccessCount += safeSuccessCount;
             result.put(transactionDateTime.toString(), safeSuccessCount);
         }
-        log.info("event: JOB_HANDLER_SCAN_END traceId: {} jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} scanRanges: {} scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+        log.info("商户通知重试扫描结束, event: JOB_HANDLER_SCAN_END, traceId: {}, jobId: {}, handler: {}, runId: {}, shardIndex: {}, shardTotal: {}, scanRanges: {}, scannedCount: {}, successCount: {}, failureCount: {}, skipCount: {}, failureReasons: {}, durationMs: {}",
                 context == null ? TraceContext.getTraceId() : context.getTraceId(),
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,

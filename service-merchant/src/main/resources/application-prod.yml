@@ -73,6 +73,11 @@ acquiring:
     accept-legacy-signature: false
 
 payment:
+  merchant:
+    default-login:
+      enabled: false
+      login-account: admin
+      password: ""
   mfa:
     # 生产缺少独立强密钥时启动失败；密钥必须由 Secret 管理系统注入。
     secret: ${PAYMENT_MFA_SECRET:}

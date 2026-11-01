@@ -15,6 +15,11 @@ public class ReliableMqOutboxReplicaProbe {
 
     private final ReliableMqOutboxMapper outboxMapper;
 
+    /**
+     * 创建基于可靠事件表的从库可见性探针。
+     *
+     * @param outboxMapper 可靠事件数据访问器
+     */
     public ReliableMqOutboxReplicaProbe(ReliableMqOutboxMapper outboxMapper) {
         this.outboxMapper = outboxMapper;
     }

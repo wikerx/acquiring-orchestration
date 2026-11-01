@@ -10,6 +10,7 @@ import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.channel.payment.exception.ChannelResponseException;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.scott.payment.component.core.trace.TraceContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,13 +37,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class ApiClient {
 
-    /**
-     * {@code EXT_REQUEST_URL}，表示当前内部调用、渠道调用或商户通知的目标地址。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String EXT_REQUEST_URL = "requestUrl";
 
     /**
@@ -59,31 +54,13 @@ public class ApiClient {
      */
     private static final String RAW_HTTP_METHOD = "httpMethod";
 
-    /**
-     * 原始请求URL脱敏，表示当前内部调用、渠道调用或商户通知的目标地址。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
 
-    /**
-     * {@code RAW_REQUEST_HEADER_JSON_MASKED}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String RAW_REQUEST_HEADER_JSON_MASKED = "requestHeaderJsonMasked";
 
-    /**
-     * {@code RAW_REQUEST_BODY_JSON_MASKED}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String RAW_REQUEST_BODY_JSON_MASKED = "requestBodyJsonMasked";
 
     /**
@@ -188,6 +165,11 @@ public class ApiClient {
     private final HttpClient httpClient;
 
     /**
+     * 渠道出站地址安全策略。
+     */
+    private final OutboundHttpUrlPolicy outboundUrlPolicy;
+
+    /**
      * 创建使用默认连接超时的 Worldpay XML API 客户端。
      *
      * @param requestConverter XML 请求转换器
@@ -196,9 +178,23 @@ public class ApiClient {
     @Autowired
     public ApiClient(RequestConverter requestConverter,
                                 ResponseConverter responseConverter) {
+        this(requestConverter, responseConverter,
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY));
+    }
+
+    /**
+     * 创建按运行环境校验出站地址的 Worldpay XML 客户端。
+     *
+     * @param requestConverter XML 请求转换器
+     * @param responseConverter XML 响应转换器
+     * @param outboundUrlPolicy 出站地址安全策略
+     */
+    public ApiClient(RequestConverter requestConverter,
+                     ResponseConverter responseConverter,
+                     OutboundHttpUrlPolicy outboundUrlPolicy) {
         this(requestConverter, responseConverter, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
-                .build());
+                .build(), outboundUrlPolicy);
     }
 
     /**
@@ -214,9 +210,26 @@ public class ApiClient {
     public ApiClient(RequestConverter requestConverter,
                      ResponseConverter responseConverter,
                      HttpClient httpClient) {
+        this(requestConverter, responseConverter, httpClient,
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.DEVELOPMENT));
+    }
+
+    /**
+     * 创建传输层和出站策略均可控的 Worldpay XML 客户端。
+     *
+     * @param requestConverter XML 请求转换器
+     * @param responseConverter XML 响应转换器
+     * @param httpClient HTTP 客户端
+     * @param outboundUrlPolicy 出站地址安全策略
+     */
+    public ApiClient(RequestConverter requestConverter,
+                     ResponseConverter responseConverter,
+                     HttpClient httpClient,
+                     OutboundHttpUrlPolicy outboundUrlPolicy) {
         this.requestConverter = requestConverter;
         this.responseConverter = responseConverter;
         this.httpClient = httpClient;
+        this.outboundUrlPolicy = outboundUrlPolicy;
     }
 
     /**
@@ -266,9 +279,23 @@ public class ApiClient {
                 "WorldPay XML requestUrl is required");
         String endpointPath = firstText(extensionValue(request, "mid.endpointPath"), extensionValue(request, "mid.paymentPath"));
         if (baseUrl.endsWith(".jsp") || baseUrl.endsWith(".xml")) {
-            return baseUrl;
+            return validateOutboundUrl(baseUrl);
         }
-        return appendPath(baseUrl, firstText(endpointPath, DEFAULT_ENDPOINT_PATH));
+        return validateOutboundUrl(appendPath(baseUrl, firstText(endpointPath, DEFAULT_ENDPOINT_PATH)));
+    }
+
+    /**
+     * 在建立网络请求前校验 Worldpay XML 完整目标地址。
+     *
+     * @param url 完整请求地址
+     * @return 规范化后的安全地址
+     */
+    private String validateOutboundUrl(String url) {
+        try {
+            return outboundUrlPolicy.validate(url).toASCIIString();
+        } catch (IllegalArgumentException exception) {
+            throw new ChannelRequestException("WorldPay XML requestUrl violates outbound URL policy", exception);
+        }
     }
 
     /**

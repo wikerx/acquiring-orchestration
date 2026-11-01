@@ -10,12 +10,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * ScottChannelA SPI 能力声明回归测试。
  **/
-class ScottChannelAPaymentAdapterTests {
+class PaymentChannelAdapterTests {
 
     @Test
     void shouldDeclarePublishedCardLifecycleCapabilities() {
         ChannelProperties properties = new ChannelProperties();
-        ScottChannelAPaymentAdapter client = new ScottChannelAPaymentAdapter(
+        PaymentChannelAdapter client = new PaymentChannelAdapter(
                 new PaymentApiClient(properties));
 
         assertThat(client.capabilities()).containsExactlyInAnyOrder(

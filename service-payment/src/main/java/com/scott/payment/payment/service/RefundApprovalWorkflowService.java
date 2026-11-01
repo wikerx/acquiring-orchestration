@@ -40,54 +40,23 @@ import java.util.Objects;
 @Service
 public class RefundApprovalWorkflowService {
 
-    /**
-     * {@code APPROVAL_ID_PREFIX}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     */
+
     private static final String APPROVAL_ID_PREFIX = "RA";
-    /**
-     * {@code EXECUTION_EVENT_PREFIX}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     */
+
     private static final String EXECUTION_EVENT_PREFIX = "RE";
-    /**
-     * {@code FLOW_EVENT_PREFIX}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     */
+
     private static final String FLOW_EVENT_PREFIX = "FE";
-    /**
-     * {@code PAYMENT_TRANSACTION_AGGREGATE}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     */
+
     private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
-    /**
-     * {@code EVENT_STATUS_INIT}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
+
     private static final String EVENT_STATUS_INIT = "INIT";
-    /**
-     * 默认时间时区常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     */
+
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
-    /**
-     * 初始版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int INITIAL_VERSION = 0;
-    /**
-     * {@code NOT_DELETED}常量，统一 {@code RefundApprovalWorkflowService} 内部使用的配置值、状态码或协议字段。
-     */
+
     private static final int NOT_DELETED = 0;
-    /**
-     * {@code DEFAULT_MAX_RETRY_COUNT}，表示当前统计、分页、扫描或重试场景中的数量。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int DEFAULT_MAX_RETRY_COUNT = 200;
 
     private final TransactionRefundApprovalMapper approvalMapper;

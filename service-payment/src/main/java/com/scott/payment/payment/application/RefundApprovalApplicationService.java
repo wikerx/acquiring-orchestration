@@ -16,6 +16,8 @@ public class RefundApprovalApplicationService {
     private final RefundApprovalWorkflowService workflowService;
 
     /**
+     * 创建退款审批应用服务。
+     *
      * @param workflowService 退款审批事务工作流
      */
     public RefundApprovalApplicationService(RefundApprovalWorkflowService workflowService) {

@@ -13,6 +13,11 @@ public class TrustedProxyMatcher {
 
     private final List<CidrBlock> blocks;
 
+    /**
+     * 解析受信任代理 CIDR 配置；非法配置立即阻止服务启动。
+     *
+     * @param cidrs 受信任 IPv4 或 IPv6 CIDR 列表
+     */
     public TrustedProxyMatcher(List<String> cidrs) {
         this.blocks = cidrs == null ? List.of() : cidrs.stream().map(this::parse).toList();
     }
@@ -35,6 +40,12 @@ public class TrustedProxyMatcher {
         return IpAddressNormalizer.normalizeExact(ipAddress).ipValue();
     }
 
+    /**
+     * 将单个 CIDR 配置解析为二进制网段和前缀长度。
+     *
+     * @param cidr IPv4 或 IPv6 CIDR
+     * @return 已校验网段
+     */
     private CidrBlock parse(String cidr) {
         if (cidr == null) {
             throw new IllegalArgumentException("Trusted proxy CIDR can not be null");
@@ -57,6 +68,12 @@ public class TrustedProxyMatcher {
         return new CidrBlock(network, prefix);
     }
 
+    /**
+     * 将精确 IP 文本转换为地址字节，不接受域名。
+     *
+     * @param ipAddress 已规范化的 IPv4 或 IPv6
+     * @return 地址字节
+     */
     private byte[] bytes(String ipAddress) {
         try {
             return InetAddress.getByName(IpAddressNormalizer.normalizeExact(ipAddress).ipValue()).getAddress();
@@ -65,7 +82,19 @@ public class TrustedProxyMatcher {
         }
     }
 
+    /**
+     * 已解析的受信任代理网段。
+     *
+     * @param network 网络地址字节
+     * @param prefixLength 前缀位数
+     */
     private record CidrBlock(byte[] network, int prefixLength) {
+        /**
+         * 判断候选地址是否位于当前网段。
+         *
+         * @param candidate 候选地址字节
+         * @return true 表示地址族和前缀均匹配
+         */
         private boolean matches(byte[] candidate) {
             if (candidate.length != network.length) {
                 return false;

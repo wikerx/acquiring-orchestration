@@ -65,6 +65,22 @@ class CallbackHandlerTests {
     }
 
     /**
+     * VOID 回调中的 CANCELLED 表示撤销完成，不能作为授权失败处理。
+     **/
+    @Test
+    void shouldMapCancelledVoidCallbackAsVoided() {
+        ChannelCallbackRequest request = new ChannelCallbackRequest();
+        request.setBody("{\"eventId\":\"VOID-EVENT-001\",\"eventType\":\"CARD_AUTH_CALLBACK\",\"merchantId\":\"MID-TEST\",\"authorizationId\":\"CMA-001\",\"transactionId\":\"TX-VOID-001\",\"operationType\":\"VOID\",\"status\":\"CANCELLED\"}");
+        request.setHeaders(Map.of(
+                CallbackVerifier.MERCHANT_ID_HEADER, "MID-TEST",
+                CallbackVerifier.EVENT_ID_HEADER, "VOID-EVENT-001"));
+
+        ChannelCallbackResult result = new CallbackHandler().handle(request);
+
+        assertThat(result.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.VOIDED.getCode());
+    }
+
+    /**
      * 退款回调必须使用 refundId 关联退款动作，不能把原支付 transactionId 当作退款交易号。
      **/
     @Test

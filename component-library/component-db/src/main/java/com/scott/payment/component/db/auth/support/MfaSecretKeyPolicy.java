@@ -34,9 +34,20 @@ final class MfaSecretKeyPolicy {
      */
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * 禁止实例化 MFA 主密钥策略工具类。
+     */
     private MfaSecretKeyPolicy() {
     }
 
+    /**
+     * 解析当前主密钥；仅在唯一活动环境为 test 时允许生成进程级临时密钥。
+     *
+     * @param configuredSecret 显式配置的当前主密钥
+     * @param allowEphemeralTestSecret 是否允许隔离测试使用临时密钥
+     * @param activeProfiles 当前活动环境
+     * @return 已通过强度校验的主密钥
+     */
     static String resolve(String configuredSecret,
                           boolean allowEphemeralTestSecret,
                           String[] activeProfiles) {
@@ -52,6 +63,11 @@ final class MfaSecretKeyPolicy {
         throw new IllegalStateException("payment.mfa.secret must be configured with at least 32 bytes");
     }
 
+    /**
+     * 校验 MFA 主密钥至少包含 32 个 UTF-8 字节。
+     *
+     * @param secret 待校验主密钥
+     */
     static void requireStrongSecret(String secret) {
         if (secret == null || secret.isBlank()) {
             throw new IllegalStateException("payment.mfa.secret must be configured with at least 32 bytes");
@@ -91,6 +107,12 @@ final class MfaSecretKeyPolicy {
         return List.copyOf(resolved);
     }
 
+    /**
+     * 校验配置密钥强度并拒绝首尾空白，避免运维复制导致密钥漂移。
+     *
+     * @param secret 配置密钥
+     * @param propertyName 配置属性名
+     */
     private static void requireConfiguredSecret(String secret, String propertyName) {
         requireStrongSecret(secret);
         if (!secret.equals(secret.strip())) {
@@ -98,6 +120,12 @@ final class MfaSecretKeyPolicy {
         }
     }
 
+    /**
+     * 判断当前进程是否严格只启用了 test 环境。
+     *
+     * @param activeProfiles 当前活动环境列表
+     * @return 仅含 test 时返回 true
+     */
     private static boolean hasOnlyTestProfile(String[] activeProfiles) {
         if (activeProfiles == null || activeProfiles.length != 1) {
             return false;

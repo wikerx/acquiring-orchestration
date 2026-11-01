@@ -18,9 +18,7 @@ public class TransactionChannelRequestDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /**
-     * {@code TransactionChannelRequestDO} 数据库主键，用于唯一标识当前记录。
-     */
+
     @TableId(type = IdType.AUTO)
     private Long id;
 

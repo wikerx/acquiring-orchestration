@@ -55,6 +55,9 @@ public final class GlobalIdConstants {
      */
     public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern(TIME_PATTERN, Locale.ROOT);
 
+    /**
+     * 禁止实例化全局编号协议常量类。
+     */
     private GlobalIdConstants() {
     }
 }

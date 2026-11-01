@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
- * 商户门户低风险资料即时更新请求，只承载展示偏好和联系人字段
+ * 商户门户低风险资料即时更新请求，只承载展示偏好和联系人字段。
  */
 @Data
 public class MerchantProfileUpdateRequest {

@@ -7,7 +7,7 @@ import java.util.List;
 
 
 /**
- * 汇率汇率提供方协作组件，位于 调度任务服务，封装该业务的本地校验、转换或运行时协作入口。
+ * 外部汇率源适配器，按统一模型返回可审计的原始报价。
  */
 public interface ExchangeRateProvider {
 

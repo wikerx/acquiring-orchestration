@@ -150,6 +150,9 @@ public final class AuthConstants {
      */
     public static final String MFA_CHALLENGE_LOCKED = "LOCKED";
 
+    /**
+     * 禁止实例化认证协议常量类。
+     */
     private AuthConstants() {
     }
 }

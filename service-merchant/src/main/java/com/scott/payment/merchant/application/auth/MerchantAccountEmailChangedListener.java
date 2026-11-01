@@ -36,7 +36,7 @@ public class MerchantAccountEmailChangedListener {
             emailVerificationService.issue(event.accountId(), MerchantEmailVerificationService.PURPOSE_EMAIL_CHANGE,
                     event.locale(), "self-service", null, false);
         } catch (RuntimeException exception) {
-            log.warn("merchant email verification issue failed after profile update, accountId: {}, exceptionType: {}",
+            log.warn("商户邮箱变更验证签发失败, event: MERCHANT_ACCOUNT_EMAIL_VERIFICATION_ISSUE_FAILED, accountId: {}, exceptionType: {}",
                     event.accountId(), exception.getClass().getSimpleName());
         }
     }

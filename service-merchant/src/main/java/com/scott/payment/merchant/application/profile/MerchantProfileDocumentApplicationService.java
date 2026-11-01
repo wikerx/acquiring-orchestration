@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 商户资料变更文件应用服务，编排上传、下载和删除用例
+ * 商户资料变更文件应用服务，编排上传、下载和删除用例。
  */
 @Service
 public class MerchantProfileDocumentApplicationService {

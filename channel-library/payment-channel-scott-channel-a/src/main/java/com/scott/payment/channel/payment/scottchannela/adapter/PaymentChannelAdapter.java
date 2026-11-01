@@ -23,7 +23,7 @@ import java.util.Set;
  *
  * <p>渠道未发布冲正接口，因此 REVERSAL 始终明确拒绝。</p>
  **/
-public class ScottChannelAPaymentAdapter extends AbstractPaymentChannelClient {
+public class PaymentChannelAdapter extends AbstractPaymentChannelClient {
 
     private final PaymentApiClient apiClient;
 
@@ -32,7 +32,7 @@ public class ScottChannelAPaymentAdapter extends AbstractPaymentChannelClient {
      *
      * @param apiClient ScottChannelA HTTP 协议客户端
      **/
-    public ScottChannelAPaymentAdapter(PaymentApiClient apiClient) {
+    public PaymentChannelAdapter(PaymentApiClient apiClient) {
         this.apiClient = apiClient;
     }
 

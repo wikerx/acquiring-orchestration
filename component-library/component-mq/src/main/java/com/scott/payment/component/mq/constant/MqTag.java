@@ -90,6 +90,9 @@ public final class MqTag {
      */
     public static final String CARD_BIN_CACHE_CHANGED = "CARD_BIN_CACHE_CHANGED";
 
+    /**
+     * 禁止实例化 RocketMQ 标签常量类。
+     */
     private MqTag() {
     }
 }

@@ -152,6 +152,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 判断逻辑表是否属于清分季度表集合。
+     *
      * @return 是否为三张清分季度逻辑表之一
      */
     private static boolean isClearingLogicTable(String table) {
@@ -194,6 +196,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 获取当前发布的分片规则版本。
+     *
      * @return 当前规则版本
      */
     public String getRuleVersion() {
@@ -201,6 +205,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置待激活的分片规则版本。
+     *
      * @param ruleVersion 待装载的版本化规则标识
      */
     public void setRuleVersion(String ruleVersion) {
@@ -208,6 +214,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 获取当前规则声明的 SHA-256 校验和。
+     *
      * @return 当前规则声明的 SHA-256 校验和
      */
     public String getRuleChecksum() {
@@ -215,6 +223,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置发布流程生成的规则校验和。
+     *
      * @param ruleChecksum 发布流程计算并写入的规则校验和
      */
     public void setRuleChecksum(String ruleChecksum) {
@@ -222,6 +232,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 获取数据库交易时间的解释时区。
+     *
      * @return 数据库交易时间解释时区
      */
     public String getDatabaseZoneId() {
@@ -229,6 +241,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置数据库交易时间解释时区。
+     *
      * @param databaseZoneId 数据库交易时间解释时区，只允许 Asia/Shanghai
      */
     public void setDatabaseZoneId(String databaseZoneId) {
@@ -236,6 +250,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 获取所有交易表使用的统一分片列。
+     *
      * @return 统一交易分片列
      */
     public String getShardingColumn() {
@@ -243,6 +259,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置所有交易表使用的统一分片列。
+     *
      * @param shardingColumn 分片列，只允许 transaction_date_time
      */
     public void setShardingColumn(String shardingColumn) {
@@ -250,6 +268,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 判断是否输出 ShardingSphere 路由 SQL 详情。
+     *
      * @return 是否输出 ShardingSphere 逻辑 SQL、物理 SQL和绑定参数
      */
     public boolean isSqlShow() {
@@ -257,6 +277,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置是否输出 ShardingSphere 路由 SQL 详情。
+     *
      * @param sqlShow true 时输出路由详情；仅允许在受控调试环境短时开启
      */
     public void setSqlShow(boolean sqlShow) {
@@ -264,6 +286,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 获取主写库的数据源注册名。
+     *
      * @return 写库数据源注册名
      */
     public String getPrimaryDataSource() {
@@ -271,6 +295,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置主写库的数据源注册名。
+     *
      * @param primaryDataSource 写库数据源注册名，不得包含 JDBC URL
      */
     public void setPrimaryDataSource(String primaryDataSource) {
@@ -278,6 +304,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 获取普通读请求可用的副本数据源注册名。
+     *
      * @return 普通读可用的副本数据源注册名
      */
     public List<String> getReplicaDataSources() {
@@ -285,6 +313,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置普通读请求可用的副本数据源注册名。
+     *
      * @param replicaDataSources 副本数据源注册名，null 视为空集合
      */
     public void setReplicaDataSources(List<String> replicaDataSources) {
@@ -292,6 +322,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 获取已经治理校验并发布的物理季度节点。
+     *
      * @return 已验证并可发布的季度后缀
      */
     public List<String> getPhysicalNodes() {
@@ -299,6 +331,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置已经治理校验并发布的物理季度节点。
+     *
      * @param physicalNodes 已建且校验通过的季度后缀，null 视为空集合
      */
     public void setPhysicalNodes(List<String> physicalNodes) {
@@ -306,6 +340,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 获取当前规则覆盖的交易逻辑表集合。
+     *
      * @return 当前规则覆盖的正式交易逻辑表
      */
     public List<String> getLogicTables() {
@@ -313,6 +349,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置当前规则覆盖的完整交易逻辑表集合。
+     *
      * @param logicTables 完整旧 25 表或完整新 28 表拓扑
      */
     public void setLogicTables(List<String> logicTables) {
@@ -330,6 +368,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 判断当前规则是否使用完整 28 表正式拓扑。
+     *
      * @return 当前配置是否为完整 28 表正式拓扑
      */
     public boolean usesFormalLogicTableTopology() {
@@ -339,6 +379,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 判断当前规则是否使用迁移期完整 25 表拓扑。
+     *
      * @return 当前配置是否为迁移期完整 25 表拓扑
      */
     public boolean usesLegacyLogicTableTopology() {
@@ -355,6 +397,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 获取允许直接访问 transaction 复合数据源的服务白名单。
+     *
      * @return 允许直接访问 transaction 数据源的服务名
      */
     public List<String> getDirectAccessServices() {
@@ -362,6 +406,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置允许直接访问 transaction 复合数据源的服务白名单。
+     *
      * @param directAccessServices 交易直连服务白名单，null 视为空集合
      */
     public void setDirectAccessServices(List<String> directAccessServices) {
@@ -369,6 +415,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 获取同步查询和跨季度导出的资源预算。
+     *
      * @return 同步查询和导出资源预算
      */
     public QueryBudget getQueryBudget() {
@@ -376,6 +424,8 @@ public class TransactionShardingProperties {
     }
 
     /**
+     * 设置同步查询和跨季度导出的资源预算。
+     *
      * @param queryBudget 查询资源预算，null 恢复默认值
      */
     public void setQueryBudget(QueryBudget queryBudget) {
@@ -416,6 +466,8 @@ public class TransactionShardingProperties {
         private int maxConcurrentExportsPerUser = 1;
 
         /**
+         * 获取单次同步交易查询允许占用的最长时间。
+         *
          * @return 同步查询超时毫秒数
          */
         public long getSynchronousTimeoutMillis() {
@@ -423,6 +475,8 @@ public class TransactionShardingProperties {
         }
 
         /**
+         * 设置单次同步交易查询允许占用的最长时间。
+         *
          * @param synchronousTimeoutMillis 同步查询超时毫秒数
          */
         public void setSynchronousTimeoutMillis(long synchronousTimeoutMillis) {
@@ -430,6 +484,8 @@ public class TransactionShardingProperties {
         }
 
         /**
+         * 获取单次同步查询允许返回的最大记录数。
+         *
          * @return 同步查询最大结果行数
          */
         public int getMaxResultRows() {
@@ -437,6 +493,8 @@ public class TransactionShardingProperties {
         }
 
         /**
+         * 设置单次同步查询允许返回的最大记录数。
+         *
          * @param maxResultRows 同步查询最大结果行数
          */
         public void setMaxResultRows(int maxResultRows) {
@@ -444,6 +502,8 @@ public class TransactionShardingProperties {
         }
 
         /**
+         * 获取单一用户允许同时执行的跨季度导出数。
+         *
          * @return 单用户最大并发导出数
          */
         public int getMaxConcurrentExportsPerUser() {
@@ -451,6 +511,8 @@ public class TransactionShardingProperties {
         }
 
         /**
+         * 设置单一用户允许同时执行的跨季度导出数。
+         *
          * @param maxConcurrentExportsPerUser 单用户最大并发导出数
          */
         public void setMaxConcurrentExportsPerUser(int maxConcurrentExportsPerUser) {

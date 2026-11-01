@@ -102,7 +102,8 @@ public class DefaultMerchantKeyMetadataCacheService implements MerchantKeyMetada
         try {
             return invalidationGuard.isPending(PaymentCacheNames.MERCHANT_KEY_METADATA, merchantId);
         } catch (RuntimeException exception) {
-            log.warn("event: MERCHANT_KEY_METADATA_GUARD_CHECK_FAILED cacheName: {} exceptionType: {}",
+            log.warn("商户密钥元数据缓存门禁检查失败, event: MERCHANT_KEY_METADATA_GUARD_CHECK_FAILED, "
+                            + "cacheName: {}, exceptionType: {}",
                     PaymentCacheNames.MERCHANT_KEY_METADATA,
                     exception.getClass().getSimpleName());
             return true;

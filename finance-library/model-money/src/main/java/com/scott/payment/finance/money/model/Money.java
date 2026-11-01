@@ -13,6 +13,9 @@ import java.util.Objects;
  */
 public record Money(BigDecimal amount, String currency, int exponent) {
 
+    /**
+     * 创建不可变金额，规范化 ISO 币种并校验 exponent 范围，但不隐式舍入金额。
+     */
     public Money {
         Objects.requireNonNull(amount, "amount is required");
         currency = normalizeCurrency(currency);

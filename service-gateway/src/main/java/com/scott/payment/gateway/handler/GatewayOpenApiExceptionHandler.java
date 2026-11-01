@@ -31,28 +31,12 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.G
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class GatewayOpenApiExceptionHandler implements WebExceptionHandler {
 
-    /**
-     * {@code OPENAPI_PATH_PREFIX}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String OPENAPI_PATH_PREFIX = "/api/rest/";
-    /**
-     * {@code CHECKOUT_API_PATH_PREFIX}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String CHECKOUT_API_PATH_PREFIX = "/checkout/api/";
     /**
-     * {@code UNKNOWN}常量，统一 {@code GatewayOpenApiExceptionHandler} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
+     * 路由尚未解析时使用的安全日志占位值。
      */
     private static final String UNKNOWN = "unknown";
 
@@ -88,7 +72,7 @@ public class GatewayOpenApiExceptionHandler implements WebExceptionHandler {
                 exchange.getRequest().getHeaders().getFirst(TraceContext.TRACE_ID_HEADER));
         String requestId = GatewayRequestIdSupport.resolveForLogging(exchange.getRequest().getHeaders());
         exchange.getResponse().getHeaders().set(TraceContext.TRACE_ID_HEADER, traceId);
-        log.warn("event: GATEWAY_OPENAPI_ERROR_RESPONSE traceId: {} requestId: {} path: {} routeId: {} targetService: {} status: {} errorType: {} platformCode: {}",
+        log.warn("网关开放接口异常已转换, event: GATEWAY_OPENAPI_ERROR_RESPONSE, traceId: {}, requestId: {}, path: {}, routeId: {}, targetService: {}, status: {}, errorType: {}, platformCode: {}",
                 traceId,
                 requestId,
                 exchange.getRequest().getURI().getRawPath(),
@@ -100,6 +84,12 @@ public class GatewayOpenApiExceptionHandler implements WebExceptionHandler {
         return errorWriter.write(exchange, status, OpenApiResultCode.SYSTEM_ERROR);
     }
 
+    /**
+     * 判断请求是否属于网关必须返回统一协议错误的开放接口。
+     *
+     * @param exchange 当前 WebFlux 请求交换对象
+     * @return true 表示适用统一错误协议
+     */
     private static boolean isOpenApi(ServerWebExchange exchange) {
         String path = exchange.getRequest().getURI().getRawPath();
         return path.equals("/api/rest")
@@ -108,6 +98,13 @@ public class GatewayOpenApiExceptionHandler implements WebExceptionHandler {
                 || path.startsWith(CHECKOUT_API_PATH_PREFIX);
     }
 
+    /**
+     * 优先保留已确定 HTTP 状态，再按超时、连接失败和未分类异常映射状态码。
+     *
+     * @param exchange 当前 WebFlux 请求交换对象
+     * @param exception Gateway 链路异常
+     * @return 对外 HTTP 状态
+     */
     private static HttpStatusCode resolveStatus(ServerWebExchange exchange, Throwable exception) {
         if (exchange.getResponse().getStatusCode() != null) {
             return exchange.getResponse().getStatusCode();
@@ -126,11 +123,23 @@ public class GatewayOpenApiExceptionHandler implements WebExceptionHandler {
         return HttpStatus.INTERNAL_SERVER_ERROR;
     }
 
+    /**
+     * 提取已匹配路由编号供安全审计使用。
+     *
+     * @param exchange 当前 WebFlux 请求交换对象
+     * @return 路由编号；路由尚未匹配时返回 unknown
+     */
     private static String routeId(ServerWebExchange exchange) {
         Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
         return route == null ? UNKNOWN : route.getId();
     }
 
+    /**
+     * 提取逻辑下游服务名，不记录完整目标 URI。
+     *
+     * @param exchange 当前 WebFlux 请求交换对象
+     * @return 路由主机或逻辑服务名；路由尚未匹配时返回 unknown
+     */
     private static String targetService(ServerWebExchange exchange) {
         Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
         if (route == null || route.getUri() == null) {

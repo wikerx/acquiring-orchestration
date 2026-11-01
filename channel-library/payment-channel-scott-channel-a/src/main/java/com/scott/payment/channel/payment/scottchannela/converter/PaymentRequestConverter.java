@@ -35,99 +35,61 @@ import static com.scott.payment.channel.payment.scottchannela.converter.PaymentO
 public class PaymentRequestConverter {
 
     /**
-     * {@code PAYIN_DIRECT_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 直连代收端点。
      */
     private static final String PAYIN_DIRECT_PATH = "/payins/direct";
+
     /**
-     * {@code PAYIN_QUERY_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 代收查询端点。
      */
     private static final String PAYIN_QUERY_PATH = "/payins/query";
+
     /**
-     * {@code REFUND_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 创建退款端点。
      */
     private static final String REFUND_PATH = "/payins/refunds";
+
     /**
-     * {@code REFUND_QUERY_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 退款查询端点。
      */
     private static final String REFUND_QUERY_PATH = "/payins/refunds/query";
+
     /**
-     * {@code AUTHORIZATION_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 授权端点。
      */
     private static final String AUTHORIZATION_PATH = "/card/authorizations";
+
     /**
-     * {@code PRE_AUTHORIZATION_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 预授权端点。
      */
     private static final String PRE_AUTHORIZATION_PATH = "/card/preauthorizations";
+
     /**
-     * {@code CAPTURE_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 授权请款端点。
      */
     private static final String CAPTURE_PATH = "/card/authorizations/captures";
+
     /**
-     * {@code PRE_AUTH_COMPLETION_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 预授权完成端点。
      */
     private static final String PRE_AUTH_COMPLETION_PATH = "/card/preauthorizations/completions";
+
     /**
-     * {@code INCREMENTAL_AUTHORIZATION_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 增量授权端点。
      */
     private static final String INCREMENTAL_AUTHORIZATION_PATH = "/card/authorizations/increments";
+
     /**
-     * {@code VOID_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 授权取消端点；平台取消和授权取消均通过 VOID 能力调用。
      */
     private static final String VOID_PATH = "/card/authorizations/voids";
+
     /**
-     * {@code AUTHORIZATION_QUERY_PATH}，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 卡授权生命周期查询端点。
      */
     private static final String AUTHORIZATION_QUERY_PATH = "/card/authorizations/query";
     /**
-     * 请求时间格式化器常量，统一 {@code PaymentRequestConverter} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：具体时刻使用系统约定业务时区，业务日期不附加时区；格式：ISO 日期或日期时间；持久化时刻保留毫秒精度；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
-     * </p>
+     * 渠道请求时间使用的 ISO 本地日期时间格式。
      */
     private static final DateTimeFormatter REQUEST_TIME_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
@@ -459,6 +421,12 @@ public class PaymentRequestConverter {
         };
     }
 
+    /**
+     * 按优先级返回第一个非空文本。
+     *
+     * @param values 候选值
+     * @return 首个非空值或 {@code null}
+     **/
     private String firstText(String... values) {
         if (values != null) {
             for (String value : values) {
@@ -470,12 +438,25 @@ public class PaymentRequestConverter {
         return null;
     }
 
+    /**
+     * 仅将非空协议字段写入动态支付参数对象。
+     *
+     * @param values 渠道支付参数
+     * @param key    协议字段名
+     * @param value  协议字段值
+     **/
     private void putIfText(Map<String, Object> values, String key, String value) {
         if (StringUtils.hasText(value)) {
             values.put(key, value);
         }
     }
 
+    /**
+     * 将可选协议编码规范化为英文大写形式。
+     *
+     * @param value 原始协议值
+     * @return 规范化协议值或 {@code null}
+     **/
     private String upper(String value) {
         return value == null ? null : value.trim().toUpperCase(Locale.ROOT);
     }

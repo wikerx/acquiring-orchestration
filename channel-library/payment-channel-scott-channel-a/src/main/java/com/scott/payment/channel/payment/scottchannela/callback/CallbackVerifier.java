@@ -65,6 +65,13 @@ public class CallbackVerifier {
         }
     }
 
+    /**
+     * 读取验签必需 Header，并拒绝缺失或空白值。
+     *
+     * @param request 原始回调请求
+     * @param name    Header 名称
+     * @return 去除首尾空白的 Header 值
+     */
     private String requiredHeader(RawChannelCallbackRequest request, String name) {
         String value = request.firstHeader(name);
         if (value == null || value.isBlank()) {
@@ -74,6 +81,13 @@ public class CallbackVerifier {
         return value.trim();
     }
 
+    /**
+     * 构造不包含密钥、签名或正文的结构化验签异常。
+     *
+     * @param reason 失败分类
+     * @param message 安全错误说明
+     * @return 渠道回调验签异常
+     */
     private ChannelCallbackVerificationException failure(ChannelCallbackVerificationException.Reason reason,
                                                          String message) {
         return new ChannelCallbackVerificationException(reason, message);

@@ -70,6 +70,11 @@ acquiring:
     protect-portal-paths: false
 
 payment:
+  risk:
+    secret: ${PAYMENT_RISK_SECRET:}
+    previous-secrets: ${PAYMENT_RISK_PREVIOUS_SECRETS:}
+    # 仅隔离 test profile 可显式使用进程随机临时密钥。
+    allow-ephemeral-test-secret: true
   mfa:
     secret: ${PAYMENT_MFA_SECRET:}
     previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}

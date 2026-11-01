@@ -8,6 +8,9 @@ import jakarta.servlet.http.HttpServletRequest;
  */
 public final class MerchantClientIpResolver {
 
+    /**
+     * 禁止实例化客户端 IP 解析工具类。
+     */
     private MerchantClientIpResolver() {
     }
 

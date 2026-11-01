@@ -34,7 +34,11 @@ public final class OutboundHttpUrlPolicy {
     @FunctionalInterface
     public interface HostResolver {
         /**
+         * 解析主机名当前对应的全部网络地址。
+         *
+         * @param host 待解析主机名
          * @return 主机名当前解析出的全部地址
+         * @throws UnknownHostException 主机名无法解析时抛出
          */
         InetAddress[] resolve(String host) throws UnknownHostException;
     }
@@ -162,6 +166,12 @@ public final class OutboundHttpUrlPolicy {
         return false;
     }
 
+    /**
+     * 解析并校验 HTTP URL 的结构，拒绝用户信息、片段、非法端口和非 HTTP 协议。
+     *
+     * @param value 待解析的完整 URL
+     * @return 结构合法的 URI，非法时返回 null
+     */
     private static URI parse(String value) {
         if (value == null || value.isBlank() || !value.equals(value.trim())) {
             return null;
@@ -183,6 +193,12 @@ public final class OutboundHttpUrlPolicy {
         }
     }
 
+    /**
+     * 判断 IPv4 地址是否避开私网、回环、文档、保留和组播网段。
+     *
+     * @param address 四字节 IPv4 地址
+     * @return 可用于严格出站连接时返回 true
+     */
     private static boolean isPublicIpv4(byte[] address) {
         long value = ((long) address[0] & 0xff) << 24
                 | ((long) address[1] & 0xff) << 16
@@ -204,11 +220,25 @@ public final class OutboundHttpUrlPolicy {
                 && value < 0xe0000000L;
     }
 
+    /**
+     * 按 CIDR 前缀判断 IPv4 无符号数值是否属于指定网段。
+     *
+     * @param value 待判断的 IPv4 无符号数值
+     * @param network 网段起始数值
+     * @param prefixLength CIDR 前缀长度
+     * @return 属于该网段时返回 true
+     */
     private static boolean inIpv4Range(long value, long network, int prefixLength) {
         long mask = prefixLength == 0 ? 0L : (0xffffffffL << (32 - prefixLength)) & 0xffffffffL;
         return (value & mask) == (network & mask);
     }
 
+    /**
+     * 判断 IPv6 地址是否属于允许出站的全球单播范围并排除文档等保留前缀。
+     *
+     * @param address 十六字节 IPv6 地址
+     * @return 可用于严格出站连接时返回 true
+     */
     private static boolean isPublicIpv6(byte[] address) {
         if ((address[0] & 0xe0) != 0x20) {
             return false;
@@ -219,6 +249,14 @@ public final class OutboundHttpUrlPolicy {
                 && !matchesPrefix(address, new int[]{0x3f, 0xff, 0x00}, 20);
     }
 
+    /**
+     * 按位比较 IPv6 地址与受控网络前缀。
+     *
+     * @param address 待判断的 IPv6 地址
+     * @param network 网络前缀字节
+     * @param prefixLength 需要比较的前缀位数
+     * @return 前缀匹配时返回 true
+     */
     private static boolean matchesPrefix(byte[] address, int[] network, int prefixLength) {
         int fullBytes = prefixLength / 8;
         int remainingBits = prefixLength % 8;

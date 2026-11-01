@@ -10,6 +10,7 @@ import com.scott.payment.channel.payment.mpgs.model.response.ThreeDsAuthenticati
 import com.scott.payment.channel.payment.mpgs.support.ApiOperation;
 
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
@@ -56,13 +57,7 @@ public class ApiClient {
      */
     private static final String HTTP_METHOD_PUT = "PUT";
 
-    /**
-     * {@code EXT_REQUEST_URL}，表示当前内部调用、渠道调用或商户通知的目标地址。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String EXT_REQUEST_URL = "requestUrl";
 
     /**
@@ -70,13 +65,7 @@ public class ApiClient {
      */
     private static final String EXT_READ_TIMEOUT_SECONDS = "readTimeoutSeconds";
 
-    /**
-     * {@code EXT_MPGS_MERCHANT_ID}，用于定位 API内部调用 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String EXT_MPGS_MERCHANT_ID = "mid.merchantId";
 
     /**
@@ -84,13 +73,7 @@ public class ApiClient {
      */
     private static final String EXT_MID_NO = "midNo";
 
-    /**
-     * {@code EXT_MPGS_API_USERNAME}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String EXT_MPGS_API_USERNAME = "mid.apiUsername";
 
     /**
@@ -103,13 +86,7 @@ public class ApiClient {
      */
     private static final String EXT_MPGS_API_PASSWORD = "mid.apiPassword";
 
-    /**
-     * {@code EXT_MPGS_API_VERSION}，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String EXT_MPGS_API_VERSION = "mid.version";
 
     /**
@@ -117,49 +94,19 @@ public class ApiClient {
      */
     private static final String RAW_HTTP_METHOD = "httpMethod";
 
-    /**
-     * 原始请求URL脱敏，表示当前内部调用、渠道调用或商户通知的目标地址。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
 
-    /**
-     * {@code RAW_REQUEST_HEADER_JSON_MASKED}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String RAW_REQUEST_HEADER_JSON_MASKED = "requestHeaderJsonMasked";
 
-    /**
-     * {@code RAW_REQUEST_BODY_JSON_MASKED}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String RAW_REQUEST_BODY_JSON_MASKED = "requestBodyJsonMasked";
 
-    /**
-     * {@code RAW_RESPONSE_HEADER_JSON_MASKED}，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String RAW_RESPONSE_HEADER_JSON_MASKED = "responseHeaderJsonMasked";
 
-    /**
-     * {@code RAW_RESPONSE_BODY_JSON_MASKED}，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：Spring 配置和构造器注入的内部客户端依赖。
-     * </p>
-     */
+
     private static final String RAW_RESPONSE_BODY_JSON_MASKED = "responseBodyJsonMasked";
 
     private static final Pattern MPGS_CARD_NUMBER_PATTERN = Pattern.compile(
@@ -208,6 +155,11 @@ public class ApiClient {
     private final HttpClient httpClient;
 
     /**
+     * 渠道出站地址安全策略。
+     */
+    private final OutboundHttpUrlPolicy outboundUrlPolicy;
+
+    /**
      * 创建 MPGS API 客户端。
      *
      * @param properties     MPGS 渠道配置
@@ -218,9 +170,25 @@ public class ApiClient {
     public ApiClient(ChannelProperties properties,
                          RequestConverter requestConverter,
                          ResponseConverter responseConverter) {
+        this(properties, requestConverter, responseConverter,
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY));
+    }
+
+    /**
+     * 创建按运行环境校验出站地址的 MPGS API 客户端。
+     *
+     * @param properties MPGS 渠道配置
+     * @param requestConverter MPGS 请求映射器
+     * @param responseConverter MPGS 响应映射器
+     * @param outboundUrlPolicy 出站地址安全策略
+     */
+    public ApiClient(ChannelProperties properties,
+                     RequestConverter requestConverter,
+                     ResponseConverter responseConverter,
+                     OutboundHttpUrlPolicy outboundUrlPolicy) {
         this(properties, requestConverter, responseConverter, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
-                .build());
+                .build(), outboundUrlPolicy);
     }
 
     /**
@@ -235,10 +203,29 @@ public class ApiClient {
                   RequestConverter requestConverter,
                   ResponseConverter responseConverter,
                   HttpClient httpClient) {
+        this(properties, requestConverter, responseConverter, httpClient,
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.DEVELOPMENT));
+    }
+
+    /**
+     * 创建传输层和出站策略均可控的 MPGS 客户端。
+     *
+     * @param properties MPGS 渠道配置
+     * @param requestConverter MPGS 请求映射器
+     * @param responseConverter MPGS 响应映射器
+     * @param httpClient HTTP 客户端
+     * @param outboundUrlPolicy 出站地址安全策略
+     */
+    ApiClient(ChannelProperties properties,
+              RequestConverter requestConverter,
+              ResponseConverter responseConverter,
+              HttpClient httpClient,
+              OutboundHttpUrlPolicy outboundUrlPolicy) {
         this.properties = properties;
         this.requestConverter = requestConverter;
         this.responseConverter = responseConverter;
         this.httpClient = httpClient;
+        this.outboundUrlPolicy = outboundUrlPolicy;
     }
 
     /**
@@ -645,11 +632,12 @@ public class ApiClient {
         String baseUrl = configuredBaseUrl.endsWith("/")
                 ? configuredBaseUrl
                 : configuredBaseUrl + "/";
-        return baseUrl
+        String url = baseUrl
                 + "version/" + encode(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()))
                 + "/merchant/" + encode(mpgsMerchantId(request))
                 + "/order/" + encode(request.getChannelOrderNo())
                 + "/transaction/" + encode(request.getChannelTransactionId());
+        return validateOutboundUrl(url);
     }
 
     /**
@@ -665,11 +653,26 @@ public class ApiClient {
         String baseUrl = configuredBaseUrl.endsWith("/")
                 ? configuredBaseUrl
                 : configuredBaseUrl + "/";
-        return baseUrl
+        String url = baseUrl
                 + "version/" + encode(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()))
                 + "/merchant/" + encode(mpgsMerchantId(request))
                 + "/order/" + encode(request.getChannelOrderNo())
                 + "/transaction/" + encode(request.getAuthenticationTransactionId());
+        return validateOutboundUrl(url);
+    }
+
+    /**
+     * 在建立网络请求前校验 MPGS 完整目标地址。
+     *
+     * @param url 完整请求地址
+     * @return 规范化后的安全地址
+     */
+    private String validateOutboundUrl(String url) {
+        try {
+            return outboundUrlPolicy.validate(url).toASCIIString();
+        } catch (IllegalArgumentException exception) {
+            throw new ChannelRequestException("MPGS requestUrl violates outbound URL policy", exception);
+        }
     }
 
     /**

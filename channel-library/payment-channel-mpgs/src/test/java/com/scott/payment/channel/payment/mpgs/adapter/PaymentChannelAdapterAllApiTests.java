@@ -21,6 +21,7 @@ import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import lombok.extern.slf4j.Slf4j;
@@ -92,7 +93,11 @@ class PaymentChannelAdapterAllApiTests {
         properties.setApiUsername(TEST_USERNAME);
         properties.setApiPassword(TEST_PASSWORD);
 
-        ApiClient apiClient = new ApiClient(properties, new RequestConverter(), new ResponseConverter());
+        ApiClient apiClient = new ApiClient(
+                properties,
+                new RequestConverter(),
+                new ResponseConverter(),
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.DEVELOPMENT));
         client = new PaymentChannelAdapter(apiClient);
     }
 

@@ -92,6 +92,11 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     private static final String DEFAULT_LOCALE = "zh-CN";
     private static final String CONTENT_HTML = "HTML";
     private static final Pattern TEMPLATE_VARIABLE_PATTERN = Pattern.compile("\\$\\{([A-Za-z][A-Za-z0-9_]*)}");
+
+    /**
+     * 邮件模板变量名称允许的格式，防止无效敏感变量配置绕过快照脱敏。
+     */
+    private static final Pattern VARIABLE_NAME_PATTERN = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
     private final EmailAccountMapper accountMapper;
     private final EmailTemplateMapper templateMapper;
     private final EmailSendRecordMapper recordMapper;
@@ -1008,17 +1013,40 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 将 JSON 数组文本解析为字符串列表。
+     * 将敏感变量 JSON 数组解析为经过格式校验的变量名列表。
+     *
+     * <p>非法配置不能降级为空列表，否则敏感变量会按普通变量写入邮件快照。</p>
+     *
+     * @param json 敏感变量名称 JSON 数组
+     * @return 去除首尾空格和重复项后的变量名列表
+     * @throws ServiceException JSON 结构或变量名格式非法
      */
     private List<String> parseStringList(String json) {
         if (!StringUtils.hasText(json)) {
             return List.of();
         }
         try {
-            return JSON.parseArray(json, String.class);
-        } catch (Exception ignored) {
-            return List.of();
+            List<String> names = JSON.parseArray(json, String.class);
+            if (names == null || names.stream().anyMatch(name -> !StringUtils.hasText(name)
+                    || !VARIABLE_NAME_PATTERN.matcher(name.trim()).matches())) {
+                throw invalidSensitiveVariableNames();
+            }
+            return names.stream().map(String::trim).distinct().toList();
+        } catch (ServiceException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw invalidSensitiveVariableNames();
         }
+    }
+
+    /**
+     * 创建不包含原始配置内容的敏感变量配置异常。
+     *
+     * @return 参数格式异常
+     */
+    private ServiceException invalidSensitiveVariableNames() {
+        return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                "Sensitive variable names must be a JSON array of valid variable names");
     }
 
     /**

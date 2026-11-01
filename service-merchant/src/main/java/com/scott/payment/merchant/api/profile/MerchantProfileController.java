@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 商户门户主体资料接口，只从认证上下文定位商户并委托应用服务查询或更新同一份商户事实数据
+ * 商户门户主体资料接口，只从认证上下文定位商户并查询或更新同一份商户事实数据。
  */
 @RestController
 @RequestMapping("/merchant/info")

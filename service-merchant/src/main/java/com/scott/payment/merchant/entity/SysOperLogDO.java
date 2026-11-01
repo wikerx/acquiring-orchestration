@@ -8,7 +8,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 商户管理系统操作日志数据库实体，只保存商户管理侧审计日志
+ * 商户管理系统操作日志实体，只保存商户管理侧审计信息。
  */
 @Data
 @TableName("sys_oper_log")

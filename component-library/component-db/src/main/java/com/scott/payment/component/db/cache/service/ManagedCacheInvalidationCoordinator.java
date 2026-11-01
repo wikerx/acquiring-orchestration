@@ -127,6 +127,9 @@ public class ManagedCacheInvalidationCoordinator {
      */
     private TransactionSynchronization synchronization(Map<String, EventContext> events) {
         return new TransactionSynchronization() {
+            /**
+             * 数据库事务提交后发布已持久化的缓存失效事件。
+             */
             @Override
             public void afterCommit() {
                 for (EventContext context : events.values()) {
@@ -134,8 +137,9 @@ public class ManagedCacheInvalidationCoordinator {
                         relayService.publish(context.event().getEventId());
                     } catch (RuntimeException exception) {
                         log.warn(
-                                "event: MANAGED_CACHE_INVALIDATION_AFTER_COMMIT_FAILED "
-                                        + "eventId: {} cacheName: {} exceptionType: {}",
+                                "事务提交后发布受管缓存失效事件失败, "
+                                        + "event: MANAGED_CACHE_INVALIDATION_AFTER_COMMIT_FAILED, "
+                                        + "eventId: {}, cacheName: {}, exceptionType: {}",
                                 context.event().getEventId(),
                                 context.event().getCacheName(),
                                 exception.getClass().getSimpleName()
@@ -144,6 +148,11 @@ public class ManagedCacheInvalidationCoordinator {
                 }
             }
 
+            /**
+             * 事务回滚时释放未生效租约，并始终解绑线程事务资源。
+             *
+             * @param status Spring 事务完成状态
+             */
             @Override
             public void afterCompletion(int status) {
                 try {
@@ -169,8 +178,8 @@ public class ManagedCacheInvalidationCoordinator {
             invalidationGuard.release(lease);
         } catch (RuntimeException exception) {
             log.warn(
-                    "event: MANAGED_CACHE_INVALIDATION_ABORT_FAILED "
-                            + "cacheName: {} businessKey: {} exceptionType: {}",
+                    "事务回滚后释放缓存失效门禁失败, event: MANAGED_CACHE_INVALIDATION_ABORT_FAILED, "
+                            + "cacheName: {}, businessKey: {}, exceptionType: {}",
                     lease.cacheName(),
                     lease.businessKey(),
                     exception.getClass().getSimpleName()

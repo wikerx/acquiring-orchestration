@@ -3,7 +3,7 @@ package com.scott.payment.merchant.service.profile;
 import com.scott.payment.merchant.dto.profile.MerchantProfileChangeDTOs;
 
 /**
- * 商户敏感资料快照端口，隔离申请状态机与正式资料读取和生效逻辑
+ * 商户敏感资料快照端口，隔离申请状态机与正式资料读取和生效逻辑。
  */
 public interface MerchantProfileSnapshotService {
 

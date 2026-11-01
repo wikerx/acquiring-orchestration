@@ -244,6 +244,12 @@ public final class SensitiveDataMaskUtils {
         return value instanceof JSONObject || value instanceof JSONArray;
     }
 
+    /**
+     * 尝试解析嵌套 JSON 文本，以便继续执行字段级递归脱敏。
+     *
+     * @param value 可能包含对象或数组的文本
+     * @return 解析后的 JSON 对象或数组，非 JSON 和解析失败时返回 null
+     */
     private static Object parseJsonValue(String value) {
         if (value == null) {
             return null;
@@ -260,6 +266,12 @@ public final class SensitiveDataMaskUtils {
         }
     }
 
+    /**
+     * 判断规范化字段名是否承载认证、密钥或密文材料。
+     *
+     * @param key 已去除分隔符并转小写的字段名
+     * @return 必须整体遮蔽时返回 true
+     */
     private static boolean isSecretField(String key) {
         return switch (key) {
             case "password", "mid.password", "oldpassword", "newpassword", "apipassword",
@@ -272,11 +284,23 @@ public final class SensitiveDataMaskUtils {
         };
     }
 
+    /**
+     * 判断字段是否属于可定位网络或卡范围的引用数据。
+     *
+     * @param key 规范化字段名
+     * @return 应使用引用值脱敏规则时返回 true
+     */
     private static boolean isReferenceField(String key) {
         return "ipaddress".equals(key) || "payerip".equals(key)
                 || "ingressclientip".equals(key) || "cardbin".equals(key);
     }
 
+    /**
+     * 判断字段是否承载卡安全码或 3DS 认证载荷。
+     *
+     * @param key 规范化字段名
+     * @return 必须整体遮蔽时返回 true
+     */
     private static boolean isSecurityCodeField(String key) {
         return switch (key) {
             case "securitycode", "cvv", "cvc", "cavv", "threedssessiondata",
@@ -285,6 +309,12 @@ public final class SensitiveDataMaskUtils {
         };
     }
 
+    /**
+     * 判断字段是否承载个人证件号码。
+     *
+     * @param key 规范化字段名
+     * @return 应按证件号码规则脱敏时返回 true
+     */
     private static boolean isIdField(String key) {
         return switch (key) {
             case "idcard", "idnumber", "identitynumber", "nationalid", "passportno", "documentnumber" -> true;
@@ -292,6 +322,12 @@ public final class SensitiveDataMaskUtils {
         };
     }
 
+    /**
+     * 判断字段是否承载姓名、地址或设备标识等个人信息。
+     *
+     * @param key 规范化字段名
+     * @return 应按个人信息规则脱敏时返回 true
+     */
     private static boolean isPersonalField(String key) {
         return switch (key) {
             case "firstname", "lastname", "cardholdername", "nameoncard", "legalperson", "enterprise",
@@ -301,11 +337,23 @@ public final class SensitiveDataMaskUtils {
         };
     }
 
+    /**
+     * 判断字段是否承载商户站点、回调或跳转地址。
+     *
+     * @param key 规范化字段名
+     * @return 应按 URL 规则脱敏时返回 true
+     */
     private static boolean isMerchantUrlField(String key) {
         return "merchantwebsite".equals(key) || "callbackurl".equals(key)
                 || "redirecturl".equals(key) || "checkouturl".equals(key);
     }
 
+    /**
+     * 判断字段是否承载银行账户、IBAN 或 SWIFT 信息。
+     *
+     * @param key 规范化字段名
+     * @return 应按账户规则脱敏时返回 true
+     */
     private static boolean isAccountField(String key) {
         return switch (key) {
             case "bankaccount", "accountnumber", "receiveraccountno", "iban", "swiftcode", "bic" -> true;
@@ -313,6 +361,12 @@ public final class SensitiveDataMaskUtils {
         };
     }
 
+    /**
+     * 判断字段是否承载电话号码。
+     *
+     * @param key 规范化字段名
+     * @return 应按手机号规则脱敏时返回 true
+     */
     private static boolean isMobileField(String key) {
         return switch (key) {
             case "mobile", "phone", "subphone", "payerphone", "customerphone", "billingphone", "cardholderphone" -> true;
@@ -320,6 +374,12 @@ public final class SensitiveDataMaskUtils {
         };
     }
 
+    /**
+     * 判断字段是否承载电子邮箱地址。
+     *
+     * @param key 规范化字段名
+     * @return 应按邮箱规则脱敏时返回 true
+     */
     private static boolean isEmailField(String key) {
         return switch (key) {
             case "email", "subemail", "payeremail", "customeremail", "billingemail", "cardholderemail" -> true;
@@ -327,6 +387,12 @@ public final class SensitiveDataMaskUtils {
         };
     }
 
+    /**
+     * 对银行账户类字段仅保留前四位和后四位。
+     *
+     * @param value 原始账户标识
+     * @return 脱敏后的账户标识
+     */
     private static String maskAccountValue(String value) {
         if (value == null || value.length() < 8) {
             return "***";
@@ -475,12 +541,24 @@ public final class SensitiveDataMaskUtils {
         return cardNo.substring(0, 6) + "******" + cardNo.substring(cardNo.length() - 4);
     }
 
+    /**
+     * 对非 JSON 文本中的手机号字段执行正则替换脱敏。
+     *
+     * @param value 可能包含手机号字段的文本
+     * @return 手机号已脱敏的文本
+     */
     private static String maskMobileField(String value) {
         return MOBILE_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
                 matchResult.group(1) + maskMobile(matchResult.group(2)) + matchResult.group(3)
         ));
     }
 
+    /**
+     * 对非 JSON 文本中的邮箱字段执行正则替换脱敏。
+     *
+     * @param value 可能包含邮箱字段的文本
+     * @return 邮箱已脱敏的文本
+     */
     private static String maskEmailField(String value) {
         return EMAIL_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
                 matchResult.group(1) + maskEmail(matchResult.group(2) + matchResult.group(3)) + matchResult.group(4)

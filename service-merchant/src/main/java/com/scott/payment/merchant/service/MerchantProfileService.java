@@ -4,7 +4,7 @@ import com.scott.payment.merchant.dto.profile.MerchantProfileResponse;
 import com.scott.payment.merchant.dto.profile.MerchantProfileUpdateRequest;
 
 /**
- * 商户主体资料领域服务，统一当前商户查询、可编辑字段更新和共享缓存可靠失效边界
+ * 商户主体资料领域服务，统一资料查询、可编辑字段更新和共享缓存可靠失效边界。
  */
 public interface MerchantProfileService {
 

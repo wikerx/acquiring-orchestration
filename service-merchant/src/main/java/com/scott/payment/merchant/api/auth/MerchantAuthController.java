@@ -1,4 +1,4 @@
-package com.scott.payment.merchant.controller;
+package com.scott.payment.merchant.api.auth;
 
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
@@ -43,7 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 商户管理系统登录注册与权限接口
+ * 商户管理系统登录、注册和权限接口。
  */
 @RestController
 @RequestMapping("/merchant/auth")

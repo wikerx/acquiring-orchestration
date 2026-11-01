@@ -108,7 +108,8 @@ public class ReliableMqOutboxRelayService {
             boolean sent = outboxStore.markSent(event.getId(), claimedVersion, LocalDateTime.now()) == 1
                     || alreadySent(eventId);
             if (!sent) {
-                log.error("event: RELIABLE_MQ_MARK_SENT_CAS_FAILED eventId: {} topic: {} expectedVersion: {}",
+                log.error("可靠消息发送成功状态 CAS 更新失败, event: RELIABLE_MQ_MARK_SENT_CAS_FAILED, "
+                                + "eventId: {}, topic: {}, expectedVersion: {}",
                         event.getEventId(), event.getTopic(), claimedVersion);
             }
             return sent;
@@ -171,6 +172,12 @@ public class ReliableMqOutboxRelayService {
                 LocalDateTime.now());
     }
 
+    /**
+     * 将数据库聚合结果中的空数量转换为零。
+     *
+     * @param value 数据库聚合数量
+     * @return 非空且不改变符号的数量值
+     */
     private long count(Long value) {
         return value == null ? 0L : value;
     }
@@ -193,11 +200,13 @@ public class ReliableMqOutboxRelayService {
                 exception.getClass().getSimpleName(),
                 now);
         if (affectedRows != 1) {
-            log.error("event: RELIABLE_MQ_MARK_FAILED_CAS_FAILED eventId: {} topic: {} expectedVersion: {} exceptionType: {}",
+            log.error("可靠消息发送失败状态 CAS 更新失败, event: RELIABLE_MQ_MARK_FAILED_CAS_FAILED, "
+                            + "eventId: {}, topic: {}, expectedVersion: {}, exceptionType: {}",
                     event.getEventId(), event.getTopic(), claimedVersion,
                     exception.getClass().getSimpleName());
         }
-        log.warn("event: RELIABLE_MQ_RELAY_FAILED eventId: {} topic: {} retryCount: {} closed: {} exceptionType: {} stateRecorded: {}",
+        log.warn("可靠消息投递失败, event: RELIABLE_MQ_RELAY_FAILED, eventId: {}, topic: {}, "
+                        + "retryCount: {}, closed: {}, exceptionType: {}, stateRecorded: {}",
                 event.getEventId(), event.getTopic(), nextRetryCount, exhausted,
                 exception.getClass().getSimpleName(), affectedRows == 1);
     }

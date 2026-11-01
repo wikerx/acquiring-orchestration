@@ -15,12 +15,16 @@ import java.util.Set;
 public interface PayoutChannelClient {
 
     /**
-     * @return 当前 Provider 唯一渠道编码
+     * 返回当前 Provider 的唯一渠道编码。
+     *
+     * @return 稳定渠道编码
      */
     String channelCode();
 
     /**
-     * @return 当前 Provider 明确支持的代付能力
+     * 返回当前 Provider 明确支持的代付能力。
+     *
+     * @return 不可变或只读能力集合
      */
     Set<PayoutChannelCapability> capabilities();
 

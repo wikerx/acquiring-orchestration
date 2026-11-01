@@ -14,6 +14,7 @@ import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.channel.payment.exception.ChannelResponseException;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -170,6 +171,11 @@ public class ApiClient {
     private final HttpClient httpClient;
 
     /**
+     * 渠道出站地址安全策略。
+     */
+    private final OutboundHttpUrlPolicy outboundUrlPolicy;
+
+    /**
      * 创建 WorldPay JSON API 客户端。
      *
      * @param requestConverter 请求映射器
@@ -178,9 +184,23 @@ public class ApiClient {
     @Autowired
     public ApiClient(RequestConverter requestConverter,
                                  ResponseConverter responseConverter) {
+        this(requestConverter, responseConverter,
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.PUBLIC_HTTPS_ONLY));
+    }
+
+    /**
+     * 创建按运行环境校验出站地址的 Worldpay JSON 客户端。
+     *
+     * @param requestConverter 请求映射器
+     * @param responseConverter 响应映射器
+     * @param outboundUrlPolicy 出站地址安全策略
+     */
+    public ApiClient(RequestConverter requestConverter,
+                     ResponseConverter responseConverter,
+                     OutboundHttpUrlPolicy outboundUrlPolicy) {
         this(requestConverter, responseConverter, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
-                .build());
+                .build(), outboundUrlPolicy);
     }
 
     /**
@@ -193,9 +213,26 @@ public class ApiClient {
     public ApiClient(RequestConverter requestConverter,
                      ResponseConverter responseConverter,
                      HttpClient httpClient) {
+        this(requestConverter, responseConverter, httpClient,
+                new OutboundHttpUrlPolicy(OutboundHttpUrlPolicy.Mode.DEVELOPMENT));
+    }
+
+    /**
+     * 创建传输层和出站策略均可控的 Worldpay JSON 客户端。
+     *
+     * @param requestConverter 请求映射器
+     * @param responseConverter 响应映射器
+     * @param httpClient HTTP 客户端
+     * @param outboundUrlPolicy 出站地址安全策略
+     */
+    public ApiClient(RequestConverter requestConverter,
+                     ResponseConverter responseConverter,
+                     HttpClient httpClient,
+                     OutboundHttpUrlPolicy outboundUrlPolicy) {
         this.requestConverter = requestConverter;
         this.responseConverter = responseConverter;
         this.httpClient = httpClient;
+        this.outboundUrlPolicy = outboundUrlPolicy;
     }
 
     /**
@@ -416,16 +453,30 @@ public class ApiClient {
         String transactionType = normalizeType(request.getTransactionType());
         if (ChannelCapability.QUERY.getCode().equals(transactionType)) {
             String queryPath = firstText(worldpayActionLink(request, transactionType), extensionValue(request, "mid.queryPath"), DEFAULT_QUERY_PATH);
-            return appendPath(baseUrl, expandPath(queryPath, request, midConfig));
+            return validateOutboundUrl(appendPath(baseUrl, expandPath(queryPath, request, midConfig)));
         }
         if (isFollowUp(transactionType)) {
             String actionPath = requiredText(firstText(worldpayActionLink(request, transactionType), configuredFollowUpPath(request, transactionType)),
                     "WorldPay JSON follow-up action link is required");
-            return appendPath(baseUrl, expandPath(actionPath, request, midConfig));
+            return validateOutboundUrl(appendPath(baseUrl, expandPath(actionPath, request, midConfig)));
         }
         String endpointPath = firstText(extensionValue(request, "mid.endpointPath"), extensionValue(request, "mid.paymentPath"),
                 isCardPaymentsApi(request) ? CARD_PAYMENTS_PAYMENT_PATH : DEFAULT_PAYMENT_PATH);
-        return appendPath(baseUrl, expandPath(endpointPath, request, midConfig));
+        return validateOutboundUrl(appendPath(baseUrl, expandPath(endpointPath, request, midConfig)));
+    }
+
+    /**
+     * 在建立网络请求前校验 Worldpay JSON 完整目标地址。
+     *
+     * @param url 完整请求地址
+     * @return 规范化后的安全地址
+     */
+    private String validateOutboundUrl(String url) {
+        try {
+            return outboundUrlPolicy.validate(url).toASCIIString();
+        } catch (IllegalArgumentException exception) {
+            throw new ChannelRequestException("WorldPay JSON requestUrl violates outbound URL policy", exception);
+        }
     }
 
     /**

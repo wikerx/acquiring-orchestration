@@ -1,5 +1,6 @@
 package com.scott.payment.channel.payment.worldpay.converter;
 
+import com.scott.payment.channel.payment.enums.ChannelCapability;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import org.springframework.util.StringUtils;
 
@@ -42,8 +43,13 @@ public class TradeStatusMapper {
      * </p>
      */
     private static final Set<String> FAILED_STATUSES = Set.of(
-            "REFUSED", "ERROR", "FAILED", "FAILURE", "CANCELLED", "CANCELED", "DECLINED", "EXPIRED"
+            "REFUSED", "ERROR", "FAILED", "FAILURE", "DECLINED", "EXPIRED"
     );
+
+    /**
+     * Worldpay 已完成取消的原始状态集合；是否成功由当前平台动作决定。
+     */
+    private static final Set<String> CANCELLED_STATUSES = Set.of("CANCELLED", "CANCELED");
 
     /**
      * Worldpay 待处理方向原始状态集合。
@@ -68,6 +74,17 @@ public class TradeStatusMapper {
      * @return 渠道统一状态编码
      */
     public String map(String rawStatus) {
+        return map(rawStatus, null);
+    }
+
+    /**
+     * 将 Worldpay 原始状态按当前平台动作映射为统一渠道状态。
+     *
+     * @param rawStatus Worldpay 原始状态
+     * @param transactionType 平台交易类型；查询时传入原始交易类型
+     * @return 渠道统一状态编码
+     */
+    public String map(String rawStatus, String transactionType) {
         String status = normalize(rawStatus);
         if (!StringUtils.hasText(status)) {
             return ChannelTradeStatus.PROCESSING.getCode();
@@ -80,6 +97,11 @@ public class TradeStatusMapper {
         }
         if (REFUNDED_STATUSES.contains(status)) {
             return ChannelTradeStatus.REFUNDED.getCode();
+        }
+        if (CANCELLED_STATUSES.contains(status)) {
+            return ChannelCapability.VOID.getCode().equals(normalize(transactionType))
+                    ? ChannelTradeStatus.VOIDED.getCode()
+                    : ChannelTradeStatus.FAILED.getCode();
         }
         if (FAILED_STATUSES.contains(status)) {
             return ChannelTradeStatus.FAILED.getCode();

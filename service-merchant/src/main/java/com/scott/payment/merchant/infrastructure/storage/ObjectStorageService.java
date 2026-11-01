@@ -1,7 +1,7 @@
 package com.scott.payment.merchant.infrastructure.storage;
 
 /**
- * 商户端对象存储端口，隔离资料业务与 MinIO 或 AWS S3 实现
+ * 商户资料对象存储端口，隔离资料业务与 MinIO 或 AWS S3 实现。
  */
 public interface ObjectStorageService {
 

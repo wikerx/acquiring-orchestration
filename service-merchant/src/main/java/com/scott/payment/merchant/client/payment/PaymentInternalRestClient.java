@@ -180,8 +180,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException(HttpMethod.POST, uri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-payment post call failed, targetPath: {}, exceptionType: {}",
-                    uri.getPath(), exception.getClass().getSimpleName());
+            log.warn("支付内部接口调用失败, event: MERCHANT_PAYMENT_INTERNAL_CALL_FAILED, method: {}, path: {}, exceptionType: {}",
+                    HttpMethod.POST.name(), uri.getPath(), exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment post call failed");
         }
     }
@@ -252,6 +252,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return loadBalancedRestTemplate;
     }
 
+    /**
+     * 校验支付核心统一响应并返回非空业务数据。
+     */
     private <T> T unwrapData(CommonResult<T> result) {
         if (result == null) {
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment response is empty");
@@ -265,8 +268,11 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return result.getData();
     }
 
+    /**
+     * 将支付核心 HTTP 异常转换为商户端稳定错误，日志不记录签名或报文。
+     */
     private ApiException translateHttpException(HttpMethod method, URI uri, HttpStatusCodeException exception) {
-        log.warn("service-payment {} call returned non-success status, targetPath: {}, status: {}, exceptionType: {}",
+        log.warn("支付内部接口请求被拒绝, event: MERCHANT_PAYMENT_INTERNAL_HTTP_REJECTED, method: {}, path: {}, status: {}, exceptionType: {}",
                 method.name(),
                 uri.getPath(),
                 exception.getStatusCode().value(),

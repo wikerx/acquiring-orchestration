@@ -86,41 +86,21 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
     @Data
     public static class PayerInfoDTO implements Serializable {
         private static final long serialVersionUID = 1L;
-        /**
-         * {@code payerId}，用于定位 {@code PayerInfoDTO} 关联的上游配置、渠道、账号、角色或业务记录。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String payerId;
         /**
          * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
          */
         private String email;
-        /**
-         * 首个名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String firstName;
-        /**
-         * {@code lastName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String lastName;
         /**
          * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
          */
         private String phone;
-        /**
-         * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
-         */
+
         private String country;
         /**
          * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
@@ -138,37 +118,16 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
          * 邮编，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。
          */
         private String postal;
-        /**
-         * {@code ipAddress}字段，保存 {@code PayerInfoDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String ipAddress;
-        /**
-         * {@code sessionId}，用于定位 {@code PayerInfoDTO} 关联的上游配置、渠道、账号、角色或业务记录。
-         * <p>
-         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String sessionId;
         /**
-         * {@code browserInfo}字段，保存 {@code PayerInfoDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
+         * 浏览器、设备和网络扩展信息；协议允许新增字段，因此保留动态结构以完整回传原始上下文。
+         * 该结构可能包含可识别信息，禁止直接写入普通日志。
          */
         private java.util.Map<String, Object> browserInfo;
-        /**
-         * {@code userAgent}字段，保存 {@code PayerInfoDTO} 当前处理所需的业务取值。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String userAgent;
     }
 
@@ -178,21 +137,9 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
     @Data
     public static class BillingInfoDTO implements Serializable {
         private static final long serialVersionUID = 1L;
-        /**
-         * 首个名称，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String firstName;
-        /**
-         * {@code lastName}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
-         * </p>
-         */
+
         private String lastName;
         /**
          * 邮件，表示业务联系人或付款人的邮箱地址，展示和日志输出必须脱敏。
@@ -202,9 +149,7 @@ public class PaymentCheckoutSessionQueryResultDTO implements Serializable {
          * 电话，表示业务联系人或付款人的电话号码，展示和日志输出必须脱敏。
          */
         private String phone;
-        /**
-         * 国家或地区，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
-         */
+
         private String country;
         /**
          * 状态，表示账单、收货或商户地址组成部分，展示和日志输出必须脱敏。

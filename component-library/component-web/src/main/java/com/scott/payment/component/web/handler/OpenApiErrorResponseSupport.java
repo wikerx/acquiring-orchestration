@@ -21,6 +21,9 @@ final class OpenApiErrorResponseSupport {
      */
     private static final String HEADER_AUTHORIZATION = "authorization";
 
+    /**
+     * 禁止实例化 OpenAPI 错误响应投影工具类。
+     */
     private OpenApiErrorResponseSupport() {
     }
 

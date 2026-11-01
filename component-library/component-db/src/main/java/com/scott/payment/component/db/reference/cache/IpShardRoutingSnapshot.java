@@ -30,6 +30,11 @@ public class IpShardRoutingSnapshot {
     private final IpLocationLookupMapper mapper;
     private final AtomicReference<State> state = new AtomicReference<>(new State("uninitialized", List.of()));
 
+    /**
+     * 创建基于 IP 分片元数据的本地路由快照。
+     *
+     * @param mapper IP 分片与定位数据访问器
+     */
     public IpShardRoutingSnapshot(IpLocationLookupMapper mapper) {
         this.mapper = mapper;
     }
@@ -88,6 +93,12 @@ public class IpShardRoutingSnapshot {
         return state.get().version();
     }
 
+    /**
+     * 校验并转换单条 IP 分片元数据为内存路由。
+     *
+     * @param row 数据库分片元数据
+     * @return 可比较的内存路由
+     */
     private Route toRoute(IpLibraryShardDO row) {
         if (row == null || row.getId() == null || !StringUtils.hasText(row.getIpType())
                 || !StringUtils.hasText(row.getRangeStart()) || !StringUtils.hasText(row.getRangeEnd())
@@ -106,6 +117,11 @@ public class IpShardRoutingSnapshot {
         }
     }
 
+    /**
+     * 校验同一 IP 类型的已排序路由区间不存在重叠。
+     *
+     * @param routes 按类型和起始数值排序的路由列表
+     */
     private void validateNoOverlap(List<Route> routes) {
         Route previous = null;
         for (Route route : routes) {
@@ -117,6 +133,12 @@ public class IpShardRoutingSnapshot {
         }
     }
 
+    /**
+     * 根据完整有序路由元数据计算稳定 SHA-256 版本。
+     *
+     * @param routes 已校验且有序的路由列表
+     * @return 小写十六进制版本摘要
+     */
     private String version(List<Route> routes) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -132,9 +154,24 @@ public class IpShardRoutingSnapshot {
         }
     }
 
+    /**
+     * 原子发布的不可变路由快照状态。
+     *
+     * @param version 完整路由摘要版本
+     * @param routes 已排序路由集合
+     */
     private record State(String version, List<Route> routes) {
     }
 
+    /**
+     * 已解析数值边界的单条 IP 分片路由。
+     *
+     * @param id 分片元数据主键
+     * @param ipType IPv4 或 IPv6 类型
+     * @param rangeStart 无符号区间起点
+     * @param rangeEnd 无符号区间终点
+     * @param shard 原始分片元数据
+     */
     private record Route(Long id,
                          String ipType,
                          BigInteger rangeStart,

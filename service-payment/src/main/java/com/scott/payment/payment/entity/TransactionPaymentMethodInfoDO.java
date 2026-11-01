@@ -17,9 +17,7 @@ public class TransactionPaymentMethodInfoDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /**
-     * {@code TransactionPaymentMethodInfoDO} 数据库主键，用于唯一标识当前记录。
-     */
+
     @TableId(type = IdType.AUTO)
     private Long id;
 
@@ -38,9 +36,7 @@ public class TransactionPaymentMethodInfoDO implements Serializable {
      */
     private String operationId;
 
-    /**
-     * 支付方式，表示支付方式、通知方式或调用方式。
-     */
+
     private String paymentMethod;
 
     /**
@@ -63,13 +59,7 @@ public class TransactionPaymentMethodInfoDO implements Serializable {
      */
     private String cardNumberMasked;
 
-    /**
-     * {@code cardholderNameMasked}，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private String cardholderNameMasked;
 
     /**
@@ -89,31 +79,19 @@ public class TransactionPaymentMethodInfoDO implements Serializable {
 
     /**
      * {@code walletType}，用于区分 {@code TransactionPaymentMethodInfoDO} 记录的处理类别、配置维度或外部协议枚举。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * </p>
      */
     private String walletType;
 
-    /**
-     * {@code paymentAccountHash}，用于以不可逆摘要关联敏感原文或大报文。
-     */
+
     private String paymentAccountHash;
 
-    /**
-     * {@code issuerCountry}，表示国家或地区代码，用于路由、风控、卡 BIN 识别或地域限制。
-     */
+
     private String issuerCountry;
 
-    /**
-     * {@code fundingMethod}，表示支付方式、通知方式或调用方式。
-     */
+
     private String fundingMethod;
 
-    /**
-     * {@code threeDsIndicator}，表示 3DS 认证状态、版本或结果标识，用于渠道授权和风控判断。
-     */
+
     private String threeDsIndicator;
 
     /**

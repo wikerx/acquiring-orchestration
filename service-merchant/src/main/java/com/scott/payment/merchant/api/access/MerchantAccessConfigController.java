@@ -93,6 +93,9 @@ public class MerchantAccessConfigController {
         return success(applicationService.submitIpWhitelists(currentMerchantId(), request));
     }
 
+    /**
+     * 读取当前认证上下文中的商户号，缺失时拒绝请求。
+     */
     private String currentMerchantId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || !StringUtils.hasText(account.getMerchantId())) {

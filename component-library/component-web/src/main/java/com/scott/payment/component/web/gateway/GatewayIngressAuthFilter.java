@@ -28,13 +28,7 @@ import java.util.function.LongSupplier;
 @Order(Ordered.HIGHEST_PRECEDENCE + 30)
 public class GatewayIngressAuthFilter extends OncePerRequestFilter {
 
-    /**
-     * {@code MAX_NONCE_LENGTH}常量，统一 {@code GatewayIngressAuthFilter} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int MAX_NONCE_LENGTH = 128;
 
     private final GatewayIngressAuthProperties properties;
@@ -64,6 +58,13 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
         this(properties, replayGuardProvider.getIfAvailable(), System::currentTimeMillis);
     }
 
+    /**
+     * 创建可注入防重放存储和时钟的入口验签过滤器，供隔离测试使用。
+     *
+     * @param properties Gateway 入口验签配置
+     * @param replayGuard nonce 原子防重放存储
+     * @param currentTimeMillis 当前毫秒时间提供器
+     */
     GatewayIngressAuthFilter(GatewayIngressAuthProperties properties,
                              InternalRequestReplayGuard replayGuard,
                              LongSupplier currentTimeMillis) {
@@ -178,6 +179,19 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
                 && !(properties.isProtectPortalPaths() && GatewayIngressSignature.isProtectedPortalPath(path));
     }
 
+    /**
+     * 校验正文摘要绑定的 v2 签名，并仅在显式兼容配置开启时接受旧签名。
+     *
+     * @param request 当前请求
+     * @param requestTarget 原始请求目标
+     * @param timestamp 签名时间戳
+     * @param nonce 单次请求随机串
+     * @param bodySha256Header Gateway 声明的正文摘要
+     * @param actualBodySha256 下游根据缓存正文计算的摘要
+     * @param clientIp Gateway 解析并签名的客户端 IP
+     * @param signature 请求签名
+     * @return 签名和正文摘要均通过时返回 true
+     */
     private boolean verifySignature(HttpServletRequest request,
                                     String requestTarget,
                                     long timestamp,
@@ -203,17 +217,38 @@ public class GatewayIngressAuthFilter extends OncePerRequestFilter {
         return GatewayIngressSignature.matches(legacyExpected, signature);
     }
 
+    /**
+     * 读取正文缓存过滤器计算的摘要；空正文使用协议固定摘要。
+     *
+     * @param request 当前请求
+     * @return 小写十六进制 SHA-256 摘要
+     */
     private String resolveBodySha256(HttpServletRequest request) {
         Object digest = request.getAttribute(GatewayIngressRequestBodyFilter.BODY_SHA256_ATTRIBUTE);
         return digest instanceof String value && StringUtils.hasText(value)
                 ? value : GatewayIngressSignature.EMPTY_BODY_SHA256;
     }
 
+    /**
+     * 写入未经过可信 Gateway 的统一未授权响应。
+     *
+     * @param response HTTP 响应
+     * @throws IOException 响应写入失败时抛出
+     */
     private void rejectUnauthorized(HttpServletResponse response) throws IOException {
         writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
                 ApiResultEnum.UNAUTHORIZED.getCode(), "checkout requests must pass through service-gateway");
     }
 
+    /**
+     * 使用受控错误码和文案写入 Gateway 入口 JSON 错误响应。
+     *
+     * @param response HTTP 响应
+     * @param status HTTP 状态码
+     * @param code 统一错误码
+     * @param message 安全错误描述
+     * @throws IOException 响应写入失败时抛出
+     */
     private void writeError(HttpServletResponse response, int status, String code, String message) throws IOException {
         response.setStatus(status);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

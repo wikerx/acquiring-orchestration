@@ -12,19 +12,11 @@ import org.springframework.stereotype.Component;
 public class JobExecutorNodeHeartbeatReporter {
 
     /**
-     * {@code jobSchedulerProperties}字段，保存 {@code JobExecutorNodeHeartbeatReporter} 当前处理所需的业务取值。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * </p>
+     * 调度启停和节点心跳周期配置。
      */
     private final JobSchedulerProperties jobSchedulerProperties;
     /**
-     * {@code jobExecutorNodeService} 依赖，用于 {@code JobExecutorNodeHeartbeatReporter} 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * </p>
+     * 执行节点服务，用于上报当前节点并收敛超时节点状态。
      */
     private final JobExecutorNodeService jobExecutorNodeService;
 

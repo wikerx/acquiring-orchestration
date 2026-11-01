@@ -225,6 +225,12 @@ public class QuarterTableShardingAlgorithm implements StandardShardingAlgorithm<
         return result;
     }
 
+    /**
+     * 物理表名称及其解析后的自然季度。
+     *
+     * @param targetName ShardingSphere 可用的物理表名称
+     * @param quarter 物理表对应自然季度
+     */
     private record NodeQuarter(String targetName, ShardingQuarter quarter) {
     }
 }

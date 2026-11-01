@@ -19,18 +19,10 @@ public class TransactionFinanceStateDO implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /**
-     * {@code TransactionFinanceStateDO} 数据库主键，用于唯一标识当前记录。
-     */
+
     @TableId(type = IdType.AUTO)
     private Long id;
-    /**
-     * {@code financeStateId}，用于定位 {@code TransactionFinanceStateDO} 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private String financeStateId;
     /**
      * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
@@ -44,45 +36,17 @@ public class TransactionFinanceStateDO implements Serializable {
      * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
      */
     private String transactionType;
-    /**
-     * 结算状态，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
+
     private String settlementStatus;
-    /**
-     * 结算币种，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private String settlementCurrency;
     /**
      * 持久化的结算汇率，用于还原当前记录的业务事实。
      */
     private BigDecimal settlementRate;
-    /**
-     * 结算金额，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal settlementAmount;
-    /**
-     * 结算费用金额，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal settlementFeeAmount;
     /**
      * 持久化的{@code feeItemsJson}，用于还原当前记录的业务事实。
@@ -100,14 +64,7 @@ public class TransactionFinanceStateDO implements Serializable {
      * 持久化的结算批次编号，用于还原当前记录的业务事实。
      */
     private String settlementBatchNo;
-    /**
-     * {@code reconciliationStatus}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
+
     private String reconciliationStatus;
     /**
      * 持久化的{@code reconciliationDate}，用于还原当前记录的业务事实。
@@ -117,108 +74,31 @@ public class TransactionFinanceStateDO implements Serializable {
      * 持久化的{@code reconciliationBatchNo}，用于还原当前记录的业务事实。
      */
     private String reconciliationBatchNo;
-    /**
-     * {@code accountingStatus}，表示当前记录在业务流程中的处理状态。
-     * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
-     * </p>
-     */
+
     private String accountingStatus;
     /**
      * 持久化的{@code accountingTime}，用于还原当前记录的业务事实。
      */
     private LocalDateTime accountingTime;
-    /**
-     * 渠道费用币种，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private String channelFeeCurrency;
-    /**
-     * 渠道费用金额，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal channelFeeAmount;
-    /**
-     * 平台费用币种，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private String platformFeeCurrency;
-    /**
-     * 平台费用金额，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal platformFeeAmount;
-    /**
-     * {@code merchantReceivableCurrency}，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private String merchantReceivableCurrency;
-    /**
-     * {@code merchantReceivableAmount}，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal merchantReceivableAmount;
-    /**
-     * 保证金币种，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private String reserveCurrency;
-    /**
-     * 保证金金额，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal reserveAmount;
-    /**
-     * {@code netSettlementCurrency}，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
+
     private String netSettlementCurrency;
-    /**
-     * {@code netSettlementAmount}，表示当前交易、费用、限额或统计口径下的金额值。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：必须与 currency 或同名币种字段一起解释。
-     * </p>
-     */
+
     private BigDecimal netSettlementAmount;
     /**
      * 交易受理时刻，按交易业务时区解释并保留毫秒精度。
@@ -232,13 +112,7 @@ public class TransactionFinanceStateDO implements Serializable {
      * 交易业务时区，使用 IANA 时区标识解释本地交易时间。
      */
     private String transactionTimeZone;
-    /**
-     * 版本，用于配置快照追踪、缓存代际判断或乐观锁并发控制。
-     * <p>
-     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
-     * </p>
-     */
+
     private Integer version;
     /**
      * 逻辑删除标识；0 表示有效，1 表示已删除，查询必须沿用统一软删除口径。

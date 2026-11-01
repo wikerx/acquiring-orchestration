@@ -54,77 +54,23 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
      */
     public static final String MASTER_KEY_FILE_PROPERTY = "acquiring.nacos.encryption.master-key-file";
 
-    /**
-     * 算法转换常量，统一 {@code AcquiringAesGcmEncryptionPlugin} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
-    /**
-     * 报文版本，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String PAYLOAD_VERSION = "v1";
-    /**
-     * {@code SEPARATOR}常量，统一 {@code AcquiringAesGcmEncryptionPlugin} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：无；格式：固定协议字面量或受控编码；不允许为空；非敏感字段。
-     * 取值范围：取值由当前类对接的协议、状态机或配置约定限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final String SEPARATOR = ".";
-    /**
-     * {@code AES_KEY_BITS}常量，统一 {@code AcquiringAesGcmEncryptionPlugin} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：位；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或数值精度边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int AES_KEY_BITS = 256;
-    /**
-     * 一次性 AES 数据密钥字节数。
-     * <p>
-     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int AES_KEY_BYTES = AES_KEY_BITS / 8;
-    /**
-     * AES-GCM 随机 IV 字节数，每次卡数据封装必须重新生成。
-     * <p>
-     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int GCM_IV_BYTES = 12;
-    /**
-     * AES-GCM 认证标签位数，用于同时校验卡数据密文完整性。
-     * <p>
-     * 单位：位；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或数值精度边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int GCM_TAG_BITS = 128;
-    /**
-     * {@code MAX_MASTER_KEY_FILE_BYTES}常量，统一 {@code AcquiringAesGcmEncryptionPlugin} 内部使用的配置值、状态码或协议字段。
-     * <p>
-     * 单位：字节；格式：正整数；不允许为空；非敏感字段。
-     * 取值范围：取值由算法协议或输入长度保护边界限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final int MAX_MASTER_KEY_FILE_BYTES = 16 * 1024;
-    /**
-     * 密码学安全随机数生成器，用于生成一次性 AES 密钥和 GCM IV。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * </p>
-     */
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     /**
@@ -182,6 +128,11 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         return decryptWithKey(resolveMasterKey(), requireContent(secretKey));
     }
 
+    /**
+     * 按系统属性、环境变量、受控文件的优先级解析部署级 AES-256 根密钥。
+     *
+     * @return 32 字节根密钥
+     */
     private byte[] resolveMasterKey() {
         String configured = System.getProperty(MASTER_KEY_PROPERTY);
         if (configured == null || configured.trim().isEmpty()) {
@@ -242,6 +193,12 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
+    /**
+     * 从纯 Base64 或 dotenv 文件内容中提取唯一根密钥值。
+     *
+     * @param content 受控密钥文件正文
+     * @return 根密钥 Base64 文本
+     */
     private String masterKeyFromFileContent(String content) {
         if (content == null || content.isEmpty()) {
             throw new IllegalStateException("Nacos configuration master key file is empty");
@@ -272,6 +229,12 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         return resolved;
     }
 
+    /**
+     * 去除 dotenv 值首尾成对的单引号或双引号。
+     *
+     * @param value dotenv 值
+     * @return 去除成对引号后的文本
+     */
     private String removeMatchingQuotes(String value) {
         if (value.length() >= 2) {
             char first = value.charAt(0);
@@ -283,6 +246,13 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         return value;
     }
 
+    /**
+     * 解码并校验 AES 密钥恰好为 256 位。
+     *
+     * @param encodedKey Base64 密钥文本
+     * @param keyName 安全错误中使用的密钥槽位名
+     * @return 32 字节 AES 密钥
+     */
     private byte[] decodeKey(String encodedKey, String keyName) {
         if (encodedKey == null || encodedKey.trim().isEmpty()) {
             throw new IllegalStateException("Nacos configuration " + keyName + " is required");
@@ -298,6 +268,13 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
+    /**
+     * 使用独立随机 IV 将配置正文加密为版本化 AES-GCM 载荷。
+     *
+     * @param key 256 位 AES 密钥
+     * @param content 待加密配置或数据密钥正文
+     * @return 版本、IV 和密文组成的载荷
+     */
     private String encryptWithKey(byte[] key, String content) {
         try {
             byte[] iv = new byte[GCM_IV_BYTES];
@@ -314,6 +291,13 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
+    /**
+     * 校验版本和 IV 后解密 AES-GCM 载荷，认证失败时不返回任何明文。
+     *
+     * @param key 256 位 AES 密钥
+     * @param payload 版本化加密载荷
+     * @return 通过认证的明文
+     */
     private String decryptWithKey(byte[] key, String payload) {
         String[] parts = payload.split("\\.", -1);
         if (parts.length != 3 || !PAYLOAD_VERSION.equals(parts[0])) {
@@ -334,6 +318,12 @@ public final class AcquiringAesGcmEncryptionPlugin implements EncryptionPluginSe
         }
     }
 
+    /**
+     * 校验加解密内容非 null，同时允许合法空字符串配置。
+     *
+     * @param content 待处理内容
+     * @return 原内容
+     */
     private String requireContent(String content) {
         if (content == null) {
             throw new IllegalStateException("Nacos configuration encryption content is required");

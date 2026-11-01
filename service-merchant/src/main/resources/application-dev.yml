@@ -70,6 +70,12 @@ acquiring:
     protect-portal-paths: false
 
 payment:
+  merchant:
+    default-login:
+      # 本地调试如需展示种子凭据，必须显式开启并通过环境变量注入口令。
+      enabled: ${MERCHANT_DEFAULT_LOGIN_CREDENTIAL_ENABLED:false}
+      login-account: ${MERCHANT_DEFAULT_LOGIN_ACCOUNT:admin}
+      password: ${MERCHANT_DEFAULT_LOGIN_PASSWORD:}
   mfa:
     secret: ${PAYMENT_MFA_SECRET:}
     previous-secrets: ${PAYMENT_MFA_PREVIOUS_SECRETS:}

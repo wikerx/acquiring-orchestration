@@ -3,12 +3,14 @@ package com.scott.payment.channel.payment.worldpay.config;
 import com.scott.payment.channel.payment.worldpay.callback.CallbackProtocol;
 import com.scott.payment.channel.payment.worldpay.converter.TradeStatusMapper;
 import com.scott.payment.channel.payment.worldpay.xml.codec.XmlCodec;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 
 /**
  * 注册 Worldpay JSON、XML 渠道适配器及统一回调协议。
@@ -59,13 +61,18 @@ public class ChannelAutoConfiguration {
      *
      * @param requestConverter JSON 请求转换器
      * @param responseConverter JSON 响应转换器
+     * @param environment Spring 活动环境
      * @return JSON API 客户端
      */
     @Bean
     @ConditionalOnMissingBean
-    com.scott.payment.channel.payment.worldpay.json.client.ApiClient worldPayJsonApiClient(com.scott.payment.channel.payment.worldpay.json.converter.RequestConverter requestConverter,
-                                                com.scott.payment.channel.payment.worldpay.json.converter.ResponseConverter responseConverter) {
-        return new com.scott.payment.channel.payment.worldpay.json.client.ApiClient(requestConverter, responseConverter);
+    com.scott.payment.channel.payment.worldpay.json.client.ApiClient worldPayJsonApiClient(
+            com.scott.payment.channel.payment.worldpay.json.converter.RequestConverter requestConverter,
+            com.scott.payment.channel.payment.worldpay.json.converter.ResponseConverter responseConverter,
+            Environment environment) {
+        return new com.scott.payment.channel.payment.worldpay.json.client.ApiClient(
+                requestConverter, responseConverter, new OutboundHttpUrlPolicy(
+                OutboundHttpUrlPolicy.modeForProfiles(environment.getActiveProfiles())));
     }
 
     /**
@@ -122,13 +129,18 @@ public class ChannelAutoConfiguration {
      *
      * @param requestConverter XML 请求转换器
      * @param responseConverter XML 响应转换器
+     * @param environment Spring 活动环境
      * @return XML API 客户端
      */
     @Bean
     @ConditionalOnMissingBean
-    com.scott.payment.channel.payment.worldpay.xml.client.ApiClient worldPayXmlApiClient(com.scott.payment.channel.payment.worldpay.xml.converter.RequestConverter requestConverter,
-                                              com.scott.payment.channel.payment.worldpay.xml.converter.ResponseConverter responseConverter) {
-        return new com.scott.payment.channel.payment.worldpay.xml.client.ApiClient(requestConverter, responseConverter);
+    com.scott.payment.channel.payment.worldpay.xml.client.ApiClient worldPayXmlApiClient(
+            com.scott.payment.channel.payment.worldpay.xml.converter.RequestConverter requestConverter,
+            com.scott.payment.channel.payment.worldpay.xml.converter.ResponseConverter responseConverter,
+            Environment environment) {
+        return new com.scott.payment.channel.payment.worldpay.xml.client.ApiClient(
+                requestConverter, responseConverter, new OutboundHttpUrlPolicy(
+                OutboundHttpUrlPolicy.modeForProfiles(environment.getActiveProfiles())));
     }
 
     /**

@@ -14,6 +14,9 @@ import java.util.HexFormat;
  */
 public final class RedisKeyDigest {
 
+    /**
+     * 禁止实例化 Redis Key 动态维度摘要工具类。
+     */
     private RedisKeyDigest() {
     }
 

@@ -11,6 +11,9 @@ import java.util.Locale;
  **/
 final class PaymentOperationClassifier {
 
+    /**
+     * 禁止实例化无状态交易类型分类工具。
+     **/
     private PaymentOperationClassifier() {
     }
 
@@ -26,9 +29,27 @@ final class PaymentOperationClassifier {
      * 判断当前请求或查询目标是否属于卡授权生命周期。
      **/
     static boolean isCardAuthorizationRequest(ChannelPaymentRequest request) {
-        String operation = normalize(request.getTransactionType());
+        String requestOperation = normalize(request.getTransactionType());
+        String operation = effectiveOperation(request);
         return isCardAuthorizationOperation(operation)
-                || (ChannelCapability.QUERY.getCode().equals(operation) && isCardAuthorizationQuery(request));
+                || (ChannelCapability.QUERY.getCode().equals(requestOperation) && isCardAuthorizationQuery(request));
+    }
+
+    /**
+     * 解析当前写操作或查询所代表的原始交易类型。
+     *
+     * @param request 平台统一渠道请求
+     * @return 规范化后的交易类型
+     **/
+    static String effectiveOperation(ChannelPaymentRequest request) {
+        if (request == null) {
+            return "";
+        }
+        String operation = normalize(request.getTransactionType());
+        if (ChannelCapability.QUERY.getCode().equals(operation)) {
+            return normalize(request.getExtension().get("originalTransactionType"));
+        }
+        return operation;
     }
 
     /**

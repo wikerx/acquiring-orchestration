@@ -9,12 +9,14 @@ import com.scott.payment.channel.payment.mpgs.converter.RequestConverter;
 import com.scott.payment.channel.payment.mpgs.converter.ResponseCodeMapper;
 import com.scott.payment.channel.payment.mpgs.converter.ResponseConverter;
 import com.scott.payment.channel.payment.mpgs.converter.TradeStatusMapper;
+import com.scott.payment.component.core.security.OutboundHttpUrlPolicy;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 
 /**
  * MPGS provider 自动配置，仅在 payment.channel.mpgs.enabled=true 时注册该渠道的客户端、映射器、回调和验签实现。
@@ -77,14 +79,17 @@ public class ChannelAutoConfiguration {
      * @param properties MPGS 静态配置
      * @param requestConverter 请求转换器
      * @param responseConverter 响应转换器
+     * @param environment Spring 活动环境
      * @return MPGS API 客户端
      */
     @Bean
     @ConditionalOnMissingBean
     ApiClient mpgsApiClient(ChannelProperties properties,
-                                RequestConverter requestConverter,
-                                ResponseConverter responseConverter) {
-        return new ApiClient(properties, requestConverter, responseConverter);
+                            RequestConverter requestConverter,
+                            ResponseConverter responseConverter,
+                            Environment environment) {
+        return new ApiClient(properties, requestConverter, responseConverter, new OutboundHttpUrlPolicy(
+                OutboundHttpUrlPolicy.modeForProfiles(environment.getActiveProfiles())));
     }
 
     /**
